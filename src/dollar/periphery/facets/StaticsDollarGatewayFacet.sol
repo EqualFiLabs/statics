@@ -26,6 +26,14 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         uint256 nativeBalance;
     }
 
+    struct AtomicResidualSnapshot {
+        uint256 peggedCollateralUnreserved;
+        uint256 volatileCollateralUnreserved;
+        uint256 staticsDollarUnreserved;
+        uint256 riskShareBalance;
+        uint256 nativeBalance;
+    }
+
     function depositETH(
         address staticsDollarReceiver,
         address shareReceiver,
@@ -203,6 +211,327 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         _permitToken(preview.collateralToken, preview.totalCollateralIn, permitSignature);
         collateralIn =
             _executePeggedMint(ps, profileId, staticsDollarAmount, maximumCollateralIn, staticsDollarReceiver, preview);
+    }
+
+    function quoteMintPeggedAndRecombine(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount
+    ) external view returns (IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote) {
+        IStaticsDollarCore core = IStaticsDollarCore(LibPeriphery.s().pool);
+        quote.staticsDollarAmount = riskAmount;
+
+        try core.riskSeries(seriesId) returns (IStaticsDollarCoreTypes.RiskSeries memory series) {
+            quote.volatileCollateralToken = series.collateralToken;
+            if (series.profileId != volatileProfileId || series.status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
+                return quote;
+            }
+        } catch {
+            return quote;
+        }
+
+        try core.collateralProfile(volatileProfileId) returns (
+            IStaticsDollarCoreTypes.StableCollateralProfile memory profile
+        ) {
+            if (
+                profile.kind != IStaticsDollarCoreTypes.ProfileKind.Volatile
+                    || profile.mode == IStaticsDollarCoreTypes.ProfileMode.Inactive
+            ) return quote;
+        } catch {
+            return quote;
+        }
+
+        try core.collateralProfile(peggedProfileId) returns (
+            IStaticsDollarCoreTypes.StableCollateralProfile memory profile
+        ) {
+            quote.peggedCollateralToken = profile.collateralToken;
+            if (
+                profile.kind != IStaticsDollarCoreTypes.ProfileKind.Pegged
+                    || profile.mode != IStaticsDollarCoreTypes.ProfileMode.Active
+            ) return quote;
+        } catch {
+            return quote;
+        }
+
+        (IStaticsDollarCoreTypes.GlobalHealthPhase phase,,,) = core.globalImpairment();
+        quote.exitStatus = _exitStatusForPhase(phase);
+        if (quote.exitStatus != IStaticsDollarCoreTypes.ExitStatus.Available) return quote;
+
+        try core.previewPeggedMint(peggedProfileId, riskAmount) returns (
+            IStaticsDollarCoreTypes.PeggedMintPreview memory peggedPreview
+        ) {
+            quote.peggedCollateralPrincipal = peggedPreview.principalCollateral;
+            quote.peggedMintFee = peggedPreview.feeAmount;
+            quote.totalPeggedCollateralIn = peggedPreview.totalCollateralIn;
+        } catch {
+            return quote;
+        }
+
+        try core.previewRecombine(seriesId, riskAmount) returns (
+            IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview
+        ) {
+            quote.volatileCollateralOut = recombinationPreview.collateralOut;
+            quote.volatileRecombinationFee = recombinationPreview.feeAmount;
+        } catch {
+            return quote;
+        }
+
+        quote.eligible = true;
+    }
+
+    function mintPeggedAndRecombine(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount,
+        uint256 maximumPeggedCollateralIn,
+        uint256 minimumVolatileCollateralOut,
+        address receiver
+    )
+        external
+        nonReentrant
+        returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        IStaticsDollarCoreTypes.PeggedMintPreview memory peggedPreview;
+        IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview;
+        uint256 unhealthyProfileBitmap;
+        (status, peggedPreview, recombinationPreview, unhealthyProfileBitmap) = _preparePeggedAndRecombine(
+            ps,
+            peggedProfileId,
+            volatileProfileId,
+            seriesId,
+            riskAmount,
+            maximumPeggedCollateralIn,
+            minimumVolatileCollateralOut,
+            receiver
+        );
+        if (status != IStaticsDollarCoreTypes.ExitStatus.Available) {
+            _emitPeggedMintAndRecombineDeferred(
+                peggedProfileId, volatileProfileId, seriesId, receiver, status, unhealthyProfileBitmap
+            );
+            return (status, 0, 0);
+        }
+        (peggedCollateralIn, volatileCollateralOut) = _executePeggedAndRecombine(
+            ps,
+            peggedProfileId,
+            volatileProfileId,
+            seriesId,
+            riskAmount,
+            maximumPeggedCollateralIn,
+            minimumVolatileCollateralOut,
+            receiver,
+            peggedPreview,
+            recombinationPreview
+        );
+        return (status, peggedCollateralIn, volatileCollateralOut);
+    }
+
+    function mintPeggedAndRecombineWithPermit(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount,
+        uint256 maximumPeggedCollateralIn,
+        uint256 minimumVolatileCollateralOut,
+        address receiver,
+        IStaticsDollarGateway.PermitSignature calldata permitSignature
+    )
+        external
+        nonReentrant
+        returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        IStaticsDollarCoreTypes.PeggedMintPreview memory peggedPreview;
+        IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview;
+        uint256 unhealthyProfileBitmap;
+        (status, peggedPreview, recombinationPreview, unhealthyProfileBitmap) = _preparePeggedAndRecombine(
+            ps,
+            peggedProfileId,
+            volatileProfileId,
+            seriesId,
+            riskAmount,
+            maximumPeggedCollateralIn,
+            minimumVolatileCollateralOut,
+            receiver
+        );
+        if (status != IStaticsDollarCoreTypes.ExitStatus.Available) {
+            _emitPeggedMintAndRecombineDeferred(
+                peggedProfileId, volatileProfileId, seriesId, receiver, status, unhealthyProfileBitmap
+            );
+            return (status, 0, 0);
+        }
+        _permitToken(peggedPreview.collateralToken, peggedPreview.totalCollateralIn, permitSignature);
+        (peggedCollateralIn, volatileCollateralOut) = _executePeggedAndRecombine(
+            ps,
+            peggedProfileId,
+            volatileProfileId,
+            seriesId,
+            riskAmount,
+            maximumPeggedCollateralIn,
+            minimumVolatileCollateralOut,
+            receiver,
+            peggedPreview,
+            recombinationPreview
+        );
+        return (status, peggedCollateralIn, volatileCollateralOut);
+    }
+
+    function _preparePeggedAndRecombine(
+        LibPeriphery.PS storage ps,
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount,
+        uint256 maximumPeggedCollateralIn,
+        uint256 minimumVolatileCollateralOut,
+        address receiver
+    )
+        private
+        returns (
+            IStaticsDollarCoreTypes.ExitStatus status,
+            IStaticsDollarCoreTypes.PeggedMintPreview memory peggedPreview,
+            IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview,
+            uint256 unhealthyProfileBitmap
+        )
+    {
+        _requireReceiver(receiver);
+        if (riskAmount == 0) revert IStaticsDollarGateway.ZeroAmount();
+        IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
+        IStaticsDollarCoreTypes.RiskSeries memory series = core.riskSeries(seriesId);
+        if (series.profileId != volatileProfileId) {
+            revert IStaticsDollarGateway.UnexpectedCollateralProfile(volatileProfileId, series.profileId);
+        }
+        if (series.status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
+            revert IStaticsDollarGateway.SeriesUnavailableForOrdinaryRecombination(seriesId, series.status);
+        }
+        IStaticsDollarCoreTypes.StableCollateralProfile memory volatileProfile =
+            core.collateralProfile(volatileProfileId);
+        if (volatileProfile.kind != IStaticsDollarCoreTypes.ProfileKind.Volatile) {
+            revert IStaticsDollarGateway.UnexpectedCollateralProfile(volatileProfileId, series.profileId);
+        }
+        if (volatileProfile.mode == IStaticsDollarCoreTypes.ProfileMode.Inactive) {
+            revert IStaticsDollarGateway.InvalidProfileMode(volatileProfileId, volatileProfile.mode);
+        }
+        IStaticsDollarCoreTypes.StableCollateralProfile memory peggedProfile = core.collateralProfile(peggedProfileId);
+        if (peggedProfile.kind != IStaticsDollarCoreTypes.ProfileKind.Pegged) {
+            revert IStaticsDollarGateway.InvalidProfileKind(
+                peggedProfileId, IStaticsDollarCoreTypes.ProfileKind.Pegged, peggedProfile.kind
+            );
+        }
+        if (peggedProfile.mode != IStaticsDollarCoreTypes.ProfileMode.Active) {
+            revert IStaticsDollarGateway.InvalidProfileMode(peggedProfileId, peggedProfile.mode);
+        }
+
+        (status, unhealthyProfileBitmap,,) = core.checkpointGlobalCollateralExit();
+        if (status != IStaticsDollarCoreTypes.ExitStatus.Available) {
+            return (status, peggedPreview, recombinationPreview, unhealthyProfileBitmap);
+        }
+
+        peggedPreview = core.previewPeggedMint(peggedProfileId, riskAmount);
+        if (peggedPreview.totalCollateralIn > maximumPeggedCollateralIn) {
+            revert IStaticsDollarGateway.CollateralAboveMaximum(
+                peggedPreview.totalCollateralIn, maximumPeggedCollateralIn
+            );
+        }
+        recombinationPreview = core.previewRecombine(seriesId, riskAmount);
+        _requireMinimum(recombinationPreview.collateralOut, minimumVolatileCollateralOut);
+    }
+
+    function _emitPeggedMintAndRecombineDeferred(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        address receiver,
+        IStaticsDollarCoreTypes.ExitStatus status,
+        uint256 unhealthyProfileBitmap
+    ) private {
+        emit IStaticsDollarGateway.PeggedMintAndRecombineDeferred(
+            msg.sender, receiver, peggedProfileId, volatileProfileId, seriesId, status, unhealthyProfileBitmap
+        );
+    }
+
+    function _executePeggedAndRecombine(
+        LibPeriphery.PS storage ps,
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount,
+        uint256 maximumPeggedCollateralIn,
+        uint256 minimumVolatileCollateralOut,
+        address receiver,
+        IStaticsDollarCoreTypes.PeggedMintPreview memory peggedPreview,
+        IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview
+    ) private returns (uint256 peggedCollateralIn, uint256 volatileCollateralOut) {
+        AtomicResidualSnapshot memory residuals =
+            _atomicResidualSnapshot(ps, peggedPreview.collateralToken, recombinationPreview.collateralToken, seriesId);
+        uint256 received = LibCustody.pull(peggedPreview.collateralToken, msg.sender, peggedPreview.totalCollateralIn);
+        if (received != peggedPreview.totalCollateralIn) {
+            revert IStaticsDollarGateway.InsufficientTransferReceived(
+                peggedPreview.collateralToken, peggedPreview.totalCollateralIn, received
+            );
+        }
+
+        IERC20(peggedPreview.collateralToken).forceApprove(ps.pool, peggedPreview.totalCollateralIn);
+        uint256 peggedBefore =
+            LibCustody.beginUnreservedDebit(peggedPreview.collateralToken, peggedPreview.totalCollateralIn);
+        peggedCollateralIn = IStaticsDollarCore(ps.pool)
+            .mintPegged(peggedProfileId, riskAmount, maximumPeggedCollateralIn, address(this));
+        LibCustody.finishUnreservedDebit(peggedPreview.collateralToken, peggedBefore, peggedPreview.totalCollateralIn);
+        IERC20(peggedPreview.collateralToken).forceApprove(ps.pool, 0);
+
+        _pullRiskShares(ps, seriesId, recombinationPreview.sharesBurned);
+        uint256 receiverBefore = IERC20(recombinationPreview.collateralToken).balanceOf(receiver);
+        uint256 staticsDollarBefore = LibCustody.beginUnreservedDebit(ps.staticsDollar, riskAmount);
+        IStaticsDollarCoreTypes.ExitStatus status;
+        uint256 reportedCollateralOut;
+        (status, reportedCollateralOut) = IStaticsDollarCore(ps.pool)
+            .recombine(seriesId, riskAmount, recombinationPreview.sharesBurned, minimumVolatileCollateralOut, receiver);
+        LibCustody.finishUnreservedDebit(ps.staticsDollar, staticsDollarBefore, riskAmount);
+        if (status != IStaticsDollarCoreTypes.ExitStatus.Available) {
+            revert IStaticsDollarGateway.UnexpectedExitStatus(status);
+        }
+        uint256 receiverAfter = IERC20(recombinationPreview.collateralToken).balanceOf(receiver);
+        volatileCollateralOut = receiverAfter >= receiverBefore ? receiverAfter - receiverBefore : 0;
+        if (volatileCollateralOut != reportedCollateralOut) {
+            revert IStaticsDollarGateway.UnexpectedOutputAmount(
+                recombinationPreview.collateralToken, reportedCollateralOut, volatileCollateralOut
+            );
+        }
+        _requireMinimum(volatileCollateralOut, minimumVolatileCollateralOut);
+        _assertAtomicResidualsRestored(
+            ps, peggedPreview.collateralToken, recombinationPreview.collateralToken, seriesId, residuals
+        );
+
+        emit IStaticsDollarGateway.PeggedMintedAndRecombined(
+            msg.sender,
+            receiver,
+            peggedProfileId,
+            volatileProfileId,
+            seriesId,
+            recombinationPreview.sharesBurned,
+            peggedCollateralIn,
+            riskAmount,
+            volatileCollateralOut
+        );
+    }
+
+    function _exitStatusForPhase(IStaticsDollarCoreTypes.GlobalHealthPhase phase)
+        private
+        pure
+        returns (IStaticsDollarCoreTypes.ExitStatus status)
+    {
+        if (phase == IStaticsDollarCoreTypes.GlobalHealthPhase.Healthy) {
+            return IStaticsDollarCoreTypes.ExitStatus.Available;
+        }
+        if (phase == IStaticsDollarCoreTypes.GlobalHealthPhase.Unavailable) {
+            return IStaticsDollarCoreTypes.ExitStatus.HealthUnavailable;
+        }
+        if (phase == IStaticsDollarCoreTypes.GlobalHealthPhase.Recovering) {
+            return IStaticsDollarCoreTypes.ExitStatus.Recovering;
+        }
+        return IStaticsDollarCoreTypes.ExitStatus.Impaired;
     }
 
     function _executePeggedMint(
@@ -493,6 +822,10 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         if (received != staticsDollarAmount) {
             revert IStaticsDollarGateway.InsufficientTransferReceived(ps.staticsDollar, staticsDollarAmount, received);
         }
+        _pullRiskShares(ps, seriesId, sharesBurned);
+    }
+
+    function _pullRiskShares(LibPeriphery.PS storage ps, uint256 seriesId, uint256 sharesBurned) private {
         if (ps.expectedRiskIngress.active) revert IStaticsDollarGateway.UnexpectedRiskIngressState();
         ps.expectedRiskIngress = LibPeriphery.ExpectedRiskIngress({
             operator: address(this), from: msg.sender, seriesId: seriesId, amount: sharesBurned, active: true
@@ -520,6 +853,62 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
             riskShareBalance: IERC1155(ps.staticsDollarRisk).balanceOf(address(this), seriesId),
             nativeBalance: address(this).balance - nativeIn
         });
+    }
+
+    function _atomicResidualSnapshot(
+        LibPeriphery.PS storage ps,
+        address peggedCollateralToken,
+        address volatileCollateralToken,
+        uint256 seriesId
+    ) private view returns (AtomicResidualSnapshot memory snapshot) {
+        snapshot = AtomicResidualSnapshot({
+            peggedCollateralUnreserved: LibCustody.unreservedBalance(peggedCollateralToken),
+            volatileCollateralUnreserved: LibCustody.unreservedBalance(volatileCollateralToken),
+            staticsDollarUnreserved: LibCustody.unreservedBalance(ps.staticsDollar),
+            riskShareBalance: IERC1155(ps.staticsDollarRisk).balanceOf(address(this), seriesId),
+            nativeBalance: address(this).balance
+        });
+    }
+
+    function _assertAtomicResidualsRestored(
+        LibPeriphery.PS storage ps,
+        address peggedCollateralToken,
+        address volatileCollateralToken,
+        uint256 seriesId,
+        AtomicResidualSnapshot memory snapshot
+    ) private view {
+        uint256 balance = LibCustody.unreservedBalance(peggedCollateralToken);
+        if (balance != snapshot.peggedCollateralUnreserved) {
+            revert IStaticsDollarGateway.ResidualGatewayBalance(
+                peggedCollateralToken, snapshot.peggedCollateralUnreserved, balance
+            );
+        }
+        balance = LibCustody.unreservedBalance(volatileCollateralToken);
+        if (balance != snapshot.volatileCollateralUnreserved) {
+            revert IStaticsDollarGateway.ResidualGatewayBalance(
+                volatileCollateralToken, snapshot.volatileCollateralUnreserved, balance
+            );
+        }
+        balance = LibCustody.unreservedBalance(ps.staticsDollar);
+        if (balance != snapshot.staticsDollarUnreserved) {
+            revert IStaticsDollarGateway.ResidualGatewayBalance(
+                ps.staticsDollar, snapshot.staticsDollarUnreserved, balance
+            );
+        }
+        balance = IERC1155(ps.staticsDollarRisk).balanceOf(address(this), seriesId);
+        if (balance != snapshot.riskShareBalance) {
+            revert IStaticsDollarGateway.ResidualGatewayERC1155Balance(
+                ps.staticsDollarRisk, seriesId, snapshot.riskShareBalance, balance
+            );
+        }
+        balance = address(this).balance;
+        if (balance != snapshot.nativeBalance) {
+            revert IStaticsDollarGateway.ResidualGatewayNativeBalance(snapshot.nativeBalance, balance);
+        }
+        uint256 allowance = IERC20(peggedCollateralToken).allowance(address(this), ps.pool);
+        if (allowance != 0) {
+            revert IStaticsDollarGateway.ResidualGatewayApproval(peggedCollateralToken, ps.pool, allowance);
+        }
     }
 
     function _assertResidualBalancesRestored(

@@ -40,7 +40,7 @@ Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
 neither standalone contract is a second general protocol entrypoint.
 
-The canonical deployment installs 22 facets and 184 selectors on
+The canonical deployment installs 22 facets and 183 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -65,8 +65,8 @@ separately namespaced:
 - pegged-profile fee ingress;
 - per-basket backing and collateral;
 - canonical-pool registration, lifecycle, and decommission state;
-- one global staking balance per PositionNFT and up to 64 independent
-  per-asset reward indexes; and
+- one global staking balance per PositionNFT, at most 64 selected reward assets
+  per position, and an unlimited set of independent global asset indexes; and
 - per-position, per-basket loan tranches, principal, and recovery surplus.
 
 Statics Dollar Core collateral never enters shared periphery custody. Basket
@@ -129,17 +129,18 @@ realized swap legs, rounded up, while the pool's native LP fee remains zero.
 The default fee is 25 basis points on input and 25 basis points on output, split
 50% to POL, 10% to activated canonical LPs, 30% to global stakers, and 10% to
 treasury. An unavailable LP or staker allocation is independently redirected
-to POL.
+to POL. A registered pool may override the complete six-field configuration;
+clearing that override restores the latest global rates and split.
 
-This global allocation is the default. The basket-liquidity facet lets
+This global configuration is the default. The basket-liquidity facet lets
 timelocked governance resolve a registered canonical pool by `basketId` and
-constituent and set a four-way POL/canonical-LP/staker/treasury override using
-the same allocation model as the global default. The override sums to 10,000
-BPS and may explicitly set POL or canonical LPs to zero without changing either
-hook fee rate. Clearing it restores the latest global allocation. Overrides
-never release or reclassify pending POL, never remove permanent liquidity, and
-do not alter decommissioning. Unavailable canonical-LP and staker shares still
-redirect to POL.
+constituent, then override its input/output rates and four-way
+POL/canonical-LP/staker/treasury split. The two rates may total at most 200 BPS,
+the split must total 10,000 BPS, and POL or canonical LPs may explicitly be set
+to zero. Clearing the override restores the latest global rates and split.
+Overrides never release or reclassify pending POL, never remove permanent
+liquidity, and do not alter decommissioning. Unavailable canonical-LP and
+staker shares still redirect to POL.
 
 After every swap, matched POL amounts are added as hook-owned full-range
 liquidity in the same pool. No caller, administrator, or treasury can withdraw

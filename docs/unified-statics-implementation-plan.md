@@ -2,8 +2,9 @@
 
 > **Historical and superseded in part (2026-07-22).** This tracker records the
 > unification baseline, including the former per-basket PositionNFT reward
-> model. The live protocol uses global staking and governed reward-asset slots,
-> while BasketTokens deposited in positions serve only as collateral. See
+> model. The live protocol uses global staking with per-position reward-asset
+> selections, while BasketTokens deposited in positions serve only as
+> collateral. See
 > `Statics-Design.md` and `docs/integration.md` for current behavior.
 
 - Status: Historical; reward architecture superseded

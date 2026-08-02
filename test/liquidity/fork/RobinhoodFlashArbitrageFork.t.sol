@@ -48,8 +48,6 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
     }
 
     function testBothArbitrageDirectionsUsePinnedRobinhoodPoolManager() public {
-        uint256 multiStakePositionId = _createStake();
-
         address[] memory multiAssets = new address[](2);
         multiAssets[0] = address(assetA);
         multiAssets[1] = address(assetB);
@@ -57,6 +55,11 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         multiBundle[0] = 0.4 ether;
         multiBundle[1] = 0.4 ether;
         (uint256 multiBasketId, address multiBasketToken) = _createBasket(multiAssets, multiBundle);
+        address[] memory multiRewardAssets = new address[](3);
+        multiRewardAssets[0] = address(assetA);
+        multiRewardAssets[1] = address(assetB);
+        multiRewardAssets[2] = multiBasketToken;
+        uint256 multiStakePositionId = _createStake(multiRewardAssets);
         _mintInitialSupply(multiBasketId, multiBasketToken, multiAssets, 100 ether);
         PoolKey[] memory pools = new PoolKey[](2);
         pools[0] = _initializeAndSeed(multiBasketId, multiBasketToken, multiAssets[0]);
@@ -81,22 +84,21 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         assertGt(hook.lockedLiquidity(pools[0].toId()), 0);
         assertGt(hook.lockedLiquidity(pools[1].toId()), 0);
         assertGt(globalRewards.treasuryAccrued(multiBasketToken), 0);
-        address[] memory multiRewardAssets = new address[](3);
-        multiRewardAssets[0] = address(assetA);
-        multiRewardAssets[1] = address(assetB);
-        multiRewardAssets[2] = multiBasketToken;
         vm.prank(alice);
         uint256[] memory multiPending = globalRewards.pendingRewards(multiStakePositionId, multiRewardAssets);
         assertGt(multiPending[0], 0);
         assertGt(multiPending[1], 0);
         assertGt(multiPending[2], 0);
 
-        uint256 singleStakePositionId = _createStake();
         address[] memory singleAssets = new address[](1);
         singleAssets[0] = address(assetA);
         uint256[] memory singleBundle = new uint256[](1);
         singleBundle[0] = 1.5 ether;
         (uint256 singleBasketId, address singleBasketToken) = _createBasket(singleAssets, singleBundle);
+        address[] memory singleRewardAssets = new address[](2);
+        singleRewardAssets[0] = address(assetA);
+        singleRewardAssets[1] = singleBasketToken;
+        uint256 singleStakePositionId = _createStake(singleRewardAssets);
         _mintInitialSupply(singleBasketId, singleBasketToken, singleAssets, 100 ether);
         PoolKey memory singlePool = _initializeAndSeed(singleBasketId, singleBasketToken, singleAssets[0]);
         FlashArbitrageReceiver redeemReceiver = _newReceiver();
@@ -105,9 +107,6 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         assertGe(redeemReceiver.lastProfit(address(assetA)), 0.2 ether);
         assertGt(hook.lockedLiquidity(singlePool.toId()), 0);
         assertGt(globalRewards.treasuryAccrued(singleBasketToken), 0);
-        address[] memory singleRewardAssets = new address[](2);
-        singleRewardAssets[0] = address(assetA);
-        singleRewardAssets[1] = singleBasketToken;
         vm.prank(alice);
         uint256[] memory singlePending = globalRewards.pendingRewards(singleStakePositionId, singleRewardAssets);
         assertGt(singlePending[0], 0);
@@ -135,11 +134,11 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         return baskets.createBasket{value: basketAdmin.creationFee()}(params);
     }
 
-    function _createStake() private returns (uint256 positionId) {
+    function _createStake(address[] memory rewardAssets) private returns (uint256 positionId) {
         stakingAsset.mint(alice, 100 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 100 ether);
-        positionId = globalRewards.createAndStake(100 ether, alice);
+        positionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
         vm.stopPrank();
     }
 

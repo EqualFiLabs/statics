@@ -214,7 +214,7 @@ abstract contract DeployStaticsProtocol {
     }
 
     function _dollarGatewaySelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](15);
+        s = new bytes4[](18);
         s[0] = StaticsDollarGatewayFacet.depositETH.selector;
         s[1] = StaticsDollarGatewayFacet.depositWETH.selector;
         s[2] = StaticsDollarGatewayFacet.recombineToWETH.selector;
@@ -226,9 +226,12 @@ abstract contract DeployStaticsProtocol {
         s[8] = StaticsDollarGatewayFacet.previewPeggedMint.selector;
         s[9] = StaticsDollarGatewayFacet.mintPegged.selector;
         s[10] = StaticsDollarGatewayFacet.mintPeggedWithPermit.selector;
-        s[11] = StaticsDollarGatewayFacet.previewPeggedRedemption.selector;
-        s[12] = StaticsDollarGatewayFacet.redeemPegged.selector;
-        s[13] = StaticsDollarGatewayFacet.redeemPeggedWithPermit.selector;
-        s[14] = StaticsDollarGatewayFacet.peggedRedemptionStatus.selector;
+        s[11] = StaticsDollarGatewayFacet.quoteMintPeggedAndRecombine.selector;
+        s[12] = StaticsDollarGatewayFacet.mintPeggedAndRecombine.selector;
+        s[13] = StaticsDollarGatewayFacet.mintPeggedAndRecombineWithPermit.selector;
+        s[14] = StaticsDollarGatewayFacet.previewPeggedRedemption.selector;
+        s[15] = StaticsDollarGatewayFacet.redeemPegged.selector;
+        s[16] = StaticsDollarGatewayFacet.redeemPeggedWithPermit.selector;
+        s[17] = StaticsDollarGatewayFacet.peggedRedemptionStatus.selector;
     }
 }

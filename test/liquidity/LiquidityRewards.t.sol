@@ -81,11 +81,16 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         vm.roll(block.number + 1);
         liquidityRewards.activateLiquidityPosition(tokenId);
 
-        basketLiquidity.setCanonicalPoolFeeAllocation(
+        basketLiquidity.setCanonicalPoolFeeConfiguration(
             basketId,
             basketAssets[0],
-            IStaticsBasketLiquidity.FeeAllocation({
-                polShareBps: 0, liquidityProviderShareBps: 10_000, stakerShareBps: 0, treasuryShareBps: 0
+            IStaticsBasketLiquidity.SwapFeeConfiguration({
+                inputFeeBps: 40,
+                outputFeeBps: 60,
+                polShareBps: 0,
+                liquidityProviderShareBps: 10_000,
+                stakerShareBps: 0,
+                treasuryShareBps: 0
             })
         );
         IStaticsLiquidityRewards.PoolLiquidityRewardView memory beforeRewards =
@@ -97,8 +102,8 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         uint256 amountIn = 0.001 ether;
         (BalanceDelta delta, bool zeroForOne) = _swapConstituentIntoPool(amountIn);
         uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
-        uint256 inputFee = Math.mulDiv(amountIn, 25, 10_000, Math.Rounding.Ceil);
-        uint256 outputFee = Math.mulDiv(netOutput, 25, 10_000 - 25, Math.Rounding.Ceil);
+        uint256 inputFee = Math.mulDiv(amountIn, 40, 10_000, Math.Rounding.Ceil);
+        uint256 outputFee = Math.mulDiv(netOutput, 60, 10_000 - 60, Math.Rounding.Ceil);
         IStaticsLiquidityRewards.PoolLiquidityRewardView memory afterRewards =
             liquidityRewards.poolLiquidityRewards(pool.poolId);
 

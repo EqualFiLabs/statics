@@ -65,12 +65,14 @@ contract HookInvariantFeeReceiver {
         return IStaticsSwapFeeHook(hook).registerPool(key);
     }
 
-    function setPoolFeeAllocation(PoolId poolId, IStaticsSwapFeeHook.FeeAllocation calldata allocation) external {
-        IStaticsSwapFeeHook(hook).setPoolFeeAllocation(poolId, allocation);
+    function setPoolFeeConfiguration(PoolId poolId, IStaticsSwapFeeHook.FeeConfiguration calldata configuration)
+        external
+    {
+        IStaticsSwapFeeHook(hook).setPoolFeeConfiguration(poolId, configuration);
     }
 
-    function clearPoolFeeAllocation(PoolId poolId) external {
-        IStaticsSwapFeeHook(hook).clearPoolFeeAllocation(poolId);
+    function clearPoolFeeConfiguration(PoolId poolId) external {
+        IStaticsSwapFeeHook(hook).clearPoolFeeConfiguration(poolId);
     }
 }
 
@@ -127,16 +129,24 @@ contract HookAccountingHandler is Test {
         try donor.donate(poolKey, amount0, amount1, "") {} catch {}
     }
 
-    function setPoolAllocation(uint256 rawPolShareBps, uint256 rawLiquidityProviderShareBps, uint256 rawStakerShareBps)
-        external
-    {
+    function setPoolConfiguration(
+        uint256 rawInputFeeBps,
+        uint256 rawOutputFeeBps,
+        uint256 rawPolShareBps,
+        uint256 rawLiquidityProviderShareBps,
+        uint256 rawStakerShareBps
+    ) external {
+        uint256 inputFeeBps = bound(rawInputFeeBps, 1, 199);
+        uint256 outputFeeBps = bound(rawOutputFeeBps, 1, 200 - inputFeeBps);
         uint256 polShareBps = bound(rawPolShareBps, 0, 10_000);
         uint256 liquidityProviderShareBps = bound(rawLiquidityProviderShareBps, 0, 10_000 - polShareBps);
         uint256 stakerShareBps = bound(rawStakerShareBps, 0, 10_000 - polShareBps - liquidityProviderShareBps);
         uint256 treasuryShareBps = 10_000 - polShareBps - liquidityProviderShareBps - stakerShareBps;
-        receiver.setPoolFeeAllocation(
+        receiver.setPoolFeeConfiguration(
             poolId,
-            IStaticsSwapFeeHook.FeeAllocation({
+            IStaticsSwapFeeHook.FeeConfiguration({
+                inputFeeBps: uint16(inputFeeBps),
+                outputFeeBps: uint16(outputFeeBps),
                 polShareBps: uint16(polShareBps),
                 liquidityProviderShareBps: uint16(liquidityProviderShareBps),
                 stakerShareBps: uint16(stakerShareBps),
@@ -145,8 +155,8 @@ contract HookAccountingHandler is Test {
         );
     }
 
-    function clearPoolAllocation() external {
-        receiver.clearPoolFeeAllocation(poolId);
+    function clearPoolConfiguration() external {
+        receiver.clearPoolFeeConfiguration(poolId);
     }
 
     function _swap(int256 amountSpecified, bool zeroForOne) private {
@@ -166,8 +176,8 @@ contract HookAccountingHandler is Test {
             BalanceDelta delta
         ) {
             ++successfulSwaps;
-            IStaticsSwapFeeHook.PoolFeeAllocationView memory allocation = hook.poolFeeAllocation(poolId);
-            bool routesExternalFees = allocation.stakerShareBps != 0 || allocation.treasuryShareBps != 0;
+            IStaticsSwapFeeHook.PoolFeeConfigurationView memory configuration = hook.poolFeeConfiguration(poolId);
+            bool routesExternalFees = configuration.stakerShareBps != 0 || configuration.treasuryShareBps != 0;
             if (
                 routesExternalFees && delta.amount0() != 0 && delta.amount1() != 0
                     && (_routed(token0) <= token0FeesBefore || _routed(token1) <= token1FeesBefore)
@@ -235,11 +245,12 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         );
     }
 
-    function invariantEffectiveAllocationAlwaysConservesBps() public view {
-        IStaticsSwapFeeHook.PoolFeeAllocationView memory allocation = hook.poolFeeAllocation(poolId);
+    function invariantEffectivePoolConfigurationIsValid() public view {
+        IStaticsSwapFeeHook.PoolFeeConfigurationView memory configuration = hook.poolFeeConfiguration(poolId);
+        assertLe(uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps), 200);
         assertEq(
-            uint256(allocation.polShareBps) + uint256(allocation.liquidityProviderShareBps)
-                + uint256(allocation.stakerShareBps) + uint256(allocation.treasuryShareBps),
+            uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
+                + uint256(configuration.stakerShareBps) + uint256(configuration.treasuryShareBps),
             10_000
         );
     }

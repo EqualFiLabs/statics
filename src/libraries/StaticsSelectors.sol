@@ -122,26 +122,25 @@ library StaticsSelectors {
     }
 
     function globalRewards() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](19);
+        selectors = new bytes4[](18);
         selectors[0] = IStaticsGlobalRewards.createAndStake.selector;
         selectors[1] = IStaticsGlobalRewards.stake.selector;
         selectors[2] = IStaticsGlobalRewards.unstake.selector;
-        selectors[3] = IStaticsGlobalRewards.claimRewards.selector;
-        selectors[4] = IStaticsGlobalRewards.distributeTreasuryFees.selector;
-        selectors[5] = IStaticsGlobalRewards.beginRewardAssetRetirement.selector;
-        selectors[6] = IStaticsGlobalRewards.settleRetiringRewardAsset.selector;
-        selectors[7] = IStaticsGlobalRewards.finalizeRewardAssetRetirement.selector;
-        selectors[8] = IStaticsGlobalRewards.pendingRewards.selector;
-        selectors[9] = IStaticsGlobalRewards.stakePosition.selector;
-        selectors[10] = IStaticsGlobalRewards.rewardAsset.selector;
-        selectors[11] = IStaticsGlobalRewards.rewardAssetSlot.selector;
-        selectors[12] = IStaticsGlobalRewards.queuedRewardAsset.selector;
-        selectors[13] = IStaticsGlobalRewards.rewardAssetQueue.selector;
-        selectors[14] = IStaticsGlobalRewards.stakingToken.selector;
-        selectors[15] = IStaticsGlobalRewards.totalStaked.selector;
-        selectors[16] = IStaticsGlobalRewards.treasuryAccrued.selector;
-        selectors[17] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        selectors[18] = IStaticsGlobalRewards.routeSwapFees.selector;
+        selectors[3] = IStaticsGlobalRewards.optInRewardAssets.selector;
+        selectors[4] = IStaticsGlobalRewards.optOutRewardAssets.selector;
+        selectors[5] = IStaticsGlobalRewards.claimRewards.selector;
+        selectors[6] = IStaticsGlobalRewards.distributeTreasuryFees.selector;
+        selectors[7] = IStaticsGlobalRewards.pendingRewards.selector;
+        selectors[8] = IStaticsGlobalRewards.stakePosition.selector;
+        selectors[9] = IStaticsGlobalRewards.rewardAsset.selector;
+        selectors[10] = IStaticsGlobalRewards.positionRewardAssets.selector;
+        selectors[11] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
+        selectors[12] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
+        selectors[13] = IStaticsGlobalRewards.stakingToken.selector;
+        selectors[14] = IStaticsGlobalRewards.totalStaked.selector;
+        selectors[15] = IStaticsGlobalRewards.treasuryAccrued.selector;
+        selectors[16] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
+        selectors[17] = IStaticsGlobalRewards.routeSwapFees.selector;
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {
@@ -168,9 +167,9 @@ library StaticsSelectors {
         selectors[11] = IStaticsBasketLiquidity.canonicalPool.selector;
         selectors[12] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
         selectors[13] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[14] = IStaticsBasketLiquidity.setCanonicalPoolFeeAllocation.selector;
-        selectors[15] = IStaticsBasketLiquidity.clearCanonicalPoolFeeAllocation.selector;
-        selectors[16] = IStaticsBasketLiquidity.canonicalPoolFeeAllocation.selector;
+        selectors[14] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
+        selectors[15] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
+        selectors[16] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
     }
 
     function liquidityRewards() internal pure returns (bytes4[] memory selectors) {

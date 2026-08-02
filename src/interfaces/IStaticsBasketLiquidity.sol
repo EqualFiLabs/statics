@@ -37,14 +37,9 @@ interface IStaticsBasketLiquidity {
         uint16 treasuryShareBps;
     }
 
-    struct FeeAllocation {
-        uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
-        uint16 treasuryShareBps;
-    }
-
-    struct PoolFeeAllocationView {
+    struct PoolFeeConfigurationView {
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
         uint16 stakerShareBps;
@@ -73,16 +68,18 @@ interface IStaticsBasketLiquidity {
         uint256 indexed basketId, address indexed asset, PoolId indexed poolId, address manager
     );
     event SwapFeeConfigurationChanged(SwapFeeConfiguration configuration);
-    event CanonicalPoolFeeAllocationSet(
+    event CanonicalPoolFeeConfigurationSet(
         uint256 indexed basketId,
         address indexed asset,
         PoolId indexed poolId,
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
         uint16 stakerShareBps,
         uint16 treasuryShareBps
     );
-    event CanonicalPoolFeeAllocationCleared(uint256 indexed basketId, address indexed asset, PoolId indexed poolId);
+    event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId, address indexed asset, PoolId indexed poolId);
     event PermanentLiquidityTreasuryAccrued(
         uint256 indexed basketId, address indexed sourcePoolAsset, address indexed rewardAsset, uint256 amount
     );
@@ -105,8 +102,12 @@ interface IStaticsBasketLiquidity {
         returns (int24 referenceTick, int24 spotTick);
     function syncCanonicalPoolToManager(uint256 basketId, address asset) external returns (bool synced);
     function setSwapFeeConfiguration(SwapFeeConfiguration calldata configuration) external;
-    function setCanonicalPoolFeeAllocation(uint256 basketId, address asset, FeeAllocation calldata allocation) external;
-    function clearCanonicalPoolFeeAllocation(uint256 basketId, address asset) external;
+    function setCanonicalPoolFeeConfiguration(
+        uint256 basketId,
+        address asset,
+        SwapFeeConfiguration calldata configuration
+    ) external;
+    function clearCanonicalPoolFeeConfiguration(uint256 basketId, address asset) external;
     function unwindBasketLiquidity(uint256 basketId, address asset) external;
 
     function liquidityIntegration() external view returns (address poolManager, address hook, bool installed);
@@ -117,9 +118,9 @@ interface IStaticsBasketLiquidity {
         returns (uint24 lpFee, int24 tickSpacing, uint40 warmup, uint32 referenceWindow, uint16 maxDeviationBps);
     function canonicalPool(uint256 basketId, address asset) external view returns (CanonicalPoolView memory pool);
     function swapFeeConfiguration() external view returns (SwapFeeConfiguration memory configuration);
-    function canonicalPoolFeeAllocation(uint256 basketId, address asset)
+    function canonicalPoolFeeConfiguration(uint256 basketId, address asset)
         external
         view
-        returns (PoolFeeAllocationView memory allocation);
+        returns (PoolFeeConfigurationView memory configuration);
     function basketLiquidityUnwound(uint256 basketId, address asset) external view returns (bool unwound);
 }

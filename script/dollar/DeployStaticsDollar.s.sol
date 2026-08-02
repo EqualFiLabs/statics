@@ -2,7 +2,10 @@
 pragma solidity ^0.8.28;
 
 import {ChainlinkUsdOracle} from "../../src/dollar/ChainlinkUsdOracle.sol";
+import {CoreGovernanceFacet} from "../../src/dollar/core/facets/CoreGovernanceFacet.sol";
+import {IStaticsDollarCoreTypes} from "../../src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
 import {CanonicalWETH9} from "../../src/dollar/mocks/CanonicalWETH9.sol";
+import {LocalUSDG} from "../../src/dollar/mocks/LocalUSDG.sol";
 import {MockETHUSDOracle} from "../../src/dollar/mocks/MockETHUSDOracle.sol";
 import {CoreBootstrapConfig, CoreBootstrapDeployment, DeployCoreBootstrap} from "./DeployCoreBootstrap.s.sol";
 import {console2} from "forge-std/console2.sol";
@@ -59,6 +62,10 @@ struct StaticsDollarStackDeployment {
     address permit2;
     address swapFeeHook;
     address liquidityManager;
+    address stateView;
+    address usdg;
+    address usdgOracle;
+    uint256 usdgProfileId;
 }
 
 contract DeployStaticsDollar is DeployCoreBootstrap {
@@ -126,6 +133,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
 
         vm.startBroadcast(privateKey);
         deployment = _deployLocal(config, deployer);
+        deployment = deployLocalPeggedProfile(deployment, deployer);
         vm.stopBroadcast();
 
         _logLocalDeployment(deployment);
@@ -140,12 +148,18 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
         console2.log("WETH_ADDRESS", deployment.weth);
         console2.log("STATICS_DOLLAR_ORACLE_ADDRESS", deployment.oracle);
         console2.log("STATICS_DOLLAR_POSITION_NFT_ADDRESS", deployment.positionNFT);
+        if (deployment.usdg != address(0)) {
+            console2.log("STATICS_DOLLAR_USDG_ADDRESS", deployment.usdg);
+            console2.log("STATICS_DOLLAR_USDG_ORACLE_ADDRESS", deployment.usdgOracle);
+            console2.log("STATICS_DOLLAR_USDG_PROFILE_ID", deployment.usdgProfileId);
+        }
         if (deployment.swapFeeHook != address(0)) {
             console2.log("STATICS_POOL_MANAGER_ADDRESS", deployment.poolManager);
             console2.log("STATICS_POSITION_MANAGER_ADDRESS", deployment.positionManager);
             console2.log("STATICS_PERMIT2_ADDRESS", deployment.permit2);
             console2.log("STATICS_SWAP_FEE_HOOK_ADDRESS", deployment.swapFeeHook);
             console2.log("STATICS_LIQUIDITY_MANAGER_ADDRESS", deployment.liquidityManager);
+            console2.log("STATICS_STATE_VIEW_ADDRESS", deployment.stateView);
         }
     }
 
@@ -192,6 +206,23 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
         returns (StaticsDollarStackDeployment memory deployment)
     {
         return _deployLocal(config, address(this));
+    }
+
+    /// @notice Adds a six-decimal USDG profile to a local stack for browser rehearsals.
+    function deployLocalPeggedProfile(StaticsDollarStackDeployment memory deployment, address recipient)
+        public
+        returns (StaticsDollarStackDeployment memory)
+    {
+        LocalUSDG usdg = new LocalUSDG();
+        MockETHUSDOracle oracle = new MockETHUSDOracle(1e18, 30 days);
+        uint256 profileId = CoreGovernanceFacet(deployment.core)
+            .createPeggedCollateralProfile(address(usdg), address(oracle), 0.995e18, 1.005e18, 5, 7, 10_000_000e18);
+        CoreGovernanceFacet(deployment.core).setProfileMode(profileId, IStaticsDollarCoreTypes.ProfileMode.Active);
+        usdg.mint(recipient, 10_000_000e6);
+        deployment.usdg = address(usdg);
+        deployment.usdgOracle = address(oracle);
+        deployment.usdgProfileId = profileId;
+        return deployment;
     }
 
     function _deployLocal(StaticsDollarLocalConfig memory config, address deploymentCreator)

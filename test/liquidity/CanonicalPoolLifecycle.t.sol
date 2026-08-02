@@ -16,16 +16,18 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
-    event CanonicalPoolFeeAllocationSet(
+    event CanonicalPoolFeeConfigurationSet(
         uint256 indexed basketId,
         address indexed asset,
         bytes32 indexed poolId,
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
         uint16 stakerShareBps,
         uint16 treasuryShareBps
     );
-    event CanonicalPoolFeeAllocationCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
+    event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
 
     function testSingleAssetBasketCreatesOneDerivedCanonicalPool() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
@@ -104,55 +106,78 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(uint8(pool.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Active));
     }
 
-    function testCanonicalPoolAllocationOverrideIsOwnerControlledAndUsesRegisteredPool() public {
+    function testCanonicalPoolFeeOverrideIsOwnerControlledAndUsesRegisteredPool() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         basketLiquidity.initializeCanonicalPool(basketId, assets[0], SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
-        IStaticsBasketLiquidity.FeeAllocation memory allocation = IStaticsBasketLiquidity.FeeAllocation({
-            polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
+            inputFeeBps: 40,
+            outputFeeBps: 60,
+            polShareBps: 0,
+            liquidityProviderShareBps: 0,
+            stakerShareBps: 8_000,
+            treasuryShareBps: 2_000
         });
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
-        basketLiquidity.setCanonicalPoolFeeAllocation(basketId, assets[0], allocation);
+        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
 
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit CanonicalPoolFeeAllocationSet(basketId, assets[0], PoolId.unwrap(pool.poolId), 0, 0, 8_000, 2_000);
-        basketLiquidity.setCanonicalPoolFeeAllocation(basketId, assets[0], allocation);
+        emit CanonicalPoolFeeConfigurationSet(
+            basketId, assets[0], PoolId.unwrap(pool.poolId), 40, 60, 0, 0, 8_000, 2_000
+        );
+        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
 
-        IStaticsBasketLiquidity.PoolFeeAllocationView memory effective =
-            basketLiquidity.canonicalPoolFeeAllocation(basketId, assets[0]);
+        IStaticsBasketLiquidity.PoolFeeConfigurationView memory effective =
+            basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
+        assertEq(effective.inputFeeBps, 40);
+        assertEq(effective.outputFeeBps, 60);
         assertEq(effective.polShareBps, 0);
         assertEq(effective.liquidityProviderShareBps, 0);
         assertEq(effective.stakerShareBps, 8_000);
         assertEq(effective.treasuryShareBps, 2_000);
         assertTrue(effective.overridden);
-        IStaticsSwapFeeHook.PoolFeeAllocationView memory hookEffective = swapFeeHook.poolFeeAllocation(pool.poolId);
+        IStaticsSwapFeeHook.PoolFeeConfigurationView memory hookEffective =
+            swapFeeHook.poolFeeConfiguration(pool.poolId);
+        assertEq(hookEffective.inputFeeBps, effective.inputFeeBps);
+        assertEq(hookEffective.outputFeeBps, effective.outputFeeBps);
         assertEq(hookEffective.stakerShareBps, effective.stakerShareBps);
         assertTrue(hookEffective.overridden);
 
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        basketLiquidity.clearCanonicalPoolFeeConfiguration(basketId, assets[0]);
+
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit CanonicalPoolFeeAllocationCleared(basketId, assets[0], PoolId.unwrap(pool.poolId));
-        basketLiquidity.clearCanonicalPoolFeeAllocation(basketId, assets[0]);
-        effective = basketLiquidity.canonicalPoolFeeAllocation(basketId, assets[0]);
+        emit CanonicalPoolFeeConfigurationCleared(basketId, assets[0], PoolId.unwrap(pool.poolId));
+        basketLiquidity.clearCanonicalPoolFeeConfiguration(basketId, assets[0]);
+        effective = basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
+        assertEq(effective.inputFeeBps, 25);
+        assertEq(effective.outputFeeBps, 25);
         assertEq(effective.polShareBps, 5_000);
         assertEq(effective.liquidityProviderShareBps, 1_000);
         assertFalse(effective.overridden);
     }
 
-    function testCanonicalPoolAllocationRejectsUnconfiguredIdentifier() public {
+    function testCanonicalPoolFeeConfigurationRejectsUnconfiguredIdentifier() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
-        IStaticsBasketLiquidity.FeeAllocation memory allocation = IStaticsBasketLiquidity.FeeAllocation({
-            polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
+            inputFeeBps: 40,
+            outputFeeBps: 60,
+            polShareBps: 0,
+            liquidityProviderShareBps: 0,
+            stakerShareBps: 8_000,
+            treasuryShareBps: 2_000
         });
         vm.expectRevert(
             abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, assets[0])
         );
-        basketLiquidity.setCanonicalPoolFeeAllocation(basketId, assets[0], allocation);
+        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
         vm.expectRevert(
             abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, assets[0])
         );
-        basketLiquidity.clearCanonicalPoolFeeAllocation(basketId, assets[0]);
+        basketLiquidity.clearCanonicalPoolFeeConfiguration(basketId, assets[0]);
     }
 
     function testGuardianPauseAndQuarantineBlockNewPoolExposureButNotCheckpointing() public {

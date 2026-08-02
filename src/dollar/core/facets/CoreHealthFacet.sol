@@ -42,10 +42,11 @@ contract CoreHealthFacet {
         LibCoreStorage.CS storage cs = LibCoreStorage.s();
         (phase, unhealthyProfileBitmap, totalSeniorDeficitWad) = LibCoreHealth.currentGlobalHealth(cs);
         if (phase == IStaticsDollarCoreTypes.GlobalHealthPhase.Healthy && cs.globalImpairmentLatched) {
-            phase = IStaticsDollarCoreTypes.GlobalHealthPhase.Recovering;
             if (cs.globalRecoveryStartedAt != 0) {
                 recoveryAvailableAt = uint256(cs.globalRecoveryStartedAt) + GLOBAL_RECOVERY_DELAY;
+                if (block.timestamp >= recoveryAvailableAt) return (phase, 0, 0, 0);
             }
+            phase = IStaticsDollarCoreTypes.GlobalHealthPhase.Recovering;
         }
     }
 

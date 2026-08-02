@@ -215,16 +215,14 @@ contract CoreDiamondLifecycleTest is Test {
         vm.startPrank(alice);
         weth.deposit{value: 3 ether}();
         weth.approve(deployment.diamond, 1 ether);
-        uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice);
-        weth.approve(deployment.core, 2 ether);
-        IStaticsDollarCoreTypes.DepositPreview memory preview = mintFacet.previewDeposit(1, 1 ether);
-        mintFacet.depositCollateral(
-            1, 1 ether, preview.staticsDollarMinted, preview.sharesMinted, alice, alice
-        );
-        vm.stopPrank();
-
         address[] memory assets = new address[](1);
         assets[0] = address(weth);
+        uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice, assets);
+        weth.approve(deployment.core, 2 ether);
+        IStaticsDollarCoreTypes.DepositPreview memory preview = mintFacet.previewDeposit(1, 1 ether);
+        mintFacet.depositCollateral(1, 1 ether, preview.staticsDollarMinted, preview.sharesMinted, alice, alice);
+        vm.stopPrank();
+
         vm.prank(alice);
         uint256[] memory pending = IStaticsGlobalRewards(deployment.diamond).pendingRewards(positionId, assets);
         uint256 insurance = (preview.feeAmount * 30) / 100;
@@ -245,7 +243,9 @@ contract CoreDiamondLifecycleTest is Test {
         vm.startPrank(alice);
         weth.deposit{value: 1 ether}();
         weth.approve(deployment.diamond, 1 ether);
-        uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice);
+        address[] memory assets = new address[](1);
+        assets[0] = address(usdc);
+        uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice, assets);
 
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview = mintFacet.previewPeggedMint(profileId, 100e18);
         usdc.mint(alice, preview.totalCollateralIn);
@@ -253,20 +253,17 @@ contract CoreDiamondLifecycleTest is Test {
         mintFacet.mintPegged(profileId, 100e18, preview.totalCollateralIn, alice);
         vm.stopPrank();
 
-        address[] memory assets = new address[](1);
-        assets[0] = address(usdc);
         vm.prank(alice);
         uint256[] memory pending = IStaticsGlobalRewards(deployment.diamond).pendingRewards(positionId, assets);
         uint256 stakerReward = (preview.feeAmount * 90) / 100;
         assertEq(pending[0], stakerReward);
-        assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(usdc)), preview.feeAmount - stakerReward);
+        assertEq(
+            IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(usdc)), preview.feeAmount - stakerReward
+        );
         assertEq(FeeRouterFacet(deployment.diamond).pendingInsurance(profileId), 0);
     }
 
-    function _activatePeggedProfile()
-        private
-        returns (uint256 profileId, MockUSDC usdc, MockETHUSDOracle oracle)
-    {
+    function _activatePeggedProfile() private returns (uint256 profileId, MockUSDC usdc, MockETHUSDOracle oracle) {
         usdc = new MockUSDC();
         oracle = new MockETHUSDOracle(1e18, 30 days);
         vm.prank(owner);
