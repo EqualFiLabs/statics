@@ -1,0 +1,33 @@
+{
+  "name": "@statics-protocol/sdk",
+  "version": "0.1.0",
+  "description": "Quotes, calldata builders, and constituent-only routing interfaces for Statics",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate:config": "node scripts/generate-robinhood-config.mjs",
+    "prebuild": "npm run generate:config",
+    "build": "tsc -p tsconfig.json",
+    "pretest": "npm run generate:config",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "viem": ">=2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "viem": "^2.0.0",
+    "vitest": "^3.0.0"
+  },
+  "license": "BUSL-1.1"
+}
