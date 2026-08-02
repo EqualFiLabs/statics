@@ -780,6 +780,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         uint256 firstLocked;
         uint256 secondLocked;
         uint256 length = handler.loanCount();
+        assertEq(positions.positionState(positionId).unresolvedObligationCount, length);
         for (uint256 i; i < length; ++i) {
             IStaticsLending.LoanView memory current = lending.loan(handler.loanIdAt(i));
             assertEq(current.positionId, positionId);

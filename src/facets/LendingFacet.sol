@@ -55,6 +55,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         }
         delete ls.loans[loanId];
         LibBasketRewards.unlockAfterRepay(current.positionId, current.basketId, configured, current.collateralShares);
+        LibPosition.decrementObligation(current.positionId);
         emit LoanRepaid(loanId, current.positionId, msg.sender);
     }
 
@@ -136,6 +137,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         LibCustody.release(custodyAccount, configured.token, quoted.burnShares);
         StaticsBasketToken(configured.token).burn(address(this), quoted.burnShares);
         LibBasketRewards.deactivateIfEmpty(current.positionId, current.basketId);
+        LibPosition.decrementObligation(current.positionId);
         emit LoanRecovered(loanId, current.positionId, msg.sender, quoted.burnShares, quoted.unlockedShares);
     }
 

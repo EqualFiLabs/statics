@@ -10,6 +10,7 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
+import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {BasketFacet} from "../../src/facets/BasketFacet.sol";
@@ -18,6 +19,22 @@ import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {MockFlashBorrower} from "../mocks/MockFlashBorrower.sol";
 import {MockERC20, MockFeeOnTransferERC20, MockOutboundFeeERC20, MockReentrantERC20} from "../mocks/MockERC20.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
+
+contract PositionStateObserver {
+    IModularPositionNFT private immutable _positions;
+    uint256 public observedNonce;
+    uint256 public observedObligations;
+
+    constructor(address positions_) {
+        _positions = IModularPositionNFT(positions_);
+    }
+
+    function observe(uint256 positionId) external {
+        IModularPositionNFT.PositionState memory state = _positions.positionState(positionId);
+        observedNonce = state.stateNonce;
+        observedObligations = state.unresolvedObligationCount;
+    }
+}
 
 contract LendingAndFlashTest is StaticsTestBase {
     function testOriginationFeeBurnsPositionSharesAndLoanAppliesLtv() public {
@@ -40,6 +57,10 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 10.495 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.1 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 9.405 ether);
+        IModularPositionNFT.PositionState memory structural =
+            IModularPositionNFT(address(diamond)).positionState(positionId);
+        assertEq(structural.stateNonce, 3);
+        assertEq(structural.unresolvedObligationCount, 1);
 
         IStaticsBasketCollateral.BasketCollateralPosition memory position =
             basketCollateral.basketCollateralPosition(positionId, basketId);
@@ -67,6 +88,10 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(IERC20(token).balanceOf(address(diamond)), 9.95 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
         assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 19.9 ether);
+        IModularPositionNFT.PositionState memory structural =
+            IModularPositionNFT(address(diamond)).positionState(positionId);
+        assertEq(structural.stateNonce, 4);
+        assertEq(structural.unresolvedObligationCount, 0);
     }
 
     function testExtensionChargesStoredUnderlyingPrincipalsAndPreservesBasketState() public {
@@ -74,6 +99,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 5 ether, alice);
+        uint256 structuralNonce = IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce;
 
         (address[] memory assets, uint256[] memory quotedFees) = lending.quoteExtension(loanId);
         assetA.mint(alice, quotedFees[0]);
@@ -91,6 +117,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         vm.stopPrank();
 
         IStaticsLending.LoanView memory afterLoan = lending.loan(loanId);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce, structuralNonce);
         assertEq(assets[0], address(assetA));
         assertEq(assets[1], address(assetB));
         assertEq(quotedFees[0], 0.0235125 ether);
@@ -252,10 +279,12 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(recoveryQuote.protocolAmounts[0], 1.6 ether);
 
         vm.warp(recoveryQuote.recoverableAt);
+        uint256 nonceBeforeFailedRecovery = IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce;
         vm.expectRevert(
             abi.encodeWithSelector(LendingFacet.LoanNotRecoverable.selector, loanId, recoveryQuote.recoverableAt)
         );
         lending.recover(loanId);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce, nonceBeforeFailedRecovery);
         vm.warp(block.timestamp + 1);
         vm.prank(bob);
         lending.recover(loanId);
@@ -272,6 +301,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(pending[0], 1.44 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.16 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).unresolvedObligationCount, 0);
         assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 158 ether);
         assertEq(
             custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)),
@@ -407,6 +437,10 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 secondLoan,) = lending.borrow(positionId, basketId, 4 ether, alice);
         vm.stopPrank();
 
+        IModularPositionNFT.PositionState memory twoLoans =
+            IModularPositionNFT(address(diamond)).positionState(positionId);
+        assertEq(twoLoans.unresolvedObligationCount, 2);
+
         assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).lockedShares, 6.93 ether);
         vm.startPrank(alice);
         assetA.approve(address(diamond), firstPrincipal[0]);
@@ -416,6 +450,52 @@ contract LendingAndFlashTest is StaticsTestBase {
 
         assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).lockedShares, 3.96 ether);
         assertEq(lending.loan(secondLoan).collateralShares, 3.96 ether);
+        IModularPositionNFT.PositionState memory oneLoan =
+            IModularPositionNFT(address(diamond)).positionState(positionId);
+        assertEq(oneLoan.unresolvedObligationCount, 1);
+    }
+
+    function testLoanCallbacksObserveLiveObligationUntilRepaymentCompletes() public {
+        (uint256 basketId, MockReentrantERC20 reentrant, address token) = _createReentrantFlashBasket();
+        _mintReentrantBasketSupply(basketId, token, reentrant, 10 ether);
+        uint256 positionId = _mintPositionShares(basketId, alice, 5 ether);
+        PositionStateObserver observer = new PositionStateObserver(address(diamond));
+
+        reentrant.setCallback(
+            address(diamond), address(observer), abi.encodeCall(PositionStateObserver.observe, (positionId))
+        );
+        vm.prank(alice);
+        (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 1 ether, alice);
+        assertEq(observer.observedObligations(), 1);
+
+        reentrant.setCallback(alice, address(observer), abi.encodeCall(PositionStateObserver.observe, (positionId)));
+        vm.startPrank(alice);
+        reentrant.approve(address(diamond), principals[0]);
+        assetB.approve(address(diamond), principals[1]);
+        lending.repay(loanId);
+        vm.stopPrank();
+
+        assertEq(observer.observedObligations(), 1);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).unresolvedObligationCount, 0);
+    }
+
+    function testRecoveryCallbackObservesObligationUntilCleanupCompletes() public {
+        (uint256 basketId, MockReentrantERC20 reentrant, address token) = _createReentrantFlashBasket();
+        _mintReentrantBasketSupply(basketId, token, reentrant, 10 ether);
+        uint256 positionId = _mintPositionShares(basketId, alice, 5 ether);
+        vm.prank(alice);
+        (uint256 loanId,) = lending.borrow(positionId, basketId, 1 ether, alice);
+        PositionStateObserver observer = new PositionStateObserver(address(diamond));
+        reentrant.setCallback(
+            address(diamond), address(observer), abi.encodeCall(PositionStateObserver.observe, (positionId))
+        );
+
+        vm.warp(lending.quoteRecovery(loanId).recoverableAt + 1);
+        vm.prank(bob);
+        lending.recover(loanId);
+
+        assertEq(observer.observedObligations(), 1);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).unresolvedObligationCount, 0);
     }
 
     function testRecoveringOneTrancheLeavesSiblingDebtAndCollateralIntact() public {
@@ -434,6 +514,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).lockedShares, 3.96 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), secondPrincipal[0]);
         assertEq(lending.outstandingPrincipal(basketId, address(assetB)), secondPrincipal[1]);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).unresolvedObligationCount, 1);
     }
 
     function testLockedCollateralDoesNotCreateBasketSpecificRewards() public {
