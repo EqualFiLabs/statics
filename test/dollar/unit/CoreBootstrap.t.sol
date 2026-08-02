@@ -108,7 +108,7 @@ contract CoreBootstrapTest is Test {
         assertEq(deployment.positionNFT, deployment.diamond);
         assertEq(ownership.owner(), owner);
         assertEq(loupe.facetAddresses().length, 11);
-        assertEq(staticsLoupe.facetAddresses().length, 20);
+        assertEq(staticsLoupe.facetAddresses().length, 22);
         assertEq(IStaticsBasket(deployment.diamond).basketCount(), 0);
 
         assertEq(StakingFacet(deployment.diamond).pool(), deployment.core);
@@ -248,6 +248,7 @@ contract CoreBootstrapTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = oracle;
         config.weth = weth;
+        config.stakingToken = weth;
         config.riskUri = "ipfs://risk/{id}.json";
     }
 

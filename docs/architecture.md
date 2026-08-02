@@ -13,8 +13,9 @@ StaticsTimelock
 StaticsDiamond
 ├── EIP-2535 routing, ownership, governance, and custody views
 ├── PositionNFT ERC-721
-├── Statics Basket creation, mint, redeem, rewards, lending, and flash loans
-└── Statics Dollar staking, rewards, opt-in, pairing, pegged revenue, and typed gateway
+├── Statics Basket creation, mint, redeem, lending, and flash loans
+├── global staking and checkpointed multi-asset rewards
+└── Statics Dollar staking, rewards, opt-in, pairing, pegged fee routing, and typed gateway
 
 StaticsDollarCoreDiamond
 ├── volatile-series issuance and direct pegged wrappers
@@ -26,11 +27,12 @@ StaticsBasketToken (one address per basket)
 └── transferable ERC-20 Permit representation of one static bundle
 
 StaticsSwapFeeHook
-└── immutable canonical-pool swap fee and bounded tick observations
+├── bilateral canonical-pool swap fees and bounded tick observations
+└── hook-owned full-range permanent liquidity
 
 StaticsLiquidityManager
 ├── immutable Diamond, v4 PositionManager, PoolManager, and Permit2 bindings
-├── isolated protocol inventory and protocol-owned v4 NFTs
+├── canonical-pool registration
 └── typed user-position minting with NFTs delivered directly to users
 ```
 
@@ -38,7 +40,7 @@ Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
 neither standalone contract is a second general protocol entrypoint.
 
-The canonical deployment installs 20 facets and 170 selectors on
+The canonical deployment installs 22 facets and 184 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -60,17 +62,17 @@ separately namespaced:
 - global and module-local physical reservations;
 - Statics Dollar staking, passive rewards, opt-in rewards, migration, and
   insurance ingress;
-- pegged-profile protocol revenue;
-- per-basket backing and protocol revenue;
-- per-basket, per-asset POL reserves, cumulative fee classification,
-  canonical-pool state, compounding epochs, hook settlement, and protocol LP
-  fee totals;
-- per-basket, per-asset holder reward indexes and claims; and
+- pegged-profile fee ingress;
+- per-basket backing and collateral;
+- canonical-pool registration, lifecycle, and decommission state;
+- one global staking balance per PositionNFT and up to 64 independent
+  per-asset reward indexes; and
 - per-position, per-basket loan tranches, principal, and recovery surplus.
 
 Statics Dollar Core collateral never enters shared periphery custody. Basket
 assets never collateralize Statics Dollar, Dollar positions never collateralize
-basket loans, and the two products never share reward denominators.
+basket loans. Basket and Dollar fees can share the global staking denominator
+without sharing backing or debt books.
 
 ## Physical-token reservations
 
@@ -81,6 +83,8 @@ several baskets. `LibCustody` therefore records:
 globalReservedByToken[token]
 reservedByAccount[dollarAccount][token]
 reservedByAccount[basketAccount(basketId)][token]
+reservedByAccount[feeAccount][token]
+reservedByAccount[stakingAccount][token]
 ```
 
 Every attributed ingress increases both the module account and global total.
@@ -96,7 +100,7 @@ is a permissionless constituent risk, not a reason for a protocol registry.
 ## Canonical v4 liquidity boundaries
 
 Every configured basket constituent has one canonical BasketToken/constituent
-pool key with the immutable Statics hook, a 500-pip LP fee, and tick spacing
+pool key with the immutable Statics hook, a zero native LP fee, and tick spacing
 10. Pool initialization enters a one-hour warm-up; activation requires enough
 hook observations for a 30-minute reference and a spot deviation no greater
 than the configured one-percent bound.
@@ -106,51 +110,59 @@ The three physical locations keep independent books:
 ```text
 StaticsDiamond
 ├── basket backing and outstanding debt
-├── PositionNFT holder-reward reserves
-├── terminal basket protocol revenue
-└── undeployed per-basket/per-asset POL reserves
+├── global per-asset staking reward reserves
+├── global per-asset treasury reserves
+├── custody for the configured staking token
+└── voluntary custody for reward-eligible PositionManager NFTs
 
 StaticsSwapFeeHook
-└── per-pool/per-currency measured fee liabilities
+├── per-pool/per-currency pending POL
+└── hook-owned full-range v4 liquidity
 
 StaticsLiquidityManager
-├── per-basket/per-token idle POL inventory
-└── one protocol PositionManager NFT per basket constituent
+├── typed user PositionManager NFT creation
+└── typed increases for Diamond-custodied user positions
 ```
 
-Raw balances at any location are not shared liquidity. Hook withdrawals debit
-only the selected pool liability. Manager movements debit only the selected
-basket inventory and must leave its global token inventory covered. This lets
-two baskets or pools share a physical token without sharing attribution.
+Raw balances at any location are not shared liquidity. The hook charges both
+realized swap legs, rounded up, while the pool's native LP fee remains zero.
+The default fee is 25 basis points on input and 25 basis points on output, split
+50% to POL, 10% to activated canonical LPs, 30% to global stakers, and 10% to
+treasury. An unavailable LP or staker allocation is independently redirected
+to POL.
 
-Eligible primary basket fees are classified atomically into holder rewards,
-POL reserve, and terminal revenue. Once per 24-hour epoch, anyone may convert a
-proportional reserve slice into exactly backed BasketTokens and matched
-constituents for full-range POL. During a pool's first seven days the deployed
-slice is capped at 10%; compounding below `1e12` BasketToken shares reverts.
+This global allocation is the default. The basket-liquidity facet lets
+timelocked governance resolve a registered canonical pool by `basketId` and
+constituent and set a four-way POL/canonical-LP/staker/treasury override using
+the same allocation model as the global default. The override sums to 10,000
+BPS and may explicitly set POL or canonical LPs to zero without changing either
+hook fee rate. Clearing it restores the latest global allocation. Overrides
+never release or reclassify pending POL, never remove permanent liquidity, and
+do not alter decommissioning. Unavailable canonical-LP and staker shares still
+redirect to POL.
 
-The hook independently charges one basis point, rounded up, on realized swap
-amounts in the charged currency. Settlement makes 100% of measured hook
-receipts terminal basket revenue. The canonical pool's ordinary five-basis-
-point LP fee belongs to its liquidity providers. For protocol-owned positions,
-floor-rounded 10% of each measured fee currency becomes terminal revenue and
-the remainder stays as POL inventory. User-owned v4 positions keep all of
-their LP fees while their swaps still pay the separate hook fee.
+After every swap, matched POL amounts are added as hook-owned full-range
+liquidity in the same pool. No caller, administrator, or treasury can withdraw
+active-pool POL. On `ExitOnly`, permissionless decommissioning releases it,
+burns the released BasketTokens, and reserves the resulting constituents for
+the common treasury. User-owned v4 positions remain under their owners'
+control and collect no native LP fee. A full-range canonical NFT may instead
+be attached to a PositionNFT and held by the Diamond to earn the LP hook share.
+New and increased liquidity activates in the next block; there is no exit
+cooldown.
 
 `borrowAndProvideLiquidity` is an optional typed Diamond action. It originates
 the ordinary position-owned loan, burns the ordinary origination fee, uses
 retained principal for an ordinary-fee basket mint, and creates one v4 NFT per
 constituent directly for the selected recipient. Unused transaction-scoped
 principal and PositionManager refunds go to that recipient. The manager keeps
-no user inventory, and user v4 NFTs are neither PositionNFT legs nor Statics
-collateral.
+no user inventory. User v4 NFTs remain external unless their owner later opts
+into the separate PositionNFT custody-and-reward entrypoint; origin through
+this function is not an eligibility condition.
 
-Quarantine and liquidity pause block new compounding and combined borrowing
-without blocking fee settlement. Exit-only baskets can permissionlessly burn
-each protocol position, return idle manager inventory, burn returned
-BasketTokens into proportional backing revenue, and reclassify remaining POL
-reserves as terminal revenue. User-owned v4 NFTs remain under their owners'
-control.
+Quarantine and liquidity pause block new combined borrowing. Exit-only baskets
+can permissionlessly decommission each canonical pool and unwind its permanent
+hook liquidity. User-owned v4 NFTs remain under their owners' control.
 
 ## Liquidity threat model
 
@@ -168,7 +180,7 @@ every account using that same physical token insolvent or unusable. Basket and
 token reputation remain a user-agency concern; exit-only decommissioning is
 the governed containment path.
 
-Price checks bound activation, compounding, and combined entry against the
+Price checks bound activation and combined entry against the
 hook's time-weighted observations. They do not guarantee fair execution during
 oracle manipulation, sequencer failure, extreme volatility, or insufficient
 history. Callers must simulate current state and impose amount caps and
@@ -188,11 +200,17 @@ ERC-7201 storage namespace; it does not deploy another proxy. Standalone
 Statics Dollar and BasketToken contracts use ordinary OpenZeppelin `ERC20` and
 `ERC20Permit` constructors.
 
-All custody-mutating facets inherit ordinary OpenZeppelin `ReentrancyGuard`.
-Under delegatecall, facets on the same Diamond share its fixed namespaced guard
-slot, giving cross-facet exclusion without a protocol-specific lock. The user
-Diamond and Core Diamond have separate guard state because they are separate
-execution and custody boundaries.
+Custody-mutating basket, lending, rewards, and liquidity facets inherit
+ordinary OpenZeppelin `ReentrancyGuard`. Under delegatecall, those facets on the
+same Diamond share its fixed namespaced persistent slot, giving cross-facet
+exclusion without a protocol-specific lock. `FlashLoanFacet` instead uses
+OpenZeppelin `ReentrancyGuardTransient`: nested flash loans remain excluded in
+the transient domain while an ordinary guarded mint or redemption may execute
+during the explicit receiver callback. Flash disbursement and repayment each
+acquire the common persistent slot, so callback-capable token transfers cannot
+enter another persistent value path while balance deltas are being measured.
+The user Diamond and Core Diamond have separate persistent guard state because
+they are separate execution and custody boundaries.
 
 The kernel follows standard EIP-2535 cut semantics: the owner may add, replace,
 or remove selectors and may optionally delegatecall an initializer in the same

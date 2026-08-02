@@ -96,11 +96,15 @@ contract PositionNFTTest is Test {
         cut[4] = _cut(address(harnessFacet), harnessSelectors);
 
         StaticsProtocolInit init = new StaticsProtocolInit();
+        PositionReceiver stakingToken = new PositionReceiver(address(0));
         diamond = new StaticsDiamond(
             address(this),
             cut,
             address(init),
-            abi.encodeCall(StaticsProtocolInit.initialize, (makeAddr("guardian"), makeAddr("treasury"), 0)),
+            abi.encodeCall(
+                StaticsProtocolInit.initialize,
+                (makeAddr("guardian"), makeAddr("treasury"), address(stakingToken), 0)
+            ),
             address(0)
         );
         nft = IERC721(address(diamond));

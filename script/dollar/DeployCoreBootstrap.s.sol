@@ -25,6 +25,7 @@ struct CoreBootstrapConfig {
     address owner;
     address profileGuardian;
     address treasury;
+    address stakingToken;
     uint256 creationFeeAmount;
     address initialOracle;
     address requiredSequencerUptimeFeed;
@@ -74,7 +75,7 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
     {
         if (
             config.owner == address(0) || config.profileGuardian == address(0) || config.initialOracle == address(0)
-                || config.weth == address(0) || deploymentCreator == address(0)
+                || config.weth == address(0) || config.stakingToken == address(0) || deploymentCreator == address(0)
         ) revert ZeroAddress();
         if (config.collateralRatioBps == 0) config.collateralRatioBps = 15_000;
         if (config.priceBandBps == 0) config.priceBandBps = 15_000;
@@ -98,7 +99,13 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
         returns (address diamond, address positionNFT)
     {
         return _deployStaticsProtocol(
-            core, config.weth, config.owner, config.profileGuardian, config.treasury, config.creationFeeAmount
+            core,
+            config.weth,
+            config.owner,
+            config.profileGuardian,
+            config.treasury,
+            config.stakingToken,
+            config.creationFeeAmount
         );
     }
 
@@ -111,7 +118,21 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
         staticsDollar = address(new StaticsDollar(predictedCore));
         staticsDollarRisk = address(new StaticsDollarRiskShares(predictedCore, config.riskUri));
         IDiamondCut.FacetCut[] memory genesis = _coreGenesis(parts);
-        CoreInit.InitArgs memory args = CoreInit.InitArgs({
+        CoreInit.InitArgs memory args = _coreInitArgs(config, staticsDollar, staticsDollarRisk);
+        bytes memory initData = abi.encodeCall(CoreInit.init, (args));
+        address owner = config.owner;
+        address init = parts.init;
+        StaticsDollarCoreDiamond core = new StaticsDollarCoreDiamond(owner, genesis, init, initData);
+        coreAddress = address(core);
+        if (coreAddress != predictedCore) revert CorePredictionMismatch(predictedCore, coreAddress);
+    }
+
+    function _coreInitArgs(CoreBootstrapConfig memory config, address staticsDollar, address staticsDollarRisk)
+        private
+        pure
+        returns (CoreInit.InitArgs memory args)
+    {
+        args = CoreInit.InitArgs({
             staticsDollar: staticsDollar,
             staticsDollarRisk: staticsDollarRisk,
             initialOracle: config.initialOracle,
@@ -123,10 +144,6 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
             priceBandBps: config.priceBandBps,
             debtCeiling: config.debtCeiling
         });
-        StaticsDollarCoreDiamond core =
-            new StaticsDollarCoreDiamond(config.owner, genesis, parts.init, abi.encodeCall(CoreInit.init, (args)));
-        coreAddress = address(core);
-        if (coreAddress != predictedCore) revert CorePredictionMismatch(predictedCore, coreAddress);
     }
 
     function _deployCoreParts() internal returns (CoreParts memory parts) {

@@ -22,31 +22,95 @@ interface IStaticsSwapFeeHook {
         uint8 observationCardinality;
     }
 
+    struct FeeConfiguration {
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
+        uint16 polShareBps;
+        uint16 liquidityProviderShareBps;
+        uint16 stakerShareBps;
+        uint16 treasuryShareBps;
+    }
+
+    struct FeeAllocation {
+        uint16 polShareBps;
+        uint16 liquidityProviderShareBps;
+        uint16 stakerShareBps;
+        uint16 treasuryShareBps;
+    }
+
+    struct PoolFeeAllocationView {
+        uint16 polShareBps;
+        uint16 liquidityProviderShareBps;
+        uint16 stakerShareBps;
+        uint16 treasuryShareBps;
+        bool overridden;
+    }
+
     event PoolRegistered(PoolId indexed poolId, Currency indexed currency0, Currency indexed currency1);
-    event SwapFeeAccrued(
+    event SwapLegFeeAccrued(
         PoolId indexed poolId,
         Currency indexed currency,
+        bool indexed specifiedLeg,
         uint256 realizedAmount,
         uint256 chargedAmount,
-        uint256 receivedAmount
+        uint256 polAmount,
+        uint256 liquidityProviderAmount,
+        uint256 stakerAmount,
+        uint256 treasuryAmount
     );
-    event PoolFeesWithdrawn(
+    event PermanentLiquidityAdded(
+        PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1, uint256 pending0, uint256 pending1
+    );
+    event PermanentLiquidityFeesCollected(
+        PoolId indexed poolId, Currency indexed currency, uint256 amount, uint256 pendingAmount
+    );
+    event PermanentLiquidityReleased(
+        PoolId indexed poolId, address indexed receiver, uint128 liquidity, uint256 amount0, uint256 amount1
+    );
+    event PoolDecommissioned(PoolId indexed poolId);
+    event FeeConfigurationSet(
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
+        uint16 polShareBps,
+        uint16 liquidityProviderShareBps,
+        uint16 stakerShareBps,
+        uint16 treasuryShareBps
+    );
+    event PoolFeeAllocationSet(
         PoolId indexed poolId,
-        Currency indexed currency,
-        uint256 spentAmount,
-        uint256 receivedAmount,
-        uint256 remainingAmount
+        uint16 polShareBps,
+        uint16 liquidityProviderShareBps,
+        uint16 stakerShareBps,
+        uint16 treasuryShareBps
     );
+    event PoolFeeAllocationCleared(PoolId indexed poolId);
     event TickObservationRecorded(
         PoolId indexed poolId, uint40 indexed timestamp, int24 tick, int56 tickCumulative, uint8 cardinality
     );
 
     function staticsDiamond() external view returns (address);
-    function hookFeeBps() external view returns (uint16);
+    function feeConfiguration() external view returns (FeeConfiguration memory config);
+    function setFeeConfiguration(
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
+        uint16 polShareBps,
+        uint16 liquidityProviderShareBps,
+        uint16 stakerShareBps,
+        uint16 treasuryShareBps
+    ) external;
+    function setPoolFeeAllocation(PoolId poolId, FeeAllocation calldata allocation) external;
+    function clearPoolFeeAllocation(PoolId poolId) external;
+    function poolFeeAllocation(PoolId poolId) external view returns (PoolFeeAllocationView memory allocation);
     function registerPool(PoolKey calldata key) external returns (PoolId poolId);
+    function decommissionPool(PoolKey calldata key) external;
+    function poolDecommissioned(PoolId poolId) external view returns (bool decommissioned);
     function poolRegistration(PoolId poolId) external view returns (PoolRegistration memory registration);
-    function accruedFees(PoolId poolId, Currency currency) external view returns (uint256 amount);
-    function totalLiability(Currency currency) external view returns (uint256 amount);
+    function pendingPermanentLiquidity(PoolId poolId, Currency currency) external view returns (uint256 amount);
+    function lockedLiquidity(PoolId poolId) external view returns (uint128 liquidity);
+    function compoundPermanentLiquidity(PoolKey calldata key) external returns (uint128 liquidityAdded);
+    function releasePermanentLiquidity(PoolKey calldata key, address receiver)
+        external
+        returns (uint256 amount0, uint256 amount1);
     function checkpoint(PoolKey calldata key) external returns (bool observationStored);
     function oracleState(PoolId poolId) external view returns (OracleStateView memory state);
     function observationAt(PoolId poolId, uint8 index) external view returns (uint40 timestamp, int56 tickCumulative);
@@ -54,7 +118,4 @@ interface IStaticsSwapFeeHook {
         external
         view
         returns (int24 referenceTick, int24 spotTick, uint40 oldestObservationAt);
-    function withdrawPoolFees(PoolId poolId)
-        external
-        returns (uint256 spent0, uint256 received0, uint256 spent1, uint256 received1);
 }

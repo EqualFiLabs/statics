@@ -5,7 +5,6 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155Errors, IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {Test} from "forge-std/Test.sol";
 
 import {
@@ -28,6 +27,7 @@ import {FeeRouterFacet} from "src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {IStaticsCustody} from "src/interfaces/IStaticsCustody.sol";
+import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {MockUSDC} from "../helpers/MockUSDC.sol";
 
 contract StaticsDollarGatewayTest is Test {
@@ -49,6 +49,7 @@ contract StaticsDollarGatewayTest is Test {
     IStaticsDollarCore internal pool;
     IStaticsDollarGateway internal gateway;
     IStaticsCustody internal custody;
+    IStaticsGlobalRewards internal globalRewards;
     StakingFacet internal staking;
     PairingVaultFacet internal pairing;
     address internal diamond;
@@ -70,6 +71,7 @@ contract StaticsDollarGatewayTest is Test {
         config.profileGuardian = owner;
         config.initialOracle = address(oracle);
         config.weth = address(weth);
+        config.stakingToken = address(weth);
         config.collateralRatioBps = COLLATERAL_RATIO_BPS;
         config.priceBandBps = PRICE_BAND_BPS;
         config.debtCeiling = type(uint256).max;
@@ -80,6 +82,7 @@ contract StaticsDollarGatewayTest is Test {
         diamond = deployment.diamond;
         gateway = IStaticsDollarGateway(diamond);
         custody = IStaticsCustody(diamond);
+        globalRewards = IStaticsGlobalRewards(diamond);
         staking = StakingFacet(diamond);
         pairing = PairingVaultFacet(diamond);
         vm.deal(alice, 10 ether);
@@ -212,7 +215,7 @@ contract StaticsDollarGatewayTest is Test {
         _assertNoUnreservedGatewayResidue(SERIES_ONE);
     }
 
-    function testPermitRecombinationRejectsAlreadyConsumedSignature() public {
+    function testPermitRecombinationToleratesFrontrunPermitSubmission() public {
         _depositToAliceThroughGateway(1 ether);
         _approveRiskClaims(alice);
         uint256 deadline = block.timestamp + 1 hours;
@@ -222,12 +225,16 @@ contract StaticsDollarGatewayTest is Test {
         staticsDollar.permit(alice, diamond, 1e18, signature.deadline, signature.v, signature.r, signature.s);
 
         vm.prank(alice);
-        vm.expectPartialRevert(ERC20Permit.ERC2612InvalidSigner.selector);
-        gateway.recombineToWETHWithPermit(SERIES_ONE, 1e18, 1e18, receiver, ONE_PAIR_COLLATERAL, signature);
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 wethOut) =
+            gateway.recombineToWETHWithPermit(SERIES_ONE, 1e18, 1e18, receiver, ONE_PAIR_COLLATERAL, signature);
 
+        assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Available));
+        assertEq(wethOut, ONE_PAIR_COLLATERAL);
+        assertEq(weth.balanceOf(receiver), ONE_PAIR_COLLATERAL);
         assertEq(staticsDollar.nonces(alice), 1);
-        assertEq(staticsDollar.allowance(alice, diamond), 1e18);
-        assertEq(staticsDollar.balanceOf(alice), ONE_ETH_MINT);
+        assertEq(staticsDollar.allowance(alice, diamond), 0);
+        assertEq(staticsDollar.balanceOf(alice), ONE_ETH_MINT - 1e18);
+        _assertNoUnreservedGatewayResidue(SERIES_ONE);
     }
 
     function testPermitRecombinationRejectsExpiredSignatureWithoutAllowance() public {
@@ -236,13 +243,50 @@ contract StaticsDollarGatewayTest is Test {
         IStaticsDollarGateway.PermitSignature memory signature = _signPermit(1e18, block.timestamp - 1);
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(ERC20Permit.ERC2612ExpiredSignature.selector, signature.deadline));
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, diamond, 0, 1e18));
         gateway.recombineToWETHWithPermit(SERIES_ONE, 1e18, 1e18, receiver, 0, signature);
 
         assertEq(staticsDollar.nonces(alice), 0);
         assertEq(staticsDollar.allowance(alice, diamond), 0);
         assertEq(staticsDollar.balanceOf(alice), ONE_ETH_MINT);
         assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ONE), ONE_ETH_MINT);
+    }
+
+    function testPermitRecombinationUsesCallerExistingAllowanceAfterExpiredPermit() public {
+        _depositToAliceThroughGateway(1 ether);
+        _approveRiskClaims(alice);
+        IStaticsDollarGateway.PermitSignature memory signature = _signPermit(1e18, block.timestamp - 1);
+
+        vm.prank(alice);
+        staticsDollar.approve(diamond, 2e18);
+        vm.prank(alice);
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 wethOut) =
+            gateway.recombineToWETHWithPermit(SERIES_ONE, 1e18, 1e18, receiver, ONE_PAIR_COLLATERAL, signature);
+
+        assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Available));
+        assertEq(wethOut, ONE_PAIR_COLLATERAL);
+        assertEq(staticsDollar.nonces(alice), 0);
+        assertEq(staticsDollar.allowance(alice, diamond), 1e18);
+        assertEq(staticsDollar.balanceOf(alice), ONE_ETH_MINT - 1e18);
+        _assertNoUnreservedGatewayResidue(SERIES_ONE);
+    }
+
+    function testPermitRecombinationCallerCannotConsumeVictimAllowance() public {
+        _depositToAliceThroughGateway(1 ether);
+        uint256 deadline = block.timestamp + 1 hours;
+        IStaticsDollarGateway.PermitSignature memory signature = _signPermit(1e18, deadline);
+
+        vm.prank(receiver);
+        staticsDollar.permit(alice, diamond, 1e18, signature.deadline, signature.v, signature.r, signature.s);
+        vm.prank(receiver);
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, diamond, 0, 1e18));
+        gateway.recombineToWETHWithPermit(SERIES_ONE, 1e18, 1e18, receiver, 0, signature);
+
+        assertEq(staticsDollar.nonces(alice), 1);
+        assertEq(staticsDollar.allowance(alice, diamond), 1e18);
+        assertEq(staticsDollar.balanceOf(alice), ONE_ETH_MINT);
+        assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ONE), ONE_ETH_MINT);
+        assertEq(staticsDollar.balanceOf(receiver), 0);
     }
 
     function testPermitRecombinationRollsBackPermitWhenRiskApprovalIsMissing() public {
@@ -260,7 +304,7 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ONE), ONE_ETH_MINT);
     }
 
-    function testPermitRecombinationRejectsReplayAfterAllowanceIsConsumed() public {
+    function testPermitRecombinationRejectsReplayWithoutAllowance() public {
         _depositToAliceThroughGateway(1 ether);
         _approveRiskClaims(alice);
         uint256 deadline = block.timestamp + 1 hours;
@@ -272,7 +316,7 @@ contract StaticsDollarGatewayTest is Test {
         uint256 staticsDollarBefore = staticsDollar.balanceOf(alice);
         uint256 riskBefore = staticsDollarRisk.balanceOf(alice, SERIES_ONE);
         vm.prank(alice);
-        vm.expectPartialRevert(ERC20Permit.ERC2612InvalidSigner.selector);
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, diamond, 0, 1e18));
         gateway.recombineToWETHWithPermit(SERIES_ONE, 1e18, 1e18, receiver, 0, signature);
 
         assertEq(staticsDollar.nonces(alice), 1);
@@ -346,10 +390,7 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
         assertEq(usdc.allowance(diamond, address(pool)), 0);
         assertEq(staticsDollar.balanceOf(diamond), custody.globalReservedByToken(address(staticsDollar)));
-        assertEq(
-            FeeRouterFacet(diamond).peggedProtocolRevenue(profileId, address(usdc)),
-            mintPreview.feeAmount + (2 * preview.feeAmount)
-        );
+        assertEq(globalRewards.treasuryAccrued(address(usdc)), mintPreview.feeAmount + (2 * preview.feeAmount));
     }
 
     function testPeggedMintWithPermitConsumesExactCollateralAllowance() public {
@@ -370,7 +411,7 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
     }
 
-    function testPeggedMintWithPermitRejectsAlreadyConsumedSignature() public {
+    function testPeggedMintWithPermitToleratesFrontrunPermitSubmission() public {
         (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview = pool.previewPeggedMint(profileId, 100e18);
         usdc.mint(alice, preview.totalCollateralIn);
@@ -382,12 +423,35 @@ contract StaticsDollarGatewayTest is Test {
             alice, diamond, preview.totalCollateralIn, signature.deadline, signature.v, signature.r, signature.s
         );
         vm.prank(alice);
-        vm.expectPartialRevert(ERC20Permit.ERC2612InvalidSigner.selector);
-        gateway.mintPeggedWithPermit(profileId, 100e18, preview.totalCollateralIn, alice, signature);
+        uint256 collateralIn =
+            gateway.mintPeggedWithPermit(profileId, 100e18, preview.totalCollateralIn, alice, signature);
 
+        assertEq(collateralIn, preview.totalCollateralIn);
         assertEq(usdc.nonces(alice), 1);
-        assertEq(usdc.allowance(alice, diamond), preview.totalCollateralIn);
-        assertEq(staticsDollar.balanceOf(alice), 0);
+        assertEq(usdc.allowance(alice, diamond), 0);
+        assertEq(staticsDollar.balanceOf(alice), 100e18);
+        assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
+    }
+
+    function testPeggedMintWithPermitUsesCallerExistingAllowanceAfterExpiredPermit() public {
+        (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
+        IStaticsDollarCoreTypes.PeggedMintPreview memory preview = pool.previewPeggedMint(profileId, 100e18);
+        uint256 extraAllowance = 1e6;
+        usdc.mint(alice, preview.totalCollateralIn);
+        IStaticsDollarGateway.PermitSignature memory signature =
+            _signTokenPermit(usdc, preview.totalCollateralIn, block.timestamp - 1);
+
+        vm.prank(alice);
+        usdc.approve(diamond, preview.totalCollateralIn + extraAllowance);
+        vm.prank(alice);
+        uint256 collateralIn =
+            gateway.mintPeggedWithPermit(profileId, 100e18, preview.totalCollateralIn, alice, signature);
+
+        assertEq(collateralIn, preview.totalCollateralIn);
+        assertEq(usdc.nonces(alice), 0);
+        assertEq(usdc.allowance(alice, diamond), extraAllowance);
+        assertEq(staticsDollar.balanceOf(alice), 100e18);
+        assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
     }
 
     function testPeggedMintWithPermitRollsBackPermitWhenCollateralTransferFails() public {
@@ -418,6 +482,31 @@ contract StaticsDollarGatewayTest is Test {
         IStaticsDollarCoreTypes.PeggedRedemptionPreview memory preview = pool.previewPeggedRedemption(profileId, 100e18);
         IStaticsDollarGateway.PermitSignature memory signature = _signPermit(100e18, block.timestamp + 1 hours);
 
+        vm.prank(alice);
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut) =
+            gateway.redeemPeggedWithPermit(profileId, 100e18, preview.collateralOut, receiver, signature);
+
+        assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Available));
+        assertEq(collateralOut, preview.collateralOut);
+        assertEq(staticsDollar.nonces(alice), 1);
+        assertEq(staticsDollar.allowance(alice, diamond), 0);
+        assertEq(staticsDollar.balanceOf(alice), 0);
+        assertEq(usdc.balanceOf(receiver), preview.collateralOut);
+    }
+
+    function testPeggedRedemptionWithPermitToleratesFrontrunPermitSubmission() public {
+        (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
+        IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview = pool.previewPeggedMint(profileId, 100e18);
+        usdc.mint(alice, mintPreview.totalCollateralIn);
+        vm.startPrank(alice);
+        usdc.approve(diamond, mintPreview.totalCollateralIn);
+        gateway.mintPegged(profileId, 100e18, mintPreview.totalCollateralIn, alice);
+        vm.stopPrank();
+        IStaticsDollarCoreTypes.PeggedRedemptionPreview memory preview = pool.previewPeggedRedemption(profileId, 100e18);
+        IStaticsDollarGateway.PermitSignature memory signature = _signPermit(100e18, block.timestamp + 1 hours);
+
+        vm.prank(receiver);
+        staticsDollar.permit(alice, diamond, 100e18, signature.deadline, signature.v, signature.r, signature.s);
         vm.prank(alice);
         (IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut) =
             gateway.redeemPeggedWithPermit(profileId, 100e18, preview.collateralOut, receiver, signature);
@@ -499,7 +588,7 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(staticsDollar.balanceOf(diamond), diamondBefore);
     }
 
-    function testTreasuryClaimsIsolatedPeggedProtocolRevenue() public {
+    function testAnyoneCanDistributePeggedTreasuryFees() public {
         (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview = pool.previewPeggedMint(profileId, 100e18);
         usdc.mint(alice, preview.totalCollateralIn);
@@ -508,18 +597,12 @@ contract StaticsDollarGatewayTest is Test {
         gateway.mintPegged(profileId, 100e18, preview.totalCollateralIn, alice);
         vm.stopPrank();
 
-        FeeRouterFacet router = FeeRouterFacet(diamond);
+        uint256 treasuryBefore = usdc.balanceOf(owner);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(FeeRouterFacet.OnlyTreasury.selector, alice, owner));
-        router.claimPeggedProtocolRevenue(profileId, preview.feeAmount, receiver);
-
-        uint256 receiverBefore = usdc.balanceOf(receiver);
-        vm.prank(owner);
-        (uint256 spent, uint256 received) = router.claimPeggedProtocolRevenue(profileId, preview.feeAmount, receiver);
-        assertEq(spent, preview.feeAmount);
-        assertEq(received, preview.feeAmount);
-        assertEq(usdc.balanceOf(receiver) - receiverBefore, preview.feeAmount);
-        assertEq(router.peggedProtocolRevenue(profileId, address(usdc)), 0);
+        uint256 distributed = globalRewards.distributeTreasuryFees(address(usdc));
+        assertEq(distributed, preview.feeAmount);
+        assertEq(usdc.balanceOf(owner) - treasuryBefore, preview.feeAmount);
+        assertEq(globalRewards.treasuryAccrued(address(usdc)), 0);
         assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
     }
 

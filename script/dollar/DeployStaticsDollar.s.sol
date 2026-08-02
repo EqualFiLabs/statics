@@ -11,6 +11,7 @@ struct StaticsDollarProductionConfig {
     address owner;
     address profileGuardian;
     address treasury;
+    address stakingToken;
     uint256 creationFeeAmount;
     address weth;
     address ethUsdFeed;
@@ -29,6 +30,7 @@ struct StaticsDollarLocalConfig {
     address owner;
     address profileGuardian;
     address treasury;
+    address stakingToken;
     uint256 creationFeeAmount;
     address weth;
     address oracle;
@@ -85,6 +87,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
             owner: vm.envAddress("STATICS_DOLLAR_OWNER"),
             profileGuardian: vm.envAddress("STATICS_DOLLAR_PROFILE_GUARDIAN"),
             treasury: vm.envAddress("STATICS_TREASURY"),
+            stakingToken: vm.envAddress("STAKING_TOKEN"),
             creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
             weth: vm.envAddress("WETH_ADDRESS"),
             ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
@@ -170,6 +173,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
             config.owner,
             config.profileGuardian,
             config.treasury,
+            config.stakingToken,
             config.creationFeeAmount,
             config.weth,
             address(oracle),
@@ -202,6 +206,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
             if (!config.deployMockWeth) revert LocalDependencyMissing(WETH_FIELD);
             config.weth = address(new CanonicalWETH9());
         }
+        if (config.stakingToken == address(0)) config.stakingToken = config.weth;
         if (config.oracle == address(0)) {
             if (!config.deployMockOracle) revert LocalDependencyMissing(ETH_USD_FEED_FIELD);
             uint256 price = config.mockOraclePriceWad == 0 ? 2_500e18 : config.mockOraclePriceWad;
@@ -212,6 +217,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
             config.owner,
             config.profileGuardian,
             config.treasury,
+            config.stakingToken,
             config.creationFeeAmount,
             config.weth,
             config.oracle,
@@ -229,6 +235,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
         address owner,
         address profileGuardian,
         address treasury,
+        address stakingToken,
         uint256 creationFeeAmount,
         address weth,
         address oracle,
@@ -244,6 +251,7 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
             owner: owner,
             profileGuardian: profileGuardian,
             treasury: treasury,
+            stakingToken: stakingToken,
             creationFeeAmount: creationFeeAmount,
             initialOracle: oracle,
             requiredSequencerUptimeFeed: sequencerUptimeFeed,

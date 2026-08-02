@@ -20,6 +20,7 @@ import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreT
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 import {FeeRouterFacet} from "src/dollar/periphery/facets/FeeRouterFacet.sol";
+import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {MockUSDC} from "../helpers/MockUSDC.sol";
 
 contract PeggedRedemptionLifecycleTest is Test {
@@ -52,6 +53,7 @@ contract PeggedRedemptionLifecycleTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = address(wethOracle);
         config.weth = address(weth);
+        config.stakingToken = address(weth);
         config.riskUri = "ipfs://risk/{id}.json";
         deployment = new DeployCoreBootstrap().deploy(config);
         governance = CoreGovernanceFacet(deployment.core);
@@ -100,7 +102,7 @@ contract PeggedRedemptionLifecycleTest is Test {
         assertEq(staticsDollar.totalSupply(), 0);
         assertEq(usdc.balanceOf(deployment.core), 0);
         assertEq(
-            FeeRouterFacet(deployment.diamond).peggedProtocolRevenue(profileId, address(usdc)),
+            IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(usdc)),
             mintPreview.feeAmount + bobPreview.feeAmount + finalPreview.feeAmount
         );
     }

@@ -64,8 +64,8 @@ contract CanonicalV4Router is IUnlockCallback {
 
 abstract contract CanonicalPoolTestBase is StaticsTestBase {
     uint160 internal constant SQRT_PRICE_1_1 = 1 << 96;
-    uint160 internal constant REQUIRED_HOOK_FLAGS =
-        Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+    uint160 internal constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
     IPoolManager internal poolManager;
     StaticsSwapFeeHook internal swapFeeHook;
@@ -84,9 +84,9 @@ abstract contract CanonicalPoolTestBase is StaticsTestBase {
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint16(1))
+            abi.encode(poolManager, address(diamond), uint16(25), uint16(25))
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 1);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
     }
 

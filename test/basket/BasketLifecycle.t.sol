@@ -63,7 +63,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         vm.prank(alice);
         baskets.mint(basketId, 10 ether, alice, aliceQuote);
         assertEq(baskets.vaultBalance(basketId, address(assetA)), 20 ether);
-        assertEq(basketAdmin.protocolRevenue(basketId, address(assetA)), 0.11 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
 
         uint256[] memory sameActionQuote = baskets.quoteMint(basketId, 10 ether);
         assertEq(sameActionQuote[0], aliceQuote[0]);
@@ -75,7 +75,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         vm.prank(bob);
         baskets.mint(basketId, 100 ether, bob, bobQuote);
         assertEq(baskets.vaultBalance(basketId, address(assetA)), 220 ether);
-        assertEq(basketAdmin.protocolRevenue(basketId, address(assetA)), 0.66 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 1.2 ether);
 
         uint256[] memory redeemQuote = baskets.quoteRedeem(basketId, 10 ether);
         assertEq(redeemQuote[0], 19.9 ether);
@@ -91,8 +91,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.redeem(basketId, 100 ether, bob, finalQuote);
         assertEq(IERC20(token).totalSupply(), 0);
         assertEq(baskets.vaultBalance(basketId, address(assetA)), 0);
-        assertEq(basketAdmin.protocolRevenue(basketId, address(assetA)), 0.935 ether);
-        assertEq(basketLiquidity.liquidityReserve(basketId, address(assetA)), 0.765 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 1.7 ether);
     }
 
     function testGuardianPauseLeavesRedemptionAvailable() public {
@@ -119,12 +118,11 @@ contract BasketLifecycleTest is StaticsTestBase {
         uint256[] memory quote = baskets.quoteMint(basketId, 1 ether);
         vm.prank(alice);
         baskets.mint(basketId, 1 ether, alice, quote);
-        uint256 revenue = basketAdmin.protocolRevenue(basketId, address(assetA));
+        uint256 revenue = globalRewards.treasuryAccrued(address(assetA));
         uint256 before = assetA.balanceOf(treasury);
-        vm.prank(treasury);
-        basketAdmin.claimProtocolRevenue(basketId, address(assetA), revenue, treasury);
+        globalRewards.distributeTreasuryFees(address(assetA));
         assertEq(assetA.balanceOf(treasury) - before, revenue);
-        assertEq(basketAdmin.protocolRevenue(basketId, address(assetA)), 0);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0);
     }
 
     function testCreationAcceptsArbitraryAssetsAndRejectsStructuralErrors() public {
@@ -169,7 +167,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         assertEq(configured.originationFeeBps, 10_000);
     }
 
-    function testRevenueStaysScopedAcrossBasketsSharingAssets() public {
+    function testFeesAggregateByAssetAcrossBaskets() public {
         (uint256 firstBasket,) = _createDefaultBasket(0.1 ether, 0);
         (uint256 secondBasket,) = _createDefaultBasket(0.1 ether, 0);
         _fundAndApprove(alice, 20 ether, 50 ether);
@@ -180,15 +178,10 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.mint(secondBasket, 2 ether, alice, secondQuote);
         vm.stopPrank();
 
-        uint256 firstRevenue = basketAdmin.protocolRevenue(firstBasket, address(assetA));
-        uint256 secondRevenue = basketAdmin.protocolRevenue(secondBasket, address(assetA));
-        assertEq(firstRevenue, 0.11 ether);
-        assertEq(secondRevenue, 0.11 ether);
-
-        vm.prank(treasury);
-        basketAdmin.claimProtocolRevenue(firstBasket, address(assetA), firstRevenue, treasury);
-        assertEq(basketAdmin.protocolRevenue(firstBasket, address(assetA)), 0);
-        assertEq(basketAdmin.protocolRevenue(secondBasket, address(assetA)), secondRevenue);
+        uint256 aggregateRevenue = globalRewards.treasuryAccrued(address(assetA));
+        assertEq(aggregateRevenue, 0.4 ether);
+        globalRewards.distributeTreasuryFees(address(assetA));
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0);
     }
 
     function testDirectDonationRemainsUnallocatedSurplus() public {
@@ -196,7 +189,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         assetA.mint(address(diamond), 1 ether);
 
         assertEq(baskets.vaultBalance(basketId, address(assetA)), 0);
-        assertEq(basketAdmin.protocolRevenue(basketId, address(assetA)), 0);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0);
         assertEq(assetA.balanceOf(address(diamond)), 1 ether);
         assertEq(custody.globalReservedByToken(address(assetA)), 0);
         assertEq(custody.unreservedBalance(address(assetA)), 1 ether);
@@ -228,10 +221,8 @@ contract BasketLifecycleTest is StaticsTestBase {
         assertEq(IERC20(token).balanceOf(alice), 1 ether);
         assertEq(baskets.vaultBalance(basketId, address(taxed)), 2 ether);
         uint256 feeReceived = received - 2 ether;
-        uint256 liquidityAmount = feeReceived * 4_500 / 10_000;
-        assertEq(basketAdmin.protocolRevenue(basketId, address(taxed)), feeReceived - liquidityAmount);
-        assertEq(basketLiquidity.liquidityReserve(basketId, address(taxed)), liquidityAmount);
-        assertEq(custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed)), received);
+        assertEq(globalRewards.treasuryAccrued(address(taxed)), feeReceived);
+        assertEq(custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed)), 2 ether);
         assertEq(custody.globalReservedByToken(address(taxed)), received);
     }
 
@@ -317,9 +308,7 @@ contract BasketLifecycleTest is StaticsTestBase {
             address(diamond),
             abi.encodeCall(IStaticsBasket.redeem, (basketId, 1, address(reentrant), minimums))
         );
-        uint256 revenue = basketAdmin.protocolRevenue(basketId, address(reentrant));
-        vm.prank(treasury);
-        basketAdmin.claimProtocolRevenue(basketId, address(reentrant), revenue, treasury);
+        globalRewards.distributeTreasuryFees(address(reentrant));
 
         assertFalse(reentrant.reentrySucceeded());
         assertEq(bytes4(reentrant.reentryResult()), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);

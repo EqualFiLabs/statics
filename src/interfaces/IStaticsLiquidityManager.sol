@@ -73,6 +73,17 @@ interface IStaticsLiquidityManager {
         uint256 refund0,
         uint256 refund1
     );
+    event UserPositionIncreased(
+        uint256 indexed basketId,
+        address indexed asset,
+        uint256 indexed tokenId,
+        address refundRecipient,
+        uint256 liquidity,
+        uint256 spent0,
+        uint256 spent1,
+        uint256 refund0,
+        uint256 refund1
+    );
 
     function staticsDiamond() external view returns (address);
     function positionManager() external view returns (address);
@@ -109,6 +120,9 @@ interface IStaticsLiquidityManager {
         external
         returns (uint256 tokenId);
     function mintUserPosition(PositionRequest calldata request, address recipient, address refundRecipient)
+        external
+        returns (PositionMovement memory movement, uint256 refund0, uint256 refund1);
+    function increaseUserPosition(PositionRequest calldata request, uint256 tokenId, address refundRecipient)
         external
         returns (PositionMovement memory movement, uint256 refund0, uint256 refund1);
     function canonicalPoolHash(uint256 basketId, address asset) external view returns (bytes32);

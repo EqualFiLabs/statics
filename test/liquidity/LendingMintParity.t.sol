@@ -29,7 +29,7 @@ contract LendingMintParityTest is StaticsTestBase {
         _fundAndApprove(alice, mintQuote[0], mintQuote[1]);
         vm.prank(alice);
         (uint256 positionId, uint256[] memory actualInputs) =
-            basketRewards.createAndMintBasket(basketId, mintShares, alice, mintQuote);
+            basketCollateral.createAndMintBasketCollateral(basketId, mintShares, alice, mintQuote);
         assertEq(actualInputs, mintQuote);
 
         (uint256 feeShares, uint256 collateralShares, address[] memory assets, uint256[] memory borrowQuote) =
@@ -78,7 +78,7 @@ contract LendingMintParityTest is StaticsTestBase {
             IERC20(assets[i]).approve(address(diamond), type(uint256).max);
         }
         (uint256 positionId, uint256[] memory actualInputs) =
-            basketRewards.createAndMintBasket(basketId, 20 ether, alice, mintQuote);
+            basketCollateral.createAndMintBasketCollateral(basketId, 20 ether, alice, mintQuote);
         vm.stopPrank();
         assertEq(actualInputs, mintQuote);
 

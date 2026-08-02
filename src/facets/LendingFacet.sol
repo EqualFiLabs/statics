@@ -7,7 +7,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
-import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
+import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
+import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
@@ -51,12 +52,12 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
                 principal == 0 ? 0 : LibCustody.pullAndReserve(custodyAccount, asset, msg.sender, principal);
             if (received < principal) revert InsufficientTransferReceived(asset, principal, received);
             bs.vaultBalances[current.basketId][asset] += principal;
-            bs.protocolRevenue[current.basketId][asset] += received - principal;
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, received - principal);
             ls.outstandingPrincipal[current.basketId][asset] -= principal;
             delete ls.principals[loanId][asset];
         }
         delete ls.loans[loanId];
-        LibBasketRewards.unlockAfterRepay(configured, current.positionId, current.basketId, current.collateralShares);
+        LibBasketCollateral.unlockAfterRepay(current.positionId, current.basketId, current.collateralShares);
         emit LoanRepaid(loanId, current.positionId, msg.sender);
     }
 
@@ -89,7 +90,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
                 grossAmount == 0 ? 0 : LibCustody.pullAndReserve(custodyAccount, asset, msg.sender, grossAmount);
             if (received < requiredFee) revert InsufficientTransferReceived(asset, requiredFee, received);
             receivedAmounts[i] = received;
-            bs.protocolRevenue[current.basketId][asset] += received;
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, received);
             emit LoanExtensionFeePaid(loanId, asset, requiredFee, received);
         }
 
@@ -108,9 +109,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
 
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, current.basketId);
-        LibBasketRewards.removeRecoveredCollateral(
-            bs, configured, current.positionId, current.basketId, current.collateralShares
-        );
+        LibBasketCollateral.removeRecoveredCollateral(current.positionId, current.basketId, current.collateralShares);
         uint256 supply = IERC20(configured.token).totalSupply();
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
@@ -129,7 +128,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         delete ls.loans[loanId];
         LibCustody.release(LibCustody.basketAccount(current.basketId), configured.token, current.collateralShares);
         StaticsBasketToken(configured.token).burn(address(this), current.collateralShares);
-        LibBasketRewards.deactivateIfEmpty(configured, current.positionId, current.basketId);
+        LibBasketCollateral.deactivateIfEmpty(current.positionId, current.basketId);
         emit LoanRecovered(loanId, current.positionId, msg.sender, current.collateralShares);
     }
 

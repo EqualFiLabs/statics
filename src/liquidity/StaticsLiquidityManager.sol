@@ -216,6 +216,47 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         );
     }
 
+    function increaseUserPosition(PositionRequest calldata request, uint256 tokenId, address refundRecipient)
+        external
+        nonReentrant
+        returns (PositionMovement memory movement, uint256 refund0, uint256 refund1)
+    {
+        _enforceDiamond();
+        if (refundRecipient == address(0)) revert InvalidRecipient();
+        _validateRequest(request);
+        address actualOwner = IERC721(positionManager).ownerOf(tokenId);
+        if (actualOwner != staticsDiamond) {
+            revert PositionOwnershipMismatch(tokenId, staticsDiamond, actualOwner);
+        }
+        PoolKey memory actualKey = _positionKey(request.basketId, request.asset, tokenId);
+        if (keccak256(abi.encode(actualKey)) != keccak256(abi.encode(request.poolKey))) {
+            revert CanonicalPoolMismatch(request.basketId, request.asset);
+        }
+        address token0 = Currency.unwrap(request.poolKey.currency0);
+        address token1 = Currency.unwrap(request.poolKey.currency1);
+        _enforceUnaccounted(token0, request.amount0Limit);
+        _enforceUnaccounted(token1, request.amount1Limit);
+
+        movement = _executePosition(request, Actions.INCREASE_LIQUIDITY, tokenId, staticsDiamond);
+        uint256 allocatedRefund0 = request.amount0Limit - movement.spent0 + movement.received0;
+        uint256 allocatedRefund1 = request.amount1Limit - movement.spent1 + movement.received1;
+        (, refund0) = _refundUser(token0, refundRecipient, allocatedRefund0);
+        (, refund1) = _refundUser(token1, refundRecipient, allocatedRefund1);
+        _enforceSolvent(token0);
+        _enforceSolvent(token1);
+        emit UserPositionIncreased(
+            request.basketId,
+            request.asset,
+            tokenId,
+            refundRecipient,
+            request.liquidity,
+            movement.spent0,
+            movement.spent1,
+            refund0,
+            refund1
+        );
+    }
+
     function _modifyPosition(PositionRequest calldata request, uint256 action, uint256 tokenId, address recipient)
         private
         returns (PositionMovement memory movement)

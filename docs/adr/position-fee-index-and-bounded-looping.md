@@ -1,6 +1,14 @@
 # ADR: Unified Statics Protocol, Position Fee Index, and Bounded Recursive Lending
 
-- Status: Accepted
+> **Superseded in part (2026-07-22).** This ADR records the historical decision
+> that introduced per-basket PositionNFT rewards. The live protocol replaces
+> that reward model with one configured global staking token, a governed
+> multi-asset reward-slot ledger, and separate BasketToken collateral. Its
+> unification, PositionNFT ownership, custody, and bounded-lending decisions
+> remain historical rationale. See `Statics-Design.md` and
+> `src/interfaces/IStaticsGlobalRewards.sol` for current behavior.
+
+- Status: Superseded in part
 - Date: 2026-07-18; amended 2026-07-19 and 2026-07-20
 - Scope: Protocol unification, Statics Dollar, basket minting and redemption,
   fee distribution, positions, and self-backed lending

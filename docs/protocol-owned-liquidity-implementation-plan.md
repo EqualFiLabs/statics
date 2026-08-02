@@ -1,6 +1,13 @@
 # Protocol-Owned Basket Liquidity Implementation Plan
 
-- Status: Complete; implementation, audit remediation, and release verification passed
+> **Historical and superseded (2026-07-22).** This completed tracker documents
+> an earlier implementation that used primary-fee POL reserves, protocol
+> PositionManager NFTs, epochs, and LP-fee collection. Those mechanics are not
+> the live protocol. Current canonical liquidity uses bilateral hook fees and
+> hook-owned permanent full-range liquidity as documented in
+> `Statics-Design.md` and `docs/integration.md`.
+
+- Status: Historical; superseded by the bilateral hook-fee architecture
 - Last updated: 2026-07-20
 - Canonical repository: `EqualFiLabs/statics`
 - Implementation baseline: `2c8833251bb0307ec66e17b362184e4e2a06acd8`

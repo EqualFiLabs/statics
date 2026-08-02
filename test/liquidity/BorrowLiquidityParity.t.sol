@@ -3,7 +3,7 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {BorrowLiquidityTestBase} from "../helpers/BorrowLiquidityTestBase.sol";
@@ -12,14 +12,10 @@ contract BorrowLiquidityParityTest is BorrowLiquidityTestBase {
     struct AccountingSnapshot {
         IStaticsLending.LoanView loan;
         uint256 supply;
-        uint256 eligibleShares;
+        uint256 depositedShares;
         uint256 lockedShares;
         uint256[] vaultBalances;
-        uint256[] protocolRevenue;
-        uint256[] liquidityReserves;
         uint256[] outstandingPrincipal;
-        uint256[] rewardIndexes;
-        uint256[] rewardReserves;
     }
 
     function testSingleAssetCombinedAccountingMatchesSeparateBorrowAndMint() public {
@@ -62,39 +58,26 @@ contract BorrowLiquidityParityTest is BorrowLiquidityTestBase {
         assertEq(combined.loan.maturity, separate.loan.maturity);
         assertEq(combined.loan.principals, separate.loan.principals);
         assertEq(combined.supply, separate.supply);
-        assertEq(combined.eligibleShares, separate.eligibleShares);
+        assertEq(combined.depositedShares, separate.depositedShares);
         assertEq(combined.lockedShares, separate.lockedShares);
         assertEq(combined.vaultBalances, separate.vaultBalances);
-        assertEq(combined.protocolRevenue, separate.protocolRevenue);
-        assertEq(combined.liquidityReserves, separate.liquidityReserves);
         assertEq(combined.outstandingPrincipal, separate.outstandingPrincipal);
-        assertEq(combined.rewardIndexes, separate.rewardIndexes);
-        assertEq(combined.rewardReserves, separate.rewardReserves);
     }
 
     function _accounting(uint256 loanId) private view returns (AccountingSnapshot memory state) {
         state.loan = lending.loan(loanId);
         state.supply = IERC20(basketToken).totalSupply();
-        IStaticsBasketRewards.BasketPositionView memory position =
-            basketRewards.basketPosition(basketPositionId, basketId);
-        state.eligibleShares = position.eligibleShares;
+        IStaticsBasketCollateral.BasketCollateralPosition memory position =
+            basketCollateral.basketCollateralPosition(basketPositionId, basketId);
+        state.depositedShares = position.depositedShares;
         state.lockedShares = position.lockedShares;
         uint256 length = basketAssets.length;
         state.vaultBalances = new uint256[](length);
-        state.protocolRevenue = new uint256[](length);
-        state.liquidityReserves = new uint256[](length);
         state.outstandingPrincipal = new uint256[](length);
-        state.rewardIndexes = new uint256[](length);
-        state.rewardReserves = new uint256[](length);
         for (uint256 i; i < length; ++i) {
             address asset = basketAssets[i];
             state.vaultBalances[i] = baskets.vaultBalance(basketId, asset);
-            state.protocolRevenue[i] = basketAdmin.protocolRevenue(basketId, asset);
-            state.liquidityReserves[i] = basketLiquidity.liquidityReserve(basketId, asset);
             state.outstandingPrincipal[i] = lending.outstandingPrincipal(basketId, asset);
-            IStaticsBasketRewards.BasketRewardState memory reward = basketRewards.basketRewardState(basketId, asset);
-            state.rewardIndexes[i] = reward.indexRay;
-            state.rewardReserves[i] = reward.feeYieldReserve;
         }
     }
 }

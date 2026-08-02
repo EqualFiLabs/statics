@@ -4,14 +4,15 @@ This package mirrors Statics static-basket rounding, builds calldata for the
 single user-facing `StaticsDiamond`, and defines an adapter for sourcing or
 selling basket constituents.
 
-`classifyPrimaryFee` mirrors the atomic holder, protocol-owned-liquidity, and
-protocol-revenue split. Its terminal protocol amount receives division dust
-and the holder share whenever no PositionNFT leg is reward eligible.
+`splitSwapFee` mirrors the bilateral swap-fee split across permanent liquidity,
+activated canonical LPs, global stakers, and treasury. Treasury receives
+division dust; unavailable LP and staker allocations independently redirect to
+permanent liquidity.
 
 `quoteMint` and `quoteRedeem` select the greatest qualifying static fee tier
 and reproduce the aggregate-supply rounding used onchain. They do not model a
-historical fee-pot buy-in: basket fees accrue separately to eligible
-PositionNFT legs. Treat onchain `quoteMint` and `quoteRedeem` as authoritative
+historical fee-pot buy-in: basket fees accrue in-kind against the single global
+staking balance. Treat onchain `quoteMint` and `quoteRedeem` as authoritative
 when building a transaction, particularly after supply changes.
 
 `buildCreateBasketTransaction` returns both permissionless creation calldata
@@ -20,10 +21,11 @@ and the native `value` that must accompany it. Callers should read the current
 The creation parameters include flat mint and redemption fee tiers and a
 basket LTV no greater than the immutable 9,500-basis-point protocol maximum.
 
-Position builders cover creating positions, depositing or minting BasketTokens
-into positions, claiming indexed rewards, and position-owned borrowing.
-Borrowing calldata always includes a `positionId`; transfer of that ERC-721
-moves the attached reward eligibility and loan obligations together.
+Position builders cover global staking, optional BasketToken collateral,
+pull-based multi-asset reward claims, and position-owned borrowing. Borrowing
+calldata always includes a `positionId`; transfer of that ERC-721 moves the
+attached staking balance, claim checkpoints, collateral, and loan obligations
+together.
 
 Statics Dollar builders cover the typed ETH/WETH deposit and ordinary
 recombination gateway exposed by the same Diamond. Permit variants encode an
@@ -43,19 +45,19 @@ Lifecycle helpers expose quarantine, release, and permanent decommissioning;
 
 ## Canonical liquidity
 
-The package exports the complete Diamond liquidity ABI plus read-only hook,
-manager, PositionManager, and StateView ABI fragments. Use the Diamond for
-pool lifecycle, settlement, POL compounding, LP-fee collection, unwind, and
-`borrowAndProvideLiquidity`. The hook and manager fragments are observability
-surfaces; neither is a general user action address.
+The package exports the Diamond liquidity and global-reward ABI plus hook,
+manager, PositionManager, and StateView fragments. Governance uses the Diamond
+for canonical pool initialization, activation, and fee configuration. Pool
+checkpointing, reward and treasury distribution, retirement settlement, and
+post-`ExitOnly` unwind retain their permissionless execution paths.
 
-`quoteHookFee` rounds the one-basis-point hook charge up exactly as the hook
-does. `splitProtocolLpFee` quotes an isolated first collection, while
-`nextProtocolLpFeeSplit` uses cumulative collected and revenue-debit totals so
-repeated dust-sized collections still converge to the floor-rounded 10%
-protocol-revenue share. The balance remains with the nominal 90% POL share.
-`effectiveCanonicalFees` reports the 500-pip LP fee and hook fee separately;
-the initial values display as five LP basis points plus one hook basis point.
+`quoteHookFee` rounds either realized bilateral fee leg up exactly as the hook
+does. `effectiveCanonicalFees` reports the zero native LP fee and the separate
+input/output hook rates; the launch defaults are 25 basis points on each leg.
+`splitSwapFee` applies the default 50% POL, 10% canonical-LP, 30%
+global-staker, and 10% treasury allocation after a leg is charged. Callers
+supply LP and staker eligibility independently; unavailable shares redirect to
+POL. Matched POL is added as hook-owned full-range liquidity during the swap.
 
 `quoteRangeAmounts` mirrors Uniswap v4 `TickMath` and `SqrtPriceMath` input
 rounding. `quoteBorrowAndProvideLiquidity` combines those range amounts with
@@ -64,13 +66,18 @@ burn that occurs before mint quoting. Its returned pool caps can be passed to
 `buildBorrowAndProvideLiquidityCall`. Re-read the pool price, basket supply,
 and onchain quotes immediately before simulation and submission.
 
-Protocol position IDs come from `protocolPositionId`. Pending LP fees are
-derived from PositionManager position metadata and StateView fee growth with
-`pendingLpFees`; cumulative collections and revenue come from the Diamond.
-User v4 NFTs are discovered from ordinary PositionManager `Transfer` events
-and `UserPositionMinted`, not from the protocol-position mapping. They belong
-to the selected LP recipient and remain independent of PositionNFT transfers,
-repayment, extension, and recovery.
+User-selected LP positions are ordinary PositionManager NFTs created by the
+installed manager. Their position state can be read from PositionManager and
+StateView, although canonical pools currently have zero native LP fee.
+Qualifying full-range NFTs can be staked into the Diamond with the exported
+builders, activated in the next block, increased in place, claimed, and
+unstaked without a cooldown. `borrowAndProvideLiquidity` origin is not required.
+Hook-owned permanent liquidity is observed through `lockedLiquidity` and
+`pendingPermanentLiquidity`; it has no protocol PositionManager token ID.
+User v4 NFTs are discovered from PositionManager `Transfer` and manager
+`UserPositionMinted` events. They belong to the selected LP recipient and
+remain independent of PositionNFT transfers, repayment, extension, and
+recovery.
 
 `robinhoodChain` is generated from
 `deployments/robinhood-chain-4663.json` before SDK builds and tests. It is the

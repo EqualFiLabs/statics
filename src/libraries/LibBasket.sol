@@ -3,7 +3,6 @@ pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
-import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 
 library LibBasket {
     bytes32 internal constant BASKET_STORAGE_POSITION = keccak256("statics.storage.basket");
@@ -32,10 +31,8 @@ library LibBasket {
         mapping(uint256 basketId => Basket) baskets;
         mapping(address token => uint256 basketIdPlusOne) basketIds;
         mapping(uint256 basketId => mapping(address asset => uint256 amount)) vaultBalances;
-        mapping(uint256 basketId => mapping(address asset => uint256 amount)) protocolRevenue;
         uint256 creationFeeAmount;
         address treasury;
-        IStaticsBasketAdmin.BasketFeeAllocation feeAllocation;
     }
 
     error BasketNotActive(uint256 basketId, IStaticsBasket.BasketStatus status);

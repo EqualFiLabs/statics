@@ -9,6 +9,8 @@ library LibCustody {
 
     bytes32 internal constant CUSTODY_STORAGE_POSITION = keccak256("statics.custody.storage.v1");
     bytes32 internal constant DOLLAR_ACCOUNT = keccak256("statics.custody.account.dollar");
+    bytes32 internal constant FEE_ACCOUNT = keccak256("statics.custody.account.fees");
+    bytes32 internal constant STAKING_ACCOUNT = keccak256("statics.custody.account.staking");
     bytes32 internal constant BASKET_ACCOUNT_DOMAIN = keccak256("statics.custody.account.basket");
 
     struct CustodyStorage {
@@ -38,6 +40,14 @@ library LibCustody {
 
     function basketAccount(uint256 basketId) internal pure returns (bytes32) {
         return keccak256(abi.encode(BASKET_ACCOUNT_DOMAIN, basketId));
+    }
+
+    function feeAccount() internal pure returns (bytes32) {
+        return FEE_ACCOUNT;
+    }
+
+    function stakingAccount() internal pure returns (bytes32) {
+        return STAKING_ACCOUNT;
     }
 
     function globalReserved(address token) internal view returns (uint256) {
@@ -74,6 +84,17 @@ library LibCustody {
         cs.reservedByAccount[account][token] = local - amount;
         cs.globalReservedByToken[token] -= amount;
         emit CustodyReleased(account, token, amount);
+    }
+
+    function moveReservation(bytes32 from, bytes32 to, address token, uint256 amount) internal {
+        if (amount == 0 || from == to) return;
+        CustodyStorage storage cs = custodyStorage();
+        uint256 available = cs.reservedByAccount[from][token];
+        if (amount > available) revert InsufficientAccountReservation(from, token, amount, available);
+        cs.reservedByAccount[from][token] = available - amount;
+        cs.reservedByAccount[to][token] += amount;
+        emit CustodyReleased(from, token, amount);
+        emit CustodyReserved(to, token, amount);
     }
 
     function pull(address token, address from, uint256 amount) internal returns (uint256 received) {

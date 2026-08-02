@@ -22,6 +22,7 @@ canonical launcher reads:
 | `MULTISIG` | Sole initial timelock proposer |
 | `GUARDIAN` | Basket guardian and initial Dollar profile guardian |
 | `TREASURY` | Common basket and Statics Dollar protocol treasury |
+| `STAKING_TOKEN` | Verified deployed ERC-20 used as the immutable global staking denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native amount required for basket creation |
 | `WETH_ADDRESS` | Verified canonical WETH for the target chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
@@ -50,6 +51,13 @@ from that file. Production liquidity configuration must use the same
 PoolManager, PositionManager, Permit2, hook calibration, and recorded code
 hashes; Solidity contracts do not embed chain-specific addresses.
 
+The target network must implement Cancun transient storage (EIP-1153).
+`FlashLoanFacet` uses OpenZeppelin's transient reentrancy guard so callbacks can
+compose with ordinary persistently guarded basket minting and redemption while
+nested flash loans remain blocked. A production preflight must reject a target
+that lacks EIP-1153. The pinned Robinhood compatibility suite reads
+`ROBINHOOD_MAINNET`, with `ROBINHOOD_RPC_URL` accepted as a legacy fallback.
+
 The production validator rejects zero governance addresses, missing risk or
 oracle parameters, non-contract dependencies, an invalid oracle range, and the
 repository's marked local WETH fixture.
@@ -74,15 +82,16 @@ The launcher performs one creation broadcast in this order:
 4. Predict the Core address, deploy the permit-enabled `StaticsDollar` ERC-20 and
    `StaticsDollarRiskShares` ERC-1155 with that permanent authority, then deploy
    and initialize `StaticsDollarCoreDiamond`.
-5. Deploy the twenty unified protocol facets and initialize
+5. Deploy the twenty-two unified protocol facets and initialize
    `StaticsDiamond`, including the PositionNFT ERC-721, baskets, reservations,
-   Dollar periphery, typed gateway, canonical liquidity, and optional
-   borrow-to-liquidity action.
+   global rewards, Dollar periphery, typed gateway, canonical liquidity, and
+   optional borrow-to-liquidity action. Initialization permanently records the
+   configured staking-token address.
 6. Finalize Core bootstrap by binding `StaticsDiamond` as Core periphery,
    PositionNFT, fee receiver, managed recovery holder, and gateway.
 7. Validate the manifest's PoolManager, PositionManager, and Permit2 code hashes
    and PositionManager immutable bindings.
-8. Mine and deploy the immutable one-basis-point hook at the required `0x1044`
+8. Mine and deploy the bilateral-fee hook at the required `0x10cc`
    permission bitmap through Foundry's deterministic CREATE2 deployer at
    `0x4e59b44847b379578588920cA78FbF26c0B4956C`, then deploy the manager with
    immutable Diamond, PositionManager, PoolManager, and Permit2 bindings.
@@ -142,8 +151,16 @@ forge script script/ConfigureStaticsLiquidity.s.sol:ConfigureStaticsLiquidity \
 The schedule and execution use the current timelock delay. They fail if code,
 immutable bindings, hook fee, permission bits, ownership, or already-installed
 state differs from the reviewed batch. No canonical pool is initialized by
-this governance ceremony: each permissionless basket creates its constituent
-pools later through the typed Diamond lifecycle.
+this governance ceremony. Timelocked governance later initializes each
+constituent pool with an explicit starting price and activates it only after
+the warm-up, observation, and deviation checks pass. Checkpointing and manager
+sync remain permissionless.
+
+Per-pool fee allocation changes are separate timelocked governance actions.
+Schedule the typed `setCanonicalPoolFeeAllocation` or
+`clearCanonicalPoolFeeAllocation` call against `StaticsDiamond`, record its
+basket, constituent, derived PoolId, and effective allocation, and do not treat
+pool age, liquidity, volume, or oracle state as an automatic graduation rule.
 
 Preserve Foundry's `broadcast/DeployStatics.s.sol/<chain-id>/run-latest.json`
 and transaction receipts as the deployment record. Record at minimum:
@@ -158,14 +175,20 @@ and transaction receipts as the deployment record. Record at minimum:
   observed runtime codehash;
 - the immutable `StaticsSwapFeeHook` and `StaticsLiquidityManager`, including
   their Diamond, PoolManager, PositionManager, and Permit2 bindings; and
-- every canonical pool key, PoolId, lifecycle parameter, and protocol
-  PositionManager token ID.
+- every canonical pool key, PoolId, lifecycle parameter, and hook fee split.
 
-The chain manifest records the fixed fee and safety calibration. Pool
-initialization, activation, manager sync, POL funding, and protocol position
-events provide the basket-specific PoolKeys, PoolIds, and token IDs for the
-release manifest. User v4 token IDs come from ordinary PositionManager
-`Transfer` events and must not be listed as protocol positions.
+Also record hook `pendingPermanentLiquidity` and `lockedLiquidity` snapshots
+for every canonical pool. Permanent liquidity is hook-owned and has no protocol
+PositionManager token ID. Externally held and voluntarily Diamond-custodied v4
+NFTs are identified through PositionManager, manager, and liquidity-reward
+events.
+
+The chain manifest records the bilateral hook fees, revenue split, and safety
+calibration. Pool initialization, activation, manager sync, and permanent
+liquidity events provide the basket-specific PoolKeys and PoolIds for release
+evidence. A user v4 position remains external until `LiquidityPositionStaked`
+attaches it to a PositionNFT; activation, increases, claims, and exit have their
+own indexed events.
 
 Do not publish an address manifest until every transaction is confirmed and the
 post-deployment checks below pass.
@@ -176,7 +199,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           20 facets, 170 selectors
+StaticsDiamond:           22 facets, 184 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -188,8 +211,9 @@ Against the deployed addresses, verify:
 2. `getMinDelay()` equals the authorized current delay (seven days at genesis),
    the intended proposer/canceller and executor roles are present, and the
    emergency guardian has no timelock cancellation authority;
-3. the Diamond's `guardian()`, `treasury()`, `creationFee()`, and holder split
-   match the authorized launch configuration;
+3. the Diamond's `guardian()`, `treasury()`, `creationFee()`, `stakingToken()`,
+   `totalStaked()`, reward-slot state, and treasury accruals match the
+   authorized launch configuration;
 4. Core `periphery()`, `positionNFT()`, owner, token addresses, WETH profile,
    oracle, sequencer requirement, and debt ceiling match the manifest;
 5. Statics Dollar exposes `permit`, `nonces`, and `DOMAIN_SEPARATOR`; its
@@ -198,14 +222,19 @@ Against the deployed addresses, verify:
 6. both loupe manifests contain the exact facet and selector totals above; any
    offchain runtime hashes recorded for release provenance match deployed code,
    but the Diamonds do not enforce those hashes during dispatch;
-7. ERC-165 reports the expected custody, basket reward, Dollar gateway,
+7. ERC-165 reports the expected custody, global rewards, Dollar gateway,
    ERC-721, receiver, basket-liquidity, and borrow-to-liquidity interfaces;
 8. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
    hook and manager immutable getters match the Diamond and Robinhood manifest,
-   hook address bits equal `0x1044`, and the hook fee equals one basis point;
-9. every initialized canonical pool reports the fixed 500-pip fee, tick spacing
-   10, expected hook, recorded PoolId, and corresponding manager key hash; and
-10. verified source publication uses this canonical repository and compiler
+   hook address bits equal `0x10cc`, and its input/output fee and revenue split
+   equal the reviewed manifest;
+9. every initialized canonical pool reports a zero native LP fee, tick spacing
+   10, expected hook, recorded PoolId, and corresponding manager key hash; its
+   hook-owned pending and locked permanent liquidity agree with hook events;
+10. every pool allocation view matches the reviewed global default or its
+    timelocked override, and clearing a rehearsal override restores the current
+    global allocation without changing fee rates or existing POL; and
+11. verified source publication uses this canonical repository and compiler
    configuration (`solc 0.8.33`, Cancun, optimizer 200, via IR, no bytecode
    metadata hash).
 

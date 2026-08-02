@@ -26,6 +26,7 @@ contract DeployStatics is Script {
         address multisig;
         address guardian;
         address treasury;
+        address stakingToken;
         uint256 creationFeeAmount;
     }
 
@@ -33,7 +34,8 @@ contract DeployStatics is Script {
         address poolManager;
         address positionManager;
         address permit2;
-        uint16 hookFeeBps;
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
         bytes32 poolManagerCodeHash;
         bytes32 positionManagerCodeHash;
         bytes32 permit2CodeHash;
@@ -44,11 +46,11 @@ contract DeployStatics is Script {
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
-    error InvalidHookFee(uint256 feeBps);
+    error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
     error HookAddressMismatch(address expected, address actual);
 
-    uint160 private constant REQUIRED_HOOK_FLAGS =
-        Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
     address public constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     string private constant ROBINHOOD_MANIFEST = "deployments/robinhood-chain-4663.json";
 
@@ -58,12 +60,14 @@ contract DeployStatics is Script {
             multisig: vm.envAddress("MULTISIG"),
             guardian: vm.envAddress("GUARDIAN"),
             treasury: vm.envAddress("TREASURY"),
+            stakingToken: vm.envAddress("STAKING_TOKEN"),
             creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT")
         });
         StaticsDollarProductionConfig memory production = StaticsDollarProductionConfig({
             owner: address(0),
             profileGuardian: address(0),
             treasury: address(0),
+            stakingToken: address(0),
             creationFeeAmount: 0,
             weth: vm.envAddress("WETH_ADDRESS"),
             ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
@@ -94,6 +98,7 @@ contract DeployStatics is Script {
         local.owner = address(timelock);
         local.profileGuardian = config.guardian;
         local.treasury = config.treasury;
+        local.stakingToken = config.stakingToken;
         local.creationFeeAmount = config.creationFeeAmount;
         local.deployMockWeth = true;
         local.deployMockOracle = true;
@@ -123,6 +128,7 @@ contract DeployStatics is Script {
         production.owner = address(timelock);
         production.profileGuardian = config.guardian;
         production.treasury = config.treasury;
+        production.stakingToken = config.stakingToken;
         production.creationFeeAmount = config.creationFeeAmount;
         deployment = new DeployStaticsDollar().deployProduction(production);
     }
@@ -143,12 +149,14 @@ contract DeployStatics is Script {
         address create2Deployer
     ) private {
         _validateV4(config);
-        bytes memory constructorArgs =
-            abi.encode(IPoolManager(config.poolManager), deployment.diamond, config.hookFeeBps);
+        bytes memory constructorArgs = abi.encode(
+            IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps
+        );
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(IPoolManager(config.poolManager), deployment.diamond, config.hookFeeBps);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
+            IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps
+        );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager manager =
             new StaticsLiquidityManager(deployment.diamond, config.positionManager, config.poolManager, config.permit2);
@@ -161,7 +169,10 @@ contract DeployStatics is Script {
     }
 
     function _validateV4(V4Config memory config) private view {
-        if (config.hookFeeBps == 0 || config.hookFeeBps > 10_000) revert InvalidHookFee(config.hookFeeBps);
+        if (
+            config.inputFeeBps == 0 || config.outputFeeBps == 0
+                || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
+        ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
@@ -187,13 +198,17 @@ contract DeployStatics is Script {
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
         uint256 expectedChainId = vm.parseJsonUint(manifest, ".chainId");
         if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
-        uint256 hookFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.hookFeeBps");
-        if (hookFee > type(uint16).max) revert InvalidHookFee(hookFee);
+        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
+        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
+            revert InvalidHookFees(inputFee, outputFee);
+        }
         config = V4Config({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
-            hookFeeBps: uint16(hookFee),
+            inputFeeBps: uint16(inputFee),
+            outputFeeBps: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
             permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")

@@ -2,16 +2,31 @@
 pragma solidity 0.8.33;
 
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
+import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
+import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {LibGovernance} from "../../src/libraries/LibGovernance.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
+    event CanonicalPoolFeeAllocationSet(
+        uint256 indexed basketId,
+        address indexed asset,
+        bytes32 indexed poolId,
+        uint16 polShareBps,
+        uint16 liquidityProviderShareBps,
+        uint16 stakerShareBps,
+        uint16 treasuryShareBps
+    );
+    event CanonicalPoolFeeAllocationCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
+
     function testSingleAssetBasketCreatesOneDerivedCanonicalPool() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         basketLiquidity.initializeCanonicalPool(basketId, assets[0], SQRT_PRICE_1_1);
@@ -38,7 +53,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         basketLiquidity.initializeCanonicalPool(basketId, assets[0], SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
-        assertEq(pool.lpFee, 500);
+        assertEq(pool.lpFee, 0);
         assertEq(pool.tickSpacing, 10);
         assertEq(pool.hook, address(swapFeeHook));
         assertTrue(
@@ -54,6 +69,90 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
             abi.encodeWithSelector(BasketLiquidityFacet.AssetNotInBasket.selector, basketId, makeAddr("not-asset"))
         );
         basketLiquidity.initializeCanonicalPool(basketId, makeAddr("not-asset"), SQRT_PRICE_1_1);
+    }
+
+    function testCanonicalPoolInitializationAndActivationExecuteThroughTimelock() public {
+        (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
+        address[] memory proposers = new address[](1);
+        proposers[0] = address(this);
+        address[] memory executors = new address[](1);
+        executors[0] = address(this);
+        StaticsTimelock timelock = new StaticsTimelock(proposers, executors, address(this));
+        IERC173(address(diamond)).transferOwnership(address(timelock));
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(timelock)));
+        basketLiquidity.initializeCanonicalPool(basketId, assets[0], SQRT_PRICE_1_1);
+
+        _executeThroughTimelock(
+            timelock,
+            abi.encodeCall(IStaticsBasketLiquidity.initializeCanonicalPool, (basketId, assets[0], SQRT_PRICE_1_1)),
+            keccak256("initialize canonical pool")
+        );
+        _assertCanonicalPool(basketId, assets[0]);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(timelock)));
+        basketLiquidity.activateCanonicalPool(basketId, assets[0]);
+
+        _executeThroughTimelock(
+            timelock,
+            abi.encodeCall(IStaticsBasketLiquidity.activateCanonicalPool, (basketId, assets[0])),
+            keccak256("activate canonical pool")
+        );
+        IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
+        assertEq(uint8(pool.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Active));
+    }
+
+    function testCanonicalPoolAllocationOverrideIsOwnerControlledAndUsesRegisteredPool() public {
+        (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
+        basketLiquidity.initializeCanonicalPool(basketId, assets[0], SQRT_PRICE_1_1);
+        IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
+        IStaticsBasketLiquidity.FeeAllocation memory allocation = IStaticsBasketLiquidity.FeeAllocation({
+            polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+        });
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        basketLiquidity.setCanonicalPoolFeeAllocation(basketId, assets[0], allocation);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit CanonicalPoolFeeAllocationSet(basketId, assets[0], PoolId.unwrap(pool.poolId), 0, 0, 8_000, 2_000);
+        basketLiquidity.setCanonicalPoolFeeAllocation(basketId, assets[0], allocation);
+
+        IStaticsBasketLiquidity.PoolFeeAllocationView memory effective =
+            basketLiquidity.canonicalPoolFeeAllocation(basketId, assets[0]);
+        assertEq(effective.polShareBps, 0);
+        assertEq(effective.liquidityProviderShareBps, 0);
+        assertEq(effective.stakerShareBps, 8_000);
+        assertEq(effective.treasuryShareBps, 2_000);
+        assertTrue(effective.overridden);
+        IStaticsSwapFeeHook.PoolFeeAllocationView memory hookEffective = swapFeeHook.poolFeeAllocation(pool.poolId);
+        assertEq(hookEffective.stakerShareBps, effective.stakerShareBps);
+        assertTrue(hookEffective.overridden);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit CanonicalPoolFeeAllocationCleared(basketId, assets[0], PoolId.unwrap(pool.poolId));
+        basketLiquidity.clearCanonicalPoolFeeAllocation(basketId, assets[0]);
+        effective = basketLiquidity.canonicalPoolFeeAllocation(basketId, assets[0]);
+        assertEq(effective.polShareBps, 5_000);
+        assertEq(effective.liquidityProviderShareBps, 1_000);
+        assertFalse(effective.overridden);
+    }
+
+    function testCanonicalPoolAllocationRejectsUnconfiguredIdentifier() public {
+        (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
+        IStaticsBasketLiquidity.FeeAllocation memory allocation = IStaticsBasketLiquidity.FeeAllocation({
+            polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+        });
+        vm.expectRevert(
+            abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, assets[0])
+        );
+        basketLiquidity.setCanonicalPoolFeeAllocation(basketId, assets[0], allocation);
+        vm.expectRevert(
+            abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, assets[0])
+        );
+        basketLiquidity.clearCanonicalPoolFeeAllocation(basketId, assets[0]);
     }
 
     function testGuardianPauseAndQuarantineBlockNewPoolExposureButNotCheckpointing() public {
@@ -99,6 +198,13 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         assertTrue(registered.registered);
         assertEq(Currency.unwrap(registered.currency0), pool.currency0);
         assertEq(Currency.unwrap(registered.currency1), pool.currency1);
+    }
+
+    function _executeThroughTimelock(StaticsTimelock timelock, bytes memory payload, bytes32 salt) private {
+        uint256 delay = timelock.getMinDelay();
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, delay);
+        vm.warp(block.timestamp + delay);
+        timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
     }
 
     function _createBasketWithAssets(uint256 count) private returns (uint256 basketId, address[] memory assets) {

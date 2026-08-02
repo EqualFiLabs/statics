@@ -45,7 +45,11 @@ contract DiamondGovernanceTest is Test {
         DeployStatics deployer = new DeployStatics();
         (StaticsDollarStackDeployment memory deployment, StaticsTimelock deployedTimelock) = deployer.deploy(
             DeployStatics.Config({
-                multisig: multisig, guardian: guardian, treasury: makeAddr("treasury"), creationFeeAmount: 1 ether
+                multisig: multisig,
+                guardian: guardian,
+                treasury: makeAddr("treasury"),
+                stakingToken: address(deployer),
+                creationFeeAmount: 1 ether
             })
         );
         diamond = StaticsDiamond(payable(deployment.diamond));
@@ -54,7 +58,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 20);
+        assertEq(loupe.facetAddresses().length, 22);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
@@ -202,12 +206,6 @@ contract DiamondGovernanceTest is Test {
         (uint16 baseBps, uint16 insuranceBps) = feeRouter.splits();
         assertEq(baseBps, 6_500);
         assertEq(insuranceBps, 3_500);
-
-        _executeThroughTimelock(abi.encodeCall(FeeRouterFacet.setRewardSplit, (uint16(4_000))), "reward one");
-        _executeThroughTimelock(abi.encodeCall(FeeRouterFacet.setRewardSplit, (uint16(6_000))), "reward two");
-        (uint16 passiveBps, uint16 optInBps) = feeRouter.rewardSplit();
-        assertEq(passiveBps, 6_000);
-        assertEq(optInBps, 4_000);
 
         _executeThroughTimelock(
             abi.encodeCall(PairingVaultFacet.setRedemptionParams, (uint16(75), uint16(8_500))), "redemption one"

@@ -7,6 +7,7 @@ library LibPosition {
     bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v1");
     bytes32 internal constant DOLLAR_MODULE = keccak256("statics.position.module.dollar");
     bytes32 internal constant BASKET_MODULE = keccak256("statics.position.module.basket");
+    bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
 
     struct PositionStorage {
         uint256 nextPositionId;
@@ -61,6 +62,10 @@ library LibPosition {
 
     function basketLegKey(uint256 basketId) internal pure returns (bytes32) {
         return legKey(BASKET_MODULE, bytes32(basketId));
+    }
+
+    function stakingLegKey() internal pure returns (bytes32) {
+        return legKey(STAKING_MODULE, bytes32(uint256(1)));
     }
 
     function activateLeg(uint256 positionId, bytes32 key) internal {

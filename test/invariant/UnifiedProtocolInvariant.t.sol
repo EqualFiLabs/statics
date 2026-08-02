@@ -28,9 +28,10 @@ import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
 import {LibPeriphery} from "src/dollar/periphery/libraries/LibPeriphery.sol";
 import {IStaticsBasket} from "src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "src/interfaces/IStaticsBasketAdmin.sol";
-import {IStaticsBasketRewards} from "src/interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "src/interfaces/IStaticsCustody.sol";
+import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
@@ -70,7 +71,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     MockSenderExtraFeeERC20 internal immutable SENDER_EXTRA;
     MockReentrantERC20 internal immutable REENTRANT;
     IStaticsBasket internal immutable BASKETS;
-    IStaticsBasketRewards internal immutable BASKET_REWARDS;
+    IStaticsBasketCollateral internal immutable BASKET_COLLATERAL;
     IStaticsLending internal immutable LENDING;
     IStaticsCustody internal immutable CUSTODY;
     IStaticsPosition internal immutable POSITIONS;
@@ -78,6 +79,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     StakingFacet internal immutable STAKING;
     RewardsFacet internal immutable DOLLAR_REWARDS;
     FeeRouterFacet internal immutable FEE_ROUTER;
+    IStaticsGlobalRewards internal immutable GLOBAL_REWARDS;
 
     uint256 internal immutable FIRST_BASKET_ID;
     uint256 internal immutable SECOND_BASKET_ID;
@@ -109,7 +111,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
         SENDER_EXTRA = MockSenderExtraFeeERC20(config.senderExtraToken);
         REENTRANT = MockReentrantERC20(config.reentrantToken);
         BASKETS = IStaticsBasket(config.diamond);
-        BASKET_REWARDS = IStaticsBasketRewards(config.diamond);
+        BASKET_COLLATERAL = IStaticsBasketCollateral(config.diamond);
         LENDING = IStaticsLending(config.diamond);
         CUSTODY = IStaticsCustody(config.diamond);
         POSITIONS = IStaticsPosition(config.diamond);
@@ -117,6 +119,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
         STAKING = StakingFacet(config.diamond);
         DOLLAR_REWARDS = RewardsFacet(config.diamond);
         FEE_ROUTER = FeeRouterFacet(config.diamond);
+        GLOBAL_REWARDS = IStaticsGlobalRewards(config.diamond);
         FIRST_BASKET_ID = config.firstBasketId;
         SECOND_BASKET_ID = config.secondBasketId;
         PEGGED_PROFILE_ID = config.peggedProfileId;
@@ -288,15 +291,11 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
         _observeDollarIsolation(basketReservationsBefore);
     }
 
-    function claimPeggedRevenue(uint256 rawAmount) external {
-        uint256 available = FEE_ROUTER.peggedProtocolRevenue(PEGGED_PROFILE_ID, address(SENDER_EXTRA));
+    function distributePeggedTreasuryFees(uint256) external {
+        uint256 available = GLOBAL_REWARDS.treasuryAccrued(address(SENDER_EXTRA));
         if (available == 0) return;
         bytes32 basketReservationsBefore = _basketReservationsHash();
-        uint256 amount = bound(rawAmount, 1, available);
-        try FEE_ROUTER.claimPeggedProtocolRevenue(PEGGED_PROFILE_ID, amount, address(this)) returns (
-            uint256, uint256
-        ) {}
-            catch {}
+        try GLOBAL_REWARDS.distributeTreasuryFees(address(SENDER_EXTRA)) returns (uint256) {} catch {}
         _observeDollarIsolation(basketReservationsBefore);
     }
 
@@ -355,7 +354,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
         if (sharedPositionId != 0) {
             uint256 shares = bound(rawShares, 0.02 ether, 10 ether);
             uint256[] memory maximums = BASKETS.quoteMint(basketId, shares);
-            try BASKET_REWARDS.mintBasketToPosition(sharedPositionId, basketId, shares, maximums) {} catch {}
+            try BASKET_COLLATERAL.mintBasketCollateral(sharedPositionId, basketId, shares, maximums) {} catch {}
         }
         _observeBasketIsolation(dollarReservationsBefore, siblingBefore, otherAccount);
     }
@@ -363,38 +362,26 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     function redeemBasketFromSharedPosition(uint256 rawBasket, uint256 rawShares) external {
         if (sharedPositionId == 0) return;
         (uint256 basketId,, bytes32 otherAccount) = _basket(rawBasket);
-        IStaticsBasketRewards.BasketPositionView memory current =
-            BASKET_REWARDS.basketPosition(sharedPositionId, basketId);
-        uint256 unlocked = current.eligibleShares - current.lockedShares;
+        IStaticsBasketCollateral.BasketCollateralPosition memory current =
+            BASKET_COLLATERAL.basketCollateralPosition(sharedPositionId, basketId);
+        uint256 unlocked = current.depositedShares - current.lockedShares;
         if (unlocked == 0) return;
         bytes32 dollarReservationsBefore = _dollarReservationsHash();
         bytes32 siblingBefore = _accountReservationsHash(otherAccount);
         uint256 shares = bound(rawShares, 1, unlocked);
         uint256[] memory minimums = new uint256[](3);
         vm.roll(block.number + 1);
-        try BASKET_REWARDS.redeemBasketFromPosition(sharedPositionId, basketId, shares, address(this), minimums) {}
+        try BASKET_COLLATERAL.redeemBasketCollateral(sharedPositionId, basketId, shares, address(this), minimums) {}
             catch {}
-        _observeBasketIsolation(dollarReservationsBefore, siblingBefore, otherAccount);
-    }
-
-    function claimBasketRewards(uint256 rawBasket) external {
-        if (sharedPositionId == 0) return;
-        (uint256 basketId,, bytes32 otherAccount) = _basket(rawBasket);
-        (, uint256[] memory pending) = BASKET_REWARDS.pendingBasketRewards(sharedPositionId, basketId);
-        if (pending[0] == 0 && pending[1] == 0 && pending[2] == 0) return;
-        bytes32 dollarReservationsBefore = _dollarReservationsHash();
-        bytes32 siblingBefore = _accountReservationsHash(otherAccount);
-        uint256[] memory minimums = new uint256[](3);
-        try BASKET_REWARDS.claimBasketRewards(sharedPositionId, basketId, address(this), minimums) {} catch {}
         _observeBasketIsolation(dollarReservationsBefore, siblingBefore, otherAccount);
     }
 
     function borrowAndLoop(uint256 rawBasket, uint256 rawShares) external {
         if (sharedPositionId == 0) return;
         (uint256 basketId, uint256 wethBundle, bytes32 otherAccount) = _basket(rawBasket);
-        IStaticsBasketRewards.BasketPositionView memory current =
-            BASKET_REWARDS.basketPosition(sharedPositionId, basketId);
-        uint256 unlocked = current.eligibleShares - current.lockedShares;
+        IStaticsBasketCollateral.BasketCollateralPosition memory current =
+            BASKET_COLLATERAL.basketCollateralPosition(sharedPositionId, basketId);
+        uint256 unlocked = current.depositedShares - current.lockedShares;
         if (unlocked < 1e12) return;
         bytes32 dollarReservationsBefore = _dollarReservationsHash();
         bytes32 siblingBefore = _accountReservationsHash(otherAccount);
@@ -407,7 +394,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
             uint256 nextLayerShares = Math.mulDiv(principals[0], SHARE_SCALE, wethBundle);
             if (nextLayerShares != 0) {
                 uint256[] memory maximums = BASKETS.quoteMint(basketId, nextLayerShares);
-                try BASKET_REWARDS.mintBasketToPosition(sharedPositionId, basketId, nextLayerShares, maximums) {}
+                try BASKET_COLLATERAL.mintBasketCollateral(sharedPositionId, basketId, nextLayerShares, maximums) {}
                     catch {}
             }
         } catch {}
@@ -604,13 +591,14 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     StaticsDollarStackDeployment internal deployment;
     IStaticsBasket internal baskets;
     IStaticsBasketAdmin internal basketAdmin;
-    IStaticsBasketRewards internal basketRewards;
+    IStaticsBasketCollateral internal basketCollateral;
     IStaticsBasketLiquidity internal basketLiquidity;
     IStaticsLending internal lending;
     IStaticsCustody internal custody;
     IStaticsPosition internal positions;
     RewardsFacet internal dollarRewards;
     FeeRouterFacet internal feeRouter;
+    IStaticsGlobalRewards internal globalRewards;
     StakingFacet internal staking;
     CanonicalWETH9 internal weth;
     StaticsDollar internal staticsDollar;
@@ -637,13 +625,14 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
 
         baskets = IStaticsBasket(deployment.diamond);
         basketAdmin = IStaticsBasketAdmin(deployment.diamond);
-        basketRewards = IStaticsBasketRewards(deployment.diamond);
+        basketCollateral = IStaticsBasketCollateral(deployment.diamond);
         basketLiquidity = IStaticsBasketLiquidity(deployment.diamond);
         lending = IStaticsLending(deployment.diamond);
         custody = IStaticsCustody(deployment.diamond);
         positions = IStaticsPosition(deployment.diamond);
         dollarRewards = RewardsFacet(deployment.diamond);
         feeRouter = FeeRouterFacet(deployment.diamond);
+        globalRewards = IStaticsGlobalRewards(deployment.diamond);
         staking = StakingFacet(deployment.diamond);
         weth = CanonicalWETH9(payable(deployment.weth));
         staticsDollar = StaticsDollar(deployment.staticsDollar);
@@ -690,6 +679,8 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         bytes32 dollarAccount = custody.dollarCustodyAccount();
         bytes32 firstAccount = custody.basketCustodyAccount(firstBasketId);
         bytes32 secondAccount = custody.basketCustodyAccount(secondBasketId);
+        bytes32 feeAccount = custody.feeCustodyAccount();
+        bytes32 stakingAccount = custody.stakingCustodyAccount();
 
         _assertCovered(address(weth));
         _assertCovered(address(senderExtra));
@@ -703,28 +694,41 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             custody.reservedByAccount(dollarAccount, address(weth))
                 + custody.reservedByAccount(firstAccount, address(weth))
                 + custody.reservedByAccount(secondAccount, address(weth))
+                + custody.reservedByAccount(feeAccount, address(weth))
+                + custody.reservedByAccount(stakingAccount, address(weth))
         );
         assertEq(
             custody.globalReservedByToken(address(senderExtra)),
             custody.reservedByAccount(dollarAccount, address(senderExtra))
                 + custody.reservedByAccount(firstAccount, address(senderExtra))
                 + custody.reservedByAccount(secondAccount, address(senderExtra))
+                + custody.reservedByAccount(feeAccount, address(senderExtra))
+                + custody.reservedByAccount(stakingAccount, address(senderExtra))
         );
         assertEq(
             custody.globalReservedByToken(address(reentrant)),
             custody.reservedByAccount(firstAccount, address(reentrant))
                 + custody.reservedByAccount(secondAccount, address(reentrant))
+                + custody.reservedByAccount(feeAccount, address(reentrant))
+                + custody.reservedByAccount(stakingAccount, address(reentrant))
         );
         assertEq(
             custody.globalReservedByToken(address(staticsDollar)),
             custody.reservedByAccount(dollarAccount, address(staticsDollar))
+                + custody.reservedByAccount(feeAccount, address(staticsDollar))
+                + custody.reservedByAccount(stakingAccount, address(staticsDollar))
         );
         assertEq(
-            custody.globalReservedByToken(firstBasketToken), custody.reservedByAccount(firstAccount, firstBasketToken)
+            custody.globalReservedByToken(firstBasketToken),
+            custody.reservedByAccount(firstAccount, firstBasketToken)
+                + custody.reservedByAccount(feeAccount, firstBasketToken)
+                + custody.reservedByAccount(stakingAccount, firstBasketToken)
         );
         assertEq(
             custody.globalReservedByToken(secondBasketToken),
             custody.reservedByAccount(secondAccount, secondBasketToken)
+                + custody.reservedByAccount(feeAccount, secondBasketToken)
+                + custody.reservedByAccount(stakingAccount, secondBasketToken)
         );
     }
 
@@ -740,9 +744,10 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             dollarRewards.reservedBalance(address(staticsDollar))
         );
         assertEq(
-            custody.reservedByAccount(dollarAccount, address(senderExtra)),
-            feeRouter.peggedProtocolRevenue(peggedProfileId, address(senderExtra))
+            custody.reservedByAccount(custody.feeCustodyAccount(), address(senderExtra)),
+            globalRewards.treasuryAccrued(address(senderExtra))
         );
+        assertEq(custody.reservedByAccount(custody.stakingCustodyAccount(), address(weth)), globalRewards.totalStaked());
         assertEq(staticsDollar.totalSupply(), IStaticsDollarCore(deployment.core).seniorLiabilities());
     }
 
@@ -785,8 +790,8 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             if (current.basketId == firstBasketId) firstLocked += current.collateralShares;
             else secondLocked += current.collateralShares;
         }
-        assertEq(basketRewards.basketPosition(positionId, firstBasketId).lockedShares, firstLocked);
-        assertEq(basketRewards.basketPosition(positionId, secondBasketId).lockedShares, secondLocked);
+        assertEq(basketCollateral.basketCollateralPosition(positionId, firstBasketId).lockedShares, firstLocked);
+        assertEq(basketCollateral.basketCollateralPosition(positionId, secondBasketId).lockedShares, secondLocked);
     }
 
     function invariantRecursiveBorrowingRemainsBoundedAtNinetyFivePercent() public view {
@@ -807,14 +812,12 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         handler.compareDirectAndGatewayPeggedRedemption(1 ether);
         assertEq(IStaticsDollarCore(deployment.core).collateralProfile(peggedProfileId).seniorOutstanding, 98 ether);
 
-        uint256 revenueBefore = feeRouter.peggedProtocolRevenue(peggedProfileId, address(senderExtra));
+        uint256 revenueBefore = globalRewards.treasuryAccrued(address(senderExtra));
         assertGt(revenueBefore, 1);
-        uint256 receiverBalanceBefore = senderExtra.balanceOf(address(handler));
-        handler.claimPeggedRevenue(revenueBefore / 2);
-        assertEq(
-            feeRouter.peggedProtocolRevenue(peggedProfileId, address(senderExtra)), revenueBefore - (revenueBefore / 2)
-        );
-        assertEq(senderExtra.balanceOf(address(handler)), receiverBalanceBefore + (revenueBefore / 2));
+        uint256 treasuryBalanceBefore = senderExtra.balanceOf(address(handler));
+        handler.distributePeggedTreasuryFees(revenueBefore);
+        assertEq(globalRewards.treasuryAccrued(address(senderExtra)), 0);
+        assertEq(senderExtra.balanceOf(address(handler)), treasuryBalanceBefore + revenueBefore);
 
         handler.mintBasketToSharedPosition(0, 1 ether);
         handler.borrowAndLoop(0, 0.5 ether);
@@ -830,10 +833,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         bytes32 account = custody.basketCustodyAccount(basketId);
         for (uint256 i; i < configured.assets.length; ++i) {
             address asset = configured.assets[i];
-            uint256 recorded = baskets.vaultBalance(basketId, asset) + basketAdmin.protocolRevenue(basketId, asset)
-                + basketLiquidity.liquidityReserve(basketId, asset)
-                + basketRewards.basketRewardState(basketId, asset).feeYieldReserve
-                + lending.recoverySurplus(basketId, asset);
+            uint256 recorded = baskets.vaultBalance(basketId, asset) + lending.recoverySurplus(basketId, asset);
             assertEq(custody.reservedByAccount(account, asset), recorded);
         }
         assertEq(custody.reservedByAccount(account, basketToken), IERC20(basketToken).balanceOf(deployment.diamond));
@@ -841,21 +841,18 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
 
     function _assertBasketPositionLeg(uint256 positionId, uint256 basketId) private view returns (bool active) {
         active = positions.isPositionLegActive(positionId, LibPosition.basketLegKey(basketId));
-        IStaticsBasketRewards.BasketPositionView memory current = basketRewards.basketPosition(positionId, basketId);
-        bool hasValue = current.eligibleShares != 0 || current.lockedShares != 0;
-        for (uint256 i; i < current.claimable.length; ++i) {
-            hasValue = hasValue || current.claimable[i] != 0;
-        }
+        IStaticsBasketCollateral.BasketCollateralPosition memory current = basketCollateral.basketCollateralPosition(positionId, basketId);
+        bool hasValue = current.depositedShares != 0 || current.lockedShares != 0;
         if (hasValue) assertTrue(active);
     }
 
     function _assertDebtBound(uint256 positionId, uint256 basketId, uint256 wethBundle) private view {
-        IStaticsBasketRewards.BasketPositionView memory current = basketRewards.basketPosition(positionId, basketId);
+        IStaticsBasketCollateral.BasketCollateralPosition memory current = basketCollateral.basketCollateralPosition(positionId, basketId);
         uint256 wethPrincipal = lending.outstandingPrincipal(basketId, address(weth));
         uint256 lockedBacking = Math.mulDiv(wethBundle, current.lockedShares, 1e18);
         assertLe(wethPrincipal * BPS, lockedBacking * MAX_LTV_BPS);
         uint256 debtEquivalentShares = Math.mulDiv(wethPrincipal, 1e18, wethBundle);
-        assertLe(debtEquivalentShares * 20, current.eligibleShares * 19);
+        assertLe(debtEquivalentShares * 20, current.depositedShares * 19);
     }
 
     function _createSharedBasket(

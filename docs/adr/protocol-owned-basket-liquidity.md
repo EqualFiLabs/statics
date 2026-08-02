@@ -1,6 +1,14 @@
 # ADR: Protocol-Owned Basket Liquidity and Canonical Swap Revenue
 
-- Status: Accepted
+> **Superseded (2026-07-22).** This ADR describes the former primary-fee POL
+> reserve, protocol PositionManager NFT, epoch, and LP-fee model. The live
+> design instead charges bilateral hook fees, routes them 50%/10%/30%/10% by
+> default across POL/canonical LPs/global stakers/treasury, and compounds the
+> matched share into hook-owned full-range permanent liquidity. Canonical pools
+> have zero native LP fee. See `canonical-lp-nft-rewards.md`,
+> `Statics-Design.md`, and `docs/integration.md` for current behavior.
+
+- Status: Superseded
 - Date: 2026-07-20
 - Scope: Statics Basket fee allocation, secondary liquidity, Uniswap v4
   integration, borrower-owned liquidity, protocol revenue, and decommissioning

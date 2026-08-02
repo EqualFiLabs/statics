@@ -6,7 +6,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "./LibBasket.sol";
-import {LibBasketRewards} from "./LibBasketRewards.sol";
+import {LibBasketCollateral} from "./LibBasketCollateral.sol";
+import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibGovernance} from "./LibGovernance.sol";
 import {LibLending} from "./LibLending.sol";
@@ -41,7 +42,7 @@ library LibLoanOrigination {
         (uint256 feeShares, uint256 collateralShares,, uint256[] memory quotedPrincipals) = quote(configured, sharesIn);
         principals = quotedPrincipals;
 
-        LibBasketRewards.lockForLoan(configured, positionId, basketId, sharesIn, feeShares, collateralShares);
+        LibBasketCollateral.lockForLoan(positionId, basketId, sharesIn, feeShares, collateralShares);
         bytes32 custodyAccount = LibCustody.basketAccount(basketId);
         uint256 supplyBeforeFee = IERC20(configured.token).totalSupply();
         if (feeShares != 0) {
@@ -72,7 +73,7 @@ library LibLoanOrigination {
             uint256 available = bs.vaultBalances[basketId][asset];
             if (required > available) revert InsufficientVaultBalance(asset, required, available);
             bs.vaultBalances[basketId][asset] = available - required;
-            bs.protocolRevenue[basketId][asset] += feeUnderlying;
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, feeUnderlying);
             ls.principals[loanId][asset] = principal;
             ls.outstandingPrincipal[basketId][asset] += principal;
             if (principalReceiver != address(0) && principal != 0) {

@@ -16,7 +16,8 @@ contract ConfigureStaticsLiquidityTest is Test {
             permit2: makeAddr("permit2"),
             hook: makeAddr("hook"),
             manager: makeAddr("manager"),
-            hookFeeBps: 1,
+            inputFeeBps: 25,
+            outputFeeBps: 25,
             poolManagerCodeHash: bytes32(0),
             positionManagerCodeHash: bytes32(0),
             permit2CodeHash: bytes32(0)

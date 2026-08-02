@@ -24,4 +24,12 @@ contract CustodyFacet is IStaticsCustody {
     function basketCustodyAccount(uint256 basketId) external pure returns (bytes32) {
         return LibCustody.basketAccount(basketId);
     }
+
+    function feeCustodyAccount() external pure returns (bytes32) {
+        return LibCustody.feeAccount();
+    }
+
+    function stakingCustodyAccount() external pure returns (bytes32) {
+        return LibCustody.stakingAccount();
+    }
 }

@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
@@ -65,13 +65,10 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         assertEq(liquidityManagerContract.protocolPositionId(basketId, basketAssets[0]), 0);
         _assertManagerHasNoUserResidue();
 
-        IStaticsBasketRewards.BasketPositionView memory basketPosition =
-            basketRewards.basketPosition(basketPositionId, basketId);
-        assertEq(basketPosition.eligibleShares, 100 ether - expectedFee);
-        assertEq(basketPosition.lockedShares, expectedCollateral);
-        assertEq(
-            basketRewards.basketRewardState(basketId, basketAssets[0]).totalEligibleShares, 100 ether - expectedFee
-        );
+        IStaticsBasketCollateral.BasketCollateralPosition memory basketCollateralPosition =
+            basketCollateral.basketCollateralPosition(basketPositionId, basketId);
+        assertEq(basketCollateralPosition.depositedShares, 100 ether - expectedFee);
+        assertEq(basketCollateralPosition.lockedShares, expectedCollateral);
 
         vm.prank(alice);
         IERC721(address(diamond)).transferFrom(alice, carol, basketPositionId);
@@ -107,11 +104,6 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
             assertEq(liquidityManagerContract.protocolPositionId(basketId, basketAssets[i]), 0);
         }
         _assertManagerHasNoUserResidue();
-        IStaticsBasketRewards.BasketPositionView memory position =
-            basketRewards.basketPosition(basketPositionId, basketId);
-        assertEq(
-            basketRewards.basketRewardState(basketId, basketAssets[0]).totalEligibleShares, position.eligibleShares
-        );
     }
 
     function testExtensionAndRecoveryLeaveUserV4PositionIndependentAndBackingExact() public {
@@ -140,8 +132,8 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         _createReadyBasket(3);
         IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(4 ether);
         uint256 supplyBefore = IERC20(basketToken).totalSupply();
-        IStaticsBasketRewards.BasketPositionView memory beforePosition =
-            basketRewards.basketPosition(basketPositionId, basketId);
+        IStaticsBasketCollateral.BasketCollateralPosition memory beforePosition =
+            basketCollateral.basketCollateralPosition(basketPositionId, basketId);
 
         params[1].asset = params[0].asset;
         _expectAtomicRevert(BorrowLiquidityFacet.DuplicatePoolAsset.selector, params, supplyBefore, beforePosition);
@@ -211,15 +203,15 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         bytes4 selector,
         IStaticsBorrowLiquidity.LiquidityParams[] memory params,
         uint256 supplyBefore,
-        IStaticsBasketRewards.BasketPositionView memory beforePosition
+        IStaticsBasketCollateral.BasketCollateralPosition memory beforePosition
     ) private {
         vm.prank(alice);
         vm.expectPartialRevert(selector);
         borrowLiquidity.borrowAndProvideLiquidity(basketPositionId, basketId, 20 ether, params, bob);
         assertEq(IERC20(basketToken).totalSupply(), supplyBefore);
-        IStaticsBasketRewards.BasketPositionView memory afterPosition =
-            basketRewards.basketPosition(basketPositionId, basketId);
-        assertEq(afterPosition.eligibleShares, beforePosition.eligibleShares);
+        IStaticsBasketCollateral.BasketCollateralPosition memory afterPosition =
+            basketCollateral.basketCollateralPosition(basketPositionId, basketId);
+        assertEq(afterPosition.depositedShares, beforePosition.depositedShares);
         assertEq(afterPosition.lockedShares, beforePosition.lockedShares);
         for (uint256 i; i < basketAssets.length; ++i) {
             assertEq(lending.outstandingPrincipal(basketId, basketAssets[i]), 0);

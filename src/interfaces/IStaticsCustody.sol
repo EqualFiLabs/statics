@@ -11,4 +11,8 @@ interface IStaticsCustody {
     function dollarCustodyAccount() external pure returns (bytes32);
 
     function basketCustodyAccount(uint256 basketId) external pure returns (bytes32);
+
+    function feeCustodyAccount() external pure returns (bytes32);
+
+    function stakingCustodyAccount() external pure returns (bytes32);
 }

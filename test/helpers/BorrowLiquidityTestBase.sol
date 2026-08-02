@@ -12,6 +12,7 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "./CanonicalPoolTestBase.sol";
 
 abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
+    IAllowanceTransfer internal permit2Contract;
     IPositionManager internal positionManagerContract;
     StaticsLiquidityManager internal liquidityManagerContract;
     IStaticsBorrowLiquidity internal borrowLiquidity;
@@ -22,7 +23,7 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
 
     function setUp() public virtual override {
         super.setUp();
-        IAllowanceTransfer permit2Contract = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        permit2Contract = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
         positionManagerContract = IPositionManager(
             deployCode(
                 "out/PositionManager.sol/PositionManager.json",
@@ -73,7 +74,7 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
             MockERC20(assets[i]).mint(alice, quote[i]);
             IERC20(assets[i]).approve(address(diamond), type(uint256).max);
         }
-        (basketPositionId,) = basketRewards.createAndMintBasket(basketId, 100 ether, alice, quote);
+        (basketPositionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 100 ether, alice, quote);
         vm.stopPrank();
 
         for (uint256 i; i < count; ++i) {

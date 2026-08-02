@@ -2,16 +2,26 @@
 pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IStaticsFlashBorrower} from "../interfaces/IStaticsFlashBorrower.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
-import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
+import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 
-contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuard {
+contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
+    using StorageSlot for bytes32;
+
     bytes32 public constant CALLBACK_SUCCESS = keccak256("IStaticsFlashBorrower.onStaticsFlashLoan");
+    // OpenZeppelin ReentrancyGuard's ERC-7201 slot. Transfer phases acquire the
+    // same persistent lock as the ordinary Diamond facets; the explicit
+    // receiver callback runs only under the transient flash lock.
+    bytes32 private constant PERSISTENT_REENTRANCY_GUARD_STORAGE =
+        0x9b779b17422d0df92223018b32b4d1fa46e071723d6817e2486d003becc55f00;
+    uint256 private constant PERSISTENT_NOT_ENTERED = 1;
+    uint256 private constant PERSISTENT_ENTERED = 2;
 
     error BasketNotFound(uint256 basketId);
     error InvalidShares();
@@ -20,6 +30,7 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuard {
     error InsufficientVaultBalance(address asset, uint256 required, uint256 available);
     error InvalidCallback(bytes32 result);
     error InsufficientRepayment(address asset, uint256 required, uint256 received);
+    error IncompatibleFlashAsset(address asset, uint256 expected, uint256 spent, uint256 received);
 
     function flashLoan(uint256 basketId, uint256 shares, address receiver, bytes calldata data) external nonReentrant {
         _enforceNotPaused();
@@ -31,19 +42,26 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuard {
         bytes32 custodyAccount = LibCustody.basketAccount(basketId);
 
         uint256 length = assets.length;
+        _enterPersistentGuard();
         for (uint256 i; i < length; ++i) {
             uint256 available = bs.vaultBalances[basketId][assets[i]];
             if (amounts[i] > available) revert InsufficientVaultBalance(assets[i], amounts[i], available);
             bs.vaultBalances[basketId][assets[i]] = available - amounts[i];
             if (amounts[i] != 0) {
-                (, amounts[i]) = LibCustody.pushReserved(custodyAccount, assets[i], receiver, amounts[i], amounts[i]);
+                (uint256 spent, uint256 received) =
+                    LibCustody.pushReserved(custodyAccount, assets[i], receiver, amounts[i], amounts[i]);
+                if (spent != amounts[i] || received != amounts[i]) {
+                    revert IncompatibleFlashAsset(assets[i], amounts[i], spent, received);
+                }
             }
         }
+        _exitPersistentGuard();
 
         bytes32 result =
             IStaticsFlashBorrower(receiver).onStaticsFlashLoan(msg.sender, basketId, assets, amounts, fees, data);
         if (result != CALLBACK_SUCCESS) revert InvalidCallback(result);
 
+        _enterPersistentGuard();
         for (uint256 i; i < length; ++i) {
             uint256 repayment = amounts[i] + fees[i];
             uint256 received =
@@ -51,8 +69,9 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuard {
             if (received < amounts[i]) revert InsufficientRepayment(assets[i], amounts[i], received);
             fees[i] = received - amounts[i];
             bs.vaultBalances[basketId][assets[i]] += amounts[i];
-            _distributeFee(bs, basketId, assets[i], fees[i]);
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, assets[i], fees[i]);
         }
+        _exitPersistentGuard();
         emit BasketFlashLoan(basketId, msg.sender, receiver, shares, amounts, fees);
     }
 
@@ -85,10 +104,6 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuard {
         if (!hasAmount) revert InvalidShares();
     }
 
-    function _distributeFee(LibBasket.BasketStorage storage bs, uint256 basketId, address asset, uint256 fee) private {
-        LibBasketRewards.accrueFee(bs, basketId, asset, fee);
-    }
-
     function _getBasket(LibBasket.BasketStorage storage bs, uint256 basketId)
         private
         view
@@ -102,5 +117,15 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuard {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_FLASH != 0) {
             revert ActionPaused(LibGovernance.PAUSE_FLASH);
         }
+    }
+
+    function _enterPersistentGuard() private {
+        StorageSlot.Uint256Slot storage guard = PERSISTENT_REENTRANCY_GUARD_STORAGE.getUint256Slot();
+        if (guard.value == PERSISTENT_ENTERED) revert ReentrancyGuardReentrantCall();
+        guard.value = PERSISTENT_ENTERED;
+    }
+
+    function _exitPersistentGuard() private {
+        PERSISTENT_REENTRANCY_GUARD_STORAGE.getUint256Slot().value = PERSISTENT_NOT_ENTERED;
     }
 }
