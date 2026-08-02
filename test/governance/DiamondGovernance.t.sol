@@ -80,7 +80,7 @@ contract DiamondGovernanceTest is Test {
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsGovernance).interfaceId));
     }
 
-    function testUpgradeCannotBypassFifteenMinuteTimelock() public {
+    function testUpgradeCannotBypassTwoMinuteTimelock() public {
         VersionFacet versionFacet = new VersionFacet();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = VersionFacet.version.selector;
@@ -93,12 +93,12 @@ contract DiamondGovernanceTest is Test {
 
         bytes32 salt = keccak256("add version facet");
         vm.prank(multisig);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 15 minutes);
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 2 minutes);
 
         vm.expectRevert();
         timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
 
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         vm.prank(stranger);
         timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
         assertEq(VersionFacet(address(diamond)).version(), 1);
@@ -114,7 +114,7 @@ contract DiamondGovernanceTest is Test {
         bytes32 salt = keccak256("guardian cancellation");
 
         vm.prank(multisig);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 15 minutes);
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 2 minutes);
         bytes32 operationId = timelock.hashOperation(address(diamond), 0, payload, bytes32(0), salt);
         assertTrue(timelock.isOperationPending(operationId));
 
@@ -127,7 +127,7 @@ contract DiamondGovernanceTest is Test {
         timelock.cancel(operationId);
         assertFalse(timelock.isOperation(operationId));
 
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         vm.expectRevert();
         timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
         assertEq(IDiamondLoupe(address(diamond)).facetAddress(VersionFacet.version.selector), address(0));
@@ -186,8 +186,8 @@ contract DiamondGovernanceTest is Test {
         bytes memory payload = abi.encodeCall(IStaticsGovernance.releaseBasketQuarantine, (basketId));
         bytes32 salt = keccak256("reactivate exit-only basket");
         vm.prank(multisig);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 15 minutes);
-        vm.warp(block.timestamp + 15 minutes);
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 2 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         vm.expectRevert();
         timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
         assertEq(uint8(baskets.basketStatus(basketId)), uint8(IStaticsBasket.BasketStatus.ExitOnly));
@@ -204,8 +204,8 @@ contract DiamondGovernanceTest is Test {
         bytes memory payload = abi.encodeCall(TimelockController.updateDelay, (0));
         bytes32 salt = keccak256("reduce delay");
         vm.prank(multisig);
-        timelock.schedule(address(timelock), 0, payload, bytes32(0), salt, 15 minutes);
-        vm.warp(block.timestamp + 15 minutes);
+        timelock.schedule(address(timelock), 0, payload, bytes32(0), salt, 2 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         timelock.execute(address(timelock), 0, payload, bytes32(0), salt);
         assertEq(timelock.getMinDelay(), 0);
     }
@@ -293,8 +293,8 @@ contract DiamondGovernanceTest is Test {
         bytes memory payload = abi.encodeCall(IDiamondCut.diamondCut, (removal, address(0), bytes("")));
         bytes32 salt = keccak256("remove cut");
         vm.prank(multisig);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 15 minutes);
-        vm.warp(block.timestamp + 15 minutes);
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 2 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
         assertEq(IDiamondLoupe(address(diamond)).facetAddress(IDiamondCut.diamondCut.selector), address(0));
     }
@@ -313,10 +313,10 @@ contract DiamondGovernanceTest is Test {
         bytes32 proposerSalt = keccak256("grant governor proposer");
         bytes32 cancellerSalt = keccak256("grant governor canceller");
         vm.startPrank(multisig);
-        timelock.schedule(address(timelock), 0, grantProposer, bytes32(0), proposerSalt, 15 minutes);
-        timelock.schedule(address(timelock), 0, grantCanceller, bytes32(0), cancellerSalt, 15 minutes);
+        timelock.schedule(address(timelock), 0, grantProposer, bytes32(0), proposerSalt, 2 minutes);
+        timelock.schedule(address(timelock), 0, grantCanceller, bytes32(0), cancellerSalt, 2 minutes);
         vm.stopPrank();
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         timelock.execute(address(timelock), 0, grantProposer, bytes32(0), proposerSalt);
         timelock.execute(address(timelock), 0, grantCanceller, bytes32(0), cancellerSalt);
 
@@ -326,7 +326,7 @@ contract DiamondGovernanceTest is Test {
 
         bytes memory payload = abi.encodeCall(IStaticsGovernance.pause, (PAUSE_MINT));
         vm.prank(governor);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), keccak256("governor proposal"), 15 minutes);
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), keccak256("governor proposal"), 2 minutes);
     }
 
     function testInterfaceMetadataCanUpdateAtomicallyWithCut() public {
@@ -339,8 +339,8 @@ contract DiamondGovernanceTest is Test {
         bytes memory payload = abi.encodeCall(IDiamondCut.diamondCut, (emptyCut, address(diamond), initData));
         bytes32 salt = keccak256("sync interface");
         vm.prank(multisig);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 15 minutes);
-        vm.warp(block.timestamp + 15 minutes);
+        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 2 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
         assertTrue(IERC165(address(diamond)).supportsInterface(0xdeadbeef));
     }
@@ -365,8 +365,8 @@ contract DiamondGovernanceTest is Test {
     function _executeTargetThroughTimelock(address target, bytes memory payload, string memory label) internal {
         bytes32 salt = keccak256(bytes(label));
         vm.prank(multisig);
-        timelock.schedule(target, 0, payload, bytes32(0), salt, 15 minutes);
-        vm.warp(block.timestamp + 15 minutes);
+        timelock.schedule(target, 0, payload, bytes32(0), salt, 2 minutes);
+        vm.warp(block.timestamp + 2 minutes);
         timelock.execute(target, 0, payload, bytes32(0), salt);
     }
 

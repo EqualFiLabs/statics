@@ -40,17 +40,22 @@ interaction rolls due buckets automatically, so integrations never submit a
 separate activation transaction.
 
 Statics Dollar builders cover the typed ETH/WETH deposit and ordinary
-recombination gateway exposed by the same Diamond. Permit variants encode an
-exact-amount EIP-2612 signature so approval and WETH or ETH recombination occur
-in one transaction. Risk Shares still require ERC-1155 operator approval. The
+recombination gateway exposed by the same Diamond. Permit variants carry the
+signed EIP-2612 allowance value independently from the operation amount, so
+integrations can authorize an exact input or a reusable allowance in the same
+transaction. Risk Shares still require ERC-1155 operator approval. The
 builders do not expose the Core's managed pairing-only recombination selector.
+Pegged USDG minting and USDstx redemption have the same atomic permit path via
+`buildMintPeggedWithPermitCall` and `buildRedeemPeggedWithPermitCall`.
+`buildErc20PermitTypedData` supplies the matching EIP-712 message; integrations
+must read the token name and current owner nonce immediately before signing.
 
 For an atomic pegged-collateral exit, decode
 `quoteMintPeggedAndRecombine` as `PeggedMintAndRecombineQuote`, require an
 eligible, available quote, and refresh it before submission. Use
 `buildQuoteMintPeggedAndRecombineCall`, `buildMintPeggedAndRecombineCall`, or
-`buildMintPeggedAndRecombineWithPermitCall`. The caller approves only the
-quoted pegged collateral input and Risk Shares; temporary Statics Dollar is
+`buildMintPeggedAndRecombineWithPermitCall`. The caller authorizes pegged
+collateral and Risk Shares; temporary Statics Dollar is
 minted directly to the Diamond and requires no user allowance. The route accepts
 only an active series belonging to the selected volatile profile and uses
 ordinary recombination, never recovery or arbitrary external execution. Bound
@@ -88,6 +93,16 @@ amount; incompatible transfer-tax behavior reverts the complete launch.
 Governance uses the Diamond for post-warm-up activation and fee configuration.
 Pool checkpointing, reward and treasury distribution, retirement settlement,
 and post-`ExitOnly` unwind retain their permissionless execution paths.
+
+Canonical single-pool browser swaps use `buildQuoteV4ExactInputSingleCall`
+against Robinhood's v4 Quoter and `buildV4ExactInputSingleSwap` against its
+Universal Router. The swap builder emits the deployed Robinhood router's
+exact-input-single encoding, including the per-hop minimum-price field, and
+settles only the exact input while requiring the configured minimum output.
+After the wallet grants the one-time ERC-20 allowance to Permit2,
+`buildPermit2PermitTypedData` and the optional Permit2 command make each router
+allowance and swap atomic. The signed token, amount, and router are required to
+match the swap exactly.
 
 `quoteHookFee` rounds either realized bilateral fee leg up exactly as the hook
 does. `effectiveCanonicalFees` reports the zero native LP fee and the separate

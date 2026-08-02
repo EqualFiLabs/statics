@@ -140,7 +140,7 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.RedemptionPreview memory preview;
         (status, preview) = _prepareRecombination(ps, seriesId, staticsDollarAmount, maxSharesIn, receiver, minWETHOut);
         if (status != IStaticsDollarCoreTypes.ExitStatus.Available) return (status, 0);
-        _permitToken(ps.staticsDollar, staticsDollarAmount, permitSignature);
+        _permitToken(ps.staticsDollar, permitSignature);
         wethOut =
             _executeRecombinationToWETH(ps, seriesId, staticsDollarAmount, preview.sharesBurned, receiver, minWETHOut);
     }
@@ -172,7 +172,7 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.RedemptionPreview memory preview;
         (status, preview) = _prepareRecombination(ps, seriesId, staticsDollarAmount, maxSharesIn, receiver, minETHOut);
         if (status != IStaticsDollarCoreTypes.ExitStatus.Available) return (status, 0);
-        _permitToken(ps.staticsDollar, staticsDollarAmount, permitSignature);
+        _permitToken(ps.staticsDollar, permitSignature);
         ethOut =
             _executeRecombinationToETH(ps, seriesId, staticsDollarAmount, preview.sharesBurned, receiver, minETHOut);
     }
@@ -208,7 +208,7 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         LibPeriphery.PS storage ps = LibPeriphery.s();
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview =
             _preparePeggedMint(ps, profileId, staticsDollarAmount, maximumCollateralIn, staticsDollarReceiver);
-        _permitToken(preview.collateralToken, preview.totalCollateralIn, permitSignature);
+        _permitToken(preview.collateralToken, permitSignature);
         collateralIn =
             _executePeggedMint(ps, profileId, staticsDollarAmount, maximumCollateralIn, staticsDollarReceiver, preview);
     }
@@ -362,7 +362,7 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
             );
             return (status, 0, 0);
         }
-        _permitToken(peggedPreview.collateralToken, peggedPreview.totalCollateralIn, permitSignature);
+        _permitToken(peggedPreview.collateralToken, permitSignature);
         (peggedCollateralIn, volatileCollateralOut) = _executePeggedAndRecombine(
             ps,
             peggedProfileId,
@@ -597,7 +597,7 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.PeggedRedemptionPreview memory preview;
         (status, preview) = _preparePeggedRedemption(ps, profileId, staticsDollarAmount, minimumCollateralOut, receiver);
         if (status != IStaticsDollarCoreTypes.ExitStatus.Available) return (status, 0);
-        _permitToken(ps.staticsDollar, staticsDollarAmount, permitSignature);
+        _permitToken(ps.staticsDollar, permitSignature);
         collateralOut =
             _executePeggedRedemption(ps, profileId, staticsDollarAmount, minimumCollateralOut, receiver, preview);
     }
@@ -701,14 +701,12 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
         }
     }
 
-    function _permitToken(address token, uint256 amount, IStaticsDollarGateway.PermitSignature calldata permitSignature)
-        private
-    {
+    function _permitToken(address token, IStaticsDollarGateway.PermitSignature calldata permitSignature) private {
         try IERC20Permit(token)
             .permit(
                 msg.sender,
                 address(this),
-                amount,
+                permitSignature.value,
                 permitSignature.deadline,
                 permitSignature.v,
                 permitSignature.r,

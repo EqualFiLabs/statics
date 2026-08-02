@@ -352,10 +352,13 @@ the current chain ID, and token address. A permit authorizes only an allowance;
 it does not bind a series, receiver, output asset, or minimum.
 
 Use `recombineToWETHWithPermit`, `recombineToETHWithPermit`,
-`redeemPeggedWithPermit`, or `mintPeggedAndRecombineWithPermit` for an exact
-token authorization and exit. The atomic mint-and-recombine variant permits the
-pegged collateral token rather than Statics Dollar. `mintPeggedWithPermit`
-likewise requires the configured collateral token to implement EIP-2612.
+`redeemPeggedWithPermit`, or `mintPeggedAndRecombineWithPermit` for an atomic
+token authorization and exit. The permit payload carries the signed allowance
+value independently from the amount consumed by the operation, so integrations
+may authorize either the exact input or a reusable allowance. The atomic
+mint-and-recombine variant permits the pegged collateral token rather than
+Statics Dollar. `mintPeggedWithPermit` likewise requires the configured
+collateral token to implement EIP-2612.
 Matching Risk Shares remain ERC-1155 tokens and require
 `setApprovalForAll(StaticsDiamond, true)`.
 
@@ -409,10 +412,11 @@ its non-`Available` status with zero amounts before permit or custody, emits
 and recovery delay. Output slippage is checked against the receiver's observed
 volatile-token balance increase.
 
-`mintPeggedAndRecombineWithPermit` authorizes only the exact pegged collateral
-input through that token's EIP-2612 permit. It still requires ERC-1155 operator
-approval. A pre-submitted permit is tolerated when the caller already has
-sufficient allowance, matching the gateway's other permit variants.
+`mintPeggedAndRecombineWithPermit` authorizes the signed pegged-collateral
+allowance through that token's EIP-2612 permit and consumes only the quoted
+input. It still requires ERC-1155 operator approval. A pre-submitted permit is
+tolerated when the caller already has sufficient allowance, matching the
+gateway's other permit variants.
 
 Advanced integrations may call Core directly. Ordinary Core and gateway
 recombination use the same economics. `recombineManaged` is reserved for the

@@ -5,6 +5,7 @@ import {IStaticsDollarCoreTypes} from "./IStaticsDollarCoreTypes.sol";
 
 interface IStaticsDollarGateway {
     struct PermitSignature {
+        uint256 value;
         uint256 deadline;
         uint8 v;
         bytes32 r;

@@ -41,6 +41,7 @@ canonical launcher reads:
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed JSON manifest for the owner-funded first basket |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding the approvals and atomic basket launch |
+| `STATICS_GENESIS_ACTIVATION_SALT` | Unique salt binding the canonical-pool activation batch |
 
 `RPC_URL` is consumed by the Forge command rather than Solidity. Do not infer
 feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
@@ -66,16 +67,18 @@ script deploys three deliberately separate contracts:
 
 - an eight-decimal ETH/USD aggregator for `ETH_USD_FEED`;
 - a zero/up, one/down sequencer aggregator for `SEQUENCER_UPTIME_FEED`; and
-- an 18-decimal normalized USDG oracle for
+- an 18-decimal normalized, sequencer-aware USDG oracle for
   `STATICS_DOLLAR_USDC_ORACLE`.
 
 Set `TESTNET_ORACLE_OWNER`, `TESTNET_ETH_USD_INITIAL_PRICE`,
 `TESTNET_SEQUENCER_INITIAL_UPTIME`, `TESTNET_USDG_INITIAL_PRICE_WAD`, and
-`TESTNET_USDG_ORACLE_MAX_STALENESS`. The owner must publish fresh ETH/USD and
-USDG prices before their configured staleness windows expire. Repeated
-sequencer heartbeats preserve the time at which the current status began;
-changing between up and down restarts that timestamp and therefore the
-configured recovery grace period.
+`TESTNET_USDG_ORACLE_MAX_STALENESS`, and
+`TESTNET_USDG_SEQUENCER_GRACE_PERIOD`. The USDG oracle binds the deployed
+sequencer fixture and advertises this grace period to Core. The owner must
+publish fresh ETH/USD and USDG prices before their configured staleness windows
+expire. Repeated sequencer heartbeats preserve the time at which the current
+status began; changing between up and down restarts that timestamp and therefore
+the configured recovery grace period.
 
 These contracts are centralized public-testnet controls. They exist to exercise
 the production oracle adapter and impairment paths when canonical testnet feeds
@@ -123,7 +126,7 @@ a series ID or Risk Shares.
 
 The launcher performs one creation broadcast in this order:
 
-1. Deploy `StaticsTimelock` with the current 15-minute Robinhood testnet delay,
+1. Deploy `StaticsTimelock` with the current two-minute Robinhood testnet delay,
    the multisig as proposer and canceller, open execution, and no bootstrap
    admin. Restore the intended seven-day delay before production deployment.
 2. Deploy the Chainlink-backed Dollar oracle adapter.
@@ -370,6 +373,30 @@ canonical pool is warming, every manager key is registered, and every pool has
 nonzero hook-owned permanent liquidity. Pool activation remains a later
 timelocked action after the normal warm-up and oracle checks.
 
+After the configured pool warm-up has elapsed, use the same immutable basket
+configuration with `script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket`.
+The first call checkpoints every pool and refuses to continue unless each pool
+has at least two observations and a usable reference window. Choose a fresh
+`STATICS_GENESIS_ACTIVATION_SALT`, simulate each call without `--broadcast`,
+then checkpoint, schedule, and execute:
+
+```bash
+forge script script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket \
+  --sig 'runCheckpoint()' --rpc-url "$RPC_URL" --broadcast -vv
+
+forge script script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket \
+  --sig 'runSchedule()' --rpc-url "$RPC_URL" --broadcast -vv
+
+forge script script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket \
+  --sig 'runExecute()' --rpc-url "$RPC_URL" --broadcast -vv
+```
+
+The schedule contains one typed `activateCanonicalPool` call per constituent.
+Execution rechecks current oracle history and lets the Diamond enforce the
+configured spot-to-reference deviation bound. It is atomic: if any pool fails
+activation, no pool becomes active. The final validation requires every
+configured pool to report `Active` with a nonzero activation timestamp.
+
 Do not publish an address manifest until every transaction is confirmed and the
 post-deployment checks below pass.
 
@@ -388,7 +415,7 @@ Core owner == Diamond owner == StaticsTimelock
 Against the deployed addresses, verify:
 
 1. both `owner()` values equal the timelock;
-2. `getMinDelay()` equals the authorized current delay (15 minutes for the
+2. `getMinDelay()` equals the authorized current delay (two minutes for the
    Robinhood testnet deployment and seven days for the intended production
    launch), the intended proposer/canceller and executor roles are present, and
    the emergency guardian has no timelock cancellation authority;
