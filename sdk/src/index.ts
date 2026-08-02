@@ -141,10 +141,48 @@ export type GlobalRewardSelection = {
 };
 
 export type PermitSignature = {
+  value: bigint;
   deadline: bigint;
   v: number;
   r: Hex;
   s: Hex;
+};
+
+export type Erc20PermitTypedDataParams = {
+  tokenName: string;
+  chainId: number;
+  token: Address;
+  owner: Address;
+  spender: Address;
+  value: bigint;
+  nonce: bigint;
+  deadline: bigint;
+};
+
+export type Permit2PermitSingle = {
+  details: {
+    token: Address;
+    amount: bigint;
+    expiration: number;
+    nonce: number;
+  };
+  spender: Address;
+  sigDeadline: bigint;
+};
+
+export type V4ExactInputSingleRequest = {
+  router: Address;
+  poolKey: V4PoolKey;
+  zeroForOne: boolean;
+  amountIn: bigint;
+  amountOutMinimum: bigint;
+  deadline: bigint;
+  minHopPriceX36?: bigint;
+  hookData?: Hex;
+  permit?: {
+    permitSingle: Permit2PermitSingle;
+    signature: Hex;
+  };
 };
 
 export type PeggedMintAndRecombineQuote = {
@@ -752,9 +790,9 @@ export const staticsAbi = parseAbi([
   "function depositETH(address staticsDollarReceiver,address shareReceiver,uint256 minStaticsDollar,uint256 minShares) payable returns (uint256 seriesId,uint256 staticsDollarMinted,uint256 sharesMinted)",
   "function depositWETH(uint256 wethAmount,address staticsDollarReceiver,address shareReceiver,uint256 minStaticsDollar,uint256 minShares) returns (uint256 seriesId,uint256 staticsDollarMinted,uint256 sharesMinted)",
   "function recombineToWETH(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minWETHOut) returns (uint8 status,uint256 wethOut)",
-  "function recombineToWETHWithPermit(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minWETHOut,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 wethOut)",
+  "function recombineToWETHWithPermit(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minWETHOut,(uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 wethOut)",
   "function recombineToETH(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minETHOut) returns (uint8 status,uint256 ethOut)",
-  "function recombineToETHWithPermit(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minETHOut,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 ethOut)",
+  "function recombineToETHWithPermit(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minETHOut,(uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 ethOut)",
   "function pool() view returns (address)",
   "function weth() view returns (address)",
   "function staticsDollar() view returns (address)",
@@ -762,12 +800,13 @@ export const staticsAbi = parseAbi([
   "function wethProfileId() pure returns (uint256)",
   "function previewPeggedMint(uint256 profileId,uint256 staticsDollarAmount) view returns ((uint256 profileId,address collateralToken,uint256 staticsDollarMinted,uint256 principalCollateral,uint256 feeAmount,uint256 totalCollateralIn,uint256 priceWad) preview)",
   "function mintPegged(uint256 profileId,uint256 staticsDollarAmount,uint256 maximumCollateralIn,address staticsDollarReceiver) returns (uint256 collateralIn)",
-  "function mintPeggedWithPermit(uint256 profileId,uint256 staticsDollarAmount,uint256 maximumCollateralIn,address staticsDollarReceiver,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint256 collateralIn)",
+  "function mintPeggedWithPermit(uint256 profileId,uint256 staticsDollarAmount,uint256 maximumCollateralIn,address staticsDollarReceiver,(uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint256 collateralIn)",
   "function quoteMintPeggedAndRecombine(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount) view returns ((bool eligible,uint8 exitStatus,address peggedCollateralToken,address volatileCollateralToken,uint256 staticsDollarAmount,uint256 peggedCollateralPrincipal,uint256 peggedMintFee,uint256 totalPeggedCollateralIn,uint256 volatileCollateralOut,uint256 volatileRecombinationFee) quote)",
   "function mintPeggedAndRecombine(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount,uint256 maximumPeggedCollateralIn,uint256 minimumVolatileCollateralOut,address receiver) returns (uint8 status,uint256 peggedCollateralIn,uint256 volatileCollateralOut)",
-  "function mintPeggedAndRecombineWithPermit(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount,uint256 maximumPeggedCollateralIn,uint256 minimumVolatileCollateralOut,address receiver,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 peggedCollateralIn,uint256 volatileCollateralOut)",
+  "function mintPeggedAndRecombineWithPermit(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount,uint256 maximumPeggedCollateralIn,uint256 minimumVolatileCollateralOut,address receiver,(uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 peggedCollateralIn,uint256 volatileCollateralOut)",
   "function previewPeggedRedemption(uint256 profileId,uint256 staticsDollarAmount) view returns ((uint256 profileId,address collateralToken,uint256 staticsDollarBurned,uint256 grossCollateral,uint256 feeAmount,uint256 collateralOut,uint256 priceWad) preview)",
   "function redeemPegged(uint256 profileId,uint256 staticsDollarAmount,uint256 minimumCollateralOut,address receiver) returns (uint8 status,uint256 collateralOut)",
+  "function redeemPeggedWithPermit(uint256 profileId,uint256 staticsDollarAmount,uint256 minimumCollateralOut,address receiver,(uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 collateralOut)",
   "function peggedRedemptionStatus() view returns (uint8 status,uint256 unhealthyProfileBitmap,uint256 totalSeniorDeficitWad,uint256 recoveryAvailableAt)",
   "function peggedProtocolRevenue(uint256 profileId,address token) view returns (uint256 amount)",
   "function claimPeggedProtocolRevenue(uint256 profileId,uint256 amount,address receiver) returns (uint256 spent,uint256 received)",
@@ -944,9 +983,29 @@ export const v4StateViewReadAbi = parseAbi([
   "function getFeeGrowthInside(bytes32 poolId,int24 tickLower,int24 tickUpper) view returns (uint256 feeGrowthInside0X128,uint256 feeGrowthInside1X128)",
 ]);
 
+export const v4QuoterAbi = parseAbi([
+  "function poolManager() view returns (address)",
+  "function quoteExactInputSingle(((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) poolKey,bool zeroForOne,uint128 exactAmount,bytes hookData) params) returns (uint256 amountOut,uint256 gasEstimate)",
+]);
+
+export const universalRouterAbi = parseAbi([
+  "function poolManager() view returns (address)",
+  "function execute(bytes commands,bytes[] inputs,uint256 deadline) payable",
+]);
+
 export const permit2AllowanceAbi = parseAbi([
   "function allowance(address owner,address token,address spender) view returns (uint160 amount,uint48 expiration,uint48 nonce)",
   "function approve(address token,address spender,uint160 amount,uint48 expiration)",
+]);
+
+export const staticsTestnetFaucetAbi = parseAbi([
+  "function ASSET_COUNT() view returns (uint256)",
+  "function COOLDOWN() view returns (uint256)",
+  "function asset(uint256 index) view returns (address token,uint256 amount)",
+  "function lastClaimAt(address account) view returns (uint64)",
+  "function nextClaimAt(address account) view returns (uint256)",
+  "function claim()",
+  "event Claimed(address indexed account,uint64 claimedAt,address[5] assets,uint256[5] amounts)",
 ]);
 
 export type StaticsLiquidityEventName =
@@ -1356,6 +1415,13 @@ export function buildCreateBasketTransaction(
   };
 }
 
+export function buildTestnetFaucetClaimCall(): Hex {
+  return encodeFunctionData({
+    abi: staticsTestnetFaucetAbi,
+    functionName: "claim",
+  });
+}
+
 export function buildApproveV4PositionCall(operator: Address, tokenId: bigint): Hex {
   return encodeFunctionData({
     abi: v4PositionManagerReadAbi,
@@ -1379,6 +1445,175 @@ export function buildPermit2ApproveCall(
     functionName: "approve",
     args: [token, spender, amount, expiration],
   });
+}
+
+export function buildPermit2PermitTypedData(
+  chainId: number,
+  permit2: Address,
+  permitSingle: Permit2PermitSingle,
+) {
+  _validatePermit2Permit(permitSingle);
+  return {
+    domain: {
+      name: "Permit2",
+      chainId,
+      verifyingContract: permit2,
+    },
+    types: {
+      PermitDetails: [
+        { name: "token", type: "address" },
+        { name: "amount", type: "uint160" },
+        { name: "expiration", type: "uint48" },
+        { name: "nonce", type: "uint48" },
+      ],
+      PermitSingle: [
+        { name: "details", type: "PermitDetails" },
+        { name: "spender", type: "address" },
+        { name: "sigDeadline", type: "uint256" },
+      ],
+    },
+    primaryType: "PermitSingle",
+    message: permitSingle,
+  } as const;
+}
+
+export function buildErc20PermitTypedData(params: Erc20PermitTypedDataParams) {
+  return {
+    domain: {
+      name: params.tokenName,
+      version: "1",
+      chainId: params.chainId,
+      verifyingContract: params.token,
+    },
+    types: {
+      Permit: [
+        { name: "owner", type: "address" },
+        { name: "spender", type: "address" },
+        { name: "value", type: "uint256" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint256" },
+      ],
+    },
+    primaryType: "Permit",
+    message: {
+      owner: params.owner,
+      spender: params.spender,
+      value: params.value,
+      nonce: params.nonce,
+      deadline: params.deadline,
+    },
+  } as const;
+}
+
+export function buildQuoteV4ExactInputSingleCall(
+  poolKey: V4PoolKey,
+  zeroForOne: boolean,
+  exactAmount: bigint,
+  hookData: Hex = "0x",
+): Hex {
+  _validateUint128(exactAmount, "exact input amount");
+  return encodeFunctionData({
+    abi: v4QuoterAbi,
+    functionName: "quoteExactInputSingle",
+    args: [{ poolKey, zeroForOne, exactAmount, hookData }],
+  });
+}
+
+export function buildV4ExactInputSingleSwap(request: V4ExactInputSingleRequest): SwapExecution {
+  _validateUint128(request.amountIn, "swap input amount");
+  _validateUint128(request.amountOutMinimum, "minimum swap output");
+
+  const inputCurrency = request.zeroForOne ? request.poolKey.currency0 : request.poolKey.currency1;
+  const outputCurrency = request.zeroForOne ? request.poolKey.currency1 : request.poolKey.currency0;
+  const hookData = request.hookData ?? "0x";
+  const minHopPriceX36 = request.minHopPriceX36 ?? 0n;
+
+  const actions = toHex(new Uint8Array([0x06, 0x0c, 0x0f]));
+  const params = [
+    encodeAbiParameters(
+      parseAbiParameters(
+        "((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) poolKey,bool zeroForOne,uint128 amountIn,uint128 amountOutMinimum,uint256 minHopPriceX36,bytes hookData)",
+      ),
+      [{
+        poolKey: request.poolKey,
+        zeroForOne: request.zeroForOne,
+        amountIn: request.amountIn,
+        amountOutMinimum: request.amountOutMinimum,
+        minHopPriceX36,
+        hookData,
+      }],
+    ),
+    encodeAbiParameters(
+      parseAbiParameters("address currency,uint256 amount"),
+      [inputCurrency, request.amountIn],
+    ),
+    encodeAbiParameters(
+      parseAbiParameters("address currency,uint256 minimumAmount"),
+      [outputCurrency, request.amountOutMinimum],
+    ),
+  ];
+  const swapPlan = encodeAbiParameters(
+    parseAbiParameters("bytes actions,bytes[] params"),
+    [actions, params],
+  );
+
+  let commands = toHex(new Uint8Array([0x10]));
+  let inputs = [swapPlan];
+  if (request.permit) {
+    const { permitSingle, signature } = request.permit;
+    _validatePermit2Permit(permitSingle);
+    if (permitSingle.spender.toLowerCase() !== request.router.toLowerCase()) {
+      throw new Error("Permit2 spender must be the Universal Router");
+    }
+    if (permitSingle.details.token.toLowerCase() !== inputCurrency.toLowerCase()) {
+      throw new Error("Permit2 token must be the swap input currency");
+    }
+    if (permitSingle.details.amount !== request.amountIn) {
+      throw new Error("Permit2 amount must equal the swap input amount");
+    }
+    commands = toHex(new Uint8Array([0x0a, 0x10]));
+    inputs = [
+      encodeAbiParameters(
+        parseAbiParameters(
+          "((address token,uint160 amount,uint48 expiration,uint48 nonce) details,address spender,uint256 sigDeadline) permitSingle,bytes signature",
+        ),
+        [permitSingle, signature],
+      ),
+      swapPlan,
+    ];
+  }
+
+  return {
+    target: request.router,
+    calldata: encodeFunctionData({
+      abi: universalRouterAbi,
+      functionName: "execute",
+      args: [commands, inputs, request.deadline],
+    }),
+    value: 0n,
+  };
+}
+
+function _validatePermit2Permit(permitSingle: Permit2PermitSingle): void {
+  if (permitSingle.details.amount < 0n || permitSingle.details.amount > ((1n << 160n) - 1n)) {
+    throw new Error("Permit2 amount exceeds uint160");
+  }
+  if (
+    !Number.isInteger(permitSingle.details.expiration)
+    || permitSingle.details.expiration < 0
+    || permitSingle.details.expiration > 0xffff_ffff_ffff
+    || !Number.isInteger(permitSingle.details.nonce)
+    || permitSingle.details.nonce < 0
+    || permitSingle.details.nonce > 0xffff_ffff_ffff
+  ) {
+    throw new Error("Permit2 expiration or nonce exceeds uint48");
+  }
+}
+
+function _validateUint128(value: bigint, label: string): void {
+  if (value < 0n || value > ((1n << 128n) - 1n)) {
+    throw new Error(`${label} exceeds uint128`);
+  }
 }
 
 export function buildMintV4PositionCall(request: V4MintPositionRequest): Hex {
@@ -1852,6 +2087,26 @@ export function buildMintPeggedCall(
   });
 }
 
+export function buildMintPeggedWithPermitCall(
+  profileId: bigint,
+  staticsDollarAmount: bigint,
+  maximumCollateralIn: bigint,
+  staticsDollarReceiver: Address,
+  permitSignature: PermitSignature,
+): Hex {
+  return encodeFunctionData({
+    abi: staticsAbi,
+    functionName: "mintPeggedWithPermit",
+    args: [
+      profileId,
+      staticsDollarAmount,
+      maximumCollateralIn,
+      staticsDollarReceiver,
+      permitSignature,
+    ],
+  });
+}
+
 export function buildQuoteMintPeggedAndRecombineCall(
   peggedProfileId: bigint,
   volatileProfileId: bigint,
@@ -1925,6 +2180,20 @@ export function buildRedeemPeggedCall(
     abi: staticsAbi,
     functionName: "redeemPegged",
     args: [profileId, staticsDollarAmount, minimumCollateralOut, receiver],
+  });
+}
+
+export function buildRedeemPeggedWithPermitCall(
+  profileId: bigint,
+  staticsDollarAmount: bigint,
+  minimumCollateralOut: bigint,
+  receiver: Address,
+  permitSignature: PermitSignature,
+): Hex {
+  return encodeFunctionData({
+    abi: staticsAbi,
+    functionName: "redeemPeggedWithPermit",
+    args: [profileId, staticsDollarAmount, minimumCollateralOut, receiver, permitSignature],
   });
 }
 

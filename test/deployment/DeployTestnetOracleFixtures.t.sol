@@ -21,7 +21,7 @@ contract DeployTestnetOracleFixturesTest is Test {
         address owner = makeAddr("owner");
 
         TestnetOracleFixtureDeployment memory deployment =
-            new DeployTestnetOracleFixtures().deploy(owner, 2_500e8, GRACE_PERIOD + 1, 1e18, 30 days);
+            new DeployTestnetOracleFixtures().deploy(owner, 2_500e8, GRACE_PERIOD + 1, 1e18, 30 days, GRACE_PERIOD);
 
         TestnetEthUsdAggregator ethUsd = TestnetEthUsdAggregator(deployment.ethUsdFeed);
         TestnetSequencerUptimeAggregator sequencer = TestnetSequencerUptimeAggregator(deployment.sequencerUptimeFeed);
@@ -31,6 +31,8 @@ contract DeployTestnetOracleFixturesTest is Test {
         assertEq(sequencer.owner(), owner);
         assertEq(usdg.owner(), owner);
         assertEq(usdg.priceWad(), 1e18);
+        assertEq(usdg.sequencerUptimeFeed(), deployment.sequencerUptimeFeed);
+        assertEq(usdg.sequencerGracePeriod(), GRACE_PERIOD);
 
         ChainlinkUsdOracle adapter =
             new ChainlinkUsdOracle(address(ethUsd), 1 days, 100e18, 10_000e18, address(sequencer), GRACE_PERIOD);
@@ -41,6 +43,6 @@ contract DeployTestnetOracleFixturesTest is Test {
         vm.warp(NOW);
         DeployTestnetOracleFixtures deployer = new DeployTestnetOracleFixtures();
         vm.expectRevert(abi.encodeWithSelector(DeployTestnetOracleFixtures.InvalidInitialUptime.selector, NOW, NOW));
-        deployer.deploy(makeAddr("owner"), 2_500e8, NOW, 1e18, 30 days);
+        deployer.deploy(makeAddr("owner"), 2_500e8, NOW, 1e18, 30 days, GRACE_PERIOD);
     }
 }

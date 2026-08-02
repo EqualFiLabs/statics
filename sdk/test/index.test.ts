@@ -1,4 +1,12 @@
-import { decodeErrorResult, decodeFunctionData, encodeErrorResult, encodeFunctionData } from "viem";
+import {
+  decodeAbiParameters,
+  decodeErrorResult,
+  decodeFunctionData,
+  encodeErrorResult,
+  encodeFunctionData,
+  hashTypedData,
+  parseAbiParameters,
+} from "viem";
 import { describe, expect, it, vi } from "vitest";
 import {
   allowsExposureIncrease,
@@ -18,28 +26,35 @@ import {
   buildCreateBasketTransaction,
   buildDecommissionBasketCall,
   buildDepositETHTransaction,
+  buildErc20PermitTypedData,
   buildIncreaseStakedLiquidityCall,
   buildMintPeggedAndRecombineCall,
   buildMintPeggedAndRecombineWithPermitCall,
   buildMintPeggedCall,
+  buildMintPeggedWithPermitCall,
   buildMintV4PositionCall,
   buildQuoteMintPeggedAndRecombineCall,
   buildOptInRewardAssetsCall,
   buildOptOutRewardAssetsCall,
   buildPermit2ApproveCall,
+  buildPermit2PermitTypedData,
+  buildQuoteV4ExactInputSingleCall,
   buildApproveV4PositionCall,
   buildRedeemPeggedCall,
+  buildRedeemPeggedWithPermitCall,
   buildRecoverCall,
   buildRepayCall,
   buildExtendCall,
   buildSetSwapFeeConfigurationCall,
   buildSetCanonicalPoolFeeConfigurationCall,
   buildStakeLiquidityPositionCall,
+  buildTestnetFaucetClaimCall,
   buildUnstakeLiquidityPositionCall,
   buildClaimPeggedProtocolRevenueCall,
   buildRecombineToWETHCall,
   buildRecombineToWETHWithPermitCall,
   buildRecombineToETHWithPermitCall,
+  buildV4ExactInputSingleSwap,
   decodePositionInfo,
   effectiveCanonicalFees,
   encodeSqrtPriceAssetPerBasketX96,
@@ -74,10 +89,14 @@ import {
   staticsPositionErrorAbi,
   staticsRewardsErrorAbi,
   staticsSwapFeeHookAbi,
+  staticsTestnetFaucetAbi,
   staticsTokenErrorAbi,
   permit2AllowanceAbi,
+  universalRouterAbi,
+  v4QuoterAbi,
   v4PositionManagerReadAbi,
   type BasketSnapshot,
+  type Permit2PermitSingle,
   type PermitSignature,
   type UnderlyingLiquidityAdapter,
 } from "../src/index.js";
@@ -430,6 +449,7 @@ describe("Statics unified calldata", () => {
       : []).toEqual(["uint8", "uint256", "uint256"]);
 
     const permit: PermitSignature = {
+      value: 101n,
       deadline: 1_700_000_000n,
       v: 27,
       r: `0x${"11".repeat(32)}`,
@@ -881,6 +901,121 @@ describe("Statics unified calldata", () => {
       .toBe("modifyLiquidities");
   });
 
+  it("builds canonical v4 quotes and Permit2-backed exact-input swaps", () => {
+    const poolKey = {
+      currency0: assetA,
+      currency1: basketToken,
+      fee: 0,
+      tickSpacing: 10,
+      hooks: receiver,
+    };
+    const quote = buildQuoteV4ExactInputSingleCall(poolKey, true, 100n);
+    expect(decodeFunctionData({ abi: v4QuoterAbi, data: quote })).toEqual({
+      functionName: "quoteExactInputSingle",
+      args: [{ poolKey, zeroForOne: true, exactAmount: 100n, hookData: "0x" }],
+    });
+
+    const permitSingle: Permit2PermitSingle = {
+      details: {
+        token: assetA,
+        amount: 100n,
+        expiration: 1_700_001_200,
+        nonce: 3,
+      },
+      spender: receiver,
+      sigDeadline: 1_700_001_200n,
+    };
+    const permitTypedData = buildPermit2PermitTypedData(46630, robinhoodChain.contracts.permit2.address, permitSingle);
+    expect(hashTypedData(permitTypedData)).toMatch(/^0x[0-9a-f]{64}$/);
+
+    const execution = buildV4ExactInputSingleSwap({
+      router: receiver,
+      poolKey,
+      zeroForOne: true,
+      amountIn: 100n,
+      amountOutMinimum: 95n,
+      deadline: 1_700_001_200n,
+      permit: {
+        permitSingle,
+        signature: `0x${"11".repeat(65)}`,
+      },
+    });
+    expect(execution.target).toBe(receiver);
+    expect(execution.value).toBe(0n);
+
+    const decoded = decodeFunctionData({ abi: universalRouterAbi, data: execution.calldata });
+    expect(decoded.functionName).toBe("execute");
+    expect(decoded.args[0]).toBe("0x0a10");
+    expect(decoded.args[2]).toBe(1_700_001_200n);
+
+    const [decodedPermit] = decodeAbiParameters(
+      parseAbiParameters(
+        "((address token,uint160 amount,uint48 expiration,uint48 nonce) details,address spender,uint256 sigDeadline) permitSingle,bytes signature",
+      ),
+      decoded.args[1][0],
+    );
+    expect(decodedPermit).toEqual(permitSingle);
+
+    const [actions, actionParams] = decodeAbiParameters(
+      parseAbiParameters("bytes actions,bytes[] params"),
+      decoded.args[1][1],
+    );
+    expect(actions).toBe("0x060c0f");
+
+    const [swapParams] = decodeAbiParameters(
+      parseAbiParameters(
+        "((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) poolKey,bool zeroForOne,uint128 amountIn,uint128 amountOutMinimum,uint256 minHopPriceX36,bytes hookData)",
+      ),
+      actionParams[0],
+    );
+    expect(swapParams).toEqual({
+      poolKey,
+      zeroForOne: true,
+      amountIn: 100n,
+      amountOutMinimum: 95n,
+      minHopPriceX36: 0n,
+      hookData: "0x",
+    });
+    expect(decodeAbiParameters(
+      parseAbiParameters("address currency,uint256 amount"),
+      actionParams[1],
+    )).toEqual([assetA, 100n]);
+    expect(decodeAbiParameters(
+      parseAbiParameters("address currency,uint256 minimumAmount"),
+      actionParams[2],
+    )).toEqual([basketToken, 95n]);
+  });
+
+  it("rejects a Permit2 signature for a different swap authority", () => {
+    expect(() => buildV4ExactInputSingleSwap({
+      router: receiver,
+      poolKey: {
+        currency0: assetA,
+        currency1: basketToken,
+        fee: 0,
+        tickSpacing: 10,
+        hooks: receiver,
+      },
+      zeroForOne: true,
+      amountIn: 100n,
+      amountOutMinimum: 95n,
+      deadline: 1_700_001_200n,
+      permit: {
+        permitSingle: {
+          details: {
+            token: assetA,
+            amount: 100n,
+            expiration: 1_700_001_200,
+            nonce: 3,
+          },
+          spender: assetB,
+          sigDeadline: 1_700_001_200n,
+        },
+        signature: `0x${"11".repeat(65)}`,
+      },
+    })).toThrow("Permit2 spender must be the Universal Router");
+  });
+
   it("encodes the typed Statics Dollar ETH and ordinary exit paths", () => {
     const deposit = buildDepositETHTransaction(2n * 10n ** 18n, receiver, receiver, 1n, 1n);
     const depositDecoded = decodeFunctionData({ abi: staticsAbi, data: deposit.data });
@@ -895,6 +1030,7 @@ describe("Statics unified calldata", () => {
     expect(recombineDecoded.args).toEqual([3n, 100n, 101n, receiver, 99n]);
 
     const permitSignature: PermitSignature = {
+      value: 100n,
       deadline: 1_700_003_600n,
       v: 27,
       r: "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -931,15 +1067,55 @@ describe("Statics unified calldata", () => {
     expect(mint.slice(0, 10)).toBe("0x8a27ba67");
     expect(mintDecoded.args).toEqual([2n, 100n, 101n, receiver]);
 
+    const permitSignature: PermitSignature = {
+      value: 101n,
+      deadline: 1_700_003_600n,
+      v: 27,
+      r: "0x1111111111111111111111111111111111111111111111111111111111111111",
+      s: "0x2222222222222222222222222222222222222222222222222222222222222222",
+    };
+    const permitTypedData = buildErc20PermitTypedData({
+      tokenName: "USDG",
+      chainId: 46630,
+      token: assetA,
+      owner: receiver,
+      spender: basketToken,
+      value: 101n,
+      nonce: 4n,
+      deadline: permitSignature.deadline,
+    });
+    expect(hashTypedData(permitTypedData)).toMatch(/^0x[0-9a-f]{64}$/);
+
+    const permitMint = buildMintPeggedWithPermitCall(2n, 100n, 101n, receiver, permitSignature);
+    expect(decodeFunctionData({ abi: staticsAbi, data: permitMint })).toEqual({
+      functionName: "mintPeggedWithPermit",
+      args: [2n, 100n, 101n, receiver, permitSignature],
+    });
+
     const redeem = buildRedeemPeggedCall(2n, 100n, 99n, receiver);
     const redeemDecoded = decodeFunctionData({ abi: staticsAbi, data: redeem });
     expect(redeemDecoded.functionName).toBe("redeemPegged");
     expect(redeem.slice(0, 10)).toBe("0x7f6636e2");
     expect(redeemDecoded.args).toEqual([2n, 100n, 99n, receiver]);
 
+    const permitRedeem = buildRedeemPeggedWithPermitCall(2n, 100n, 99n, receiver, permitSignature);
+    expect(decodeFunctionData({ abi: staticsAbi, data: permitRedeem })).toEqual({
+      functionName: "redeemPeggedWithPermit",
+      args: [2n, 100n, 99n, receiver, permitSignature],
+    });
+
     const claim = buildClaimPeggedProtocolRevenueCall(2n, 7n, receiver);
     const claimDecoded = decodeFunctionData({ abi: staticsAbi, data: claim });
     expect(claimDecoded.functionName).toBe("claimPeggedProtocolRevenue");
     expect(claimDecoded.args).toEqual([2n, 7n, receiver]);
+  });
+
+  it("encodes the fixed testnet faucet claim", () => {
+    expect(
+      decodeFunctionData({
+        abi: staticsTestnetFaucetAbi,
+        data: buildTestnetFaucetClaimCall(),
+      }),
+    ).toEqual({ functionName: "claim", args: undefined });
   });
 });

@@ -24,9 +24,12 @@ contract DeployTestnetOracleFixtures is Script {
         uint256 sequencerInitialUptime = vm.envUint("TESTNET_SEQUENCER_INITIAL_UPTIME");
         uint256 usdgPriceWad = vm.envUint("TESTNET_USDG_INITIAL_PRICE_WAD");
         uint256 usdgMaxStaleness = vm.envUint("TESTNET_USDG_ORACLE_MAX_STALENESS");
+        uint256 usdgSequencerGracePeriod = vm.envUint("TESTNET_USDG_SEQUENCER_GRACE_PERIOD");
 
         vm.startBroadcast(privateKey);
-        deployment = deploy(owner, ethUsdPrice, sequencerInitialUptime, usdgPriceWad, usdgMaxStaleness);
+        deployment = deploy(
+            owner, ethUsdPrice, sequencerInitialUptime, usdgPriceWad, usdgMaxStaleness, usdgSequencerGracePeriod
+        );
         vm.stopBroadcast();
 
         console2.log("ETH_USD_FEED", deployment.ethUsdFeed);
@@ -39,7 +42,8 @@ contract DeployTestnetOracleFixtures is Script {
         uint256 ethUsdPrice,
         uint256 sequencerInitialUptime,
         uint256 usdgPriceWad,
-        uint256 usdgMaxStaleness
+        uint256 usdgMaxStaleness,
+        uint256 usdgSequencerGracePeriod
     ) public returns (TestnetOracleFixtureDeployment memory deployment) {
         uint256 currentTimestamp = block.timestamp;
         if (sequencerInitialUptime >= currentTimestamp) {
@@ -49,6 +53,10 @@ contract DeployTestnetOracleFixtures is Script {
 
         deployment.ethUsdFeed = address(new TestnetEthUsdAggregator(owner, ethUsdPrice));
         deployment.sequencerUptimeFeed = address(new TestnetSequencerUptimeAggregator(owner, sequencerStartedAt));
-        deployment.usdgOracle = address(new TestnetUsdOracle(owner, usdgPriceWad, usdgMaxStaleness));
+        deployment.usdgOracle = address(
+            new TestnetUsdOracle(
+                owner, usdgPriceWad, usdgMaxStaleness, deployment.sequencerUptimeFeed, usdgSequencerGracePeriod
+            )
+        );
     }
 }

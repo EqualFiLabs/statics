@@ -255,7 +255,7 @@ The canonical launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
 of both Diamonds. Core administration derives from the Core Diamond owner; it
 does not maintain a second protocol-governor role, internal proposal queue, or
 irreversible configuration locks. The current Robinhood testnet build
-initializes the delay to 15 minutes; the intended production launch delay
+initializes the delay to two minutes; the intended production launch delay
 remains seven days. After deployment, the delay can change only through a
 scheduled timelock call to the timelock itself. The configured multisig proposes
 and may cancel scheduled operations, while execution is open after the current

@@ -27,6 +27,7 @@ import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
 import {LiquidityOperations} from "@uniswap/v4-periphery/test/shared/LiquidityOperations.sol";
 import {Plan, Planner} from "@uniswap/v4-periphery/test/shared/Planner.sol";
 import {PositionConfig} from "@uniswap/v4-periphery/test/shared/PositionConfig.sol";
+import {Permit2SignatureHelpers} from "@uniswap/v4-periphery/test/shared/Permit2SignatureHelpers.sol";
 
 interface IPositionManagerBindings {
     function poolManager() external view returns (address);
@@ -41,7 +42,7 @@ interface IUniversalRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
 }
 
-contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations {
+contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2SignatureHelpers {
     using Planner for Plan;
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -55,7 +56,9 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations {
     uint160 private constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
     uint160 private constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
     bytes private constant EMPTY = "";
+    bytes1 private constant PERMIT2_PERMIT_COMMAND = 0x0a;
     bytes1 private constant V4_SWAP_COMMAND = 0x10;
+    uint256 private constant SWAPPER_KEY = 0xA11CE;
 
     struct Deployment {
         uint256 chainId;
@@ -254,7 +257,25 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations {
         IAllowanceTransfer permit2
     ) private {
         uint128 amountIn = 0.1 ether;
-        permit2.approve(Currency.unwrap(currency0), deployment.universalRouter, type(uint160).max, type(uint48).max);
+        address swapper = vm.addr(SWAPPER_KEY);
+        IERC20 inputToken = IERC20(Currency.unwrap(currency0));
+        IERC20 outputToken = IERC20(Currency.unwrap(currency1));
+        inputToken.transfer(swapper, amountIn);
+        vm.prank(swapper);
+        inputToken.approve(deployment.permit2, amountIn);
+
+        (,, uint48 nonce) = permit2.allowance(swapper, address(inputToken), deployment.universalRouter);
+        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
+            details: IAllowanceTransfer.PermitDetails({
+                token: address(inputToken),
+                amount: amountIn,
+                expiration: uint48(block.timestamp + 20 minutes),
+                nonce: nonce
+            }),
+            spender: deployment.universalRouter,
+            sigDeadline: block.timestamp + 20 minutes
+        });
+        bytes memory signature = getPermitSignature(permitSingle, SWAPPER_KEY, permit2.DOMAIN_SEPARATOR());
 
         Plan memory plan = Planner.init();
         plan.add(
@@ -273,11 +294,17 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations {
         plan.add(Actions.SETTLE_ALL, abi.encode(currency0, amountIn));
         plan.add(Actions.TAKE_ALL, abi.encode(currency1, 0));
 
-        bytes[] memory inputs = new bytes[](1);
-        inputs[0] = plan.encode();
-        uint256 outputBefore = currency1.balanceOfSelf();
+        bytes[] memory inputs = new bytes[](2);
+        inputs[0] = abi.encode(permitSingle, signature);
+        inputs[1] = plan.encode();
+        uint256 outputBefore = outputToken.balanceOf(swapper);
+        vm.prank(swapper);
         IUniversalRouter(deployment.universalRouter)
-            .execute(abi.encodePacked(V4_SWAP_COMMAND), inputs, block.timestamp + 1);
-        assertGt(currency1.balanceOfSelf(), outputBefore, "Universal Router produced no output");
+            .execute(abi.encodePacked(PERMIT2_PERMIT_COMMAND, V4_SWAP_COMMAND), inputs, block.timestamp + 1);
+        assertGt(outputToken.balanceOf(swapper), outputBefore, "signed Universal Router swap produced no output");
+        (uint160 remaining,, uint48 nextNonce) =
+            permit2.allowance(swapper, address(inputToken), deployment.universalRouter);
+        assertEq(remaining, 0);
+        assertEq(nextNonce, nonce + 1);
     }
 }

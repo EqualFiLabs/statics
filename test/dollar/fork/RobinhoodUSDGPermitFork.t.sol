@@ -81,13 +81,13 @@ contract RobinhoodUSDGPermitForkTest is Test {
         assertTrue(usdg.DOMAIN_SEPARATOR() != bytes32(0));
     }
 
-    function testLiveUSDGPermitMintsAndRedeemsThroughStatics() public {
+    function testLiveUSDGReusablePermitMintsAndRedeemsThroughStatics() public {
         uint256 staticsDollarAmount = 100e18;
         IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview =
             core.previewPeggedMint(profileId, staticsDollarAmount);
         deal(address(usdg), alice, mintPreview.totalCollateralIn, false);
         IStaticsDollarGateway.PermitSignature memory mintPermit =
-            _signPermit(usdg, mintPreview.totalCollateralIn, block.timestamp + 20 minutes);
+            _signPermit(usdg, type(uint256).max, block.timestamp + 20 minutes);
 
         vm.prank(alice);
         uint256 collateralIn = gateway.mintPeggedWithPermit(
@@ -96,13 +96,13 @@ contract RobinhoodUSDGPermitForkTest is Test {
 
         assertEq(collateralIn, mintPreview.totalCollateralIn);
         assertEq(usdg.nonces(alice), 1);
-        assertEq(usdg.allowance(alice, address(gateway)), 0);
+        assertGe(usdg.allowance(alice, address(gateway)), type(uint256).max - mintPreview.totalCollateralIn);
         assertEq(staticsDollar.balanceOf(alice), staticsDollarAmount);
 
         IStaticsDollarCoreTypes.PeggedRedemptionPreview memory redemptionPreview =
             core.previewPeggedRedemption(profileId, staticsDollarAmount);
         IStaticsDollarGateway.PermitSignature memory redemptionPermit =
-            _signPermit(staticsDollar, staticsDollarAmount, block.timestamp + 20 minutes);
+            _signPermit(staticsDollar, type(uint256).max, block.timestamp + 20 minutes);
 
         vm.prank(alice);
         (IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut) = gateway.redeemPeggedWithPermit(
@@ -112,7 +112,7 @@ contract RobinhoodUSDGPermitForkTest is Test {
         assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Available));
         assertEq(collateralOut, redemptionPreview.collateralOut);
         assertEq(staticsDollar.nonces(alice), 1);
-        assertEq(staticsDollar.allowance(alice, address(gateway)), 0);
+        assertGe(staticsDollar.allowance(alice, address(gateway)), type(uint256).max - staticsDollarAmount);
         assertEq(staticsDollar.balanceOf(alice), 0);
         assertEq(usdg.balanceOf(alice), redemptionPreview.collateralOut);
     }
@@ -145,6 +145,7 @@ contract RobinhoodUSDGPermitForkTest is Test {
             keccak256(abi.encode(PERMIT_TYPEHASH, alice, address(gateway), amount, token.nonces(alice), deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
         (signature.v, signature.r, signature.s) = vm.sign(aliceKey, digest);
+        signature.value = amount;
         signature.deadline = deadline;
     }
 }

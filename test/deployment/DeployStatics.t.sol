@@ -111,7 +111,7 @@ contract DeployStaticsTest is Test {
 
         assertEq(IERC173(diamond).owner(), address(timelock));
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
-        assertEq(timelock.getMinDelay(), 15 minutes);
+        assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
         _assertManifest(diamond, 21, 188);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);

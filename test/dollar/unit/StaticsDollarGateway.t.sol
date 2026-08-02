@@ -413,6 +413,24 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
     }
 
+    function testPeggedMintWithPermitPreservesReusableCollateralAllowance() public {
+        (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
+        IStaticsDollarCoreTypes.PeggedMintPreview memory preview = pool.previewPeggedMint(profileId, 100e18);
+        usdc.mint(alice, preview.totalCollateralIn);
+        IStaticsDollarGateway.PermitSignature memory signature =
+            _signTokenPermit(usdc, type(uint256).max, block.timestamp + 1 hours);
+
+        vm.prank(alice);
+        uint256 collateralIn =
+            gateway.mintPeggedWithPermit(profileId, 100e18, preview.totalCollateralIn, alice, signature);
+
+        assertEq(collateralIn, preview.totalCollateralIn);
+        assertEq(usdc.nonces(alice), 1);
+        assertEq(usdc.allowance(alice, diamond), type(uint256).max);
+        assertEq(staticsDollar.balanceOf(alice), 100e18);
+        assertEq(usdc.balanceOf(diamond), custody.globalReservedByToken(address(usdc)));
+    }
+
     function testPeggedMintWithPermitToleratesFrontrunPermitSubmission() public {
         (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview = pool.previewPeggedMint(profileId, 100e18);
@@ -492,6 +510,30 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(collateralOut, preview.collateralOut);
         assertEq(staticsDollar.nonces(alice), 1);
         assertEq(staticsDollar.allowance(alice, diamond), 0);
+        assertEq(staticsDollar.balanceOf(alice), 0);
+        assertEq(usdc.balanceOf(receiver), preview.collateralOut);
+    }
+
+    function testPeggedRedemptionWithPermitPreservesReusableDollarAllowance() public {
+        (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
+        IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview = pool.previewPeggedMint(profileId, 100e18);
+        usdc.mint(alice, mintPreview.totalCollateralIn);
+        vm.startPrank(alice);
+        usdc.approve(diamond, mintPreview.totalCollateralIn);
+        gateway.mintPegged(profileId, 100e18, mintPreview.totalCollateralIn, alice);
+        vm.stopPrank();
+        IStaticsDollarCoreTypes.PeggedRedemptionPreview memory preview = pool.previewPeggedRedemption(profileId, 100e18);
+        IStaticsDollarGateway.PermitSignature memory signature =
+            _signPermit(type(uint256).max, block.timestamp + 1 hours);
+
+        vm.prank(alice);
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut) =
+            gateway.redeemPeggedWithPermit(profileId, 100e18, preview.collateralOut, receiver, signature);
+
+        assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Available));
+        assertEq(collateralOut, preview.collateralOut);
+        assertEq(staticsDollar.nonces(alice), 1);
+        assertEq(staticsDollar.allowance(alice, diamond), type(uint256).max);
         assertEq(staticsDollar.balanceOf(alice), 0);
         assertEq(usdc.balanceOf(receiver), preview.collateralOut);
     }
@@ -1355,6 +1397,7 @@ contract StaticsDollarGatewayTest is Test {
             keccak256(abi.encode(PERMIT_TYPEHASH, alice, diamond, amount, staticsDollar.nonces(alice), deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", staticsDollar.DOMAIN_SEPARATOR(), structHash));
         (signature.v, signature.r, signature.s) = vm.sign(aliceKey, digest);
+        signature.value = amount;
         signature.deadline = deadline;
     }
 
@@ -1367,6 +1410,7 @@ contract StaticsDollarGatewayTest is Test {
             keccak256(abi.encode(PERMIT_TYPEHASH, alice, diamond, amount, token.nonces(alice), deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", token.DOMAIN_SEPARATOR(), structHash));
         (signature.v, signature.r, signature.s) = vm.sign(aliceKey, digest);
+        signature.value = amount;
         signature.deadline = deadline;
     }
 

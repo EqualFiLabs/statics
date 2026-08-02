@@ -27,7 +27,7 @@ contract TestnetOracleFixturesTest is Test {
         vm.warp(NOW);
         ethUsd = new TestnetEthUsdAggregator(owner, 2_500e8);
         sequencer = new TestnetSequencerUptimeAggregator(owner, NOW - GRACE_PERIOD - 1);
-        usdg = new TestnetUsdOracle(owner, 1e18, MAX_STALENESS);
+        usdg = new TestnetUsdOracle(owner, 1e18, MAX_STALENESS, address(sequencer), GRACE_PERIOD);
         adapter =
             new ChainlinkUsdOracle(address(ethUsd), MAX_STALENESS, 100e18, 10_000e18, address(sequencer), GRACE_PERIOD);
     }
@@ -85,6 +85,8 @@ contract TestnetOracleFixturesTest is Test {
     }
 
     function test_UsdOraclePublishesDepegAndEnforcesStaleness() public {
+        assertEq(usdg.sequencerUptimeFeed(), address(sequencer));
+        assertEq(usdg.sequencerGracePeriod(), GRACE_PERIOD);
         assertEq(usdg.priceWad(), 1e18);
 
         vm.prank(owner);
@@ -124,7 +126,13 @@ contract TestnetOracleFixturesTest is Test {
         new TestnetSequencerUptimeAggregator(owner, 0);
 
         vm.expectRevert(TestnetUsdOracle.InvalidMaxStaleness.selector);
-        new TestnetUsdOracle(owner, 1e18, 0);
+        new TestnetUsdOracle(owner, 1e18, 0, address(sequencer), GRACE_PERIOD);
+
+        vm.expectRevert(TestnetUsdOracle.InvalidSequencerConfig.selector);
+        new TestnetUsdOracle(owner, 1e18, MAX_STALENESS, address(0), GRACE_PERIOD);
+
+        vm.expectRevert(TestnetUsdOracle.InvalidSequencerConfig.selector);
+        new TestnetUsdOracle(owner, 1e18, MAX_STALENESS, address(sequencer), 0);
     }
 
     function testFuzz_EthUsdRoundPublishesExactPrice(uint128 price) public {
