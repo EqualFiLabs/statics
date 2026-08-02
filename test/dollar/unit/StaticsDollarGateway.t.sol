@@ -29,6 +29,7 @@ import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {IStaticsCustody} from "src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsPositionFees} from "src/interfaces/IStaticsPosition.sol";
 import {MockAdversarialPeggedCollateral} from "../helpers/MockAdversarialPeggedCollateral.sol";
 import {MockUSDC} from "../helpers/MockUSDC.sol";
 
@@ -139,13 +140,22 @@ contract StaticsDollarGatewayTest is Test {
 
     function testGatewayMintThenStakeUsesOnlyTheDiamondAddress() public {
         _depositToAliceThroughGateway(1 ether);
+        uint256 positionFee = 0.001 ether;
+        vm.prank(owner);
+        IStaticsPositionFees(diamond).setPositionCreationFee(positionFee);
+        uint256 treasuryBefore = owner.balance;
         vm.startPrank(alice);
         staticsDollarRisk.setApprovalForAll(diamond, true);
-        uint256 positionId = staking.createAndStakeRiskShares(SERIES_ONE, 1e18, alice);
+        uint256 positionId = staking.createAndStakeRiskShares{value: positionFee}(SERIES_ONE, 1e18, alice);
         vm.stopPrank();
 
         assertEq(IERC721(diamond).ownerOf(positionId), alice);
         assertEq(staking.riskLiquidity(positionId, SERIES_ONE).effectiveShares, 1e18);
+        assertEq(owner.balance, treasuryBefore + positionFee);
+
+        vm.prank(alice);
+        staking.stakeRiskShares(positionId, SERIES_ONE, 1e18);
+        assertEq(owner.balance, treasuryBefore + positionFee);
     }
 
     function testRecombineToWETHBurnsClaimsAndTransfersNetCollateral() public {

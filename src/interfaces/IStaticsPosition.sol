@@ -2,7 +2,7 @@
 pragma solidity 0.8.33;
 
 interface IStaticsPosition {
-    function createPosition(address receiver) external returns (uint256 positionId);
+    function createPosition(address receiver) external payable returns (uint256 positionId);
 
     function closePosition(uint256 positionId) external;
 
@@ -20,5 +20,14 @@ interface IStaticsPosition {
 /// @dev Self-call surface used by protocol facets that create a position and
 /// attach its first module leg atomically.
 interface IStaticsPositionModule {
-    function createPositionForModule(address receiver, bytes32 initialLegKey) external returns (uint256 positionId);
+    function createPositionForModule(address receiver, bytes32 initialLegKey)
+        external
+        payable
+        returns (uint256 positionId);
+}
+
+interface IStaticsPositionFees {
+    function setPositionCreationFee(uint256 amount) external;
+
+    function positionCreationFee() external view returns (uint256);
 }

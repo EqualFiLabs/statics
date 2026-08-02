@@ -61,7 +61,8 @@ contract DiamondGovernanceTest is Test {
                 guardian: guardian,
                 treasury: makeAddr("treasury"),
                 stakingToken: address(deployer),
-                creationFeeAmount: 1 ether
+                creationFeeAmount: 1 ether,
+                positionCreationFeeAmount: 0
             })
         );
         diamond = StaticsDiamond(payable(deployment.diamond));

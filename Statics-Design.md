@@ -2,14 +2,14 @@
 
 ## Static Multi-Asset Baskets, Statics Dollar, Position-Owned Finance, and Permanent Liquidity
 
-**Version:** 2.4
+**Version:** 2.5
 
 **Status:** Living implementation design; Robinhood Chain testnet deployment
 recorded; no production Statics deployment is recorded
 
-**Last updated:** 2026-07-30
+**Last updated:** 2026-07-31
 
-**Source revision reviewed:** `bdd441395483957f7dcb924a0f7fcdb1e6508554`
+**Source revision reviewed:** `04d16fd30abd59aafe7af6d7f7a0db2e40681205`
 
 ---
 
@@ -74,8 +74,8 @@ backing or let one basket consume another basket's assets.
 | Basket collateral | Optional BasketToken deposit leg; deposited and locked shares earn isolated basket rewards |
 | Global rewards | Unlimited global assets; each PositionNFT selects at most 64 reward assets |
 | Non-swap fee split | 90% to matured selected global stake and 10% to treasury; unavailable staker allocation goes to treasury |
-| Canonical swap fees | Separate input and output hook fees; launch default is 25 BPS on each realized leg |
-| Swap-fee split | Launch default 40% permanent liquidity, 10% eligible canonical LPs, 20% deposited BasketTokens, 20% global Statics stakers, 10% treasury |
+| Canonical swap fees | Separate input and output hook fees; launch default is 50 BPS on each realized leg |
+| Swap-fee split | Launch default 10% permanent liquidity, 25% eligible canonical LPs, 25% deposited BasketTokens, 15% global Statics stakers, 25% treasury |
 | Canonical native LP fee | Zero |
 | Permanent liquidity | Hook-owned full-range liquidity, compounded from matched swap-fee inventory |
 | Dollar Risk incentives | Permissionless series funding in collateral, Statics Dollar, or configured STATICS; released only when supplied Risk liquidity is consumed |
@@ -145,7 +145,7 @@ Statics does not provide:
 - NAV accounting, oracle-priced basket minting, or ERC-4626 semantics;
 - cross-basket backing, debt netting, or cross-product collateralization;
 - privileged flash-loan callbacks or fee exemptions;
-- a production arbitrage router, receiver registry, or arbitrary executor;
+- a generic arbitrage router, receiver registry, or arbitrary executor;
 - a guarantee that arbitrary ERC-20 behavior is compatible;
 - automatic background execution;
 - a protocol-owned PositionManager NFT for canonical permanent liquidity; or
@@ -186,14 +186,15 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **21 facets / 188 selectors** on `StaticsDiamond`; and
+- **21 facets / 190 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
-enumeration. The public Robinhood testnet deployment used the same 21/188 and
-11/95 shape; its later gateway upgrade replaced five selectors with five
-updated permit-tuple selectors without changing the total. The checked-in Core
-rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
+enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
+shape; its later gateway upgrade replaced five selectors with five updated
+permit-tuple selectors without changing the total. The fresh launcher adds two
+Position-creation-fee selectors for the current 21/190 source shape. The
+checked-in Core rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
 terminal governance cut and 10 / 93 afterward. That rehearsal deliberately
 removes `diamondCut` and `transferOwnership` while proving the remaining value
 paths still execute; it is separate from Core bootstrap finalization, which
@@ -255,6 +256,16 @@ ERC-721 ownership and approvals authorize attached legs. Transferring the NFT
 transfers its staking balance, reward claims, collateral, obligations, and
 control of voluntarily custodied LP NFTs. Integrators must inspect every active
 leg before accepting a transfer.
+
+Opening a Position NFT requires the exact native amount returned by
+`positionCreationFee()`. The initial deployment target is `0.001 ETH`; the
+Diamond owner may change the raw amount without an artificial cap, and zero
+means free Position creation. Direct creation and every atomic create-and-use
+path enforce the same fee and forward it immediately, in full, to the canonical
+treasury. The Diamond does not retain or internally accrue this native value.
+Adding legs, collateral, stake, liquidity, or debt to an existing Position does
+not pay the fee again. Closing a Position and opening another creates a new NFT
+and pays the then-current fee.
 
 `closePosition` succeeds only after all balances, claims, collateral, loans,
 Dollar legs, custodied LP NFTs, and LP claims are empty. Externally held
@@ -550,10 +561,16 @@ BasketTokens, redeem through the ordinary basket entrypoint, and recognize
 profit only after redemption, flash, price-impact, rounding, and bilateral hook
 fees.
 
-Searchers must deploy purpose-built receivers with typed pools, exact approval
-scope, slippage bounds, repayment checks, and minimum-profit enforcement.
-Statics provides no receiver allowlist, generic router, callback privilege, or
-fee exemption. Cancun transient storage (EIP-1153) is a deployment prerequisite.
+Statics ships a narrow optional `StaticsFlashArbitrageReceiver` for the
+overpriced mint-and-sell direction. A caller supplies a complete allocation
+across canonical pools, per-asset net profit floors, and a deadline. The
+receiver pulls only static-mint top-ups, uses ordinary fee-paying entrypoints,
+approves exact repayment, returns every net profit asset to the caller, and
+retains no route balances. It has no owner, arbitrary calls, venue discovery,
+or privileged fee path. Underpriced buy-and-redeem routes remain the searcher's
+responsibility. Statics provides no receiver allowlist, generic router,
+callback privilege, or fee exemption. Cancun transient storage (EIP-1153) is a
+deployment prerequisite.
 
 ## Canonical Uniswap v4 Liquidity
 
@@ -582,18 +599,18 @@ registered canonical pools. Unregistered pools are not canonical.
 ### Bilateral hook fees
 
 The hook charges separately against realized input and output legs. The launch
-manifest configures 25 BPS on each leg. Governance may update both rates and
+manifest configures 50 BPS on each leg. Governance may update both rates and
 the split, but the combined input-plus-output fee cannot exceed 200 BPS and the
 split must total 10,000 BPS.
 
 For each charged leg, the launch split is:
 
 ```text
-40% permanent liquidity
-10% eligible canonical LPs
-20% deposited BasketTokens
-20% global Statics stakers
-10% treasury
+10% permanent liquidity
+25% eligible canonical LPs
+25% deposited BasketTokens
+15% global Statics stakers
+25% treasury
 ```
 
 Treasury receives split dust. If a pool has no activated staked liquidity, its
@@ -975,9 +992,10 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
-One `StaticsTimelock` owns both Diamonds. The current Robinhood testnet delay is
-two minutes; the production launch delay remains intended to be seven days. The
-configured multisig is proposer and canceller, execution is open after delay,
+One `StaticsTimelock` owns both Diamonds. Its constructor selects two minutes
+for Robinhood testnet and local development, while Robinhood mainnet and other
+chains default to seven days. The configured multisig is proposer and canceller,
+execution is open after delay,
 and the emergency guardian is not a timelock canceller.
 
 The timelock currently controls Diamond cuts, economic configuration, lifecycle
@@ -1134,7 +1152,7 @@ verification, and the five-selector gateway permit upgrade at source commit
 This deployment is an integration beta, not a production qualification. In
 particular, production must replace the mock USDG and oracle fixtures, choose a
 reviewed staking-token policy rather than the uncapped owner-mintable test
-token, restore the intended governance delay, select production roles and
+token, verify the chain-selected governance delay, select production roles and
 parameters, and qualify a single exact release revision.
 
 Release evidence records both Diamonds and tokens, all facet addresses and
@@ -1261,7 +1279,7 @@ the release qualification artifact.
 - acceptable maintenance delays, monitoring, and incident runbooks;
 - final governance powers, independent governance audit, and the ceremony that
   removes Diamond-cut authority;
-- production staking-token design, seven-day timelock restoration, collateral
+- production staking-token design, seven-day timelock verification, collateral
   profiles, and economic parameters;
 - supported front-end routing venues;
 - a revision-pinned release qualification artifact; and
@@ -1423,8 +1441,8 @@ Statics staker = floor(charged * staticsStakerShareBps / D)
 treasury = charged - POL - LP - basket staker - Statics staker
 ```
 
-At launch, input and output rates are each 25 BPS and the split is
-4,000/1,000/2,000/2,000/1,000 for
+At launch, input and output rates are each 50 BPS and the split is
+1,000/2,500/2,500/1,500/2,500 for
 POL/LP/basket-staker/Statics-staker/treasury. If no activated LP liquidity
 exists for the pool, its allocation is added to POL. If either staking route is
 unavailable, that allocation is also added to POL. Exact-input and exact-output

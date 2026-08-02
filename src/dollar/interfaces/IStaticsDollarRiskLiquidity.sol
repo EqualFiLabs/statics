@@ -30,6 +30,7 @@ interface IStaticsDollarRiskLiquidity {
 
     function createAndStakeRiskShares(uint256 seriesId, uint256 amount, address receiver)
         external
+        payable
         returns (uint256 positionId);
 
     function stakeRiskShares(uint256 positionId, uint256 seriesId, uint256 amount) external;

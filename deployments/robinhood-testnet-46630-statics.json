@@ -69,6 +69,19 @@
       "address": "0xd12b47594bDe07B86446d8ee7014b8477B6526c1",
       "runtimeCodeHash": "0x37db2c153d58b0b32fe4cb80dd569d9b359beb052de8e69e02f7ad11c80476d6",
       "deploymentTransaction": "0xfcbfdd9e43ec0a889836ff8916ebab358a0105294c733fb1cef1f429d5d6eafb"
+    },
+    "flashArbitrageReceiver": {
+      "address": "0xB522ACFADA7041Cc77A74BEB6Cce23A81b1cac47",
+      "staticsDiamond": "0x69Af9C58e9E283032AE0087c38EF5E27c28E8345",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "runtimeCodeHash": "0xf6ad83ff194a30511b9577351048832ce677fd8f5d860506cbbb5fc378923647",
+      "runtimeBytes": 10620,
+      "deploymentTransaction": "0xa27e339796e88a4f125723c85c25b94744b9bf578ef27a8f38acff026b42ea0f",
+      "deploymentBlock": 95722546,
+      "deploymentGasUsed": 2570436,
+      "sourceCommit": "a3ea5c9fae032c05b3e604b6e3e6321f2063990d",
+      "explorerVerified": true,
+      "explorerUrl": "https://explorer.testnet.chain.robinhood.com/address/0xb522acfada7041cc77a74beb6cce23a81b1cac47"
     }
   },
   "coreFacets": {
@@ -174,13 +187,13 @@
     "basketCreationFeeWei": "0",
     "permissionlessBasketCreationEnabled": false,
     "swapFeeHook": {
-      "inputFeeBps": 25,
-      "outputFeeBps": 25,
-      "polShareBps": 4000,
-      "liquidityProviderShareBps": 1000,
-      "basketStakerShareBps": 2000,
-      "staticsStakerShareBps": 2000,
-      "treasuryShareBps": 1000
+      "inputFeeBps": 50,
+      "outputFeeBps": 50,
+      "polShareBps": 1000,
+      "liquidityProviderShareBps": 2500,
+      "basketStakerShareBps": 2500,
+      "staticsStakerShareBps": 1500,
+      "treasuryShareBps": 2500
     },
     "usdgProfile": {
       "profileId": 2,
@@ -200,6 +213,34 @@
       "salt": "0xa2dfc2add72b0f1b5fb4f8e90480ddcf07943c080d0b87927f766108f2457802",
       "scheduleTransaction": "0x9fb972a1145ccbf0f9738b03aa2035423a4972441877ec5d0b396e2c91c77260",
       "executeTransaction": "0xc9e390e28d2a3f4c17a09725a40ceb8d3ec24d627916ab553b596fb892f3cfbd"
+    },
+    "globalSwapFeeConfiguration": {
+      "operationId": "0xcd049b5b1de846b7cbbf20911c5c88ba18c6c1b8e6b56afbb8de69e6cde70d54",
+      "salt": "0xffa062c9f7a4f8a06ed33b762e961e3a17b902180cb889c2d7bb19935e259686",
+      "previousConfiguration": {
+        "inputFeeBps": 25,
+        "outputFeeBps": 25,
+        "polShareBps": 4000,
+        "liquidityProviderShareBps": 1000,
+        "basketStakerShareBps": 2000,
+        "staticsStakerShareBps": 2000,
+        "treasuryShareBps": 1000
+      },
+      "newConfiguration": {
+        "inputFeeBps": 50,
+        "outputFeeBps": 50,
+        "polShareBps": 1000,
+        "liquidityProviderShareBps": 2500,
+        "basketStakerShareBps": 2500,
+        "staticsStakerShareBps": 1500,
+        "treasuryShareBps": 2500
+      },
+      "scheduleTransaction": "0x976ed46fdb269e0880a06a85c80240ce75deba1d2bab8fd49573d66387405cea",
+      "scheduleBlock": 95692796,
+      "scheduleTimestamp": "2026-07-31T17:58:08Z",
+      "executeTransaction": "0xb678aed74b503e4d07a42c98deaf9f361bbeefa097c9da634024fb5c9d8d76dd",
+      "executeBlock": 95693439,
+      "executeTimestamp": "2026-07-31T18:00:38Z"
     },
     "usdgProfileCreation": {
       "operationId": "0x9418544def4ad3959088f72d5b484f620d369ac702960b1518f3c771cd66f87d",
@@ -382,6 +423,54 @@
     "remainingTimelockInventoryPerAsset": "89999989999999999996",
     "poolWarmupSeconds": 3600,
     "activationRequired": false
+  },
+  "flashArbitrageTrial": {
+    "basketId": 0,
+    "shares": "127000000000000000000",
+    "flashPrincipalPerAsset": "1270000000000000000",
+    "flashFeePerAsset": "635000000000000",
+    "mintTopUpPerAsset": "10000000000000",
+    "basketAllocations": {
+      "TSLA": "53164000000000000000",
+      "PLTR": "4136000000000000000",
+      "AMD": "69700000000000000000"
+    },
+    "minimumNetProfits": {
+      "TSLA": "1",
+      "PLTR": "10000000000000000000",
+      "AMD": "1"
+    },
+    "approvalTransactions": {
+      "TSLA": "0xe35d52b618cbd7995db182ccbe0cf144f3cfade4436ffef21347a1e73b238f12",
+      "PLTR": "0xd377e5eb3971864e0d4145805c9ccc0ef241a89caa83c0b6a33fc8f48e2c8c1f",
+      "AMD": "0xdf35a2f2425d1d5acbcf5c77f779caded2a43bd081c89bed67b90ce69e323d5c"
+    },
+    "executionTransaction": "0xeb0f727ee7a9174676f2fa5e4a4ac7083f72e42a5f7f52732f5c4da4b397e74c",
+    "executionBlock": 95722748,
+    "executionGasUsed": 2654959,
+    "netProfits": {
+      "TSLA": "2806215038604",
+      "PLTR": "11131181260416289175",
+      "AMD": "1996653216588"
+    },
+    "pltrPoolEvidence": {
+      "tickBefore": -12947,
+      "tickAfter": -9218,
+      "basketVaultBefore": "21446625000000000004",
+      "basketVaultAfter": "22716625000000000004",
+      "lockedLiquidityBefore": "38355807710592508336",
+      "lockedLiquidityAfter": "38369565834962461723"
+    },
+    "postExecutionReceiverBalances": {
+      "TPA1": "0",
+      "TSLA": "0",
+      "PLTR": "0",
+      "AMD": "0"
+    },
+    "postExecutionAllowances": {
+      "callerToReceiverPerAsset": "0",
+      "receiverToDiamondPerAsset": "0"
+    }
   },
   "artifacts": {
     "protocolBroadcast": "broadcast/DeployStatics.s.sol/46630/run-latest.json",

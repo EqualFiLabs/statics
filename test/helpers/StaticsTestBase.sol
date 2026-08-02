@@ -67,7 +67,7 @@ contract StaticsTestDeployer {
             owner,
             cut,
             address(init),
-            abi.encodeCall(StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether)),
+            abi.encodeCall(StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether, 0)),
             address(0)
         );
     }

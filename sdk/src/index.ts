@@ -730,10 +730,10 @@ export const staticsAbi = parseAbi([
   "function basketIdOf(address token) view returns (uint256 basketId,bool exists)",
   "function vaultBalance(uint256 basketId,address asset) view returns (uint256)",
   "function feeSharesFor(uint256 basketId,bool mintAction,uint256 actionShares) view returns (uint256 feeShares)",
-  "function createAndDepositBasketCollateral(uint256 basketId,uint256 shares,address receiver) returns (uint256 positionId)",
+  "function createAndDepositBasketCollateral(uint256 basketId,uint256 shares,address receiver) payable returns (uint256 positionId)",
   "function depositBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares)",
   "function withdrawBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares,address receiver)",
-  "function createAndMintBasketCollateral(uint256 basketId,uint256 shares,address receiver,uint256[] maxAmountsIn) returns (uint256 positionId,uint256[] amountsIn)",
+  "function createAndMintBasketCollateral(uint256 basketId,uint256 shares,address receiver,uint256[] maxAmountsIn) payable returns (uint256 positionId,uint256[] amountsIn)",
   "function mintBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares,uint256[] maxAmountsIn) returns (uint256[] amountsIn)",
   "function redeemBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares,address receiver,uint256[] minAmountsOut) returns (uint256[] amountsOut)",
   "function basketCollateralPosition(uint256 positionId,uint256 basketId) view returns ((uint256 depositedShares,uint256 lockedShares,uint256 withdrawableAfterBlock) position)",
@@ -741,7 +741,7 @@ export const staticsAbi = parseAbi([
   "function getBasketRewards(uint256 positionId,uint256 basketId) view returns (address[] assets,uint256[] amounts)",
   "function claimBasketRewards(uint256 positionId,uint256 basketId,address receiver) returns (address[] assets,uint256[] amounts)",
   "function basketRewardState(uint256 basketId,address asset) view returns ((uint256 totalEligibleShares,uint256 indexRay,uint256 indexedReserve,uint256 crystallizedReserve,uint256 totalClaimable) state)",
-  "function createAndStake(uint256 amount,address receiver,address[] rewardAssets) returns (uint256 positionId)",
+  "function createAndStake(uint256 amount,address receiver,address[] rewardAssets) payable returns (uint256 positionId)",
   "function stake(uint256 positionId,uint256 amount)",
   "function unstake(uint256 positionId,uint256 amount,address receiver)",
   "function optInRewardAssets(uint256 positionId,address[] assets)",
@@ -777,7 +777,9 @@ export const staticsAbi = parseAbi([
   "function name() view returns (string)",
   "function symbol() view returns (string)",
   "function tokenURI(uint256 tokenId) view returns (string)",
-  "function createPosition(address receiver) returns (uint256 positionId)",
+  "function createPosition(address receiver) payable returns (uint256 positionId)",
+  "function positionCreationFee() view returns (uint256 amount)",
+  "function setPositionCreationFee(uint256 amount)",
   "function closePosition(uint256 positionId)",
   "function nextPositionId() view returns (uint256)",
   "function activeLegCount(uint256 positionId) view returns (uint256)",
@@ -849,6 +851,8 @@ export const staticsAbi = parseAbi([
   "event BasketRedeemed(uint256 indexed basketId,address indexed owner,address indexed receiver,uint256 shares)",
   "event PositionCreated(uint256 indexed positionId,address indexed owner)",
   "event PositionClosed(uint256 indexed positionId)",
+  "event PositionCreationFeeSet(uint256 previousAmount,uint256 newAmount)",
+  "event PositionCreationFeePaid(uint256 indexed positionId,address indexed treasury,uint256 amount)",
   "event PositionLegActivated(uint256 indexed positionId,bytes32 indexed legKey)",
   "event PositionLegDeactivated(uint256 indexed positionId,bytes32 indexed legKey)",
   "event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)",
@@ -1054,6 +1058,8 @@ export type StaticsLiquidityEventArgs<Name extends StaticsLiquidityEventName> =
 export type StaticsPositionEventName =
   | "PositionCreated"
   | "PositionClosed"
+  | "PositionCreationFeeSet"
+  | "PositionCreationFeePaid"
   | "PositionLegActivated"
   | "PositionLegDeactivated"
   | "Transfer"
@@ -1161,6 +1167,8 @@ export const staticsBasketErrorAbi = parseAbi([
 
 export const staticsPositionErrorAbi = parseAbi([
   "error OnlyDiamondSelf(address caller)",
+  "error IncorrectPositionCreationFee(uint256 required,uint256 provided)",
+  "error PositionCreationFeeTransferFailed(address treasury,uint256 amount)",
   "error PositionInitializing(uint256 positionId)",
   "error PositionHasActiveLegs(uint256 positionId,uint256 activeLegCount)",
   "error AlreadyInitialized()",
@@ -1288,7 +1296,7 @@ export const staticsDollarCoreAbi = parseAbi([
  */
 export const staticsDollarPeripheryAbi = parseAbi([
   // -- StakingFacet: every staked Risk Share is immediately consumable.
-  "function createAndStakeRiskShares(uint256 seriesId,uint256 amount,address receiver) returns (uint256 positionId)",
+  "function createAndStakeRiskShares(uint256 seriesId,uint256 amount,address receiver) payable returns (uint256 positionId)",
   "function stakeRiskShares(uint256 positionId,uint256 seriesId,uint256 amount)",
   "function unstakeRiskShares(uint256 positionId,uint256 seriesId,uint256 amount,address receiver) returns (uint256 principalOut)",
   "function claimRiskProceeds(uint256 positionId,uint256 seriesId,address receiver) returns (uint256 collateralAmount,uint256 staticsDollarAmount,uint256 staticsAmount)",
@@ -1794,6 +1802,10 @@ export function buildFlashLoanCall(basketId: bigint, shares: bigint, receiver: A
 
 export function buildCreatePositionCall(receiver: Address): Hex {
   return encodeFunctionData({ abi: staticsAbi, functionName: "createPosition", args: [receiver] });
+}
+
+export function buildSetPositionCreationFeeCall(amount: bigint): Hex {
+  return encodeFunctionData({ abi: staticsAbi, functionName: "setPositionCreationFee", args: [amount] });
 }
 
 export function buildClosePositionCall(positionId: bigint): Hex {

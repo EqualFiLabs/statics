@@ -117,7 +117,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
         staticsDiamond = diamond;
-        _setFeeConfiguration(inputFeeBps, outputFeeBps, 4_000, 1_000, 2_000, 2_000, 1_000);
+        _setFeeConfiguration(inputFeeBps, outputFeeBps, 1_000, 2_500, 2_500, 1_500, 2_500);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {

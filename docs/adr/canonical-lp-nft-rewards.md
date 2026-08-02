@@ -8,8 +8,8 @@ Accepted and implemented.
 
 Statics allocates a configurable share of bilateral canonical-pool hook fees to
 activated, full-range Uniswap v4 PositionManager liquidity. The launch split is
-40% hook-owned permanent liquidity, 10% canonical LPs, 20% deposited
-BasketToken positions, 20% global Statics stakers, and 10% treasury. Governance
+10% hook-owned permanent liquidity, 25% canonical LPs, 25% deposited
+BasketToken positions, 15% global Statics stakers, and 25% treasury. Governance
 may select any nonnegative five-way split totaling 10,000 BPS; the LP share has
 no independent cap.
 

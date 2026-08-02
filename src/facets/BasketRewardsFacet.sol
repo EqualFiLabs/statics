@@ -12,6 +12,7 @@ import {LibPosition} from "../position/LibPosition.sol";
 contract BasketRewardsFacet is IStaticsBasketRewards, ReentrancyGuard {
     error BasketNotFound(uint256 basketId);
     error InvalidReceiver();
+    error IncompatibleRewardTransfer(address asset, uint256 expected, uint256 received);
     error NoBasketRewards(uint256 positionId, uint256 basketId);
 
     function getBasketRewardAssets(uint256 basketId) external view returns (address[] memory assets) {
@@ -46,17 +47,14 @@ contract BasketRewardsFacet is IStaticsBasketRewards, ReentrancyGuard {
             if (amount == 0) continue;
             hasRewards = true;
             (, amounts[i]) = LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
+            if (amounts[i] != amount) revert IncompatibleRewardTransfer(asset, amount, amounts[i]);
             emit BasketRewardClaimed(positionId, basketId, asset, receiver, amount);
         }
         if (!hasRewards) revert NoBasketRewards(positionId, basketId);
         LibBasketRewards.deactivateIfEmpty(positionId, basketId);
     }
 
-    function basketRewardState(uint256 basketId, address asset)
-        external
-        view
-        returns (BasketRewardState memory state)
-    {
+    function basketRewardState(uint256 basketId, address asset) external view returns (BasketRewardState memory state) {
         LibBasket.Basket storage configured = _basket(basketId);
         if (!LibBasketRewards.isRewardAsset(configured, asset)) {
             revert LibBasketRewards.InvalidBasketRewardAsset(basketId, asset);

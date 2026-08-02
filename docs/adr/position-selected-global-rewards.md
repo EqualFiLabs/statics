@@ -24,7 +24,7 @@ stake, unstake, and settlement.
 Each reward asset maintains:
 
 - its own eligible-stake denominator;
-- a 1e27 reward index and division remainder;
+- a 1e27 reward index with independently floored accruals;
 - indexed reserve and aggregate claimable accounting; and
 - treasury accrual for fees that do not enter the staker index.
 

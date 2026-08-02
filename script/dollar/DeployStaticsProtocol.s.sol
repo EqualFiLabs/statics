@@ -59,7 +59,8 @@ abstract contract DeployStaticsProtocol {
         address guardian,
         address treasury,
         address stakingToken,
-        uint256 creationFeeAmount
+        uint256 creationFeeAmount,
+        uint256 positionCreationFeeAmount
     ) internal returns (address diamond, address positionNFT) {
         ProtocolParts memory parts = _deployProtocolParts();
         IDiamondCut.FacetCut[] memory cut =
@@ -77,6 +78,7 @@ abstract contract DeployStaticsProtocol {
             treasury: treasury,
             stakingToken: stakingToken,
             creationFeeAmount: creationFeeAmount,
+            positionCreationFeeAmount: positionCreationFeeAmount,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(

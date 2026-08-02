@@ -18,6 +18,7 @@ import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRe
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsDollarGateway} from "../../src/dollar/interfaces/IStaticsDollarGateway.sol";
 import {IStaticsDollarRiskLiquidity} from "../../src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
@@ -43,7 +44,8 @@ contract DeployStaticsTest is Test {
             guardian: makeAddr("guardian"),
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
-            creationFeeAmount: 0
+            creationFeeAmount: 0,
+            positionCreationFeeAmount: 0
         });
         uint64 firstCreationNonce = vm.getNonce(address(deployer));
 
@@ -65,12 +67,14 @@ contract DeployStaticsTest is Test {
             guardian: makeAddr("guardian"),
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
-            creationFeeAmount: 0
+            creationFeeAmount: 0,
+            positionCreationFeeAmount: 0.001 ether
         });
 
         (StaticsDollarStackDeployment memory deployment,) = deployer.deploy(config);
 
         assertEq(IStaticsBasketAdmin(deployment.diamond).creationFee(), 0);
+        assertEq(IStaticsPositionFees(deployment.diamond).positionCreationFee(), 0.001 ether);
     }
 
     function testLaunchInstallsFullProtocolBehindTimelockedDiamond() public {
@@ -83,7 +87,8 @@ contract DeployStaticsTest is Test {
             guardian: guardian,
             treasury: treasury,
             stakingToken: address(deployer),
-            creationFeeAmount: 0.01 ether
+            creationFeeAmount: 0.01 ether,
+            positionCreationFeeAmount: 0
         });
         DeployStatics.V4Config memory v4 = _v4Config();
 
@@ -113,10 +118,11 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 21, 188);
+        _assertManifest(diamond, 21, 190);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
+        assertEq(IStaticsPositionFees(diamond).positionCreationFee(), 0);
         assertEq(deployment.gateway, diamond);
         assertEq(deployment.positionNFT, diamond);
         assertEq(StaticsDollar(deployment.staticsDollar).symbol(), "USDstx");
@@ -131,6 +137,7 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBorrowLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarRiskLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarRiskIncentives).interfaceId));
@@ -147,11 +154,11 @@ contract DeployStaticsTest is Test {
         IStaticsSwapFeeHook.FeeConfiguration memory feeConfig = StaticsSwapFeeHook(payable(hook)).feeConfiguration();
         assertEq(feeConfig.inputFeeBps, 25);
         assertEq(feeConfig.outputFeeBps, 25);
-        assertEq(feeConfig.polShareBps, 4_000);
-        assertEq(feeConfig.liquidityProviderShareBps, 1_000);
-        assertEq(feeConfig.basketStakerShareBps, 2_000);
-        assertEq(feeConfig.staticsStakerShareBps, 2_000);
-        assertEq(feeConfig.treasuryShareBps, 1_000);
+        assertEq(feeConfig.polShareBps, 1_000);
+        assertEq(feeConfig.liquidityProviderShareBps, 2_500);
+        assertEq(feeConfig.basketStakerShareBps, 2_500);
+        assertEq(feeConfig.staticsStakerShareBps, 1_500);
+        assertEq(feeConfig.treasuryShareBps, 2_500);
         assertEq(
             uint160(hook) & Hooks.ALL_HOOK_MASK,
             Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
@@ -192,7 +199,8 @@ contract DeployStaticsTest is Test {
             guardian: address(0),
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
-            creationFeeAmount: 1 ether
+            creationFeeAmount: 1 ether,
+            positionCreationFeeAmount: 0
         });
         vm.expectRevert(DeployStatics.InvalidConfig.selector);
         deployer.deploy(config);

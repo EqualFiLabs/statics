@@ -838,8 +838,8 @@ LTV established here.
 
 The current implementation resolves the operational choices as follows: the
 typed gateway exposes ETH/WETH deposit and ordinary ETH/WETH recombination;
-the canonical hook initializes to 40% POL, 10% canonical LPs, 20% deposited
-BasketTokens, 20% global Statics stakers, and 10% treasury; already-claimable
+the canonical hook initializes to 10% POL, 25% canonical LPs, 25% deposited
+BasketTokens, 15% global Statics stakers, and 25% treasury; already-claimable
 rewards remain attached after loan recovery; the basket creator selects LTV
 and recovery penalty within the protocol bound; and expired-loan penalty
 backing pays 20% to the recovery caller and 80% to the protocol fee route.

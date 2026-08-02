@@ -9,9 +9,28 @@ import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquid
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
+import {
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionModule
+} from "../../src/interfaces/IStaticsPosition.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testPositionSelectorManifestIncludesCreationFeeConfiguration() public pure {
+        bytes4[] memory selectors = StaticsSelectors.position();
+        assertEq(selectors.length, 22);
+        assertEq(selectors[12], IStaticsPosition.createPosition.selector);
+        assertEq(selectors[19], IStaticsPositionModule.createPositionForModule.selector);
+        assertEq(selectors[20], IStaticsPositionFees.setPositionCreationFee.selector);
+        assertEq(selectors[21], IStaticsPositionFees.positionCreationFee.selector);
+        for (uint256 i; i < selectors.length; ++i) {
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(selectors[i], selectors[j]);
+            }
+        }
+    }
+
     function testLiquiditySelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.basketLiquidity();
         bytes4[] memory expected = new bytes4[](17);

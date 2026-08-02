@@ -6,8 +6,8 @@
 > the live protocol. Current canonical liquidity uses bilateral hook fees and
 > hook-owned permanent full-range liquidity as documented in
 > `Statics-Design.md` and `docs/integration.md`. The launch allocation is now
-> 40% POL, 10% canonical LPs, 20% deposited BasketTokens, 20% global Statics
-> stakers, and 10% treasury. `borrowAndStakeLiquidity` is the current optional
+> 10% POL, 25% canonical LPs, 25% deposited BasketTokens, 15% global Statics
+> stakers, and 25% treasury. `borrowAndStakeLiquidity` is the current optional
 > atomic path for PositionNFT-owned full-range LP positions.
 
 - Status: Historical; superseded by the bilateral hook-fee architecture

@@ -28,6 +28,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         address treasury;
         address stakingToken;
         uint256 creationFeeAmount;
+        uint256 positionCreationFeeAmount;
     }
 
     struct V4Config {
@@ -60,7 +61,8 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             guardian: vm.envAddress("GUARDIAN"),
             treasury: vm.envAddress("TREASURY"),
             stakingToken: vm.envAddress("STAKING_TOKEN"),
-            creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT")
+            creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
+            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT")
         });
         StaticsDollarProductionConfig memory production = StaticsDollarProductionConfig({
             owner: address(0),
@@ -68,6 +70,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             treasury: address(0),
             stakingToken: address(0),
             creationFeeAmount: 0,
+            positionCreationFeeAmount: 0,
             weth: vm.envAddress("WETH_ADDRESS"),
             ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
             sequencerUptimeFeed: vm.envAddress("SEQUENCER_UPTIME_FEED"),
@@ -100,6 +103,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         local.treasury = config.treasury;
         local.stakingToken = config.stakingToken;
         local.creationFeeAmount = config.creationFeeAmount;
+        local.positionCreationFeeAmount = config.positionCreationFeeAmount;
         local.deployMockWeth = true;
         local.deployMockOracle = true;
         local.mockOraclePriceWad = 2_500e18;
@@ -138,6 +142,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         production.treasury = config.treasury;
         production.stakingToken = config.stakingToken;
         production.creationFeeAmount = config.creationFeeAmount;
+        production.positionCreationFeeAmount = config.positionCreationFeeAmount;
         deployment = _deployProduction(production, deploymentCreator);
     }
 
