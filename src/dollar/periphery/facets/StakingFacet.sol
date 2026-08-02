@@ -9,45 +9,26 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {IStaticsDollarCoreTypes} from "../../interfaces/IStaticsDollarCoreTypes.sol";
+import {IStaticsDollarRiskLiquidity} from "../../interfaces/IStaticsDollarRiskLiquidity.sol";
+import {IStaticsDollarRiskIncentives} from "../../interfaces/IStaticsDollarRiskIncentives.sol";
 import {IStaticsDollarCore} from "../../core/interfaces/IStaticsDollarCore.sol";
 import {IStaticsPositionModule} from "../../../interfaces/IStaticsPosition.sol";
 import {LibCustody} from "../../../libraries/LibCustody.sol";
+import {LibGlobalRewards} from "../../../libraries/LibGlobalRewards.sol";
 import {LibPosition} from "../../../position/LibPosition.sol";
 import {LibPeriphery} from "../libraries/LibPeriphery.sol";
 
-contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
+contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentives, IERC1155Receiver, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     struct MigrationAmounts {
         uint256 oldPrincipal;
-        uint256 oldEligible;
-        uint256 oldPending;
-        uint256 oldOptIn;
-        uint256 oldPendingSince;
         uint256 newPrincipal;
         uint256 staticsDollarCredit;
         uint256 collateralCredit;
     }
 
-    event LegIncreased(uint256 indexed positionId, uint256 indexed seriesId, uint256 amount, uint256 pendingSince);
-    event LegActivated(uint256 indexed positionId, uint256 indexed seriesId, uint256 principal);
-    event LegWithdrawn(uint256 indexed positionId, uint256 indexed seriesId, address indexed receiver, uint256 amount);
-    event LegMigrated(
-        uint256 indexed positionId,
-        uint256 indexed oldSeriesId,
-        uint256 indexed newSeriesId,
-        uint256 oldPrincipal,
-        uint256 newPrincipal
-    );
-    event LegMigrationDeferred(
-        address indexed caller,
-        uint256 indexed positionId,
-        uint256 indexed oldSeriesId,
-        uint256 newSeriesId,
-        IStaticsDollarCoreTypes.ExitStatus status,
-        uint256 unhealthyProfileBitmap
-    );
-    event LegClosed(uint256 indexed positionId, uint256 indexed seriesId);
+    event RiskLiquidityClosed(uint256 indexed positionId, uint256 indexed seriesId);
     event SeriesTransitionProcessed(
         uint256 indexed oldSeriesId,
         uint256 indexed newSeriesId,
@@ -70,16 +51,14 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
 
     error ZeroAmount();
     error ZeroAddress();
-    error UnknownLeg(uint256 positionId, uint256 seriesId);
+    error UnknownRiskLiquidity(uint256 positionId, uint256 seriesId);
     error NotPositionOwnerOrApproved(uint256 positionId, address caller);
-    error PositionNotMature(uint256 positionId, uint256 seriesId, uint256 eligibleAt);
-    error InsufficientPrincipal(uint256 requested, uint256 available);
+    error InsufficientRiskLiquidity(uint256 requested, uint256 available);
+    error NoRiskProceeds(uint256 positionId, uint256 seriesId);
     error SeriesNotActive(uint256 seriesId);
-    error SeriesNotRetired(uint256 seriesId);
-    error InvalidSuccessor(uint256 expected, uint256 actual);
-    error SlippageExceeded(uint256 received, uint256 minimum);
-    error LegHasValue(uint256 positionId, uint256 seriesId);
-    error UnexpectedExitStatus(IStaticsDollarCoreTypes.ExitStatus status);
+    error SeriesNotIncentiveEligible(uint256 seriesId);
+    error SeriesIncentivesNotFinalizable(uint256 seriesId);
+    error RiskLiquidityHasValue(uint256 positionId, uint256 seriesId);
     error SeriesMigrationNotReady(uint256 seriesId);
     error SeriesMigrationAlreadyProcessed(uint256 seriesId);
     error UnexpectedRiskIngress(address token, address operator, address from, uint256 seriesId, uint256 amount);
@@ -87,8 +66,71 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
     error RiskBatchIngressUnsupported();
     error InsufficientTransferReceived(address token, uint256 required, uint256 received);
 
-    function createAndStake(uint256 seriesId, uint256 amount, address receiver)
+    function fundRiskCollateralIncentives(uint256 seriesId, uint256 amount)
         external
+        override
+        nonReentrant
+        returns (uint256 received)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        address token = _requireIncentiveEligible(ps, seriesId).collateralToken;
+        received = _fundRiskIncentives(ps, seriesId, token, amount);
+        ps.series[seriesId].collateralIncentiveReserve += received;
+    }
+
+    function fundRiskDollarIncentives(uint256 seriesId, uint256 amount)
+        external
+        override
+        nonReentrant
+        returns (uint256 received)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        _requireIncentiveEligible(ps, seriesId);
+        received = _fundRiskIncentives(ps, seriesId, ps.staticsDollar, amount);
+        ps.series[seriesId].staticsDollarIncentiveReserve += received;
+    }
+
+    function fundRiskStaticsIncentives(uint256 seriesId, uint256 amount)
+        external
+        override
+        nonReentrant
+        returns (uint256 received)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        _requireIncentiveEligible(ps, seriesId);
+        received = _fundRiskIncentives(ps, seriesId, ps.staticsToken, amount);
+        ps.series[seriesId].staticsIncentiveReserve += received;
+    }
+
+    function riskIncentives(uint256 seriesId) external view override returns (RiskIncentiveView memory view_) {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        IStaticsDollarCoreTypes.RiskSeries memory series = IStaticsDollarCore(ps.pool).riskSeries(seriesId);
+        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
+        view_ = RiskIncentiveView({
+            collateralToken: series.collateralToken,
+            staticsToken: ps.staticsToken,
+            collateralReserve: book.collateralIncentiveReserve,
+            staticsDollarReserve: book.staticsDollarIncentiveReserve,
+            staticsReserve: book.staticsIncentiveReserve,
+            destinationSeriesId: book.incentiveDestinationSeriesId,
+            routedGlobal: book.incentivesRoutedGlobal,
+            finalized: book.incentivesFinalized
+        });
+    }
+
+    function finalizeRiskIncentives(uint256 seriesId)
+        external
+        override
+        nonReentrant
+        returns (uint256 destinationSeriesId, bool routedGlobal)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        return _finalizeRiskIncentives(ps, seriesId, IStaticsDollarCore(ps.pool).riskSeries(seriesId));
+    }
+
+    function createAndStakeRiskShares(uint256 seriesId, uint256 amount, address receiver)
+        external
+        override
         nonReentrant
         returns (uint256 positionId)
     {
@@ -98,111 +140,92 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         _requireActive(ps, seriesId);
         positionId =
             IStaticsPositionModule(address(this)).createPositionForModule(receiver, LibPosition.dollarLegKey(seriesId));
-        _pullRisk(ps, msg.sender, seriesId, amount);
-        _increaseLeg(ps, positionId, seriesId, amount);
+        _stake(ps, positionId, seriesId, msg.sender, amount, true);
     }
 
-    function stake(uint256 positionId, uint256 seriesId, uint256 amount) external nonReentrant {
+    function stakeRiskShares(uint256 positionId, uint256 seriesId, uint256 amount) external override nonReentrant {
         if (amount == 0) revert ZeroAmount();
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceOwnerOrApproved(ps, positionId);
+        _enforceAuthorized(positionId);
         _requireActive(ps, seriesId);
-        _pullRisk(ps, msg.sender, seriesId, amount);
-        _increaseLeg(ps, positionId, seriesId, amount);
+        _stake(ps, positionId, seriesId, msg.sender, amount, true);
     }
 
-    function activateLeg(uint256 positionId, uint256 seriesId) external nonReentrant {
-        LibPeriphery.PS storage ps = LibPeriphery.s();
-        LibPeriphery.PositionLeg storage positionLeg = _leg(ps, positionId, seriesId);
-        _requireActive(ps, seriesId);
-        if (positionLeg.pendingPrincipal == 0) revert ZeroAmount();
-        uint256 eligibleAt = positionLeg.pendingSince + LibPeriphery.REWARD_GATE;
-        if (block.timestamp < eligibleAt) revert PositionNotMature(positionId, seriesId, eligibleAt);
-        LibPeriphery.settleLeg(ps, positionId, seriesId);
-        uint256 amount = positionLeg.pendingPrincipal;
-        positionLeg.pendingPrincipal = 0;
-        positionLeg.pendingSince = 0;
-        positionLeg.eligiblePrincipal += amount;
-        ps.series[seriesId].eligiblePrincipal += amount;
-        emit LegActivated(positionId, seriesId, amount);
-    }
-
-    function withdrawLeg(uint256 positionId, uint256 seriesId, uint256 amount, address receiver) external nonReentrant {
+    function unstakeRiskShares(uint256 positionId, uint256 seriesId, uint256 amount, address receiver)
+        external
+        override
+        nonReentrant
+        returns (uint256 principalOut)
+    {
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceOwnerOrApproved(ps, positionId);
-        LibPeriphery.PositionLeg storage positionLeg = _leg(ps, positionId, seriesId);
-        uint256 available = positionLeg.pendingPrincipal + positionLeg.eligiblePrincipal;
-        if (amount > available) revert InsufficientPrincipal(amount, available);
+        _enforceAuthorized(positionId);
+        LibPeriphery.PositionLeg storage leg_ = _leg(ps, positionId, seriesId);
+        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
+        if (leg_.epoch != book.epoch) revert InsufficientRiskLiquidity(amount, 0);
+        uint256 available = LibPeriphery.positionEffective(book, leg_.stored);
+        if (amount > available) revert InsufficientRiskLiquidity(amount, available);
+
         LibPeriphery.settleLeg(ps, positionId, seriesId);
-        _removeBasePrincipal(ps, seriesId, positionLeg, amount);
-        IERC1155(ps.staticsDollarRisk).safeTransferFrom(address(this), receiver, seriesId, amount, "");
-        emit LegWithdrawn(positionId, seriesId, receiver, amount);
+        (uint256 storedRemoved, uint256 removed) = LibPeriphery.removeLiquidity(book, leg_.stored, amount);
+        leg_.stored -= storedRemoved;
+        principalOut = removed;
+        if (leg_.stored == 0) {
+            leg_.epoch = book.epoch;
+            leg_.collateralCheckpointRay = book.collateralProceeds[book.epoch].accPerStoredRay;
+        }
+        IERC1155(ps.staticsDollarRisk).safeTransferFrom(address(this), receiver, seriesId, principalOut, "");
+        emit RiskSharesUnstaked(positionId, seriesId, receiver, principalOut);
     }
 
-    function migrateLeg(uint256 positionId, uint256 oldSeriesId, uint256 principal, uint256 minNewPrincipal)
+    function claimRiskProceeds(uint256 positionId, uint256 seriesId, address receiver)
         external
+        override
         nonReentrant
-        returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 newSeriesId, uint256 newPrincipal)
+        returns (uint256 collateralAmount, uint256 staticsDollarAmount, uint256 staticsAmount)
     {
-        if (principal == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceOwnerOrApproved(ps, positionId);
-        LibPeriphery.PositionLeg storage oldLeg = _leg(ps, positionId, oldSeriesId);
-        IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
-        IStaticsDollarCoreTypes.RiskSeries memory oldSeries = core.riskSeries(oldSeriesId);
-        if (
-            oldSeries.status != IStaticsDollarCoreTypes.SeriesStatus.Recoverable
-                && oldSeries.status != IStaticsDollarCoreTypes.SeriesStatus.Retired
-        ) revert SeriesNotRetired(oldSeriesId);
-        uint256 available = oldLeg.pendingPrincipal + oldLeg.eligiblePrincipal;
-        if (principal > available) revert InsufficientPrincipal(principal, available);
-        newSeriesId = core.collateralProfile(oldSeries.profileId).activeSeriesId;
-        _requireActive(ps, newSeriesId);
+        _enforceAuthorized(positionId);
+        LibPeriphery.PositionLeg storage leg_ = _leg(ps, positionId, seriesId);
+        LibPeriphery.settleLeg(ps, positionId, seriesId);
+        collateralAmount = leg_.accruedCollateral;
+        staticsDollarAmount = leg_.accruedStaticsDollar;
+        staticsAmount = leg_.accruedStatics;
+        if (collateralAmount == 0 && staticsDollarAmount == 0 && staticsAmount == 0) {
+            revert NoRiskProceeds(positionId, seriesId);
+        }
+        leg_.accruedCollateral = 0;
+        leg_.accruedStaticsDollar = 0;
+        leg_.accruedStatics = 0;
 
-        uint256 unhealthyBitmap;
-        (status, unhealthyBitmap,,) = core.checkpointGlobalCollateralExit();
-        if (status != IStaticsDollarCoreTypes.ExitStatus.Available) {
-            emit LegMigrationDeferred(msg.sender, positionId, oldSeriesId, newSeriesId, status, unhealthyBitmap);
-            return (status, newSeriesId, 0);
-        }
-        LibPeriphery.settleLeg(ps, positionId, oldSeriesId);
-        _removeBasePrincipal(ps, oldSeriesId, oldLeg, principal);
-
-        uint256 receivedStaticsDollar = LibCustody.pull(ps.staticsDollar, msg.sender, principal);
-        if (receivedStaticsDollar < principal) {
-            revert InsufficientTransferReceived(ps.staticsDollar, principal, receivedStaticsDollar);
-        }
-        uint256 beforeCollateral = IERC20(oldSeries.collateralToken).balanceOf(address(this));
-        uint256 staticsDollarBefore = LibCustody.beginUnreservedDebit(ps.staticsDollar, principal);
-        (IStaticsDollarCoreTypes.ExitStatus recombinationStatus,) =
-            core.recombineManaged(oldSeriesId, principal, principal, 0, address(this));
-        LibCustody.finishUnreservedDebit(ps.staticsDollar, staticsDollarBefore, principal);
-        if (recombinationStatus != IStaticsDollarCoreTypes.ExitStatus.Available) {
-            revert UnexpectedExitStatus(recombinationStatus);
-        }
-        uint256 collateral = IERC20(oldSeries.collateralToken).balanceOf(address(this)) - beforeCollateral;
-        IERC20(oldSeries.collateralToken).forceApprove(ps.pool, collateral);
-        uint256 collateralBefore = LibCustody.beginUnreservedDebit(oldSeries.collateralToken, collateral);
-        IStaticsDollarCoreTypes.DepositPreview memory depositPreview =
-            core.previewDeposit(oldSeries.profileId, collateral);
-        _expectRiskIngress(ps, ps.pool, address(0), depositPreview.seriesId, depositPreview.sharesMinted);
-        (uint256 depositedSeriesId,, uint256 sharesMinted) =
-            core.depositCollateral(oldSeries.profileId, collateral, 0, minNewPrincipal, msg.sender, address(this));
-        LibCustody.finishUnreservedDebit(oldSeries.collateralToken, collateralBefore, collateral);
-        _requireRiskIngressConsumed(ps);
-        if (depositedSeriesId != newSeriesId) revert InvalidSuccessor(newSeriesId, depositedSeriesId);
-        if (sharesMinted < minNewPrincipal) revert SlippageExceeded(sharesMinted, minNewPrincipal);
-        newPrincipal = sharesMinted;
-        _increaseLeg(ps, positionId, newSeriesId, sharesMinted);
-        emit LegMigrated(positionId, oldSeriesId, newSeriesId, principal, sharesMinted);
-        return (IStaticsDollarCoreTypes.ExitStatus.Available, newSeriesId, sharesMinted);
+        address collateralToken = IStaticsDollarCore(ps.pool).riskSeries(seriesId).collateralToken;
+        _pushRiskProceeds(
+            ps,
+            receiver,
+            collateralToken,
+            collateralAmount,
+            ps.staticsDollar,
+            staticsDollarAmount,
+            ps.staticsToken,
+            staticsAmount
+        );
+        emit RiskProceedsClaimed(
+            positionId,
+            seriesId,
+            receiver,
+            collateralToken,
+            ps.staticsToken,
+            collateralAmount,
+            staticsDollarAmount,
+            staticsAmount
+        );
     }
 
     /// @notice Permissionless aggregate transition processing. During the
-    /// window this escrows every StaticsDollarRisk unit held by the Diamond. After
-    /// finalization it claims once and records a lazy Position-NFT conversion.
+    /// return window this escrows every Risk Share held by the Diamond. After
+    /// finalization it claims once and records lazy PositionNFT conversion.
     function processSeriesTransition(uint256 oldSeriesId)
         external
         nonReentrant
@@ -236,6 +259,7 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         if (series.status != IStaticsDollarCoreTypes.SeriesStatus.Recoverable) {
             revert SeriesMigrationNotReady(oldSeriesId);
         }
+        _finalizeRiskIncentives(ps, oldSeriesId, series);
         if (migration.claimed) revert SeriesMigrationAlreadyProcessed(oldSeriesId);
         IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
         IStaticsDollarCoreTypes.RiskSeries memory successor = core.riskSeries(profile.activeSeriesId);
@@ -244,18 +268,13 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
             || successor.status != IStaticsDollarCoreTypes.SeriesStatus.Active
             ? IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly
             : IStaticsDollarCoreTypes.RecoveryClaimMode.NAV;
-        LibPeriphery.SeriesBook storage retiringBook = ps.series[oldSeriesId];
-        if (!retiringBook.retiredRewardsFinalized) {
-            LibPeriphery.finalizeRetiredRewards(ps, oldSeriesId, series);
-        }
+
         uint256 collateralCredit;
         if (migration.returned) {
             IStaticsDollarCoreTypes.RecoveryClaimPreview memory preview =
                 core.previewReturnedRiskClaim(address(this), oldSeriesId, claimMode);
             newSeriesId = preview.successorSeriesId;
-            if (preview.collateralIn != 0) {
-                IERC20(series.collateralToken).forceApprove(ps.pool, preview.collateralIn);
-            }
+            if (preview.collateralIn != 0) IERC20(series.collateralToken).forceApprove(ps.pool, preview.collateralIn);
             uint256 collateralBefore = LibCustody.beginUnreservedDebit(series.collateralToken, preview.collateralIn);
             _expectRiskIngress(ps, ps.pool, address(0), newSeriesId, preview.successorPairs);
             (newPrincipal,, collateralCredit) = core.claimReturnedRisk(
@@ -311,22 +330,17 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         returns (uint256 newSeriesId, uint256 newPrincipal)
     {
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceOwnerOrApproved(ps, positionId);
+        _enforceAuthorized(positionId);
         LibPeriphery.SeriesMigration storage migration = ps.migration[oldSeriesId];
         if (!migration.claimed) revert SeriesMigrationNotReady(oldSeriesId);
         LibPeriphery.PositionLeg storage oldLeg = _leg(ps, positionId, oldSeriesId);
         LibPeriphery.SeriesBook storage oldBook = ps.series[oldSeriesId];
         LibPeriphery.settleLeg(ps, positionId, oldSeriesId);
-        MigrationAmounts memory amounts;
-        amounts.oldOptIn = oldLeg.optInEpoch == oldBook.optInEpoch
-            ? LibPeriphery.optInPositionEffective(oldBook, oldLeg.optInStored)
-            : 0;
-        amounts.oldEligible = oldLeg.eligiblePrincipal;
-        amounts.oldPending = oldLeg.pendingPrincipal;
-        amounts.oldPendingSince = oldLeg.pendingSince;
-        amounts.oldPrincipal = amounts.oldPending + amounts.oldEligible + amounts.oldOptIn;
-        if (amounts.oldPrincipal == 0) revert ZeroAmount();
 
+        MigrationAmounts memory amounts;
+        amounts.oldPrincipal =
+            oldLeg.epoch == oldBook.epoch ? LibPeriphery.positionEffective(oldBook, oldLeg.stored) : 0;
+        if (amounts.oldPrincipal == 0) revert ZeroAmount();
         uint256 settledPrincipal = amounts.oldPrincipal > migration.remainingOldPrincipal
             ? migration.remainingOldPrincipal
             : amounts.oldPrincipal;
@@ -348,29 +362,27 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
             emit MigrationRoundingWrittenOff(positionId, oldSeriesId, amounts.oldPrincipal, settledPrincipal);
         }
 
-        oldBook.eligiblePrincipal -= amounts.oldEligible;
-        if (oldLeg.optInEpoch == oldBook.optInEpoch) {
-            oldBook.optInTotalStored -= oldLeg.optInStored;
-            oldBook.optInPrincipal -= amounts.oldOptIn;
+        oldBook.totalStored -= oldLeg.stored;
+        oldBook.effectivePrincipal -= amounts.oldPrincipal;
+        oldLeg.stored = 0;
+        if (oldBook.totalStored == 0) {
+            oldBook.scaleRay = LibPeriphery.RAY;
+            oldBook.epoch += 1;
+        } else {
+            oldBook.scaleRay = Math.mulDiv(oldBook.effectivePrincipal, LibPeriphery.RAY, oldBook.totalStored);
         }
-        oldLeg.eligiblePrincipal = 0;
-        oldLeg.pendingPrincipal = 0;
-        oldLeg.pendingSince = 0;
-        oldLeg.optInStored = 0;
+        oldLeg.epoch = oldBook.epoch;
+        oldLeg.collateralCheckpointRay = oldBook.collateralProceeds[oldBook.epoch].accPerStoredRay;
+        oldLeg.staticsDollarCheckpointRay = oldBook.staticsDollarProceeds[oldBook.epoch].accPerStoredRay;
+        oldLeg.staticsCheckpointRay = oldBook.staticsProceeds[oldBook.epoch].accPerStoredRay;
         oldLeg.accruedStaticsDollar += amounts.staticsDollarCredit;
         oldLeg.accruedCollateral += amounts.collateralCredit;
 
         newSeriesId = migration.newSeriesId;
-        _creditMigratedPrincipal(
-            ps,
-            positionId,
-            newSeriesId,
-            amounts.newPrincipal,
-            amounts.oldEligible,
-            amounts.oldPending,
-            amounts.oldOptIn,
-            amounts.oldPendingSince
-        );
+        if (amounts.newPrincipal != 0) {
+            _stake(ps, positionId, newSeriesId, address(0), amounts.newPrincipal, false);
+        }
+        newPrincipal = amounts.newPrincipal;
         emit PositionMigrationSettled(
             positionId,
             oldSeriesId,
@@ -380,31 +392,53 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
             amounts.staticsDollarCredit,
             amounts.collateralCredit
         );
-        return (newSeriesId, amounts.newPrincipal);
     }
 
-    function closeLeg(uint256 positionId, uint256 seriesId) external nonReentrant {
+    function closeRiskLiquidity(uint256 positionId, uint256 seriesId) external nonReentrant {
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceOwnerOrApproved(ps, positionId);
-        LibPeriphery.PositionLeg storage positionLeg = _leg(ps, positionId, seriesId);
+        _enforceAuthorized(positionId);
+        LibPeriphery.PositionLeg storage leg_ = _leg(ps, positionId, seriesId);
         LibPeriphery.settleLeg(ps, positionId, seriesId);
-        if (positionLeg.optInStored != 0 && positionLeg.optInEpoch != ps.series[seriesId].optInEpoch) {
-            positionLeg.optInStored = 0;
-        } else {
-            LibPeriphery.clearZeroEffectiveOptInDust(ps, positionId, seriesId);
-        }
+        LibPeriphery.clearZeroValueLiquidity(ps, positionId, seriesId);
         if (
-            positionLeg.eligiblePrincipal != 0 || positionLeg.pendingPrincipal != 0 || positionLeg.optInStored != 0
-                || positionLeg.accruedCollateral != 0 || positionLeg.accruedStaticsDollar != 0
-        ) revert LegHasValue(positionId, seriesId);
+            leg_.stored != 0 || leg_.accruedCollateral != 0 || leg_.accruedStaticsDollar != 0
+                || leg_.accruedStatics != 0
+        ) {
+            revert RiskLiquidityHasValue(positionId, seriesId);
+        }
         delete ps.leg[positionId][seriesId];
         LibPeriphery.removeSeries(ps, positionId, seriesId);
         LibPosition.deactivateLeg(positionId, LibPosition.dollarLegKey(seriesId));
-        emit LegClosed(positionId, seriesId);
+        emit RiskLiquidityClosed(positionId, seriesId);
     }
 
-    function leg(uint256 positionId, uint256 seriesId) external view returns (LibPeriphery.PositionLeg memory) {
-        return LibPeriphery.s().leg[positionId][seriesId];
+    function riskLiquidity(uint256 positionId, uint256 seriesId)
+        external
+        view
+        override
+        returns (RiskLiquidityView memory view_)
+    {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        LibPeriphery.PositionLeg storage leg_ = ps.leg[positionId][seriesId];
+        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
+        (uint256 collateralAmount, uint256 staticsDollarAmount, uint256 staticsAmount) =
+            LibPeriphery.pendingProceeds(ps, positionId, seriesId);
+        view_ = RiskLiquidityView({
+            effectiveShares: leg_.epoch == book.epoch ? LibPeriphery.positionEffective(book, leg_.stored) : 0,
+            claimableCollateral: collateralAmount,
+            claimableStaticsDollar: staticsDollarAmount,
+            claimableStatics: staticsAmount,
+            epoch: leg_.epoch,
+            exists: leg_.exists
+        });
+    }
+
+    function totalRiskLiquidity(uint256 seriesId) external view override returns (uint256) {
+        return LibPeriphery.s().series[seriesId].effectivePrincipal;
+    }
+
+    function riskLiquidityScaleRay(uint256 seriesId) external view returns (uint256) {
+        return LibPeriphery.s().series[seriesId].scaleRay;
     }
 
     function positionSeriesCount(uint256 positionId) external view returns (uint256) {
@@ -423,135 +457,8 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         return LibPeriphery.s().migration[oldSeriesId];
     }
 
-    function rewardEligibleAt(uint256 positionId, uint256 seriesId) external view returns (uint256) {
-        LibPeriphery.PositionLeg storage positionLeg = _leg(LibPeriphery.s(), positionId, seriesId);
-        return positionLeg.pendingPrincipal == 0 ? 0 : positionLeg.pendingSince + LibPeriphery.REWARD_GATE;
-    }
-
-    function _creditMigratedPrincipal(
-        LibPeriphery.PS storage ps,
-        uint256 positionId,
-        uint256 seriesId,
-        uint256 newPrincipal,
-        uint256 oldEligible,
-        uint256 oldPending,
-        uint256 oldOptIn,
-        uint256 oldPendingSince
-    ) internal {
-        if (newPrincipal == 0) return;
-        uint256 oldTotal = oldEligible + oldPending + oldOptIn;
-        uint256 newEligible = Math.mulDiv(newPrincipal, oldEligible, oldTotal);
-        uint256 newOptInTarget = Math.mulDiv(newPrincipal, oldOptIn, oldTotal);
-        uint256 newPending = newPrincipal - newEligible - newOptInTarget;
-        LibPeriphery.PositionLeg storage newLeg = ps.leg[positionId][seriesId];
-        LibPeriphery.SeriesBook storage newBook = ps.series[seriesId];
-        if (!newLeg.exists) {
-            LibPosition.activateLeg(positionId, LibPosition.dollarLegKey(seriesId));
-            newLeg.exists = true;
-            newLeg.collateralPassiveCheckpointRay = newBook.collateralPassive.accPerStoredRay;
-            newLeg.staticsDollarPassiveCheckpointRay = newBook.staticsDollarPassive.accPerStoredRay;
-            newLeg.optInEpoch = newBook.optInEpoch;
-            newLeg.collateralOptInCheckpointRay = newBook.collateralOptIn[newBook.optInEpoch].accPerStoredRay;
-            newLeg.staticsDollarOptInCheckpointRay = newBook.staticsDollarOptIn[newBook.optInEpoch].accPerStoredRay;
-            LibPeriphery.addSeries(ps, positionId, seriesId);
-        } else {
-            LibPeriphery.settleLeg(ps, positionId, seriesId);
-        }
-        if (newLeg.optInEpoch != newBook.optInEpoch) {
-            newLeg.optInStored = 0;
-            newLeg.optInEpoch = newBook.optInEpoch;
-            newLeg.collateralOptInCheckpointRay = newBook.collateralOptIn[newBook.optInEpoch].accPerStoredRay;
-            newLeg.staticsDollarOptInCheckpointRay = newBook.staticsDollarOptIn[newBook.optInEpoch].accPerStoredRay;
-        }
-        LibPeriphery.ensureLiveOptInScale(newBook);
-        newLeg.eligiblePrincipal += newEligible;
-        newBook.eligiblePrincipal += newEligible;
-        if (newPending != 0) {
-            if (newLeg.pendingPrincipal == 0) {
-                newLeg.pendingPrincipal = newPending;
-                newLeg.pendingSince = oldPendingSince == 0 ? block.timestamp : oldPendingSince;
-            } else {
-                uint256 combined = newLeg.pendingPrincipal + newPending;
-                uint256 existingAge = block.timestamp - newLeg.pendingSince;
-                uint256 incomingSince = oldPendingSince == 0 ? block.timestamp : oldPendingSince;
-                uint256 incomingAge = block.timestamp - incomingSince;
-                uint256 weightedAge = Math.mulDiv(newLeg.pendingPrincipal, existingAge, combined)
-                    + Math.mulDiv(newPending, incomingAge, combined);
-                newLeg.pendingPrincipal = combined;
-                newLeg.pendingSince = block.timestamp - weightedAge;
-            }
-        }
-        if (newOptInTarget != 0) {
-            (uint256 stored, uint256 newOptIn) =
-                LibPeriphery.storedAdditionForEffectiveDown(newBook, newLeg.optInStored, newOptInTarget);
-            if (stored != 0) {
-                newLeg.optInStored += stored;
-                newBook.optInTotalStored += stored;
-                newBook.optInPrincipal += newOptIn;
-            }
-            uint256 optInDust = newOptInTarget - newOptIn;
-            if (optInDust != 0) LibPeriphery.addPending(newLeg, optInDust);
-        }
-    }
-
-    function _increaseLeg(LibPeriphery.PS storage ps, uint256 positionId, uint256 seriesId, uint256 amount) internal {
-        LibPeriphery.PositionLeg storage positionLeg = ps.leg[positionId][seriesId];
-        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-        if (!positionLeg.exists) {
-            bytes32 sharedLegKey = LibPosition.dollarLegKey(seriesId);
-            if (!LibPosition.positionStorage().activeLeg[positionId][sharedLegKey]) {
-                LibPosition.activateLeg(positionId, sharedLegKey);
-            }
-            positionLeg.exists = true;
-            positionLeg.collateralPassiveCheckpointRay = book.collateralPassive.accPerStoredRay;
-            positionLeg.staticsDollarPassiveCheckpointRay = book.staticsDollarPassive.accPerStoredRay;
-            positionLeg.optInEpoch = book.optInEpoch;
-            positionLeg.collateralOptInCheckpointRay = book.collateralOptIn[book.optInEpoch].accPerStoredRay;
-            positionLeg.staticsDollarOptInCheckpointRay = book.staticsDollarOptIn[book.optInEpoch].accPerStoredRay;
-            LibPeriphery.addSeries(ps, positionId, seriesId);
-        } else {
-            LibPeriphery.settleLeg(ps, positionId, seriesId);
-        }
-        LibPeriphery.ensureLiveOptInScale(book);
-        LibPeriphery.addPending(positionLeg, amount);
-        emit LegIncreased(positionId, seriesId, amount, positionLeg.pendingSince);
-    }
-
-    function _removeBasePrincipal(
-        LibPeriphery.PS storage ps,
-        uint256 seriesId,
-        LibPeriphery.PositionLeg storage positionLeg,
-        uint256 amount
-    ) internal {
-        uint256 pending = amount < positionLeg.pendingPrincipal ? amount : positionLeg.pendingPrincipal;
-        positionLeg.pendingPrincipal -= pending;
-        if (positionLeg.pendingPrincipal == 0) positionLeg.pendingSince = 0;
-        uint256 eligible = amount - pending;
-        if (eligible != 0) {
-            positionLeg.eligiblePrincipal -= eligible;
-            ps.series[seriesId].eligiblePrincipal -= eligible;
-        }
-    }
-
-    function _requireActive(LibPeriphery.PS storage ps, uint256 seriesId) internal view {
-        if (IStaticsDollarCore(ps.pool).riskSeries(seriesId).status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
-            revert SeriesNotActive(seriesId);
-        }
-    }
-
-    function _leg(LibPeriphery.PS storage ps, uint256 positionId, uint256 seriesId)
-        internal
-        view
-        returns (LibPeriphery.PositionLeg storage positionLeg)
-    {
-        positionLeg = ps.leg[positionId][seriesId];
-        if (!positionLeg.exists) revert UnknownLeg(positionId, seriesId);
-    }
-
-    function _enforceOwnerOrApproved(LibPeriphery.PS storage, uint256 positionId) internal view {
-        if (!LibPosition.isAuthorized(positionId, msg.sender)) {
-            revert NotPositionOwnerOrApproved(positionId, msg.sender);
-        }
+    function reservedBalance(address token) external view returns (uint256) {
+        return LibPeriphery.s().reservedByToken[token];
     }
 
     function pool() external view returns (address) {
@@ -598,7 +505,154 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         return interfaceId == type(IERC1155Receiver).interfaceId;
     }
 
-    function _pullRisk(LibPeriphery.PS storage ps, address from, uint256 seriesId, uint256 amount) internal {
+    function _stake(
+        LibPeriphery.PS storage ps,
+        uint256 positionId,
+        uint256 seriesId,
+        address supplier,
+        uint256 amount,
+        bool pull
+    ) private {
+        LibPeriphery.PositionLeg storage leg_ = ps.leg[positionId][seriesId];
+        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
+        if (!leg_.exists) {
+            bytes32 legKey = LibPosition.dollarLegKey(seriesId);
+            if (!LibPosition.positionStorage().activeLeg[positionId][legKey]) {
+                LibPosition.activateLeg(positionId, legKey);
+            }
+            leg_.exists = true;
+            leg_.epoch = book.epoch;
+            leg_.collateralCheckpointRay = book.collateralProceeds[book.epoch].accPerStoredRay;
+            leg_.staticsDollarCheckpointRay = book.staticsDollarProceeds[book.epoch].accPerStoredRay;
+            leg_.staticsCheckpointRay = book.staticsProceeds[book.epoch].accPerStoredRay;
+            LibPeriphery.addSeries(ps, positionId, seriesId);
+        } else {
+            LibPeriphery.settleLeg(ps, positionId, seriesId);
+            LibPeriphery.clearZeroValueLiquidity(ps, positionId, seriesId);
+        }
+        uint256 storedAdded = LibPeriphery.addLiquidity(book, amount);
+        leg_.stored += storedAdded;
+        leg_.epoch = book.epoch;
+        leg_.collateralCheckpointRay = book.collateralProceeds[book.epoch].accPerStoredRay;
+        leg_.staticsDollarCheckpointRay = book.staticsDollarProceeds[book.epoch].accPerStoredRay;
+        leg_.staticsCheckpointRay = book.staticsProceeds[book.epoch].accPerStoredRay;
+        if (pull) _pullRisk(ps, supplier, seriesId, amount);
+        emit RiskSharesStaked(positionId, seriesId, supplier, amount);
+    }
+
+    function _requireActive(LibPeriphery.PS storage ps, uint256 seriesId) private view {
+        if (IStaticsDollarCore(ps.pool).riskSeries(seriesId).status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
+            revert SeriesNotActive(seriesId);
+        }
+    }
+
+    function _requireIncentiveEligible(LibPeriphery.PS storage ps, uint256 seriesId)
+        private
+        view
+        returns (IStaticsDollarCoreTypes.RiskSeries memory series)
+    {
+        IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
+        series = core.riskSeries(seriesId);
+        IStaticsDollarCoreTypes.ProfileMode mode = core.collateralProfile(series.profileId).mode;
+        if (
+            series.status != IStaticsDollarCoreTypes.SeriesStatus.Active
+                || (mode != IStaticsDollarCoreTypes.ProfileMode.Active
+                    && mode != IStaticsDollarCoreTypes.ProfileMode.ReduceOnly)
+        ) {
+            revert SeriesNotIncentiveEligible(seriesId);
+        }
+    }
+
+    function _finalizeRiskIncentives(
+        LibPeriphery.PS storage ps,
+        uint256 seriesId,
+        IStaticsDollarCoreTypes.RiskSeries memory series
+    ) private returns (uint256 destinationSeriesId, bool routedGlobal) {
+        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
+        if (book.incentivesFinalized) {
+            return (book.incentiveDestinationSeriesId, book.incentivesRoutedGlobal);
+        }
+
+        IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
+        if (profile.mode != IStaticsDollarCoreTypes.ProfileMode.Retired) {
+            destinationSeriesId = profile.activeSeriesId;
+            if (
+                (series.status != IStaticsDollarCoreTypes.SeriesStatus.Recoverable
+                        && series.status != IStaticsDollarCoreTypes.SeriesStatus.Closed)
+                    || destinationSeriesId == seriesId
+                    || core.riskSeries(destinationSeriesId).status != IStaticsDollarCoreTypes.SeriesStatus.Active
+            ) {
+                revert SeriesIncentivesNotFinalizable(seriesId);
+            }
+        } else if (
+            series.status != IStaticsDollarCoreTypes.SeriesStatus.Recoverable
+                && series.status != IStaticsDollarCoreTypes.SeriesStatus.Retired
+                && series.status != IStaticsDollarCoreTypes.SeriesStatus.Closed
+        ) {
+            revert SeriesIncentivesNotFinalizable(seriesId);
+        }
+
+        uint256 collateralAmount = book.collateralIncentiveReserve;
+        uint256 staticsDollarAmount = book.staticsDollarIncentiveReserve;
+        uint256 staticsAmount = book.staticsIncentiveReserve;
+        book.collateralIncentiveReserve = 0;
+        book.staticsDollarIncentiveReserve = 0;
+        book.staticsIncentiveReserve = 0;
+        book.incentiveDestinationSeriesId = destinationSeriesId;
+        book.incentivesRoutedGlobal = profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired;
+        book.incentivesFinalized = true;
+        routedGlobal = book.incentivesRoutedGlobal;
+
+        if (routedGlobal) {
+            _routeRiskIncentiveGlobal(ps, series.collateralToken, collateralAmount);
+            _routeRiskIncentiveGlobal(ps, ps.staticsDollar, staticsDollarAmount);
+            _routeRiskIncentiveGlobal(ps, ps.staticsToken, staticsAmount);
+            emit RiskIncentivesRoutedGlobal(seriesId, collateralAmount, staticsDollarAmount, staticsAmount);
+        } else {
+            LibPeriphery.SeriesBook storage destination = ps.series[destinationSeriesId];
+            destination.collateralIncentiveReserve += collateralAmount;
+            destination.staticsDollarIncentiveReserve += staticsDollarAmount;
+            destination.staticsIncentiveReserve += staticsAmount;
+            emit RiskIncentivesRolledOver(
+                seriesId, destinationSeriesId, collateralAmount, staticsDollarAmount, staticsAmount
+            );
+        }
+    }
+
+    function _routeRiskIncentiveGlobal(LibPeriphery.PS storage ps, address token, uint256 amount) private {
+        if (amount == 0) return;
+        ps.reservedByToken[token] -= amount;
+        LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), token, amount);
+    }
+
+    function _fundRiskIncentives(LibPeriphery.PS storage ps, uint256 seriesId, address token, uint256 amount)
+        private
+        returns (uint256 received)
+    {
+        if (amount == 0) revert ZeroAmount();
+        received = LibCustody.pull(token, msg.sender, amount);
+        if (received == 0) revert ZeroAmount();
+        LibPeriphery.reserve(ps, token, received);
+        emit RiskIncentivesFunded(seriesId, token, msg.sender, amount, received);
+    }
+
+    function _leg(LibPeriphery.PS storage ps, uint256 positionId, uint256 seriesId)
+        private
+        view
+        returns (LibPeriphery.PositionLeg storage leg_)
+    {
+        leg_ = ps.leg[positionId][seriesId];
+        if (!leg_.exists) revert UnknownRiskLiquidity(positionId, seriesId);
+    }
+
+    function _enforceAuthorized(uint256 positionId) private view {
+        if (!LibPosition.isAuthorized(positionId, msg.sender)) {
+            revert NotPositionOwnerOrApproved(positionId, msg.sender);
+        }
+    }
+
+    function _pullRisk(LibPeriphery.PS storage ps, address from, uint256 seriesId, uint256 amount) private {
         _expectRiskIngress(ps, address(this), from, seriesId, amount);
         IERC1155(ps.staticsDollarRisk).safeTransferFrom(from, address(this), seriesId, amount, "");
         _requireRiskIngressConsumed(ps);
@@ -610,7 +664,7 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         address from,
         uint256 seriesId,
         uint256 amount
-    ) internal {
+    ) private {
         if (amount == 0) return;
         if (ps.expectedRiskIngress.active) revert UnexpectedRiskIngressState();
         ps.expectedRiskIngress = LibPeriphery.ExpectedRiskIngress({
@@ -618,7 +672,39 @@ contract StakingFacet is IERC1155Receiver, ReentrancyGuard {
         });
     }
 
-    function _requireRiskIngressConsumed(LibPeriphery.PS storage ps) internal view {
+    function _requireRiskIngressConsumed(LibPeriphery.PS storage ps) private view {
         if (ps.expectedRiskIngress.active) revert UnexpectedRiskIngressState();
+    }
+
+    function _pushRiskProceeds(
+        LibPeriphery.PS storage ps,
+        address receiver,
+        address collateralToken,
+        uint256 collateralAmount,
+        address dollarToken,
+        uint256 dollarAmount,
+        address staticsToken_,
+        uint256 staticsAmount
+    ) private {
+        if (dollarToken == collateralToken) {
+            collateralAmount += dollarAmount;
+            dollarAmount = 0;
+        }
+        if (staticsToken_ == collateralToken) {
+            collateralAmount += staticsAmount;
+            staticsAmount = 0;
+        } else if (staticsToken_ == dollarToken) {
+            dollarAmount += staticsAmount;
+            staticsAmount = 0;
+        }
+        _pushRiskToken(ps, receiver, collateralToken, collateralAmount);
+        _pushRiskToken(ps, receiver, dollarToken, dollarAmount);
+        _pushRiskToken(ps, receiver, staticsToken_, staticsAmount);
+    }
+
+    function _pushRiskToken(LibPeriphery.PS storage ps, address receiver, address token, uint256 amount) private {
+        if (amount == 0) return;
+        ps.reservedByToken[token] -= amount;
+        LibCustody.pushReserved(LibCustody.dollarAccount(), token, receiver, amount, amount);
     }
 }

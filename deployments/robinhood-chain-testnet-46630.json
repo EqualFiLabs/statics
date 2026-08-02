@@ -1,0 +1,73 @@
+{
+  "network": "Robinhood Chain Testnet",
+  "chainId": 46630,
+  "forkBlock": 94203705,
+  "forkBlockHash": "0x46e96f2a5482c3cb72087a1c879dd11431eb23ab4268af79c9456c9a10f15c2f",
+  "forkBlockTimestamp": 1785213756,
+  "verifiedAt": "2026-07-27",
+  "rpcDocumentation": "https://docs.robinhood.com/chain/connecting/",
+  "contractDocumentation": "https://docs.robinhood.com/chain/contracts/",
+  "sourceProvenance": {
+    "blockExplorer": "https://explorer.testnet.chain.robinhood.com/",
+    "blockscoutApi": "https://explorer.testnet.chain.robinhood.com/api/",
+    "v4Periphery": "https://github.com/Uniswap/v4-periphery/tree/3779387e5d296f39df543d23524b050f89a62917",
+    "v4Core": "https://github.com/Uniswap/v4-core/tree/59d3ecf53afa9264a16bba0e38f4c5d2231f80bc",
+    "permit2": "https://github.com/Uniswap/permit2/tree/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "staticsLiquidityCalibration": {
+    "inputFeeBps": 25,
+    "outputFeeBps": 25,
+    "hookPermissionMask": "0x10cc",
+    "canonicalLpFeePips": 0,
+    "canonicalTickSpacing": 10,
+    "poolWarmupSeconds": 3600,
+    "referenceWindowSeconds": 1800,
+    "maximumDeviationBps": 100,
+    "polShareBps": 4000,
+    "liquidityProviderShareBps": 1000,
+    "basketStakerShareBps": 2000,
+    "staticsStakerShareBps": 2000,
+    "treasuryShareBps": 1000,
+    "hookPermissions": [
+      "afterInitialize",
+      "beforeSwap",
+      "beforeSwapReturnDelta",
+      "afterSwap",
+      "afterSwapReturnDelta"
+    ]
+  },
+  "contracts": {
+    "poolManager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "runtimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    "positionDescriptor": {
+      "address": "0x9639443158E8C5efa35Bd45287bf2EFfd3D8dC06",
+      "runtimeCodeHash": "0x09d3b199609b46e8921e47c5d0d98ae083e70d2d3b63a6099dc7e947b2f58b20"
+    },
+    "positionManager": {
+      "address": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+      "runtimeCodeHash": "0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d"
+    },
+    "quoter": {
+      "address": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+      "runtimeCodeHash": "0xd707b1da8cb165e5ea35a3b4450d971eb562ec171e23492aa117036b78a868f6"
+    },
+    "stateView": {
+      "address": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+      "runtimeCodeHash": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6"
+    },
+    "reservesLens": {
+      "address": "0x0000001b173C3bbF3984D417d8614E3eed34865B",
+      "runtimeCodeHash": "0x157a3174cbad65b8ff57b8fbf94253b58be07398593d7d677e4fd6051e16ca91"
+    },
+    "universalRouter": {
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "runtimeCodeHash": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f"
+    },
+    "permit2": {
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "runtimeCodeHash": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259"
+    }
+  }
+}

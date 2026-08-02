@@ -22,7 +22,7 @@ canonical launcher reads:
 | `MULTISIG` | Sole initial timelock proposer |
 | `GUARDIAN` | Basket guardian and initial Dollar profile guardian |
 | `TREASURY` | Common basket and Statics Dollar protocol treasury |
-| `STAKING_TOKEN` | Verified deployed ERC-20 used as the immutable global staking denominator |
+| `STAKING_TOKEN` | Deployed `StaticsToken` address used as the immutable global staking denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | `0` closes public creation and permits owner-only zero-value genesis; a positive value opens exact-fee public creation |
 | `WETH_ADDRESS` | Verified canonical WETH for the target chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
@@ -45,11 +45,24 @@ feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
 this repository. Verify chain-specific contracts and make the economic choices
 before broadcasting.
 
-Robinhood Chain v4 dependencies are pinned in
-`deployments/robinhood-chain-4663.json`. The SDK generates its address binding
-from that file. Production liquidity configuration must use the same
-PoolManager, PositionManager, Permit2, hook calibration, and recorded code
-hashes; Solidity contracts do not embed chain-specific addresses.
+Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the protocol with
+`script/DeployStaticsToken.s.sol:DeployStaticsToken`. Set
+`STATICS_TOKEN_RECIPIENT` and `STATICS_TOKEN_INITIAL_SUPPLY`, then use the
+resulting address as `STAKING_TOKEN`. The token supports ERC-2612 permit and has
+no post-deployment mint authority.
+
+Robinhood Chain v4 dependencies are pinned separately for mainnet and testnet:
+
+- `deployments/robinhood-chain-4663.json`
+- `deployments/robinhood-chain-testnet-46630.json`
+
+The launcher selects the manifest from `block.chainid` and rejects unsupported
+chains. This separation is required because the testnet PositionManager,
+Permit2, and Universal Router runtime hashes differ from mainnet even though
+their addresses are the same. Production liquidity configuration must use the
+selected manifest's PoolManager, PositionManager, Permit2, hook calibration,
+and recorded code hashes; Solidity contracts do not embed those addresses.
+The SDK's existing generated Robinhood binding remains mainnet-specific.
 
 The target network must implement Cancun transient storage (EIP-1153).
 `FlashLoanFacet` uses OpenZeppelin's transient reentrancy guard so callbacks can
@@ -75,8 +88,9 @@ a series ID or Risk Shares.
 
 The launcher performs one creation broadcast in this order:
 
-1. Deploy `StaticsTimelock` with an initial seven-day delay, the multisig as
-   proposer and canceller, open execution, and no bootstrap admin.
+1. Deploy `StaticsTimelock` with the current 15-minute Robinhood testnet delay,
+   the multisig as proposer and canceller, open execution, and no bootstrap
+   admin. Restore the intended seven-day delay before production deployment.
 2. Deploy the Chainlink-backed Dollar oracle adapter.
 3. Deploy the eleven Dollar Core facets and Core initializer.
 4. Predict the Core address, deploy the permit-enabled `StaticsDollar` ERC-20 and
@@ -116,6 +130,18 @@ Run the focused deployment proof before any rehearsal:
 
 ```bash
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
+forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
+forge test --match-path test/deployment/DeployStaticsToken.t.sol -vv
+```
+
+The Robinhood testnet dependency proof is read-only and pinned to the block in
+the testnet manifest:
+
+```bash
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  forge test \
+  --match-path test/liquidity/fork/RobinhoodTestnetV4DeploymentFork.t.sol \
+  -vv
 ```
 
 For a local full-stack rehearsal, call `DeployStatics.deployWithLiquidity` with
@@ -134,6 +160,44 @@ forge script script/DeployStatics.s.sol:DeployStatics \
   --broadcast \
   -vv
 ```
+
+For Robinhood testnet, first deploy and verify the fixed-supply staking token:
+
+```bash
+forge script script/DeployStaticsToken.s.sol:DeployStaticsToken \
+  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
+  --chain-id 46630 \
+  --broadcast \
+  --verify \
+  --verifier blockscout \
+  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
+  -vv
+```
+
+Then set `STAKING_TOKEN` to that confirmed address and simulate the full
+launcher without `--broadcast`. After explicit authorization for the protocol
+broadcast, publish its sources in the same operation:
+
+```bash
+forge script script/DeployStatics.s.sol:DeployStatics \
+  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
+  --chain-id 46630 \
+  --broadcast \
+  --verify \
+  --verifier blockscout \
+  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
+  --retries 20 \
+  --delay 5 \
+  -vv
+```
+
+Robinhood Explorer uses Blockscout's verification API. An API key is not
+required by the current testnet endpoint. A successful Forge broadcast is not
+by itself verification evidence: open every created address under
+`$ROBINHOOD_TESTNET_EXPLORER_URL`, confirm that it is marked verified, and
+preserve the Forge broadcast artifact and explorer links in the release
+record. Diamond facets and constructor-only dependencies must each be verified;
+verifying only the two Diamond addresses is insufficient.
 
 After the creation transactions confirm, compare every emitted address and
 runtime hash to the manifest, populate the four liquidity ceremony variables,
@@ -201,7 +265,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           22 facets, 183 selectors
+StaticsDiamond:           21 facets, 188 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -210,9 +274,10 @@ Core owner == Diamond owner == StaticsTimelock
 Against the deployed addresses, verify:
 
 1. both `owner()` values equal the timelock;
-2. `getMinDelay()` equals the authorized current delay (seven days at genesis),
-   the intended proposer/canceller and executor roles are present, and the
-   emergency guardian has no timelock cancellation authority;
+2. `getMinDelay()` equals the authorized current delay (15 minutes for the
+   Robinhood testnet deployment and seven days for the intended production
+   launch), the intended proposer/canceller and executor roles are present, and
+   the emergency guardian has no timelock cancellation authority;
 3. the Diamond's `guardian()`, `treasury()`, `creationFee()`, `stakingToken()`,
    `totalStaked()`, selected reward-asset books, and treasury accruals match the
    authorized launch configuration;

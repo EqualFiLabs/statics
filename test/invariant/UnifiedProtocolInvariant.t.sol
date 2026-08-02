@@ -23,9 +23,7 @@ import {IStaticsDollarGateway} from "src/dollar/interfaces/IStaticsDollarGateway
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 import {FeeRouterFacet} from "src/dollar/periphery/facets/FeeRouterFacet.sol";
-import {RewardsFacet} from "src/dollar/periphery/facets/RewardsFacet.sol";
 import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
-import {LibPeriphery} from "src/dollar/periphery/libraries/LibPeriphery.sol";
 import {IStaticsBasket} from "src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "src/interfaces/IStaticsBasketCollateral.sol";
@@ -77,7 +75,6 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     IStaticsPosition internal immutable POSITIONS;
     IERC721 internal immutable POSITION_NFT;
     StakingFacet internal immutable STAKING;
-    RewardsFacet internal immutable DOLLAR_REWARDS;
     FeeRouterFacet internal immutable FEE_ROUTER;
     IStaticsGlobalRewards internal immutable GLOBAL_REWARDS;
 
@@ -117,7 +114,6 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
         POSITIONS = IStaticsPosition(config.diamond);
         POSITION_NFT = IERC721(config.diamond);
         STAKING = StakingFacet(config.diamond);
-        DOLLAR_REWARDS = RewardsFacet(config.diamond);
         FEE_ROUTER = FeeRouterFacet(config.diamond);
         GLOBAL_REWARDS = IStaticsGlobalRewards(config.diamond);
         FIRST_BASKET_ID = config.firstBasketId;
@@ -160,40 +156,26 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
             uint256 stakeAmount = sharesMinted / 2;
             if (stakeAmount != 0) {
                 if (sharedPositionId == 0) {
-                    try STAKING.createAndStake(SERIES_ID, stakeAmount, address(this)) returns (uint256 newPositionId) {
+                    try STAKING.createAndStakeRiskShares(SERIES_ID, stakeAmount, address(this)) returns (
+                        uint256 newPositionId
+                    ) {
                         sharedPositionId = newPositionId;
                     } catch {}
                 } else {
-                    try STAKING.stake(sharedPositionId, SERIES_ID, stakeAmount) {} catch {}
+                    try STAKING.stakeRiskShares(sharedPositionId, SERIES_ID, stakeAmount) {} catch {}
                 }
             }
         } catch {}
         _observeDollarIsolation(basketReservationsBefore);
     }
 
-    function activateAndClaimDollar() external {
+    function claimDollarProceeds() external {
         if (sharedPositionId == 0) return;
         bytes32 basketReservationsBefore = _basketReservationsHash();
-        LibPeriphery.PositionLeg memory current = STAKING.leg(sharedPositionId, SERIES_ID);
-        if (current.pendingPrincipal != 0) {
-            vm.warp(block.timestamp + 24 hours);
-            try STAKING.activateLeg(sharedPositionId, SERIES_ID) {} catch {}
+        StakingFacet.RiskLiquidityView memory state = STAKING.riskLiquidity(sharedPositionId, SERIES_ID);
+        if (state.claimableCollateral != 0 || state.claimableStaticsDollar != 0 || state.claimableStatics != 0) {
+            try STAKING.claimRiskProceeds(sharedPositionId, SERIES_ID, address(this)) {} catch {}
         }
-        (uint256 collateralReward, uint256 dollarReward) =
-            DOLLAR_REWARDS.pendingSeriesRewards(sharedPositionId, SERIES_ID);
-        if (collateralReward != 0 || dollarReward != 0) {
-            try DOLLAR_REWARDS.claimSeriesRewards(sharedPositionId, SERIES_ID, address(this)) {} catch {}
-        }
-        _observeDollarIsolation(basketReservationsBefore);
-    }
-
-    function donateDollarRewards(uint256 rawAmount) external {
-        if (sharedPositionId == 0) return;
-        uint256 balance = STATICS_DOLLAR.balanceOf(address(this));
-        if (balance == 0) return;
-        bytes32 basketReservationsBefore = _basketReservationsHash();
-        uint256 amount = bound(rawAmount, 1, balance);
-        try DOLLAR_REWARDS.donateStaticsDollarRewards(SERIES_ID, amount, 0) {} catch {}
         _observeDollarIsolation(basketReservationsBefore);
     }
 
@@ -596,7 +578,6 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     IStaticsLending internal lending;
     IStaticsCustody internal custody;
     IStaticsPosition internal positions;
-    RewardsFacet internal dollarRewards;
     FeeRouterFacet internal feeRouter;
     IStaticsGlobalRewards internal globalRewards;
     StakingFacet internal staking;
@@ -630,7 +611,6 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         lending = IStaticsLending(deployment.diamond);
         custody = IStaticsCustody(deployment.diamond);
         positions = IStaticsPosition(deployment.diamond);
-        dollarRewards = RewardsFacet(deployment.diamond);
         feeRouter = FeeRouterFacet(deployment.diamond);
         globalRewards = IStaticsGlobalRewards(deployment.diamond);
         staking = StakingFacet(deployment.diamond);
@@ -737,11 +717,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         _assertBasketBooks(secondBasketId, secondBasketToken);
 
         bytes32 dollarAccount = custody.dollarCustodyAccount();
-        uint256 wethLiabilities = dollarRewards.reservedBalance(address(weth)) + feeRouter.pendingInsurance(1);
+        uint256 wethLiabilities = staking.reservedBalance(address(weth)) + feeRouter.pendingInsurance(1);
         assertEq(custody.reservedByAccount(dollarAccount, address(weth)), wethLiabilities);
         assertEq(
             custody.reservedByAccount(dollarAccount, address(staticsDollar)),
-            dollarRewards.reservedBalance(address(staticsDollar))
+            staking.reservedBalance(address(staticsDollar))
         );
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), address(senderExtra)),
@@ -766,11 +746,9 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         IERC721(deployment.diamond).ownerOf(positionId);
 
         uint256 expectedActiveLegs;
-        LibPeriphery.PositionLeg memory dollarLeg = staking.leg(positionId, 1);
-        (uint256 collateralReward, uint256 dollarReward) = dollarRewards.pendingSeriesRewards(positionId, 1);
-        bool dollarHasValue = dollarLeg.pendingPrincipal != 0 || dollarLeg.eligiblePrincipal != 0
-            || dollarLeg.optInStored != 0 || dollarLeg.accruedCollateral != 0 || dollarLeg.accruedStaticsDollar != 0
-            || collateralReward != 0 || dollarReward != 0;
+        StakingFacet.RiskLiquidityView memory dollarLeg = staking.riskLiquidity(positionId, 1);
+        bool dollarHasValue = dollarLeg.effectiveShares != 0 || dollarLeg.claimableCollateral != 0
+            || dollarLeg.claimableStaticsDollar != 0 || dollarLeg.claimableStatics != 0;
         if (dollarHasValue) {
             assertTrue(positions.isPositionLegActive(positionId, LibPosition.dollarLegKey(1)));
         }

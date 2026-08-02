@@ -98,6 +98,14 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(timelock)));
         basketLiquidity.activateCanonicalPool(basketId, assets[0]);
 
+        (,, uint40 warmup,,) = basketLiquidity.liquiditySafetyParameters();
+        IStaticsBasketLiquidity.CanonicalPoolView memory warmingPool =
+            basketLiquidity.canonicalPool(basketId, assets[0]);
+        uint256 poolReadyAt = uint256(warmingPool.initializedAt) + warmup;
+        uint256 activationExecutionAt = block.timestamp + timelock.getMinDelay();
+        if (activationExecutionAt < poolReadyAt) {
+            vm.warp(poolReadyAt - timelock.getMinDelay());
+        }
         _executeThroughTimelock(
             timelock,
             abi.encodeCall(IStaticsBasketLiquidity.activateCanonicalPool, (basketId, assets[0])),

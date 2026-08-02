@@ -158,7 +158,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **22 facets / 186 selectors** on `StaticsDiamond`; and
+- **21 facets / 183 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These are source-revision expectations verified through loupe enumeration, not
@@ -208,7 +208,8 @@ One PositionNFT can own several independent legs:
 - a global staking balance and accrued multi-asset claims;
 - deposited and locked BasketTokens used as lending collateral;
 - independent basket loan tranches;
-- Statics Dollar passive or opt-in risk-share legs; and
+- immediately consumable Statics Dollar Risk Share liquidity and its fill
+  proceeds; and
 - pairing-vault state.
 
 ERC-721 ownership and approvals authorize attached legs. Transferring the NFT
@@ -665,16 +666,40 @@ Core state.
 
 ### Dollar reward and insurance routing
 
-Dollar Risk Share passive and opt-in rewards remain distinct from global
-staking. For an active volatile series in an eligible profile mode, the
-configured insurance portion routes to insurance. Of the remaining reward
-share, 30% enters the global non-swap fee ledger and 70% enters the series'
-opt-in reserve. When the series or profile mode is ineligible, the would-be
-reward share routes to insurance instead.
+For an active volatile series in an eligible profile mode, the configured
+insurance portion routes to insurance and the complete remaining reward share
+enters the global Statics non-swap fee ledger. Risk Share positions receive no
+mint-fee, ordinary-recombination-fee, donation, or passive allocation. When the
+series or profile mode is ineligible, the would-be global reward share routes
+to insurance instead.
 
 This coexistence does not merge Dollar collateral held by Core with Diamond
 custody. Only fees explicitly transferred to the periphery enter shared
 reservations.
+
+### Risk Share positions and pairing liquidity
+
+`createAndStakeRiskShares` and `stakeRiskShares` place Risk Shares into
+immediately consumable pairing liquidity owned by a PositionNFT. There is no
+pending tranche, reward gate, passive tier, or separate opt-in action.
+`unstakeRiskShares` returns unconsumed effective principal at any time.
+
+`PairingVaultFacet.redeem` and `redeemToETH` let a Statics Dollar holder
+recombine against available supplied Risk Shares. The flow may fill partially,
+uses the explicit managed Core path, and enforces caller-supplied minimum fill,
+minimum collateral-per-Dollar rate, and deadline. The fixed senior allocation
+goes to the redeemer. Consumed suppliers receive their complete junior
+collateral residual plus 80% of the pairing fee; the remaining 20% tops up
+insurance. A series-and-epoch index records only proceeds created by an actual
+fill, preventing a later supplier from claiming earlier proceeds without
+looping over PositionNFTs.
+
+Series transitions are processed once at aggregate Diamond custody and settled
+per position lazily. Successor Risk Shares corresponding to supplied
+predecessor liquidity remain supplied, while recovery-created Dollar and
+collateral credits remain claimable from the predecessor leg. A Dollar leg
+cannot be closed while Risk liquidity, fill proceeds, or migration value
+remains.
 
 ## Custody, Reservations, and Accounting Isolation
 
@@ -763,7 +788,8 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
-One `StaticsTimelock` owns both Diamonds. The genesis delay is seven days, the
+One `StaticsTimelock` owns both Diamonds. The current Robinhood testnet delay is
+15 minutes; the production launch delay remains intended to be seven days. The
 configured multisig is proposer and canceller, execution is open after delay,
 and the emergency guardian is not a timelock canceller.
 
@@ -833,6 +859,7 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Hook reads | `IStaticsSwapFeeHook` |
 | Manager reads | `IStaticsLiquidityManager` |
 | Dollar gateway | `IStaticsDollarGateway` |
+| Dollar Risk liquidity | `IStaticsDollarRiskLiquidity` |
 | Dollar Core | `IStaticsDollarCore` |
 
 Integrators should quote immediately before submission, provide explicit
@@ -843,7 +870,7 @@ and reconcile indexed events against current views after reorgs.
 
 `script/DeployStatics.s.sol:DeployStatics` is the canonical full-stack
 launcher. It deploys the timelock, Dollar oracle adapter, Core facets and
-Diamond, Dollar tokens, 22 unified facets and `StaticsDiamond`, and the
+Diamond, Dollar tokens, 21 unified facets and `StaticsDiamond`, and the
 immutable v4 hook and manager. A separate timelock ceremony installs the hook
 and manager into the Diamond.
 
@@ -1124,6 +1151,7 @@ output fee rates.
 51. Canonical LP custody entry requires the LP NFT and PositionNFT to have the same current owner.
 52. Dollar expired-risk recovery includes its quoted keeper bounty; basket-loan recovery pays its own fixed 20% share of configured penalty backing.
 53. `borrowAndStakeLiquidity` keeps borrowed BasketToken collateral basket-reward eligible while activating its newly custodied full-range LP weight no earlier than the next block.
+54. Staked Dollar Risk Shares are immediately consumable; unconsumed effective principal remains withdrawable and only a pairing fill creates supplier proceeds.
 
 ## Appendix C: Terminology
 

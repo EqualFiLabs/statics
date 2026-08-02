@@ -15,7 +15,7 @@ StaticsDiamond
 ├── PositionNFT ERC-721
 ├── Statics Basket creation, mint, redeem, lending, and flash loans
 ├── global staking and checkpointed multi-asset rewards
-└── Statics Dollar staking, rewards, opt-in, pairing, pegged fee routing, and typed gateway
+└── Statics Dollar Risk liquidity, pairing, fee routing, recovery, and typed gateway
 
 StaticsDollarCoreDiamond
 ├── volatile-series issuance and direct pegged wrappers
@@ -40,7 +40,7 @@ Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
 neither standalone contract is a second general protocol entrypoint.
 
-The canonical deployment installs 23 facets and 195 selectors on
+The canonical deployment installs 21 facets and 188 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -60,7 +60,7 @@ separately namespaced:
 
 - PositionNFT ownership and active-leg state;
 - global and module-local physical reservations;
-- Statics Dollar staking, passive rewards, opt-in rewards, migration, and
+- Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;
 - pegged-profile fee ingress;
 - per-basket backing and collateral;
@@ -240,11 +240,12 @@ maintain a second upgrade policy beside ownership.
 The canonical launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
 of both Diamonds. Core administration derives from the Core Diamond owner; it
 does not maintain a second protocol-governor role, internal proposal queue, or
-irreversible configuration locks. The delay initializes to seven days and can
-change only through a scheduled timelock call to the timelock itself. The
-configured multisig proposes and may cancel scheduled operations, while
-execution is open after the current delay. The emergency guardian is not a
-timelock canceller.
+irreversible configuration locks. The current Robinhood testnet build
+initializes the delay to 15 minutes; the intended production launch delay
+remains seven days. After deployment, the delay can change only through a
+scheduled timelock call to the timelock itself. The configured multisig proposes
+and may cancel scheduled operations, while execution is open after the current
+delay. The emergency guardian is not a timelock canceller.
 
 The basket guardian can immediately pause exposure-increasing actions and
 quarantine baskets. Only timelocked governance can unpause, release quarantine,

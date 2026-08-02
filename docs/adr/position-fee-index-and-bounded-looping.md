@@ -74,9 +74,9 @@ StaticsDiamond
 ├── shared PositionNFT ERC-721, ownership, approvals, and position lifecycle
 ├── shared physical-token reservation and reentrancy accounting
 ├── Statics Dollar periphery
-│   ├── risk-series staking and migration
-│   ├── passive and opt-in rewards
-│   └── pairing-vault liquidity
+│   ├── consumable risk-series liquidity and migration
+│   ├── fill-created collateral proceeds
+│   └── pairing-vault redemption
 └── Statics Baskets
     ├── governed genesis and permissionless minting and redemption
     ├── multi-asset fee indexes
@@ -182,17 +182,17 @@ custody boundaries.
 
 A single position ID may own any combination of:
 
-- Statics Dollar risk-series legs and their passive or opt-in rewards;
+- Statics Dollar consumable Risk Share liquidity and fill proceeds;
 - deposited Statics BasketTokens from one or more baskets;
 - per-basket multi-asset fee checkpoints and claims; and
 - per-basket locked collateral, proportional debt, and maturity state.
 
 Position ownership, approvals, transfer, enumeration, and destruction are
 shared. Each product module retains namespaced storage beneath the common
-position ID. Statics Dollar series rewards accrue only to the corresponding
-Dollar series principal, and basket fees accrue only to eligible principal in
-the corresponding basket. Holding one module in a position never grants a
-claim on the other module's fees.
+position ID. Statics Dollar pairing proceeds accrue only when that series'
+supplied Risk Shares are consumed, and basket fees accrue only to eligible
+principal in the corresponding basket. Holding one module in a position never
+grants a claim on the other module's fees.
 
 The shared position lifecycle tracks whether any module still owns value or an
 obligation. A position cannot be burned while it has a Dollar series leg, a
@@ -368,55 +368,50 @@ series ID or junior-token compatibility path, and loan extension exposes no
 BasketToken-fee compatibility selector. Statics targets fresh deployments; no
 storage migration or legacy ABI is retained.
 
-### Volatile fee routing and pairing-triggered opt-in rewards
+### Volatile fee routing and consumption-only Risk liquidity
 
-Fees from volatile Statics Dollar series retain separate passive, opt-in, and
-insurance destinations. The initial deployment routes 70% of each eligible
-series fee to rewards and 30% to insurance, then divides the reward share 30%
-to passive positions and 70% to opt-in positions. The effective initial split
-is therefore:
+Risk Shares earn only when a pairing redemption consumes them. There is no
+passive tier, activation delay, opt-in conversion, or automatic series-fee
+allocation. Staking a Risk Share makes it immediately available for
+proportional consumption; unconsumed shares remain withdrawable.
 
-```text
-passive positions = 21%
-opt-in positions  = 49%
-insurance         = 30%
-```
+Eligible volatile-series mint and ordinary recombination fees retain the
+configured 70% reward and 30% insurance split. The complete reward share enters
+the global Statics non-swap ledger. When the series or profile mode is
+ineligible, the would-be reward share routes to insurance. Pegged-profile fees
+continue to enter the global Statics ledger without a Risk Share allocation.
 
-These parameters remain timelock-configurable. Fees from pegged profiles do
-not enter this split: they remain 100% isolated pegged protocol revenue.
+The managed pairing path charges one independent initial 50-basis-point fee on
+the senior collateral allocation. A fill credits the consumed Risk suppliers
+with their complete junior collateral residual plus 80% of that pairing fee;
+the remaining 20% tops up profile insurance. A per-epoch collateral index makes
+those proceeds claimable without looping over PositionNFTs. The index is
+advanced only by an actual fill, so staking without consumption earns nothing
+and a later supplier cannot claim proceeds from an earlier fill.
 
-An opt-in reserve is an incentive for providing the Risk Shares consumed by
-the pairing vault. It is released only when a pairing redemption actually
-consumes that liquidity. Governance does not set a time-based or per-unit
-reward rate, and no keeper releases the reserve independently of a fill.
+Anyone may permissionlessly fund an active or reduce-only volatile series with
+its collateral token, Statics Dollar, or the configured STATICS staking token.
+These are the only supported incentive assets; callers cannot supply an
+arbitrary token address and no incentive-asset registry exists. The Diamond
+reserves the measured receipt for that series. A pairing fill releases the same
+fraction of each reserve as the fraction of pre-fill Risk liquidity consumed,
+and indexes it over that pre-fill supplier cohort. Funding therefore remains
+consumption-linked rather than creating passive yield. A fixed-supply STATICS
+emissions treasury or distributor can use the same permissionless funding
+functions without giving the Diamond token-minting authority.
 
-For either the collateral reserve or the Statics Dollar reserve, let `R` be
-the reserve immediately before a fill, `A` the available opt-in principal
-immediately before that fill, and `F` the principal consumed by the fill. The
-amount released to the consumed opt-in epoch is:
+Series recovery preserves the supplier's intent: successor Risk Shares enter
+the successor consumable pool, while any Statics Dollar or collateral recovery
+credits remain claimable from the predecessor leg. Unused incentive reserves
+roll into the profile's current healthy active series. If the profile is
+permanently retired, a permissionless finalization moves the remaining reserves
+into the global Statics reward ledger under its existing staker and treasury
+split. Finalization is idempotent and does not alter reserves when a pending
+transition is cancelled.
 
-```text
-release = floor(R * F / A)
-```
-
-If `F == A`, the fill releases the complete remaining reserve. This final-fill
-rule sweeps division dust and guarantees that consuming all opt-in principal
-cannot strand its incentives. Partial fills leave the unreleased reserve for
-the remaining principal, so every unit of principal has the same proportional
-claim regardless of fill size or ordering. Collateral and Statics Dollar
-reserves use the same rule, and their accounting remains isolated by series,
-token, and consumed opt-in epoch.
-
-The pairing redemption itself keeps its independent initial economics: a
-50-basis-point fee on the senior collateral allocation, with 80% of that fee
-credited to consumed opt-in positions and 20% routed to insurance. Junior
-residual belongs entirely to the consumed opt-in positions. There is no
-opt-out cooldown; the existing opt-in eligibility gate and actual fill
-consumption define reward eligibility.
-
-The reward-rate fields, setter, event, selectors, and storage are removed as a
-clean break. The periphery storage namespace advances for fresh deployment;
-there is no migration path or compatibility selector.
+This is a clean break. Passive, opt-in, arbitrary-reward, automatic series-fee,
+and reward-gate fields and compatibility aliases remain removed. The periphery
+storage namespace advances for fresh deployment.
 
 ### PositionNFT ownership
 
@@ -649,7 +644,7 @@ requires sufficient allowance. Deferred exits return before permit execution,
 leaving the signature nonce and allowance unchanged.
 
 The pairing vault uses a separate explicit Core path because its gross
-collateral is split between the Dollar redeemer, opt-in risk providers, and
+collateral is split between the Dollar redeemer, consumed Risk suppliers, and
 insurance. Being called by the configured periphery is not by itself sufficient
 to select that fee treatment.
 
@@ -696,8 +691,8 @@ remediation remains the ability to mark a basket exit-only.
 
 - Statics Dollar and Statics Baskets become one protocol with one user-facing
   Diamond, one position identity, and one integration surface.
-- The mature Dollar position, reward, opt-in, and recovery machinery is reused
-  instead of creating a competing Statics position system.
+- Dollar Risk liquidity and recovery reuse the shared PositionNFT instead of
+  creating a competing Statics position system.
 - A single transferable position can contain Dollar series exposure and
   multiple independent basket exposures.
 - Historical fee buy-in is eliminated.
@@ -760,11 +755,12 @@ without pooling the products' economics.
 
 ### Force Dollar and basket rewards into one generic index
 
-Statics Dollar series books have series transitions, two reward assets, and an
-opt-in liquidity scale. Basket books have a creator-defined asset vector,
-multi-asset rewards, and self-backed debt. Generalizing both into one reward
-structure would obscure their different invariants. They share position
-ownership and physical reservation accounting, not one economic book.
+Statics Dollar series books have series transitions, proportional Risk
+consumption, and fill-created collateral proceeds. Basket books have a
+creator-defined asset vector, multi-asset rewards, and self-backed debt.
+Generalizing both into one reward structure would obscure their different
+invariants. They share position ownership and physical reservation accounting,
+not one economic book.
 
 ### Move Statics Dollar Core collateral into the unified Diamond
 

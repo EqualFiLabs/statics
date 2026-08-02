@@ -35,7 +35,7 @@ Use compiled ABIs from these sources:
 | Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
-| Dollar rewards | `src/dollar/interfaces/IStaticsDollarRiskSeriesRewards.sol` | Donate, preview, and claim series rewards |
+| Dollar Risk liquidity | `src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol` | Stake consumable Risk Shares, inspect liquidity, withdraw unconsumed shares, and claim fill proceeds |
 | Dollar Core | `src/dollar/core/interfaces/IStaticsDollarCore.sol` | Direct issuance, recombination, health, and recovery |
 | Statics Dollar | `src/dollar/interfaces/IStaticsDollar.sol` | ERC-20 transfers, allowances, and EIP-2612 permit |
 
@@ -382,12 +382,33 @@ Advanced integrations may call Core directly. Ordinary Core and gateway
 recombination use the same economics. `recombineManaged` is reserved for the
 configured Diamond's pairing and recovery machinery.
 
-Dollar Risk Shares use the overloaded Dollar staking functions
-`createAndStake(seriesId, amount, receiver)` and `stake(positionId, seriesId,
-amount)`. This is distinct from global ERC-20 staking. Passive eligibility
-starts after `activateLeg` following its 24-hour gate. `optIn` supplies pairing
-liquidity. Pairing redemption uses the explicit `PairingVaultFacet.redeem` or
-`redeemToETH` path and may partially fill against available opt-in liquidity.
+`createAndStakeRiskShares` and `stakeRiskShares` place Dollar Risk Shares into
+immediately consumable pairing liquidity owned by a PositionNFT. There is no
+passive tier, activation call, cooldown, or standing Risk reward. Pairing uses
+`redeem` or `redeemToETH` and may fill partially against available liquidity.
+Each fill proportionally consumes every supplier, credits the junior collateral
+residual plus 80% of the pairing fee, and routes the remaining 20% to insurance.
+`unstakeRiskShares` returns only unconsumed shares; `claimRiskProceeds` settles
+fill proceeds, funded incentives, and series-recovery credits. The claim returns
+separate collateral, Statics Dollar, and STATICS amounts even when two roles
+resolve to the same physical token; the Diamond aggregates coincident-token
+transfers internally.
+
+`fundRiskCollateralIncentives`, `fundRiskDollarIncentives`, and
+`fundRiskStaticsIncentives` are permissionless and accept only the three
+canonical assets inferred from protocol configuration. They may fund an Active
+series under an Active or ReduceOnly profile even before Risk liquidity is
+supplied. The measured receipt becomes a series-isolated reserve. Each pairing
+fill releases `reserve * fill / liquidityBeforeFill`, with a complete fill
+draining the rounding remainder. `riskIncentives` exposes current reserves and
+their terminal disposition.
+
+`finalizeRiskIncentives` is permissionless and idempotent. After a completed
+series transition it rolls unused reserves into the profile's current healthy
+active series. After permanent profile retirement it routes them through the
+global non-swap reward ledger. Normal `processSeriesTransition` invokes the same
+logic, while the standalone selector handles campaigns whose series has no
+supplied Risk Shares to migrate.
 
 ## Custody checks
 
@@ -401,8 +422,10 @@ global reserved
 physical Diamond balance >= global reserved
 ```
 
-Direct donations are unreserved. Core collateral and hook permanent liquidity
-live at separate physical addresses and are not part of this Diamond equation.
+Unsolicited token transfers are unreserved. Risk incentive funding through the
+typed selectors is reserved under the Dollar account. Core collateral and hook
+permanent liquidity live at separate physical addresses and are not part of
+this Diamond equation.
 
 ## Event index
 
@@ -419,6 +442,9 @@ Index these event families, then reconcile with current views:
   `RewardAssetOptedIn`, `RewardAssetOptedOut`, and `RewardAssetDustRouted`;
 - lending and flash: `LoanOriginated`, `LoanRepaid`, `LoanExtensionFeePaid`,
   `LoanExtended`, `LoanRecovered`, and `BasketFlashLoan`;
+- Dollar Risk incentives: `RiskIncentivesFunded`, `RiskIncentivesReleased`,
+  `RiskIncentivesRolledOver`, `RiskIncentivesRoutedGlobal`,
+  `RiskProceedsAccrued`, and `RiskProceedsClaimed`;
 - canonical lifecycle: `LiquidityIntegrationInstalled`,
   `CanonicalPoolInitialized`, `CanonicalPoolCheckpointed`,
   `CanonicalPoolActivated`, `CanonicalPoolSyncedToManager`,

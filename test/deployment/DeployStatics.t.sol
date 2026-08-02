@@ -20,6 +20,8 @@ import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsDollarGateway} from "../../src/dollar/interfaces/IStaticsDollarGateway.sol";
+import {IStaticsDollarRiskLiquidity} from "../../src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
+import {IStaticsDollarRiskIncentives} from "../../src/dollar/interfaces/IStaticsDollarRiskIncentives.sol";
 import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
@@ -83,9 +85,9 @@ contract DeployStaticsTest is Test {
 
         assertEq(IERC173(diamond).owner(), address(timelock));
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
-        assertEq(timelock.getMinDelay(), 7 days);
+        assertEq(timelock.getMinDelay(), 15 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 23, 195);
+        _assertManifest(diamond, 21, 188);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
@@ -102,6 +104,8 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarRiskLiquidity).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarRiskIncentives).interfaceId));
         (address poolManager, address hook, bool integrationInstalled) =
             IStaticsBasketLiquidity(diamond).liquidityIntegration();
         (address manager, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();

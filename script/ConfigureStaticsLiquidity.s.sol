@@ -10,6 +10,7 @@ import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity
 import {IStaticsSwapFeeHook} from "../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
+import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
 interface IConfiguredPositionManager {
     function poolManager() external view returns (address);
@@ -30,11 +31,9 @@ struct StaticsLiquidityConfig {
 }
 
 /// @notice Timelock ceremony for installing immutable Statics v4 dependencies.
-contract ConfigureStaticsLiquidity is Script {
+contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
-    string private constant ROBINHOOD_MANIFEST = "deployments/robinhood-chain-4663.json";
-
     error InvalidDiamond(address diamond);
     error InvalidTimelock(address timelock);
     error InvalidContract(address target);
@@ -174,7 +173,7 @@ contract ConfigureStaticsLiquidity is Script {
     }
 
     function _loadRobinhoodConfig() private view returns (StaticsLiquidityConfig memory config) {
-        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+        string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
         uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
         uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {

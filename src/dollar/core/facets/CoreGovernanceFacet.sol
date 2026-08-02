@@ -20,8 +20,8 @@ contract CoreGovernanceFacet is ReentrancyGuard {
     uint256 internal constant MAX_FEE_BPS = BPS;
     uint256 internal constant PAUSE_MINTING = 1 << 0;
     uint256 internal constant PAUSE_ROLLOVER = 1 << 1;
-    uint256 internal constant PAUSE_OPT_IN_FILLS = 1 << 2;
-    uint256 internal constant ALL_OPERATION_PAUSES = PAUSE_MINTING | PAUSE_ROLLOVER | PAUSE_OPT_IN_FILLS;
+    uint256 internal constant PAUSE_PAIRING_FILLS = 1 << 2;
+    uint256 internal constant ALL_OPERATION_PAUSES = PAUSE_MINTING | PAUSE_ROLLOVER | PAUSE_PAIRING_FILLS;
 
     struct ProfileRiskConfig {
         uint256 collateralRatioBps;

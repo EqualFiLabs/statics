@@ -16,8 +16,6 @@ import {LibPeriphery} from "../libraries/LibPeriphery.sol";
 contract FeeRouterFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    uint256 internal constant GLOBAL_REWARD_SHARE_BPS = 3_000;
-
     event PoolFeeIndexed(
         uint256 indexed seriesId,
         uint256 indexed profileId,
@@ -62,17 +60,8 @@ contract FeeRouterFacet is ReentrancyGuard {
             insuranceShare += rewardShare;
             rewardShare = 0;
         } else if (rewardShare != 0) {
-            LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-            uint256 globalAmount = Math.mulDiv(rewardShare, GLOBAL_REWARD_SHARE_BPS, LibPeriphery.BPS);
-            uint256 optInAmount = rewardShare - globalAmount;
-            if (globalAmount != 0) {
-                LibCustody.reserve(LibCustody.dollarAccount(), token, globalAmount);
-                LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), token, globalAmount);
-            }
-            if (optInAmount != 0) {
-                LibPeriphery.reserve(ps, token, optInAmount);
-                book.collateralOptInReserve += optInAmount;
-            }
+            LibCustody.reserve(LibCustody.dollarAccount(), token, rewardShare);
+            LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), token, rewardShare);
         }
         if (insuranceShare != 0) {
             LibCustody.reserve(LibCustody.dollarAccount(), token, insuranceShare);
