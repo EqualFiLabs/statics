@@ -20,7 +20,6 @@ import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreT
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 import {FeeRouterFacet} from "src/dollar/periphery/facets/FeeRouterFacet.sol";
-import {RewardsFacet} from "src/dollar/periphery/facets/RewardsFacet.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {MockUSDC} from "../helpers/MockUSDC.sol";
 
@@ -195,7 +194,7 @@ contract CoreDiamondLifecycleTest is Test {
         assertEq(staticsDollar.totalSupply(), viewFacet.seniorLiabilities());
     }
 
-    function test_VolatileFeeKeepsInsuranceAndOptInWhileGlobalizingPassiveShare() public {
+    function test_VolatileFeeKeepsInsuranceAndRoutesRemainderToGlobalRewards() public {
         IStaticsDollarCoreTypes.StableCollateralProfile memory profile = viewFacet.collateralProfile(1);
         CoreGovernanceFacet.ProfileRiskConfig memory risk = CoreGovernanceFacet.ProfileRiskConfig({
             collateralRatioBps: profile.collateralRatioBps,
@@ -227,15 +226,12 @@ contract CoreDiamondLifecycleTest is Test {
         vm.prank(alice);
         uint256[] memory pending = IStaticsGlobalRewards(deployment.diamond).pendingRewards(positionId, assets);
         uint256 insurance = (preview.feeAmount * 30) / 100;
-        uint256 globalGross = ((preview.feeAmount - insurance) * 30) / 100;
+        uint256 globalGross = preview.feeAmount - insurance;
         uint256 stakerReward = (globalGross * 90) / 100;
         assertEq(pending[0], stakerReward);
         assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth)), globalGross - stakerReward);
         assertEq(FeeRouterFacet(deployment.diamond).pendingInsurance(1), insurance);
-        assertEq(
-            RewardsFacet(deployment.diamond).seriesRewardState(1).collateralOptInReserve,
-            preview.feeAmount - globalGross - insurance
-        );
+        assertEq(globalGross + insurance, preview.feeAmount);
     }
 
     function test_PeggedFeeUsesGlobalNinetyTenSplit() public {

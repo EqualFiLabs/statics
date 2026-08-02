@@ -67,6 +67,7 @@ import {
   staticsCollateralErrorAbi,
   staticsDollarCoreAbi,
   staticsDollarErrorAbi,
+  staticsDollarPeripheryAbi,
   staticsDollarRiskTokenAbi,
   staticsDollarTokenAbi,
   staticsLendingErrorAbi,
@@ -350,6 +351,63 @@ describe("Statics unified calldata", () => {
         }),
       }).functionName
     ).toBe("setApprovalForAll");
+  });
+
+  it("exports consumption-only Risk Share liquidity calls", () => {
+    expect(
+      decodeFunctionData({
+        abi: staticsDollarPeripheryAbi,
+        data: encodeFunctionData({
+          abi: staticsDollarPeripheryAbi,
+          functionName: "createAndStakeRiskShares",
+          args: [1n, 25n, receiver],
+        }),
+      }),
+    ).toEqual({
+      functionName: "createAndStakeRiskShares",
+      args: [1n, 25n, receiver],
+    });
+
+    expect(
+      decodeFunctionData({
+        abi: staticsDollarPeripheryAbi,
+        data: encodeFunctionData({
+          abi: staticsDollarPeripheryAbi,
+          functionName: "unstakeRiskShares",
+          args: [7n, 1n, 10n, receiver],
+        }),
+      }).functionName,
+    ).toBe("unstakeRiskShares");
+
+    expect(
+      staticsDollarPeripheryAbi.some(
+        (entry) => entry.type === "function" && entry.name === "activateLeg",
+      ),
+    ).toBe(false);
+    expect(
+      staticsDollarPeripheryAbi.some(
+        (entry) => entry.type === "function" && entry.name === "optIn",
+      ),
+    ).toBe(false);
+
+    expect(
+      decodeFunctionData({
+        abi: staticsDollarPeripheryAbi,
+        data: encodeFunctionData({
+          abi: staticsDollarPeripheryAbi,
+          functionName: "fundRiskStaticsIncentives",
+          args: [1n, 100n],
+        }),
+      }),
+    ).toEqual({
+      functionName: "fundRiskStaticsIncentives",
+      args: [1n, 100n],
+    });
+    expect(
+      staticsDollarPeripheryAbi.some(
+        (entry) => entry.type === "function" && entry.name === "fundRiskIncentives",
+      ),
+    ).toBe(false);
   });
 
   it("encodes typed pegged mint-and-recombine quote and execution calls", () => {

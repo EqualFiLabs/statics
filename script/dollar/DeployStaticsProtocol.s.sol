@@ -21,9 +21,7 @@ import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {StaticsProtocolInit} from "../../src/diamond/StaticsProtocolInit.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
-import {OptInFacet} from "../../src/dollar/periphery/facets/OptInFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
-import {RewardsFacet} from "../../src/dollar/periphery/facets/RewardsFacet.sol";
 import {StakingFacet} from "../../src/dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../../src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.sol";
@@ -48,8 +46,6 @@ abstract contract DeployStaticsProtocol {
         address flashLoan;
         address interfaceInit;
         address staking;
-        address rewards;
-        address optIn;
         address fee;
         address vault;
         address gateway;
@@ -74,7 +70,7 @@ abstract contract DeployStaticsProtocol {
             baseBps: 7_000,
             insuranceBps: 3_000,
             redemptionFeeBps: 50,
-            redemptionStakerShareBps: 8_000
+            redemptionSupplierShareBps: 8_000
         });
         StaticsProtocolInit.UnifiedInitArgs memory args = StaticsProtocolInit.UnifiedInitArgs({
             guardian: guardian,
@@ -106,8 +102,6 @@ abstract contract DeployStaticsProtocol {
         parts.flashLoan = address(new FlashLoanFacet());
         parts.interfaceInit = address(new StaticsInterfaceInit());
         parts.staking = address(new StakingFacet());
-        parts.rewards = address(new RewardsFacet());
-        parts.optIn = address(new OptInFacet());
         parts.fee = address(new FeeRouterFacet());
         parts.vault = address(new PairingVaultFacet());
         parts.gateway = address(new StaticsDollarGatewayFacet());
@@ -119,7 +113,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](23);
+        cut = new IDiamondCut.FacetCut[](21);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -133,69 +127,52 @@ abstract contract DeployStaticsProtocol {
         cut[10] =
             IDiamondCut.FacetCut(parts.interfaceInit, IDiamondCut.FacetCutAction.Add, StaticsSelectors.interfaceInit());
         cut[11] = IDiamondCut.FacetCut(parts.staking, IDiamondCut.FacetCutAction.Add, _dollarStakingSelectors());
-        cut[12] = IDiamondCut.FacetCut(parts.rewards, IDiamondCut.FacetCutAction.Add, _dollarRewardsSelectors());
-        cut[13] = IDiamondCut.FacetCut(parts.optIn, IDiamondCut.FacetCutAction.Add, _dollarOptInSelectors());
-        cut[14] = IDiamondCut.FacetCut(parts.fee, IDiamondCut.FacetCutAction.Add, _dollarFeeSelectors());
-        cut[15] = IDiamondCut.FacetCut(parts.vault, IDiamondCut.FacetCutAction.Add, _dollarVaultSelectors());
-        cut[16] = IDiamondCut.FacetCut(
+        cut[12] = IDiamondCut.FacetCut(parts.fee, IDiamondCut.FacetCutAction.Add, _dollarFeeSelectors());
+        cut[13] = IDiamondCut.FacetCut(parts.vault, IDiamondCut.FacetCutAction.Add, _dollarVaultSelectors());
+        cut[14] = IDiamondCut.FacetCut(
             parts.basketCollateral, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketCollateral()
         );
-        cut[17] = IDiamondCut.FacetCut(parts.gateway, IDiamondCut.FacetCutAction.Add, _dollarGatewaySelectors());
-        cut[18] =
+        cut[15] = IDiamondCut.FacetCut(parts.gateway, IDiamondCut.FacetCutAction.Add, _dollarGatewaySelectors());
+        cut[16] =
             IDiamondCut.FacetCut(basketLiquidity, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketLiquidity());
-        cut[19] = IDiamondCut.FacetCut(
+        cut[17] = IDiamondCut.FacetCut(
             parts.borrowLiquidity, IDiamondCut.FacetCutAction.Add, StaticsSelectors.borrowLiquidity()
         );
-        cut[20] =
+        cut[18] =
             IDiamondCut.FacetCut(parts.globalRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.globalRewards());
-        cut[21] =
+        cut[19] =
             IDiamondCut.FacetCut(liquidityRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.liquidityRewards());
-        cut[22] =
+        cut[20] =
             IDiamondCut.FacetCut(parts.basketRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketRewards());
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](19);
-        s[0] = StakingFacet.createAndStake.selector;
-        s[1] = StakingFacet.stake.selector;
-        s[2] = StakingFacet.activateLeg.selector;
-        s[3] = StakingFacet.withdrawLeg.selector;
-        s[4] = StakingFacet.migrateLeg.selector;
-        s[5] = StakingFacet.processSeriesTransition.selector;
-        s[6] = StakingFacet.settleSeriesMigration.selector;
-        s[7] = StakingFacet.closeLeg.selector;
-        s[8] = StakingFacet.leg.selector;
-        s[9] = StakingFacet.positionSeriesCount.selector;
-        s[10] = StakingFacet.positionSeriesAt.selector;
-        s[11] = StakingFacet.seriesMigration.selector;
-        s[12] = StakingFacet.rewardEligibleAt.selector;
-        s[13] = StakingFacet.onERC1155Received.selector;
-        s[14] = StakingFacet.onERC1155BatchReceived.selector;
-        s[15] = StakingFacet.pool.selector;
-        s[16] = StakingFacet.staticsDollar.selector;
-        s[17] = StakingFacet.staticsDollarRisk.selector;
-        s[18] = StakingFacet.positionNFT.selector;
-    }
-
-    function _dollarRewardsSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](7);
-        s[0] = RewardsFacet.donateCollateralRewards.selector;
-        s[1] = RewardsFacet.donateStaticsDollarRewards.selector;
-        s[2] = RewardsFacet.claimSeriesRewards.selector;
-        s[3] = RewardsFacet.pendingSeriesRewards.selector;
-        s[4] = RewardsFacet.finalizeRetiredSeriesRewards.selector;
-        s[5] = RewardsFacet.seriesRewardState.selector;
-        s[6] = RewardsFacet.reservedBalance.selector;
-    }
-
-    function _dollarOptInSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](6);
-        s[0] = OptInFacet.optIn.selector;
-        s[1] = OptInFacet.optOut.selector;
-        s[2] = OptInFacet.optInBalanceOf.selector;
-        s[3] = OptInFacet.optInTotal.selector;
-        s[4] = OptInFacet.optInScaleRay.selector;
-        s[5] = OptInFacet.cleanupOptInDust.selector;
+        s = new bytes4[](25);
+        s[0] = StakingFacet.createAndStakeRiskShares.selector;
+        s[1] = StakingFacet.stakeRiskShares.selector;
+        s[2] = StakingFacet.unstakeRiskShares.selector;
+        s[3] = StakingFacet.claimRiskProceeds.selector;
+        s[4] = StakingFacet.processSeriesTransition.selector;
+        s[5] = StakingFacet.settleSeriesMigration.selector;
+        s[6] = StakingFacet.closeRiskLiquidity.selector;
+        s[7] = StakingFacet.riskLiquidity.selector;
+        s[8] = StakingFacet.totalRiskLiquidity.selector;
+        s[9] = StakingFacet.riskLiquidityScaleRay.selector;
+        s[10] = StakingFacet.positionSeriesCount.selector;
+        s[11] = StakingFacet.positionSeriesAt.selector;
+        s[12] = StakingFacet.seriesMigration.selector;
+        s[13] = StakingFacet.reservedBalance.selector;
+        s[14] = StakingFacet.onERC1155Received.selector;
+        s[15] = StakingFacet.onERC1155BatchReceived.selector;
+        s[16] = StakingFacet.pool.selector;
+        s[17] = StakingFacet.staticsDollar.selector;
+        s[18] = StakingFacet.staticsDollarRisk.selector;
+        s[19] = StakingFacet.positionNFT.selector;
+        s[20] = StakingFacet.fundRiskCollateralIncentives.selector;
+        s[21] = StakingFacet.fundRiskDollarIncentives.selector;
+        s[22] = StakingFacet.fundRiskStaticsIncentives.selector;
+        s[23] = StakingFacet.riskIncentives.selector;
+        s[24] = StakingFacet.finalizeRiskIncentives.selector;
     }
 
     function _dollarFeeSelectors() private pure returns (bytes4[] memory s) {

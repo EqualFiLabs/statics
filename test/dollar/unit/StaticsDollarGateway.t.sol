@@ -141,11 +141,11 @@ contract StaticsDollarGatewayTest is Test {
         _depositToAliceThroughGateway(1 ether);
         vm.startPrank(alice);
         staticsDollarRisk.setApprovalForAll(diamond, true);
-        uint256 positionId = staking.createAndStake(SERIES_ONE, 1e18, alice);
+        uint256 positionId = staking.createAndStakeRiskShares(SERIES_ONE, 1e18, alice);
         vm.stopPrank();
 
         assertEq(IERC721(diamond).ownerOf(positionId), alice);
-        assertEq(staking.leg(positionId, SERIES_ONE).pendingPrincipal, 1e18);
+        assertEq(staking.riskLiquidity(positionId, SERIES_ONE).effectiveShares, 1e18);
     }
 
     function testRecombineToWETHBurnsClaimsAndTransfersNetCollateral() public {

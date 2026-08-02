@@ -22,7 +22,8 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsPosition} from "../interfaces/IStaticsPosition.sol";
-import {IStaticsDollarRiskSeriesRewards} from "../dollar/interfaces/IStaticsDollarRiskSeriesRewards.sol";
+import {IStaticsDollarRiskLiquidity} from "../dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
+import {IStaticsDollarRiskIncentives} from "../dollar/interfaces/IStaticsDollarRiskIncentives.sol";
 import {IStaticsDollarGateway} from "../dollar/interfaces/IStaticsDollarGateway.sol";
 import {LibPeriphery} from "../dollar/periphery/libraries/LibPeriphery.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
@@ -56,7 +57,8 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         LibPeriphery.initialize(args.dollar);
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC1155Receiver).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsDollarRiskSeriesRewards).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsDollarRiskLiquidity).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsDollarRiskIncentives).interfaceId] = true;
     }
 
     function _initializeProtocol(address guardian, address treasury, address stakingToken, uint256 creationFeeAmount)

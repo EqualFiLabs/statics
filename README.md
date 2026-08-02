@@ -113,10 +113,11 @@ without eligible selected stake fall back to the common Statics treasury.
 Downside series transitions quarantine every pegged exit until all
 Core books have remained healthy for 48 continuous hours.
 
-Dollar risk shares can be staked into the shared PositionNFT, activated after
-the Dollar reward gate, moved between passive and opt-in reward tiers, and
-processed through series transition and recovery flows without creating a
-second position system.
+Dollar Risk Shares can be staked into the shared PositionNFT as immediately
+consumable pairing liquidity. They earn no passive rewards: a pairing fill
+creates the supplier's junior-collateral settlement and 80% share of the
+pairing fee. Unconsumed shares remain withdrawable, and supplied successor
+shares remain supplied through series recovery.
 
 ## Basket lifecycle
 

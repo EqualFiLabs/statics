@@ -7,36 +7,40 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {IStaticsDollarCoreTypes} from "../../interfaces/IStaticsDollarCoreTypes.sol";
+import {IStaticsDollarRiskIncentives} from "../../interfaces/IStaticsDollarRiskIncentives.sol";
 import {IStaticsDollarCore} from "../../core/interfaces/IStaticsDollarCore.sol";
 import {IWETH9} from "../../interfaces/IWETH9.sol";
 import {LibCustody} from "../../../libraries/LibCustody.sol";
 import {LibDiamond} from "../../../libraries/LibDiamond.sol";
 import {LibPeriphery} from "../libraries/LibPeriphery.sol";
 
-/// @notice Tier-1 pairing vault: an staticsDollar holder exits at the series' immutable
-/// senior collateral weight minus the redemption fee, without sourcing Statics Dollar risk shares.
-/// The vault pairs redeemed staticsDollar with opted-in Statics Dollar risk shares, recombines fee-exempt at
-/// the pool, pays the redeemer, and credits everything left — the stakers' own junior
-/// residual plus their share of the redemption fee — exclusively to the opt-in tier.
-/// The insurance reserve takes the remainder of the fee. There is no treasury leg.
-///
-/// The tier-2 insurance backstop (deployed surplus, allowBackstop, surcharge) is a
-/// deliberate deferral; it arrives later as its own facet.
+/// @notice Lets a Statics Dollar holder exit at the series' immutable senior
+/// collateral weight minus the pairing fee, without sourcing Risk Shares.
+/// Supplied Risk Shares are consumed proportionally. Their owners receive the
+/// complete junior residual plus the configured supplier share of the pairing
+/// fee; profile insurance receives the rest of that fee.
 contract PairingVaultFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 internal constant WAD = 1e18;
     uint256 internal constant BPS = 10_000;
-    uint256 internal constant PAUSE_OPT_IN_FILLS = 1 << 2;
+    uint256 internal constant PAUSE_PAIRING_FILLS = 1 << 2;
     bytes32 internal constant SOURCE_REDEMPTION = "REDEMPTION";
+    bytes32 internal constant SOURCE_INCENTIVE = "INCENTIVE";
 
     struct RedeemPreview {
-        uint256 staticsDollarRedeemed; // fill after capping to the opt-in tier
-        uint256 grossCollateral; // recombination output (fee-exempt)
+        uint256 staticsDollarRedeemed; // fill after capping to supplied Risk liquidity
+        uint256 grossCollateral; // managed recombination output before the pairing fee
         uint256 collateralToRedeemer; // fixed senior allocation minus redemption fee
-        uint256 collateralToStakers; // junior residual + staker share of the fee
+        uint256 collateralToRiskSuppliers; // junior residual + supplier share of the fee
         uint256 collateralToInsurance; // remainder of the fee
         uint256 seniorCollateralPerUnitWad;
+    }
+
+    struct ConsumedLiquidity {
+        uint256 availableBefore;
+        uint256 totalStored;
+        uint64 epoch;
     }
 
     event Redeemed(
@@ -45,7 +49,7 @@ contract PairingVaultFacet is ReentrancyGuard {
         uint256 indexed seriesId,
         uint256 staticsDollarRedeemed,
         uint256 collateralToRedeemer,
-        uint256 collateralToStakers,
+        uint256 collateralToRiskSuppliers,
         uint256 collateralToInsurance
     );
     event RedemptionDeferred(
@@ -55,17 +59,14 @@ contract PairingVaultFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.ExitStatus status,
         uint256 unhealthyProfileBitmap
     );
-    event RedemptionParamsSet(uint16 redemptionFeeBps, uint16 stakerShareBps);
-    event OptInIncentivesReleased(
-        uint256 indexed seriesId, uint256 collateralAmount, uint256 staticsDollarAmount, uint256 filledStaticsDollarRisk
-    );
+    event RedemptionParamsSet(uint16 redemptionFeeBps, uint16 supplierShareBps);
 
     error ZeroAmount();
     error ZeroAddress();
-    error NoOptInLiquidity();
+    error NoRiskLiquidity();
     error FillBelowMinimum(uint256 fill, uint256 minimum);
     error RateBelowMinimum(uint256 rateWad, uint256 minimumRateWad);
-    error InvalidRedemptionParams(uint16 feeBps, uint16 stakerShareBps);
+    error InvalidRedemptionParams(uint16 feeBps, uint16 supplierShareBps);
     error SeriesTransitionPending(uint256 seriesId);
     error NotWETHCollateral();
     error NativeTransferFailed(address receiver, uint256 amount);
@@ -78,7 +79,7 @@ contract PairingVaultFacet is ReentrancyGuard {
     // ---------------------------------------------------------------- redemption
 
     /// @param staticsDollarAmount requested redemption; fills partially against available
-    ///        opt-in liquidity (absolute output minimums are deliberately not used —
+    ///        Risk liquidity (absolute output minimums are deliberately not used —
     ///        `minStaticsDollarRedeemed` owns fill-size protection, the rate param owns price
     ///        protection, so partial fills never spuriously revert).
     /// @param minCollateralPerStaticsDollarWad minimum collateral (WAD-normalized) per staticsDollar.
@@ -138,15 +139,15 @@ contract PairingVaultFacet is ReentrancyGuard {
         IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
         IStaticsDollarCoreTypes.RiskSeries memory series = core.riskSeries(seriesId);
         IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
-        if (core.profileOperationPaused(series.profileId, PAUSE_OPT_IN_FILLS)) {
-            revert ProfileOperationPaused(series.profileId, PAUSE_OPT_IN_FILLS);
+        if (core.profileOperationPaused(series.profileId, PAUSE_PAIRING_FILLS)) {
+            revert ProfileOperationPaused(series.profileId, PAUSE_PAIRING_FILLS);
         }
         address collateralToken = series.collateralToken;
         if (unwrapToETH && collateralToken != ps.weth) revert NotWETHCollateral();
 
         LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-        uint256 available = book.optInPrincipal;
-        if (available == 0) revert NoOptInLiquidity();
+        uint256 available = book.effectivePrincipal;
+        if (available == 0) revert NoRiskLiquidity();
         fill = staticsDollarAmount > available ? available : staticsDollarAmount;
         if (fill < minStaticsDollarRedeemed) revert FillBelowMinimum(fill, minStaticsDollarRedeemed);
 
@@ -164,8 +165,8 @@ contract PairingVaultFacet is ReentrancyGuard {
 
         // Consume the tier pro rata; the underlying 1155s stay here and are burned by
         // the recombination in the next step.
-        uint64 consumedEpoch = book.optInEpoch;
-        uint256 consumedStoredSupply = book.optInTotalStored;
+        ConsumedLiquidity memory consumed =
+            ConsumedLiquidity({availableBefore: available, totalStored: book.totalStored, epoch: book.epoch});
         LibPeriphery.consume(ps, seriesId, fill);
 
         uint256 balanceBefore = IERC20(collateralToken).balanceOf(address(this));
@@ -178,7 +179,7 @@ contract PairingVaultFacet is ReentrancyGuard {
         }
         uint256 grossCollateral = IERC20(collateralToken).balanceOf(address(this)) - balanceBefore;
 
-        (uint256 toRedeemer, uint256 toStakers, uint256 toInsurance,) =
+        (uint256 toRedeemer, uint256 toRiskSuppliers, uint256 toInsurance,) =
             _splitProceeds(ps, series, profile.decimals, fill, grossCollateral);
         collateralOut = toRedeemer;
 
@@ -188,12 +189,12 @@ contract PairingVaultFacet is ReentrancyGuard {
             revert RateBelowMinimum(rateWad, minCollateralPerStaticsDollarWad);
         }
 
-        if (toStakers != 0) {
-            LibPeriphery.accrueOptIn(
-                ps, seriesId, consumedEpoch, consumedStoredSupply, collateralToken, toStakers, SOURCE_REDEMPTION, false
+        if (toRiskSuppliers != 0) {
+            LibPeriphery.accrueRiskProceeds(
+                ps, seriesId, consumed.epoch, consumed.totalStored, collateralToken, toRiskSuppliers, SOURCE_REDEMPTION
             );
         }
-        _releaseOptInIncentives(ps, seriesId, fill, consumedEpoch, consumedStoredSupply, collateralToken);
+        _releaseRiskIncentives(ps, seriesId, consumed, fill, collateralToken);
         if (toInsurance != 0) {
             IERC20(collateralToken).forceApprove(ps.pool, toInsurance);
             uint256 collateralBefore = LibCustody.beginUnreservedDebit(collateralToken, toInsurance);
@@ -213,8 +214,63 @@ contract PairingVaultFacet is ReentrancyGuard {
             LibCustody.pushUnreserved(collateralToken, receiver, collateralOut, collateralOut);
         }
 
-        emit Redeemed(msg.sender, receiver, seriesId, fill, collateralOut, toStakers, toInsurance);
+        emit Redeemed(msg.sender, receiver, seriesId, fill, collateralOut, toRiskSuppliers, toInsurance);
         return (IStaticsDollarCoreTypes.ExitStatus.Available, fill, collateralOut);
+    }
+
+    function _releaseRiskIncentives(
+        LibPeriphery.PS storage ps,
+        uint256 seriesId,
+        ConsumedLiquidity memory consumed,
+        uint256 fill,
+        address collateralToken
+    ) private {
+        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
+        uint256 collateralAmount =
+            LibPeriphery.proportionalRelease(book.collateralIncentiveReserve, fill, consumed.availableBefore);
+        uint256 staticsDollarAmount =
+            LibPeriphery.proportionalRelease(book.staticsDollarIncentiveReserve, fill, consumed.availableBefore);
+        uint256 staticsAmount =
+            LibPeriphery.proportionalRelease(book.staticsIncentiveReserve, fill, consumed.availableBefore);
+        book.collateralIncentiveReserve -= collateralAmount;
+        book.staticsDollarIncentiveReserve -= staticsDollarAmount;
+        book.staticsIncentiveReserve -= staticsAmount;
+
+        LibPeriphery.accrueReservedRiskIncentive(
+            ps,
+            seriesId,
+            consumed.epoch,
+            consumed.totalStored,
+            collateralToken,
+            collateralAmount,
+            LibPeriphery.IncentiveKind.Collateral,
+            SOURCE_INCENTIVE
+        );
+        LibPeriphery.accrueReservedRiskIncentive(
+            ps,
+            seriesId,
+            consumed.epoch,
+            consumed.totalStored,
+            ps.staticsDollar,
+            staticsDollarAmount,
+            LibPeriphery.IncentiveKind.StaticsDollar,
+            SOURCE_INCENTIVE
+        );
+        LibPeriphery.accrueReservedRiskIncentive(
+            ps,
+            seriesId,
+            consumed.epoch,
+            consumed.totalStored,
+            ps.staticsToken,
+            staticsAmount,
+            LibPeriphery.IncentiveKind.Statics,
+            SOURCE_INCENTIVE
+        );
+        if (collateralAmount != 0 || staticsDollarAmount != 0 || staticsAmount != 0) {
+            emit IStaticsDollarRiskIncentives.RiskIncentivesReleased(
+                seriesId, consumed.epoch, fill, collateralAmount, staticsDollarAmount, staticsAmount
+            );
+        }
     }
 
     function _splitProceeds(
@@ -223,7 +279,11 @@ contract PairingVaultFacet is ReentrancyGuard {
         uint8 collateralDecimals,
         uint256 fill,
         uint256 grossCollateral
-    ) internal view returns (uint256 toRedeemer, uint256 toStakers, uint256 toInsurance, uint256 seniorWeightWad) {
+    )
+        internal
+        view
+        returns (uint256 toRedeemer, uint256 toRiskSuppliers, uint256 toInsurance, uint256 seniorWeightWad)
+    {
         seniorWeightWad = series.seniorCollateralPerUnitWad;
         uint256 fixedSeniorWad = Math.mulDiv(fill, seniorWeightWad, WAD);
         uint256 fixedSeniorCollateral = _fromWad(collateralDecimals, fixedSeniorWad);
@@ -234,63 +294,10 @@ contract PairingVaultFacet is ReentrancyGuard {
 
         uint256 proceeds = grossCollateral - toRedeemer;
         // Only the fee is split with insurance; the junior residual is the
-        // stakers' own capital and goes to them in full.
+        // suppliers' own capital and goes to them in full.
         uint256 feeCollateral = fixedSeniorCollateral - toRedeemer;
-        toInsurance = Math.mulDiv(feeCollateral, BPS - ps.redemptionStakerShareBps, BPS);
-        toStakers = proceeds - toInsurance;
-    }
-
-    function _releaseOptInIncentives(
-        LibPeriphery.PS storage ps,
-        uint256 seriesId,
-        uint256 fill,
-        uint64 consumedEpoch,
-        uint256 consumedStoredSupply,
-        address collateralToken
-    ) internal {
-        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-        uint256 availableBefore = book.optInPrincipal + fill;
-        uint256 collateralReward = _proportionalRelease(book.collateralOptInReserve, fill, availableBefore);
-        uint256 staticsDollarReward = _proportionalRelease(book.staticsDollarOptInReserve, fill, availableBefore);
-        if (collateralReward != 0) {
-            book.collateralOptInReserve -= collateralReward;
-            LibPeriphery.accrueOptIn(
-                ps,
-                seriesId,
-                consumedEpoch,
-                consumedStoredSupply,
-                collateralToken,
-                collateralReward,
-                SOURCE_REDEMPTION,
-                true
-            );
-        }
-        if (staticsDollarReward != 0) {
-            book.staticsDollarOptInReserve -= staticsDollarReward;
-            LibPeriphery.accrueOptIn(
-                ps,
-                seriesId,
-                consumedEpoch,
-                consumedStoredSupply,
-                ps.staticsDollar,
-                staticsDollarReward,
-                SOURCE_REDEMPTION,
-                true
-            );
-        }
-        if (collateralReward != 0 || staticsDollarReward != 0) {
-            emit OptInIncentivesReleased(seriesId, collateralReward, staticsDollarReward, fill);
-        }
-    }
-
-    function _proportionalRelease(uint256 reserve, uint256 fill, uint256 availableBefore)
-        internal
-        pure
-        returns (uint256)
-    {
-        if (reserve == 0) return 0;
-        if (fill == availableBefore) return reserve;
-        return Math.mulDiv(reserve, fill, availableBefore);
+        toInsurance = Math.mulDiv(feeCollateral, BPS - ps.redemptionSupplierShareBps, BPS);
+        toRiskSuppliers = proceeds - toInsurance;
     }
 
     // ---------------------------------------------------------------- preview
@@ -308,8 +315,8 @@ contract PairingVaultFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
 
         LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-        uint256 available = book.optInPrincipal;
-        if (available == 0) revert NoOptInLiquidity();
+        uint256 available = book.effectivePrincipal;
+        if (available == 0) revert NoRiskLiquidity();
         preview.staticsDollarRedeemed = staticsDollarAmount > available ? available : staticsDollarAmount;
 
         IStaticsDollarCoreTypes.RedemptionPreview memory poolPreview =
@@ -320,7 +327,7 @@ contract PairingVaultFacet is ReentrancyGuard {
 
         (
             preview.collateralToRedeemer,
-            preview.collateralToStakers,
+            preview.collateralToRiskSuppliers,
             preview.collateralToInsurance,
             preview.seniorCollateralPerUnitWad
         ) = _splitProceeds(ps, series, profile.decimals, preview.staticsDollarRedeemed, preview.grossCollateral);
@@ -328,28 +335,28 @@ contract PairingVaultFacet is ReentrancyGuard {
 
     // ---------------------------------------------------------------- config
 
-    function setRedemptionParams(uint16 redemptionFeeBps, uint16 stakerShareBps) external {
+    function setRedemptionParams(uint16 redemptionFeeBps, uint16 supplierShareBps) external {
         LibDiamond.enforceIsContractOwner();
         if (
-            redemptionFeeBps > LibPeriphery.MAX_REDEMPTION_FEE_BPS || stakerShareBps > BPS
-                || stakerShareBps < LibPeriphery.MIN_REDEMPTION_STAKER_SHARE_BPS
+            redemptionFeeBps > LibPeriphery.MAX_REDEMPTION_FEE_BPS || supplierShareBps > BPS
+                || supplierShareBps < LibPeriphery.MIN_REDEMPTION_SUPPLIER_SHARE_BPS
         ) {
-            revert InvalidRedemptionParams(redemptionFeeBps, stakerShareBps);
+            revert InvalidRedemptionParams(redemptionFeeBps, supplierShareBps);
         }
         LibPeriphery.PS storage ps = LibPeriphery.s();
         ps.redemptionFeeBps = redemptionFeeBps;
-        ps.redemptionStakerShareBps = stakerShareBps;
-        emit RedemptionParamsSet(redemptionFeeBps, stakerShareBps);
+        ps.redemptionSupplierShareBps = supplierShareBps;
+        emit RedemptionParamsSet(redemptionFeeBps, supplierShareBps);
     }
 
-    function redemptionParams() external view returns (uint16 redemptionFeeBps, uint16 stakerShareBps) {
+    function redemptionParams() external view returns (uint16 redemptionFeeBps, uint16 supplierShareBps) {
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        return (ps.redemptionFeeBps, ps.redemptionStakerShareBps);
+        return (ps.redemptionFeeBps, ps.redemptionSupplierShareBps);
     }
 
     function redeemableLiquidity(uint256 seriesId) external view returns (uint256 staticsDollarAmount) {
         LibPeriphery.SeriesBook storage book = LibPeriphery.s().series[seriesId];
-        return book.optInPrincipal;
+        return book.effectivePrincipal;
     }
 
     // ---------------------------------------------------------------- internals

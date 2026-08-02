@@ -15,13 +15,14 @@ import {
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
+import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
 interface IPositionManagerBindings {
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
 }
 
-contract DeployStatics is Script {
+contract DeployStatics is Script, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;
         address guardian;
@@ -52,7 +53,6 @@ contract DeployStatics is Script {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
     address public constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-    string private constant ROBINHOOD_MANIFEST = "deployments/robinhood-chain-4663.json";
 
     function run() external returns (StaticsDollarStackDeployment memory deployment, StaticsTimelock timelock) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
@@ -194,8 +194,8 @@ contract DeployStatics is Script {
         }
     }
 
-    function _loadRobinhoodV4Config() private view returns (V4Config memory config) {
-        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+    function _loadRobinhoodV4Config() internal view returns (V4Config memory config) {
+        string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
         uint256 expectedChainId = vm.parseJsonUint(manifest, ".chainId");
         if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
         uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
