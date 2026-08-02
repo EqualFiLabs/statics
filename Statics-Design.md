@@ -194,7 +194,10 @@ enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
 shape; its later gateway upgrade replaced five selectors with five updated
 permit-tuple selectors without changing the total. The fresh launcher adds two
 Position-creation-fee selectors plus the Modular Position NFT reporting surface
-for the current 21/191 source shape. The
+for the current 21/191 source shape. This shape requires a fresh deployment:
+the release does not claim selector or packed-state migration compatibility for
+an older Diamond, and the obsolete Position-fee upgrade ceremony fails closed.
+The
 checked-in Core rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
 terminal governance cut and 10 / 93 afterward. That rehearsal deliberately
 removes `diamondCut` and `transferOwnership` while proving the remaining value
