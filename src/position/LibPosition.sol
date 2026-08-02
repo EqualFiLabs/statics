@@ -15,6 +15,7 @@ library LibPosition {
         mapping(uint256 positionId => uint256 count) activeLegCount;
         mapping(uint256 positionId => bool initializing) positionInitializing;
         mapping(uint256 positionId => mapping(bytes32 legKey => bool active)) activeLeg;
+        uint256 creationFeeAmount;
     }
 
     event PositionLegActivated(uint256 indexed positionId, bytes32 indexed legKey);
@@ -34,10 +35,11 @@ library LibPosition {
         }
     }
 
-    function initialize() internal {
+    function initialize(uint256 creationFeeAmount) internal {
         PositionStorage storage ps = positionStorage();
         if (ps.initialized) revert AlreadyInitialized();
         ps.nextPositionId = 1;
+        ps.creationFeeAmount = creationFeeAmount;
         ps.initialized = true;
     }
 

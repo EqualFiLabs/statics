@@ -7,9 +7,15 @@ It deploys Statics Dollar Core and the unified user Diamond together. The
 lower-level scripts under `script/dollar/` exist for focused tests and local
 development; they are not the canonical production entrypoint.
 
-This repository records no public Statics deployment. Running a broadcast is a
-state-changing external action and requires explicit authorization for the
-network, broadcaster, and expected costs.
+This repository records a public Robinhood Chain testnet integration beta in
+`deployments/robinhood-testnet-46630-statics.json`; it is not a production
+deployment. Running any new broadcast remains a state-changing external action
+and requires explicit authorization for the network, broadcaster, and expected
+costs.
+
+The receiver deployment, approvals, executed TPA1 flash-arbitrage route,
+realized profits, post-state evidence, and explorer-indexing note are collected
+in `docs/robinhood-testnet-flash-arbitrage-trial.md`.
 
 ## Required configuration
 
@@ -24,6 +30,7 @@ canonical launcher reads:
 | `TREASURY` | Common basket and Statics Dollar protocol treasury |
 | `STAKING_TOKEN` | Deployed `StaticsToken` address used as the immutable global staking denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | `0` closes public creation and permits owner-only zero-value genesis; a positive value opens exact-fee public creation |
+| `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for every new Position NFT; `0` makes creation free and does not disable it; initial target is `1000000000000000` wei (`0.001 ETH`) |
 | `WETH_ADDRESS` | Verified canonical WETH for the target chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
 | `SEQUENCER_UPTIME_FEED` | Verified target-chain sequencer uptime feed |
@@ -47,6 +54,39 @@ canonical launcher reads:
 feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
 this repository. Verify chain-specific contracts and make the economic choices
 before broadcasting.
+
+## Existing Diamond Position-fee upgrade
+
+New deployments install the payable Position surface and initialize
+`POSITION_CREATION_FEE_AMOUNT` atomically. An existing Diamond must replace the
+five entry facets because Solidity's payable check lives in each facet, even
+though the function selectors do not change.
+
+`script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee` separates
+facet deployment, timelock scheduling, and timelock execution:
+
+```bash
+forge script script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee \
+  --sig 'runDeployFacets()' --rpc-url "$RPC_URL"
+
+forge script script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee \
+  --sig 'runSchedule()' --rpc-url "$RPC_URL"
+
+forge script script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee \
+  --sig 'runExecute()' --rpc-url "$RPC_URL"
+```
+
+Add `--broadcast` only for an explicitly authorized ceremony. Record the five
+facet addresses emitted by the first command in the matching environment
+variables before scheduling. The timelock batch replaces the Position facet
+and each atomic module-creation selector, adds the two fee selectors, sets the
+fee, and registers `IStaticsPositionFees` in one execution. Its post-execution
+checks verify every selector binding, ERC-165 support, and the configured fee.
+
+Position fees are forwarded immediately and entirely to the canonical
+treasury. The Diamond does not accrue a native fee balance and there is no
+separate treasury claim. Existing Position NFTs remain reusable without paying
+again.
 
 Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the protocol with
 `script/DeployStaticsToken.s.sol:DeployStaticsToken`. Set
@@ -406,7 +446,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 188 selectors
+StaticsDiamond:           21 facets, 190 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

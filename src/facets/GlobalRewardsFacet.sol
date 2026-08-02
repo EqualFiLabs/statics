@@ -24,13 +24,15 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
+        payable
         nonReentrant
         returns (uint256 positionId)
     {
         if (amount == 0) revert InvalidAmount();
         if (receiver == address(0)) revert InvalidReceiver();
-        positionId =
-            IStaticsPositionModule(address(this)).createPositionForModule(receiver, LibPosition.stakingLegKey());
+        positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
+            receiver, LibPosition.stakingLegKey()
+        );
         _optIn(positionId, rewardAssets);
         _increaseStake(positionId, amount);
         emit StakingPositionCreated(positionId, receiver, amount);

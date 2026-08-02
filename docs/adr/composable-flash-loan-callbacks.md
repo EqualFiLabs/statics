@@ -53,10 +53,17 @@ routed through the ordinary global non-swap fee ledger.
 
 ## Arbitrage integration contract
 
-Searchers deploy purpose-built receivers with typed venue operations and their
-own slippage and minimum-profit checks. Statics does not ship a production
-router, receiver registry, allowlist, arbitrary-call executor, or privileged
-callback mode.
+Statics ships one optional purpose-built receiver for the overpriced
+mint-and-sell direction. `StaticsFlashArbitrageReceiver` accepts only a basket,
+share quantity, complete per-pool BasketToken allocation, per-asset net profit
+floors, and deadline. It binds every swap to the Diamond's configured canonical
+pool, settles directly with that Diamond's configured PoolManager, and returns
+all profit to the caller. It has no owner, retained balances, receiver registry,
+allowlist, arbitrary-call executor, or privileged callback mode.
+
+The receiver does not discover prices or allocations and does not implement
+the underpriced buy-and-redeem direction. Searchers remain responsible for
+route construction, quote freshness, gas economics, and transaction ordering.
 
 For an overpriced multi-asset basket, a receiver:
 
@@ -95,6 +102,13 @@ PoolManager address and block recorded in
 `ROBINHOOD_MAINNET`; `ROBINHOOD_RPC_URL` remains a compatibility fallback.
 Production addresses continue to come from the deployment manifest rather
 than Solidity constants.
+
+The observed Robinhood testnet TPA1/PLTR distortion is separately replayed at
+its pinned historical block. That test deploys the production receiver only
+inside the fork, reads the live Diamond and basket configuration from the
+repository manifests, repays the three-asset flash vector, realizes net profit,
+moves the PLTR pool toward its launch price, and compounds hook-owned liquidity.
+It does not broadcast a testnet transaction.
 
 ## Consequences
 

@@ -130,6 +130,7 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
 
     function createAndStakeRiskShares(uint256 seriesId, uint256 amount, address receiver)
         external
+        payable
         override
         nonReentrant
         returns (uint256 positionId)
@@ -138,8 +139,9 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         if (receiver == address(0)) revert ZeroAddress();
         LibPeriphery.PS storage ps = LibPeriphery.s();
         _requireActive(ps, seriesId);
-        positionId =
-            IStaticsPositionModule(address(this)).createPositionForModule(receiver, LibPosition.dollarLegKey(seriesId));
+        positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
+            receiver, LibPosition.dollarLegKey(seriesId)
+        );
         _stake(ps, positionId, seriesId, msg.sender, amount, true);
     }
 

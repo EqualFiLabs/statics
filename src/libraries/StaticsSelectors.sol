@@ -20,7 +20,7 @@ import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
-import {IStaticsPosition, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
+import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
 
 library StaticsSelectors {
@@ -58,7 +58,7 @@ library StaticsSelectors {
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](20);
+        selectors = new bytes4[](22);
         selectors[0] = IERC721.balanceOf.selector;
         selectors[1] = IERC721.ownerOf.selector;
         selectors[2] = IERC721.approve.selector;
@@ -79,6 +79,8 @@ library StaticsSelectors {
         selectors[17] = IStaticsPosition.isPositionLegActive.selector;
         selectors[18] = IStaticsPosition.positionKey.selector;
         selectors[19] = IStaticsPositionModule.createPositionForModule.selector;
+        selectors[20] = IStaticsPositionFees.setPositionCreationFee.selector;
+        selectors[21] = IStaticsPositionFees.positionCreationFee.selector;
     }
 
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {

@@ -21,7 +21,7 @@ import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
-import {IStaticsPosition} from "../interfaces/IStaticsPosition.sol";
+import {IStaticsPosition, IStaticsPositionFees} from "../interfaces/IStaticsPosition.sol";
 import {IStaticsDollarRiskLiquidity} from "../dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
 import {IStaticsDollarRiskIncentives} from "../dollar/interfaces/IStaticsDollarRiskIncentives.sol";
 import {IStaticsDollarGateway} from "../dollar/interfaces/IStaticsDollarGateway.sol";
@@ -38,6 +38,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address treasury;
         address stakingToken;
         uint256 creationFeeAmount;
+        uint256 positionCreationFeeAmount;
         LibPeriphery.InitArgs dollar;
     }
 
@@ -45,15 +46,20 @@ contract StaticsProtocolInit is ERC721Upgradeable {
     error InvalidGuardian();
     error InvalidTreasury();
 
-    function initialize(address guardian, address treasury, address stakingToken, uint256 creationFeeAmount)
-        external
-        initializer
-    {
-        _initializeProtocol(guardian, treasury, stakingToken, creationFeeAmount);
+    function initialize(
+        address guardian,
+        address treasury,
+        address stakingToken,
+        uint256 creationFeeAmount,
+        uint256 positionCreationFeeAmount
+    ) external initializer {
+        _initializeProtocol(guardian, treasury, stakingToken, creationFeeAmount, positionCreationFeeAmount);
     }
 
     function initializeUnified(UnifiedInitArgs calldata args) external initializer {
-        _initializeProtocol(args.guardian, args.treasury, args.stakingToken, args.creationFeeAmount);
+        _initializeProtocol(
+            args.guardian, args.treasury, args.stakingToken, args.creationFeeAmount, args.positionCreationFeeAmount
+        );
         LibPeriphery.initialize(args.dollar);
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC1155Receiver).interfaceId] = true;
@@ -61,16 +67,20 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsDollarRiskIncentives).interfaceId] = true;
     }
 
-    function _initializeProtocol(address guardian, address treasury, address stakingToken, uint256 creationFeeAmount)
-        private
-    {
+    function _initializeProtocol(
+        address guardian,
+        address treasury,
+        address stakingToken,
+        uint256 creationFeeAmount,
+        uint256 positionCreationFeeAmount
+    ) private {
         if (guardian == address(0)) revert InvalidGuardian();
         if (treasury == address(0) || treasury == address(this)) revert InvalidTreasury();
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         if (ds.supportedInterfaces[type(IERC165).interfaceId]) revert AlreadyInitialized();
 
         __ERC721_init("Statics Position", "etPOS");
-        LibPosition.initialize();
+        LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
 
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
@@ -93,6 +103,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IERC721).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;
 
         LibGovernance.governanceStorage().guardian = guardian;
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();

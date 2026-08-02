@@ -20,6 +20,7 @@ interface IStaticsBasketCollateral {
 
     function createAndDepositBasketCollateral(uint256 basketId, uint256 shares, address receiver)
         external
+        payable
         returns (uint256 positionId);
 
     function depositBasketCollateral(uint256 positionId, uint256 basketId, uint256 shares) external;
@@ -31,7 +32,7 @@ interface IStaticsBasketCollateral {
         uint256 shares,
         address receiver,
         uint256[] calldata maxAmountsIn
-    ) external returns (uint256 positionId, uint256[] memory amountsIn);
+    ) external payable returns (uint256 positionId, uint256[] memory amountsIn);
 
     function mintBasketCollateral(
         uint256 positionId,

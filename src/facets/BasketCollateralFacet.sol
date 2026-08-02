@@ -19,6 +19,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
 
     function createAndDepositBasketCollateral(uint256 basketId, uint256 shares, address receiver)
         external
+        payable
         nonReentrant
         returns (uint256 positionId)
     {
@@ -26,8 +27,9 @@ contract BasketCollateralFacet is ReentrancyGuard {
         if (receiver == address(0)) revert InvalidReceiver();
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibBasket.enforceActive(configured, basketId);
-        positionId =
-            IStaticsPositionModule(address(this)).createPositionForModule(receiver, LibPosition.basketLegKey(basketId));
+        positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
+            receiver, LibPosition.basketLegKey(basketId)
+        );
         _pullBasketToken(configured, basketId, shares);
         LibBasketRewards.increasePosition(positionId, basketId, configured, shares);
         emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);

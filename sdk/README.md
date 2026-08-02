@@ -31,6 +31,13 @@ calldata always includes a `positionId`; transfer of that ERC-721 moves the
 attached staking balance, claim checkpoints, collateral, and loan obligations
 together.
 
+Read `positionCreationFee()` immediately before any direct or atomic Position
+creation and attach that exact native `value` to the transaction. The payable
+builders encode calldata only; transaction value remains an explicit wallet
+request field. Reusing an existing Position through `stake`,
+`stakeRiskShares`, `depositBasketCollateral`, or `mintBasketCollateral` does
+not pay the fee again. Zero means free Position creation.
+
 Global Statics stake is always withdrawable. A selected reward asset begins
 with pending stake and becomes eligible at the next hourly boundary at least
 24 hours later. Mature stake remains eligible when a position is increased;

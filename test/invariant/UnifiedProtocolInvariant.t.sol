@@ -58,6 +58,7 @@ struct UnifiedHandlerConfig {
 }
 
 contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
+    uint256 internal constant POSITION_CREATION_FEE = 0.001 ether;
     uint256 internal constant SERIES_ID = 1;
     uint256 internal constant PRICE_WAD = 2_500e18;
     uint256 internal constant SHARE_SCALE = 1e18;
@@ -161,7 +162,9 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
             uint256 stakeAmount = sharesMinted / 2;
             if (stakeAmount != 0) {
                 if (sharedPositionId == 0) {
-                    try STAKING.createAndStakeRiskShares(SERIES_ID, stakeAmount, address(this)) returns (
+                    try STAKING.createAndStakeRiskShares{value: POSITION_CREATION_FEE}(
+                        SERIES_ID, stakeAmount, address(this)
+                    ) returns (
                         uint256 newPositionId
                     ) {
                         sharedPositionId = newPositionId;
@@ -475,7 +478,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
 
     function _ensureSharedPosition() private {
         if (sharedPositionId != 0) return;
-        try POSITIONS.createPosition(address(this)) returns (uint256 positionId_) {
+        try POSITIONS.createPosition{value: POSITION_CREATION_FEE}(address(this)) returns (uint256 positionId_) {
             sharedPositionId = positionId_;
         } catch {}
     }
@@ -609,6 +612,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         config.deployMockWeth = true;
         config.deployMockOracle = true;
         config.mockOraclePriceWad = 2_500e18;
+        config.positionCreationFeeAmount = 0.001 ether;
         deployment = new DeployStaticsDollar().deployLocal(config);
 
         baskets = IStaticsBasket(deployment.diamond);
@@ -656,6 +660,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             secondBasketToken: secondBasketToken
         });
         handler = new UnifiedProtocolHandler{value: 100_000 ether}(handlerConfig);
+        vm.deal(address(handler), 1 ether);
         senderExtra.mint(address(handler), 1e36);
         reentrant.mint(address(handler), 1e36);
         basketAdmin.setTreasury(address(handler));
@@ -718,6 +723,10 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
                 + custody.reservedByAccount(feeAccount, secondBasketToken)
                 + custody.reservedByAccount(stakingAccount, secondBasketToken)
         );
+    }
+
+    function invariantPositionCreationFeesNeverRemainInDiamond() public view {
+        assertEq(address(deployment.diamond).balance, 0);
     }
 
     function invariantEveryModuleReservationEqualsItsInternalBooks() public view {

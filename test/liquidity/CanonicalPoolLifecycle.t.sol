@@ -157,10 +157,11 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         effective = basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
         assertEq(effective.inputFeeBps, 25);
         assertEq(effective.outputFeeBps, 25);
-        assertEq(effective.polShareBps, 4_000);
-        assertEq(effective.liquidityProviderShareBps, 1_000);
-        assertEq(effective.basketStakerShareBps, 2_000);
-        assertEq(effective.staticsStakerShareBps, 2_000);
+        assertEq(effective.polShareBps, 1_000);
+        assertEq(effective.liquidityProviderShareBps, 2_500);
+        assertEq(effective.basketStakerShareBps, 2_500);
+        assertEq(effective.staticsStakerShareBps, 1_500);
+        assertEq(effective.treasuryShareBps, 2_500);
         assertFalse(effective.overridden);
     }
 

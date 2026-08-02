@@ -23,6 +23,7 @@ import {
   buildClaimBasketRewardsCall,
   buildClaimLiquidityRewardsCall,
   buildCreateAndStakeCall,
+  buildCreatePositionCall,
   buildCreateBasketTransaction,
   buildDecommissionBasketCall,
   buildDepositETHTransaction,
@@ -46,6 +47,7 @@ import {
   buildRepayCall,
   buildExtendCall,
   buildSetSwapFeeConfigurationCall,
+  buildSetPositionCreationFeeCall,
   buildSetCanonicalPoolFeeConfigurationCall,
   buildStakeLiquidityPositionCall,
   buildTestnetFaucetClaimCall,
@@ -317,8 +319,8 @@ describe("Statics static basket quotes", () => {
 
   it("exports Robinhood addresses from the generated deployment binding", () => {
     expect(robinhoodChain.chainId).toBe(4_663);
-    expect(robinhoodChain.inputFeeBps).toBe(25);
-    expect(robinhoodChain.outputFeeBps).toBe(25);
+    expect(robinhoodChain.inputFeeBps).toBe(50);
+    expect(robinhoodChain.outputFeeBps).toBe(50);
     expect(robinhoodChain.hookPermissionMask).toBe("0x10cc");
     expect(robinhoodChain.liquidityCalibration.canonicalLpFeePips).toBe(0);
     expect(robinhoodChain.liquidityCalibration.hookPermissions).toEqual([
@@ -696,8 +698,48 @@ describe("Statics unified calldata", () => {
       args: [17n],
     });
     expect(
+      decodeFunctionData({ abi: staticsAbi, data: buildCreatePositionCall(receiver) }),
+    ).toEqual({ functionName: "createPosition", args: [receiver] });
+    expect(
+      staticsAbi.find(
+        (entry) => entry.type === "function" && entry.name === "createPosition",
+      ),
+    ).toMatchObject({ stateMutability: "payable" });
+    for (const functionName of [
+      "createAndMintBasketCollateral",
+      "createAndDepositBasketCollateral",
+      "createAndStake",
+    ]) {
+      expect(
+        staticsAbi.find(
+          (entry) => entry.type === "function" && entry.name === functionName,
+        ),
+      ).toMatchObject({ stateMutability: "payable" });
+    }
+    expect(
+      staticsDollarPeripheryAbi.find(
+        (entry) => entry.type === "function" && entry.name === "createAndStakeRiskShares",
+      ),
+    ).toMatchObject({ stateMutability: "payable" });
+    expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: buildSetPositionCreationFeeCall(10n ** 15n),
+      }),
+    ).toEqual({ functionName: "setPositionCreationFee", args: [10n ** 15n] });
+    expect(
+      staticsAbi.some(
+        (entry) => entry.type === "function" && entry.name === "positionCreationFee",
+      ),
+    ).toBe(true);
+    expect(
       staticsAbi.some(
         (entry) => entry.type === "event" && entry.name === "PositionCreated",
+      ),
+    ).toBe(true);
+    expect(
+      staticsAbi.some(
+        (entry) => entry.type === "event" && entry.name === "PositionCreationFeePaid",
       ),
     ).toBe(true);
     expect(
@@ -717,6 +759,18 @@ describe("Statics unified calldata", () => {
     ).toMatchObject({
       errorName: "PositionHasActiveLegs",
       args: [17n, 2n],
+    });
+
+    const feeError = encodeErrorResult({
+      abi: staticsPositionErrorAbi,
+      errorName: "IncorrectPositionCreationFee",
+      args: [10n ** 15n, 0n],
+    });
+    expect(
+      decodeErrorResult({ abi: staticsPositionErrorAbi, data: feeError }),
+    ).toMatchObject({
+      errorName: "IncorrectPositionCreationFee",
+      args: [10n ** 15n, 0n],
     });
 
     const collateralError = encodeErrorResult({

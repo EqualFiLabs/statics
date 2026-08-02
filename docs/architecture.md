@@ -144,9 +144,9 @@ StaticsLiquidityManager
 
 Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, while the pool's native LP fee remains zero.
-The default fee is 25 basis points on input and 25 basis points on output, split
-40% to POL, 10% to activated canonical LPs, 20% to deposited BasketToken
-positions, 20% to global Statics stakers, and 10% to treasury. An unavailable
+The default fee is 50 basis points on input and 50 basis points on output, split
+10% to POL, 25% to activated canonical LPs, 25% to deposited BasketToken
+positions, 15% to global Statics stakers, and 25% to treasury. An unavailable
 LP, basket-staker, or Statics-staker allocation is independently redirected to
 POL. A registered pool may override the complete seven-field configuration;
 clearing that override restores the latest global rates and split.

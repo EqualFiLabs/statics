@@ -232,11 +232,11 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         IStaticsSwapFeeHook.FeeConfiguration memory config = hook.feeConfiguration();
         assertEq(config.inputFeeBps, INPUT_FEE_BPS);
         assertEq(config.outputFeeBps, OUTPUT_FEE_BPS);
-        assertEq(config.polShareBps, 4_000);
-        assertEq(config.liquidityProviderShareBps, 1_000);
-        assertEq(config.basketStakerShareBps, 2_000);
-        assertEq(config.staticsStakerShareBps, 2_000);
-        assertEq(config.treasuryShareBps, 1_000);
+        assertEq(config.polShareBps, 1_000);
+        assertEq(config.liquidityProviderShareBps, 2_500);
+        assertEq(config.basketStakerShareBps, 2_500);
+        assertEq(config.staticsStakerShareBps, 1_500);
+        assertEq(config.treasuryShareBps, 2_500);
     }
 
     function testExactInputChargesBothAssetsAndLocksPolInBothDirections() public {
@@ -364,11 +364,11 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         IStaticsSwapFeeHook.PoolFeeConfigurationView memory defaultConfiguration = hook.poolFeeConfiguration(poolId);
         assertEq(defaultConfiguration.inputFeeBps, 25);
         assertEq(defaultConfiguration.outputFeeBps, 25);
-        assertEq(defaultConfiguration.polShareBps, 4_000);
-        assertEq(defaultConfiguration.liquidityProviderShareBps, 1_000);
-        assertEq(defaultConfiguration.basketStakerShareBps, 2_000);
-        assertEq(defaultConfiguration.staticsStakerShareBps, 2_000);
-        assertEq(defaultConfiguration.treasuryShareBps, 1_000);
+        assertEq(defaultConfiguration.polShareBps, 1_000);
+        assertEq(defaultConfiguration.liquidityProviderShareBps, 2_500);
+        assertEq(defaultConfiguration.basketStakerShareBps, 2_500);
+        assertEq(defaultConfiguration.staticsStakerShareBps, 1_500);
+        assertEq(defaultConfiguration.treasuryShareBps, 2_500);
         assertFalse(defaultConfiguration.overridden);
 
         receiver.setPoolFeeConfiguration(
@@ -657,6 +657,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     }
 
     function testExistingPendingPolCompoundsAfterZeroPolOverride() public {
+        // Recreate the prior effective POL route so both currencies retain pending inventory.
+        receiver.setFeeConfiguration(25, 25, 7_000, 0, 2_000, 1_000);
         _swapExactInput(true, 0.001 ether);
         uint128 lockedBeforeDonation = hook.lockedLiquidity(poolId);
         donateRouter.donate(key, 0.001 ether, 0.001 ether, "");
@@ -836,10 +838,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         private
         view
     {
-        uint256 pol = Math.mulDiv(fee, 4_000, 10_000);
-        uint256 liquidityProvider = Math.mulDiv(fee, 1_000, 10_000);
-        uint256 basketStaker = Math.mulDiv(fee, 2_000, 10_000);
-        uint256 staker = Math.mulDiv(fee, 2_000, 10_000);
+        uint256 pol = Math.mulDiv(fee, 1_000, 10_000);
+        uint256 liquidityProvider = Math.mulDiv(fee, 2_500, 10_000);
+        uint256 basketStaker = Math.mulDiv(fee, 2_500, 10_000);
+        uint256 staker = Math.mulDiv(fee, 1_500, 10_000);
         uint256 treasury = fee - pol - liquidityProvider - basketStaker - staker;
         address asset = Currency.unwrap(currency);
         assertEq(receiver.stakerFees(asset) - stakerBefore, staker);

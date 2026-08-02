@@ -51,6 +51,7 @@ interface IStaticsGlobalRewards {
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
+        payable
         returns (uint256 positionId);
 
     function stake(uint256 positionId, uint256 amount) external;

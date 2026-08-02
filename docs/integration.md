@@ -217,11 +217,11 @@ Display input and output hook fees separately from native v4 LP fees:
 
 ```text
 native v4 LP fee: 0
-launch input hook fee:  25 BPS on the realized input leg
-launch output hook fee: 25 BPS on the realized output leg
-launch split: 40% permanent liquidity / 10% eligible canonical LPs /
-              20% deposited BasketTokens / 20% global Statics stakers /
-              10% treasury
+launch input hook fee:  50 BPS on the realized input leg
+launch output hook fee: 50 BPS on the realized output leg
+launch split: 10% permanent liquidity / 25% eligible canonical LPs /
+              25% deposited BasketTokens / 15% global Statics stakers /
+              25% treasury
 ```
 
 Governance may update the bilateral rates and split; their combined rate is
@@ -339,11 +339,21 @@ route can borrow a constituent, buy discounted BasketTokens, redeem, repay, and
 retain underlying profit. Both routes must account for basket fees, flash fees,
 rounding, price impact, and both hook fee legs before enforcing minimum profit.
 
-Statics provides no production receiver, router, allowlist, callback privilege,
-or fee exemption. Use purpose-built typed receivers with exact approval scope,
-verified pool keys, slippage bounds, repayment checks, and minimum-profit
-enforcement. Cancun/EIP-1153 is required. See
-`docs/adr/composable-flash-loan-callbacks.md`.
+Statics ships the optional, narrowly typed
+`StaticsFlashArbitrageReceiver.executeMintAndSell` route for overpriced
+baskets. The caller supplies a complete BasketToken allocation across the
+basket's canonical pools, a deadline, and a net minimum profit for every
+constituent. The receiver pulls only the small constituent top-ups required by
+the static mint fee, uses the ordinary fee-paying `mint` entrypoint, settles
+swaps directly with the configured v4 PoolManager, approves exact flash
+repayment, returns profits to the caller, and retains no route balances.
+
+The receiver is permissionless but is not a generic router: it has no owner,
+allowlist, arbitrary target-and-calldata execution, callback privilege, or fee
+exemption. It does not implement the underpriced buy-and-redeem direction or
+search for profitable allocations. Searchers remain responsible for fresh
+quotes, gas, allocation selection, and minimums. Cancun/EIP-1153 is required.
+See `docs/adr/composable-flash-loan-callbacks.md`.
 
 ## Statics Dollar authorization
 
