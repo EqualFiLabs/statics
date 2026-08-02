@@ -385,14 +385,8 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
 
     function _assertBasketAccount(uint256 basketId) private view {
         bytes32 account = custody.basketCustodyAccount(basketId);
-        assertEq(
-            custody.reservedByAccount(account, address(assetA)),
-            baskets.vaultBalance(basketId, address(assetA)) + lending.recoverySurplus(basketId, address(assetA))
-        );
-        assertEq(
-            custody.reservedByAccount(account, address(assetB)),
-            baskets.vaultBalance(basketId, address(assetB)) + lending.recoverySurplus(basketId, address(assetB))
-        );
+        assertEq(custody.reservedByAccount(account, address(assetA)), baskets.vaultBalance(basketId, address(assetA)));
+        assertEq(custody.reservedByAccount(account, address(assetB)), baskets.vaultBalance(basketId, address(assetB)));
     }
 
     function _mintSupply(uint256 basketId, address basketToken, uint256 shares) private {
@@ -419,6 +413,7 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);

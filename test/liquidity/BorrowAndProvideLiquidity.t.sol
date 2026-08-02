@@ -46,8 +46,7 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
     function testSingleAssetBorrowMintsUserOwnedV4PositionWithoutManagerResidue() public {
         _createReadyBasket(1);
         IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
-        (uint256 expectedFee, uint256 expectedCollateral,, uint256[] memory expectedPrincipals) =
-            lending.quoteBorrow(basketId, 20 ether);
+        IStaticsLending.BorrowQuote memory expected = lending.quoteBorrow(basketId, 20 ether);
         uint256 supplyBefore = IERC20(basketToken).totalSupply();
 
         vm.prank(alice);
@@ -58,26 +57,26 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenIds[0]), bob);
         assertEq(positionManagerContract.getPositionLiquidity(tokenIds[0]), params[0].liquidity);
         IStaticsLending.LoanView memory loan = lending.loan(loanId);
-        assertEq(loan.feeShares, expectedFee);
-        assertEq(loan.collateralShares, expectedCollateral);
-        assertEq(loan.principals, expectedPrincipals);
-        assertGt(IERC20(basketToken).totalSupply(), supplyBefore - expectedFee);
+        assertEq(loan.feeShares, expected.feeShares);
+        assertEq(loan.collateralShares, expected.collateralShares);
+        assertEq(loan.principals, expected.principals);
+        assertGt(IERC20(basketToken).totalSupply(), supplyBefore - expected.feeShares);
         assertEq(liquidityManagerContract.protocolPositionId(basketId, basketAssets[0]), 0);
         _assertManagerHasNoUserResidue();
 
         IStaticsBasketCollateral.BasketCollateralPosition memory basketCollateralPosition =
             basketCollateral.basketCollateralPosition(basketPositionId, basketId);
-        assertEq(basketCollateralPosition.depositedShares, 100 ether - expectedFee);
-        assertEq(basketCollateralPosition.lockedShares, expectedCollateral);
+        assertEq(basketCollateralPosition.depositedShares, 100 ether - expected.feeShares);
+        assertEq(basketCollateralPosition.lockedShares, expected.collateralShares);
 
         vm.prank(alice);
         IERC721(address(diamond)).transferFrom(alice, carol, basketPositionId);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenIds[0]), bob);
 
         for (uint256 i; i < basketAssets.length; ++i) {
-            MockERC20(basketAssets[i]).mint(alice, expectedPrincipals[i]);
+            MockERC20(basketAssets[i]).mint(alice, expected.principals[i]);
             vm.prank(alice);
-            IERC20(basketAssets[i]).approve(address(diamond), expectedPrincipals[i]);
+            IERC20(basketAssets[i]).approve(address(diamond), expected.principals[i]);
         }
         vm.prank(alice);
         lending.repay(loanId);
@@ -103,6 +102,24 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
             assertGt(IERC20(basketAssets[i]).balanceOf(bob), balancesBefore[i]);
             assertEq(liquidityManagerContract.protocolPositionId(basketId, basketAssets[i]), 0);
         }
+        _assertManagerHasNoUserResidue();
+    }
+
+    function testApprovedOperatorAtomicStakeRefundsPositionOwner() public {
+        _createReadyBasket(1);
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
+        vm.prank(alice);
+        IERC721(address(diamond)).approve(bob, basketPositionId);
+        uint256 ownerBalanceBefore = IERC20(basketAssets[0]).balanceOf(alice);
+        uint256 operatorBalanceBefore = IERC20(basketAssets[0]).balanceOf(bob);
+
+        vm.prank(bob);
+        (, uint256[] memory tokenIds) =
+            borrowLiquidity.borrowAndStakeLiquidity(basketPositionId, basketId, 20 ether, params);
+
+        assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenIds[0]), address(diamond));
+        assertGt(IERC20(basketAssets[0]).balanceOf(alice), ownerBalanceBefore);
+        assertEq(IERC20(basketAssets[0]).balanceOf(bob), operatorBalanceBefore);
         _assertManagerHasNoUserResidue();
     }
 
@@ -169,6 +186,9 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
             vm.prank(alice);
             vm.expectRevert();
             borrowLiquidity.borrowAndProvideLiquidity(basketPositionId, basketId, 20 ether, params, bob);
+            vm.prank(alice);
+            vm.expectRevert();
+            borrowLiquidity.borrowAndStakeLiquidity(basketPositionId, basketId, 20 ether, params);
             governance.unpause(actions[i]);
         }
     }
@@ -218,16 +238,4 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         }
     }
 
-    function _assertManagerHasNoUserResidue() private view {
-        assertEq(
-            IERC20(basketToken).balanceOf(address(liquidityManagerContract)),
-            liquidityManagerContract.totalProtocolInventory(basketToken)
-        );
-        for (uint256 i; i < basketAssets.length; ++i) {
-            assertEq(
-                IERC20(basketAssets[i]).balanceOf(address(liquidityManagerContract)),
-                liquidityManagerContract.totalProtocolInventory(basketAssets[i])
-            );
-        }
-    }
 }

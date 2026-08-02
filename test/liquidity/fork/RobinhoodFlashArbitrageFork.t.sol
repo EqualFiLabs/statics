@@ -128,6 +128,7 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);
@@ -139,6 +140,7 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 100 ether);
         positionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
+        vm.warp(globalRewards.rewardSelection(positionId, rewardAssets[0]).eligibleAt);
         vm.stopPrank();
     }
 

@@ -24,7 +24,8 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     );
     event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
@@ -115,7 +116,8 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
             outputFeeBps: 60,
             polShareBps: 0,
             liquidityProviderShareBps: 0,
-            stakerShareBps: 8_000,
+            basketStakerShareBps: 0,
+            staticsStakerShareBps: 8_000,
             treasuryShareBps: 2_000
         });
 
@@ -125,7 +127,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit CanonicalPoolFeeConfigurationSet(
-            basketId, assets[0], PoolId.unwrap(pool.poolId), 40, 60, 0, 0, 8_000, 2_000
+            basketId, assets[0], PoolId.unwrap(pool.poolId), 40, 60, 0, 0, 0, 8_000, 2_000
         );
         basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
 
@@ -135,14 +137,15 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(effective.outputFeeBps, 60);
         assertEq(effective.polShareBps, 0);
         assertEq(effective.liquidityProviderShareBps, 0);
-        assertEq(effective.stakerShareBps, 8_000);
+        assertEq(effective.basketStakerShareBps, 0);
+        assertEq(effective.staticsStakerShareBps, 8_000);
         assertEq(effective.treasuryShareBps, 2_000);
         assertTrue(effective.overridden);
         IStaticsSwapFeeHook.PoolFeeConfigurationView memory hookEffective =
             swapFeeHook.poolFeeConfiguration(pool.poolId);
         assertEq(hookEffective.inputFeeBps, effective.inputFeeBps);
         assertEq(hookEffective.outputFeeBps, effective.outputFeeBps);
-        assertEq(hookEffective.stakerShareBps, effective.stakerShareBps);
+        assertEq(hookEffective.staticsStakerShareBps, effective.staticsStakerShareBps);
         assertTrue(hookEffective.overridden);
 
         vm.prank(bob);
@@ -155,8 +158,10 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         effective = basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
         assertEq(effective.inputFeeBps, 25);
         assertEq(effective.outputFeeBps, 25);
-        assertEq(effective.polShareBps, 5_000);
+        assertEq(effective.polShareBps, 4_000);
         assertEq(effective.liquidityProviderShareBps, 1_000);
+        assertEq(effective.basketStakerShareBps, 2_000);
+        assertEq(effective.staticsStakerShareBps, 2_000);
         assertFalse(effective.overridden);
     }
 
@@ -167,7 +172,8 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
             outputFeeBps: 60,
             polShareBps: 0,
             liquidityProviderShareBps: 0,
-            stakerShareBps: 8_000,
+            basketStakerShareBps: 0,
+            staticsStakerShareBps: 8_000,
             treasuryShareBps: 2_000
         });
         vm.expectRevert(
@@ -250,6 +256,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
             originationFeeBps: 0,
             extensionFeeBps: 0,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);

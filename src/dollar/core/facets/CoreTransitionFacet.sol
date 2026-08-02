@@ -35,11 +35,9 @@ contract CoreTransitionFacet is ReentrancyGuard {
     );
     event SeriesOpened(uint256 indexed profileId, uint256 indexed seriesId, uint256 priceWad);
     event SeriesClosed(uint256 indexed profileId, uint256 indexed seriesId);
-    event ManagedRecoveryHolderRegistered(address indexed holder);
 
     error ZeroAddress();
     error ZeroAmount();
-    error ContractExpected(address account);
     error InvalidProfileKind(
         uint256 profileId, IStaticsDollarCoreTypes.ProfileKind expected, IStaticsDollarCoreTypes.ProfileKind actual
     );
@@ -54,12 +52,6 @@ contract CoreTransitionFacet is ReentrancyGuard {
     error NoReturnedShares(uint256 seriesId, address holder);
     error UnexpectedRiskIngressState();
     error TransitionOracleChanged(uint256 seriesId, address expectedOracle, address actualOracle);
-
-    function registerManagedRecoveryHolder() external {
-        if (msg.sender.code.length == 0) revert ContractExpected(msg.sender);
-        LibCoreStorage.s().managedRecoveryHolder[msg.sender] = true;
-        emit ManagedRecoveryHolderRegistered(msg.sender);
-    }
 
     function startSeriesTransition(uint256 profileId)
         external

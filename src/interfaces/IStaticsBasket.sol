@@ -24,6 +24,7 @@ interface IStaticsBasket {
         uint16 originationFeeBps;
         uint16 extensionFeeBps;
         uint16 ltvBps;
+        uint16 recoveryPenaltyBps;
         uint40 loanDuration;
     }
 
@@ -39,6 +40,7 @@ interface IStaticsBasket {
         uint16 originationFeeBps;
         uint16 extensionFeeBps;
         uint16 ltvBps;
+        uint16 recoveryPenaltyBps;
         uint40 loanDuration;
     }
 
@@ -53,6 +55,7 @@ interface IStaticsBasket {
         uint16 originationFeeBps,
         uint16 extensionFeeBps,
         uint16 ltvBps,
+        uint16 recoveryPenaltyBps,
         uint40 loanDuration
     );
     event BasketFeeTiersConfigured(

@@ -19,6 +19,7 @@ library LibBasketCollateral {
     error InsufficientPositionShares(uint256 requested, uint256 available);
     error PositionSharesLocked(uint256 requested, uint256 unlocked);
     error InsufficientLockedShares(uint256 requested, uint256 locked);
+    error BurnSharesExceedCollateral(uint256 burnShares, uint256 collateralShares);
     error PositionDepositTooRecent(uint256 positionId, uint256 basketId, uint256 withdrawableAfterBlock);
 
     function collateralStorage() internal pure returns (CollateralStorage storage cs) {
@@ -72,14 +73,17 @@ library LibBasketCollateral {
         position.lockedShares = locked - collateralShares;
     }
 
-    function removeRecoveredCollateral(uint256 positionId, uint256 basketId, uint256 collateralShares) internal {
+    function releaseAfterRecovery(uint256 positionId, uint256 basketId, uint256 collateralShares, uint256 burnShares)
+        internal
+    {
         PositionBasketCollateral storage position = collateralStorage().positions[positionId][basketId];
         uint256 locked = position.lockedShares;
         if (collateralShares > locked) revert InsufficientLockedShares(collateralShares, locked);
+        if (burnShares > collateralShares) revert BurnSharesExceedCollateral(burnShares, collateralShares);
         uint256 deposited = position.depositedShares;
-        if (collateralShares > deposited) revert InsufficientPositionShares(collateralShares, deposited);
+        if (burnShares > deposited) revert InsufficientPositionShares(burnShares, deposited);
         position.lockedShares = locked - collateralShares;
-        position.depositedShares = deposited - collateralShares;
+        position.depositedShares = deposited - burnShares;
     }
 
     function deactivateIfEmpty(uint256 positionId, uint256 basketId) internal {

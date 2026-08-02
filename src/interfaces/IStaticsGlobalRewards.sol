@@ -4,6 +4,7 @@ pragma solidity >=0.8.26 <0.9.0;
 interface IStaticsGlobalRewards {
     struct RewardAssetView {
         uint256 eligibleStake;
+        uint256 pendingStake;
         uint256 indexRay;
         uint256 indexedReserve;
         uint256 totalClaimable;
@@ -11,16 +12,35 @@ interface IStaticsGlobalRewards {
 
     struct StakePositionView {
         uint256 stakedBalance;
-        uint256 unstakeAvailableAt;
         uint256 claimAssetCount;
         uint256 optedInAssetCount;
+    }
+
+    struct RewardSelectionView {
+        bool selected;
+        uint256 eligibleStake;
+        uint256 pendingStake;
+        uint40 eligibleAt;
     }
 
     event StakingPositionCreated(uint256 indexed positionId, address indexed owner, uint256 amount);
     event Staked(uint256 indexed positionId, address indexed payer, uint256 amount, uint256 totalPositionStake);
     event Unstaked(uint256 indexed positionId, address indexed receiver, uint256 amount, uint256 totalPositionStake);
-    event RewardAssetOptedIn(uint256 indexed positionId, address indexed asset, uint256 eligibleStake);
-    event RewardAssetOptedOut(uint256 indexed positionId, address indexed asset, uint256 eligibleStake);
+    event RewardAssetOptedIn(
+        uint256 indexed positionId, address indexed asset, uint256 pendingStake, uint40 eligibleAt
+    );
+    event RewardStakeScheduled(
+        uint256 indexed positionId, address indexed asset, uint256 pendingStake, uint40 eligibleAt
+    );
+    event RewardBucketMatured(
+        address indexed asset, uint40 indexed eligibleAt, uint256 amount, uint256 eligibleStake, uint256 indexRay
+    );
+    event PositionRewardEligibilityActivated(
+        uint256 indexed positionId, address indexed asset, uint256 amount, uint40 eligibleAt, uint256 activationIndexRay
+    );
+    event RewardAssetOptedOut(
+        uint256 indexed positionId, address indexed asset, uint256 removedEligibleStake, uint256 removedPendingStake
+    );
     event RewardAssetDustRouted(address indexed asset, uint256 amount);
     event GlobalFeeAccrued(
         address indexed asset, uint256 grossFee, uint256 stakerAmount, uint256 treasuryAmount, uint256 indexRay
@@ -65,7 +85,16 @@ interface IStaticsGlobalRewards {
 
     function isRewardAssetOptedIn(uint256 positionId, address asset) external view returns (bool);
 
+    function rewardSelection(uint256 positionId, address asset)
+        external
+        view
+        returns (RewardSelectionView memory selection);
+
     function maxRewardAssetsPerPosition() external pure returns (uint256);
+
+    function rewardEligibilityDelay() external pure returns (uint256);
+
+    function rewardEligibilityBucketSize() external pure returns (uint256);
 
     function stakingToken() external view returns (address);
 

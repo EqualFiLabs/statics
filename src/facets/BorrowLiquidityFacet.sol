@@ -2,16 +2,19 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
@@ -20,6 +23,7 @@ import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLoanOrigination} from "../libraries/LibLoanOrigination.sol";
+import {LibLiquidityRewards} from "../libraries/LibLiquidityRewards.sol";
 
 contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
@@ -52,6 +56,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     error AmountCapExceeded(address token, uint256 required, uint256 maximum);
     error PriceDeviationTooHigh(int24 referenceTick, int24 spotTick);
     error InsufficientPrincipal(address asset, uint256 required, uint256 available);
+    error PositionLiquidityMismatch(uint256 tokenId, uint256 expected, uint256 actual);
     error ActionPaused(uint256 action);
 
     function borrowAndProvideLiquidity(
@@ -62,6 +67,28 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         address lpRecipient
     ) external nonReentrant returns (uint256 loanId, uint256[] memory v4TokenIds) {
         if (lpRecipient == address(0)) revert InvalidRecipient();
+        return _borrowAndProvide(positionId, basketId, sharesIn, pools, lpRecipient, lpRecipient, false);
+    }
+
+    function borrowAndStakeLiquidity(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 sharesIn,
+        LiquidityParams[] calldata pools
+    ) external nonReentrant returns (uint256 loanId, uint256[] memory v4TokenIds) {
+        address beneficiary = IERC721(address(this)).ownerOf(positionId);
+        return _borrowAndProvide(positionId, basketId, sharesIn, pools, address(this), beneficiary, true);
+    }
+
+    function _borrowAndProvide(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 sharesIn,
+        LiquidityParams[] calldata pools,
+        address nftRecipient,
+        address refundRecipient,
+        bool stakePositions
+    ) private returns (uint256 loanId, uint256[] memory v4TokenIds) {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_LIQUIDITY != 0) {
             revert ActionPaused(LibGovernance.PAUSE_LIQUIDITY);
         }
@@ -75,10 +102,10 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         if (!liquidityStorage.managerInstalled) revert LiquidityManagerNotInstalled();
 
         (PreparedPool[] memory prepared, uint256[] memory poolAssetAmounts, uint256 basketShares) =
-            _preparePools(liquidityStorage, configured, basketId, pools);
+            _preparePools(liquidityStorage, configured, basketId, pools, stakePositions);
         uint256[] memory principals;
         (loanId, principals) =
-            LibLoanOrigination.originate(positionId, basketId, sharesIn, msg.sender, lpRecipient, address(0));
+            LibLoanOrigination.originate(positionId, basketId, sharesIn, msg.sender, refundRecipient, address(0));
 
         uint256[] memory mintInputs =
             LibBasketMint.quote(configured, basketShares, IERC20(configured.token).totalSupply());
@@ -90,19 +117,35 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         }
         LibBasketMint.mintFromRetainedPrincipal(basketId, basketShares, msg.sender, address(this));
 
-        v4TokenIds =
-            _provideLiquidity(liquidityStorage.manager, configured.token, basketId, loanId, prepared, lpRecipient);
-        _refundPrincipals(configured, basketId, principals, mintInputs, poolAssetAmounts, lpRecipient);
-        emit BorrowedLiquidityProvided(
-            loanId, positionId, basketId, msg.sender, lpRecipient, sharesIn, basketShares, v4TokenIds
+        v4TokenIds = _provideLiquidity(
+            liquidityStorage.manager,
+            configured.token,
+            basketId,
+            loanId,
+            positionId,
+            prepared,
+            nftRecipient,
+            refundRecipient,
+            stakePositions
         );
+        _refundPrincipals(configured, basketId, principals, mintInputs, poolAssetAmounts, refundRecipient);
+        if (stakePositions) {
+            emit BorrowedLiquidityStaked(
+                loanId, positionId, basketId, msg.sender, refundRecipient, sharesIn, basketShares, v4TokenIds
+            );
+        } else {
+            emit BorrowedLiquidityProvided(
+                loanId, positionId, basketId, msg.sender, refundRecipient, sharesIn, basketShares, v4TokenIds
+            );
+        }
     }
 
     function _preparePools(
         LibBasketLiquidity.LiquidityStorage storage ls,
         LibBasket.Basket storage configured,
         uint256 basketId,
-        LiquidityParams[] calldata pools
+        LiquidityParams[] calldata pools,
+        bool requireFullRange
     ) private returns (PreparedPool[] memory prepared, uint256[] memory poolAssetAmounts, uint256 basketShares) {
         uint256 length = pools.length;
         prepared = new PreparedPool[](length);
@@ -123,7 +166,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
             if (!ls.managerPoolSynced[basketId][supplied.asset]) {
                 revert CanonicalPoolNotSynced(basketId, supplied.asset);
             }
-            _validateRange(supplied, stored.key.tickSpacing);
+            _validateRange(supplied, stored.key.tickSpacing, requireFullRange);
 
             hook.checkpoint(stored.key);
             (int24 referenceTick, int24 spotTick,) = hook.consult(stored.key.toId(), REFERENCE_WINDOW);
@@ -164,8 +207,11 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         address basketToken,
         uint256 basketId,
         uint256 loanId,
+        uint256 positionId,
         PreparedPool[] memory prepared,
-        address lpRecipient
+        address nftRecipient,
+        address refundRecipient,
+        bool stakePositions
     ) private returns (uint256[] memory tokenIds) {
         IStaticsLiquidityManager manager = IStaticsLiquidityManager(managerAddress);
         bytes32 custodyAccount = LibCustody.basketAccount(basketId);
@@ -190,14 +236,17 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
                 deadline: plan.deadline
             });
             (IStaticsLiquidityManager.PositionMovement memory movement, uint256 refund0, uint256 refund1) =
-                manager.mintUserPosition(request, lpRecipient, lpRecipient);
+                manager.mintUserPosition(request, nftRecipient, refundRecipient);
             tokenIds[i] = movement.tokenId;
+            if (stakePositions) {
+                _initializeLiquidityReward(manager, positionId, basketId, plan, movement.tokenId);
+            }
             emit BorrowedLiquidityPositionMinted(
                 loanId,
                 basketId,
                 plan.asset,
                 movement.tokenId,
-                lpRecipient,
+                nftRecipient,
                 plan.liquidity,
                 movement.spent0,
                 movement.spent1,
@@ -205,6 +254,29 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
                 refund1
             );
         }
+    }
+
+    function _initializeLiquidityReward(
+        IStaticsLiquidityManager manager,
+        uint256 positionId,
+        uint256 basketId,
+        PreparedPool memory plan,
+        uint256 tokenId
+    ) private {
+        uint256 actualLiquidity = IPositionManager(manager.positionManager()).getPositionLiquidity(tokenId);
+        if (actualLiquidity != plan.liquidity) {
+            revert PositionLiquidityMismatch(tokenId, plan.liquidity, actualLiquidity);
+        }
+        PoolId poolId = plan.key.toId();
+        address currency0 = Currency.unwrap(plan.key.currency0);
+        address currency1 = Currency.unwrap(plan.key.currency1);
+        LibLiquidityRewards.cachePoolCurrencies(poolId, currency0, currency1);
+        LibLiquidityRewards.LiquidityPosition storage position = LibLiquidityRewards.initializeRecord(
+            tokenId, positionId, basketId, plan.asset, poolId, currency0, currency1, actualLiquidity
+        );
+        emit IStaticsLiquidityRewards.LiquidityPositionStaked(
+            positionId, tokenId, poolId, actualLiquidity, position.eligibleAtBlock
+        );
     }
 
     function _refundPrincipals(
@@ -237,12 +309,18 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         revert AssetNotInBasket(basketId, asset);
     }
 
-    function _validateRange(LiquidityParams calldata supplied, int24 tickSpacing) private view {
+    function _validateRange(LiquidityParams calldata supplied, int24 tickSpacing, bool requireFullRange)
+        private
+        view
+    {
+        int24 minimumTick = TickMath.minUsableTick(tickSpacing);
+        int24 maximumTick = TickMath.maxUsableTick(tickSpacing);
         if (
             supplied.liquidity == 0 || supplied.liquidity > type(uint128).max || supplied.deadline < block.timestamp
-                || supplied.tickLower >= supplied.tickUpper || supplied.tickLower < TickMath.minUsableTick(tickSpacing)
-                || supplied.tickUpper > TickMath.maxUsableTick(tickSpacing) || supplied.tickLower % tickSpacing != 0
+                || supplied.tickLower >= supplied.tickUpper || supplied.tickLower < minimumTick
+                || supplied.tickUpper > maximumTick || supplied.tickLower % tickSpacing != 0
                 || supplied.tickUpper % tickSpacing != 0
+                || (requireFullRange && (supplied.tickLower != minimumTick || supplied.tickUpper != maximumTick))
         ) revert InvalidLiquidityParameters(supplied.asset);
     }
 }

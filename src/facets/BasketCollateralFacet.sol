@@ -7,6 +7,7 @@ import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.s
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
+import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
@@ -28,7 +29,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         positionId =
             IStaticsPositionModule(address(this)).createPositionForModule(receiver, LibPosition.basketLegKey(basketId));
         _pullBasketToken(configured, basketId, shares);
-        LibBasketCollateral.increasePosition(positionId, basketId, shares);
+        LibBasketRewards.increasePosition(positionId, basketId, configured, shares);
         emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);
     }
 
@@ -38,7 +39,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibBasket.enforceActive(configured, basketId);
         _pullBasketToken(configured, basketId, shares);
-        LibBasketCollateral.increasePosition(positionId, basketId, shares);
+        LibBasketRewards.increasePosition(positionId, basketId, configured, shares);
         emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);
     }
 
@@ -50,9 +51,9 @@ contract BasketCollateralFacet is ReentrancyGuard {
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
-        LibBasketCollateral.decreasePosition(positionId, basketId, shares);
+        LibBasketRewards.decreasePosition(positionId, basketId, configured, shares);
         LibCustody.pushReserved(LibCustody.basketAccount(basketId), configured.token, receiver, shares, shares);
-        LibBasketCollateral.deactivateIfEmpty(positionId, basketId);
+        LibBasketRewards.deactivateIfEmpty(positionId, basketId);
         emit IStaticsBasketCollateral.BasketCollateralWithdrawn(positionId, basketId, receiver, shares);
     }
 

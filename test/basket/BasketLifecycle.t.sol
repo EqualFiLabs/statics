@@ -38,10 +38,62 @@ contract BasketLifecycleTest is StaticsTestBase {
         assertEq(configured.mintFeeTiers[0].feeShares, 0.1 ether);
         assertEq(configured.redemptionFeeTiers[0].feeShares, 0.05 ether);
         assertEq(configured.originationFeeBps, 100);
+        assertEq(configured.recoveryPenaltyBps, 500);
         assertEq(treasury.balance - treasuryBefore, 1 ether);
         assertEq(address(diamond).balance, 0);
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsBasket).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsBasketAdmin).interfaceId));
+    }
+
+    function testZeroCreationFeeRestrictsGenesisToOwner() public {
+        basketAdmin.setCreationFee(0);
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+
+        vm.prank(alice);
+        vm.expectRevert(BasketFacet.PermissionlessBasketCreationDisabled.selector);
+        baskets.createBasket(params);
+
+        uint256 treasuryBefore = treasury.balance;
+        (uint256 basketId,) = baskets.createBasket(params);
+        assertEq(baskets.basket(basketId).creator, address(this));
+        assertEq(treasury.balance, treasuryBefore);
+    }
+
+    function testOwnerCannotAttachNativeValueWhileCreationIsClosed() public {
+        basketAdmin.setCreationFee(0);
+        vm.deal(address(this), 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(BasketFacet.IncorrectCreationFee.selector, 0, 1 ether));
+        baskets.createBasket{value: 1 ether}(_defaultParams(0, 0));
+    }
+
+    function testPositiveFeeReopensPermissionlessCreationAfterClosure() public {
+        basketAdmin.setCreationFee(0);
+        basketAdmin.setCreationFee(2 ether);
+        vm.deal(bob, 2 ether);
+        uint256 treasuryBefore = treasury.balance;
+
+        vm.prank(bob);
+        (uint256 basketId,) = baskets.createBasket{value: 2 ether}(_defaultParams(0, 0));
+
+        assertEq(baskets.basket(basketId).creator, bob);
+        assertEq(treasury.balance - treasuryBefore, 2 ether);
+    }
+
+    function testClosingCreationDoesNotDisableExistingBasketLifecycle() public {
+        (uint256 basketId,) = _createDefaultBasket(0, 0);
+        basketAdmin.setCreationFee(0);
+
+        vm.prank(alice);
+        vm.expectRevert(BasketFacet.PermissionlessBasketCreationDisabled.selector);
+        baskets.createBasket(_defaultParams(0, 0));
+
+        _fundAndApprove(alice, 2 ether, 5 ether);
+        uint256[] memory quote = baskets.quoteMint(basketId, 1 ether);
+        vm.prank(alice);
+        baskets.mint(basketId, 1 ether, alice, quote);
+        uint256[] memory minimums = baskets.quoteRedeem(basketId, 1 ether);
+        vm.prank(alice);
+        baskets.redeem(basketId, 1 ether, alice, minimums);
     }
 
     function testStaticTierFeesDoNotChargeHistoricalBuyIn() public {
@@ -150,6 +202,23 @@ contract BasketLifecycleTest is StaticsTestBase {
         vm.expectRevert(abi.encodeWithSelector(BasketFacet.IncorrectCreationFee.selector, 1 ether, 2 ether));
         baskets.createBasket{value: 2 ether}(params);
         vm.stopPrank();
+    }
+
+    function testRecoveryPenaltyCannotMakeMaximumSeizureExceedCollateral() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.ltvBps = 9_500;
+        params.recoveryPenaltyBps = 527;
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(BasketFacet.InvalidRecoveryParameters.selector, uint16(9_500), uint16(527))
+        );
+        baskets.createBasket{value: 1 ether}(params);
+
+        params.recoveryPenaltyBps = 526;
+        vm.prank(alice);
+        (uint256 basketId,) = baskets.createBasket{value: 1 ether}(params);
+        assertEq(baskets.basket(basketId).recoveryPenaltyBps, 526);
     }
 
     function testCreationAllowsFullRangeCreatorFees() public {
@@ -330,6 +399,7 @@ contract BasketLifecycleTest is StaticsTestBase {
             originationFeeBps: 0,
             extensionFeeBps: 0,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);

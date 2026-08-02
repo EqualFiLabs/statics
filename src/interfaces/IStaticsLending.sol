@@ -2,11 +2,31 @@
 pragma solidity 0.8.33;
 
 interface IStaticsLending {
+    struct BorrowQuote {
+        uint256 feeShares;
+        uint256 collateralShares;
+        uint256 debtShares;
+        uint256 penaltyShares;
+        address[] assets;
+        uint256[] principals;
+    }
+
+    struct RecoveryQuote {
+        uint256 recoverableAt;
+        uint256 burnShares;
+        uint256 unlockedShares;
+        address[] assets;
+        uint256[] callerAmounts;
+        uint256[] protocolAmounts;
+    }
+
     struct LoanView {
         uint256 positionId;
         uint256 basketId;
         uint256 collateralShares;
         uint256 feeShares;
+        uint256 debtShares;
+        uint256 penaltyShares;
         uint40 maturity;
         address[] assets;
         uint256[] principals;
@@ -21,6 +41,8 @@ interface IStaticsLending {
         uint256 sharesIn,
         uint256 feeShares,
         uint256 collateralShares,
+        uint256 debtShares,
+        uint256 penaltyShares,
         uint40 maturity
     );
     event LoanRepaid(uint256 indexed loanId, uint256 indexed positionId, address indexed payer);
@@ -29,7 +51,18 @@ interface IStaticsLending {
         uint256 indexed loanId, address indexed asset, uint256 requiredFee, uint256 receivedFee
     );
     event LoanRecovered(
-        uint256 indexed loanId, uint256 indexed positionId, address indexed caller, uint256 collateralShares
+        uint256 indexed loanId,
+        uint256 indexed positionId,
+        address indexed caller,
+        uint256 burnedShares,
+        uint256 unlockedShares
+    );
+    event RecoveryPenaltyDistributed(
+        uint256 indexed loanId,
+        address indexed asset,
+        uint256 callerAmount,
+        uint256 callerReceived,
+        uint256 protocolAmount
     );
 
     function borrow(uint256 positionId, uint256 basketId, uint256 sharesIn, address receiver)
@@ -40,15 +73,12 @@ interface IStaticsLending {
         external
         returns (uint256[] memory receivedAmounts);
     function recover(uint256 loanId) external;
-    function quoteBorrow(uint256 basketId, uint256 sharesIn)
-        external
-        view
-        returns (uint256 feeShares, uint256 collateralShares, address[] memory assets, uint256[] memory principals);
+    function quoteBorrow(uint256 basketId, uint256 sharesIn) external view returns (BorrowQuote memory result);
+    function quoteRecovery(uint256 loanId) external view returns (RecoveryQuote memory result);
     function quoteExtension(uint256 loanId)
         external
         view
         returns (address[] memory assets, uint256[] memory requiredFees);
     function loan(uint256 loanId) external view returns (LoanView memory);
     function outstandingPrincipal(uint256 basketId, address asset) external view returns (uint256);
-    function recoverySurplus(uint256 basketId, address asset) external view returns (uint256);
 }

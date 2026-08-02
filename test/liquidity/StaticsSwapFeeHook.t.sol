@@ -62,6 +62,7 @@ contract HookFeeReceiver {
     address public hook;
     bool public stakersEligible = true;
     mapping(address asset => bool eligible) public rewardAssetEligible;
+    mapping(address asset => uint256 amount) public basketStakerFees;
     mapping(address asset => uint256 amount) public stakerFees;
     mapping(address asset => uint256 amount) public treasuryFees;
 
@@ -86,6 +87,10 @@ contract HookFeeReceiver {
         return false;
     }
 
+    function canAccrueBasketRewards(PoolId) external pure returns (bool) {
+        return false;
+    }
+
     function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) public {
         require(msg.sender == hook);
         uint256 total = stakerAmount + treasuryAmount;
@@ -98,11 +103,13 @@ contract HookFeeReceiver {
         PoolId,
         address asset,
         uint256 liquidityProviderAmount,
-        uint256 stakerAmount,
+        uint256 basketStakerAmount,
+        uint256 staticsStakerAmount,
         uint256 treasuryAmount
     ) external {
         require(liquidityProviderAmount == 0);
-        routeSwapFees(asset, stakerAmount, treasuryAmount);
+        require(basketStakerAmount == 0);
+        routeSwapFees(asset, staticsStakerAmount, treasuryAmount);
     }
 
     function registerPool(PoolKey calldata key) external returns (PoolId) {
@@ -114,12 +121,18 @@ contract HookFeeReceiver {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     ) external {
         IStaticsSwapFeeHook(hook)
             .setFeeConfiguration(
-                inputFeeBps, outputFeeBps, polShareBps, liquidityProviderShareBps, stakerShareBps, treasuryShareBps
+                inputFeeBps,
+                outputFeeBps,
+                polShareBps,
+                liquidityProviderShareBps,
+                0,
+                staticsStakerShareBps,
+                treasuryShareBps
             );
     }
 
@@ -178,9 +191,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         IStaticsSwapFeeHook.FeeConfiguration memory config = hook.feeConfiguration();
         assertEq(config.inputFeeBps, INPUT_FEE_BPS);
         assertEq(config.outputFeeBps, OUTPUT_FEE_BPS);
-        assertEq(config.polShareBps, 5_000);
+        assertEq(config.polShareBps, 4_000);
         assertEq(config.liquidityProviderShareBps, 1_000);
-        assertEq(config.stakerShareBps, 3_000);
+        assertEq(config.basketStakerShareBps, 2_000);
+        assertEq(config.staticsStakerShareBps, 2_000);
         assertEq(config.treasuryShareBps, 1_000);
     }
 
@@ -264,7 +278,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         address outsider = makeAddr("outsider");
         vm.prank(outsider);
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, outsider));
-        hook.setFeeConfiguration(25, 25, 5_000, 1_000, 3_000, 1_000);
+        hook.setFeeConfiguration(25, 25, 5_000, 1_000, 0, 3_000, 1_000);
 
         vm.expectRevert(StaticsSwapFeeHook.InvalidFeeConfiguration.selector);
         receiver.setFeeConfiguration(101, 100, 5_000, 1_000, 3_000, 1_000);
@@ -278,7 +292,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
             outputFeeBps: 25,
             polShareBps: 0,
             liquidityProviderShareBps: 0,
-            stakerShareBps: 8_000,
+            basketStakerShareBps: 0,
+            staticsStakerShareBps: 8_000,
             treasuryShareBps: 2_000
         });
         address outsider = makeAddr("configuration-outsider");
@@ -308,9 +323,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         IStaticsSwapFeeHook.PoolFeeConfigurationView memory defaultConfiguration = hook.poolFeeConfiguration(poolId);
         assertEq(defaultConfiguration.inputFeeBps, 25);
         assertEq(defaultConfiguration.outputFeeBps, 25);
-        assertEq(defaultConfiguration.polShareBps, 5_000);
+        assertEq(defaultConfiguration.polShareBps, 4_000);
         assertEq(defaultConfiguration.liquidityProviderShareBps, 1_000);
-        assertEq(defaultConfiguration.stakerShareBps, 3_000);
+        assertEq(defaultConfiguration.basketStakerShareBps, 2_000);
+        assertEq(defaultConfiguration.staticsStakerShareBps, 2_000);
         assertEq(defaultConfiguration.treasuryShareBps, 1_000);
         assertFalse(defaultConfiguration.overridden);
 
@@ -321,7 +337,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 60,
                 polShareBps: 1_000,
                 liquidityProviderShareBps: 2_000,
-                stakerShareBps: 3_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 3_000,
                 treasuryShareBps: 4_000
             })
         );
@@ -331,7 +348,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(overridden.outputFeeBps, 60);
         assertEq(overridden.polShareBps, 1_000);
         assertEq(overridden.liquidityProviderShareBps, 2_000);
-        assertEq(overridden.stakerShareBps, 3_000);
+        assertEq(overridden.staticsStakerShareBps, 3_000);
         assertEq(overridden.treasuryShareBps, 4_000);
         assertTrue(overridden.overridden);
 
@@ -341,7 +358,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(restored.outputFeeBps, 80);
         assertEq(restored.polShareBps, 6_000);
         assertEq(restored.liquidityProviderShareBps, 1_000);
-        assertEq(restored.stakerShareBps, 2_000);
+        assertEq(restored.staticsStakerShareBps, 2_000);
         assertEq(restored.treasuryShareBps, 1_000);
         assertFalse(restored.overridden);
     }
@@ -355,7 +372,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 0,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 0,
                 treasuryShareBps: 10_000
             })
         );
@@ -375,7 +393,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 100,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 0,
                 treasuryShareBps: 10_000
             })
         );
@@ -395,7 +414,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 100,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 0,
                 treasuryShareBps: 10_000
             })
         );
@@ -422,7 +442,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 0,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 0,
                 treasuryShareBps: 10_000
             })
         );
@@ -449,7 +470,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 25,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 8_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
                 treasuryShareBps: 2_000
             })
         );
@@ -468,7 +490,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 25,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 8_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
                 treasuryShareBps: 2_000
             })
         );
@@ -493,7 +516,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 25,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 8_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
                 treasuryShareBps: 2_000
             })
         );
@@ -511,7 +535,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 25,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 8_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
                 treasuryShareBps: 2_000
             })
         );
@@ -537,7 +562,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 60,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 8_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
                 treasuryShareBps: 2_000
             })
         );
@@ -579,13 +605,13 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(firstConfiguration.inputFeeBps, 40);
         assertEq(firstConfiguration.outputFeeBps, 60);
         assertEq(firstConfiguration.polShareBps, 0);
-        assertEq(firstConfiguration.stakerShareBps, 8_000);
+        assertEq(firstConfiguration.staticsStakerShareBps, 8_000);
         assertEq(firstConfiguration.treasuryShareBps, 2_000);
         assertEq(secondConfiguration.inputFeeBps, 70);
         assertEq(secondConfiguration.outputFeeBps, 80);
         assertEq(secondConfiguration.polShareBps, 6_000);
         assertEq(secondConfiguration.liquidityProviderShareBps, 1_000);
-        assertEq(secondConfiguration.stakerShareBps, 2_000);
+        assertEq(secondConfiguration.staticsStakerShareBps, 2_000);
         assertEq(secondConfiguration.treasuryShareBps, 1_000);
     }
 
@@ -606,7 +632,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
                 outputFeeBps: 25,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 8_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
                 treasuryShareBps: 2_000
             })
         );
@@ -697,10 +724,11 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         private
         view
     {
-        uint256 pol = Math.mulDiv(fee, 5_000, 10_000);
+        uint256 pol = Math.mulDiv(fee, 4_000, 10_000);
         uint256 liquidityProvider = Math.mulDiv(fee, 1_000, 10_000);
-        uint256 staker = Math.mulDiv(fee, 3_000, 10_000);
-        uint256 treasury = fee - pol - liquidityProvider - staker;
+        uint256 basketStaker = Math.mulDiv(fee, 2_000, 10_000);
+        uint256 staker = Math.mulDiv(fee, 2_000, 10_000);
+        uint256 treasury = fee - pol - liquidityProvider - basketStaker - staker;
         address asset = Currency.unwrap(currency);
         assertEq(receiver.stakerFees(asset) - stakerBefore, staker);
         assertEq(receiver.treasuryFees(asset) - treasuryBefore, treasury);

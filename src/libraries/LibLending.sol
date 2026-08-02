@@ -5,12 +5,15 @@ library LibLending {
     bytes32 internal constant LENDING_STORAGE_POSITION = keccak256("statics.storage.lending");
     uint40 internal constant RECOVERY_GRACE_PERIOD = 1 hours;
     uint16 internal constant MAX_LTV_BPS = 9_500;
+    uint16 internal constant RECOVERY_CALLER_SHARE_BPS = 2_000;
 
     struct Loan {
         uint256 positionId;
         uint256 basketId;
         uint256 collateralShares;
         uint256 feeShares;
+        uint256 debtShares;
+        uint256 penaltyShares;
         uint40 maturity;
     }
 
@@ -19,7 +22,6 @@ library LibLending {
         mapping(uint256 loanId => Loan) loans;
         mapping(uint256 loanId => mapping(address asset => uint256 amount)) principals;
         mapping(uint256 basketId => mapping(address asset => uint256 amount)) outstandingPrincipal;
-        mapping(uint256 basketId => mapping(address asset => uint256 amount)) recoverySurplus;
     }
 
     function lendingStorage() internal pure returns (LendingStorage storage ls) {

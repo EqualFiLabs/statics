@@ -184,7 +184,8 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
                 configuration.outputFeeBps,
                 configuration.polShareBps,
                 configuration.liquidityProviderShareBps,
-                configuration.stakerShareBps,
+                configuration.basketStakerShareBps,
+                configuration.staticsStakerShareBps,
                 configuration.treasuryShareBps
             );
         emit SwapFeeConfigurationChanged(configuration);
@@ -207,7 +208,8 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
                     outputFeeBps: configuration.outputFeeBps,
                     polShareBps: configuration.polShareBps,
                     liquidityProviderShareBps: configuration.liquidityProviderShareBps,
-                    stakerShareBps: configuration.stakerShareBps,
+                    basketStakerShareBps: configuration.basketStakerShareBps,
+                    staticsStakerShareBps: configuration.staticsStakerShareBps,
                     treasuryShareBps: configuration.treasuryShareBps
                 })
             );
@@ -219,7 +221,8 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
             configuration.outputFeeBps,
             configuration.polShareBps,
             configuration.liquidityProviderShareBps,
-            configuration.stakerShareBps,
+            configuration.basketStakerShareBps,
+            configuration.staticsStakerShareBps,
             configuration.treasuryShareBps
         );
     }
@@ -327,7 +330,8 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
             outputFeeBps: stored.outputFeeBps,
             polShareBps: stored.polShareBps,
             liquidityProviderShareBps: stored.liquidityProviderShareBps,
-            stakerShareBps: stored.stakerShareBps,
+            basketStakerShareBps: stored.basketStakerShareBps,
+            staticsStakerShareBps: stored.staticsStakerShareBps,
             treasuryShareBps: stored.treasuryShareBps
         });
     }
@@ -346,7 +350,8 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
             outputFeeBps: effective.outputFeeBps,
             polShareBps: effective.polShareBps,
             liquidityProviderShareBps: effective.liquidityProviderShareBps,
-            stakerShareBps: effective.stakerShareBps,
+            basketStakerShareBps: effective.basketStakerShareBps,
+            staticsStakerShareBps: effective.staticsStakerShareBps,
             treasuryShareBps: effective.treasuryShareBps,
             overridden: effective.overridden
         });

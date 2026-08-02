@@ -7,6 +7,7 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
+import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
@@ -42,13 +43,35 @@ contract SelectorManifestTest is Test {
 
     function testBorrowLiquiditySelectorManifestIsExact() public pure {
         bytes4[] memory selectors = StaticsSelectors.borrowLiquidity();
-        assertEq(selectors.length, 1);
+        assertEq(selectors.length, 2);
         assertEq(selectors[0], IStaticsBorrowLiquidity.borrowAndProvideLiquidity.selector);
+        assertEq(selectors[1], IStaticsBorrowLiquidity.borrowAndStakeLiquidity.selector);
+    }
+
+    function testLendingSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.lending();
+        bytes4[] memory expected = new bytes4[](9);
+        expected[0] = IStaticsLending.borrow.selector;
+        expected[1] = IStaticsLending.repay.selector;
+        expected[2] = IStaticsLending.extend.selector;
+        expected[3] = IStaticsLending.recover.selector;
+        expected[4] = IStaticsLending.quoteBorrow.selector;
+        expected[5] = IStaticsLending.quoteRecovery.selector;
+        expected[6] = IStaticsLending.quoteExtension.selector;
+        expected[7] = IStaticsLending.loan.selector;
+        expected[8] = IStaticsLending.outstandingPrincipal.selector;
+        assertEq(actual.length, expected.length);
+        for (uint256 i; i < actual.length; ++i) {
+            assertEq(actual[i], expected[i]);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(actual[i], actual[j]);
+            }
+        }
     }
 
     function testGlobalRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.globalRewards();
-        bytes4[] memory expected = new bytes4[](18);
+        bytes4[] memory expected = new bytes4[](21);
         expected[0] = IStaticsGlobalRewards.createAndStake.selector;
         expected[1] = IStaticsGlobalRewards.stake.selector;
         expected[2] = IStaticsGlobalRewards.unstake.selector;
@@ -61,12 +84,15 @@ contract SelectorManifestTest is Test {
         expected[9] = IStaticsGlobalRewards.rewardAsset.selector;
         expected[10] = IStaticsGlobalRewards.positionRewardAssets.selector;
         expected[11] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
-        expected[12] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
-        expected[13] = IStaticsGlobalRewards.stakingToken.selector;
-        expected[14] = IStaticsGlobalRewards.totalStaked.selector;
-        expected[15] = IStaticsGlobalRewards.treasuryAccrued.selector;
-        expected[16] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        expected[17] = IStaticsGlobalRewards.routeSwapFees.selector;
+        expected[12] = IStaticsGlobalRewards.rewardSelection.selector;
+        expected[13] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
+        expected[14] = IStaticsGlobalRewards.rewardEligibilityDelay.selector;
+        expected[15] = IStaticsGlobalRewards.rewardEligibilityBucketSize.selector;
+        expected[16] = IStaticsGlobalRewards.stakingToken.selector;
+        expected[17] = IStaticsGlobalRewards.totalStaked.selector;
+        expected[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
+        expected[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
+        expected[20] = IStaticsGlobalRewards.routeSwapFees.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);
@@ -78,7 +104,7 @@ contract SelectorManifestTest is Test {
 
     function testLiquidityRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.liquidityRewards();
-        bytes4[] memory expected = new bytes4[](10);
+        bytes4[] memory expected = new bytes4[](11);
         expected[0] = IStaticsLiquidityRewards.stakeLiquidityPosition.selector;
         expected[1] = IStaticsLiquidityRewards.activateLiquidityPosition.selector;
         expected[2] = IStaticsLiquidityRewards.increaseStakedLiquidity.selector;
@@ -89,6 +115,7 @@ contract SelectorManifestTest is Test {
         expected[7] = IStaticsLiquidityRewards.poolLiquidityRewards.selector;
         expected[8] = IStaticsLiquidityRewards.pendingLiquidityRewards.selector;
         expected[9] = IStaticsLiquidityRewards.canAccrueLiquidityRewards.selector;
+        expected[10] = IStaticsLiquidityRewards.canAccrueBasketRewards.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

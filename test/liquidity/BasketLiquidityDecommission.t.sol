@@ -86,7 +86,8 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
             outputFeeBps: 60,
             polShareBps: 6_000,
             liquidityProviderShareBps: 1_000,
-            stakerShareBps: 2_000,
+            basketStakerShareBps: 0,
+            staticsStakerShareBps: 2_000,
             treasuryShareBps: 1_000
         });
         basketLiquidity.setSwapFeeConfiguration(configuration);
@@ -133,6 +134,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
             originationFeeBps: 0,
             extensionFeeBps: 0,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);

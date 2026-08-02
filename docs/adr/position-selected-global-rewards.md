@@ -35,9 +35,19 @@ historical fees. Opt-out settles earned rewards before removing the position's
 stake. Historical claimables remain claimable and do not count against the
 64-asset selection limit.
 
-Adding a selection restarts the position's 24-hour unstake cooldown. A full
-unstake settles every selected asset, removes the stake from each denominator,
-and clears the selection list while preserving claimables.
+Global stake is always withdrawable. Initial stake, new selections, and top-ups
+enter a pending tranche for each selected asset. Pending stake matures at the
+next hourly boundary at least 24 hours later, producing a bounded 24-to-25-hour
+wait. Mature stake remains eligible when more stake is added, and withdrawals
+consume pending stake first.
+
+Each asset maintains a 25-slot hourly maturity ring. Fee accrual and position
+interactions roll due buckets before using the eligible denominator, so no
+keeper or activation transaction is required. A bucket records the reward
+index at activation. Position settlement uses that activation index for newly
+matured stake, preventing rewards accrued during the waiting period from being
+claimed later. Repeated pending top-ups preserve waiting time through weighted
+time credit without changing already-mature stake.
 
 The API is a clean break:
 
@@ -45,6 +55,7 @@ The API is a clean break:
   atomically;
 - `optInRewardAssets` and `optOutRewardAssets` manage selections;
 - `positionRewardAssets` and `isRewardAssetOptedIn` expose position state;
+- `rewardSelection` exposes pending stake, eligible stake, and exact maturity;
 - `rewardAsset(asset)` exposes the asset book; and
 - `maxRewardAssetsPerPosition()` reports the immutable bound.
 
@@ -65,6 +76,7 @@ to protocol-owned liquidity under the existing swap allocation policy.
 - Statics has no global reward-asset admission cap or retirement ceremony.
 - Work per PositionNFT remains bounded at 64 selected assets.
 - Different assets may have different eligible denominators.
+- Principal is never locked by reward selection or maturity.
 - Users choose which fee assets justify their gas and portfolio exposure.
 - New selections do not dilute or capture rewards accrued before selection.
 - Indexers must follow selection events and asset-address books rather than

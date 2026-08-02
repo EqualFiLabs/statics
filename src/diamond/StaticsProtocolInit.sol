@@ -12,6 +12,7 @@ import {IERC173} from "../interfaces/IERC173.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
+import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
@@ -78,6 +79,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsGlobalRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketLiquidity).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBorrowLiquidity).interfaceId] = true;

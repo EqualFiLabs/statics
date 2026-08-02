@@ -197,17 +197,18 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
     }
 
     function _coreGovernanceSelectors() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](10);
+        selectors = new bytes4[](11);
         selectors[0] = CoreGovernanceFacet.finalizeBootstrap.selector;
-        selectors[1] = CoreGovernanceFacet.createCollateralProfile.selector;
-        selectors[2] = CoreGovernanceFacet.createPeggedCollateralProfile.selector;
-        selectors[3] = CoreGovernanceFacet.setProfileRiskConfig.selector;
-        selectors[4] = CoreGovernanceFacet.reduceDebtCeiling.selector;
-        selectors[5] = CoreGovernanceFacet.enterReduceOnly.selector;
-        selectors[6] = CoreGovernanceFacet.setProfileMode.selector;
-        selectors[7] = CoreGovernanceFacet.pauseProfileOperations.selector;
-        selectors[8] = CoreGovernanceFacet.resumeProfileOperations.selector;
-        selectors[9] = CoreGovernanceFacet.setProfileOracle.selector;
+        selectors[1] = CoreGovernanceFacet.setManagedRecoveryHolder.selector;
+        selectors[2] = CoreGovernanceFacet.createCollateralProfile.selector;
+        selectors[3] = CoreGovernanceFacet.createPeggedCollateralProfile.selector;
+        selectors[4] = CoreGovernanceFacet.setProfileRiskConfig.selector;
+        selectors[5] = CoreGovernanceFacet.reduceDebtCeiling.selector;
+        selectors[6] = CoreGovernanceFacet.enterReduceOnly.selector;
+        selectors[7] = CoreGovernanceFacet.setProfileMode.selector;
+        selectors[8] = CoreGovernanceFacet.pauseProfileOperations.selector;
+        selectors[9] = CoreGovernanceFacet.resumeProfileOperations.selector;
+        selectors[10] = CoreGovernanceFacet.setProfileOracle.selector;
     }
 
     function _coreHealthSelectors() internal pure returns (bytes4[] memory selectors) {
@@ -245,14 +246,13 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
     }
 
     function _coreTransitionSelectors() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](7);
+        selectors = new bytes4[](6);
         selectors[0] = bytes4(keccak256("SERIES_TRANSITION_DELAY()"));
-        selectors[1] = CoreTransitionFacet.registerManagedRecoveryHolder.selector;
-        selectors[2] = CoreTransitionFacet.startSeriesTransition.selector;
-        selectors[3] = CoreTransitionFacet.cancelSeriesTransition.selector;
-        selectors[4] = CoreTransitionFacet.returnRiskShares.selector;
-        selectors[5] = CoreTransitionFacet.reclaimReturnedRiskShares.selector;
-        selectors[6] = CoreTransitionFacet.finalizeSeriesTransition.selector;
+        selectors[1] = CoreTransitionFacet.startSeriesTransition.selector;
+        selectors[2] = CoreTransitionFacet.cancelSeriesTransition.selector;
+        selectors[3] = CoreTransitionFacet.returnRiskShares.selector;
+        selectors[4] = CoreTransitionFacet.reclaimReturnedRiskShares.selector;
+        selectors[5] = CoreTransitionFacet.finalizeSeriesTransition.selector;
     }
 
     function _coreRecoverySelectors() internal pure returns (bytes4[] memory selectors) {

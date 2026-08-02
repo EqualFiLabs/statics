@@ -106,10 +106,12 @@ owners, the guardian roles, and the treasury after execution.
 BasketToken ownership and basket collateral do not earn basket-specific fees.
 Global rewards require staking the deployment-configured ERC-20 in a
 PositionNFT. Position owners or approved operators must claim rewards through
-transactions; nothing runs in the background. Every global stake increase
-restarts a 24-hour unstake cooldown, and a newly deposited basket-collateral
-leg cannot withdraw until the next block. Dollar passive Risk Share reward
-eligibility uses its separate 24-hour gate.
+transactions; nothing runs in the background. Global stake is always
+withdrawable, but initial stake, reward-asset selections, and top-ups mature
+through a per-asset hourly ring no earlier than 24 hours after scheduling. Fee
+and position interactions roll due buckets. A newly deposited
+basket-collateral leg cannot withdraw until the next block. Dollar passive Risk
+Share reward eligibility uses its separate 24-hour gate.
 
 Canonical pools use zero native LP fee and separate input/output hook fees.
 Their permanent full-range liquidity is owned by the hook, not by a protocol

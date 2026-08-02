@@ -218,70 +218,152 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(custody.globalReservedByToken(address(assetA)), assetA.balanceOf(address(diamond)));
     }
 
-    function testPermissionlessRecoveryBurnsCollateralAndIsolatesSurplus() public {
-        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
-        uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
+    function testRecoveryBurnsDebtPlusPenaltyAndUnlocksLowLtvRemainder() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.originationFeeBps = 0;
+        params.ltvBps = 2_000;
+        params.recoveryPenaltyBps = 500;
         vm.prank(alice);
-        (uint256 loanId,) = lending.borrow(positionId, basketId, 10 ether, alice);
-        IStaticsLending.LoanView memory opened = lending.loan(loanId);
+        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
+        vm.prank(alice);
+        (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
+        address[] memory rewardAssets = new address[](2);
+        rewardAssets[0] = address(assetA);
+        rewardAssets[1] = address(assetB);
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 stakingPositionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
+        vm.stopPrank();
 
-        vm.warp(uint256(opened.maturity) + 1 hours);
-        vm.expectRevert();
+        IStaticsLending.BorrowQuote memory borrowQuote = lending.quoteBorrow(basketId, 100 ether);
+        assertEq(borrowQuote.debtShares, 20 ether);
+        assertEq(borrowQuote.penaltyShares, 1 ether);
+        IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(loanId);
+        assertEq(recoveryQuote.burnShares, 21 ether);
+        assertEq(recoveryQuote.unlockedShares, 79 ether);
+        assertEq(recoveryQuote.callerAmounts[0], 0.4 ether);
+        assertEq(recoveryQuote.protocolAmounts[0], 1.6 ether);
+
+        vm.warp(recoveryQuote.recoverableAt);
+        vm.expectRevert(
+            abi.encodeWithSelector(LendingFacet.LoanNotRecoverable.selector, loanId, recoveryQuote.recoverableAt)
+        );
         lending.recover(loanId);
         vm.warp(block.timestamp + 1);
         vm.prank(bob);
         lending.recover(loanId);
 
-        assertEq(IERC20(token).totalSupply(), 0);
+        IStaticsBasketCollateral.BasketCollateralPosition memory position =
+            basketCollateral.basketCollateralPosition(positionId, basketId);
+        assertEq(position.depositedShares, 79 ether);
+        assertEq(position.lockedShares, 0);
+        assertEq(IERC20(token).totalSupply(), 79 ether);
+        assertEq(IERC20(token).balanceOf(address(diamond)), 79 ether);
+        assertEq(assetA.balanceOf(bob), 0.4 ether);
+        vm.prank(alice);
+        uint256[] memory pending = globalRewards.pendingRewards(stakingPositionId, rewardAssets);
+        assertEq(pending[0], 1.44 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.16 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
-        assertEq(lending.recoverySurplus(basketId, address(assetA)), 0.99 ether);
-        assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, 0);
-        assertEq(assetA.balanceOf(address(diamond)), 1.19 ether);
-        assertEq(custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)), 0.99 ether);
-        assertEq(custody.globalReservedByToken(address(assetA)), 1.19 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), 158 ether);
+        assertEq(custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)), 158 ether);
     }
 
-    function testFullRecoveryRoutesLowDecimalResidualToRecoverySurplus() public {
-        MockERC20 lowDecimal = new MockERC20("Indivisible", "ONE", 0);
-        address[] memory assets = new address[](2);
-        assets[0] = address(assetA);
-        assets[1] = address(lowDecimal);
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 1 ether;
-        amounts[1] = 1;
-        IStaticsBasket.CreateBasketParams memory params = IStaticsBasket.CreateBasketParams({
-            name: "Indivisible Basket",
-            symbol: "sONE",
-            assets: assets,
-            bundleAmounts: amounts,
-            mintFeeTiers: _singleFeeTier(0),
-            redemptionFeeTiers: _singleFeeTier(0),
-            flashFeeBps: 0,
-            originationFeeBps: 100,
-            extensionFeeBps: 0,
-            ltvBps: 9_500,
-            loanDuration: 30 days
-        });
-        vm.startPrank(alice);
+    function testRecoveryAtMaximumLtvLeavesConfiguredResidualCollateral() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.originationFeeBps = 0;
+        params.ltvBps = 9_500;
+        params.recoveryPenaltyBps = 500;
+        vm.prank(alice);
         (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
-        assetA.mint(alice, 0.5 ether);
-        lowDecimal.mint(alice, 1);
-        assetA.approve(address(diamond), type(uint256).max);
-        lowDecimal.approve(address(diamond), type(uint256).max);
-        uint256[] memory mintInputs = baskets.quoteMint(basketId, 0.5 ether);
-        (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 0.5 ether, alice, mintInputs);
-        (uint256 loanId,) = lending.borrow(positionId, basketId, 0.5 ether, alice);
-        vm.stopPrank();
+        uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
+        vm.prank(alice);
+        (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
 
-        IStaticsLending.LoanView memory opened = lending.loan(loanId);
-        vm.warp(uint256(opened.maturity) + 1 hours + 1);
+        IStaticsLending.RecoveryQuote memory quoted = lending.quoteRecovery(loanId);
+        assertEq(quoted.burnShares, 99.75 ether);
+        assertEq(quoted.unlockedShares, 0.25 ether);
+        vm.warp(quoted.recoverableAt + 1);
         lending.recover(loanId);
 
-        assertEq(IERC20(token).totalSupply(), 0);
-        assertEq(baskets.vaultBalance(basketId, address(lowDecimal)), 0);
-        assertEq(globalRewards.treasuryAccrued(address(lowDecimal)), 0);
-        assertEq(lending.recoverySurplus(basketId, address(lowDecimal)), 1);
+        IStaticsBasketCollateral.BasketCollateralPosition memory position =
+            basketCollateral.basketCollateralPosition(positionId, basketId);
+        assertEq(position.depositedShares, 0.25 ether);
+        assertEq(position.lockedShares, 0);
+        assertEq(IERC20(token).totalSupply(), 0.25 ether);
+        assertEq(IERC20(token).balanceOf(address(diamond)), 0.25 ether);
+    }
+
+    function testFuzzRecoveryBurnsOnlyDebtAndConfiguredPenalty(
+        uint256 rawLtvBps,
+        uint256 rawPenaltyBps,
+        uint256 rawShares
+    ) public {
+        uint256 ltvBps = bound(rawLtvBps, 1, 9_500);
+        uint256 penaltyBps = bound(rawPenaltyBps, 0, 500);
+        uint256 shares = bound(rawShares, 1e12, 100 ether);
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.originationFeeBps = 0;
+        params.ltvBps = uint16(ltvBps);
+        params.recoveryPenaltyBps = uint16(penaltyBps);
+        vm.prank(alice);
+        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        uint256 positionId = _mintPositionShares(basketId, alice, shares);
+
+        IStaticsLending.BorrowQuote memory borrowQuote = lending.quoteBorrow(basketId, shares);
+        assertEq(borrowQuote.debtShares, Math.mulDiv(shares, ltvBps, 10_000, Math.Rounding.Ceil));
+        assertEq(borrowQuote.penaltyShares, Math.mulDiv(borrowQuote.debtShares, penaltyBps, 10_000, Math.Rounding.Ceil));
+        vm.prank(alice);
+        (uint256 loanId,) = lending.borrow(positionId, basketId, shares, alice);
+        IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(loanId);
+        assertEq(recoveryQuote.burnShares, borrowQuote.debtShares + borrowQuote.penaltyShares);
+        assertEq(recoveryQuote.unlockedShares, shares - recoveryQuote.burnShares);
+
+        vm.warp(recoveryQuote.recoverableAt + 1);
+        lending.recover(loanId);
+
+        IStaticsBasketCollateral.BasketCollateralPosition memory position =
+            basketCollateral.basketCollateralPosition(positionId, basketId);
+        assertEq(position.depositedShares, recoveryQuote.unlockedShares);
+        assertEq(position.lockedShares, 0);
+        assertEq(IERC20(token).totalSupply(), recoveryQuote.unlockedShares);
+    }
+
+    function testRecoveryPreservesBackingAfterInterveningSupplyChanges() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.originationFeeBps = 0;
+        params.ltvBps = 2_000;
+        params.recoveryPenaltyBps = 500;
+        vm.prank(alice);
+        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
+        vm.prank(alice);
+        (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
+
+        _mintShares(basketId, token, bob, 37 ether);
+        vm.startPrank(bob);
+        IERC20(token).approve(address(diamond), 11 ether);
+        uint256[] memory minimums = new uint256[](2);
+        baskets.redeem(basketId, 11 ether, bob, minimums);
+        vm.stopPrank();
+
+        IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(loanId);
+        assertEq(recoveryQuote.burnShares, 21 ether);
+        assertEq(recoveryQuote.unlockedShares, 79 ether);
+        assertEq(recoveryQuote.callerAmounts[0], 0.4 ether);
+        assertEq(recoveryQuote.protocolAmounts[0], 1.6 ether);
+
+        vm.warp(recoveryQuote.recoverableAt + 1);
+        vm.prank(bob);
+        lending.recover(loanId);
+
+        assertEq(IERC20(token).totalSupply(), 105 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), 210 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetB)), 525 ether);
+        assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
+        assertEq(lending.outstandingPrincipal(basketId, address(assetB)), 0);
     }
 
     function testPositionTransferMovesLoanExtensionAuthority() public {
@@ -361,12 +443,12 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.ltvBps = 5_000;
         vm.prank(alice);
         (uint256 basketId,) = baskets.createBasket{value: 1 ether}(params);
-        (,, address[] memory assets, uint256[] memory principals) = lending.quoteBorrow(basketId, 1 ether);
+        IStaticsLending.BorrowQuote memory quoted = lending.quoteBorrow(basketId, 1 ether);
 
         assertEq(baskets.basket(basketId).ltvBps, 5_000);
-        assertEq(assets[0], address(assetA));
-        assertEq(principals[0], 1 ether);
-        assertEq(principals[1], 2.5 ether);
+        assertEq(quoted.assets[0], address(assetA));
+        assertEq(quoted.principals[0], 1 ether);
+        assertEq(quoted.principals[1], 2.5 ether);
     }
 
     function testBasketCannotConfigureLtvAboveImmutableMaximum() public {
@@ -729,6 +811,7 @@ contract LendingAndFlashTest is StaticsTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 0,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.startPrank(alice);

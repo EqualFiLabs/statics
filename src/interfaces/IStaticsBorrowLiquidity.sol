@@ -34,6 +34,16 @@ interface IStaticsBorrowLiquidity {
         uint256 basketSharesMinted,
         uint256[] v4TokenIds
     );
+    event BorrowedLiquidityStaked(
+        uint256 indexed loanId,
+        uint256 indexed positionId,
+        uint256 indexed basketId,
+        address operator,
+        address beneficiary,
+        uint256 sharesIn,
+        uint256 basketSharesMinted,
+        uint256[] v4TokenIds
+    );
 
     function borrowAndProvideLiquidity(
         uint256 positionId,
@@ -41,5 +51,12 @@ interface IStaticsBorrowLiquidity {
         uint256 sharesIn,
         LiquidityParams[] calldata pools,
         address lpRecipient
+    ) external returns (uint256 loanId, uint256[] memory v4TokenIds);
+
+    function borrowAndStakeLiquidity(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 sharesIn,
+        LiquidityParams[] calldata pools
     ) external returns (uint256 loanId, uint256[] memory v4TokenIds);
 }

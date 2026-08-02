@@ -18,6 +18,7 @@ import {CoreRecoveryFacet} from "src/dollar/core/facets/CoreRecoveryFacet.sol";
 import {CoreTransitionFacet} from "src/dollar/core/facets/CoreTransitionFacet.sol";
 import {CoreViewFacet} from "src/dollar/core/facets/CoreViewFacet.sol";
 import {LibCoreAccounting} from "src/dollar/core/libraries/LibCoreAccounting.sol";
+import {LibDiamond} from "src/libraries/LibDiamond.sol";
 import {StaticsDollarRiskShares} from "src/dollar/StaticsDollarRiskShares.sol";
 import {StaticsDollar} from "src/dollar/StaticsDollar.sol";
 import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
@@ -37,10 +38,6 @@ contract ZeroDecimalRecoveryCollateral is ERC20 {
 }
 
 contract ManagedRecoveryActor is ERC1155Holder {
-    function register(CoreTransitionFacet transition) external {
-        transition.registerManagedRecoveryHolder();
-    }
-
     function recover(
         CoreRecoveryFacet recoveryFacet,
         uint256 seriesId,
@@ -556,12 +553,50 @@ contract CoreSeriesRecoveryTest is Test {
         assertEq(viewFacet.riskSeries(1).accountedCollateral, 0);
     }
 
-    function test_CanonicalPeripheryIsManagedAndEoaCannotSelfRegister() public {
+    function test_GovernanceControlsManagedRecoveryHolders() public {
         assertTrue(viewFacet.managedRecoveryHolder(deployment.diamond));
+        ManagedRecoveryActor actor = new ManagedRecoveryActor();
+
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(CoreTransitionFacet.ContractExpected.selector, alice));
-        transition.registerManagedRecoveryHolder();
-        assertFalse(viewFacet.managedRecoveryHolder(alice));
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, alice, owner));
+        governance.setManagedRecoveryHolder(address(actor), true);
+
+        vm.prank(owner);
+        governance.setManagedRecoveryHolder(address(actor), true);
+        assertTrue(viewFacet.managedRecoveryHolder(address(actor)));
+
+        vm.prank(owner);
+        governance.setManagedRecoveryHolder(address(actor), false);
+        assertFalse(viewFacet.managedRecoveryHolder(address(actor)));
+    }
+
+    function test_RevokingManagedHolderRestoresPermissionlessRecovery() public {
+        ManagedRecoveryActor actor = new ManagedRecoveryActor();
+        vm.prank(owner);
+        governance.setManagedRecoveryHolder(address(actor), true);
+
+        uint256 collateralAmount = 1 ether;
+        _fundAndApproveWeth(alice, collateralAmount);
+        IStaticsDollarCoreTypes.DepositPreview memory depositPreview = mintFacet.previewDeposit(1, collateralAmount);
+        vm.prank(alice);
+        (, uint256 minted,) = mintFacet.depositCollateral(
+            1, collateralAmount, depositPreview.staticsDollarMinted, depositPreview.sharesMinted, alice, address(actor)
+        );
+        _finalizeUpside(0);
+        vm.prank(alice);
+        staticsDollar.transfer(keeper, minted);
+
+        vm.prank(keeper);
+        vm.expectRevert(abi.encodeWithSelector(CoreRecoveryFacet.Unauthorized.selector, keeper));
+        recoveryFacet.recoverExpiredRisk(address(actor), 1, minted, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0);
+
+        vm.prank(owner);
+        governance.setManagedRecoveryHolder(address(actor), false);
+        vm.prank(keeper);
+        recoveryFacet.recoverExpiredRisk(address(actor), 1, minted, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0);
+
+        assertEq(staticsDollarRisk.balanceOf(address(actor), 1), 0);
+        assertGt(staticsDollarRisk.balanceOf(address(actor), 2), 0);
     }
 
     function testFuzz_LowDecimalManagedRecoveryPartitionsPreserveAggregateBooks(uint256 rawFirstClaim) public {
@@ -569,7 +604,8 @@ contract CoreSeriesRecoveryTest is Test {
         MockETHUSDOracle lowDecimalOracle = new MockETHUSDOracle(10e18, 30 days);
         (uint256 profileId, uint256 seriesId) = _activateLowDecimalProfile(collateral, lowDecimalOracle);
         ManagedRecoveryActor actor = new ManagedRecoveryActor();
-        actor.register(transition);
+        vm.prank(owner);
+        governance.setManagedRecoveryHolder(address(actor), true);
 
         uint256 collateralAmount = 10_000;
         collateral.mint(alice, collateralAmount);

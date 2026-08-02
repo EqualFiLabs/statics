@@ -218,6 +218,7 @@ contract CoreDiamondLifecycleTest is Test {
         address[] memory assets = new address[](1);
         assets[0] = address(weth);
         uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice, assets);
+        vm.warp(IStaticsGlobalRewards(deployment.diamond).rewardSelection(positionId, address(weth)).eligibleAt);
         weth.approve(deployment.core, 2 ether);
         IStaticsDollarCoreTypes.DepositPreview memory preview = mintFacet.previewDeposit(1, 1 ether);
         mintFacet.depositCollateral(1, 1 ether, preview.staticsDollarMinted, preview.sharesMinted, alice, alice);
@@ -246,6 +247,7 @@ contract CoreDiamondLifecycleTest is Test {
         address[] memory assets = new address[](1);
         assets[0] = address(usdc);
         uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice, assets);
+        vm.warp(IStaticsGlobalRewards(deployment.diamond).rewardSelection(positionId, address(usdc)).eligibleAt);
 
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview = mintFacet.previewPeggedMint(profileId, 100e18);
         usdc.mint(alice, preview.totalCollateralIn);

@@ -27,7 +27,8 @@ interface IStaticsSwapFeeHook {
         uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
+        uint16 basketStakerShareBps;
+        uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
     }
 
@@ -36,7 +37,8 @@ interface IStaticsSwapFeeHook {
         uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
+        uint16 basketStakerShareBps;
+        uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
         bool overridden;
     }
@@ -50,7 +52,8 @@ interface IStaticsSwapFeeHook {
         uint256 chargedAmount,
         uint256 polAmount,
         uint256 liquidityProviderAmount,
-        uint256 stakerAmount,
+        uint256 basketStakerAmount,
+        uint256 staticsStakerAmount,
         uint256 treasuryAmount
     );
     event PermanentLiquidityAdded(
@@ -68,7 +71,8 @@ interface IStaticsSwapFeeHook {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     );
     event PoolFeeConfigurationSet(
@@ -77,7 +81,8 @@ interface IStaticsSwapFeeHook {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     );
     event PoolFeeConfigurationCleared(PoolId indexed poolId);
@@ -92,7 +97,8 @@ interface IStaticsSwapFeeHook {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     ) external;
     function setPoolFeeConfiguration(PoolId poolId, FeeConfiguration calldata configuration) external;

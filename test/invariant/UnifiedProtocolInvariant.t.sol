@@ -833,7 +833,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         bytes32 account = custody.basketCustodyAccount(basketId);
         for (uint256 i; i < configured.assets.length; ++i) {
             address asset = configured.assets[i];
-            uint256 recorded = baskets.vaultBalance(basketId, asset) + lending.recoverySurplus(basketId, asset);
+            uint256 recorded = baskets.vaultBalance(basketId, asset);
             assertEq(custody.reservedByAccount(account, asset), recorded);
         }
         assertEq(custody.reservedByAccount(account, basketToken), IERC20(basketToken).balanceOf(deployment.diamond));
@@ -841,18 +841,33 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
 
     function _assertBasketPositionLeg(uint256 positionId, uint256 basketId) private view returns (bool active) {
         active = positions.isPositionLegActive(positionId, LibPosition.basketLegKey(basketId));
-        IStaticsBasketCollateral.BasketCollateralPosition memory current = basketCollateral.basketCollateralPosition(positionId, basketId);
+        IStaticsBasketCollateral.BasketCollateralPosition memory current =
+            basketCollateral.basketCollateralPosition(positionId, basketId);
         bool hasValue = current.depositedShares != 0 || current.lockedShares != 0;
         if (hasValue) assertTrue(active);
     }
 
     function _assertDebtBound(uint256 positionId, uint256 basketId, uint256 wethBundle) private view {
-        IStaticsBasketCollateral.BasketCollateralPosition memory current = basketCollateral.basketCollateralPosition(positionId, basketId);
+        IStaticsBasketCollateral.BasketCollateralPosition memory current =
+            basketCollateral.basketCollateralPosition(positionId, basketId);
         uint256 wethPrincipal = lending.outstandingPrincipal(basketId, address(weth));
-        uint256 lockedBacking = Math.mulDiv(wethBundle, current.lockedShares, 1e18);
-        assertLe(wethPrincipal * BPS, lockedBacking * MAX_LTV_BPS);
-        uint256 debtEquivalentShares = Math.mulDiv(wethPrincipal, 1e18, wethBundle);
-        assertLe(debtEquivalentShares * 20, current.depositedShares * 19);
+        uint256 debtShares;
+        uint256 loanCount;
+        uint256 length = handler.loanCount();
+        for (uint256 i; i < length; ++i) {
+            IStaticsLending.LoanView memory opened = lending.loan(handler.loanIdAt(i));
+            if (opened.basketId != basketId) continue;
+            debtShares += opened.debtShares;
+            ++loanCount;
+        }
+        assertLe(wethPrincipal, Math.mulDiv(wethBundle, debtShares, 1e18));
+        uint256 roundingAllowance = loanCount == 0 ? 0 : loanCount - 1;
+        assertLe(
+            debtShares, Math.mulDiv(current.lockedShares, MAX_LTV_BPS, BPS, Math.Rounding.Ceil) + roundingAllowance
+        );
+        assertLe(
+            debtShares, Math.mulDiv(current.depositedShares, MAX_LTV_BPS, BPS, Math.Rounding.Ceil) + roundingAllowance
+        );
     }
 
     function _createSharedBasket(
@@ -885,6 +900,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: uint16(MAX_LTV_BPS),
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         return baskets.createBasket{value: basketAdmin.creationFee()}(params);

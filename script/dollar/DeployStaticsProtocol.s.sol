@@ -7,6 +7,7 @@ import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketFacet} from "../../src/facets/BasketFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
+import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
@@ -39,6 +40,7 @@ abstract contract DeployStaticsProtocol {
         address custody;
         address basket;
         address basketCollateral;
+        address basketRewards;
         address globalRewards;
         address basketAdmin;
         address borrowLiquidity;
@@ -96,6 +98,7 @@ abstract contract DeployStaticsProtocol {
         parts.custody = address(new CustodyFacet());
         parts.basket = address(new BasketFacet());
         parts.basketCollateral = address(new BasketCollateralFacet());
+        parts.basketRewards = address(new BasketRewardsFacet());
         parts.globalRewards = address(new GlobalRewardsFacet());
         parts.basketAdmin = address(new BasketAdminFacet());
         parts.borrowLiquidity = address(new BorrowLiquidityFacet());
@@ -116,7 +119,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](22);
+        cut = new IDiamondCut.FacetCut[](23);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -147,6 +150,8 @@ abstract contract DeployStaticsProtocol {
             IDiamondCut.FacetCut(parts.globalRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.globalRewards());
         cut[21] =
             IDiamondCut.FacetCut(liquidityRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.liquidityRewards());
+        cut[22] =
+            IDiamondCut.FacetCut(parts.basketRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketRewards());
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {

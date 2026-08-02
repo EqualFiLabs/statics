@@ -232,7 +232,6 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
         if (config.owner == address(0)) config.owner = msg.sender;
         if (config.profileGuardian == address(0)) config.profileGuardian = config.owner;
         if (config.treasury == address(0)) config.treasury = config.owner;
-        if (config.creationFeeAmount == 0) config.creationFeeAmount = 1 ether;
         if (config.weth == address(0)) {
             if (!config.deployMockWeth) revert LocalDependencyMissing(WETH_FIELD);
             config.weth = address(new CanonicalWETH9());

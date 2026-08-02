@@ -33,7 +33,8 @@ interface IStaticsBasketLiquidity {
         uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
+        uint16 basketStakerShareBps;
+        uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
     }
 
@@ -42,7 +43,8 @@ interface IStaticsBasketLiquidity {
         uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
+        uint16 basketStakerShareBps;
+        uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
         bool overridden;
     }
@@ -76,7 +78,8 @@ interface IStaticsBasketLiquidity {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     );
     event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId, address indexed asset, PoolId indexed poolId);

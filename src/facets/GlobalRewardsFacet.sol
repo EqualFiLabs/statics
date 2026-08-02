@@ -16,7 +16,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error InvalidAmountsLength();
     error InvalidRewardAssets();
     error InsufficientStake(uint256 requested, uint256 available);
-    error UnstakeCooldownActive(uint256 availableAt);
     error IncompatibleStakingToken(uint256 requested, uint256 received);
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error NoRewards(uint256 positionId);
@@ -49,12 +48,9 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
-        uint256 availableAt = position.lastIncreaseTimestamp + LibGlobalRewards.UNSTAKE_COOLDOWN;
-        if (block.timestamp < availableAt) revert UnstakeCooldownActive(availableAt);
         uint256 balance = position.balance;
         if (amount > balance) revert InsufficientStake(amount, balance);
-        LibGlobalRewards.settleSelected(positionId);
-        LibGlobalRewards.decreaseEligibleStake(positionId, amount);
+        LibGlobalRewards.decreaseStake(positionId, amount);
         position.balance = balance - amount;
         rs.totalStaked -= amount;
         if (position.balance == 0) LibGlobalRewards.clearOptInsAfterFullUnstake(positionId);
@@ -70,7 +66,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibPosition.enforceAuthorized(positionId, msg.sender);
         _optIn(positionId, assets);
         LibGlobalRewards.activateStakingLeg(positionId);
-        LibGlobalRewards.rewardStorage().positions[positionId].lastIncreaseTimestamp = block.timestamp;
     }
 
     function optOutRewardAssets(uint256 positionId, address[] calldata assets) external nonReentrant {
@@ -157,7 +152,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.StakePosition storage stored = LibGlobalRewards.rewardStorage().positions[positionId];
         position = StakePositionView({
             stakedBalance: stored.balance,
-            unstakeAvailableAt: stored.lastIncreaseTimestamp + LibGlobalRewards.UNSTAKE_COOLDOWN,
             claimAssetCount: stored.claimAssetCount,
             optedInAssetCount: stored.optedInAssets.length
         });
@@ -167,7 +161,8 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.RewardBook storage stored = rs.books[asset];
         state = RewardAssetView({
-            eligibleStake: stored.eligibleStake,
+            eligibleStake: LibGlobalRewards.effectiveEligibleStake(stored),
+            pendingStake: LibGlobalRewards.effectivePendingStake(stored),
             indexRay: stored.indexRay,
             indexedReserve: stored.indexedAmount,
             totalClaimable: rs.totalClaimable[asset]
@@ -184,8 +179,25 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         return LibGlobalRewards.isOptedIn(positionId, asset);
     }
 
+    function rewardSelection(uint256 positionId, address asset)
+        external
+        view
+        returns (RewardSelectionView memory selection)
+    {
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        return LibGlobalRewards.selectionView(positionId, asset);
+    }
+
     function maxRewardAssetsPerPosition() external pure returns (uint256) {
         return LibGlobalRewards.MAX_REWARD_ASSETS_PER_POSITION;
+    }
+
+    function rewardEligibilityDelay() external pure returns (uint256) {
+        return LibGlobalRewards.REWARD_ELIGIBILITY_DELAY;
+    }
+
+    function rewardEligibilityBucketSize() external pure returns (uint256) {
+        return LibGlobalRewards.REWARD_BUCKET_SIZE;
     }
 
     function stakingToken() external view returns (address) {
@@ -201,7 +213,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
-        return LibGlobalRewards.rewardStorage().books[asset].eligibleStake != 0;
+        return LibGlobalRewards.effectiveEligibleStake(LibGlobalRewards.rewardStorage().books[asset]) != 0;
     }
 
     function _optIn(uint256 positionId, address[] calldata assets) private {
@@ -213,13 +225,11 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
 
     function _increaseStake(uint256 positionId, uint256 amount) private {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
-        LibGlobalRewards.settleSelected(positionId);
-        LibGlobalRewards.increaseEligibleStake(positionId, amount);
+        LibGlobalRewards.increaseStake(positionId, amount);
         uint256 received = LibCustody.pullAndReserve(LibCustody.stakingAccount(), rs.stakingToken, msg.sender, amount);
         if (received != amount) revert IncompatibleStakingToken(amount, received);
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
         position.balance += amount;
-        position.lastIncreaseTimestamp = block.timestamp;
         rs.totalStaked += amount;
         LibGlobalRewards.activateStakingLeg(positionId);
         emit Staked(positionId, msg.sender, amount, position.balance);
