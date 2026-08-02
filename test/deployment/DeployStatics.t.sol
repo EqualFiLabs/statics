@@ -22,6 +22,8 @@ import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol"
 import {IStaticsDollarGateway} from "../../src/dollar/interfaces/IStaticsDollarGateway.sol";
 import {IStaticsDollarRiskLiquidity} from "../../src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
 import {IStaticsDollarRiskIncentives} from "../../src/dollar/interfaces/IStaticsDollarRiskIncentives.sol";
+import {StaticsDollar} from "../../src/dollar/StaticsDollar.sol";
+import {StaticsDollarRiskShares} from "../../src/dollar/StaticsDollarRiskShares.sol";
 import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
@@ -32,6 +34,30 @@ import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManag
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract DeployStaticsTest is Test {
+    uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
+
+    function testCanonicalLauncherCreatesOnlyDeployableContracts() public {
+        DeployStatics deployer = new DeployStatics();
+        DeployStatics.Config memory config = DeployStatics.Config({
+            multisig: makeAddr("multisig"),
+            guardian: makeAddr("guardian"),
+            treasury: makeAddr("treasury"),
+            stakingToken: address(deployer),
+            creationFeeAmount: 0
+        });
+        uint64 firstCreationNonce = vm.getNonce(address(deployer));
+
+        deployer.deploy(config);
+
+        uint64 nextCreationNonce = vm.getNonce(address(deployer));
+        assertGt(nextCreationNonce, firstCreationNonce);
+        for (uint64 nonce = firstCreationNonce; nonce < nextCreationNonce; ++nonce) {
+            address created = vm.computeCreateAddress(address(deployer), nonce);
+            assertGt(created.code.length, 0, "launcher creation has no runtime code");
+            assertLe(created.code.length, EIP170_RUNTIME_LIMIT, "launcher created oversized runtime");
+        }
+    }
+
     function testLocalLaunchPreservesClosedBasketCreationConfiguration() public {
         DeployStatics deployer = new DeployStatics();
         DeployStatics.Config memory config = DeployStatics.Config({
@@ -93,6 +119,8 @@ contract DeployStaticsTest is Test {
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
         assertEq(deployment.gateway, diamond);
         assertEq(deployment.positionNFT, diamond);
+        assertEq(StaticsDollar(deployment.staticsDollar).symbol(), "USDstx");
+        assertEq(StaticsDollarRiskShares(deployment.staticsDollarRisk).symbol(), "ethLEV");
         assertEq(IStaticsDollarGateway(diamond).pool(), deployment.core);
         assertEq(CoreViewFacet(deployment.core).periphery(), diamond);
         assertEq(CoreViewFacet(deployment.core).positionNFT(), diamond);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Test} from "forge-std/Test.sol";
 import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
 
@@ -24,6 +25,42 @@ contract StaticsTokenTest is Test {
         assertEq(token.symbol(), "STATICS");
         assertEq(token.totalSupply(), 1_000_000_000 ether);
         assertEq(token.balanceOf(holder), token.totalSupply());
+        assertEq(token.owner(), holder);
+    }
+
+    function testOwnerMintsWithoutConfiguredCap() public {
+        address recipient = makeAddr("recipient");
+        uint256 firstMint = type(uint128).max;
+        uint256 secondMint = type(uint128).max;
+
+        vm.startPrank(holder);
+        token.mint(recipient, firstMint);
+        token.mint(recipient, secondMint);
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(recipient), firstMint + secondMint);
+        assertEq(token.totalSupply(), 1_000_000_000 ether + firstMint + secondMint);
+    }
+
+    function testNonOwnerCannotMint() public {
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        token.mint(stranger, 1 ether);
+    }
+
+    function testTransferredOwnershipMovesMintAuthority() public {
+        address nextOwner = makeAddr("nextOwner");
+        vm.prank(holder);
+        token.transferOwnership(nextOwner);
+
+        vm.prank(holder);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, holder));
+        token.mint(holder, 1 ether);
+
+        vm.prank(nextOwner);
+        token.mint(nextOwner, 1 ether);
+        assertEq(token.balanceOf(nextOwner), 1 ether);
     }
 
     function testPermitAuthorizesStakingAllowance() public {

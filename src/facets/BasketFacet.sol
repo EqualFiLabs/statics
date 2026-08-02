@@ -7,9 +7,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
+import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
+import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -34,14 +36,29 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
     error PermissionlessBasketCreationDisabled();
     error IncorrectCreationFee(uint256 expected, uint256 actual);
     error CreationFeeTransferFailed(address treasury, uint256 amount);
+    error LiquidityIntegrationNotInstalled();
+    error LiquidityManagerNotInstalled();
+    error InvalidPoolLaunchParameters();
+    error LaunchDeadlineExpired(uint256 deadline, uint256 timestamp);
 
-    function createBasket(CreateBasketParams calldata params)
-        external
-        payable
-        nonReentrant
-        returns (uint256 basketId, address token)
-    {
+    function createBasket(
+        CreateBasketParams calldata params,
+        PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline
+    ) external payable nonReentrant returns (uint256 basketId, address token) {
+        if (block.timestamp > launchDeadline) {
+            revert LaunchDeadlineExpired(launchDeadline, block.timestamp);
+        }
         _validateDefinition(params);
+        _enforceNotPaused(LibGovernance.PAUSE_LIQUIDITY);
+        uint256 assetCount = params.assets.length;
+        if (pools.length != assetCount || maxAmountsIn.length != assetCount) {
+            revert InvalidPoolLaunchParameters();
+        }
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
+        if (!ls.managerInstalled) revert LiquidityManagerNotInstalled();
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         _collectCreationFee(bs);
 
@@ -78,6 +95,10 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         );
         _emitFeeTiers(basketId, true, params.mintFeeTiers);
         _emitFeeTiers(basketId, false, params.redemptionFeeTiers);
+
+        uint256 basketShares =
+            IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
+        emit BasketLaunched(basketId, token, msg.sender, basketShares, assetCount);
     }
 
     function mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)

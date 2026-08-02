@@ -28,6 +28,11 @@ interface IStaticsBasket {
         uint40 loanDuration;
     }
 
+    struct PoolLaunchParams {
+        uint160 sqrtPriceAssetPerBasketX96;
+        uint256 pairedAssetAmount;
+    }
+
     struct BasketView {
         address token;
         address creator;
@@ -63,8 +68,20 @@ interface IStaticsBasket {
     );
     event BasketMinted(uint256 indexed basketId, address indexed payer, address indexed receiver, uint256 shares);
     event BasketRedeemed(uint256 indexed basketId, address indexed owner, address indexed receiver, uint256 shares);
+    event BasketLaunched(
+        uint256 indexed basketId,
+        address indexed token,
+        address indexed creator,
+        uint256 basketShares,
+        uint256 poolCount
+    );
 
-    function createBasket(CreateBasketParams calldata params) external payable returns (uint256 basketId, address token);
+    function createBasket(
+        CreateBasketParams calldata params,
+        PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline
+    ) external payable returns (uint256 basketId, address token);
     function mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
         external
         returns (uint256[] memory amountsIn);

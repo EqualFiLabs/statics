@@ -22,6 +22,8 @@ import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 contract LendingAndFlashTest is StaticsTestBase {
     function testOriginationFeeBurnsPositionSharesAndLoanAppliesLtv() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchSupply = IERC20(token).totalSupply();
+        uint256 launchVault = baskets.vaultBalance(basketId, address(assetA));
         uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
 
         vm.prank(alice);
@@ -34,8 +36,8 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(principals[0], 9.405 ether);
         assertEq(principals[1], 23.5125 ether);
         assertEq(IERC20(token).balanceOf(address(diamond)), 9.95 ether);
-        assertEq(IERC20(token).totalSupply(), 9.95 ether);
-        assertEq(baskets.vaultBalance(basketId, address(assetA)), 10.495 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 9.95 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 10.495 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.1 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 9.405 ether);
 
@@ -47,6 +49,7 @@ contract LendingAndFlashTest is StaticsTestBase {
 
     function testRepayRestoresExactPrincipalAndUnlocksPositionCollateral() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchVault = baskets.vaultBalance(basketId, address(assetA));
         uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
         vm.prank(alice);
         (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 5 ether, alice);
@@ -63,7 +66,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(position.lockedShares, 0);
         assertEq(IERC20(token).balanceOf(address(diamond)), 9.95 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
-        assertEq(baskets.vaultBalance(basketId, address(assetA)), 19.9 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 19.9 ether);
     }
 
     function testExtensionChargesStoredUnderlyingPrincipalsAndPreservesBasketState() public {
@@ -105,8 +108,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         MockFeeOnTransferERC20 taxed = new MockFeeOnTransferERC20();
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(1 ether, 0);
         params.assets[0] = address(taxed);
-        vm.prank(alice);
-        (uint256 basketId,) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId,) = _launchBasketWithMinimalSeed(params, alice, 1 ether);
 
         taxed.mint(alice, 100 ether);
         assetB.mint(alice, 100 ether);
@@ -223,8 +225,11 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.originationFeeBps = 0;
         params.ltvBps = 2_000;
         params.recoveryPenaltyBps = 500;
-        vm.prank(alice);
-        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId, address token) = _launchBasket(params, alice, 1 ether);
+        uint256 launchSupply = IERC20(token).totalSupply();
+        uint256 launchVault = baskets.vaultBalance(basketId, address(assetA));
+        uint256 launchBasketReserved =
+            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA));
         uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
@@ -259,7 +264,7 @@ contract LendingAndFlashTest is StaticsTestBase {
             basketCollateral.basketCollateralPosition(positionId, basketId);
         assertEq(position.depositedShares, 79 ether);
         assertEq(position.lockedShares, 0);
-        assertEq(IERC20(token).totalSupply(), 79 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 79 ether);
         assertEq(IERC20(token).balanceOf(address(diamond)), 79 ether);
         assertEq(assetA.balanceOf(bob), 0.4 ether);
         vm.prank(alice);
@@ -267,8 +272,11 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(pending[0], 1.44 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.16 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
-        assertEq(baskets.vaultBalance(basketId, address(assetA)), 158 ether);
-        assertEq(custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)), 158 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 158 ether);
+        assertEq(
+            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)),
+            launchBasketReserved + 158 ether
+        );
     }
 
     function testRecoveryAtMaximumLtvLeavesConfiguredResidualCollateral() public {
@@ -276,8 +284,8 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.originationFeeBps = 0;
         params.ltvBps = 9_500;
         params.recoveryPenaltyBps = 500;
-        vm.prank(alice);
-        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId, address token) = _launchBasket(params, alice, 1 ether);
+        uint256 launchSupply = IERC20(token).totalSupply();
         uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
@@ -292,7 +300,7 @@ contract LendingAndFlashTest is StaticsTestBase {
             basketCollateral.basketCollateralPosition(positionId, basketId);
         assertEq(position.depositedShares, 0.25 ether);
         assertEq(position.lockedShares, 0);
-        assertEq(IERC20(token).totalSupply(), 0.25 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 0.25 ether);
         assertEq(IERC20(token).balanceOf(address(diamond)), 0.25 ether);
     }
 
@@ -308,8 +316,8 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.originationFeeBps = 0;
         params.ltvBps = uint16(ltvBps);
         params.recoveryPenaltyBps = uint16(penaltyBps);
-        vm.prank(alice);
-        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId, address token) = _launchBasket(params, alice, 1 ether);
+        uint256 launchSupply = IERC20(token).totalSupply();
         uint256 positionId = _mintPositionShares(basketId, alice, shares);
 
         IStaticsLending.BorrowQuote memory borrowQuote = lending.quoteBorrow(basketId, shares);
@@ -328,7 +336,7 @@ contract LendingAndFlashTest is StaticsTestBase {
             basketCollateral.basketCollateralPosition(positionId, basketId);
         assertEq(position.depositedShares, recoveryQuote.unlockedShares);
         assertEq(position.lockedShares, 0);
-        assertEq(IERC20(token).totalSupply(), recoveryQuote.unlockedShares);
+        assertEq(IERC20(token).totalSupply(), launchSupply + recoveryQuote.unlockedShares);
     }
 
     function testRecoveryPreservesBackingAfterInterveningSupplyChanges() public {
@@ -336,8 +344,10 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.originationFeeBps = 0;
         params.ltvBps = 2_000;
         params.recoveryPenaltyBps = 500;
-        vm.prank(alice);
-        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId, address token) = _launchBasket(params, alice, 1 ether);
+        uint256 launchSupply = IERC20(token).totalSupply();
+        uint256 launchVaultA = baskets.vaultBalance(basketId, address(assetA));
+        uint256 launchVaultB = baskets.vaultBalance(basketId, address(assetB));
         uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
@@ -359,9 +369,9 @@ contract LendingAndFlashTest is StaticsTestBase {
         vm.prank(bob);
         lending.recover(loanId);
 
-        assertEq(IERC20(token).totalSupply(), 105 ether);
-        assertEq(baskets.vaultBalance(basketId, address(assetA)), 210 ether);
-        assertEq(baskets.vaultBalance(basketId, address(assetB)), 525 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 105 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVaultA + 210 ether);
+        assertEq(baskets.vaultBalance(basketId, address(assetB)), launchVaultB + 525 ether);
         assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
         assertEq(lending.outstandingPrincipal(basketId, address(assetB)), 0);
     }
@@ -428,12 +438,13 @@ contract LendingAndFlashTest is StaticsTestBase {
 
     function testLockedCollateralDoesNotCreateBasketSpecificRewards() public {
         (uint256 basketId, address token) = _createDefaultBasket(0.1 ether, 0);
+        uint256 launchTreasury = globalRewards.treasuryAccrued(address(assetA));
         uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
         vm.prank(alice);
         lending.borrow(positionId, basketId, 5 ether, alice);
         _mintShares(basketId, token, bob, 1 ether);
 
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.5 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), launchTreasury + 0.5 ether);
         assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).lockedShares, 4.95 ether);
     }
 
@@ -441,8 +452,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.originationFeeBps = 0;
         params.ltvBps = 5_000;
-        vm.prank(alice);
-        (uint256 basketId,) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId,) = _launchBasket(params, alice, 1 ether);
         IStaticsLending.BorrowQuote memory quoted = lending.quoteBorrow(basketId, 1 ether);
 
         assertEq(baskets.basket(basketId).ltvBps, 5_000);
@@ -456,7 +466,12 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.ltvBps = 9_501;
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(BasketFacet.LtvExceedsMaximum.selector, 9_501));
-        baskets.createBasket{value: 1 ether}(params);
+        baskets.createBasket{value: 1 ether}(
+            params,
+            _defaultPoolLaunchParams(params.assets.length),
+            _defaultLaunchMaximums(params.assets.length),
+            type(uint256).max
+        );
     }
 
     function testRecursiveLoopConvergesBelowTwentyTimesPrincipal() public {
@@ -464,8 +479,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.originationFeeBps = 0;
         params.extensionFeeBps = 0;
         params.ltvBps = 9_500;
-        vm.prank(alice);
-        (uint256 basketId,) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId,) = _launchBasket(params, alice, 1 ether);
         uint256 positionId = _mintPositionShares(basketId, alice, 1 ether);
 
         uint256 layerShares = 1 ether;
@@ -513,8 +527,8 @@ contract LendingAndFlashTest is StaticsTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.assets[0] = address(taxed);
         params.flashFeeBps = 200;
-        vm.prank(alice);
-        (uint256 basketId, address token) = baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        (uint256 basketId, address token) = _launchBasket(params, alice, basketAdmin.creationFee());
+        uint256 launchSupply = IERC20(token).totalSupply();
 
         uint256[] memory initialMaximums = baskets.quoteMint(basketId, 10 ether);
         taxed.mint(alice, initialMaximums[0]);
@@ -547,7 +561,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(globalRewards.treasuryAccrued(address(taxed)) - treasuryBefore, expectedActualFee);
         assertEq(custody.globalReservedByToken(address(taxed)) - globalReservedBefore, expectedActualFee);
         assertGe(taxed.balanceOf(address(diamond)), custody.globalReservedByToken(address(taxed)));
-        assertEq(IERC20(token).totalSupply(), 10 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 10 ether);
     }
 
     function testFlashLoanRevertsAtomicallyWhenReceiverDoesNotRepay() public {
@@ -705,8 +719,8 @@ contract LendingAndFlashTest is StaticsTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.assets[0] = address(taxed);
         params.flashFeeBps = 0;
-        vm.prank(alice);
-        (uint256 basketId, address token) = baskets.createBasket{value: 1 ether}(params);
+        (uint256 basketId, address token) = _launchBasket(params, alice, 1 ether);
+        uint256 launchSupply = IERC20(token).totalSupply();
         taxed.mint(alice, 21 ether);
         assetB.mint(alice, 50 ether);
         vm.startPrank(alice);
@@ -728,7 +742,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(custody.reservedByAccount(account, address(taxed)), reservedBefore);
         assertEq(taxed.balanceOf(address(diamond)), diamondBefore);
         assertEq(taxed.balanceOf(address(receiver)), 0);
-        assertEq(IERC20(token).totalSupply(), 10 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 10 ether);
     }
 
     function testLiquidityInterfacesAreDiscoverable() public view {
@@ -814,8 +828,8 @@ contract LendingAndFlashTest is StaticsTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
+        (uint256 basketId,) = _launchBasket(params, alice, 1 ether);
         vm.startPrank(alice);
-        (uint256 basketId,) = baskets.createBasket{value: 1 ether}(params);
         assetA.mint(alice, 100 ether);
         lowDecimal.mint(alice, 200);
         assetA.approve(address(diamond), type(uint256).max);
@@ -847,8 +861,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         reentrant = new MockReentrantERC20();
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0.01 ether, 0);
         params.assets[0] = address(reentrant);
-        vm.prank(alice);
-        (basketId, token) = baskets.createBasket{value: 1 ether}(params);
+        (basketId, token) = _launchBasket(params, alice, 1 ether);
     }
 
     function _mintReentrantBasketSupply(uint256 basketId, address token, MockReentrantERC20 reentrant, uint256 shares)

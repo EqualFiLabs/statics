@@ -2,6 +2,10 @@
 pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
@@ -32,7 +36,9 @@ import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
+import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
 contract StaticsTestDeployer {
     function deploy(address owner, address guardian, address treasury, address stakingToken)
@@ -74,6 +80,10 @@ contract StaticsTestDeployer {
 }
 
 abstract contract StaticsTestBase is Test {
+    uint160 internal constant DEFAULT_LAUNCH_SQRT_PRICE = 1 << 96;
+    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+
     address internal guardian = makeAddr("guardian");
     address internal treasury = makeAddr("treasury");
     address internal alice = makeAddr("alice");
@@ -93,6 +103,8 @@ abstract contract StaticsTestBase is Test {
     MockERC20 internal assetA;
     MockERC20 internal assetB;
     MockERC20 internal stakingAsset;
+    IPoolManager private _localPoolManager;
+    StaticsSwapFeeHook private _localSwapFeeHook;
 
     function setUp() public virtual {
         assetA = new MockERC20("Asset A", "A", 18);
@@ -112,6 +124,18 @@ abstract contract StaticsTestBase is Test {
         lending = IStaticsLending(address(diamond));
         flashLoans = IStaticsFlashLoan(address(diamond));
         vm.deal(alice, 100 ether);
+
+        if (_installLocalLiquidityIntegration()) {
+            _localPoolManager =
+                IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+            _localSwapFeeHook = _deployLocalHook(_localPoolManager);
+            basketLiquidity.installCanonicalPoolIntegration(address(_localPoolManager), address(_localSwapFeeHook));
+            if (_installDefaultLiquidityManager()) {
+                basketLiquidity.installLiquidityManager(
+                    address(new MockLaunchLiquidityManager(address(diamond), address(_localPoolManager)))
+                );
+            }
+        }
     }
 
     function _createDefaultBasket(uint256 mintFeeShares, uint256 redemptionFeeShares)
@@ -119,9 +143,13 @@ abstract contract StaticsTestBase is Test {
         returns (uint256 basketId, address token)
     {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(mintFeeShares, redemptionFeeShares);
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, alice);
         uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.prank(alice);
-        (basketId, token) = baskets.createBasket{value: creationFeeAmount}(params);
+        (basketId, token) = baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
+        deal(address(assetA), alice, 0);
+        deal(address(assetB), alice, 0);
     }
 
     function _defaultParams(uint256 mintFeeShares, uint256 redemptionFeeShares)
@@ -165,5 +193,88 @@ abstract contract StaticsTestBase is Test {
         assetA.approve(address(diamond), type(uint256).max);
         assetB.approve(address(diamond), type(uint256).max);
         vm.stopPrank();
+    }
+
+    function _fundDefaultLaunch(address[] memory assets, address creator)
+        internal
+        returns (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums)
+    {
+        uint256 length = assets.length;
+        pools = new IStaticsBasket.PoolLaunchParams[](length);
+        maximums = new uint256[](length);
+        vm.startPrank(creator);
+        for (uint256 i; i < length; ++i) {
+            MockERC20(assets[i]).mint(creator, 1_000_000 ether);
+            IERC20(assets[i]).approve(address(diamond), 1_000_000 ether);
+            pools[i] = IStaticsBasket.PoolLaunchParams({
+                sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: 1 ether
+            });
+            maximums[i] = 1_000_000 ether;
+        }
+        vm.stopPrank();
+    }
+
+    function _defaultPoolLaunchParams(uint256 length)
+        internal
+        pure
+        returns (IStaticsBasket.PoolLaunchParams[] memory pools)
+    {
+        pools = new IStaticsBasket.PoolLaunchParams[](length);
+        for (uint256 i; i < length; ++i) {
+            pools[i] = IStaticsBasket.PoolLaunchParams({
+                sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: 1 ether
+            });
+        }
+    }
+
+    function _defaultLaunchMaximums(uint256 length) internal pure returns (uint256[] memory maximums) {
+        maximums = new uint256[](length);
+        for (uint256 i; i < length; ++i) {
+            maximums[i] = 1_000_000 ether;
+        }
+    }
+
+    function _launchBasket(IStaticsBasket.CreateBasketParams memory params, address creator, uint256 value)
+        internal
+        returns (uint256 basketId, address token)
+    {
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, creator);
+        vm.prank(creator);
+        return baskets.createBasket{value: value}(params, pools, maximums, type(uint256).max);
+    }
+
+    function _launchBasketWithMinimalSeed(
+        IStaticsBasket.CreateBasketParams memory params,
+        address creator,
+        uint256 value
+    ) internal returns (uint256 basketId, address token) {
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, creator);
+        for (uint256 i; i < pools.length; ++i) {
+            pools[i].pairedAssetAmount = 1;
+        }
+        vm.prank(creator);
+        return baskets.createBasket{value: value}(params, pools, maximums, type(uint256).max);
+    }
+
+    function _localLiquidity() internal view returns (IPoolManager manager, StaticsSwapFeeHook hook) {
+        return (_localPoolManager, _localSwapFeeHook);
+    }
+
+    function _installLocalLiquidityIntegration() internal pure virtual returns (bool) {
+        return true;
+    }
+
+    function _installDefaultLiquidityManager() internal pure virtual returns (bool) {
+        return true;
+    }
+
+    function _deployLocalHook(IPoolManager manager) private returns (StaticsSwapFeeHook deployed) {
+        bytes memory constructorArgs = abi.encode(manager, address(diamond), uint16(25), uint16(25));
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25);
+        assertEq(address(deployed), expected);
     }
 }

@@ -1,0 +1,44 @@
+{
+  "name": "Statics Genesis Basket",
+  "symbol": "sGEN",
+  "assets": [
+    "0x1111111111111111111111111111111111111111",
+    "0x2222222222222222222222222222222222222222"
+  ],
+  "bundleAmounts": [
+    1000000000000000000,
+    1000000000000000000
+  ],
+  "mintFeeMinimumShares": [
+    0
+  ],
+  "mintFeeShares": [
+    1000000000000000
+  ],
+  "redemptionFeeMinimumShares": [
+    0
+  ],
+  "redemptionFeeShares": [
+    1000000000000000
+  ],
+  "flashFeeBps": 5,
+  "originationFeeBps": 25,
+  "extensionFeeBps": 10,
+  "ltvBps": 9000,
+  "recoveryPenaltyBps": 500,
+  "loanDuration": 2592000,
+  "sqrtPriceAssetPerBasketX96": [
+    79228162514264337593543950336,
+    79228162514264337593543950336
+  ],
+  "pairedAssetAmounts": [
+    1000000000000000000,
+    1000000000000000000
+  ],
+  "maxAmountsIn": [
+    10000000000000000000,
+    10000000000000000000
+  ],
+  "expectedBasketId": 0,
+  "launchDeadline": 2000000000
+}

@@ -9,6 +9,7 @@ import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmo
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {SafeCast} from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {TransientStateLibrary} from "@uniswap/v4-core/src/libraries/TransientStateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -27,12 +28,15 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
     using StateLibrary for IPoolManager;
+    using TransientStateLibrary for IPoolManager;
     using SafeERC20 for IERC20;
 
     uint256 private constant BPS = 10_000;
     uint256 private constant MAX_COMBINED_FEE_BPS = 200;
     uint40 private constant OBSERVATION_INTERVAL = 1 minutes;
     uint8 private constant MAX_OBSERVATIONS = 64;
+    uint8 private constant UNLOCK_RELEASE = 1;
+    uint8 private constant UNLOCK_SEED = 2;
     bytes32 private constant PERMANENT_LIQUIDITY_SALT = keccak256("statics.permanent.swap.fee.liquidity");
 
     struct Observation {
@@ -105,6 +109,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error InsufficientOracleHistory(PoolId poolId, uint40 targetTimestamp, uint40 oldestTimestamp);
     error InvalidUnlockCaller(address caller);
     error InvalidReleaseReceiver();
+    error EmptyPermanentLiquiditySeed();
+    error InvalidPermanentLiquiditySeed(PoolId poolId);
+    error PermanentLiquidityAlreadySeeded(PoolId poolId);
+    error DuplicatePermanentLiquiditySeed(PoolId poolId);
+    error UnexpectedCurrencyDelta(Currency currency, int256 delta);
 
     constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
         staticsDiamond = diamond;
@@ -217,6 +226,25 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         return permanentLiquidity[poolId];
     }
 
+    function seedPermanentLiquidity(PermanentLiquiditySeed[] calldata seeds) external {
+        _enforceDiamond();
+        uint256 length = seeds.length;
+        if (length == 0) revert EmptyPermanentLiquiditySeed();
+        for (uint256 i; i < length; ++i) {
+            PoolId poolId = seeds[i].key.toId();
+            _enforceRegistered(poolId);
+            if (decommissionedPools[poolId]) revert PoolIsDecommissioned(poolId);
+            if (seeds[i].liquidity == 0) revert InvalidPermanentLiquiditySeed(poolId);
+            if (permanentLiquidity[poolId] != 0) revert PermanentLiquidityAlreadySeeded(poolId);
+            for (uint256 j; j < i; ++j) {
+                if (PoolId.unwrap(seeds[j].key.toId()) == PoolId.unwrap(poolId)) {
+                    revert DuplicatePermanentLiquiditySeed(poolId);
+                }
+            }
+        }
+        poolManager.unlock(abi.encode(UNLOCK_SEED, abi.encode(seeds)));
+    }
+
     function compoundPermanentLiquidity(PoolKey calldata key) external returns (uint128 liquidityAdded) {
         PoolId poolId = key.toId();
         _enforceRegistered(poolId);
@@ -234,7 +262,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _enforceRegistered(poolId);
         if (!decommissionedPools[poolId]) revert PoolNotDecommissioned(poolId);
         uint128 liquidity = permanentLiquidity[poolId];
-        bytes memory result = poolManager.unlock(abi.encode(ReleaseRequest({key: key, receiver: receiver})));
+        bytes memory result =
+            poolManager.unlock(abi.encode(UNLOCK_RELEASE, abi.encode(ReleaseRequest({key: key, receiver: receiver}))));
         (amount0, amount1) = abi.decode(result, (uint256, uint256));
 
         uint256 pending0 = polPending[poolId][key.currency0];
@@ -258,7 +287,13 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (msg.sender != address(poolManager)) revert InvalidUnlockCaller(msg.sender);
-        ReleaseRequest memory request = abi.decode(data, (ReleaseRequest));
+        (uint8 action, bytes memory payload) = abi.decode(data, (uint8, bytes));
+        if (action == UNLOCK_SEED) {
+            _seedPermanentLiquidity(abi.decode(payload, (PermanentLiquiditySeed[])));
+            return "";
+        }
+        if (action != UNLOCK_RELEASE) revert();
+        ReleaseRequest memory request = abi.decode(payload, (ReleaseRequest));
         PoolId poolId = request.key.toId();
         uint128 liquidity = permanentLiquidity[poolId];
         if (liquidity == 0) return abi.encode(uint256(0), uint256(0));
@@ -278,6 +313,74 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _takeExact(request.key.currency0, request.receiver, amount0);
         _takeExact(request.key.currency1, request.receiver, amount1);
         return abi.encode(amount0, amount1);
+    }
+
+    function _seedPermanentLiquidity(PermanentLiquiditySeed[] memory seeds) private {
+        uint256 length = seeds.length;
+        Currency[] memory currencies = new Currency[](length * 2);
+        uint256 currencyCount;
+        uint256[] memory amount0 = new uint256[](length);
+        uint256[] memory amount1 = new uint256[](length);
+
+        for (uint256 i; i < length; ++i) {
+            PermanentLiquiditySeed memory seed = seeds[i];
+            PoolId poolId = seed.key.toId();
+            ModifyLiquidityParams memory params = ModifyLiquidityParams({
+                tickLower: TickMath.minUsableTick(seed.key.tickSpacing),
+                tickUpper: TickMath.maxUsableTick(seed.key.tickSpacing),
+                liquidityDelta: int256(uint256(seed.liquidity)),
+                salt: PERMANENT_LIQUIDITY_SALT
+            });
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(seed.key, params, "");
+            if (delta.amount0() >= 0 || delta.amount1() >= 0) revert InvalidPermanentLiquiditySeed(poolId);
+            amount0[i] = _absolute(int256(delta.amount0()));
+            amount1[i] = _absolute(int256(delta.amount1()));
+            permanentLiquidity[poolId] = seed.liquidity;
+            currencyCount = _appendUniqueCurrency(currencies, currencyCount, seed.key.currency0);
+            currencyCount = _appendUniqueCurrency(currencies, currencyCount, seed.key.currency1);
+        }
+
+        for (uint256 i; i < currencyCount; ++i) {
+            Currency currency = currencies[i];
+            int256 delta = poolManager.currencyDelta(address(this), currency);
+            if (delta >= 0) revert UnexpectedCurrencyDelta(currency, delta);
+            _settleFromDiamond(currency, uint256(-delta));
+        }
+
+        for (uint256 i; i < length; ++i) {
+            PermanentLiquiditySeed memory seed = seeds[i];
+            emit PermanentLiquiditySeeded(seed.key.toId(), seed.liquidity, amount0[i], amount1[i]);
+        }
+    }
+
+    function _appendUniqueCurrency(Currency[] memory currencies, uint256 length, Currency currency)
+        private
+        pure
+        returns (uint256)
+    {
+        for (uint256 i; i < length; ++i) {
+            if (currencies[i] == currency) return length;
+        }
+        currencies[length] = currency;
+        return length + 1;
+    }
+
+    function _settleFromDiamond(Currency currency, uint256 amount) private {
+        poolManager.sync(currency);
+        uint256 senderBefore = currency.balanceOf(staticsDiamond);
+        uint256 receiverBefore = currency.balanceOf(address(poolManager));
+        IERC20 token = IERC20(Currency.unwrap(currency));
+        token.safeTransferFrom(staticsDiamond, address(poolManager), amount);
+        uint256 senderAfter = currency.balanceOf(staticsDiamond);
+        uint256 receiverAfter = currency.balanceOf(address(poolManager));
+        _enforceExactDebit(currency, senderBefore, senderAfter, amount);
+        uint256 received = receiverAfter >= receiverBefore ? receiverAfter - receiverBefore : 0;
+        if (received != amount) revert IncompatiblePoolCurrency(currency, amount, received);
+        uint256 settled = poolManager.settle();
+        if (settled != amount) revert UnexpectedSettlement(currency, amount, settled);
+        uint256 remainingAllowance = token.allowance(staticsDiamond, address(this));
+        if (remainingAllowance != 0) revert UnexpectedTokenAllowance(currency, remainingAllowance);
+        _assertPendingSolvency(currency);
     }
 
     function checkpoint(PoolKey calldata key) external returns (bool observationStored) {
@@ -478,10 +581,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint256 basketStakerAmount = pending.basketStaker;
         uint256 staticsStakerAmount = pending.staticsStaker;
         uint256 treasuryAmount = pending.treasury;
-        if (
-            liquidityProviderAmount == 0 && basketStakerAmount == 0 && staticsStakerAmount == 0
-                && treasuryAmount == 0
-        ) return;
+        if (liquidityProviderAmount == 0 && basketStakerAmount == 0 && staticsStakerAmount == 0 && treasuryAmount == 0) return;
         pending.liquidityProvider = 0;
         pending.basketStaker = 0;
         pending.staticsStaker = 0;
@@ -656,8 +756,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (
             uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps) > MAX_COMBINED_FEE_BPS
                 || uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
-                        + uint256(configuration.basketStakerShareBps)
-                        + uint256(configuration.staticsStakerShareBps) + uint256(configuration.treasuryShareBps) != BPS
+                        + uint256(configuration.basketStakerShareBps) + uint256(configuration.staticsStakerShareBps)
+                        + uint256(configuration.treasuryShareBps) != BPS
         ) revert InvalidFeeConfiguration();
     }
 

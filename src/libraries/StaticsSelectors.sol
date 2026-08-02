@@ -13,6 +13,7 @@ import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.s
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
@@ -167,10 +168,10 @@ library StaticsSelectors {
         selectors = new bytes4[](17);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
-        selectors[2] = IStaticsBasketLiquidity.initializeCanonicalPool.selector;
-        selectors[3] = IStaticsBasketLiquidity.checkpointCanonicalPool.selector;
-        selectors[4] = IStaticsBasketLiquidity.activateCanonicalPool.selector;
-        selectors[5] = IStaticsBasketLiquidity.syncCanonicalPoolToManager.selector;
+        selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
+        selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
+        selectors[4] = IStaticsBasketLiquidity.checkpointCanonicalPool.selector;
+        selectors[5] = IStaticsBasketLiquidity.activateCanonicalPool.selector;
         selectors[6] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
         selectors[7] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
         selectors[8] = IStaticsBasketLiquidity.liquidityIntegration.selector;

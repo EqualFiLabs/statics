@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {
     DeployStaticsDollar,
+    DeployStaticsDollarBase,
     StaticsDollarLocalConfig,
     StaticsDollarProductionConfig,
     StaticsDollarStackDeployment
@@ -137,12 +138,14 @@ contract CoreDeploymentTest is Test {
     function test_ProductionRejectsMissingAuthoritiesAndDependencies() public {
         DeployStaticsDollar script = new DeployStaticsDollar();
         StaticsDollarProductionConfig memory config;
-        vm.expectRevert(abi.encodeWithSelector(DeployStaticsDollar.MissingProductionInput.selector, bytes32("OWNER")));
+        vm.expectRevert(
+            abi.encodeWithSelector(DeployStaticsDollarBase.MissingProductionInput.selector, bytes32("OWNER"))
+        );
         script.deployProduction(config);
 
         config.owner = owner;
         vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsDollar.MissingProductionInput.selector, bytes32("PROFILE_GUARDIAN"))
+            abi.encodeWithSelector(DeployStaticsDollarBase.MissingProductionInput.selector, bytes32("PROFILE_GUARDIAN"))
         );
         script.deployProduction(config);
     }
@@ -151,7 +154,7 @@ contract CoreDeploymentTest is Test {
         CanonicalWETH9 mockWeth = new CanonicalWETH9();
         StaticsDollarProductionConfig memory config = _productionConfig(address(mockWeth));
         DeployStaticsDollar script = new DeployStaticsDollar();
-        vm.expectRevert(abi.encodeWithSelector(DeployStaticsDollar.MockDependency.selector, address(mockWeth)));
+        vm.expectRevert(abi.encodeWithSelector(DeployStaticsDollarBase.MockDependency.selector, address(mockWeth)));
         script.deployProduction(config);
     }
 
@@ -162,25 +165,25 @@ contract CoreDeploymentTest is Test {
 
         config.oracleMaxStaleness = 0;
         vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsDollar.MissingProductionInput.selector, bytes32("ORACLE_STALENESS"))
+            abi.encodeWithSelector(DeployStaticsDollarBase.MissingProductionInput.selector, bytes32("ORACLE_STALENESS"))
         );
         script.deployProduction(config);
         config.oracleMaxStaleness = 1 hours;
         config.oracleMaxPriceWad = config.oracleMinPriceWad;
         vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsDollar.InvalidProductionInput.selector, bytes32("ORACLE_BOUNDS"))
+            abi.encodeWithSelector(DeployStaticsDollarBase.InvalidProductionInput.selector, bytes32("ORACLE_BOUNDS"))
         );
         script.deployProduction(config);
         config.oracleMaxPriceWad = 100_000e18;
         config.sequencerGracePeriod = 0;
         vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsDollar.MissingProductionInput.selector, bytes32("SEQUENCER_GRACE"))
+            abi.encodeWithSelector(DeployStaticsDollarBase.MissingProductionInput.selector, bytes32("SEQUENCER_GRACE"))
         );
         script.deployProduction(config);
         config.sequencerGracePeriod = 1 hours;
         config.collateralRatioBps = 0;
         vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsDollar.MissingProductionInput.selector, bytes32("RISK_CONFIG"))
+            abi.encodeWithSelector(DeployStaticsDollarBase.MissingProductionInput.selector, bytes32("RISK_CONFIG"))
         );
         script.deployProduction(config);
     }

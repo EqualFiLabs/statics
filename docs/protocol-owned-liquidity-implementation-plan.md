@@ -1637,3 +1637,65 @@ This plan is complete only when:
 | 2026-07-20 | SDK and protocol documentation | Complete | `feat(sdk): expose canonical liquidity workflows` | Stable ABI, math, events, and ownership documented |
 | 2026-07-20 | Deployment and manifests | Complete | `feat(deploy): wire the Statics v4 liquidity stack` | Immutable deployments and timelocked installation; no broadcast |
 | 2026-07-20 | Unified invariants and security review | Complete | `bc83e8e`, `59a8d6e`, `00e7a96` | Full default/security suites, required Robinhood forks, SDK, audit, and QA pass |
+
+## Atomic basket-launch extension
+
+The final launch gap is closed by making canonical market creation inseparable
+from basket genesis. This extension supersedes every earlier tracker statement
+that describes a separately initialized or manager-synced canonical pool.
+
+The clean-break public creation call accepts the basket definition, one
+semantic constituent-per-BasketToken square-root price and paired-asset amount
+per constituent, and one complete constituent input cap. It atomically:
+
+1. deploys the BasketToken;
+2. registers and initializes every canonical pool;
+3. registers every PoolKey with the installed manager;
+4. mints the aggregate pool BasketTokens through ordinary backing and fee
+   accounting;
+5. pulls each creator-funded paired constituent amount; and
+6. locks every full-range position through one hook unlock.
+
+The owner uses the same call and provides the same assets when public creation
+is closed. There is no separate administrative bootstrap, empty basket state,
+standalone pool initializer, or standalone manager-sync action.
+
+| Date | Slice | Status | Commit or evidence | Notes |
+| --- | --- | --- | --- | --- |
+| 2026-07-28 | Batch hook seeding | Complete | `7cd7758` | One Diamond-authorized unlock settles shared currencies once and preserves pending POL |
+| 2026-07-28 | Atomic basket launch | Complete | `7473748` | Creation initializes, registers, backs, and permanently seeds every pool |
+| 2026-07-28 | Launch stress coverage | Complete | `e34d02b` | Immediate swap, 16 pools, 1,000-run price fuzz, and complete rollback |
+| 2026-07-28 | SDK clean break | Complete | `89be05e` | New creation calldata and events; obsolete initializer and sync builders removed |
+| 2026-07-28 | Documentation | Complete | `bca11b9` | Design, integration, architecture, deployment, and ADR surfaces aligned |
+| 2026-07-28 | Final audit and suite | Complete | `fad6286`, `0bb428c` | Launch limits, price bounds, selector visibility, genesis flow, and seeded baselines remediated |
+
+Focused evidence:
+
+- `forge test --match-path test/liquidity/AtomicBasketLaunch.t.sol` passes 6/6,
+  including 1,000 fuzz runs, sender-extra debit rejection, and usable
+  full-range price-bound rejection.
+- `forge test --match-path 'test/liquidity/*.t.sol'` passes 144/144 with three
+  expected environment-gated fork skips.
+- `forge test --match-path 'test/invariant/*.t.sol'` passes all 12 invariants at
+  256 runs and 12,800 calls per invariant.
+- Both required Robinhood Chain fork suites pass without skips at pinned block
+  `14,498,238` with `REQUIRE_ROBINHOOD_FORK=true`.
+- `npm test --prefix sdk` passes 32/32 and `npm run build --prefix sdk` passes.
+- `forge test --summary` and `FOUNDRY_PROFILE=security forge test --summary`
+  each pass 432/432 with seven expected environment-gated skips. The security
+  profile runs invariants with `fail_on_revert=true` for 128 runs and 8,192
+  calls per invariant.
+- `forge build --sizes` reports production runtime sizes of 22,726 bytes for
+  `BasketFacet` and 20,928 bytes for `BasketLiquidityFacet`. Its nonzero exit is
+  caused only by the intentionally monolithic `StaticsTestDeployer` test
+  harness exceeding EIP-170.
+
+The implementation review and Aderyn-assisted scan identified no unresolved
+critical or high-severity launch finding. Remediation added an execution
+deadline, measured the creator's complete aggregate constituent debit, bounded
+prices to the usable tick-spacing-10 full range, removed Diamond-only launch
+helpers from the public ERC-165 interface, and proved owner-only genesis
+through the ordinary timelock-funded creator flow. Full-suite qualification
+also updated stale zero-supply and zero-fee baselines to account for permanent
+launch liquidity and the ordinary launch mint fee. This is implementation
+review evidence, not a substitute for an independent external audit.

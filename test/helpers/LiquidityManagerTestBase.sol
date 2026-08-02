@@ -35,7 +35,6 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
         );
 
         (basketId, basketToken) = _createDefaultBasket(0, 0);
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
         canonicalKey = _canonicalKey();
         liquidityManager.registerCanonicalPool(basketId, address(assetA), canonicalKey);
 

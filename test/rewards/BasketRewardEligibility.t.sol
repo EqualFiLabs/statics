@@ -8,6 +8,7 @@ import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 contract BasketRewardEligibilityTest is StaticsTestBase {
     function testLockedCollateralRemainsEligibleAndOriginationFeeDoesNot() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchSupply = IERC20(token).totalSupply();
         uint256[] memory inputs = baskets.quoteMint(basketId, 10 ether);
         _fundAndApprove(alice, inputs[0], inputs[1]);
         vm.prank(alice);
@@ -18,7 +19,7 @@ contract BasketRewardEligibilityTest is StaticsTestBase {
 
         assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).lockedShares, 4.95 ether);
         assertEq(basketRewards.basketRewardState(basketId, token).totalEligibleShares, 9.95 ether);
-        assertEq(IERC20(token).totalSupply(), 9.95 ether);
+        assertEq(IERC20(token).totalSupply(), launchSupply + 9.95 ether);
     }
 
     function testRepaymentOnlyUnlocksAndKeepsRewardEligibility() public {

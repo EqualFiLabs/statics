@@ -18,6 +18,7 @@ import {CanonicalV4Router} from "../../helpers/CanonicalPoolTestBase.sol";
 import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
 import {FlashArbitrageReceiver, ICanonicalV4SwapRouter} from "../../mocks/FlashArbitrageReceiver.sol";
 import {MockERC20} from "../../mocks/MockERC20.sol";
+import {MockLaunchLiquidityManager} from "../../mocks/MockLaunchLiquidityManager.sol";
 
 contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
     using PoolIdLibrary for PoolKey;
@@ -44,6 +45,9 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         );
         hook = _deployHook();
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
+        basketLiquidity.installLiquidityManager(
+            address(new MockLaunchLiquidityManager(address(diamond), address(poolManager)))
+        );
         router = new CanonicalV4Router(poolManager);
     }
 
@@ -131,8 +135,7 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        vm.prank(alice);
-        return baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        return _launchBasket(params, alice, basketAdmin.creationFee());
     }
 
     function _createStake(address[] memory rewardAssets) private returns (uint256 positionId) {
@@ -166,7 +169,6 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         private
         returns (PoolKey memory key)
     {
-        basketLiquidity.initializeCanonicalPool(basketId, asset, SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory configured = basketLiquidity.canonicalPool(basketId, asset);
         key = PoolKey({
             currency0: Currency.wrap(configured.currency0),
@@ -201,6 +203,10 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         );
         deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
+    }
+
+    function _installLocalLiquidityIntegration() internal pure override returns (bool) {
+        return false;
     }
 
     function _selectFork(string memory manifest) private {

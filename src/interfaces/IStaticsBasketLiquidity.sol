@@ -96,14 +96,10 @@ interface IStaticsBasketLiquidity {
 
     function installCanonicalPoolIntegration(address poolManager, address hook) external;
     function installLiquidityManager(address manager) external;
-    function initializeCanonicalPool(uint256 basketId, address asset, uint160 sqrtPriceX96)
-        external
-        returns (PoolId poolId, int24 tick);
     function checkpointCanonicalPool(uint256 basketId, address asset) external returns (bool observationStored);
     function activateCanonicalPool(uint256 basketId, address asset)
         external
         returns (int24 referenceTick, int24 spotTick);
-    function syncCanonicalPoolToManager(uint256 basketId, address asset) external returns (bool synced);
     function setSwapFeeConfiguration(SwapFeeConfiguration calldata configuration) external;
     function setCanonicalPoolFeeConfiguration(
         uint256 basketId,

@@ -6,6 +6,11 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 interface IStaticsSwapFeeHook {
+    struct PermanentLiquiditySeed {
+        PoolKey key;
+        uint128 liquidity;
+    }
+
     struct PoolRegistration {
         Currency currency0;
         Currency currency1;
@@ -59,6 +64,7 @@ interface IStaticsSwapFeeHook {
     event PermanentLiquidityAdded(
         PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1, uint256 pending0, uint256 pending1
     );
+    event PermanentLiquiditySeeded(PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1);
     event PermanentLiquidityFeesCollected(
         PoolId indexed poolId, Currency indexed currency, uint256 amount, uint256 pendingAmount
     );
@@ -110,6 +116,7 @@ interface IStaticsSwapFeeHook {
     function poolRegistration(PoolId poolId) external view returns (PoolRegistration memory registration);
     function pendingPermanentLiquidity(PoolId poolId, Currency currency) external view returns (uint256 amount);
     function lockedLiquidity(PoolId poolId) external view returns (uint128 liquidity);
+    function seedPermanentLiquidity(PermanentLiquiditySeed[] calldata seeds) external;
     function compoundPermanentLiquidity(PoolKey calldata key) external returns (uint128 liquidityAdded);
     function releasePermanentLiquidity(PoolKey calldata key, address receiver)
         external

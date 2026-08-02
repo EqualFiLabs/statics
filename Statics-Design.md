@@ -245,6 +245,22 @@ creation. Creation records the creator for discovery but gives that address no
 administrative authority. This switch does not approve or certify constituent
 tokens.
 
+Creation requires one launch-price and paired-asset budget per constituent.
+The price is expressed semantically as the square root of constituent units per
+BasketToken, independent of Uniswap currency ordering. The aligned
+`maxAmountsIn` value caps the creator's complete debit for that constituent:
+the paired-asset amount plus the backing and ordinary mint fee required for the
+aggregate BasketTokens placed across all canonical pools.
+
+The single creation call deploys the permit-enabled BasketToken, registers and
+initializes every canonical PoolKey, registers every pool with the installed
+liquidity manager, mints the aggregate pool BasketTokens through ordinary
+backing and fee accounting, and seeds hook-owned full-range permanent
+liquidity. The owner uses exactly the same funded path for a controlled genesis
+basket. If any constituent fails, the native creation fee, token deployment,
+pool state, backing, reservations, and permanent liquidity all roll back.
+There is no valid unseeded or partially launched basket state.
+
 ### Aggregate-supply backing
 
 For constituent bundle amount `b[i]` and BasketToken supply `S`, required
@@ -453,11 +469,13 @@ currencies are the BasketToken and constituent, with:
 | Reference window | 30 minutes |
 | Maximum spot/reference deviation | 100 BPS |
 
-Initialization and activation are owner/timelock-only because both select or
-authorize price state. Initialization registers the exact PoolKey with the
-hook. Activation requires warm-up, at least two observations, a valid
-30-minute reference, and the fixed deviation bound. Checkpointing and manager
-sync are permissionless.
+Initialization is atomic with basket creation and uses the creator-supplied
+price and asset budget. The new pool is immediately swappable in `Warming`
+state. Activation remains owner/timelock-only because it authorizes
+price-sensitive protocol exposure; it requires warm-up, at least two
+observations, a valid 30-minute reference, and the fixed deviation bound.
+Checkpointing is permissionless. There is no standalone initialization or
+manager-sync action.
 
 The installed hook rejects native currency and nonzero native LP fees for
 registered canonical pools. Unregistered pools are not canonical.
@@ -758,9 +776,8 @@ Basket states are `Active`, `Quarantined`, and `ExitOnly`.
 | Redeem | Yes | Yes | Yes |
 | Repay | Yes | Yes | Yes |
 | Mature-loan recovery | Permissionless | Permissionless | Permissionless |
-| Pool initialize or activate | Timelock-only | No | No |
+| Pool activate | Timelock-only after launch warm-up | No | No |
 | Pool checkpoint | Permissionless if configured | Permissionless if configured | Until decommissioned |
-| Pool manager sync | Permissionless if configured | Permissionless if configured | Until decommissioned |
 | Hook swap and compounding | Until pool decommission | Until pool decommission | Until unwind decommissions pool |
 | Canonical LP NFT stake or increase | Subject to liquidity pause | No | No |
 | Pending LP reward activation | Permissionless until pool decommission | Permissionless until pool decommission | Until pool decommissioned |
@@ -774,7 +791,7 @@ active basket. Governance releases quarantine, unpauses, or enters the
 Redemption is not guardian-pausable.
 
 No keeper runs automatically and no maintenance caller is guaranteed. Claims,
-pending LP reward activation, checkpoints, manager sync, basket-loan recovery,
+pending LP reward activation, checkpoints, basket-loan recovery,
 manual hook compounding, treasury distribution, and ExitOnly unwind can remain
 pending indefinitely until someone submits a transaction. Basket-loan recovery
 and those maintenance actions pay no caller bounty; their liveness currently
@@ -794,9 +811,9 @@ configured multisig is proposer and canceller, execution is open after delay,
 and the emergency guardian is not a timelock canceller.
 
 The timelock currently controls Diamond cuts, economic configuration, lifecycle
-release and decommissioning, canonical pool initialization and activation, hook
-fee configuration, and treasury or guardian changes. Reward-asset selection is
-a PositionNFT owner action and requires no governance admission or retirement.
+release and decommissioning, canonical pool activation, hook fee configuration,
+and treasury or guardian changes. Reward-asset selection is a PositionNFT owner
+action and requires no governance admission or retirement.
 
 Diamond cuts are the sole implementation upgrade mechanism. Facets share the
 common OpenZeppelin persistent reentrancy slot under delegatecall. Flash loans
@@ -1125,8 +1142,8 @@ output fee rates.
 25. Measured flash excess, not merely the quote, is routed as a non-swap fee.
 26. Failed callbacks or repayment checks leave no partial protocol or pool state.
 27. Canonical pools use the installed hook, zero native LP fee, and tick spacing 10.
-28. Pool initialization and activation require timelock ownership.
-29. Activation cannot bypass warm-up, observations, or deviation checks.
+28. Basket creation initializes, manager-registers, and permanently seeds exactly one canonical pool per constituent or reverts without creating the basket.
+29. Canonical pools are immediately swappable while Warming, but activation cannot bypass timelock ownership, warm-up, observations, or deviation checks.
 30. Hook input and output fees apply without caller or flash-receiver exemption.
 31. Every swap-fee leg conserves across POL, canonical LP, basket staker, global Statics staker, and treasury routing.
 32. Hook permanent liquidity cannot be released before pool decommissioning.

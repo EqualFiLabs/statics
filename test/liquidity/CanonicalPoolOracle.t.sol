@@ -15,7 +15,6 @@ import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 contract CanonicalPoolOracleTest is CanonicalPoolTestBase {
     function testPoolActivatesAfterFixedWarmupWithStableReference() public {
         (uint256 basketId,) = _createDefaultBasket(0, 0);
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
 
         vm.warp(block.timestamp + 1 hours - 1);
         basketLiquidity.checkpointCanonicalPool(basketId, address(assetA));
@@ -34,7 +33,6 @@ contract CanonicalPoolOracleTest is CanonicalPoolTestBase {
 
     function testObservationRingIsBoundedAndOneCheckpointPerMinute() public {
         (uint256 basketId,) = _createDefaultBasket(0, 0);
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, address(assetA));
 
         assertFalse(basketLiquidity.checkpointCanonicalPool(basketId, address(assetA)));
@@ -57,7 +55,6 @@ contract CanonicalPoolOracleTest is CanonicalPoolTestBase {
 
     function testOneBlockPriceManipulationCannotAuthorizePool() public {
         (uint256 basketId, address basketToken) = _createDefaultBasket(0, 0);
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, address(assetA));
         PoolKey memory key = _poolKey(pool);
 
@@ -101,7 +98,6 @@ contract CanonicalPoolOracleTest is CanonicalPoolTestBase {
 
     function testConsultRejectsWindowWithoutHistory() public {
         (uint256 basketId,) = _createDefaultBasket(0, 0);
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, address(assetA));
 
         vm.expectPartialRevert(StaticsSwapFeeHook.InsufficientOracleHistory.selector);

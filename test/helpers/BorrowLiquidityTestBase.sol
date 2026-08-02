@@ -37,6 +37,10 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
         borrowLiquidity = IStaticsBorrowLiquidity(address(diamond));
     }
 
+    function _installDefaultLiquidityManager() internal pure override returns (bool) {
+        return false;
+    }
+
     function _createReadyBasket(uint256 count) internal {
         address[] memory assets = new address[](count);
         for (uint256 i; i < count; ++i) {
@@ -66,8 +70,12 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
+        (IStaticsBasket.PoolLaunchParams[] memory launchPools, uint256[] memory launchMaximums) =
+            _fundDefaultLaunch(assets, alice);
+        uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.prank(alice);
-        (basketId, basketToken) = baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        (basketId, basketToken) =
+            baskets.createBasket{value: creationFeeAmount}(params, launchPools, launchMaximums, type(uint256).max);
 
         uint256[] memory quote = baskets.quoteMint(basketId, 100 ether);
         vm.startPrank(alice);
@@ -78,9 +86,6 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
         (basketPositionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 100 ether, alice, quote);
         vm.stopPrank();
 
-        for (uint256 i; i < count; ++i) {
-            basketLiquidity.initializeCanonicalPool(basketId, assets[i], SQRT_PRICE_1_1);
-        }
         vm.warp(block.timestamp + 1 hours);
         for (uint256 i; i < count; ++i) {
             basketLiquidity.activateCanonicalPool(basketId, assets[i]);

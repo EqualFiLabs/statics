@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {Script} from "forge-std/Script.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
 import {
-    DeployStaticsDollar,
+    DeployStaticsDollarBase,
     StaticsDollarLocalConfig,
     StaticsDollarProductionConfig,
     StaticsDollarStackDeployment
@@ -22,7 +21,7 @@ interface IPositionManagerBindings {
     function permit2() external view returns (address);
 }
 
-contract DeployStatics is Script, RobinhoodDeploymentConfig {
+contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;
         address guardian;
@@ -84,7 +83,8 @@ contract DeployStatics is Script, RobinhoodDeploymentConfig {
 
         V4Config memory v4 = _loadRobinhoodV4Config();
         vm.startBroadcast(privateKey);
-        (deployment, timelock) = deployProduction(config, production, v4, FOUNDRY_CREATE2_DEPLOYER);
+        (deployment, timelock) = _deployProductionStack(config, production, vm.addr(privateKey));
+        _deployLiquidityContracts(deployment, v4, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
     }
 
@@ -108,7 +108,7 @@ contract DeployStatics is Script, RobinhoodDeploymentConfig {
         local.priceBandBps = 15_000;
         local.debtCeiling = 1_000_000e18;
         local.riskUri = "ipfs://local-statics-dollar-risk/{id}.json";
-        deployment = new DeployStaticsDollar().deployLocal(local);
+        deployment = _deployLocal(local, address(this));
     }
 
     /// @notice Local full-stack deployment bound to caller-supplied real v4 contracts.
@@ -124,13 +124,21 @@ contract DeployStatics is Script, RobinhoodDeploymentConfig {
         public
         returns (StaticsDollarStackDeployment memory deployment, StaticsTimelock timelock)
     {
+        return _deployProductionStack(config, production, address(this));
+    }
+
+    function _deployProductionStack(
+        Config memory config,
+        StaticsDollarProductionConfig memory production,
+        address deploymentCreator
+    ) private returns (StaticsDollarStackDeployment memory deployment, StaticsTimelock timelock) {
         timelock = _deployTimelock(config);
         production.owner = address(timelock);
         production.profileGuardian = config.guardian;
         production.treasury = config.treasury;
         production.stakingToken = config.stakingToken;
         production.creationFeeAmount = config.creationFeeAmount;
-        deployment = new DeployStaticsDollar().deployProduction(production);
+        deployment = _deployProduction(production, deploymentCreator);
     }
 
     function deployProduction(
@@ -149,9 +157,8 @@ contract DeployStatics is Script, RobinhoodDeploymentConfig {
         address create2Deployer
     ) private {
         _validateV4(config);
-        bytes memory constructorArgs = abi.encode(
-            IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps
-        );
+        bytes memory constructorArgs =
+            abi.encode(IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps);
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(

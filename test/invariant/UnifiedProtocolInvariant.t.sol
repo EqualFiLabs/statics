@@ -6,6 +6,9 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -33,7 +36,9 @@ import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
+import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
+import {MockLaunchLiquidityManager} from "test/mocks/MockLaunchLiquidityManager.sol";
 
 struct UnifiedHandlerConfig {
     address diamond;
@@ -565,6 +570,8 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
 }
 
 contract UnifiedProtocolInvariantTest is StdInvariant, Test {
+    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
     uint256 internal constant FIRST_WETH_BUNDLE = 0.001 ether;
     uint256 internal constant SECOND_WETH_BUNDLE = 0.002 ether;
     uint256 internal constant MAX_LTV_BPS = 9_500;
@@ -619,6 +626,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         senderExtra = new MockSenderExtraFeeERC20();
         reentrant = new MockReentrantERC20();
         peggedOracle = new MockETHUSDOracle(1e18, type(uint256).max);
+        _installBasketLaunchLiquidity();
 
         vm.deal(address(this), 1_000_000 ether);
         (firstBasketId, firstBasketToken) =
@@ -881,7 +889,33 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        return baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](3);
+        uint256[] memory maximums = new uint256[](3);
+        for (uint256 i; i < 3; ++i) {
+            pools[i] =
+                IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
+            maximums[i] = 1_000_000 ether;
+        }
+        weth.deposit{value: 1_000 ether}();
+        senderExtra.mint(address(this), 1_000_000 ether);
+        reentrant.mint(address(this), 1_000_000 ether);
+        IERC20(address(weth)).approve(deployment.diamond, type(uint256).max);
+        IERC20(address(senderExtra)).approve(deployment.diamond, type(uint256).max);
+        IERC20(address(reentrant)).approve(deployment.diamond, type(uint256).max);
+        return baskets.createBasket{value: basketAdmin.creationFee()}(params, pools, maximums, type(uint256).max);
+    }
+
+    function _installBasketLaunchLiquidity() private {
+        IPoolManager poolManager =
+            IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+        bytes memory constructorArgs = abi.encode(poolManager, deployment.diamond, uint16(25), uint16(25));
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 25, 25);
+        assertEq(address(hook), expected);
+        MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(deployment.diamond, address(poolManager));
+        basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
+        basketLiquidity.installLiquidityManager(address(manager));
     }
 
     receive() external payable {}

@@ -29,11 +29,11 @@ contract StaticsDollarTokensTest is Test {
 
     function test_TokenMetadataAndImmutableAuthorityMatchSpec() public view {
         assertEq(staticsDollar.name(), "Statics Dollar");
-        assertEq(staticsDollar.symbol(), "etUSD");
+        assertEq(staticsDollar.symbol(), "USDstx");
         assertEq(staticsDollar.decimals(), 18);
         assertEq(staticsDollar.pool(), pool);
         assertEq(staticsDollarRisk.name(), "Statics Dollar Risk Shares");
-        assertEq(staticsDollarRisk.symbol(), "ETRISK");
+        assertEq(staticsDollarRisk.symbol(), "ethLEV");
         assertEq(staticsDollarRisk.pool(), pool);
         assertEq(staticsDollarRisk.uri(1), "ipfs://risk/{id}.json");
     }

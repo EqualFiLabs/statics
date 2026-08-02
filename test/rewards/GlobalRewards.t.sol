@@ -35,6 +35,13 @@ contract GlobalRewardsTest is StaticsTestBase {
         _warpEligible(positionId, address(assetA), alice);
 
         (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
+        vm.prank(alice);
+        uint256[] memory launchPending = globalRewards.pendingRewards(positionId, selectedAssets);
+        assertEq(launchPending[0], 0.18 ether);
+        assertEq(launchPending[1], 0.45 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.02 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.05 ether);
+
         uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
         _fundAndApprove(bob, quote[0], quote[1]);
         vm.prank(bob);
@@ -42,10 +49,10 @@ contract GlobalRewardsTest is StaticsTestBase {
 
         vm.prank(alice);
         uint256[] memory pending = globalRewards.pendingRewards(positionId, selectedAssets);
-        assertEq(pending[0], 0.18 ether);
-        assertEq(pending[1], 0.45 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.02 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.05 ether);
+        assertEq(pending[0], 0.36 ether);
+        assertEq(pending[1], 0.9 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.04 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.1 ether);
 
         uint256[] memory minimums = new uint256[](2);
         vm.prank(alice);
@@ -57,19 +64,22 @@ contract GlobalRewardsTest is StaticsTestBase {
 
         globalRewards.distributeTreasuryFees(address(assetA));
         globalRewards.distributeTreasuryFees(address(assetB));
-        assertEq(assetA.balanceOf(treasury), 0.02 ether);
-        assertEq(assetB.balanceOf(treasury), 0.05 ether);
+        assertEq(assetA.balanceOf(treasury), 0.04 ether);
+        assertEq(assetB.balanceOf(treasury), 0.1 ether);
     }
 
     function testEmptyStakeRoutesNonSwapFeeToTreasury() external {
         (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
+
         uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
         _fundAndApprove(bob, quote[0], quote[1]);
         vm.prank(bob);
         baskets.mint(basketId, 10 ether, bob, quote);
 
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
-        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.4 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetB)), 1 ether);
     }
 
     function testStakeAndTopUpsRemainWithdrawableWhileOnlyNewStakeWaits() external {

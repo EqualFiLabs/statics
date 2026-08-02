@@ -1,10 +1,10 @@
 {
   "network": "Robinhood Chain Testnet",
   "chainId": 46630,
-  "forkBlock": 94203705,
-  "forkBlockHash": "0x46e96f2a5482c3cb72087a1c879dd11431eb23ab4268af79c9456c9a10f15c2f",
-  "forkBlockTimestamp": 1785213756,
-  "verifiedAt": "2026-07-27",
+  "forkBlock": 94803970,
+  "forkBlockHash": "0xdcca5ce433492a52be0bc5faf1a70b83b0b2b9c88fc6e846223d8b8f4fef5d03",
+  "forkBlockTimestamp": 1785297484,
+  "verifiedAt": "2026-07-29",
   "rpcDocumentation": "https://docs.robinhood.com/chain/connecting/",
   "contractDocumentation": "https://docs.robinhood.com/chain/contracts/",
   "sourceProvenance": {
@@ -35,6 +35,12 @@
       "afterSwap",
       "afterSwapReturnDelta"
     ]
+  },
+  "staticsDollarDependencies": {
+    "weth": {
+      "address": "0x33e4191705c386532ba27cBF171Db86919200B94",
+      "runtimeCodeHash": "0x55f8ac53c64450f01880d8249fc5cb0c69c064e4bcb097ea80a02fff40485a7c"
+    }
   },
   "contracts": {
     "poolManager": {

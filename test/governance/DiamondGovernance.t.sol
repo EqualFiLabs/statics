@@ -2,23 +2,33 @@
 pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
+import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
+import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
+import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
 contract VersionFacet {
     function version() external pure returns (uint256) {
@@ -27,6 +37,8 @@ contract VersionFacet {
 }
 
 contract DiamondGovernanceTest is Test {
+    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
     uint256 internal constant PAUSE_MINT = 1 << 0;
     uint256 internal constant PAUSE_BORROW = 1 << 1;
     uint256 internal constant PAUSE_EXTEND = 1 << 2;
@@ -54,6 +66,7 @@ contract DiamondGovernanceTest is Test {
         );
         diamond = StaticsDiamond(payable(deployment.diamond));
         timelock = deployedTimelock;
+        _installBasketLaunchLiquidity();
     }
 
     function testExposesStandardLoupeAndOwnership() public view {
@@ -197,6 +210,58 @@ contract DiamondGovernanceTest is Test {
         assertEq(timelock.getMinDelay(), 0);
     }
 
+    function testTimelockFundsAndLaunchesOwnerOnlyGenesisThroughOrdinaryPath() public {
+        _executeThroughTimelock(abi.encodeCall(IStaticsBasketAdmin.setCreationFee, (0)), "close public creation");
+
+        MockERC20 constituent = new MockERC20("Genesis Constituent", "GEN", 18);
+        constituent.mint(address(timelock), 10 ether);
+        _executeTargetThroughTimelock(
+            address(constituent),
+            abi.encodeCall(IERC20.approve, (address(diamond), 10 ether)),
+            "approve genesis constituent"
+        );
+
+        address[] memory assets = new address[](1);
+        assets[0] = address(constituent);
+        uint256[] memory bundleAmounts = new uint256[](1);
+        bundleAmounts[0] = 1 ether;
+        IStaticsBasket.CreateBasketParams memory params = IStaticsBasket.CreateBasketParams({
+            name: "Genesis Basket",
+            symbol: "sGEN",
+            assets: assets,
+            bundleAmounts: bundleAmounts,
+            mintFeeTiers: new IStaticsBasket.FeeTier[](0),
+            redemptionFeeTiers: new IStaticsBasket.FeeTier[](0),
+            flashFeeBps: 0,
+            originationFeeBps: 0,
+            extensionFeeBps: 0,
+            ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
+            loanDuration: 30 days
+        });
+        IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
+        pools[0] = IStaticsBasket.PoolLaunchParams({
+            sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+        });
+        uint256[] memory maximums = new uint256[](1);
+        maximums[0] = 10 ether;
+        _executeThroughTimelock(
+            abi.encodeCall(IStaticsBasket.createBasket, (params, pools, maximums, type(uint256).max)),
+            "launch owner funded genesis"
+        );
+
+        IStaticsBasket baskets = IStaticsBasket(address(diamond));
+        IStaticsBasket.BasketView memory configured = baskets.basket(0);
+        assertEq(configured.creator, address(timelock));
+        assertGt(IERC20(configured.token).totalSupply(), 0);
+        assertGt(baskets.vaultBalance(0, address(constituent)), 0);
+        IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
+            IStaticsBasketLiquidity(address(diamond)).canonicalPool(0, address(constituent));
+        (, address hook,) = IStaticsBasketLiquidity(address(diamond)).liquidityIntegration();
+        assertEq(uint8(canonical.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Warming));
+        assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(canonical.poolId), 0);
+    }
+
     function testTimelockCanReconfigurePeripheryParametersRepeatedly() public {
         FeeRouterFacet feeRouter = FeeRouterFacet(address(diamond));
         PairingVaultFacet pairingVault = PairingVaultFacet(address(diamond));
@@ -294,16 +359,21 @@ contract DiamondGovernanceTest is Test {
     }
 
     function _executeThroughTimelock(bytes memory payload, string memory label) internal {
+        _executeTargetThroughTimelock(address(diamond), payload, label);
+    }
+
+    function _executeTargetThroughTimelock(address target, bytes memory payload, string memory label) internal {
         bytes32 salt = keccak256(bytes(label));
         vm.prank(multisig);
-        timelock.schedule(address(diamond), 0, payload, bytes32(0), salt, 15 minutes);
+        timelock.schedule(target, 0, payload, bytes32(0), salt, 15 minutes);
         vm.warp(block.timestamp + 15 minutes);
-        timelock.execute(address(diamond), 0, payload, bytes32(0), salt);
+        timelock.execute(target, 0, payload, bytes32(0), salt);
     }
 
     function _createBasket() private returns (uint256 basketId) {
         address[] memory assets = new address[](1);
-        assets[0] = makeAddr("constituent");
+        MockERC20 constituent = new MockERC20("Constituent", "C", 18);
+        assets[0] = address(constituent);
         uint256[] memory bundleAmounts = new uint256[](1);
         bundleAmounts[0] = 1 ether;
         IStaticsBasket.CreateBasketParams memory params = IStaticsBasket.CreateBasketParams({
@@ -320,9 +390,37 @@ contract DiamondGovernanceTest is Test {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
+        IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
+        pools[0] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
+        uint256[] memory maximums = new uint256[](1);
+        maximums[0] = 10 ether;
+        constituent.mint(stranger, 10 ether);
         vm.deal(stranger, 1 ether);
-        vm.prank(stranger);
-        (basketId,) = IStaticsBasket(address(diamond)).createBasket{value: 1 ether}(params);
+        vm.startPrank(stranger);
+        IERC20(address(constituent)).approve(address(diamond), 10 ether);
+        (basketId,) = IStaticsBasket(address(diamond)).createBasket{value: 1 ether}(params, pools, maximums, type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function _installBasketLaunchLiquidity() private {
+        IPoolManager poolManager =
+            IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
+        assertEq(address(hook), expected);
+        MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(address(diamond), address(poolManager));
+        _executeThroughTimelock(
+            abi.encodeCall(
+                IStaticsBasketLiquidity.installCanonicalPoolIntegration, (address(poolManager), address(hook))
+            ),
+            "install canonical pool integration"
+        );
+        _executeThroughTimelock(
+            abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (address(manager))),
+            "install basket liquidity manager"
+        );
     }
 
     function _cut(address facet, bytes4[] memory selectors) internal pure returns (IDiamondCut.FacetCut memory) {

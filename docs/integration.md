@@ -68,9 +68,44 @@ selected LTV:
 ltvBps + ceil(ltvBps * recoveryPenaltyBps / 10_000) <= 10_000
 ```
 
-Index `BasketCreated`, `BasketConfigured`, and `BasketFeeTiersConfigured`, then
-reconcile with `basketCount`, `basket`, `basketIdOf`, and `basketStatus`.
-Creator identity is discovery metadata, not administration.
+Creation also launches one canonical pool for every constituent. Supply
+aligned `PoolLaunchParams[]` and `maxAmountsIn[]` arrays in basket-asset order,
+plus a `launchDeadline` after which the complete transaction must revert:
+
+- `sqrtPriceAssetPerBasketX96` is always the semantic square-root price of raw
+  constituent units per raw BasketToken unit, independent of token decimals
+  and Uniswap currency ordering. Use
+  `encodeSqrtPriceAssetPerBasketX96(assetAmountRaw, basketAmountRaw)` from the
+  SDK instead of applying decimal normalization;
+- `pairedAssetAmount` is the creator-funded constituent budget for that pool;
+- `maxAmountsIn[i]` caps the creator's measured aggregate constituent debit:
+  paired liquidity plus the backing and ordinary mint fee for the aggregate
+  BasketTokens seeded across every pool; and
+- `launchDeadline` bounds how long the signed price and input limits remain
+  executable.
+
+The single `createBasket` transaction deploys the permit-enabled BasketToken,
+registers and initializes all PoolKeys, registers them with the installed
+manager, mints fully backed BasketTokens through the ordinary fee path, and
+locks full-range hook-owned liquidity in every pool. Any failure rolls back the
+fee transfer, token deployment, pool initialization, backing, and custody.
+There is no separate pool-initialization or manager-sync transaction.
+Canonical v4 launch requires exact-transfer-compatible constituents: a taxed
+or otherwise nonstandard constituent that changes the requested PoolManager
+settlement amount causes the complete creation transaction to revert.
+
+The owner uses this same calldata and funding flow for a zero-fee genesis
+basket; there is no privileged bootstrap path. A successfully launched pool is
+immediately swappable in `Warming` state. Activation after the oracle warm-up
+authorizes price-sensitive protocol exposure such as combined
+borrow-to-liquidity; it is not what creates the market.
+
+Index `BasketCreated`, `BasketConfigured`, `BasketFeeTiersConfigured`,
+`CanonicalPoolInitialized`, `CanonicalPoolSyncedToManager`,
+`PermanentLiquiditySeeded`, and `BasketLaunched`, then reconcile with
+`basketCount`, `basket`, `basketIdOf`, `basketStatus`, `canonicalPool`, and
+hook `lockedLiquidity`. Creator identity is discovery metadata, not
+administration.
 
 Each flat tier is `(minActionShares, feeShares)`. The protocol scans the whole
 array and selects the greatest qualifying threshold; a later duplicate wins.
@@ -172,10 +207,11 @@ There is one canonical hooked pool per basket constituent. Read
 LP fee, tick spacing 10, lifecycle times, and observation state. Status moves
 from `Unconfigured` to `Warming` to `Active`.
 
-Pool initialization and activation are timelock-only. Activation requires a
-one-hour warm-up, enough observations for a 30-minute reference, and spot
-deviation at or below 100 BPS. `checkpointCanonicalPool` and
-`syncCanonicalPoolToManager` are permissionless.
+Pool initialization and permanent seeding are inseparable from basket creation.
+The creator supplies every starting price and paired-asset budget. Activation
+remains timelock-only and requires a one-hour warm-up, enough observations for
+a 30-minute reference, and spot deviation at or below 100 BPS.
+`checkpointCanonicalPool` is permissionless.
 
 Display input and output hook fees separately from native v4 LP fees:
 

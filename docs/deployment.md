@@ -39,6 +39,8 @@ canonical launcher reads:
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Hook emitted by the launcher |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Manager emitted by the launcher |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the installation batch |
+| `STATICS_GENESIS_BASKET_CONFIG` | Reviewed JSON manifest for the owner-funded first basket |
+| `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding the approvals and atomic basket launch |
 
 `RPC_URL` is consumed by the Forge command rather than Solidity. Do not infer
 feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
@@ -48,8 +50,37 @@ before broadcasting.
 Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the protocol with
 `script/DeployStaticsToken.s.sol:DeployStaticsToken`. Set
 `STATICS_TOKEN_RECIPIENT` and `STATICS_TOKEN_INITIAL_SUPPLY`, then use the
-resulting address as `STAKING_TOKEN`. The token supports ERC-2612 permit and has
-no post-deployment mint authority.
+resulting address as `STAKING_TOKEN`. This deployment token is for testnet: it
+uses the `STATICS` symbol, supports ERC-2612 permit, makes the initial recipient
+its OpenZeppelin owner, and lets that owner mint without a configured cap.
+Transfer ownership if a different testnet operator should control emissions.
+Do not use this uncapped owner-mintable implementation as the finalized
+mainnet staking token.
+
+The current Robinhood testnet deployment configuration has no verified
+canonical addresses for the two Chainlink AggregatorV3 dependencies required
+by the production-path Dollar launcher. Deploy the owner-operated testnet
+fixtures before the protocol with
+`script/DeployTestnetOracleFixtures.s.sol:DeployTestnetOracleFixtures`. The
+script deploys three deliberately separate contracts:
+
+- an eight-decimal ETH/USD aggregator for `ETH_USD_FEED`;
+- a zero/up, one/down sequencer aggregator for `SEQUENCER_UPTIME_FEED`; and
+- an 18-decimal normalized USDG oracle for
+  `STATICS_DOLLAR_USDC_ORACLE`.
+
+Set `TESTNET_ORACLE_OWNER`, `TESTNET_ETH_USD_INITIAL_PRICE`,
+`TESTNET_SEQUENCER_INITIAL_UPTIME`, `TESTNET_USDG_INITIAL_PRICE_WAD`, and
+`TESTNET_USDG_ORACLE_MAX_STALENESS`. The owner must publish fresh ETH/USD and
+USDG prices before their configured staleness windows expire. Repeated
+sequencer heartbeats preserve the time at which the current status began;
+changing between up and down restarts that timestamp and therefore the
+configured recovery grace period.
+
+These contracts are centralized public-testnet controls. They exist to exercise
+the production oracle adapter and impairment paths when canonical testnet feeds
+are unavailable. Never place their addresses in a mainnet deployment
+configuration.
 
 Robinhood Chain v4 dependencies are pinned separately for mainnet and testnet:
 
@@ -63,6 +94,10 @@ their addresses are the same. Production liquidity configuration must use the
 selected manifest's PoolManager, PositionManager, Permit2, hook calibration,
 and recorded code hashes; Solidity contracts do not embed those addresses.
 The SDK's existing generated Robinhood binding remains mainnet-specific.
+The testnet manifest also records the independently verified WETH address and
+runtime code hash. Set `WETH_ADDRESS` to that manifest value for the Robinhood
+testnet rehearsal; the launcher still requires the environment value so a
+mainnet deployment cannot silently inherit a testnet token address.
 
 The target network must implement Cancun transient storage (EIP-1153).
 `FlashLoanFacet` uses OpenZeppelin's transient reentrancy guard so callbacks can
@@ -132,6 +167,7 @@ Run the focused deployment proof before any rehearsal:
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
 forge test --match-path test/deployment/DeployStaticsToken.t.sol -vv
+forge test --match-path test/deployment/LaunchGenesisBasket.t.sol -vv
 ```
 
 The Robinhood testnet dependency proof is read-only and pinned to the block in
@@ -161,7 +197,7 @@ forge script script/DeployStatics.s.sol:DeployStatics \
   -vv
 ```
 
-For Robinhood testnet, first deploy and verify the fixed-supply staking token:
+For Robinhood testnet, first deploy and verify the owner-mintable staking token:
 
 ```bash
 forge script script/DeployStaticsToken.s.sol:DeployStaticsToken \
@@ -174,9 +210,25 @@ forge script script/DeployStaticsToken.s.sol:DeployStaticsToken \
   -vv
 ```
 
-Then set `STAKING_TOKEN` to that confirmed address and simulate the full
-launcher without `--broadcast`. After explicit authorization for the protocol
-broadcast, publish its sources in the same operation:
+Deploy and verify the testnet oracle fixtures:
+
+```bash
+forge script \
+  script/DeployTestnetOracleFixtures.s.sol:DeployTestnetOracleFixtures \
+  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
+  --chain-id 46630 \
+  --broadcast \
+  --verify \
+  --verifier blockscout \
+  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
+  -vv
+```
+
+Set `STAKING_TOKEN`, `ETH_USD_FEED`, and `SEQUENCER_UPTIME_FEED` to the
+confirmed outputs and retain the USDG oracle address for the later pegged
+profile ceremony. Then simulate the full launcher without `--broadcast`. After
+explicit authorization for the protocol broadcast, publish its sources in the
+same operation:
 
 ```bash
 forge script script/DeployStatics.s.sol:DeployStatics \
@@ -216,10 +268,14 @@ forge script script/ConfigureStaticsLiquidity.s.sol:ConfigureStaticsLiquidity \
 The schedule and execution use the current timelock delay. They fail if code,
 immutable bindings, hook fee, permission bits, ownership, or already-installed
 state differs from the reviewed batch. No canonical pool is initialized by
-this governance ceremony. Timelocked governance later initializes each
-constituent pool with an explicit starting price and activates it only after
-the warm-up, observation, and deviation checks pass. Checkpointing and manager
-sync remain permissionless.
+this governance ceremony. After both integrations are installed, every basket
+creation must provide one semantic constituent-per-BasketToken square-root
+price, one paired-asset budget, and one complete input cap per constituent.
+The same transaction creates the BasketToken, initializes and manager-registers
+all pools, mints their fully backed BasketTokens, and seeds permanent full-range
+liquidity. Timelocked governance activates each launched pool only after the
+warm-up, observation, and deviation checks pass. Checkpointing remains
+permissionless.
 
 Per-pool fee configuration changes are separate timelocked governance actions.
 Schedule the typed `setCanonicalPoolFeeConfiguration` or
@@ -250,11 +306,69 @@ NFTs are identified through PositionManager, manager, and liquidity-reward
 events.
 
 The chain manifest records the bilateral hook fees, revenue split, and safety
-calibration. Pool initialization, activation, manager sync, and permanent
-liquidity events provide the basket-specific PoolKeys and PoolIds for release
+calibration. `BasketLaunched`, pool initialization, manager registration,
+activation, and permanent-liquidity events provide the basket-specific
+PoolKeys, PoolIds, seed amounts, and aggregate launch supply for release
 evidence. A user v4 position remains external until `LiquidityPositionStaked`
 attaches it to a PositionNFT; activation, increases, claims, and exit have their
 own indexed events.
+
+## Owner-funded genesis basket
+
+When `BASKET_CREATION_FEE_AMOUNT` is zero, public basket creation is closed and
+the timelock is the only valid creator. Use
+`script/LaunchGenesisBasket.s.sol:LaunchGenesisBasket` after the hook and
+liquidity manager installation has executed. The script does not introduce a
+new deployed helper or authority. It prepares one typed timelock batch
+containing a bounded approval for each constituent followed by the ordinary
+`createBasket` call.
+
+Copy `script/config/genesis-basket.example.json`, replace every example address
+and economic parameter, and review the resulting file as a deployment
+artifact. All token amounts are raw token units. Each
+`sqrtPriceAssetPerBasketX96` is the semantic constituent-per-BasketToken launch
+price; the protocol converts it to the PoolKey's currency order. The parallel
+asset, bundle, pool, and maximum arrays must have the same order and length.
+Fee-tier minimum and fee arrays must also have matching lengths.
+
+`launchDeadline` is an absolute Unix timestamp because the schedule and
+execution commands must reconstruct identical calldata and therefore the same
+timelock operation hash. Set it far enough beyond the current timelock delay to
+allow the execution transaction to confirm. Do not edit the manifest between
+schedule and execution. `expectedBasketId` binds the script's preflight and
+post-execution validation to the reviewed basket slot; it is `0` for a fresh
+deployment.
+
+Before scheduling, transfer each configured constituent to the timelock. Its
+balance must cover both:
+
+- backing for the aggregate BasketTokens minted across every canonical pool;
+- the constituent paired directly with those BasketTokens in its own pool.
+
+`maxAmountsIn` caps the timelock's aggregate debit per constituent; it is not
+an estimate supplied by the script. Use reviewed, tightly bounded values. The
+batch is atomic: if an approval, backing transfer, pool initialization, manager
+registration, or permanent-liquidity seed fails, every approval and the basket
+creation revert together.
+
+Set `STATICS_GENESIS_BASKET_CONFIG` to the reviewed manifest and select a fresh
+`STATICS_GENESIS_TIMELOCK_SALT`. Simulate both calls against the target RPC
+without `--broadcast`, inspect the complete approval and creation calldata,
+then schedule and execute with separate authorization:
+
+```bash
+forge script script/LaunchGenesisBasket.s.sol:LaunchGenesisBasket \
+  --sig 'runSchedule()' --rpc-url "$RPC_URL" --broadcast -vv
+
+forge script script/LaunchGenesisBasket.s.sol:LaunchGenesisBasket \
+  --sig 'runExecute()' --rpc-url "$RPC_URL" --broadcast -vv
+```
+
+The execution command verifies that exactly the expected basket was created by
+the timelock, its token has nonzero supply and backing, every configured
+canonical pool is warming, every manager key is registered, and every pool has
+nonzero hook-owned permanent liquidity. Pool activation remains a later
+timelocked action after the normal warm-up and oracle checks.
 
 Do not publish an address manifest until every transaction is confirmed and the
 post-deployment checks below pass.
@@ -295,9 +409,11 @@ Against the deployed addresses, verify:
    hook and manager immutable getters match the Diamond and Robinhood manifest,
    hook address bits equal `0x10cc`, and its input/output fee and revenue split
    equal the reviewed manifest;
-9. every initialized canonical pool reports a zero native LP fee, tick spacing
-   10, expected hook, recorded PoolId, and corresponding manager key hash; its
-   hook-owned pending and locked permanent liquidity agree with hook events;
+9. every created basket has exactly one initialized canonical pool per
+   constituent, and every pool reports a zero native LP fee, tick spacing 10,
+   expected hook, recorded PoolId, corresponding manager key hash, and nonzero
+   launch liquidity; its hook-owned pending and locked permanent liquidity
+   agree with launch and hook events;
 10. every pool allocation view matches the reviewed global default or its
     timelocked override, and clearing a rehearsal override restores the current
     global allocation without changing fee rates or existing POL; and

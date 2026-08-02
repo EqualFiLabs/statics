@@ -68,7 +68,7 @@ struct StaticsDollarStackDeployment {
     uint256 usdgProfileId;
 }
 
-contract DeployStaticsDollar is DeployCoreBootstrap {
+abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
     uint256 internal constant MOCK_MARKER_GAS = 30_000;
     bytes32 internal constant OWNER_FIELD = "OWNER";
     bytes32 internal constant PROFILE_GUARDIAN_FIELD = "PROFILE_GUARDIAN";
@@ -87,57 +87,6 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
     error InvalidProductionInput(bytes32 field);
     error MockDependency(address dependency);
     error LocalDependencyMissing(bytes32 field);
-
-    function run() external returns (StaticsDollarStackDeployment memory deployment) {
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        StaticsDollarProductionConfig memory config = StaticsDollarProductionConfig({
-            owner: vm.envAddress("STATICS_DOLLAR_OWNER"),
-            profileGuardian: vm.envAddress("STATICS_DOLLAR_PROFILE_GUARDIAN"),
-            treasury: vm.envAddress("STATICS_TREASURY"),
-            stakingToken: vm.envAddress("STAKING_TOKEN"),
-            creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
-            weth: vm.envAddress("WETH_ADDRESS"),
-            ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
-            sequencerUptimeFeed: vm.envAddress("SEQUENCER_UPTIME_FEED"),
-            oracleMaxStaleness: vm.envUint("STATICS_DOLLAR_ORACLE_MAX_STALENESS"),
-            oracleMinPriceWad: vm.envUint("STATICS_DOLLAR_ORACLE_MIN_PRICE_WAD"),
-            oracleMaxPriceWad: vm.envUint("STATICS_DOLLAR_ORACLE_MAX_PRICE_WAD"),
-            sequencerGracePeriod: vm.envUint("SEQUENCER_GRACE_PERIOD"),
-            collateralRatioBps: vm.envUint("STATICS_DOLLAR_COLLATERAL_RATIO_BPS"),
-            priceBandBps: vm.envUint("STATICS_DOLLAR_PRICE_BAND_BPS"),
-            debtCeiling: vm.envUint("STATICS_DOLLAR_DEBT_CEILING"),
-            riskUri: vm.envString("STATICS_DOLLAR_RISK_URI")
-        });
-        vm.startBroadcast(privateKey);
-        deployment = _deployProduction(config, vm.addr(privateKey));
-        vm.stopBroadcast();
-    }
-
-    /// @notice Deploys the complete stack with local mock dependencies for Anvil rehearsals.
-    function runLocal() external returns (StaticsDollarStackDeployment memory deployment) {
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.addr(privateKey);
-        StaticsDollarLocalConfig memory config;
-        config.owner = deployer;
-        config.profileGuardian = deployer;
-        config.treasury = deployer;
-        config.creationFeeAmount = 1 ether;
-        config.deployMockWeth = true;
-        config.deployMockOracle = true;
-        config.mockOraclePriceWad = 2_500e18;
-        config.mockOracleMaxStaleness = 30 days;
-        config.collateralRatioBps = 15_000;
-        config.priceBandBps = 15_000;
-        config.debtCeiling = 1_000_000e18;
-        config.riskUri = "ipfs://local-statics-dollar-risk";
-
-        vm.startBroadcast(privateKey);
-        deployment = _deployLocal(config, deployer);
-        deployment = deployLocalPeggedProfile(deployment, deployer);
-        vm.stopBroadcast();
-
-        _logLocalDeployment(deployment);
-    }
 
     function _logLocalDeployment(StaticsDollarStackDeployment memory deployment) internal pure {
         console2.log("STATICS_DOLLAR_CORE_ADDRESS", deployment.core);
@@ -337,5 +286,58 @@ contract DeployStaticsDollar is DeployCoreBootstrap {
 
     function _requireInput(address value, bytes32 field) private pure {
         if (value == address(0)) revert MissingProductionInput(field);
+    }
+}
+
+contract DeployStaticsDollar is DeployStaticsDollarBase {
+    function run() external returns (StaticsDollarStackDeployment memory deployment) {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        StaticsDollarProductionConfig memory config = StaticsDollarProductionConfig({
+            owner: vm.envAddress("STATICS_DOLLAR_OWNER"),
+            profileGuardian: vm.envAddress("STATICS_DOLLAR_PROFILE_GUARDIAN"),
+            treasury: vm.envAddress("STATICS_TREASURY"),
+            stakingToken: vm.envAddress("STAKING_TOKEN"),
+            creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
+            weth: vm.envAddress("WETH_ADDRESS"),
+            ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
+            sequencerUptimeFeed: vm.envAddress("SEQUENCER_UPTIME_FEED"),
+            oracleMaxStaleness: vm.envUint("STATICS_DOLLAR_ORACLE_MAX_STALENESS"),
+            oracleMinPriceWad: vm.envUint("STATICS_DOLLAR_ORACLE_MIN_PRICE_WAD"),
+            oracleMaxPriceWad: vm.envUint("STATICS_DOLLAR_ORACLE_MAX_PRICE_WAD"),
+            sequencerGracePeriod: vm.envUint("SEQUENCER_GRACE_PERIOD"),
+            collateralRatioBps: vm.envUint("STATICS_DOLLAR_COLLATERAL_RATIO_BPS"),
+            priceBandBps: vm.envUint("STATICS_DOLLAR_PRICE_BAND_BPS"),
+            debtCeiling: vm.envUint("STATICS_DOLLAR_DEBT_CEILING"),
+            riskUri: vm.envString("STATICS_DOLLAR_RISK_URI")
+        });
+        vm.startBroadcast(privateKey);
+        deployment = _deployProduction(config, vm.addr(privateKey));
+        vm.stopBroadcast();
+    }
+
+    /// @notice Deploys the complete stack with local mock dependencies for Anvil rehearsals.
+    function runLocal() external returns (StaticsDollarStackDeployment memory deployment) {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(privateKey);
+        StaticsDollarLocalConfig memory config;
+        config.owner = deployer;
+        config.profileGuardian = deployer;
+        config.treasury = deployer;
+        config.creationFeeAmount = 1 ether;
+        config.deployMockWeth = true;
+        config.deployMockOracle = true;
+        config.mockOraclePriceWad = 2_500e18;
+        config.mockOracleMaxStaleness = 30 days;
+        config.collateralRatioBps = 15_000;
+        config.priceBandBps = 15_000;
+        config.debtCeiling = 1_000_000e18;
+        config.riskUri = "ipfs://local-statics-dollar-risk";
+
+        vm.startBroadcast(privateKey);
+        deployment = _deployLocal(config, deployer);
+        deployment = deployLocalPeggedProfile(deployment, deployer);
+        vm.stopBroadcast();
+
+        _logLocalDeployment(deployment);
     }
 }
