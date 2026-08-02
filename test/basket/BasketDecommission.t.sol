@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
+import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
@@ -132,12 +133,25 @@ contract BasketDecommissionTest is StaticsTestBase {
         governance.decommissionBasket(basketId);
 
         uint40 maturity = lending.loan(loanId).maturity;
+        IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(loanId);
         vm.warp(uint256(maturity) + 1 hours + 1);
         vm.prank(bob);
         lending.recover(loanId);
 
-        assertEq(IERC20(token).totalSupply(), 0);
+        assertEq(IERC20(token).totalSupply(), recoveryQuote.unlockedShares);
+        assertEq(
+            basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares,
+            recoveryQuote.unlockedShares
+        );
         assertEq(uint8(baskets.basketStatus(basketId)), uint8(IStaticsBasket.BasketStatus.ExitOnly));
+
+        vm.roll(block.number + 1);
+        uint256[] memory redemption = baskets.quoteRedeem(basketId, recoveryQuote.unlockedShares);
+        vm.prank(alice);
+        basketCollateral.redeemBasketCollateral(
+            positionId, basketId, recoveryQuote.unlockedShares, alice, redemption
+        );
+        assertEq(IERC20(token).totalSupply(), 0);
     }
 
     function testExitOnlyRedemptionBypassesGlobalPause() public {

@@ -1,13 +1,16 @@
 # Unified Statics Protocol Implementation Plan
 
-> **Historical and superseded in part (2026-07-22).** This tracker records the
-> unification baseline, including the former per-basket PositionNFT reward
-> model. The live protocol uses global staking with per-position reward-asset
-> selections, while BasketTokens deposited in positions serve only as
-> collateral. See
+> **Historical baseline, amended in live code (2026-07-25).** This tracker
+> records the unification work. The live protocol uses global Statics-token
+> staking with per-position reward-asset selections and a separate per-basket
+> index for the canonical hook's BasketToken-staker allocation. Deposited
+> BasketTokens remain eligible while locked for borrowing. Basket genesis is
+> now owner-only when the creation fee is zero and exact-fee permissionless
+> when positive; managed Dollar recovery holders are owner-approved and
+> revocable. See
 > `Statics-Design.md` and `docs/integration.md` for current behavior.
 
-- Status: Historical; reward architecture superseded
+- Status: Historical implementation tracker; current economics documented elsewhere
 - Last updated: 2026-07-19
 - Canonical repository: `EqualFiLabs/statics`
 - Statics baseline: `ffc8755b995a71796b4ab1728fd6ed6ac190982c`
@@ -27,7 +30,8 @@ The completed system must preserve:
 - volatile Statics Dollar issuance, health, insurance, series-transition,
   recovery, staking, reward, opt-in, and pairing behavior;
 - direct pegged-collateral mint and redemption without Risk Shares or series;
-- permissionless creation of isolated static baskets;
+- governed genesis of isolated static baskets, opening to exact-fee public
+  creation only when the configured fee is positive;
 - static basket mint and redemption backing without ERC-4626 conversion rates;
 - flat or threshold-tiered mint and redemption fees;
 - PositionNFT-indexed multi-asset basket rewards;
@@ -67,7 +71,7 @@ StaticsDiamond
 │   ├── pairing-vault liquidity
 │   └── pegged-profile gateway and protocol revenue
 └── Statics Baskets
-    ├── permissionless basket creation, minting, and redemption
+    ├── governed genesis and permissionless minting and redemption
     ├── multi-asset fee indexes
     ├── proportional self-backed lending
     └── flash loans
@@ -171,7 +175,8 @@ src/
 
 ### Statics Baskets
 
-- Keep basket creation permissionless and support one to sixteen constituents.
+- Support one to sixteen constituents and use the creation fee as the public
+  genesis switch: zero is owner-only and positive is exact-fee permissionless.
 - Keep BasketTokens as separate permit-enabled ERC-20 contracts controlled by
   `StaticsDiamond`.
 - Implement the accepted tiered static mint and redemption fee model directly;
@@ -548,7 +553,8 @@ feat(basket): add static baskets and tiered fees
 
 - Redesign basket storage for static backing, tier schedules, protocol revenue,
   and shared reservations.
-- Preserve permissionless single-asset and multi-asset creation.
+- Preserve single-asset and multi-asset creation under the configured genesis
+  policy.
 - Implement static mint and redemption without historical fee-pot buy-in.
 - Preserve exit-only redemption and flash-loan behavior.
 
@@ -781,7 +787,7 @@ feat(sdk): expose unified Statics operations
 
 - Replace historical fee-pot quotes with aggregate-supply static backing and
   tier-selected flat fees.
-- Encode permissionless basket creation, PositionNFT reward flows,
+- Encode governed or exact-fee public basket creation, PositionNFT reward flows,
   position-owned lending, recovery, and the typed Statics Dollar gateway.
 - Keep constituent routing venue-neutral and independent of BasketToken
   liquidity.

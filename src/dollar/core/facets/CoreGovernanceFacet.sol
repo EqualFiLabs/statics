@@ -63,7 +63,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
     );
     event ProfilePermanentlyRetired(uint256 indexed profileId, uint256 indexed seriesId, uint256 insuranceAllocated);
     event PeggedProfilePermanentlyRetired(uint256 indexed profileId);
-    event ManagedRecoveryHolderRegistered(address indexed holder);
+    event ManagedRecoveryHolderSet(address indexed holder, bool managed);
 
     error ZeroAddress();
     error BootstrapAlreadyFinalized();
@@ -112,7 +112,13 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         cs.bootstrapFinalized = true;
         cs.bootstrapAuthority = address(0);
         emit CoreBootstrapFinalized(staticsDiamond);
-        emit ManagedRecoveryHolderRegistered(staticsDiamond);
+        emit ManagedRecoveryHolderSet(staticsDiamond, true);
+    }
+
+    function setManagedRecoveryHolder(address holder, bool managed) external {
+        LibCoreStorage.enforceProtocolOwner();
+        LibCoreStorage.s().managedRecoveryHolder[holder] = managed;
+        emit ManagedRecoveryHolderSet(holder, managed);
     }
 
     function createCollateralProfile(

@@ -104,13 +104,13 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 outputFeeBps: 25,
                 polShareBps: 0,
                 liquidityProviderShareBps: 0,
-                stakerShareBps: 9_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 9_000,
                 treasuryShareBps: 1_000
             })
         );
 
-        uint256 basketFeeReserveBefore =
-            custody.reservedByAccount(custody.feeCustodyAccount(), basketToken);
+        uint256 basketFeeReserveBefore = custody.reservedByAccount(custody.feeCustodyAccount(), basketToken);
         uint256 basketTreasuryBefore = globalRewards.treasuryAccrued(basketToken);
         bool assetIsCurrency0 = pool.currency0 == Currency.wrap(address(assetA));
         vm.prank(alice);
@@ -331,6 +331,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);
@@ -342,6 +343,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 100 ether);
         positionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
+        vm.warp(globalRewards.rewardSelection(positionId, rewardAssets[0]).eligibleAt);
         vm.stopPrank();
     }
 
@@ -411,7 +413,8 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100)),
                 polShareBps: 5_000,
                 liquidityProviderShareBps: 1_000,
-                stakerShareBps: 3_000,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 3_000,
                 treasuryShareBps: 1_000
             })
         );

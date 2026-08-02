@@ -23,7 +23,7 @@ canonical launcher reads:
 | `GUARDIAN` | Basket guardian and initial Dollar profile guardian |
 | `TREASURY` | Common basket and Statics Dollar protocol treasury |
 | `STAKING_TOKEN` | Verified deployed ERC-20 used as the immutable global staking denominator |
-| `BASKET_CREATION_FEE_AMOUNT` | Exact native amount required for basket creation |
+| `BASKET_CREATION_FEE_AMOUNT` | `0` closes public creation and permits owner-only zero-value genesis; a positive value opens exact-fee public creation |
 | `WETH_ADDRESS` | Verified canonical WETH for the target chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
 | `SEQUENCER_UPTIME_FEED` | Verified target-chain sequencer uptime feed |
@@ -88,7 +88,8 @@ The launcher performs one creation broadcast in this order:
    optional borrow-to-liquidity action. Initialization permanently records the
    configured staking-token address.
 6. Finalize Core bootstrap by binding `StaticsDiamond` as Core periphery,
-   PositionNFT, fee receiver, managed recovery holder, and gateway.
+   PositionNFT, fee receiver, owner-approved managed recovery holder, and
+   gateway. The Core owner may later add or revoke managed recovery holders.
 7. Validate the manifest's PoolManager, PositionManager, and Permit2 code hashes
    and PositionManager immutable bindings.
 8. Mine and deploy the bilateral-fee hook at the required `0x10cc`

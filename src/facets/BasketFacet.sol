@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
@@ -10,9 +11,10 @@ import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketMint} from "../libraries/LibBasketMint.sol";
-import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
+import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
+import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -22,16 +24,16 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
     error InvalidBasketDefinition();
     error FeeExceedsCap(uint16 feeBps);
     error LtvExceedsMaximum(uint16 ltvBps);
+    error InvalidRecoveryParameters(uint16 ltvBps, uint16 recoveryPenaltyBps);
     error InvalidReceiver();
     error InvalidShares();
     error InvalidAmountsLength();
-    error MaximumInputExceeded(address asset, uint256 required, uint256 maximum);
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error ActionPaused(uint256 action);
     error InsufficientVaultBalance(address asset, uint256 required, uint256 available);
+    error PermissionlessBasketCreationDisabled();
     error IncorrectCreationFee(uint256 expected, uint256 actual);
     error CreationFeeTransferFailed(address treasury, uint256 amount);
-    error InsufficientTransferReceived(address asset, uint256 required, uint256 received);
 
     function createBasket(CreateBasketParams calldata params)
         external
@@ -58,6 +60,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         created.originationFeeBps = params.originationFeeBps;
         created.extensionFeeBps = params.extensionFeeBps;
         created.ltvBps = params.ltvBps;
+        created.recoveryPenaltyBps = params.recoveryPenaltyBps;
         created.loanDuration = params.loanDuration;
         bs.basketIds[token] = basketId + 1;
 
@@ -70,6 +73,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
             params.originationFeeBps,
             params.extensionFeeBps,
             params.ltvBps,
+            params.recoveryPenaltyBps,
             params.loanDuration
         );
         _emitFeeTiers(basketId, true, params.mintFeeTiers);
@@ -89,27 +93,18 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         uint256 shares,
         address receiver,
         uint256[] calldata maxAmountsIn
-    )
-        external
-        nonReentrant
-        returns (uint256 positionId, uint256[] memory amountsIn)
-    {
+    ) external nonReentrant returns (uint256 positionId, uint256[] memory amountsIn) {
         if (receiver == address(0)) revert InvalidReceiver();
         positionId =
             IStaticsPositionModule(address(this)).createPositionForModule(receiver, LibPosition.basketLegKey(basketId));
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibCustody.reserve(LibCustody.basketAccount(basketId), configured.token, shares);
-        LibBasketCollateral.increasePosition(positionId, basketId, shares);
+        LibBasketRewards.increasePosition(positionId, basketId, configured, shares);
         emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);
     }
 
-    function mintBasketCollateral(
-        uint256 positionId,
-        uint256 basketId,
-        uint256 shares,
-        uint256[] calldata maxAmountsIn
-    )
+    function mintBasketCollateral(uint256 positionId, uint256 basketId, uint256 shares, uint256[] calldata maxAmountsIn)
         external
         nonReentrant
         returns (uint256[] memory amountsIn)
@@ -118,7 +113,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibCustody.reserve(LibCustody.basketAccount(basketId), configured.token, shares);
-        LibBasketCollateral.increasePosition(positionId, basketId, shares);
+        LibBasketRewards.increasePosition(positionId, basketId, configured, shares);
         emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);
     }
 
@@ -167,11 +162,11 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         uint256 supply = IERC20(configured.token).totalSupply();
         amountsOut = _quoteRedeem(bs, configured, basketId, shares, supply);
 
-        LibBasketCollateral.decreasePosition(positionId, basketId, shares);
+        LibBasketRewards.decreasePosition(positionId, basketId, configured, shares);
         LibCustody.release(LibCustody.basketAccount(basketId), configured.token, shares);
         StaticsBasketToken(configured.token).burn(address(this), shares);
         _redeemUnderlying(bs, configured, basketId, shares, supply, receiver, minAmountsOut, amountsOut);
-        LibBasketCollateral.deactivateIfEmpty(positionId, basketId);
+        LibBasketRewards.deactivateIfEmpty(positionId, basketId);
         emit BasketRedeemed(basketId, address(this), receiver, shares);
         emit IStaticsBasketCollateral.BasketCollateralRedeemed(positionId, basketId, receiver, shares);
     }
@@ -230,6 +225,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
             originationFeeBps: configured.originationFeeBps,
             extensionFeeBps: configured.extensionFeeBps,
             ltvBps: configured.ltvBps,
+            recoveryPenaltyBps: configured.recoveryPenaltyBps,
             loanDuration: configured.loanDuration
         });
     }
@@ -274,7 +270,13 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         _validateFee(params.flashFeeBps);
         _validateFee(params.originationFeeBps);
         _validateFee(params.extensionFeeBps);
+        _validateFee(params.recoveryPenaltyBps);
         if (params.ltvBps > LibLending.MAX_LTV_BPS) revert LtvExceedsMaximum(params.ltvBps);
+        uint256 maximumRecoverySharesBps = uint256(params.ltvBps)
+            + Math.mulDiv(params.ltvBps, params.recoveryPenaltyBps, LibBasket.BPS, Math.Rounding.Ceil);
+        if (maximumRecoverySharesBps > LibBasket.BPS) {
+            revert InvalidRecoveryParameters(params.ltvBps, params.recoveryPenaltyBps);
+        }
 
         for (uint256 i; i < length; ++i) {
             address asset = params.assets[i];
@@ -291,8 +293,12 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
 
     function _collectCreationFee(LibBasket.BasketStorage storage bs) private {
         uint256 amount = bs.creationFeeAmount;
+        if (amount == 0) {
+            if (msg.sender != LibDiamond.contractOwner()) revert PermissionlessBasketCreationDisabled();
+            if (msg.value != 0) revert IncorrectCreationFee(0, msg.value);
+            return;
+        }
         if (msg.value != amount) revert IncorrectCreationFee(amount, msg.value);
-        if (amount == 0) return;
         address treasury_ = bs.treasury;
         (bool success,) = payable(treasury_).call{value: amount}("");
         if (!success) revert CreationFeeTransferFailed(treasury_, amount);

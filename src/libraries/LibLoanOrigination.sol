@@ -6,7 +6,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "./LibBasket.sol";
-import {LibBasketCollateral} from "./LibBasketCollateral.sol";
+import {LibBasketRewards} from "./LibBasketRewards.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibGovernance} from "./LibGovernance.sol";
@@ -39,15 +39,17 @@ library LibLoanOrigination {
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = basket(bs, basketId);
         LibBasket.enforceActive(configured, basketId);
-        (uint256 feeShares, uint256 collateralShares,, uint256[] memory quotedPrincipals) = quote(configured, sharesIn);
-        principals = quotedPrincipals;
+        IStaticsLending.BorrowQuote memory quoted = quote(configured, sharesIn);
+        principals = quoted.principals;
 
-        LibBasketCollateral.lockForLoan(positionId, basketId, sharesIn, feeShares, collateralShares);
+        LibBasketRewards.lockForLoan(
+            positionId, basketId, configured, sharesIn, quoted.feeShares, quoted.collateralShares
+        );
         bytes32 custodyAccount = LibCustody.basketAccount(basketId);
         uint256 supplyBeforeFee = IERC20(configured.token).totalSupply();
-        if (feeShares != 0) {
-            LibCustody.release(custodyAccount, configured.token, feeShares);
-            StaticsBasketToken(configured.token).burn(address(this), feeShares);
+        if (quoted.feeShares != 0) {
+            LibCustody.release(custodyAccount, configured.token, quoted.feeShares);
+            StaticsBasketToken(configured.token).burn(address(this), quoted.feeShares);
         }
 
         LibLending.LendingStorage storage ls = LibLending.lendingStorage();
@@ -59,15 +61,18 @@ library LibLoanOrigination {
         ls.loans[loanId] = LibLending.Loan({
             positionId: positionId,
             basketId: basketId,
-            collateralShares: collateralShares,
-            feeShares: feeShares,
+            collateralShares: quoted.collateralShares,
+            feeShares: quoted.feeShares,
+            debtShares: quoted.debtShares,
+            penaltyShares: quoted.penaltyShares,
             maturity: maturity
         });
 
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
             address asset = configured.assets[i];
-            uint256 feeUnderlying = LibBasket.backingReduction(configured.bundleAmounts[i], supplyBeforeFee, feeShares);
+            uint256 feeUnderlying =
+                LibBasket.backingReduction(configured.bundleAmounts[i], supplyBeforeFee, quoted.feeShares);
             uint256 principal = principals[i];
             uint256 required = feeUnderlying + principal;
             uint256 available = bs.vaultBalances[basketId][asset];
@@ -82,29 +87,42 @@ library LibLoanOrigination {
         }
 
         emit IStaticsLending.LoanOriginated(
-            loanId, positionId, basketId, operator, eventReceiver, sharesIn, feeShares, collateralShares, maturity
+            loanId,
+            positionId,
+            basketId,
+            operator,
+            eventReceiver,
+            sharesIn,
+            quoted.feeShares,
+            quoted.collateralShares,
+            quoted.debtShares,
+            quoted.penaltyShares,
+            maturity
         );
     }
 
     function quote(LibBasket.Basket storage configured, uint256 sharesIn)
         internal
         view
-        returns (uint256 feeShares, uint256 collateralShares, address[] memory assets, uint256[] memory principals)
+        returns (IStaticsLending.BorrowQuote memory result)
     {
         if (sharesIn == 0) {
             revert InvalidShares();
         }
-        feeShares = Math.mulDiv(sharesIn, configured.originationFeeBps, LibBasket.BPS, Math.Rounding.Ceil);
-        if (feeShares >= sharesIn) revert InvalidShares();
-        collateralShares = sharesIn - feeShares;
-        assets = configured.assets;
-        uint256 length = assets.length;
-        principals = new uint256[](length);
+        result.feeShares = Math.mulDiv(sharesIn, configured.originationFeeBps, LibBasket.BPS, Math.Rounding.Ceil);
+        if (result.feeShares >= sharesIn) revert InvalidShares();
+        result.collateralShares = sharesIn - result.feeShares;
+        result.debtShares = Math.mulDiv(result.collateralShares, configured.ltvBps, LibBasket.BPS, Math.Rounding.Ceil);
+        result.penaltyShares =
+            Math.mulDiv(result.debtShares, configured.recoveryPenaltyBps, LibBasket.BPS, Math.Rounding.Ceil);
+        if (result.debtShares + result.penaltyShares > result.collateralShares) revert InvalidShares();
+        result.assets = configured.assets;
+        uint256 length = result.assets.length;
+        result.principals = new uint256[](length);
         bool hasPrincipal;
         for (uint256 i; i < length; ++i) {
-            uint256 proportional = Math.mulDiv(configured.bundleAmounts[i], collateralShares, LibBasket.SHARE_SCALE);
-            uint256 principal = Math.mulDiv(proportional, configured.ltvBps, LibBasket.BPS);
-            principals[i] = principal;
+            uint256 principal = Math.mulDiv(configured.bundleAmounts[i], result.debtShares, LibBasket.SHARE_SCALE);
+            result.principals[i] = principal;
             hasPrincipal = hasPrincipal || principal != 0;
         }
         if (!hasPrincipal) revert ZeroPrincipal();

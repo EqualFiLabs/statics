@@ -63,6 +63,7 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);
@@ -103,6 +104,19 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
                 amount1Max: 100 ether,
                 deadline: block.timestamp + 1 hours
             });
+        }
+    }
+
+    function _assertManagerHasNoUserResidue() internal view {
+        assertEq(
+            IERC20(basketToken).balanceOf(address(liquidityManagerContract)),
+            liquidityManagerContract.totalProtocolInventory(basketToken)
+        );
+        for (uint256 i; i < basketAssets.length; ++i) {
+            assertEq(
+                IERC20(basketAssets[i]).balanceOf(address(liquidityManagerContract)),
+                liquidityManagerContract.totalProtocolInventory(basketAssets[i])
+            );
         }
     }
 }

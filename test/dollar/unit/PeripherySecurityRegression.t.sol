@@ -105,6 +105,7 @@ contract PeripherySecurityRegressionTest is Test {
         config.deployMockOracle = true;
         config.mockOraclePriceWad = 2_500e18;
         config.riskUri = "ipfs://risk/{id}.json";
+        config.creationFeeAmount = 1 ether;
         deployment = new DeployStaticsDollar().deployLocal(config);
         coreMint = CoreMintFacet(deployment.core);
         transition = CoreTransitionFacet(deployment.core);
@@ -417,6 +418,7 @@ contract PeripherySecurityRegressionTest is Test {
             originationFeeBps: 0,
             extensionFeeBps: 0,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         IStaticsBasket basket = IStaticsBasket(deployment.diamond);

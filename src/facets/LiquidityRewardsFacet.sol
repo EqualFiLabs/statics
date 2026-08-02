@@ -16,6 +16,7 @@ import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.s
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
+import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -233,16 +234,18 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
         PoolId poolId,
         address asset,
         uint256 liquidityProviderAmount,
-        uint256 stakerAmount,
+        uint256 basketStakerAmount,
+        uint256 staticsStakerAmount,
         uint256 treasuryAmount
     ) external nonReentrant {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (msg.sender != ls.hook) revert OnlySwapFeeHook(msg.sender, ls.hook);
-        (, LibBasketLiquidity.CanonicalPool storage pool) = _canonicalPool(poolId);
+        (LibBasketLiquidity.PoolAssociation storage association, LibBasketLiquidity.CanonicalPool storage pool) =
+            _canonicalPool(poolId);
         address currency0 = Currency.unwrap(pool.key.currency0);
         address currency1 = Currency.unwrap(pool.key.currency1);
         if (asset != currency0 && asset != currency1) revert InvalidRewardAsset(poolId, asset);
-        uint256 total = liquidityProviderAmount + stakerAmount + treasuryAmount;
+        uint256 total = liquidityProviderAmount + basketStakerAmount + staticsStakerAmount + treasuryAmount;
         if (total == 0) return;
         uint256 received = LibCustody.pull(asset, msg.sender, total);
         if (received != total) revert IncompatibleLiquidityAsset(asset, total, received);
@@ -251,7 +254,15 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
             uint256 indexRay = LibLiquidityRewards.accrue(poolId, asset, liquidityProviderAmount);
             emit LiquidityRewardAccrued(poolId, asset, liquidityProviderAmount, indexRay);
         }
-        LibGlobalRewards.accrueReservedSwapStakerFee(asset, stakerAmount);
+        if (basketStakerAmount != 0) {
+            LibBasketRewards.accrueReserved(
+                association.basketId,
+                LibBasket.basketStorage().baskets[association.basketId],
+                asset,
+                basketStakerAmount
+            );
+        }
+        LibGlobalRewards.accrueReservedSwapStakerFee(asset, staticsStakerAmount);
         LibGlobalRewards.accrueReservedTreasuryFee(asset, treasuryAmount);
     }
 
@@ -307,6 +318,13 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
     function canAccrueLiquidityRewards(PoolId poolId) external view returns (bool) {
         if (LibLiquidityRewards.rewardStorage().pools[poolId].totalEligibleLiquidity == 0) return false;
         return !_poolIsDecommissioned(poolId);
+    }
+
+    function canAccrueBasketRewards(PoolId poolId) external view returns (bool) {
+        LibBasketLiquidity.PoolAssociation storage association =
+            LibBasketLiquidity.liquidityStorage().poolAssociations[poolId];
+        if (!association.associated || _poolIsDecommissioned(poolId)) return false;
+        return LibBasketRewards.canAccrue(association.basketId);
     }
 
     function _fundManager(address asset, address manager, uint256 amount) private returns (uint256 funded) {

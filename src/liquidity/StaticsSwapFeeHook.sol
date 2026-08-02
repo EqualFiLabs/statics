@@ -51,7 +51,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     struct PendingDistribution {
         uint256 liquidityProvider;
-        uint256 staker;
+        uint256 basketStaker;
+        uint256 staticsStaker;
         uint256 treasury;
     }
 
@@ -65,7 +66,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
+        uint16 basketStakerShareBps;
+        uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
         bool enabled;
     }
@@ -106,7 +108,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
         staticsDiamond = diamond;
-        _setFeeConfiguration(inputFeeBps, outputFeeBps, 5_000, 1_000, 3_000, 1_000);
+        _setFeeConfiguration(inputFeeBps, outputFeeBps, 4_000, 1_000, 2_000, 2_000, 1_000);
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -126,12 +128,19 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     ) external {
         _enforceDiamond();
         _setFeeConfiguration(
-            inputFeeBps, outputFeeBps, polShareBps, liquidityProviderShareBps, stakerShareBps, treasuryShareBps
+            inputFeeBps,
+            outputFeeBps,
+            polShareBps,
+            liquidityProviderShareBps,
+            basketStakerShareBps,
+            staticsStakerShareBps,
+            treasuryShareBps
         );
     }
 
@@ -144,7 +153,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             outputFeeBps: configuration.outputFeeBps,
             polShareBps: configuration.polShareBps,
             liquidityProviderShareBps: configuration.liquidityProviderShareBps,
-            stakerShareBps: configuration.stakerShareBps,
+            basketStakerShareBps: configuration.basketStakerShareBps,
+            staticsStakerShareBps: configuration.staticsStakerShareBps,
             treasuryShareBps: configuration.treasuryShareBps,
             enabled: true
         });
@@ -154,7 +164,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             configuration.outputFeeBps,
             configuration.polShareBps,
             configuration.liquidityProviderShareBps,
-            configuration.stakerShareBps,
+            configuration.basketStakerShareBps,
+            configuration.staticsStakerShareBps,
             configuration.treasuryShareBps
         );
     }
@@ -394,21 +405,28 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     ) private {
         uint256 polAmount = Math.mulDiv(charged, configuration.polShareBps, BPS);
         uint256 liquidityProviderAmount = Math.mulDiv(charged, configuration.liquidityProviderShareBps, BPS);
-        uint256 stakerAmount = Math.mulDiv(charged, configuration.stakerShareBps, BPS);
-        uint256 treasuryAmount = charged - polAmount - liquidityProviderAmount - stakerAmount;
+        uint256 basketStakerAmount = Math.mulDiv(charged, configuration.basketStakerShareBps, BPS);
+        uint256 staticsStakerAmount = Math.mulDiv(charged, configuration.staticsStakerShareBps, BPS);
+        uint256 treasuryAmount =
+            charged - polAmount - liquidityProviderAmount - basketStakerAmount - staticsStakerAmount;
         if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueLiquidityRewards(poolId)) {
             polAmount += liquidityProviderAmount;
             liquidityProviderAmount = 0;
         }
+        if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueBasketRewards(poolId)) {
+            polAmount += basketStakerAmount;
+            basketStakerAmount = 0;
+        }
         if (!IStaticsGlobalRewards(staticsDiamond).canAccrueStakerRewards(Currency.unwrap(currency))) {
-            polAmount += stakerAmount;
-            stakerAmount = 0;
+            polAmount += staticsStakerAmount;
+            staticsStakerAmount = 0;
         }
         polPending[poolId][currency] += polAmount;
         totalPending[currency] += polAmount;
         PendingDistribution storage pending = distributions[poolId][currency];
         pending.liquidityProvider += liquidityProviderAmount;
-        pending.staker += stakerAmount;
+        pending.basketStaker += basketStakerAmount;
+        pending.staticsStaker += staticsStakerAmount;
         pending.treasury += treasuryAmount;
         emit SwapLegFeeAccrued(
             poolId,
@@ -418,7 +436,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             charged,
             polAmount,
             liquidityProviderAmount,
-            stakerAmount,
+            basketStakerAmount,
+            staticsStakerAmount,
             treasuryAmount
         );
     }
@@ -435,7 +454,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
                 outputFeeBps: overrideConfiguration.outputFeeBps,
                 polShareBps: overrideConfiguration.polShareBps,
                 liquidityProviderShareBps: overrideConfiguration.liquidityProviderShareBps,
-                stakerShareBps: overrideConfiguration.stakerShareBps,
+                basketStakerShareBps: overrideConfiguration.basketStakerShareBps,
+                staticsStakerShareBps: overrideConfiguration.staticsStakerShareBps,
                 treasuryShareBps: overrideConfiguration.treasuryShareBps,
                 overridden: true
             });
@@ -445,7 +465,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             outputFeeBps: fees.outputFeeBps,
             polShareBps: fees.polShareBps,
             liquidityProviderShareBps: fees.liquidityProviderShareBps,
-            stakerShareBps: fees.stakerShareBps,
+            basketStakerShareBps: fees.basketStakerShareBps,
+            staticsStakerShareBps: fees.staticsStakerShareBps,
             treasuryShareBps: fees.treasuryShareBps,
             overridden: false
         });
@@ -454,19 +475,29 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function _routeDistribution(PoolId poolId, Currency currency) private {
         PendingDistribution storage pending = distributions[poolId][currency];
         uint256 liquidityProviderAmount = pending.liquidityProvider;
-        uint256 stakerAmount = pending.staker;
+        uint256 basketStakerAmount = pending.basketStaker;
+        uint256 staticsStakerAmount = pending.staticsStaker;
         uint256 treasuryAmount = pending.treasury;
-        if (liquidityProviderAmount == 0 && stakerAmount == 0 && treasuryAmount == 0) return;
+        if (
+            liquidityProviderAmount == 0 && basketStakerAmount == 0 && staticsStakerAmount == 0
+                && treasuryAmount == 0
+        ) return;
         pending.liquidityProvider = 0;
-        pending.staker = 0;
+        pending.basketStaker = 0;
+        pending.staticsStaker = 0;
         pending.treasury = 0;
         IERC20 token = IERC20(Currency.unwrap(currency));
-        uint256 total = liquidityProviderAmount + stakerAmount + treasuryAmount;
+        uint256 total = liquidityProviderAmount + basketStakerAmount + staticsStakerAmount + treasuryAmount;
         uint256 beforeBalance = currency.balanceOfSelf();
         token.forceApprove(staticsDiamond, total);
         IStaticsLiquidityRewards(staticsDiamond)
             .routeCanonicalSwapFees(
-                poolId, Currency.unwrap(currency), liquidityProviderAmount, stakerAmount, treasuryAmount
+                poolId,
+                Currency.unwrap(currency),
+                liquidityProviderAmount,
+                basketStakerAmount,
+                staticsStakerAmount,
+                treasuryAmount
             );
         uint256 afterBalance = currency.balanceOfSelf();
         _enforceExactDebit(currency, beforeBalance, afterBalance, total);
@@ -595,7 +626,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
-        uint16 stakerShareBps,
+        uint16 basketStakerShareBps,
+        uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     ) private {
         FeeConfiguration memory configuration = FeeConfiguration({
@@ -603,13 +635,20 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             outputFeeBps: outputFeeBps,
             polShareBps: polShareBps,
             liquidityProviderShareBps: liquidityProviderShareBps,
-            stakerShareBps: stakerShareBps,
+            basketStakerShareBps: basketStakerShareBps,
+            staticsStakerShareBps: staticsStakerShareBps,
             treasuryShareBps: treasuryShareBps
         });
         _validateFeeConfiguration(configuration);
         fees = configuration;
         emit FeeConfigurationSet(
-            inputFeeBps, outputFeeBps, polShareBps, liquidityProviderShareBps, stakerShareBps, treasuryShareBps
+            inputFeeBps,
+            outputFeeBps,
+            polShareBps,
+            liquidityProviderShareBps,
+            basketStakerShareBps,
+            staticsStakerShareBps,
+            treasuryShareBps
         );
     }
 
@@ -617,7 +656,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (
             uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps) > MAX_COMBINED_FEE_BPS
                 || uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
-                        + uint256(configuration.stakerShareBps) + uint256(configuration.treasuryShareBps) != BPS
+                        + uint256(configuration.basketStakerShareBps)
+                        + uint256(configuration.staticsStakerShareBps) + uint256(configuration.treasuryShareBps) != BPS
         ) revert InvalidFeeConfiguration();
     }
 

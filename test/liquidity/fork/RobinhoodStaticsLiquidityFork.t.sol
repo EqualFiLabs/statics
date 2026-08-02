@@ -17,6 +17,7 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
 import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketRewards} from "../../../src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsBorrowLiquidity} from "../../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityRewards} from "../../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
@@ -69,15 +70,11 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
         });
         vm.prank(alice);
         (, uint256[] memory userTokenIds) = IStaticsBorrowLiquidity(address(diamond))
-            .borrowAndProvideLiquidity(positionId, basketId, 20 ether, pools, alice);
+            .borrowAndStakeLiquidity(positionId, basketId, 20 ether, pools);
         assertEq(userTokenIds.length, 1);
-        assertEq(IERC721(address(positionManager)).ownerOf(userTokenIds[0]), alice);
+        assertEq(IERC721(address(positionManager)).ownerOf(userTokenIds[0]), address(diamond));
 
         IStaticsLiquidityRewards liquidityRewards = IStaticsLiquidityRewards(address(diamond));
-        vm.startPrank(alice);
-        IERC721(address(positionManager)).approve(address(diamond), userTokenIds[0]);
-        liquidityRewards.stakeLiquidityPosition(positionId, userTokenIds[0]);
-        vm.stopPrank();
         vm.roll(block.number + 1);
         liquidityRewards.activateLiquidityPosition(userTokenIds[0]);
 
@@ -87,6 +84,13 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
         assertGt(pending0 + pending1, 0);
         vm.prank(alice);
         liquidityRewards.claimLiquidityRewards(positionId, userTokenIds[0], alice, 0, 0);
+
+        IStaticsBasketRewards basketRewards = IStaticsBasketRewards(address(diamond));
+        (, uint256[] memory pendingBasketRewards) = basketRewards.getBasketRewards(positionId, basketId);
+        assertGt(pendingBasketRewards[0] + pendingBasketRewards[1], 0);
+        vm.prank(alice);
+        basketRewards.claimBasketRewards(positionId, basketId, alice);
+
         vm.prank(alice);
         liquidityRewards.unstakeLiquidityPosition(positionId, userTokenIds[0], alice);
         assertEq(IERC721(address(positionManager)).ownerOf(userTokenIds[0]), alice);
@@ -119,6 +123,7 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);

@@ -5,8 +5,9 @@ single user-facing `StaticsDiamond`, and defines an adapter for sourcing or
 selling basket constituents.
 
 `splitSwapFee` mirrors the bilateral swap-fee split across permanent liquidity,
-activated canonical LPs, global stakers, and treasury. Treasury receives
-division dust; unavailable LP and staker allocations independently redirect to
+activated canonical LPs, deposited BasketToken positions, global Statics
+stakers, and treasury. Treasury receives division dust; unavailable LP,
+basket-staker, and Statics-staker allocations independently redirect to
 permanent liquidity.
 
 `quoteMint` and `quoteRedeem` select the greatest qualifying static fee tier
@@ -18,14 +19,23 @@ when building a transaction, particularly after supply changes.
 `buildCreateBasketTransaction` returns both permissionless creation calldata
 and the native `value` that must accompany it. Callers should read the current
 `creationFee()` from the Diamond immediately before preparing the transaction.
-The creation parameters include flat mint and redemption fee tiers and a
-basket LTV no greater than the immutable 9,500-basis-point protocol maximum.
+The creation parameters include flat mint and redemption fee tiers, a basket
+LTV no greater than the immutable 9,500-basis-point protocol maximum, and a
+recovery penalty that fits inside the collateral remaining at that LTV.
 
 Position builders cover global staking, optional BasketToken collateral,
 pull-based multi-asset reward claims, and position-owned borrowing. Borrowing
 calldata always includes a `positionId`; transfer of that ERC-721 moves the
 attached staking balance, claim checkpoints, collateral, and loan obligations
 together.
+
+Global Statics stake is always withdrawable. A selected reward asset begins
+with pending stake and becomes eligible at the next hourly boundary at least
+24 hours later. Mature stake remains eligible when a position is increased;
+only the new amount enters the pending tranche. Read `rewardSelection` for the
+exact timestamp and pending/eligible split. The next fee or position
+interaction rolls due buckets automatically, so integrations never submit a
+separate activation transaction.
 
 Statics Dollar builders cover the typed ETH/WETH deposit and ordinary
 recombination gateway exposed by the same Diamond. Permit variants encode an
@@ -70,17 +80,26 @@ post-`ExitOnly` unwind retain their permissionless execution paths.
 `quoteHookFee` rounds either realized bilateral fee leg up exactly as the hook
 does. `effectiveCanonicalFees` reports the zero native LP fee and the separate
 input/output hook rates; the launch defaults are 25 basis points on each leg.
-`splitSwapFee` applies the default 50% POL, 10% canonical-LP, 30%
-global-staker, and 10% treasury allocation after a leg is charged. Callers
-supply LP and staker eligibility independently; unavailable shares redirect to
-POL. Matched POL is added as hook-owned full-range liquidity during the swap.
+`splitSwapFee` applies the default 40% POL, 10% canonical-LP, 20%
+basket-staker, 20% global Statics-staker, and 10% treasury allocation after a
+leg is charged. Callers supply each reward destination's eligibility
+independently; unavailable shares redirect to POL. Matched POL is added as
+hook-owned full-range liquidity during the swap.
 
 `quoteRangeAmounts` mirrors Uniswap v4 `TickMath` and `SqrtPriceMath` input
 rounding. `quoteBorrowAndProvideLiquidity` combines those range amounts with
 the ordinary Statics loan and mint calculations, including the origination-fee
 burn that occurs before mint quoting. Its returned pool caps can be passed to
-`buildBorrowAndProvideLiquidityCall`. Re-read the pool price, basket supply,
-and onchain quotes immediately before simulation and submission.
+`buildBorrowAndProvideLiquidityCall` or, for full-range PositionNFT custody and
+next-block LP reward activation, `buildBorrowAndStakeLiquidityCall`. Re-read
+the pool price, basket supply, and onchain quotes immediately before simulation
+and submission.
+
+`quoteBorrow` returns the debt and creator-configured recovery-penalty shares
+as well as the collateral and principal vector. `quoteRecovery` mirrors the
+supply-sensitive backing reduction, unlocks collateral above debt plus
+penalty, and splits the realized penalty 20% to the caller and 80% to the
+protocol route. Onchain quotes remain authoritative.
 
 User-selected LP positions are ordinary PositionManager NFTs created by the
 installed manager. Their position state can be read from PositionManager and
@@ -88,6 +107,9 @@ StateView, although canonical pools currently have zero native LP fee.
 Qualifying full-range NFTs can be staked into the Diamond with the exported
 builders, activated in the next block, increased in place, claimed, and
 unstaked without a cooldown. `borrowAndProvideLiquidity` origin is not required.
+`borrowAndStakeLiquidity` instead creates those full-range positions directly
+in Diamond custody under the borrowing PositionNFT; borrowed collateral keeps
+earning its separate basket rewards.
 Hook-owned permanent liquidity is observed through `lockedLiquidity` and
 `pendingPermanentLiquidity`; it has no protocol PositionManager token ID.
 User v4 NFTs are discovered from PositionManager `Transfer` and manager

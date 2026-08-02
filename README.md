@@ -1,6 +1,6 @@
 # Statics
 
-Statics is one protocol for Statics Dollar and permissionless static baskets.
+Statics is one protocol for Statics Dollar and isolated static baskets.
 It combines fixed multi-asset redemption bundles, arbitrage-oriented action
 fees, global multi-asset staking rewards, constituent flash loans, and
 proportional self-backed lending.
@@ -16,9 +16,9 @@ The ordinary integration address is `StaticsDiamond`. It is simultaneously:
 
 `StaticsDollarCoreDiamond` remains a separate backend and custody boundary for
 Dollar collateral, issuance, health, insurance, transitions, and recovery.
-`StaticsDollar` is an 18-decimal OpenZeppelin ERC-20 Permit token. Each
-permissionless basket deploys its own permit-enabled `StaticsBasketToken`
-ERC-20 for transfers and external liquidity. Statics is not ERC-4626: one
+`StaticsDollar` is an 18-decimal OpenZeppelin ERC-20 Permit token. Each basket
+deploys its own permit-enabled `StaticsBasketToken` ERC-20 for transfers and
+external liquidity. Statics is not ERC-4626: one
 BasketToken represents a creator-defined vector of assets, not shares of a
 single-asset vault with a changing conversion rate.
 
@@ -27,10 +27,13 @@ and [deployment](docs/deployment.md) for the complete contract map.
 
 ## Static baskets and fees
 
-Anyone can create a basket containing one to sixteen ERC-20 constituents by
-paying the current native-currency creation fee. There is no token registry or
-admission vote. The creator selects the immutable constituent vector, mint and
-redemption fee tiers, flash-loan fee, lending fees, LTV, and loan duration.
+Basket creation is closed to public callers while the native-currency creation
+fee is zero; only the Diamond owner may create genesis baskets in that state,
+and it must send zero value. Setting a positive fee opens creation to anyone
+who pays the exact amount. This is a launch admission switch, not a token
+registry or constituent certification. The creator selects the immutable
+constituent vector, mint and redemption fee tiers, flash-loan fee, lending
+fees, LTV, and loan duration.
 
 Minting deposits the static constituent bundle plus a flat fee selected from
 the greatest qualifying action-size threshold. Redemption burns BasketTokens
@@ -131,10 +134,11 @@ lifecycle logic rather than an immutable restriction on future governance.
 
 ## Permissionless assets and measured accounting
 
-Every basket backing balance, global fee reserve, loan, and recovery surplus is
-kept in an isolated custody account. A global physical reservation total
-prevents one module from spending tokens attributed to another module.
-Direct donations remain unallocated and cannot inflate any internal book.
+Every basket backing balance, basket and global reward reserve, loan, and
+treasury reserve is kept in an isolated custody account. A global physical
+reservation total prevents one module from spending tokens attributed to
+another module. Direct donations remain unallocated and cannot inflate any
+internal book.
 
 Token movements use observed balance deltas. Inbound transfers credit what the
 Diamond actually receives; each operation then enforces the economic minimum

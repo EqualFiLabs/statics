@@ -86,8 +86,11 @@ contract GlobalRewardOptInHandler is Test {
         uint256 positionId = positionIds[rawPosition % positionIds.length];
         uint256 balance = rewards.stakePosition(positionId).stakedBalance;
         if (balance == 0) return;
-        vm.warp(block.timestamp + 24 hours);
         rewards.unstake(positionId, bound(rawAmount, 1, balance), address(this));
+    }
+
+    function advanceTime(uint256 rawSeconds) external {
+        vm.warp(block.timestamp + bound(rawSeconds, 1, 30 hours));
     }
 
     function claim(uint256 rawPosition, uint256 rawAsset) external {
@@ -101,7 +104,16 @@ contract GlobalRewardOptInHandler is Test {
         for (uint256 i; i < positionIds.length; ++i) {
             uint256 positionId = positionIds[i];
             if (rewards.isRewardAssetOptedIn(positionId, asset)) {
-                total += rewards.stakePosition(positionId).stakedBalance;
+                total += rewards.rewardSelection(positionId, asset).eligibleStake;
+            }
+        }
+    }
+
+    function pendingStake(address asset) external view returns (uint256 total) {
+        for (uint256 i; i < positionIds.length; ++i) {
+            uint256 positionId = positionIds[i];
+            if (rewards.isRewardAssetOptedIn(positionId, asset)) {
+                total += rewards.rewardSelection(positionId, asset).pendingStake;
             }
         }
     }
@@ -177,6 +189,7 @@ contract GlobalRewardOptInInvariantTest is StdInvariant, StaticsTestBase {
         for (uint256 i; i < handler.rewardTokenCount(); ++i) {
             address asset = handler.rewardToken(i);
             assertEq(globalRewards.rewardAsset(asset).eligibleStake, handler.eligibleStake(asset));
+            assertEq(globalRewards.rewardAsset(asset).pendingStake, handler.pendingStake(asset));
         }
     }
 

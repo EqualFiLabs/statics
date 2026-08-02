@@ -8,13 +8,17 @@ Accepted and implemented.
 
 Statics allocates a configurable share of bilateral canonical-pool hook fees to
 activated, full-range Uniswap v4 PositionManager liquidity. The launch split is
-50% hook-owned permanent liquidity, 10% canonical LPs, 30% global stakers, and
-10% treasury. Governance may select any nonnegative four-way split totaling
-10,000 BPS; the LP share has no independent cap.
+40% hook-owned permanent liquidity, 10% canonical LPs, 20% deposited
+BasketToken positions, 20% global Statics stakers, and 10% treasury. Governance
+may select any nonnegative five-way split totaling 10,000 BPS; the LP share has
+no independent cap.
 
 Eligibility is based on current custody and canonical pool identity, not NFT
 provenance. `borrowAndProvideLiquidity` remains a typed convenience path but
 provides no automatic enrollment or privileged economics.
+`borrowAndStakeLiquidity` is the explicit managed alternative: it creates
+full-range NFTs directly in Diamond custody under the borrowing PositionNFT,
+with next-block activation and no change to the underlying loan.
 
 ## Custody and authorization
 
@@ -49,9 +53,10 @@ v4 liquidity is the denominator. Pending liquidity never earns, and liquidity
 from different pools is never compared. When no activated liquidity exists,
 the hook redirects the configured LP share to POL before transferring funds.
 
-LP, staker, and treasury amounts enter the Diamond's fee custody reservation in
-one exact pool-aware transfer. LP index liabilities, global rewards, and
-treasury accrual remain separate books over that common physical reservation.
+LP, basket-staker, Statics-staker, and treasury amounts enter the Diamond's fee
+custody reservation in one exact pool-aware transfer. LP indexes, per-basket
+reward indexes, global rewards, and treasury accrual remain separate books over
+that common physical reservation.
 Index remainder is reset when liquidity changes; once the final eligible
 position settles and exits, whole-token epoch dust is reclassified to treasury.
 

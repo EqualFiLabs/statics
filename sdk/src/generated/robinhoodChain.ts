@@ -17,9 +17,10 @@ export const robinhoodChain = {
     "poolWarmupSeconds": 3600,
     "referenceWindowSeconds": 1800,
     "maximumDeviationBps": 100,
-    "polShareBps": 5000,
+    "polShareBps": 4000,
     "liquidityProviderShareBps": 1000,
-    "stakerShareBps": 3000,
+    "basketStakerShareBps": 2000,
+    "staticsStakerShareBps": 2000,
     "treasuryShareBps": 1000,
     "hookPermissions": [
       "afterInitialize",

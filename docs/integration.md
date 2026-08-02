@@ -24,10 +24,11 @@ Use compiled ABIs from these sources:
 | --- | --- | --- |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
+| Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
 | Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, select reward assets, claim, distribute treasury fees, and inspect asset books |
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
-| Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and user-owned v4 positions |
+| Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute constituent-vector flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
 | PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect, and close positions |
@@ -50,10 +51,22 @@ is hook-owned and has no protocol PositionManager token ID.
 
 ## Basket creation and discovery
 
-Read `creationFee()` immediately before `createBasket` and send that exact
-native amount. A basket has one to sixteen unique ERC-20 assets, nonzero bundle
-amounts, independent flat mint and redemption fee tiers, percentage flash,
-origination, and extension fees, LTV at or below 9,500 BPS, and a loan duration.
+Read `creationFee()` immediately before `createBasket`. A zero value means
+public creation is closed: only the Diamond owner may create a genesis basket,
+and that call must send zero native value. A positive value opens creation to
+all callers that send the exact amount. Public clients should disable the
+creation transaction when the value is zero unless the connected account is
+the Diamond owner.
+
+A basket has one to sixteen unique ERC-20 assets, nonzero bundle amounts,
+independent flat mint and redemption fee tiers, percentage flash, origination,
+and extension fees, LTV at or below 9,500 BPS, a recovery penalty, and a loan
+duration. The creator-selected penalty must fit inside collateral at the
+selected LTV:
+
+```text
+ltvBps + ceil(ltvBps * recoveryPenaltyBps / 10_000) <= 10_000
+```
 
 Index `BasketCreated`, `BasketConfigured`, and `BasketFeeTiersConfigured`, then
 reconcile with `basketCount`, `basket`, `basketIdOf`, and `basketStatus`.
@@ -76,8 +89,8 @@ of the requested action.
 4. No constituent approval is needed for redemption; the Diamond burns the
    caller's BasketTokens through the token's protocol authority.
 
-Basket fees route into the global fee ledger. Holding BasketTokens does not
-itself earn those fees.
+Mint and redemption fees route into global Statics-staker rewards. Holding
+BasketTokens in a wallet does not itself earn rewards.
 
 ## Basket collateral and global staking
 
@@ -91,20 +104,31 @@ returns through `withdrawBasketCollateral`; `redeemBasketCollateral` burns
 unlocked collateral and returns constituents. A new deposit cannot withdraw in
 its deposit block.
 
-Collateral does not enter a basket-specific fee index. To earn global fees,
-approve the configured `stakingToken()` and use `createAndStake(amount,
+Deposited BasketTokens enter an isolated per-basket reward index. The reward
+assets are the BasketToken and every basket constituent; no opt-in loop is
+required because each basket has at most sixteen assets. Read
+`getBasketRewardAssets`, `getBasketRewards`, and `basketRewardState`, then call
+`claimBasketRewards`. Locked collateral remains eligible while borrowed.
+Withdrawn or recovered shares settle first and stop earning.
+
+To earn global Statics-staker fees, approve the configured `stakingToken()` and
+use `createAndStake(amount,
 receiver, rewardAssets)` or `stake(positionId, amount)`. A position selects at
 most 64 reward assets, while the protocol supports any number globally. Use
 `optInRewardAssets` and `optOutRewardAssets` to change the selection. A new
-selection begins at the current index, receives no historical rewards, and
-restarts the 24-hour unstake cooldown. A full unstake clears selections but
-preserves settled claims.
+selection and every top-up enter a pending tranche that matures at the next
+hourly boundary at least 24 hours later. Existing mature stake remains eligible
+and all stake remains withdrawable. Withdrawals consume pending stake first. A
+full unstake clears selections but preserves settled claims.
 
-Read `stakePosition`, `positionRewardAssets`, `rewardAsset`, and
-`pendingRewards`, then call `claimRewards` with aligned assets and per-asset
-minimum outputs. Position-specific views and actions require ERC-721 ownership
-or approval. Anyone may call `distributeTreasuryFees(asset)`, but funds always
-go to the configured treasury.
+Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
+and `pendingRewards`, then call `claimRewards` with aligned assets and
+per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`
+timestamp and pending/eligible split. Fee accrual or the next position action
+rolls due maturity buckets; no separate activation transaction is required.
+Position-specific views and actions require ERC-721 ownership or approval.
+Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the
+configured treasury.
 
 Before accepting a PositionNFT transfer, inspect global stake and claims,
 basket collateral and locked shares, loan tranches, and Dollar legs.
@@ -115,19 +139,26 @@ basket collateral and locked shares, loan tranches, and Dollar legs.
 Only BasketTokens deposited in a PositionNFT can be locked. Call
 `quoteBorrow(basketId, sharesIn)`, then `borrow(positionId, basketId, sharesIn,
 receiver)`. The quote returns origination fee shares, locked collateral shares,
-assets, and proportional principals.
+debt shares, recovery-penalty shares, assets, and proportional principals.
 
 The loan belongs to the PositionNFT. Each borrow creates an independent
 tranche with its own maturity. The origination fee reclassifies its represented
-backing into the global fee ledger; locked collateral earns no separate basket
-reward.
+backing into the global Statics-staker fee ledger. Locked collateral keeps
+earning basket rewards.
 
 `repay(loanId)` pulls the stored principal vector and unlocks only that tranche.
 `quoteExtension` returns fees derived from stored principal. `extend` accepts a
 gross input vector; every measured receipt must meet its quote and the complete
-receipt routes through global non-swap fees. Extension changes neither
+receipt routes through global Statics-staker fees. Extension changes neither
 principal nor collateral. `recover` is permissionless after maturity plus one
 hour and removes only the expired tranche.
+
+Recovery burns only `debtShares + penaltyShares` and unlocks the remaining
+collateral to the PositionNFT. It never seizes a fixed percentage of unused
+collateral. The represented backing above written-off principal is the
+recovery penalty: 20% goes to the recovery caller and 80% enters the ordinary
+protocol fee route. Call `quoteRecovery(loanId)` for the exact recoverable
+time, burned and unlocked shares, and per-asset caller and protocol amounts.
 
 At 95% LTV, an ideal zero-fee recursive sequence converges below 20 times
 initial deposited shares and 19 times initial debt. External looping helpers
@@ -152,32 +183,35 @@ Display input and output hook fees separately from native v4 LP fees:
 native v4 LP fee: 0
 launch input hook fee:  25 BPS on the realized input leg
 launch output hook fee: 25 BPS on the realized output leg
-launch split: 50% permanent liquidity / 10% eligible canonical LPs /
-              30% global stakers / 10% treasury
+launch split: 40% permanent liquidity / 10% eligible canonical LPs /
+              20% deposited BasketTokens / 20% global Statics stakers /
+              10% treasury
 ```
 
 Governance may update the bilateral rates and split; their combined rate is
 capped at 200 BPS. Hook fees apply to every canonical swap without caller,
 router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
 If a pool has no activated staked liquidity, its LP share redirects to
-permanent liquidity. If the staker route cannot accept an asset, its share
-independently redirects to permanent liquidity.
+permanent liquidity. If the basket or Statics reward route cannot accrue its
+asset, that share independently redirects to permanent liquidity.
 
-The global six-field configuration is the default for pools without an
+The global seven-field configuration is the default for pools without an
 override. Timelocked governance calls
 `setCanonicalPoolFeeConfiguration(basketId, asset, configuration)` with
 pool-specific input/output rates capped at 200 combined BPS and
-POL/canonical-LP/staker/treasury shares totaling 10,000 BPS. The Diamond derives
+POL/canonical-LP/basket-staker/Statics-staker/treasury shares totaling 10,000
+BPS. The Diamond derives
 the registered PoolId and does not accept arbitrary IDs. A mature pool may set
 both POL and canonical LPs to zero explicitly. `canonicalPoolFeeConfiguration`
 returns the complete effective configuration and an `overridden` flag, while
 `clearCanonicalPoolFeeConfiguration` restores the latest global rates and
 split. Configuration changes do not touch existing pending or locked POL. A
 zero-POL pool still compounds previously accumulated two-sided inventory, and
-unavailable canonical-LP or staker amounts still fall through to POL. There is
-no automatic graduation policy.
+unavailable canonical-LP, basket-staker, or Statics-staker amounts still fall
+through to POL. There is no automatic graduation policy.
 
-The hook transfers staker and treasury shares immediately to the Diamond and
+The hook transfers both staker shares and treasury shares immediately to the
+Diamond and
 matches its permanent-liquidity shares into hook-owned full-range liquidity.
 Unmatched inventory is visible through `pendingPermanentLiquidity`; deployed
 liquidity is visible through `lockedLiquidity`. Swaps attempt compounding
@@ -234,6 +268,16 @@ PositionManager `Transfer` events. They remain external until explicitly
 staked; borrowing through this function provides no reward privilege. Once
 staked, custody and claims follow the selected PositionNFT while repayment,
 extension, and recovery remain independent.
+
+`borrowAndStakeLiquidity(positionId, basketId, sharesIn, pools)` is the
+PositionNFT-owned alternative. It requires full-range pool entries and mints
+each v4 NFT directly to the Diamond, recording it as pending LP weight under
+the same PositionNFT. The current PositionNFT owner receives every unused
+principal and PositionManager refund even if an approved operator submits the
+call. Anyone may activate the NFT in the next block. The original deposited
+BasketTokens remain basket-reward eligible, so the position can earn both
+basket rewards and canonical LP rewards. Any failure in borrowing, minting,
+pool validation, NFT custody, or reward registration reverts the entire call.
 
 ## Flash loans and arbitrage routing
 
@@ -369,9 +413,10 @@ Index these event families, then reconcile with current views:
 - collateral: `BasketCollateralDeposited`, `BasketCollateralWithdrawn`, and
   `BasketCollateralRedeemed`;
 - global rewards: `StakingPositionCreated`, `Staked`, `Unstaked`,
-  `GlobalFeeAccrued`, `PositionRewardSettled`, `RewardClaimed`,
-  `TreasuryFeesDistributed`, `RewardAssetOptedIn`, `RewardAssetOptedOut`, and
-  `RewardAssetDustRouted`;
+  `RewardStakeScheduled`, `RewardBucketMatured`,
+  `PositionRewardEligibilityActivated`, `GlobalFeeAccrued`,
+  `PositionRewardSettled`, `RewardClaimed`, `TreasuryFeesDistributed`,
+  `RewardAssetOptedIn`, `RewardAssetOptedOut`, and `RewardAssetDustRouted`;
 - lending and flash: `LoanOriginated`, `LoanRepaid`, `LoanExtensionFeePaid`,
   `LoanExtended`, `LoanRecovered`, and `BasketFlashLoan`;
 - canonical lifecycle: `LiquidityIntegrationInstalled`,

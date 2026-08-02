@@ -93,7 +93,8 @@ interface IStaticsLiquidityRewards {
         PoolId poolId,
         address asset,
         uint256 liquidityProviderAmount,
-        uint256 stakerAmount,
+        uint256 basketStakerAmount,
+        uint256 staticsStakerAmount,
         uint256 treasuryAmount
     ) external;
 
@@ -104,4 +105,5 @@ interface IStaticsLiquidityRewards {
         view
         returns (address currency0, uint256 amount0, address currency1, uint256 amount1);
     function canAccrueLiquidityRewards(PoolId poolId) external view returns (bool);
+    function canAccrueBasketRewards(PoolId poolId) external view returns (bool);
 }

@@ -7,10 +7,12 @@ import {
   buildActivateLiquidityPositionCall,
   buildActivateCanonicalPoolCall,
   buildBorrowAndProvideLiquidityCall,
+  buildBorrowAndStakeLiquidityCall,
   buildBorrowCall,
   buildCheckpointCanonicalPoolCall,
   buildClearCanonicalPoolFeeConfigurationCall,
   buildClaimRewardsCall,
+  buildClaimBasketRewardsCall,
   buildClaimLiquidityRewardsCall,
   buildCreateAndStakeCall,
   buildCreateBasketTransaction,
@@ -51,6 +53,7 @@ import {
   Q96,
   quoteBorrow,
   quoteBorrowAndProvideLiquidity,
+  quoteRecovery,
   quoteExtension,
   quoteHookFee,
   quoteMint,
@@ -97,6 +100,7 @@ const snapshot: BasketSnapshot = {
   originationFeeBps: 100n,
   extensionFeeBps: 25n,
   ltvBps: 9_500n,
+  recoveryPenaltyBps: 500n,
   constituents: [
     { asset: assetA, bundleAmount: 2n * 10n ** 18n, vaultBalance: 20n * 10n ** 18n },
     { asset: assetB, bundleAmount: 5n * 10n ** 18n, vaultBalance: 50n * 10n ** 18n },
@@ -104,31 +108,35 @@ const snapshot: BasketSnapshot = {
 };
 
 describe("Statics static basket quotes", () => {
-  it("splits bilateral hook fees and redirects unavailable reward shares to POL", () => {
+  it("splits five-way hook fees and redirects unavailable reward shares to POL", () => {
     const configuration = {
       inputFeeBps: 25n,
       outputFeeBps: 25n,
-      polShareBps: 5_000n,
+      polShareBps: 4_000n,
       liquidityProviderShareBps: 1_000n,
-      stakerShareBps: 3_000n,
+      basketStakerShareBps: 2_000n,
+      staticsStakerShareBps: 2_000n,
       treasuryShareBps: 1_000n,
     };
-    expect(splitSwapFee(101n, configuration, true, true)).toEqual({
-      polAmount: 50n,
+    expect(splitSwapFee(101n, configuration, true, true, true)).toEqual({
+      polAmount: 40n,
       liquidityProviderAmount: 10n,
-      stakerAmount: 30n,
+      basketStakerAmount: 20n,
+      staticsStakerAmount: 20n,
       treasuryAmount: 11n,
     });
-    expect(splitSwapFee(101n, configuration, true, false)).toEqual({
-      polAmount: 80n,
-      liquidityProviderAmount: 10n,
-      stakerAmount: 0n,
-      treasuryAmount: 11n,
-    });
-    expect(splitSwapFee(101n, configuration, false, true)).toEqual({
+    expect(splitSwapFee(101n, configuration, true, false, true)).toEqual({
       polAmount: 60n,
+      liquidityProviderAmount: 10n,
+      basketStakerAmount: 0n,
+      staticsStakerAmount: 20n,
+      treasuryAmount: 11n,
+    });
+    expect(splitSwapFee(101n, configuration, false, true, false)).toEqual({
+      polAmount: 70n,
       liquidityProviderAmount: 0n,
-      stakerAmount: 30n,
+      basketStakerAmount: 20n,
+      staticsStakerAmount: 0n,
       treasuryAmount: 11n,
     });
   });
@@ -137,19 +145,21 @@ describe("Statics static basket quotes", () => {
     expect(() => splitSwapFee(100n, {
       inputFeeBps: 25n,
       outputFeeBps: 25n,
-      polShareBps: 5_000n,
+      polShareBps: 4_000n,
       liquidityProviderShareBps: 1_000n,
-      stakerShareBps: 3_000n,
+      basketStakerShareBps: 2_000n,
+      staticsStakerShareBps: 2_000n,
       treasuryShareBps: 999n,
-    }, true, true)).toThrow("invalid swap fee split");
+    }, true, true, true)).toThrow("invalid swap fee split");
     expect(() => splitSwapFee(100n, {
       inputFeeBps: 25n,
       outputFeeBps: 25n,
       polShareBps: -1_000n,
       liquidityProviderShareBps: 0n,
-      stakerShareBps: 1_000n,
+      basketStakerShareBps: 500n,
+      staticsStakerShareBps: 500n,
       treasuryShareBps: 10_000n,
-    }, true, true)).toThrow("invalid swap fee split");
+    }, true, true, true)).toThrow("invalid swap fee split");
   });
 
   it("uses the greatest qualifying threshold for a flat fee", () => {
@@ -175,7 +185,29 @@ describe("Statics static basket quotes", () => {
     const quote = quoteBorrow(snapshot, 5n * 10n ** 18n);
     expect(quote.feeShares).toBe(5n * 10n ** 16n);
     expect(quote.collateralShares).toBe(4_950_000_000_000_000_000n);
+    expect(quote.debtShares).toBe(4_702_500_000_000_000_000n);
+    expect(quote.penaltyShares).toBe(235_125_000_000_000_000n);
     expect(quote.principals[0]?.amount).toBe(9_405_000_000_000_000_000n);
+  });
+
+  it("quotes proportional recovery and unlocks collateral beyond debt plus penalty", () => {
+    const borrow = quoteBorrow(snapshot, 5n * 10n ** 18n);
+    const recovery = quoteRecovery(snapshot, {
+      positionId: 17n,
+      basketId: snapshot.basketId,
+      collateralShares: borrow.collateralShares,
+      feeShares: borrow.feeShares,
+      debtShares: borrow.debtShares,
+      penaltyShares: borrow.penaltyShares,
+      maturity: 10_000n,
+      assets: borrow.principals.map(({ asset }) => asset),
+      principals: borrow.principals.map(({ amount }) => amount),
+    });
+    expect(recovery.recoverableAt).toBe(13_600n);
+    expect(recovery.burnShares).toBe(4_937_625_000_000_000_000n);
+    expect(recovery.unlockedShares).toBe(12_375_000_000_000_000n);
+    expect(recovery.callerAmounts[0]).toBe(94_050_000_000_000_000n);
+    expect(recovery.protocolAmounts[0]).toBe(376_200_000_000_000_000n);
   });
 
   it("quotes extension fees from stored underlying principals", () => {
@@ -252,6 +284,8 @@ describe("Statics static basket quotes", () => {
 
     const data = buildBorrowAndProvideLiquidityCall(17n, 4n, 20n * 10n ** 18n, quote.pools, receiver);
     expect(decodeFunctionData({ abi: staticsAbi, data }).functionName).toBe("borrowAndProvideLiquidity");
+    const staked = buildBorrowAndStakeLiquidityCall(17n, 4n, 20n * 10n ** 18n, quote.pools);
+    expect(decodeFunctionData({ abi: staticsAbi, data: staked }).functionName).toBe("borrowAndStakeLiquidity");
   });
 
   it("quotes pending PositionManager fees and decodes packed position metadata", () => {
@@ -375,7 +409,7 @@ describe("Statics unified calldata", () => {
     });
   });
 
-  it("encodes permissionless basket creation with static fee tiers and LTV", () => {
+  it("encodes exact-fee basket creation with static fee tiers and LTV", () => {
     const transaction = buildCreateBasketTransaction({
       name: "Static Basket",
       symbol: "STATIC",
@@ -387,12 +421,13 @@ describe("Statics unified calldata", () => {
       originationFeeBps: 100,
       extensionFeeBps: 25,
       ltvBps: 9_500,
+      recoveryPenaltyBps: 500,
       loanDuration: 7 * 24 * 60 * 60,
     }, 1n * 10n ** 18n);
 
     const decoded = decodeFunctionData({ abi: staticsAbi, data: transaction.data });
     expect(decoded.functionName).toBe("createBasket");
-    expect(transaction.data.slice(0, 10)).toBe("0xc4b42fb5");
+    expect(transaction.data.slice(0, 10)).toBe("0x162d5c0d");
     expect(transaction.value).toBe(1n * 10n ** 18n);
   });
 
@@ -442,9 +477,9 @@ describe("Statics unified calldata", () => {
 
     for (const functionName of [
       "quoteBorrow",
+      "quoteRecovery",
       "quoteExtension",
       "outstandingPrincipal",
-      "recoverySurplus",
     ]) {
       expect(
         staticsAbi.some(
@@ -458,6 +493,7 @@ describe("Statics unified calldata", () => {
       "LoanExtended",
       "LoanExtensionFeePaid",
       "LoanRecovered",
+      "RecoveryPenaltyDistributed",
     ]) {
       expect(
         staticsAbi.some(
@@ -495,6 +531,38 @@ describe("Statics unified calldata", () => {
 
   it("exposes position reward claims and terminal lifecycle calls", () => {
     expect(buildClaimRewardsCall(17n, [assetA, assetB], receiver, [0n, 0n])).toMatch(/^0x[0-9a-f]+$/);
+    expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: buildClaimBasketRewardsCall(17n, 7n, receiver),
+      }),
+    ).toEqual({
+      functionName: "claimBasketRewards",
+      args: [17n, 7n, receiver],
+    });
+    for (const functionName of [
+      "getBasketRewardAssets",
+      "getBasketRewards",
+      "basketRewardState",
+      "rewardSelection",
+      "rewardEligibilityDelay",
+      "rewardEligibilityBucketSize",
+    ]) {
+      expect(
+        staticsAbi.some((entry) => entry.type === "function" && entry.name === functionName),
+      ).toBe(true);
+    }
+    const poolId = `0x${"11".repeat(32)}` as const;
+    expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: encodeFunctionData({
+          abi: staticsAbi,
+          functionName: "canAccrueBasketRewards",
+          args: [poolId],
+        }),
+      }),
+    ).toEqual({ functionName: "canAccrueBasketRewards", args: [poolId] });
     expect(
       decodeFunctionData({
         abi: staticsAbi,
@@ -604,22 +672,24 @@ describe("Statics unified calldata", () => {
     expect(CanonicalPoolStatus.Active).toBe(2);
   });
 
-  it("encodes governed bilateral fee configuration", () => {
+  it("encodes governed five-way fee configuration", () => {
     const data = buildSetSwapFeeConfigurationCall({
       inputFeeBps: 25n,
       outputFeeBps: 25n,
-      polShareBps: 5_000n,
+      polShareBps: 4_000n,
       liquidityProviderShareBps: 1_000n,
-      stakerShareBps: 3_000n,
+      basketStakerShareBps: 2_000n,
+      staticsStakerShareBps: 2_000n,
       treasuryShareBps: 1_000n,
     });
     expect(decodeFunctionData({ abi: staticsAbi, data }).functionName).toBe("setSwapFeeConfiguration");
     expect(() => buildSetSwapFeeConfigurationCall({
       inputFeeBps: 65_536n,
       outputFeeBps: 0n,
-      polShareBps: 5_000n,
+      polShareBps: 4_000n,
       liquidityProviderShareBps: 1_000n,
-      stakerShareBps: 3_000n,
+      basketStakerShareBps: 2_000n,
+      staticsStakerShareBps: 2_000n,
       treasuryShareBps: 1_000n,
     })).toThrow("inputFeeBps exceeds uint16");
   });
@@ -630,7 +700,8 @@ describe("Statics unified calldata", () => {
       outputFeeBps: 60n,
       polShareBps: 0n,
       liquidityProviderShareBps: 0n,
-      stakerShareBps: 8_000n,
+      basketStakerShareBps: 4_000n,
+      staticsStakerShareBps: 4_000n,
       treasuryShareBps: 2_000n,
     });
     const decoded = decodeFunctionData({ abi: staticsAbi, data: set });
@@ -640,7 +711,8 @@ describe("Statics unified calldata", () => {
       outputFeeBps: 60,
       polShareBps: 0,
       liquidityProviderShareBps: 0,
-      stakerShareBps: 8_000,
+      basketStakerShareBps: 4_000,
+      staticsStakerShareBps: 4_000,
       treasuryShareBps: 2_000,
     }]);
     const clear = buildClearCanonicalPoolFeeConfigurationCall(7n, assetA);
@@ -657,7 +729,8 @@ describe("Statics unified calldata", () => {
       outputFeeBps: 60n,
       polShareBps: 0n,
       liquidityProviderShareBps: 0n,
-      stakerShareBps: 8_000n,
+      basketStakerShareBps: 4_000n,
+      staticsStakerShareBps: 4_000n,
       treasuryShareBps: 1_999n,
     })).toThrow("pool fee shares must sum to 10000 BPS");
     expect(() => buildSetCanonicalPoolFeeConfigurationCall(7n, assetA, {
@@ -665,7 +738,8 @@ describe("Statics unified calldata", () => {
       outputFeeBps: 100n,
       polShareBps: 0n,
       liquidityProviderShareBps: 0n,
-      stakerShareBps: 8_000n,
+      basketStakerShareBps: 4_000n,
+      staticsStakerShareBps: 4_000n,
       treasuryShareBps: 2_000n,
     })).toThrow("combined pool fee rate exceeds 200 BPS");
   });

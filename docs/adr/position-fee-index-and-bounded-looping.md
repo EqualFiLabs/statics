@@ -1,15 +1,17 @@
 # ADR: Unified Statics Protocol, Position Fee Index, and Bounded Recursive Lending
 
-> **Superseded in part (2026-07-22).** This ADR records the historical decision
-> that introduced per-basket PositionNFT rewards. The live protocol replaces
-> that reward model with one configured global staking token, per-position
-> reward-asset selections, and separate BasketToken collateral. Its
-> unification, PositionNFT ownership, custody, and bounded-lending decisions
-> remain historical rationale. See `Statics-Design.md` and
-> `src/interfaces/IStaticsGlobalRewards.sol` for current behavior.
+> **Amended (2026-07-26).** Statics retains global Statics-token staking for
+> primary and protocol fees, and also indexes the canonical hook's dedicated
+> basket-staker share over deposited BasketTokens. Borrowed collateral remains
+> eligible. Expired loans burn only debt plus a creator-configured proportional
+> penalty, unlock the remainder, and split penalty backing 20% to the recovery
+> caller and 80% to the protocol fee route. A zero basket creation fee closes
+> public genesis to owner-only zero-value creation; a positive fee opens
+> exact-fee public creation. Managed recovery holders are explicitly admitted
+> and revocable by the Dollar Core owner.
 
-- Status: Superseded in part
-- Date: 2026-07-18; amended 2026-07-19 and 2026-07-20
+- Status: Accepted as amended
+- Date: 2026-07-18; amended 2026-07-19, 2026-07-20, 2026-07-25, and 2026-07-26
 - Scope: Protocol unification, Statics Dollar, basket minting and redemption,
   fee distribution, positions, and self-backed lending
 
@@ -76,7 +78,7 @@ StaticsDiamond
 │   ├── passive and opt-in rewards
 │   └── pairing-vault liquidity
 └── Statics Baskets
-    ├── permissionless basket creation, minting, and redemption
+    ├── governed genesis and permissionless minting and redemption
     ├── multi-asset fee indexes
     ├── proportional self-backed lending
     └── flash loans
@@ -105,7 +107,8 @@ and percentage mint/redemption fees with:
 
 1. flat or threshold-tiered mint and redemption fees denominated in
    basket-equivalent shares;
-2. a separate, multi-asset fee index for deposited positions;
+2. a separate, multi-asset fee index for the canonical hook's basket-staker
+   allocation;
 3. PositionNFT-owned BasketToken deposits and loans; and
 4. proportional underlying loans capped at an immutable 95% protocol LTV.
 
@@ -262,19 +265,29 @@ splitting:
 fee(a + b) <= fee(a) + fee(b)
 ```
 
-If a permissionless basket creator chooses a schedule that violates this
-property, callers remain free to split their actions. Whether creation-time
-validation should enforce subadditivity is deferred.
+If a basket creator chooses a schedule that violates this property, callers
+remain free to split their actions. Whether creation-time validation should
+enforce subadditivity is deferred.
 
-### Multi-asset position fee index
+Basket genesis uses the creation fee as an explicit launch switch. At zero,
+only the Diamond owner may create and must send no value. At a positive value,
+any caller may create by paying the exact fee. This does not introduce a token
+registry, creator allowlist, or constituent certification; it lets governance
+keep genesis controlled until the permissionless surface is ready.
 
-Holder-directed fees accrue to a separate fee-yield reserve. The reserve is
-isolated by both basket and underlying asset. Its accounting shape is:
+### Multi-asset basket reward index
+
+The canonical hook's basket-staker allocation accrues to a separate reward
+reserve. It can be denominated in the BasketToken or any constituent and is
+isolated by both basket and reward asset. Primary mint and redemption fees,
+loan origination fees, extension fees, and the protocol share of recovery
+penalties instead use the global Statics-staker route. The basket reward
+accounting shape is:
 
 ```text
-globalFeeIndex[basketId][asset]
-feeIndexRemainder[basketId][asset]
-feeYieldReserve[basketId][asset]
+basketRewardIndex[basketId][asset]
+indexedReserve[basketId][asset]
+crystallizedReserve[basketId][asset]
 totalEligibleShares[basketId]
 
 positionCheckpoint[positionKey][basketId][asset]
@@ -289,9 +302,8 @@ fee is received:
 index delta = (fee * 1e27 + prior remainder) / total eligible shares
 ```
 
-The division remainder is carried forward. The physical underlying is moved to
-`feeYieldReserve`; increasing an index without adding equal reserve backing is
-not permitted by the accounting model.
+The physical reward asset is reserved before the index advances; increasing an
+index without equal reserve backing is not permitted by the accounting model.
 
 Before eligible position shares change, the position settles every constituent:
 
@@ -302,20 +314,19 @@ newly claimable = eligible shares * (global index - checkpoint) / 1e27
 The checkpoint is then advanced before shares are added or removed. New
 deposits cannot claim historical fees, so no historical fee buy-in is needed.
 
-If no eligible shares exist when a fee is received, the would-be holder share
-becomes protocol revenue rather than becoming a windfall for the first future
+If no eligible shares exist when a hook fee is received, the basket-staker
+share redirects to POL rather than becoming a windfall for the first future
 depositor.
 
 Claims decrement the isolated fee reserve before transferring each underlying
 asset. Claims do not burn BasketTokens, reduce position principal, or require a
 basket redemption.
 
-Flash-loan fee calculation is not changed by this ADR. Any holder-directed
-share of a flash-loan fee accrues through the same position fee index instead
-of an embedded BasketToken fee pot. Basket-loan origination remains
-BasketToken-denominated because the borrower is already operating inside a
-PositionNFT; burning those shares reclassifies their represented backing as
-isolated basket protocol revenue.
+Flash-loan fee calculation is not changed by this ADR. Flash, mint, redemption,
+and basket-loan origination fees enter the global Statics-staker route instead
+of an embedded BasketToken fee pot. Origination remains
+BasketToken-denominated; burning those shares reclassifies their represented
+backing before global distribution.
 
 Loan extension is different. Requiring more BasketTokens makes maintenance
 depend on acquiring the collateral token being borrowed against. Extension
@@ -330,9 +341,9 @@ required extension fee for asset =
 The position owner or approved operator supplies a gross amount for every
 constituent. Statics measures the amount actually received, requires it to meet
 the quoted fee, reserves the full receipt under the affected basket, and
-records the full receipt as basket protocol revenue. Extension does not mint or
-burn BasketTokens and does not change supply, backing, collateral shares,
-reward eligibility, or loan principal.
+routes the full receipt through global Statics-staker fees. Extension does not
+mint or burn BasketTokens and does not change supply, backing, collateral
+shares, reward eligibility, or loan principal.
 
 ### Pegged Statics Dollar wrappers
 
@@ -464,7 +475,13 @@ Borrowing returns the proportional underlying bundle:
 
 ```text
 borrowed asset amount =
-    bundleAmount * locked basket shares * LTV / 1e18 / 10_000
+    bundleAmount * debtShares / 1e18
+
+debtShares =
+    ceil(collateralShares * LTV / 10_000)
+
+penaltyShares =
+    ceil(debtShares * recoveryPenaltyBps / 10_000)
 ```
 
 Borrowers cannot select only one constituent from a multi-asset basket. Keeping
@@ -472,8 +489,9 @@ debt composition proportional to collateral composition makes the loan
 self-backed and avoids price-oracle and cross-asset liquidation machinery.
 
 The protocol-wide maximum LTV is immutable at 9,500 basis points. A basket may
-choose a lower LTV but cannot exceed that maximum. LTV below 100% is required
-both to leave a recovery buffer and to bound recursive borrowing.
+choose a lower LTV and its creator chooses the recovery penalty. Creation
+requires debt plus penalty to fit inside collateral at the configured LTV.
+LTV below 100% leaves that recovery capacity and bounds recursive borrowing.
 
 Physical vault liquidity must always cover the backing required by unlocked,
 redeemable supply:
@@ -487,12 +505,12 @@ underlying amounts. Repayment reverses those entries and unlocks the collateral.
 Locked collateral remains included in `totalEligibleShares` throughout the
 loan.
 
-Recovery settles the position's fee indexes before removing defaulted
-collateral from eligibility and burning or otherwise consuming its BasketTokens.
-The difference between the backing obligation removed by burning collateral and
-the underlying principal written off is reclassified out of redemption backing
-into an isolated recovery-surplus balance. How that surplus and already-
-claimable rewards are applied during default is deferred below.
+Recovery settles the position's basket reward indexes, burns only
+`debtShares + penaltyShares`, and unlocks the rest of the tranche's collateral.
+Only burned shares leave the reward denominator. The backing removed beyond
+written-off principal is the realized penalty. Twenty percent is paid to the
+permissionless recovery caller and eighty percent enters the global protocol
+fee route. Already-crystallized claims remain attached to the PositionNFT.
 
 ### Bounded recursive looping
 
@@ -590,9 +608,10 @@ BasketTokens, again without changing eligible principal.
 ### Recover
 
 Recovery settles the position, removes recovered collateral from eligible
-principal, clears outstanding debt, and burns or consumes the collateral. Any
-surplus resulting from the LTV buffer is removed from vault backing and remains
-isolated to the affected basket as recovery surplus.
+principal, clears outstanding debt, burns debt plus penalty shares, and unlocks
+the remaining collateral. It distributes 20% of the penalty backing to the
+caller and routes 80% through protocol fees. It does not confiscate the unused
+LTV buffer.
 
 ### Statics Dollar Core fee ingress
 
@@ -650,8 +669,8 @@ globalReservedByToken[token]
     = Dollar reward and insurance liabilities held by the Diamond
     + BasketToken position principal held by the Diamond
     + basket backing held by the Diamond
-    + basket fee-yield reserves
-    + basket recovery reserves
+    + basket and canonical-LP reward reserves
+    + global Statics-staker and treasury reserves
     + other explicitly accounted module liabilities
 ```
 
@@ -742,7 +761,7 @@ without pooling the products' economics.
 ### Force Dollar and basket rewards into one generic index
 
 Statics Dollar series books have series transitions, two reward assets, and an
-opt-in liquidity scale. Basket books have a permissionless asset vector,
+opt-in liquidity scale. Basket books have a creator-defined asset vector,
 multi-asset rewards, and self-backed debt. Generalizing both into one reward
 structure would obscure their different invariants. They share position
 ownership and physical reservation accounting, not one economic book.
@@ -808,12 +827,13 @@ This ADR does not select:
 Those decisions must preserve the accounting, isolation, ordering, and maximum
 LTV established here.
 
-The first implementation resolves the remaining operational choices as
-follows: the typed gateway exposes ETH/WETH deposit and ordinary ETH/WETH
-recombination; the basket holder share initializes to 9,000 basis points and is
-timelock-configurable; already-claimable rewards remain attached after loan
-recovery; recovery surplus remains isolated by basket and asset; and expired
-loan recovery pays no caller bounty.
+The current implementation resolves the operational choices as follows: the
+typed gateway exposes ETH/WETH deposit and ordinary ETH/WETH recombination;
+the canonical hook initializes to 40% POL, 10% canonical LPs, 20% deposited
+BasketTokens, 20% global Statics stakers, and 10% treasury; already-claimable
+rewards remain attached after loan recovery; the basket creator selects LTV
+and recovery penalty within the protocol bound; and expired-loan penalty
+backing pays 20% to the recovery caller and 80% to the protocol fee route.
 
 ## Implementation acceptance criteria
 
@@ -839,7 +859,10 @@ The eventual implementation must prove at minimum that:
 - one basket cannot consume another basket's backing or fee reserve, including
   when both baskets use the same underlying token;
 - locked collateral remains fee eligible through borrow and repay;
-- recovery removes defaulted collateral from fee eligibility;
+- recovery removes only burned debt and penalty shares from fee eligibility and
+  unlocks the remainder;
+- recovery never charges more than the configured percentage of debt;
+- the recovery caller receives 20% of penalty backing and no principal;
 - proportional borrowing preserves economic backing and unlocked-supply
   liquidity invariants;
 - no configured basket can exceed 95% LTV;

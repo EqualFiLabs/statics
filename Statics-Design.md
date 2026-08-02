@@ -68,11 +68,11 @@ backing or let one basket consume another basket's assets.
 | Basket share token | Separate 18-decimal ERC-20 Permit token for each basket |
 | Basket accounting | Static aggregate-supply backing; no NAV or price oracle |
 | Position ownership | One shared ERC-721 at `StaticsDiamond` |
-| Basket collateral | Optional BasketToken deposit leg; collateral itself earns no basket-specific reward |
+| Basket collateral | Optional BasketToken deposit leg; deposited and locked shares earn isolated basket rewards |
 | Global rewards | Unlimited global assets; each PositionNFT selects at most 64 reward assets |
 | Non-swap fee split | 90% to active global stakers and 10% to treasury; unavailable staker allocation goes to treasury |
 | Canonical swap fees | Separate input and output hook fees; launch default is 25 BPS on each realized leg |
-| Swap-fee split | Launch default 50% permanent liquidity, 10% eligible canonical LPs, 30% global stakers, 10% treasury |
+| Swap-fee split | Launch default 40% permanent liquidity, 10% eligible canonical LPs, 20% deposited BasketTokens, 20% global Statics stakers, 10% treasury |
 | Canonical native LP fee | Zero |
 | Permanent liquidity | Hook-owned full-range liquidity, compounded from matched swap-fee inventory |
 | Flash callbacks | May call ordinary basket mint and redemption; nested flash loans remain blocked |
@@ -236,8 +236,13 @@ unordered, or contain duplicate thresholds. Selection scans all entries and
 uses the greatest threshold not exceeding the action size; a later entry wins
 when thresholds are equal. Clients should not assume sorted or unique tiers.
 
-Basket creators pay the exact current native `creationFee()`. Creation records
-the creator for discovery but gives that address no administrative authority.
+When `creationFee()` is zero, public creation is closed and only the Diamond
+owner may create a basket with zero native value. A positive fee opens creation
+to any caller that pays the exact amount. The fee is therefore both the public
+admission switch and the required payment; zero never means free public
+creation. Creation records the creator for discovery but gives that address no
+administrative authority. This switch does not approve or certify constituent
+tokens.
 
 ### Aggregate-supply backing
 
@@ -251,8 +256,9 @@ backing[i](S) = ceil(b[i] * S / 1e18)
 Mint and redemption use differences between aggregate backing values. This
 prevents per-action rounding from accumulating an accounting deficit.
 
-Only basket vault balances back BasketToken supply. Global fees, staking
-custody, recovery surplus, Dollar books, and hook liquidity are separate.
+Only basket vault balances back BasketToken supply. Global fees, basket and LP
+reward reserves, staking custody, Dollar books, and hook liquidity are
+separate.
 
 ## Basket Minting and Redemption
 
@@ -293,10 +299,15 @@ otherwise balance-changing staking tokens are rejected.
 `createAndStake` creates a PositionNFT, selects its initial reward assets, and
 stakes in one call. `stake` increases an existing authorized position.
 `optInRewardAssets` and `optOutRewardAssets` manage that position's selections.
-Every stake increase and opt-in settles the relevant checkpoints and restarts a
-**24-hour unstake cooldown**. `unstake` settles selected assets before reducing
-stake and also requires an exact outbound transfer. A full unstake clears the
-selection list while preserving already settled claims.
+Stake is always withdrawable. Initial stake, new selections, and top-ups enter
+a per-asset pending tranche that matures at the next hourly boundary at least
+24 hours later. Mature stake remains eligible when a position is increased.
+Fee accrual and position interactions roll the affected asset's bounded
+maturity ring before updating its index. Each matured bucket records its
+activation index so pending stake cannot capture historical fees. `unstake`
+removes pending stake before eligible stake and requires an exact outbound
+transfer. A full unstake clears the selection list while preserving already
+settled claims.
 
 ### Non-swap fee routing
 
@@ -344,13 +355,15 @@ the configured treasury. The caller cannot choose a recipient.
 ## Position-Owned Basket Lending
 
 Only BasketTokens deposited through the collateral interface can be locked for
-borrowing. Deposited and locked BasketTokens earn no separate basket reward.
+borrowing. Deposited and locked BasketTokens earn their basket's share of
+canonical hook fees in both the BasketToken and constituent assets.
 
 `borrow` creates an independent tranche owned by the PositionNFT. The
 origination fee is represented as a BasketToken-share reduction whose
 underlying backing is reclassified into the global fee ledger. The remaining
-locked shares determine a proportional constituent debt vector at the
-configured LTV. There is no price-oracle liquidation.
+locked shares determine debt shares at the configured LTV and a
+creator-selected recovery penalty proportional to that debt. Debt plus penalty
+must fit inside collateral. There is no price-oracle liquidation.
 
 Repayment is permissionless and pulls the stored principal vector. Extension
 is PositionNFT-authorized, measures the full inbound vector, requires at least
@@ -358,23 +371,21 @@ the quote, and routes the complete measured receipt through global non-swap
 fees. It does not change principal or collateral.
 
 After maturity plus one hour, recovery is permissionless and removes only the
-expired tranche. Recovery burns its locked BasketTokens, clears the stored
-principal vector, and removes the collateral shares' proportional backing. For
-each constituent:
+expired tranche. Recovery burns debt plus penalty shares, clears the stored
+principal vector, and unlocks all remaining collateral. For each constituent:
 
 ```text
-recovery surplus = backing removed by burned collateral - stored principal
+penalty backing = backing removed by debt plus penalty shares - stored principal
+caller bounty = floor(penalty backing * 20%)
+protocol amount = penalty backing - caller bounty
 ```
 
 Because principal is bounded by the self-backed collateral vector and LTV is at
 most 95%, an unpaid loan does not create bad debt or a claim on another basket.
-The positive difference leaves basket vault backing and enters isolated,
-basket-scoped `recoverySurplus`; it is not global revenue and pays no recovery
-caller bounty. V1 exposes this balance but currently defines no treasury claim,
-holder distribution, POL funding, burn, or other disposition path. Selecting a
-beneficiary or terminal treatment is therefore a deferred economic decision,
-not a loan-solvency requirement. Recovery does not settle or change global
-staking rewards.
+Only the configured debt-proportional penalty is charged: 20% pays the
+permissionless recovery caller and 80% enters the ordinary global protocol-fee
+route. Recovery settles basket rewards first, removes only burned shares from
+their denominator, and preserves already-crystallized claims.
 
 At 95% LTV, an ideal zero-fee recursive mint, deposit, and borrow sequence
 converges below 20 times initial deposited shares and 19 times initial debt.
@@ -460,33 +471,36 @@ split must total 10,000 BPS.
 For each charged leg, the launch split is:
 
 ```text
-50% permanent liquidity
+40% permanent liquidity
 10% eligible canonical LPs
-30% global stakers
+20% deposited BasketTokens
+20% global Statics stakers
 10% treasury
 ```
 
 Treasury receives split dust. If a pool has no activated staked liquidity, its
-LP share redirects to permanent liquidity. If the staker path cannot accept
-the reward asset, that share independently redirects to permanent liquidity.
+LP share redirects to permanent liquidity. If either basket or Statics staking
+cannot accept the reward asset, that share independently redirects to
+permanent liquidity.
 
-LP, staker, and treasury shares are transferred immediately to the Diamond's
-fee ledger. LP shares accrue through pool-local indexes for both currencies.
+LP, basket-staker, Statics-staker, and treasury shares are transferred
+immediately to the Diamond's fee ledger. LP shares accrue through pool-local
+indexes for both currencies.
 The permanent-liquidity share remains in the hook. When both pool
 currencies are available, the hook compounds matched inventory into its own
 full-range position during swap settlement. Unmatched amounts remain pending;
 anyone may call `compoundPermanentLiquidity` later.
 
 The global split is the default, not an immutable pool policy. Timelocked
-Diamond governance may set a canonical pool override using the same four-way
-POL, canonical-LP, global-staker, and treasury allocation whose shares sum to
-10,000 BPS. A mature pool may explicitly select `0/0/8,000/2,000`. Clearing an
+Diamond governance may set a canonical pool override using the same five-way
+POL, canonical-LP, basket-staker, Statics-staker, and treasury allocation whose
+shares sum to 10,000 BPS. Clearing an
 override restores the latest global split. Overrides change future allocation
 only: pending POL is not released or reclassified, hook-owned liquidity stays
 permanent, and existing two-sided pending inventory remains eligible for
-compounding. The unavailable canonical-LP and staker fallbacks to POL are
-identical under global and pool configurations. No threshold, volume,
-liquidity, or oracle rule changes an override automatically.
+compounding. The unavailable canonical-LP, basket-staker, and Statics-staker
+fallbacks to POL are identical under global and pool configurations. No
+threshold, volume, liquidity, or oracle rule changes an override automatically.
 
 Permanent liquidity is hook-owned and locked while the pool is active. It has
 no PositionManager token ID, 24-hour epoch, seven-day ramp, minimum epoch size,
@@ -530,6 +544,15 @@ user-owned PositionManager NFT per supplied canonical pool.
 Those NFTs receive no automatic reward eligibility. The recipient may later
 stake any qualifying full-range NFT through the ordinary canonical LP reward
 entrypoint.
+
+`borrowAndStakeLiquidity` is the PositionNFT-owned alternative. It accepts the
+same one-pool-per-constituent construction but requires full-range positions,
+mints the NFTs directly to the Diamond, and records them as pending LP legs
+under the borrowing PositionNFT. The current PositionNFT owner receives unused
+principal and PositionManager refunds even when an approved operator calls.
+LP weight activates in the next block, while the locked BasketToken collateral
+continues earning basket rewards. Borrowing, minting, custody, and reward
+registration revert atomically.
 
 The caller supplies aligned pool keys, tick ranges, exact liquidity,
 per-currency maximums, a deadline, and `lpRecipient`. Every pool must be active,
@@ -754,8 +777,10 @@ common OpenZeppelin persistent reentrancy slot under delegatecall. Flash loans
 add a separate transient guard domain and acquire the persistent slot only for
 their transfer/accounting phases. Selector routing and ERC-165 declarations
 must be updated together. Dollar Core bootstrap finalization validates wiring,
-pins periphery and the managed recovery holder, and clears bootstrap authority;
-it does not make either Diamond immutable.
+pins the periphery as the initial managed recovery holder, and clears bootstrap
+authority. The Core owner may explicitly add or revoke other managed recovery
+holders; revocation returns the holder's expired positions to ordinary
+permissionless recovery. Finalization does not make either Diamond immutable.
 
 The intended release lifecycle is upgradeable development followed by an
 independent contract and governance audit, reduction of retained powers,
@@ -852,7 +877,9 @@ receipts as one revision-pinned record.
 
 ## Security and Trust Assumptions
 
-- Basket creation is permissionless and constitutes no token certification.
+- Basket creation is owner-only while `creationFee()` is zero and exact-fee
+  permissionless while it is positive. Neither state constitutes token
+  certification.
 - Shared custody increases the importance of exact reservations and hostile
   token analysis; a physical reservation deficit is a black-swan incident,
   contained through fail-closed checks and guardian quarantine rather than a
@@ -914,13 +941,13 @@ artifact.
 - fixed multi-asset BasketTokens and aggregate backing;
 - shared PositionNFT and basket collateral;
 - position-selected global multi-asset indexes and treasury fees;
-- position-owned self-backed vector lending, recovery, and isolated recovery
-  surplus accounting;
+- position-owned self-backed vector lending and debt-proportional recovery;
 - composable constituent-vector flash loans;
 - canonical zero-native-fee v4 pools with bilateral hook fees and governed
   per-pool allocation overrides;
 - hook-owned full-range permanent liquidity and ExitOnly unwind;
-- canonical LP NFT reward custody and typed borrow-to-user-liquidity;
+- isolated BasketToken reward indexes, canonical LP NFT reward custody, and
+  typed borrow-to-external or PositionNFT-owned liquidity;
 - volatile and pegged Statics Dollar profiles with frontrun-tolerant typed
   permit actions;
 - shared custody reservations, measured transfers, and guardian quarantine;
@@ -929,9 +956,7 @@ artifact.
 
 ### Deferred pre-release decisions and operations
 
-- recovery-surplus beneficial ownership and terminal disposition;
-- keeper incentives for basket-loan recovery and non-Dollar maintenance,
-  acceptable maintenance delays, monitoring, and incident runbooks;
+- acceptable maintenance delays, monitoring, and incident runbooks;
 - final governance powers, independent governance audit, and the ceremony that
   removes Diamond-cut authority;
 - additional production collateral profiles and economic parameters;
@@ -1025,19 +1050,22 @@ For a realized charged leg `x` and its configured rate `f`:
 charged = ceil(x * f / D) for a nonzero charge
 POL = floor(charged * polShareBps / D)
 LP = floor(charged * liquidityProviderShareBps / D)
-staker = floor(charged * stakerShareBps / D)
-treasury = charged - POL - LP - staker
+basket staker = floor(charged * basketStakerShareBps / D)
+Statics staker = floor(charged * staticsStakerShareBps / D)
+treasury = charged - POL - LP - basket staker - Statics staker
 ```
 
 At launch, input and output rates are each 25 BPS and the split is
-5,000/1,000/3,000/1,000 for POL/LP/global-staker/treasury. If no activated LP
-liquidity exists for the pool, its allocation is added to POL. If staker
-routing is unavailable, that allocation is also added to POL. Exact-input and
-exact-output swaps map the specified and unspecified
+4,000/1,000/2,000/2,000/1,000 for
+POL/LP/basket-staker/Statics-staker/treasury. If no activated LP liquidity
+exists for the pool, its allocation is added to POL. If either staking route is
+unavailable, that allocation is also added to POL. Exact-input and exact-output
+swaps map the specified and unspecified
 realized legs according to Uniswap v4 settlement.
 
-For an active pool override `(p, l, s, t)`, `p + l + s + t = D`, and the same
-four equations apply using the pool-specific shares. Treasury still receives
+For an active pool override `(p, l, b, s, t)`,
+`p + l + b + s + t = D`, and the same equations apply using the pool-specific
+shares. Treasury still receives
 all rounding remainder. The override does not contain or modify the input and
 output fee rates.
 
@@ -1055,10 +1083,10 @@ output fee rates.
 10. Flat fee tiers select the greatest qualifying threshold; later duplicates win.
 11. Basket fees never create basket-specific holder claims.
 12. Non-swap fees conserve across global staker and treasury books.
-13. No staker liability is created unless that asset has nonzero opted-in eligible stake.
-14. Reward opt-in checkpoints the current index and cannot receive historical accrual.
-15. Stake increases and decreases settle existing selected-asset index state before denominator changes.
-16. Global-token unstaking cannot occur before 24 hours from the latest global stake increase.
+13. No staker liability is created unless that asset has nonzero matured eligible stake.
+14. Reward opt-in and top-ups wait until an hourly boundary at least 24 hours later.
+15. Every matured bucket records its activation index and cannot receive historical accrual.
+16. Global stake is always withdrawable; pending stake is removed before eligible stake.
 17. Treasury distribution has a fixed configured recipient even though triggering is permissionless.
 18. Basket collateral cannot be withdrawn or redeemed while locked.
 19. Every loan tranche retains an independent principal vector and maturity.
@@ -1073,7 +1101,7 @@ output fee rates.
 28. Pool initialization and activation require timelock ownership.
 29. Activation cannot bypass warm-up, observations, or deviation checks.
 30. Hook input and output fees apply without caller or flash-receiver exemption.
-31. Every swap-fee leg conserves across POL, canonical LP, global staker, and treasury routing.
+31. Every swap-fee leg conserves across POL, canonical LP, basket staker, global Statics staker, and treasury routing.
 32. Hook permanent liquidity cannot be released before pool decommissioning.
 33. Hook permanent liquidity has no protocol PositionManager token ID.
 34. ExitOnly unwind cannot decrease, burn, or seize user PositionManager NFTs held in voluntary custody.
@@ -1087,14 +1115,15 @@ output fee rates.
 42. Existing activated LP liquidity keeps earning while an increase delta waits for activation.
 43. LP NFTs can always exit custody; earned claims remain attached to their PositionNFT.
 44. Pool eligible liquidity equals the activated liquidity recorded for its custodied NFTs.
-45. Mature-loan recovery burns self-backed collateral, clears principal, and isolates positive backing excess as basket-scoped recovery surplus.
+45. Mature-loan recovery burns only debt plus the creator-configured penalty, clears principal, unlocks remaining collateral, and splits penalty backing 20% to the caller and 80% to protocol fees.
 46. A failed gateway permit never substitutes another owner: the typed action still pulls only from `msg.sender` under ordinary allowance rules.
-47. Pool fee-allocation overrides change only future routing and preserve the same unavailable-LP and unavailable-staker fallbacks to POL.
+47. Pool fee-allocation overrides change only future routing and preserve the same unavailable-LP, unavailable-basket-staker, and unavailable-Statics-staker fallbacks to POL.
 48. Guardian quarantine contains an active basket but neither releases quarantine nor adjudicates a black-swan physical deficit.
 49. Core bootstrap finalization clears bootstrap authority but does not remove Diamond-cut authority.
 50. Final V1 immutability requires explicit removal of implementation-upgrade authority; later dependency replacement uses terminal V1 wind-down and a separate V2 rather than live migration.
 51. Canonical LP custody entry requires the LP NFT and PositionNFT to have the same current owner.
-52. Dollar expired-risk recovery includes its quoted keeper bounty, while basket-loan recovery does not pay one.
+52. Dollar expired-risk recovery includes its quoted keeper bounty; basket-loan recovery pays its own fixed 20% share of configured penalty backing.
+53. `borrowAndStakeLiquidity` keeps borrowed BasketToken collateral basket-reward eligible while activating its newly custodied full-range LP weight no earlier than the next block.
 
 ## Appendix C: Terminology
 

@@ -7,6 +7,7 @@ import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
+import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
@@ -21,6 +22,7 @@ import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketFacet} from "../../src/facets/BasketFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
+import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
@@ -37,7 +39,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](15);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](16);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -53,6 +55,7 @@ contract StaticsTestDeployer {
         cut[12] = _cut(address(new BorrowLiquidityFacet()), StaticsSelectors.borrowLiquidity());
         cut[13] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
         cut[14] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
+        cut[15] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
@@ -80,6 +83,7 @@ abstract contract StaticsTestBase is Test {
     IStaticsBasket internal baskets;
     IStaticsBasketAdmin internal basketAdmin;
     IStaticsBasketCollateral internal basketCollateral;
+    IStaticsBasketRewards internal basketRewards;
     IStaticsGlobalRewards internal globalRewards;
     IStaticsBasketLiquidity internal basketLiquidity;
     IStaticsCustody internal custody;
@@ -100,6 +104,7 @@ abstract contract StaticsTestBase is Test {
         baskets = IStaticsBasket(address(diamond));
         basketAdmin = IStaticsBasketAdmin(address(diamond));
         basketCollateral = IStaticsBasketCollateral(address(diamond));
+        basketRewards = IStaticsBasketRewards(address(diamond));
         globalRewards = IStaticsGlobalRewards(address(diamond));
         basketLiquidity = IStaticsBasketLiquidity(address(diamond));
         custody = IStaticsCustody(address(diamond));
@@ -143,6 +148,7 @@ abstract contract StaticsTestBase is Test {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
     }

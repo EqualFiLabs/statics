@@ -32,19 +32,20 @@ contract LendingMintParityTest is StaticsTestBase {
             basketCollateral.createAndMintBasketCollateral(basketId, mintShares, alice, mintQuote);
         assertEq(actualInputs, mintQuote);
 
-        (uint256 feeShares, uint256 collateralShares, address[] memory assets, uint256[] memory borrowQuote) =
-            lending.quoteBorrow(basketId, borrowShares);
-        uint256[] memory balancesBefore = _balances(assets, bob);
+        IStaticsLending.BorrowQuote memory quoted = lending.quoteBorrow(basketId, borrowShares);
+        uint256[] memory balancesBefore = _balances(quoted.assets, bob);
         vm.prank(alice);
         (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, borrowShares, bob);
 
-        assertEq(principals, borrowQuote);
+        assertEq(principals, quoted.principals);
         IStaticsLending.LoanView memory loan = lending.loan(loanId);
-        assertEq(loan.feeShares, feeShares);
-        assertEq(loan.collateralShares, collateralShares);
-        assertEq(loan.principals, borrowQuote);
-        for (uint256 i; i < assets.length; ++i) {
-            assertEq(IERC20(assets[i]).balanceOf(bob) - balancesBefore[i], borrowQuote[i]);
+        assertEq(loan.feeShares, quoted.feeShares);
+        assertEq(loan.collateralShares, quoted.collateralShares);
+        assertEq(loan.debtShares, quoted.debtShares);
+        assertEq(loan.penaltyShares, quoted.penaltyShares);
+        assertEq(loan.principals, quoted.principals);
+        for (uint256 i; i < quoted.assets.length; ++i) {
+            assertEq(IERC20(quoted.assets[i]).balanceOf(bob) - balancesBefore[i], quoted.principals[i]);
         }
     }
 
@@ -66,6 +67,7 @@ contract LendingMintParityTest is StaticsTestBase {
             originationFeeBps: 100,
             extensionFeeBps: 25,
             ltvBps: 9_500,
+            recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
         vm.prank(alice);
@@ -82,20 +84,21 @@ contract LendingMintParityTest is StaticsTestBase {
         vm.stopPrank();
         assertEq(actualInputs, mintQuote);
 
-        (uint256 feeShares, uint256 collateralShares,, uint256[] memory borrowQuote) =
-            lending.quoteBorrow(basketId, 10 ether);
+        IStaticsLending.BorrowQuote memory quoted = lending.quoteBorrow(basketId, 10 ether);
         uint256[] memory balancesBefore = _balances(assets, bob);
         vm.prank(alice);
         (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 10 ether, bob);
         IStaticsLending.LoanView memory loan = lending.loan(loanId);
 
-        assertEq(principals, borrowQuote);
-        assertEq(loan.feeShares, feeShares);
-        assertEq(loan.collateralShares, collateralShares);
-        assertEq(loan.principals, borrowQuote);
+        assertEq(principals, quoted.principals);
+        assertEq(loan.feeShares, quoted.feeShares);
+        assertEq(loan.collateralShares, quoted.collateralShares);
+        assertEq(loan.debtShares, quoted.debtShares);
+        assertEq(loan.penaltyShares, quoted.penaltyShares);
+        assertEq(loan.principals, quoted.principals);
         for (uint256 i; i < count; ++i) {
-            assertEq(IERC20(assets[i]).balanceOf(bob) - balancesBefore[i], borrowQuote[i]);
-            assertEq(lending.outstandingPrincipal(basketId, assets[i]), borrowQuote[i]);
+            assertEq(IERC20(assets[i]).balanceOf(bob) - balancesBefore[i], quoted.principals[i]);
+            assertEq(lending.outstandingPrincipal(basketId, assets[i]), quoted.principals[i]);
         }
     }
 

@@ -13,9 +13,11 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {LibLiquidityRewards} from "../../src/libraries/LibLiquidityRewards.sol";
+import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {BorrowLiquidityTestBase} from "../helpers/BorrowLiquidityTestBase.sol";
@@ -70,6 +72,66 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         assertEq(liquidityRewards.poolLiquidityRewards(poolId).totalEligibleLiquidity, 0);
     }
 
+    function testBorrowAndStakeAtomicallyEarnsLpAndBasketRewards() public {
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
+        uint256 constituentBefore = IERC20(basketAssets[0]).balanceOf(alice);
+
+        vm.prank(alice);
+        (uint256 loanId, uint256[] memory tokenIds) =
+            borrowLiquidity.borrowAndStakeLiquidity(basketPositionId, basketId, 20 ether, params);
+
+        assertEq(tokenIds.length, 1);
+        uint256 tokenId = tokenIds[0];
+        assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), address(diamond));
+        assertGt(IERC20(basketAssets[0]).balanceOf(alice), constituentBefore);
+        IStaticsLiquidityRewards.StakedLiquidityView memory pending =
+            liquidityRewards.stakedLiquidityPosition(tokenId);
+        assertEq(pending.positionId, basketPositionId);
+        assertEq(pending.pendingLiquidity, 5 ether);
+        assertEq(pending.eligibleLiquidity, 0);
+        assertTrue(pending.staked);
+        assertEq(lending.loan(loanId).positionId, basketPositionId);
+        _assertManagerHasNoUserResidue();
+
+        vm.roll(block.number + 1);
+        liquidityRewards.activateLiquidityPosition(tokenId);
+        _swapConstituentIntoPool(0.001 ether);
+
+        vm.prank(alice);
+        (, uint256 lpAmount0,, uint256 lpAmount1) =
+            liquidityRewards.pendingLiquidityRewards(basketPositionId, tokenId);
+        assertGt(lpAmount0 + lpAmount1, 0);
+        (, uint256[] memory basketAmounts) = basketRewards.getBasketRewards(basketPositionId, basketId);
+        assertGt(basketAmounts[0] + basketAmounts[1], 0);
+
+        vm.prank(alice);
+        liquidityRewards.claimLiquidityRewards(basketPositionId, tokenId, alice, 0, 0);
+        vm.prank(alice);
+        basketRewards.claimBasketRewards(basketPositionId, basketId, alice);
+        vm.prank(alice);
+        liquidityRewards.unstakeLiquidityPosition(basketPositionId, tokenId, alice);
+        assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), alice);
+    }
+
+    function testBorrowAndStakeRejectsNonFullRangeBeforeOpeningLoan() public {
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
+        params[0].tickLower += 10;
+        uint256 supplyBefore = IERC20(basketToken).totalSupply();
+        IStaticsBasketCollateral.BasketCollateralPosition memory collateralBefore =
+            basketCollateral.basketCollateralPosition(basketPositionId, basketId);
+
+        vm.prank(alice);
+        vm.expectPartialRevert(BorrowLiquidityFacet.InvalidLiquidityParameters.selector);
+        borrowLiquidity.borrowAndStakeLiquidity(basketPositionId, basketId, 20 ether, params);
+
+        assertEq(IERC20(basketToken).totalSupply(), supplyBefore);
+        IStaticsBasketCollateral.BasketCollateralPosition memory collateralAfter =
+            basketCollateral.basketCollateralPosition(basketPositionId, basketId);
+        assertEq(collateralAfter.depositedShares, collateralBefore.depositedShares);
+        assertEq(collateralAfter.lockedShares, collateralBefore.lockedShares);
+        assertEq(lending.outstandingPrincipal(basketId, basketAssets[0]), 0);
+    }
+
     function testPoolOverrideRoutesBothFeeLegsToEligibleCanonicalLiquidity() public {
         uint256 tokenId = _mintFullRangePositionToAlice(5 ether);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, basketAssets[0]);
@@ -89,7 +151,8 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
                 outputFeeBps: 60,
                 polShareBps: 0,
                 liquidityProviderShareBps: 10_000,
-                stakerShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 0,
                 treasuryShareBps: 0
             })
         );
@@ -116,6 +179,43 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         (, uint256 pending0,, uint256 pending1) = liquidityRewards.pendingLiquidityRewards(basketPositionId, tokenId);
         assertGt(pending0, 0);
         assertGt(pending1, 0);
+    }
+
+    function testPoolOverrideRoutesBasketTokenAndConstituentFeesToBasketPosition() public {
+        _mintDirectFullRangePositionToAlice(5 ether);
+        IStaticsBasketLiquidity.CanonicalPoolView memory pool =
+            basketLiquidity.canonicalPool(basketId, basketAssets[0]);
+        assertTrue(liquidityRewards.canAccrueBasketRewards(pool.poolId));
+        basketLiquidity.setCanonicalPoolFeeConfiguration(
+            basketId,
+            basketAssets[0],
+            IStaticsBasketLiquidity.SwapFeeConfiguration({
+                inputFeeBps: 40,
+                outputFeeBps: 60,
+                polShareBps: 0,
+                liquidityProviderShareBps: 0,
+                basketStakerShareBps: 10_000,
+                staticsStakerShareBps: 0,
+                treasuryShareBps: 0
+            })
+        );
+
+        _swapConstituentIntoPool(0.001 ether);
+        (address[] memory assets, uint256[] memory pending) =
+            basketRewards.getBasketRewards(basketPositionId, basketId);
+        assertEq(assets[0], basketToken);
+        assertEq(assets[1], basketAssets[0]);
+        assertGt(pending[0], 0);
+        assertGt(pending[1], 0);
+
+        uint256 basketBefore = IERC20(basketToken).balanceOf(alice);
+        uint256 constituentBefore = IERC20(basketAssets[0]).balanceOf(alice);
+        vm.prank(alice);
+        (, uint256[] memory claimed) =
+            basketRewards.claimBasketRewards(basketPositionId, basketId, alice);
+        assertEq(IERC20(basketToken).balanceOf(alice) - basketBefore, claimed[0]);
+        assertEq(IERC20(basketAssets[0]).balanceOf(alice) - constituentBefore, claimed[1]);
+        assertEq(claimed, pending);
     }
 
     function testPositionMintedDirectlyThroughPositionManagerCanStake() public {

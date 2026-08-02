@@ -7,7 +7,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
-import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
+import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
@@ -18,9 +18,6 @@ import {LibPosition} from "../position/LibPosition.sol";
 contract LendingFacet is IStaticsLending, ReentrancyGuard {
     error BasketNotFound(uint256 basketId);
     error LoanNotFound(uint256 loanId);
-    error InvalidReceiver();
-    error InvalidShares();
-    error ZeroPrincipal();
     error ActionPaused(uint256 action);
     error InsufficientVaultBalance(address asset, uint256 required, uint256 available);
     error LoanExpired(uint256 loanId, uint40 maturity);
@@ -57,7 +54,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
             delete ls.principals[loanId][asset];
         }
         delete ls.loans[loanId];
-        LibBasketCollateral.unlockAfterRepay(current.positionId, current.basketId, current.collateralShares);
+        LibBasketRewards.unlockAfterRepay(current.positionId, current.basketId, configured, current.collateralShares);
         emit LoanRepaid(loanId, current.positionId, msg.sender);
     }
 
@@ -104,41 +101,54 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
     function recover(uint256 loanId) external nonReentrant {
         LibLending.LendingStorage storage ls = LibLending.lendingStorage();
         LibLending.Loan memory current = _getLoan(ls, loanId);
-        uint256 recoverableAtValue = uint256(current.maturity) + LibLending.RECOVERY_GRACE_PERIOD;
-        if (block.timestamp <= recoverableAtValue) revert LoanNotRecoverable(loanId, recoverableAtValue);
-
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, current.basketId);
-        LibBasketCollateral.removeRecoveredCollateral(current.positionId, current.basketId, current.collateralShares);
-        uint256 supply = IERC20(configured.token).totalSupply();
+        RecoveryQuote memory quoted = _quoteRecovery(ls, loanId, current, configured);
+        if (block.timestamp <= quoted.recoverableAt) {
+            revert LoanNotRecoverable(loanId, quoted.recoverableAt);
+        }
+
+        LibBasketRewards.releaseAfterRecovery(
+            current.positionId, current.basketId, configured, current.collateralShares, quoted.burnShares
+        );
+        bytes32 custodyAccount = LibCustody.basketAccount(current.basketId);
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
             address asset = configured.assets[i];
             uint256 principal = ls.principals[loanId][asset];
             ls.outstandingPrincipal[current.basketId][asset] -= principal;
             delete ls.principals[loanId][asset];
-            uint256 backingRemoved =
-                LibBasket.backingReduction(configured.bundleAmounts[i], supply, current.collateralShares);
-            uint256 reclassified = backingRemoved - principal;
+            uint256 callerAmount = quoted.callerAmounts[i];
+            uint256 protocolAmount = quoted.protocolAmounts[i];
+            uint256 reclassified = callerAmount + protocolAmount;
             uint256 available = bs.vaultBalances[current.basketId][asset];
             if (reclassified > available) revert InsufficientVaultBalance(asset, reclassified, available);
             bs.vaultBalances[current.basketId][asset] = available - reclassified;
-            ls.recoverySurplus[current.basketId][asset] += reclassified;
+            uint256 callerReceived;
+            if (callerAmount != 0) {
+                (, callerReceived) =
+                    LibCustody.pushReserved(custodyAccount, asset, msg.sender, callerAmount, callerAmount);
+            }
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, protocolAmount);
+            emit RecoveryPenaltyDistributed(loanId, asset, callerAmount, callerReceived, protocolAmount);
         }
         delete ls.loans[loanId];
-        LibCustody.release(LibCustody.basketAccount(current.basketId), configured.token, current.collateralShares);
-        StaticsBasketToken(configured.token).burn(address(this), current.collateralShares);
-        LibBasketCollateral.deactivateIfEmpty(current.positionId, current.basketId);
-        emit LoanRecovered(loanId, current.positionId, msg.sender, current.collateralShares);
+        LibCustody.release(custodyAccount, configured.token, quoted.burnShares);
+        StaticsBasketToken(configured.token).burn(address(this), quoted.burnShares);
+        LibBasketRewards.deactivateIfEmpty(current.positionId, current.basketId);
+        emit LoanRecovered(loanId, current.positionId, msg.sender, quoted.burnShares, quoted.unlockedShares);
     }
 
-    function quoteBorrow(uint256 basketId, uint256 sharesIn)
-        external
-        view
-        returns (uint256 feeShares, uint256 collateralShares, address[] memory assets, uint256[] memory principals)
-    {
+    function quoteBorrow(uint256 basketId, uint256 sharesIn) external view returns (BorrowQuote memory result) {
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         return LibLoanOrigination.quote(configured, sharesIn);
+    }
+
+    function quoteRecovery(uint256 loanId) external view returns (RecoveryQuote memory result) {
+        LibLending.LendingStorage storage ls = LibLending.lendingStorage();
+        LibLending.Loan memory current = _getLoan(ls, loanId);
+        LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), current.basketId);
+        return _quoteRecovery(ls, loanId, current, configured);
     }
 
     function quoteExtension(uint256 loanId)
@@ -173,6 +183,8 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
             basketId: current.basketId,
             collateralShares: current.collateralShares,
             feeShares: current.feeShares,
+            debtShares: current.debtShares,
+            penaltyShares: current.penaltyShares,
             maturity: current.maturity,
             assets: configured.assets,
             principals: principals
@@ -181,10 +193,6 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
 
     function outstandingPrincipal(uint256 basketId, address asset) external view returns (uint256) {
         return LibLending.lendingStorage().outstandingPrincipal[basketId][asset];
-    }
-
-    function recoverySurplus(uint256 basketId, address asset) external view returns (uint256) {
-        return LibLending.lendingStorage().recoverySurplus[basketId][asset];
     }
 
     function _getBasket(LibBasket.BasketStorage storage bs, uint256 basketId)
@@ -212,6 +220,30 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
     {
         current = ls.loans[loanId];
         if (current.positionId == 0) revert LoanNotFound(loanId);
+    }
+
+    function _quoteRecovery(
+        LibLending.LendingStorage storage ls,
+        uint256 loanId,
+        LibLending.Loan memory current,
+        LibBasket.Basket storage configured
+    ) private view returns (RecoveryQuote memory result) {
+        result.recoverableAt =
+            uint256(current.maturity) + LibLending.RECOVERY_GRACE_PERIOD;
+        result.burnShares = current.debtShares + current.penaltyShares;
+        result.unlockedShares = current.collateralShares - result.burnShares;
+        result.assets = configured.assets;
+        uint256 length = result.assets.length;
+        result.callerAmounts = new uint256[](length);
+        result.protocolAmounts = new uint256[](length);
+        uint256 supply = IERC20(configured.token).totalSupply();
+        for (uint256 i; i < length; ++i) {
+            uint256 backingRemoved = LibBasket.backingReduction(configured.bundleAmounts[i], supply, result.burnShares);
+            uint256 penaltyAmount = backingRemoved - ls.principals[loanId][result.assets[i]];
+            uint256 callerAmount = Math.mulDiv(penaltyAmount, LibLending.RECOVERY_CALLER_SHARE_BPS, LibBasket.BPS);
+            result.callerAmounts[i] = callerAmount;
+            result.protocolAmounts[i] = penaltyAmount - callerAmount;
+        }
     }
 
     function _enforceNotPaused(uint256 action) private view {
