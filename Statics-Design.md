@@ -186,14 +186,15 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **21 facets / 190 selectors** on `StaticsDiamond`; and
+- **21 facets / 191 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
 enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
 shape; its later gateway upgrade replaced five selectors with five updated
 permit-tuple selectors without changing the total. The fresh launcher adds two
-Position-creation-fee selectors for the current 21/190 source shape. The
+Position-creation-fee selectors plus the Modular Position NFT reporting surface
+for the current 21/191 source shape. The
 checked-in Core rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
 terminal governance cut and 10 / 93 afterward. That rehearsal deliberately
 removes `diamondCut` and `transferOwnership` while proving the remaining value
@@ -256,6 +257,16 @@ ERC-721 ownership and approvals authorize attached legs. Transferring the NFT
 transfers its staking balance, reward claims, collateral, obligations, and
 control of voluntarily custodied LP NFTs. Integrators must inspect every active
 leg before accepting a transfer.
+
+The Diamond implements the pre-ERC Modular Position NFT reporting interface
+(`0x212b8e93`). `positionState` reports current existence, a structural nonce,
+active-leg count, and unresolved-loan-obligation count. `isLegActive` provides
+constant-time membership and `isPositionClosable` applies every aggregate plus
+the mint-initialization guard. The nonce starts at one on mint and increments
+for Leg attachment, Leg detachment, loan-obligation changes, and Closure. It
+does not change for transfer, approval, reward settlement, or loan extension.
+Position identity remains the qualified `(chain ID, Diamond, token ID)` tuple;
+Statics does not expose a redundant Position Key hash.
 
 Opening a Position NFT requires the exact native amount returned by
 `positionCreationFee()`. The initial deployment target is `0.001 ETH`; the

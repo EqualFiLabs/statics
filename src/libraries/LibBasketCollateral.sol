@@ -33,7 +33,9 @@ library LibBasketCollateral {
         PositionBasketCollateral storage position = collateralStorage().positions[positionId][basketId];
         bytes32 legKey = LibPosition.basketLegKey(basketId);
         LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
-        if (!ps.activeLeg[positionId][legKey]) LibPosition.activateLeg(positionId, legKey);
+        if (!ps.activeLeg[positionId][legKey]) {
+            LibPosition.activateLeg(positionId, LibPosition.BASKET_MODULE, bytes32(basketId));
+        }
         position.depositedShares += shares;
         position.lastDepositBlock = block.number;
     }

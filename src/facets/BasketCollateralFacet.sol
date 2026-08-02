@@ -28,7 +28,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibBasket.enforceActive(configured, basketId);
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
-            receiver, LibPosition.basketLegKey(basketId)
+            receiver, LibPosition.BASKET_MODULE, bytes32(basketId)
         );
         _pullBasketToken(configured, basketId, shares);
         LibBasketRewards.increasePosition(positionId, basketId, configured, shares);

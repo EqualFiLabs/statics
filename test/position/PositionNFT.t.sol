@@ -7,6 +7,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IModularPositionNFT} from "src/interfaces/IModularPositionNFT.sol";
 
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {StaticsProtocolInit} from "src/diamond/StaticsProtocolInit.sol";
@@ -27,18 +28,28 @@ contract PositionModuleHarnessFacet {
         returns (uint256 positionId)
     {
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
-            receiver, LibPosition.legKey(moduleId, localId)
+            receiver, moduleId, localId
         );
     }
 
     function activate(uint256 positionId, bytes32 moduleId, bytes32 localId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibPosition.activateLeg(positionId, LibPosition.legKey(moduleId, localId));
+        LibPosition.activateLeg(positionId, moduleId, localId);
     }
 
     function deactivate(uint256 positionId, bytes32 moduleId, bytes32 localId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibPosition.deactivateLeg(positionId, LibPosition.legKey(moduleId, localId));
+    }
+
+    function openObligation(uint256 positionId) external {
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibPosition.incrementObligation(positionId);
+    }
+
+    function resolveObligation(uint256 positionId) external {
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibPosition.decrementObligation(positionId);
     }
 }
 
@@ -105,10 +116,12 @@ contract PositionNFTTest is Test {
         cut[1] = _cut(address(loupeFacet), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(ownershipFacet), StaticsSelectors.ownership());
         cut[3] = _cut(address(positionFacet), StaticsSelectors.position());
-        bytes4[] memory harnessSelectors = new bytes4[](3);
+        bytes4[] memory harnessSelectors = new bytes4[](5);
         harnessSelectors[0] = PositionModuleHarnessFacet.createWithLeg.selector;
         harnessSelectors[1] = PositionModuleHarnessFacet.activate.selector;
         harnessSelectors[2] = PositionModuleHarnessFacet.deactivate.selector;
+        harnessSelectors[3] = PositionModuleHarnessFacet.openObligation.selector;
+        harnessSelectors[4] = PositionModuleHarnessFacet.resolveObligation.selector;
         cut[4] = _cut(address(harnessFacet), harnessSelectors);
         cut[5] = _cut(address(basketAdminFacet), StaticsSelectors.basketAdmin());
 
@@ -118,7 +131,9 @@ contract PositionNFTTest is Test {
             address(this),
             cut,
             address(init),
-            abi.encodeCall(StaticsProtocolInit.initialize, (makeAddr("guardian"), treasury, address(stakingToken), 0, 0)),
+            abi.encodeCall(
+                StaticsProtocolInit.initialize, (makeAddr("guardian"), treasury, address(stakingToken), 0, 0)
+            ),
             address(0)
         );
         nft = IERC721(address(diamond));
@@ -157,6 +172,24 @@ contract PositionNFTTest is Test {
         assertEq(positions.activeLegCount(positionId), 1);
         assertEq(treasury.balance, fee);
         assertEq(address(diamond).balance, 0);
+    }
+
+    function test_ModuleCreationEmitsStandardStructuralTransitions() public {
+        bytes32 localId = bytes32(uint256(7));
+        bytes32 key = LibPosition.legKey(address(diamond), DOLLAR, localId);
+
+        vm.expectEmit(true, false, false, true, address(diamond));
+        emit IModularPositionNFT.PositionStateChanged(1, 1, 0, 0);
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit IModularPositionNFT.PositionLegAttached(1, key, address(diamond), DOLLAR, localId, 2);
+        vm.expectEmit(true, false, false, true, address(diamond));
+        emit IModularPositionNFT.PositionStateChanged(1, 2, 1, 0);
+        uint256 positionId = moduleHarness.createWithLeg(alice, DOLLAR, localId);
+
+        IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
+        assertEq(state.stateNonce, 2);
+        assertEq(state.activeLegCount, 1);
+        assertEq(state.unresolvedObligationCount, 0);
     }
 
     function test_RevertsOnIncorrectCreationFee() public {
@@ -221,9 +254,14 @@ contract PositionNFTTest is Test {
         assertEq(metadata.name(), "Statics Position");
         assertEq(metadata.symbol(), "etPOS");
         assertEq(metadata.tokenURI(positionId), "");
-        assertEq(positions.positionKey(positionId), keccak256(abi.encode(address(diamond), positionId)));
+        IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
+        assertTrue(state.exists);
+        assertEq(state.stateNonce, 1);
+        assertTrue(positions.isPositionClosable(positionId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IERC721).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IERC721Metadata).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IModularPositionNFT).interfaceId));
+        assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
     }
@@ -231,6 +269,7 @@ contract PositionNFTTest is Test {
     function test_ApprovalTransferAndSafeTransferUseStandardSemantics() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
+        uint256 nonceBefore = positions.positionState(positionId).stateNonce;
 
         vm.prank(alice);
         nft.approve(bob, positionId);
@@ -238,6 +277,7 @@ contract PositionNFTTest is Test {
         vm.prank(bob);
         nft.transferFrom(alice, carol, positionId);
         assertEq(nft.ownerOf(positionId), carol);
+        assertEq(positions.positionState(positionId).stateNonce, nonceBefore);
         assertEq(nft.getApproved(positionId), address(0));
 
         PositionHolder receiver = new PositionHolder();
@@ -246,18 +286,31 @@ contract PositionNFTTest is Test {
         vm.prank(bob);
         nft.safeTransferFrom(carol, address(receiver), positionId);
         assertEq(nft.ownerOf(positionId), address(receiver));
+        assertEq(positions.positionState(positionId).stateNonce, nonceBefore);
+    }
+
+    function test_Erc721ApprovedOperatorRetainsStaticsModuleAuthority() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        vm.prank(alice);
+        nft.approve(bob, positionId);
+
+        vm.prank(bob);
+        moduleHarness.activate(positionId, DOLLAR, bytes32(uint256(1)));
+        bytes32 key = LibPosition.legKey(address(diamond), DOLLAR, bytes32(uint256(1)));
+        assertTrue(positions.isLegActive(positionId, key));
     }
 
     function test_SafeMintCallbackCannotCloseBeforeInitialLegAttaches() public {
         PositionReceiver receiver = new PositionReceiver(address(diamond));
         uint256 positionId = moduleHarness.createWithLeg(address(receiver), DOLLAR, bytes32(uint256(42)));
-        bytes32 key = LibPosition.legKey(DOLLAR, bytes32(uint256(42)));
+        bytes32 key = LibPosition.legKey(address(diamond), DOLLAR, bytes32(uint256(42)));
 
         assertEq(receiver.callbackRevert(), PositionNFTFacet.PositionInitializing.selector);
         assertEq(nft.ownerOf(positionId), address(receiver));
         assertFalse(positions.positionInitializing(positionId));
         assertEq(positions.activeLegCount(positionId), 1);
-        assertTrue(positions.isPositionLegActive(positionId, key));
+        assertTrue(positions.isLegActive(positionId, key));
 
         vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.PositionHasActiveLegs.selector, positionId, 1));
         receiver.close(positionId);
@@ -271,9 +324,9 @@ contract PositionNFTTest is Test {
     function test_MultipleModuleLegsRemainIndependentlyKeyed() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
-        bytes32 dollarKey = LibPosition.legKey(DOLLAR, bytes32(uint256(1)));
-        bytes32 firstBasketKey = LibPosition.legKey(BASKET, bytes32(uint256(1)));
-        bytes32 secondBasketKey = LibPosition.legKey(BASKET, bytes32(uint256(2)));
+        bytes32 dollarKey = LibPosition.legKey(address(diamond), DOLLAR, bytes32(uint256(1)));
+        bytes32 firstBasketKey = LibPosition.legKey(address(diamond), BASKET, bytes32(uint256(1)));
+        bytes32 secondBasketKey = LibPosition.legKey(address(diamond), BASKET, bytes32(uint256(2)));
 
         vm.startPrank(alice);
         moduleHarness.activate(positionId, DOLLAR, bytes32(uint256(1)));
@@ -282,15 +335,15 @@ contract PositionNFTTest is Test {
         vm.stopPrank();
 
         assertEq(positions.activeLegCount(positionId), 3);
-        assertTrue(positions.isPositionLegActive(positionId, dollarKey));
-        assertTrue(positions.isPositionLegActive(positionId, firstBasketKey));
-        assertTrue(positions.isPositionLegActive(positionId, secondBasketKey));
+        assertTrue(positions.isLegActive(positionId, dollarKey));
+        assertTrue(positions.isLegActive(positionId, firstBasketKey));
+        assertTrue(positions.isLegActive(positionId, secondBasketKey));
 
         vm.prank(alice);
         moduleHarness.deactivate(positionId, BASKET, bytes32(uint256(1)));
         assertEq(positions.activeLegCount(positionId), 2);
-        assertTrue(positions.isPositionLegActive(positionId, dollarKey));
-        assertTrue(positions.isPositionLegActive(positionId, secondBasketKey));
+        assertTrue(positions.isLegActive(positionId, dollarKey));
+        assertTrue(positions.isLegActive(positionId, secondBasketKey));
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.PositionHasActiveLegs.selector, positionId, 2));
@@ -305,10 +358,66 @@ contract PositionNFTTest is Test {
     }
 
     function test_ModuleCreationEntryPointRejectsDirectCaller() public {
-        bytes32 key = LibPosition.legKey(DOLLAR, bytes32(uint256(1)));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.OnlyDiamondSelf.selector, alice));
-        IStaticsPositionModule(address(diamond)).createPositionForModule(alice, key);
+        IStaticsPositionModule(address(diamond)).createPositionForModule(alice, DOLLAR, bytes32(uint256(1)));
+    }
+
+    function test_NeverMintedAndClosedStateRemainDistinguishable() public {
+        IModularPositionNFT.PositionState memory neverMinted = positions.positionState(1);
+        assertFalse(neverMinted.exists);
+        assertEq(neverMinted.stateNonce, 0);
+        assertFalse(positions.isPositionClosable(1));
+
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        vm.prank(alice);
+        positions.closePosition(positionId);
+
+        IModularPositionNFT.PositionState memory closed = positions.positionState(positionId);
+        assertFalse(closed.exists);
+        assertEq(closed.stateNonce, 2);
+        assertEq(closed.activeLegCount, 0);
+        assertEq(closed.unresolvedObligationCount, 0);
+        assertFalse(positions.isPositionClosable(positionId));
+    }
+
+    function test_ObligationBlocksClosureUntilResolved() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        vm.prank(alice);
+        moduleHarness.openObligation(positionId);
+
+        IModularPositionNFT.PositionState memory blocked = positions.positionState(positionId);
+        assertEq(blocked.stateNonce, 2);
+        assertEq(blocked.unresolvedObligationCount, 1);
+        assertFalse(positions.isPositionClosable(positionId));
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(PositionNFTFacet.PositionHasUnresolvedObligations.selector, positionId, 1)
+        );
+        positions.closePosition(positionId);
+
+        vm.prank(alice);
+        moduleHarness.resolveObligation(positionId);
+        assertTrue(positions.isPositionClosable(positionId));
+        vm.prank(alice);
+        positions.closePosition(positionId);
+        assertEq(positions.positionState(positionId).stateNonce, 4);
+    }
+
+    function test_StructuralAggregatesShareOnePackedStorageWord() public {
+        uint256 positionId = moduleHarness.createWithLeg(alice, DOLLAR, bytes32(uint256(1)));
+        vm.prank(alice);
+        moduleHarness.openObligation(positionId);
+
+        bytes32 stateMappingSlot = bytes32(uint256(LibPosition.STORAGE_POSITION) + 6);
+        bytes32 positionSlot = keccak256(abi.encode(positionId, stateMappingSlot));
+        uint256 packed = uint256(vm.load(address(diamond), positionSlot));
+        assertEq(uint64(packed), 3);
+        assertEq(uint64(packed >> 64), 1);
+        assertEq(uint64(packed >> 128), 1);
+        assertEq(uint8(packed >> 192), 0);
     }
 
     function _cut(address facet, bytes4[] memory selectors) private pure returns (IDiamondCut.FacetCut memory) {

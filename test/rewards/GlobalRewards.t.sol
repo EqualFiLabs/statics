@@ -297,12 +297,12 @@ contract GlobalRewardsTest is StaticsTestBase {
         vm.stopPrank();
 
         IStaticsPosition positions = IStaticsPosition(address(diamond));
-        assertFalse(positions.isPositionLegActive(positionId, LibPosition.stakingLegKey()));
+        assertFalse(positions.isLegActive(positionId, LibPosition.stakingLegKey(address(diamond))));
 
         vm.prank(alice);
         globalRewards.optInRewardAssets(positionId, _asset(address(assetA)));
 
-        assertTrue(positions.isPositionLegActive(positionId, LibPosition.stakingLegKey()));
+        assertTrue(positions.isLegActive(positionId, LibPosition.stakingLegKey(address(diamond))));
     }
 
     function testZeroStakeOptInChurnCannotChangeIndexRounding() external {
