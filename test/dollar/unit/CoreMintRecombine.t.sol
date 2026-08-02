@@ -70,6 +70,7 @@ contract CoreMintRecombineTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = address(oracle);
         config.weth = address(weth);
+        config.stakingToken = address(weth);
         config.riskUri = "ipfs://risk/{id}.json";
         deployment = new DeployCoreBootstrap().deploy(config);
         mintFacet = CoreMintFacet(deployment.core);
@@ -190,6 +191,7 @@ contract CoreMintRecombineTest is Test {
         config.owner = owner;
         config.profileGuardian = profileGuardian;
         config.weth = address(referenceWeth);
+        config.stakingToken = address(referenceWeth);
         config.initialOracle = address(referenceOracle);
         config.collateralRatioBps = 15_000;
         config.priceBandBps = 15_000;

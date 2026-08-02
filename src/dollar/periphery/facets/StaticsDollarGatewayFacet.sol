@@ -375,15 +375,17 @@ contract StaticsDollarGatewayFacet is ReentrancyGuard {
     function _permitToken(address token, uint256 amount, IStaticsDollarGateway.PermitSignature calldata permitSignature)
         private
     {
-        IERC20Permit(token).permit(
-            msg.sender,
-            address(this),
-            amount,
-            permitSignature.deadline,
-            permitSignature.v,
-            permitSignature.r,
-            permitSignature.s
-        );
+        try IERC20Permit(token)
+            .permit(
+                msg.sender,
+                address(this),
+                amount,
+                permitSignature.deadline,
+                permitSignature.v,
+                permitSignature.r,
+                permitSignature.s
+            ) {}
+            catch {}
     }
 
     function _preparePeggedMint(

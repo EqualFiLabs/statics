@@ -10,6 +10,7 @@ contract MockFlashBorrower is IStaticsFlashBorrower {
 
     address public immutable PROTOCOL;
     bool public repay = true;
+    bytes32 public callbackResult = CALLBACK_SUCCESS;
     bytes public reentryData;
     bool public reentrySucceeded;
     bytes public reentryResult;
@@ -20,6 +21,14 @@ contract MockFlashBorrower is IStaticsFlashBorrower {
 
     function setRepay(bool value) external {
         repay = value;
+    }
+
+    function setCallbackResult(bytes32 value) external {
+        callbackResult = value;
+    }
+
+    function approveProtocol(address token, uint256 amount) external {
+        IERC20(token).approve(PROTOCOL, amount);
     }
 
     function setReentryData(bytes calldata data) external {
@@ -48,6 +57,6 @@ contract MockFlashBorrower is IStaticsFlashBorrower {
                 IERC20(assets[i]).approve(PROTOCOL, amounts[i] + fees[i]);
             }
         }
-        return CALLBACK_SUCCESS;
+        return callbackResult;
     }
 }

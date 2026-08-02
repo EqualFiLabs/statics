@@ -1,6 +1,12 @@
 # Unified Statics Protocol Implementation Plan
 
-- Status: Complete — clean-break fee and pegged-profile refactor verified
+> **Historical and superseded in part (2026-07-22).** This tracker records the
+> unification baseline, including the former per-basket PositionNFT reward
+> model. The live protocol uses global staking and governed reward-asset slots,
+> while BasketTokens deposited in positions serve only as collateral. See
+> `Statics-Design.md` and `docs/integration.md` for current behavior.
+
+- Status: Historical; reward architecture superseded
 - Last updated: 2026-07-19
 - Canonical repository: `EqualFiLabs/statics`
 - Statics baseline: `ffc8755b995a71796b4ab1728fd6ed6ac190982c`

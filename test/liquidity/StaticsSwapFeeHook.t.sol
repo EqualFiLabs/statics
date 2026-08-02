@@ -1,381 +1,624 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.26;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Test} from "forge-std/Test.sol";
-import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
-import {ERC20} from "solmate/src/tokens/ERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
-import {TransientStateLibrary} from "@uniswap/v4-core/src/libraries/TransientStateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
-import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
+import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
-contract HookTaxToken is ERC20 {
-    uint16 public receiverTaxBps;
-    uint16 public senderExtraBps;
-
-    constructor() ERC20("Hook Tax Token", "HTT", 18) {}
+contract HookCompatibilityERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
 
     function mint(address receiver, uint256 amount) external {
         _mint(receiver, amount);
     }
+}
 
-    function setTaxes(uint16 receiverTaxBps_, uint16 senderExtraBps_) external {
-        receiverTaxBps = receiverTaxBps_;
-        senderExtraBps = senderExtraBps_;
+contract HookSenderExtraFeeERC20 is HookCompatibilityERC20 {
+    address public taxedSender;
+
+    constructor() HookCompatibilityERC20("Sender Extra Tax", "SETAX") {}
+
+    function setTaxedSender(address sender) external {
+        taxedSender = sender;
     }
 
-    function slash(address holder, uint256 amount) external {
-        _burn(holder, amount);
-    }
-
-    function transfer(address to, uint256 amount) public override returns (bool) {
-        uint256 receiverTax = amount * receiverTaxBps / 10_000;
-        uint256 senderExtra = amount * senderExtraBps / 10_000;
-        balanceOf[msg.sender] -= amount + senderExtra;
-        balanceOf[to] += amount - receiverTax;
-        totalSupply -= receiverTax + senderExtra;
-        emit Transfer(msg.sender, to, amount - receiverTax);
-        if (receiverTax + senderExtra != 0) emit Transfer(msg.sender, address(0), receiverTax + senderExtra);
-        return true;
+    function _update(address from, address to, uint256 value) internal override {
+        if (from == taxedSender && to != address(0)) super._update(from, address(0), value / 100);
+        super._update(from, to, value);
     }
 }
 
-contract HookMultiHopRouter is IUnlockCallback {
-    using CurrencySettler for Currency;
-    using TransientStateLibrary for IPoolManager;
+contract HookZeroApprovalRevertingERC20 is HookCompatibilityERC20 {
+    error ZeroApprovalUnsupported();
 
-    struct Route {
-        address payer;
-        address receiver;
-        PoolKey first;
-        PoolKey second;
-        bool firstZeroForOne;
-        bool secondZeroForOne;
-        uint256 amountIn;
+    constructor() HookCompatibilityERC20("Zero Approval Reverts", "ZAR") {}
+
+    function approve(address spender, uint256 value) public override returns (bool) {
+        if (value == 0) revert ZeroApprovalUnsupported();
+        return super.approve(spender, value);
+    }
+}
+
+contract HookFeeReceiver {
+    using SafeERC20 for IERC20;
+
+    address public hook;
+    bool public stakersEligible = true;
+    uint256 public novelAssetCapacity = type(uint256).max;
+    mapping(address asset => bool known) public knownAsset;
+    mapping(address asset => uint256 amount) public stakerFees;
+    mapping(address asset => uint256 amount) public treasuryFees;
+
+    function configureHook(address hook_) external {
+        require(hook == address(0));
+        hook = hook_;
     }
 
-    IPoolManager private immutable manager;
-
-    constructor(IPoolManager manager_) {
-        manager = manager_;
+    function setStakersEligible(bool eligible) external {
+        stakersEligible = eligible;
     }
 
-    function swapExactInput(
-        PoolKey calldata first,
-        PoolKey calldata second,
-        bool firstZeroForOne,
-        bool secondZeroForOne,
-        uint256 amountIn,
-        address receiver
-    ) external returns (uint256 intermediateAmount, uint256 finalAmount) {
-        bytes memory result = manager.unlock(
-            abi.encode(
-                Route({
-                    payer: msg.sender,
-                    receiver: receiver,
-                    first: first,
-                    second: second,
-                    firstZeroForOne: firstZeroForOne,
-                    secondZeroForOne: secondZeroForOne,
-                    amountIn: amountIn
-                })
-            )
-        );
-        return abi.decode(result, (uint256, uint256));
+    function setNovelAssetCapacity(uint256 capacity) external {
+        novelAssetCapacity = capacity;
     }
 
-    function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        require(msg.sender == address(manager));
-        Route memory route = abi.decode(data, (Route));
-        BalanceDelta firstDelta = manager.swap(
-            route.first,
-            SwapParams({
-                zeroForOne: route.firstZeroForOne,
-                amountSpecified: -int256(route.amountIn),
-                sqrtPriceLimitX96: route.firstZeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            }),
-            ""
-        );
-        uint256 intermediateAmount =
-            uint256(uint128(route.firstZeroForOne ? firstDelta.amount1() : firstDelta.amount0()));
-        BalanceDelta secondDelta = manager.swap(
-            route.second,
-            SwapParams({
-                zeroForOne: route.secondZeroForOne,
-                amountSpecified: -int256(intermediateAmount),
-                sqrtPriceLimitX96: route.secondZeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            }),
-            ""
-        );
-        uint256 finalAmount = uint256(uint128(route.secondZeroForOne ? secondDelta.amount1() : secondDelta.amount0()));
-
-        Currency inputCurrency = route.firstZeroForOne ? route.first.currency0 : route.first.currency1;
-        Currency intermediateCurrency = route.firstZeroForOne ? route.first.currency1 : route.first.currency0;
-        Currency outputCurrency = route.secondZeroForOne ? route.second.currency1 : route.second.currency0;
-        int256 inputDelta = manager.currencyDelta(address(this), inputCurrency);
-        int256 intermediateDelta = manager.currencyDelta(address(this), intermediateCurrency);
-        int256 outputDelta = manager.currencyDelta(address(this), outputCurrency);
-        require(inputDelta < 0 && intermediateDelta == 0 && outputDelta > 0);
-        inputCurrency.settle(manager, route.payer, uint256(-inputDelta), false);
-        outputCurrency.take(manager, route.receiver, uint256(outputDelta), false);
-        return abi.encode(intermediateAmount, finalAmount);
+    function canAccrueStakerRewards(address asset) external view returns (bool) {
+        return stakersEligible && (knownAsset[asset] || novelAssetCapacity != 0);
     }
 
-    uint160 private constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
-    uint160 private constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
+    function canAccrueLiquidityRewards(PoolId) external pure returns (bool) {
+        return false;
+    }
+
+    function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) public {
+        require(msg.sender == hook);
+        if (stakerAmount != 0 && !knownAsset[asset]) {
+            require(novelAssetCapacity != 0, "no reward slot");
+            knownAsset[asset] = true;
+            --novelAssetCapacity;
+        }
+        uint256 total = stakerAmount + treasuryAmount;
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), total);
+        stakerFees[asset] += stakerAmount;
+        treasuryFees[asset] += treasuryAmount;
+    }
+
+    function routeCanonicalSwapFees(
+        PoolId,
+        address asset,
+        uint256 liquidityProviderAmount,
+        uint256 stakerAmount,
+        uint256 treasuryAmount
+    ) external {
+        require(liquidityProviderAmount == 0);
+        routeSwapFees(asset, stakerAmount, treasuryAmount);
+    }
+
+    function registerPool(PoolKey calldata key) external returns (PoolId) {
+        return IStaticsSwapFeeHook(hook).registerPool(key);
+    }
+
+    function setFeeConfiguration(
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
+        uint16 polShareBps,
+        uint16 liquidityProviderShareBps,
+        uint16 stakerShareBps,
+        uint16 treasuryShareBps
+    ) external {
+        IStaticsSwapFeeHook(hook)
+            .setFeeConfiguration(
+                inputFeeBps, outputFeeBps, polShareBps, liquidityProviderShareBps, stakerShareBps, treasuryShareBps
+            );
+    }
+
+    function setPoolFeeAllocation(PoolId poolId, IStaticsSwapFeeHook.FeeAllocation calldata allocation) external {
+        IStaticsSwapFeeHook(hook).setPoolFeeAllocation(poolId, allocation);
+    }
+
+    function clearPoolFeeAllocation(PoolId poolId) external {
+        IStaticsSwapFeeHook(hook).clearPoolFeeAllocation(poolId);
+    }
+
+    function release(PoolKey calldata key, address receiver) external returns (uint256 amount0, uint256 amount1) {
+        return IStaticsSwapFeeHook(hook).releasePermanentLiquidity(key, receiver);
+    }
+
+    function decommission(PoolKey calldata key) external {
+        IStaticsSwapFeeHook(hook).decommissionPool(key);
+    }
 }
 
 contract StaticsSwapFeeHookTest is Test, Deployers {
     using PoolIdLibrary for PoolKey;
 
-    uint16 private constant HOOK_FEE_BPS = 1;
-    uint24 private constant LP_FEE = 500;
+    uint16 private constant INPUT_FEE_BPS = 25;
+    uint16 private constant OUTPUT_FEE_BPS = 25;
+    uint24 private constant LP_FEE = 0;
     int24 private constant TICK_SPACING = 10;
-    uint160 private constant REQUIRED_FLAGS =
-        Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+    uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
+    HookFeeReceiver private receiver;
     StaticsSwapFeeHook private hook;
     PoolId private poolId;
 
     function setUp() public {
         deployFreshManagerAndRouters();
         deployMintAndApprove2Currencies();
-        hook = _deployHook(address(this));
-        key = _registerInitializeAndSeed(currency0, currency1, LP_FEE, TICK_SPACING);
+        receiver = new HookFeeReceiver();
+        hook = _deployHook(address(receiver));
+        receiver.configureHook(address(hook));
+        key = _registerInitializeAndSeed(currency0, currency1, TICK_SPACING);
         poolId = key.toId();
     }
 
-    function testMinedAddressEnablesOnlyRequiredHookPermissions() public view {
+    function testMinedAddressEnablesOnlyBilateralFeePermissions() public view {
         assertEq(uint160(address(hook)) & Hooks.ALL_HOOK_MASK, REQUIRED_FLAGS);
         Hooks.Permissions memory permissions = hook.getHookPermissions();
         assertTrue(permissions.afterInitialize);
+        assertTrue(permissions.beforeSwap);
+        assertTrue(permissions.beforeSwapReturnDelta);
         assertTrue(permissions.afterSwap);
         assertTrue(permissions.afterSwapReturnDelta);
-        assertEq(hook.staticsDiamond(), address(this));
-        assertEq(hook.hookFeeBps(), HOOK_FEE_BPS);
+        assertEq(hook.staticsDiamond(), address(receiver));
+        IStaticsSwapFeeHook.FeeConfiguration memory config = hook.feeConfiguration();
+        assertEq(config.inputFeeBps, INPUT_FEE_BPS);
+        assertEq(config.outputFeeBps, OUTPUT_FEE_BPS);
+        assertEq(config.polShareBps, 5_000);
+        assertEq(config.liquidityProviderShareBps, 1_000);
+        assertEq(config.stakerShareBps, 3_000);
+        assertEq(config.treasuryShareBps, 1_000);
     }
 
-    function testExactInputAndOutputChargeRealizedAmountsInBothDirections() public {
+    function testExactInputChargesBothAssetsAndLocksPolInBothDirections() public {
         _assertExactInput(true, 0.001 ether);
         _assertExactInput(false, 0.001 ether);
+        assertGt(hook.lockedLiquidity(poolId), 0);
+    }
+
+    function testExactOutputChargesBothAssetsInBothDirections() public {
         _assertExactOutput(true, 0.0001 ether);
         _assertExactOutput(false, 0.0001 ether);
+        assertGt(hook.lockedLiquidity(poolId), 0);
     }
 
-    function testPartialExecutionAndDustUseRealizedAmountWithUpwardRounding() public {
-        Currency outputCurrency = key.currency1;
-        uint256 accruedBefore = hook.accruedFees(poolId, outputCurrency);
-        BalanceDelta partialDelta = swapRouter.swap(
-            key,
-            SwapParams({zeroForOne: true, amountSpecified: -int256(100 ether), sqrtPriceLimitX96: SQRT_PRICE_1_2}),
-            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-            ""
+    function testNoStakersRedirectsStakerShareIntoPermanentLiquidity() public {
+        receiver.setStakersEligible(false);
+        _swapExactInput(true, 0.001 ether);
+        assertEq(receiver.stakerFees(Currency.unwrap(key.currency0)), 0);
+        assertEq(receiver.stakerFees(Currency.unwrap(key.currency1)), 0);
+        assertGt(receiver.treasuryFees(Currency.unwrap(key.currency0)), 0);
+        assertGt(receiver.treasuryFees(Currency.unwrap(key.currency1)), 0);
+        assertGt(hook.lockedLiquidity(poolId), 0);
+    }
+
+    function testFinalRewardSlotIsConsumedBeforeSecondLegEligibilityCheck() public {
+        receiver.setNovelAssetCapacity(1);
+        _swapExactInput(true, 0.001 ether);
+
+        address specified = Currency.unwrap(key.currency0);
+        address unspecified = Currency.unwrap(key.currency1);
+        assertGt(receiver.stakerFees(specified), 0);
+        assertEq(receiver.stakerFees(unspecified), 0);
+        assertGt(receiver.treasuryFees(specified), 0);
+        assertGt(receiver.treasuryFees(unspecified), 0);
+        assertTrue(receiver.knownAsset(specified));
+        assertFalse(receiver.knownAsset(unspecified));
+    }
+
+    function testDonatedPositionFeesRemainPolAndDoNotBlockSwaps() public {
+        _swapExactInput(true, 0.001 ether);
+        uint128 lockedBefore = hook.lockedLiquidity(poolId);
+        donateRouter.donate(key, 1 ether, 1 ether, "");
+
+        _swapExactInput(false, 1_000);
+
+        assertGe(hook.lockedLiquidity(poolId), lockedBefore);
+        assertGt(
+            hook.pendingPermanentLiquidity(poolId, key.currency0)
+                + hook.pendingPermanentLiquidity(poolId, key.currency1),
+            0
         );
-        uint256 partialFee = hook.accruedFees(poolId, outputCurrency) - accruedBefore;
-        uint256 partialNetOutput = uint256(uint128(partialDelta.amount1()));
-        assertLt(uint256(-int256(partialDelta.amount0())), 100 ether);
-        assertEq(partialFee, _fee(partialNetOutput + partialFee));
-
-        key = _registerInitializeAndSeed(currency0, currency1, 600, TICK_SPACING);
-        poolId = key.toId();
-        accruedBefore = hook.accruedFees(poolId, key.currency1);
-        BalanceDelta dust = swap(key, true, -int256(1_000), "");
-        uint256 dustFee = hook.accruedFees(poolId, key.currency1) - accruedBefore;
-        assertEq(dustFee, 1);
-        assertEq(dustFee, _fee(uint256(uint128(dust.amount1())) + dustFee));
     }
 
-    function testRegistrationAndWithdrawalsAreDiamondOnlyAndPoolIsolated() public {
-        PoolKey memory sibling = _poolKey(currency0, currency1, 3_000, 60);
-        hook.registerPool(sibling);
-        manager.initialize(sibling, SQRT_PRICE_1_1);
-        modifyLiquidityRouter.modifyLiquidity(sibling, LIQUIDITY_PARAMS, "");
-        PoolId siblingId = sibling.toId();
+    function testSenderExtraDebitFromHookRevertsSwapBeforeCrossPoolInventoryCanBeSpent() public {
+        HookSenderExtraFeeERC20 taxed = new HookSenderExtraFeeERC20();
+        PoolKey memory taxedKey = _createCompatibilityPool(taxed);
+        taxed.setTaxedSender(address(hook));
 
+        vm.expectPartialRevert(CustomRevert.WrappedError.selector);
+        swap(taxedKey, true, -int256(0.001 ether), "");
+    }
+
+    function testSenderExtraDebitFromPoolManagerRevertsSwap() public {
+        HookSenderExtraFeeERC20 taxed = new HookSenderExtraFeeERC20();
+        PoolKey memory taxedKey = _createCompatibilityPool(taxed);
+        taxed.setTaxedSender(address(manager));
+
+        vm.expectPartialRevert(CustomRevert.WrappedError.selector);
+        swap(taxedKey, true, -int256(0.001 ether), "");
+    }
+
+    function testTokenThatRejectsZeroApprovalCanRouteSwapFees() public {
+        HookZeroApprovalRevertingERC20 token = new HookZeroApprovalRevertingERC20();
+        PoolKey memory compatibleKey = _createCompatibilityPool(token);
+
+        swap(compatibleKey, true, -int256(0.001 ether), "");
+
+        assertGt(receiver.stakerFees(address(token)) + receiver.treasuryFees(address(token)), 0);
+    }
+
+    function testFeeConfigurationIsDiamondOnlyAndCombinedFeeIsCapped() public {
         address outsider = makeAddr("outsider");
-        PoolKey memory rejected = _poolKey(currency0, currency1, 10_000, 200);
         vm.prank(outsider);
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, outsider));
-        hook.registerPool(rejected);
+        hook.setFeeConfiguration(25, 25, 5_000, 1_000, 3_000, 1_000);
 
-        _assertExactInput(true, 0.001 ether);
-        assertEq(hook.accruedFees(siblingId, key.currency1), 0);
-        _swapExactInput(sibling, true, 0.001 ether);
-        uint256 siblingLiability = hook.accruedFees(siblingId, sibling.currency1);
-        assertGt(siblingLiability, 0);
+        vm.expectRevert(StaticsSwapFeeHook.InvalidFeeConfiguration.selector);
+        receiver.setFeeConfiguration(101, 100, 5_000, 1_000, 3_000, 1_000);
+        vm.expectRevert(StaticsSwapFeeHook.InvalidFeeConfiguration.selector);
+        receiver.setFeeConfiguration(25, 25, 5_000, 1_000, 3_000, 999);
+    }
+
+    function testPoolAllocationIsDiamondOnlyRegisteredAndConserved() public {
+        IStaticsSwapFeeHook.FeeAllocation memory allocation = IStaticsSwapFeeHook.FeeAllocation({
+            polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+        });
+        address outsider = makeAddr("allocation-outsider");
+        vm.prank(outsider);
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, outsider));
+        hook.setPoolFeeAllocation(poolId, allocation);
 
         vm.prank(outsider);
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, outsider));
-        hook.withdrawPoolFees(poolId);
+        hook.clearPoolFeeAllocation(poolId);
 
-        hook.withdrawPoolFees(poolId);
-        assertEq(hook.accruedFees(poolId, key.currency1), 0);
-        assertEq(hook.accruedFees(siblingId, sibling.currency1), siblingLiability);
-        assertEq(hook.totalLiability(sibling.currency1), siblingLiability);
-        assertEq(sibling.currency1.balanceOf(address(hook)), siblingLiability);
+        PoolId unknown = PoolId.wrap(keccak256("unknown-pool"));
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.PoolNotRegistered.selector, unknown));
+        receiver.setPoolFeeAllocation(unknown, allocation);
+
+        allocation.treasuryShareBps = 1_999;
+        vm.expectRevert(StaticsSwapFeeHook.InvalidFeeConfiguration.selector);
+        receiver.setPoolFeeAllocation(poolId, allocation);
+    }
+
+    function testPoolAllocationOverrideAndClearTrackLatestGlobalAllocation() public {
+        IStaticsSwapFeeHook.PoolFeeAllocationView memory defaultAllocation = hook.poolFeeAllocation(poolId);
+        assertEq(defaultAllocation.polShareBps, 5_000);
+        assertEq(defaultAllocation.liquidityProviderShareBps, 1_000);
+        assertEq(defaultAllocation.stakerShareBps, 3_000);
+        assertEq(defaultAllocation.treasuryShareBps, 1_000);
+        assertFalse(defaultAllocation.overridden);
+
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 1_000, liquidityProviderShareBps: 2_000, stakerShareBps: 3_000, treasuryShareBps: 4_000
+            })
+        );
+        receiver.setFeeConfiguration(40, 60, 6_000, 1_000, 2_000, 1_000);
+        IStaticsSwapFeeHook.PoolFeeAllocationView memory overridden = hook.poolFeeAllocation(poolId);
+        assertEq(overridden.polShareBps, 1_000);
+        assertEq(overridden.liquidityProviderShareBps, 2_000);
+        assertEq(overridden.stakerShareBps, 3_000);
+        assertEq(overridden.treasuryShareBps, 4_000);
+        assertTrue(overridden.overridden);
+
+        receiver.clearPoolFeeAllocation(poolId);
+        IStaticsSwapFeeHook.PoolFeeAllocationView memory restored = hook.poolFeeAllocation(poolId);
+        assertEq(restored.polShareBps, 6_000);
+        assertEq(restored.liquidityProviderShareBps, 1_000);
+        assertEq(restored.stakerShareBps, 2_000);
+        assertEq(restored.treasuryShareBps, 1_000);
+        assertFalse(restored.overridden);
+    }
+
+    function testZeroPolOverrideRoutesExactInputBothLegsInBothDirectionsWithoutNewPol() public {
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+            })
+        );
+        _assertOverriddenExactInput(true, 0.001 ether);
+        _assertOverriddenExactInput(false, 0.001 ether);
+        assertEq(hook.lockedLiquidity(poolId), 0);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), 0);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), 0);
+    }
+
+    function testZeroPolOverrideRoutesExactOutputBothLegsInBothDirectionsWithoutNewPol() public {
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+            })
+        );
+        _assertOverriddenExactOutput(true, 0.0001 ether);
+        _assertOverriddenExactOutput(false, 0.0001 ether);
+        assertEq(hook.lockedLiquidity(poolId), 0);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), 0);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), 0);
+    }
+
+    function testZeroPolOverridePreservesExistingPendingAndPermanentLiquidity() public {
+        _swapExactInput(true, 0.001 ether);
+        uint128 lockedBefore = hook.lockedLiquidity(poolId);
+        uint256 pending0Before = hook.pendingPermanentLiquidity(poolId, key.currency0);
+        uint256 pending1Before = hook.pendingPermanentLiquidity(poolId, key.currency1);
+        assertGt(lockedBefore, 0);
+
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+            })
+        );
+
+        assertEq(hook.lockedLiquidity(poolId), lockedBefore);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), pending0Before);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), pending1Before);
+    }
+
+    function testUnavailableStakerShareFromOverrideStillFallsThroughToPol() public {
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+            })
+        );
+        receiver.setStakersEligible(false);
+        _swapExactInput(true, 0.001 ether);
+        assertEq(receiver.stakerFees(Currency.unwrap(key.currency0)), 0);
+        assertEq(receiver.stakerFees(Currency.unwrap(key.currency1)), 0);
+        assertGt(
+            hook.lockedLiquidity(poolId) + hook.pendingPermanentLiquidity(poolId, key.currency0)
+                + hook.pendingPermanentLiquidity(poolId, key.currency1),
+            0
+        );
+    }
+
+    function testPoolOverrideCannotAffectSecondPoolOrGlobalFeeRates() public {
+        HookCompatibilityERC20 secondToken = new HookCompatibilityERC20("Second Pool", "SECOND");
+        PoolKey memory secondKey = _createCompatibilityPool(secondToken);
+        PoolId secondPoolId = secondKey.toId();
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+            })
+        );
+
+        IStaticsSwapFeeHook.PoolFeeAllocationView memory firstAllocation = hook.poolFeeAllocation(poolId);
+        IStaticsSwapFeeHook.PoolFeeAllocationView memory secondAllocation = hook.poolFeeAllocation(secondPoolId);
+        IStaticsSwapFeeHook.FeeConfiguration memory config = hook.feeConfiguration();
+        assertTrue(firstAllocation.overridden);
+        assertFalse(secondAllocation.overridden);
+        assertEq(secondAllocation.polShareBps, config.polShareBps);
+        assertEq(secondAllocation.liquidityProviderShareBps, config.liquidityProviderShareBps);
+        assertEq(config.inputFeeBps, INPUT_FEE_BPS);
+        assertEq(config.outputFeeBps, OUTPUT_FEE_BPS);
+
+        uint256 amountIn = 0.001 ether;
+        BalanceDelta firstDelta = _swapExactInput(true, amountIn);
+        BalanceDelta secondDelta = swap(secondKey, true, -int256(amountIn), "");
+        uint256 firstNetOutput = uint256(uint128(firstDelta.amount1()));
+        uint256 secondNetOutput = uint256(uint128(secondDelta.amount1()));
+        uint256 firstInputFee = Math.mulDiv(amountIn, config.inputFeeBps, 10_000, Math.Rounding.Ceil);
+        uint256 secondInputFee = Math.mulDiv(amountIn, config.inputFeeBps, 10_000, Math.Rounding.Ceil);
+        uint256 firstOutputFee = _feeFromNet(firstNetOutput, config.outputFeeBps);
+        uint256 secondOutputFee = _feeFromNet(secondNetOutput, config.outputFeeBps);
+        assertEq(firstNetOutput, secondNetOutput);
+        assertEq(firstInputFee, secondInputFee);
+        assertEq(firstOutputFee, secondOutputFee);
+        assertTrue(secondDelta.amount0() != 0 && secondDelta.amount1() != 0);
+        assertEq(hook.lockedLiquidity(poolId), 0);
+        assertGt(hook.lockedLiquidity(secondPoolId), 0);
+
+        receiver.setFeeConfiguration(40, 60, 6_000, 1_000, 2_000, 1_000);
+        firstAllocation = hook.poolFeeAllocation(poolId);
+        secondAllocation = hook.poolFeeAllocation(secondPoolId);
+        assertEq(firstAllocation.polShareBps, 0);
+        assertEq(firstAllocation.stakerShareBps, 8_000);
+        assertEq(firstAllocation.treasuryShareBps, 2_000);
+        assertEq(secondAllocation.polShareBps, 6_000);
+        assertEq(secondAllocation.liquidityProviderShareBps, 1_000);
+        assertEq(secondAllocation.stakerShareBps, 2_000);
+        assertEq(secondAllocation.treasuryShareBps, 1_000);
+    }
+
+    function testExistingPendingPolCompoundsAfterZeroPolOverride() public {
+        _swapExactInput(true, 0.001 ether);
+        uint128 lockedBeforeDonation = hook.lockedLiquidity(poolId);
+        donateRouter.donate(key, 0.001 ether, 0.001 ether, "");
+        _swapExactInput(false, 1_000);
+        uint256 pending0 = hook.pendingPermanentLiquidity(poolId, key.currency0);
+        uint256 pending1 = hook.pendingPermanentLiquidity(poolId, key.currency1);
+        assertGt(pending0, 0);
+        assertGt(pending1, 0);
+
+        receiver.setPoolFeeAllocation(
+            poolId,
+            IStaticsSwapFeeHook.FeeAllocation({
+                polShareBps: 0, liquidityProviderShareBps: 0, stakerShareBps: 8_000, treasuryShareBps: 2_000
+            })
+        );
+        _swapExactInput(true, 1_000);
+        assertGt(hook.lockedLiquidity(poolId), lockedBeforeDonation);
+        assertLt(hook.pendingPermanentLiquidity(poolId, key.currency0), pending0);
+        assertLt(hook.pendingPermanentLiquidity(poolId, key.currency1), pending1);
+    }
+
+    function testLiquidityProviderShareHasNoIndependentCap() public {
+        receiver.setFeeConfiguration(25, 25, 0, 9_000, 0, 1_000);
+        IStaticsSwapFeeHook.FeeConfiguration memory config = hook.feeConfiguration();
+        assertEq(config.liquidityProviderShareBps, 9_000);
+        _swapExactInput(true, 0.001 ether);
+        assertGt(hook.lockedLiquidity(poolId), 0);
+    }
+
+    function testRegistrationRejectsNativeCurrencyAndNativeLpFees() public {
+        PoolKey memory nonzeroFee = _poolKey(currency0, currency1, 1, 20);
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.NonzeroNativeLpFee.selector, uint24(1)));
+        receiver.registerPool(nonzeroFee);
+
+        PoolKey memory nativePool = PoolKey({
+            currency0: Currency.wrap(address(0)), currency1: currency1, fee: 0, tickSpacing: 20, hooks: IHooks(hook)
+        });
+        vm.expectRevert(StaticsSwapFeeHook.NativeCurrencyUnsupported.selector);
+        receiver.registerPool(nativePool);
     }
 
     function testUnregisteredPoolCannotInitialize() public {
-        PoolKey memory unregistered = _poolKey(currency0, currency1, 3_000, 60);
+        PoolKey memory unregistered = _poolKey(currency0, currency1, LP_FEE, 20);
         vm.expectPartialRevert(CustomRevert.WrappedError.selector);
         manager.initialize(unregistered, SQRT_PRICE_1_1);
     }
 
-    function testWithdrawalMeasuresFeeOnTransferReceipt() public {
-        (PoolKey memory taxedPool, HookTaxToken taxed, PoolId taxedPoolId) = _createTaxedOutputPool();
-        uint256 liability = hook.accruedFees(taxedPoolId, Currency.wrap(address(taxed)));
-        taxed.setTaxes(100, 0);
+    function testPermanentLiquidityCanOnlyReleaseThroughDiamond() public {
+        _swapExactInput(true, 0.001 ether);
+        uint128 lockedBefore = hook.lockedLiquidity(poolId);
+        assertGt(lockedBefore, 0);
 
-        (uint256 spent0, uint256 received0, uint256 spent1, uint256 received1) = hook.withdrawPoolFees(taxedPoolId);
-        (uint256 spent, uint256 received) =
-            taxedPool.currency0 == Currency.wrap(address(taxed)) ? (spent0, received0) : (spent1, received1);
-        assertEq(spent, liability);
-        assertEq(received, liability - (liability / 100));
-        assertEq(hook.accruedFees(taxedPoolId, Currency.wrap(address(taxed))), 0);
-    }
+        address outsider = makeAddr("outsider");
+        vm.prank(outsider);
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, outsider));
+        hook.releasePermanentLiquidity(key, outsider);
 
-    function testWithdrawalRejectsSenderExtraDebitAcrossPoolLiabilities() public {
-        (PoolKey memory taxedPool, HookTaxToken taxed, PoolId taxedPoolId) = _createTaxedOutputPool();
-        Currency taxedCurrency = Currency.wrap(address(taxed));
-        uint256 liability = hook.accruedFees(taxedPoolId, taxedCurrency);
-        taxed.mint(address(hook), liability);
-        uint256 hookBalanceBefore = taxed.balanceOf(address(hook));
-        taxed.setTaxes(0, 1_000);
-
-        vm.expectPartialRevert(StaticsSwapFeeHook.WithdrawalExceedsPoolLiability.selector);
-        hook.withdrawPoolFees(taxedPoolId);
-        assertEq(hook.accruedFees(taxedPoolId, taxedCurrency), liability);
-        assertEq(taxed.balanceOf(address(hook)), hookBalanceBefore);
-        assertTrue(taxedPool.currency0 == taxedCurrency || taxedPool.currency1 == taxedCurrency);
-    }
-
-    function testSharedCurrencyInsolvencyFreezesEveryPoolWithdrawal() public {
-        HookTaxToken shared = new HookTaxToken();
-        MockERC20 pairedA = new MockERC20("Paired Token A", "PAIR-A", 18);
-        MockERC20 pairedB = new MockERC20("Paired Token B", "PAIR-B", 18);
-        shared.mint(address(this), 20 ether);
-        pairedA.mint(address(this), 10 ether);
-        pairedB.mint(address(this), 10 ether);
-        shared.approve(address(modifyLiquidityRouter), type(uint256).max);
-        shared.approve(address(swapRouter), type(uint256).max);
-        pairedA.approve(address(modifyLiquidityRouter), type(uint256).max);
-        pairedA.approve(address(swapRouter), type(uint256).max);
-        pairedB.approve(address(modifyLiquidityRouter), type(uint256).max);
-        pairedB.approve(address(swapRouter), type(uint256).max);
-
-        Currency sharedCurrency = Currency.wrap(address(shared));
-        Currency pairedCurrencyA = Currency.wrap(address(pairedA));
-        Currency pairedCurrencyB = Currency.wrap(address(pairedB));
-        PoolKey memory poolA = _registerInitializeAndSeed(sharedCurrency, pairedCurrencyA, 700, TICK_SPACING);
-        PoolKey memory poolB = _registerInitializeAndSeed(sharedCurrency, pairedCurrencyB, 800, TICK_SPACING);
-        PoolId poolIdA = poolA.toId();
-        PoolId poolIdB = poolB.toId();
-        _swapExactInput(poolA, poolA.currency0 == pairedCurrencyA, 0.001 ether);
-        _swapExactInput(poolB, poolB.currency0 == pairedCurrencyB, 0.001 ether);
-
-        uint256 liabilityA = hook.accruedFees(poolIdA, sharedCurrency);
-        uint256 liabilityB = hook.accruedFees(poolIdB, sharedCurrency);
-        uint256 totalLiability = liabilityA + liabilityB;
-        assertGt(liabilityA, 0);
-        assertGt(liabilityB, 0);
-        assertEq(hook.totalLiability(sharedCurrency), totalLiability);
-        assertEq(shared.balanceOf(address(hook)), totalLiability);
-
-        shared.slash(address(hook), liabilityB);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                StaticsSwapFeeHook.HookLiabilityInsolvent.selector, sharedCurrency, totalLiability, liabilityA
-            )
-        );
-        hook.withdrawPoolFees(poolIdA);
-
-        assertEq(hook.accruedFees(poolIdA, sharedCurrency), liabilityA);
-        assertEq(hook.accruedFees(poolIdB, sharedCurrency), liabilityB);
-        assertEq(hook.totalLiability(sharedCurrency), totalLiability);
-        assertEq(shared.balanceOf(address(hook)), liabilityA);
-
-        shared.mint(address(hook), liabilityB);
-        hook.withdrawPoolFees(poolIdA);
-        assertEq(hook.accruedFees(poolIdA, sharedCurrency), 0);
-        assertEq(hook.accruedFees(poolIdB, sharedCurrency), liabilityB);
-        assertEq(hook.totalLiability(sharedCurrency), liabilityB);
-        assertEq(shared.balanceOf(address(hook)), liabilityB);
-    }
-
-    function testThirdPartyLiquidityAndMultiHopRoutingPayTheSameFee() public {
-        address thirdParty = makeAddr("thirdParty");
-        _fundRouterUser(thirdParty, currency0, 1 ether, address(modifyLiquidityRouter));
-        _fundRouterUser(thirdParty, currency1, 1 ether, address(modifyLiquidityRouter));
-        ModifyLiquidityParams memory thirdPartyPosition = ModifyLiquidityParams({
-            tickLower: -120, tickUpper: 120, liquidityDelta: 0.1 ether, salt: bytes32(uint256(1))
-        });
-        vm.prank(thirdParty);
-        modifyLiquidityRouter.modifyLiquidity(key, thirdPartyPosition, "");
-
-        Currency thirdCurrency = deployMintAndApproveCurrency();
-        PoolKey memory second = _registerInitializeAndSeed(currency1, thirdCurrency, LP_FEE, TICK_SPACING);
-        PoolId secondId = second.toId();
-        HookMultiHopRouter router = new HookMultiHopRouter(manager);
-        MockERC20(Currency.unwrap(currency0)).approve(address(router), type(uint256).max);
-        bool secondZeroForOne = second.currency0 == currency1;
-        uint256 firstBefore = hook.accruedFees(poolId, currency1);
-        Currency finalCurrency = secondZeroForOne ? second.currency1 : second.currency0;
-        uint256 secondBefore = hook.accruedFees(secondId, finalCurrency);
-
-        (uint256 intermediateAmount, uint256 finalAmount) =
-            router.swapExactInput(key, second, true, secondZeroForOne, 0.001 ether, address(this));
-        uint256 firstFee = hook.accruedFees(poolId, currency1) - firstBefore;
-        uint256 secondFee = hook.accruedFees(secondId, finalCurrency) - secondBefore;
-        assertEq(firstFee, _fee(intermediateAmount + firstFee));
-        assertEq(secondFee, _fee(finalAmount + secondFee));
+        receiver.decommission(key);
+        (uint256 amount0, uint256 amount1) = receiver.release(key, address(receiver));
+        assertGt(amount0, 0);
+        assertGt(amount1, 0);
+        assertEq(hook.lockedLiquidity(poolId), 0);
     }
 
     function _assertExactInput(bool zeroForOne, uint256 amountIn) private {
-        Currency feeCurrency = zeroForOne ? key.currency1 : key.currency0;
-        uint256 accruedBefore = hook.accruedFees(poolId, feeCurrency);
-        BalanceDelta delta = _swapExactInput(key, zeroForOne, amountIn);
-        uint256 fee = hook.accruedFees(poolId, feeCurrency) - accruedBefore;
+        Currency input = zeroForOne ? key.currency0 : key.currency1;
+        Currency output = zeroForOne ? key.currency1 : key.currency0;
+        uint256 inputStakerBefore = receiver.stakerFees(Currency.unwrap(input));
+        uint256 inputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(input));
+        uint256 outputStakerBefore = receiver.stakerFees(Currency.unwrap(output));
+        uint256 outputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(output));
+
+        BalanceDelta delta = _swapExactInput(zeroForOne, amountIn);
         uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
-        assertEq(fee, _fee(netOutput + fee));
+        uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 outputFee = _feeFromNet(netOutput, OUTPUT_FEE_BPS);
+        _assertDistribution(input, inputFee, inputStakerBefore, inputTreasuryBefore);
+        _assertDistribution(output, outputFee, outputStakerBefore, outputTreasuryBefore);
     }
 
     function _assertExactOutput(bool zeroForOne, uint256 amountOut) private {
-        Currency feeCurrency = zeroForOne ? key.currency0 : key.currency1;
-        uint256 accruedBefore = hook.accruedFees(poolId, feeCurrency);
+        Currency input = zeroForOne ? key.currency0 : key.currency1;
+        Currency output = zeroForOne ? key.currency1 : key.currency0;
+        uint256 inputStakerBefore = receiver.stakerFees(Currency.unwrap(input));
+        uint256 inputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(input));
+        uint256 outputStakerBefore = receiver.stakerFees(Currency.unwrap(output));
+        uint256 outputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(output));
+
         BalanceDelta delta = swap(key, zeroForOne, int256(amountOut), "");
-        uint256 fee = hook.accruedFees(poolId, feeCurrency) - accruedBefore;
         uint256 totalInput = uint256(-int256(zeroForOne ? delta.amount0() : delta.amount1()));
-        assertEq(fee, _fee(totalInput - fee));
-        assertEq(uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0())), amountOut);
+        uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
+        assertEq(netOutput, amountOut);
+        uint256 outputFee = Math.mulDiv(amountOut, OUTPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 inputFee = _feeFromGross(totalInput, INPUT_FEE_BPS);
+        _assertDistribution(input, inputFee, inputStakerBefore, inputTreasuryBefore);
+        _assertDistribution(output, outputFee, outputStakerBefore, outputTreasuryBefore);
     }
 
-    function _swapExactInput(PoolKey memory poolKey, bool zeroForOne, uint256 amountIn)
+    function _assertDistribution(Currency currency, uint256 fee, uint256 stakerBefore, uint256 treasuryBefore)
         private
-        returns (BalanceDelta delta)
+        view
     {
-        return swap(poolKey, zeroForOne, -int256(amountIn), "");
+        uint256 pol = Math.mulDiv(fee, 5_000, 10_000);
+        uint256 liquidityProvider = Math.mulDiv(fee, 1_000, 10_000);
+        uint256 staker = Math.mulDiv(fee, 3_000, 10_000);
+        uint256 treasury = fee - pol - liquidityProvider - staker;
+        address asset = Currency.unwrap(currency);
+        assertEq(receiver.stakerFees(asset) - stakerBefore, staker);
+        assertEq(receiver.treasuryFees(asset) - treasuryBefore, treasury);
     }
 
-    function _registerInitializeAndSeed(Currency first, Currency second, uint24 fee, int24 tickSpacing)
+    function _assertOverriddenExactInput(bool zeroForOne, uint256 amountIn) private {
+        Currency input = zeroForOne ? key.currency0 : key.currency1;
+        Currency output = zeroForOne ? key.currency1 : key.currency0;
+        uint256 inputStakerBefore = receiver.stakerFees(Currency.unwrap(input));
+        uint256 inputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(input));
+        uint256 outputStakerBefore = receiver.stakerFees(Currency.unwrap(output));
+        uint256 outputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(output));
+        BalanceDelta delta = _swapExactInput(zeroForOne, amountIn);
+        uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
+        _assertOverrideDistribution(
+            input,
+            Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil),
+            inputStakerBefore,
+            inputTreasuryBefore
+        );
+        _assertOverrideDistribution(
+            output, _feeFromNet(netOutput, OUTPUT_FEE_BPS), outputStakerBefore, outputTreasuryBefore
+        );
+    }
+
+    function _assertOverriddenExactOutput(bool zeroForOne, uint256 amountOut) private {
+        Currency input = zeroForOne ? key.currency0 : key.currency1;
+        Currency output = zeroForOne ? key.currency1 : key.currency0;
+        uint256 inputStakerBefore = receiver.stakerFees(Currency.unwrap(input));
+        uint256 inputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(input));
+        uint256 outputStakerBefore = receiver.stakerFees(Currency.unwrap(output));
+        uint256 outputTreasuryBefore = receiver.treasuryFees(Currency.unwrap(output));
+        BalanceDelta delta = swap(key, zeroForOne, int256(amountOut), "");
+        uint256 totalInput = uint256(-int256(zeroForOne ? delta.amount0() : delta.amount1()));
+        _assertOverrideDistribution(
+            input, _feeFromGross(totalInput, INPUT_FEE_BPS), inputStakerBefore, inputTreasuryBefore
+        );
+        _assertOverrideDistribution(
+            output,
+            Math.mulDiv(amountOut, OUTPUT_FEE_BPS, 10_000, Math.Rounding.Ceil),
+            outputStakerBefore,
+            outputTreasuryBefore
+        );
+    }
+
+    function _assertOverrideDistribution(Currency currency, uint256 fee, uint256 stakerBefore, uint256 treasuryBefore)
+        private
+        view
+    {
+        uint256 staker = Math.mulDiv(fee, 8_000, 10_000);
+        uint256 treasury = fee - staker;
+        address asset = Currency.unwrap(currency);
+        assertEq(receiver.stakerFees(asset) - stakerBefore, staker);
+        assertEq(receiver.treasuryFees(asset) - treasuryBefore, treasury);
+        assertEq(staker + treasury, fee);
+    }
+
+    function _swapExactInput(bool zeroForOne, uint256 amountIn) private returns (BalanceDelta delta) {
+        return swap(key, zeroForOne, -int256(amountIn), "");
+    }
+
+    function _registerInitializeAndSeed(Currency first, Currency second, int24 tickSpacing)
         private
         returns (PoolKey memory poolKey)
     {
-        poolKey = _poolKey(first, second, fee, tickSpacing);
-        hook.registerPool(poolKey);
+        poolKey = _poolKey(first, second, LP_FEE, tickSpacing);
+        receiver.registerPool(poolKey);
         manager.initialize(poolKey, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(poolKey, LIQUIDITY_PARAMS, "");
     }
@@ -389,46 +632,36 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         return PoolKey({currency0: lower, currency1: upper, fee: fee, tickSpacing: tickSpacing, hooks: IHooks(hook)});
     }
 
-    function _deployHook(address diamond) private returns (StaticsSwapFeeHook deployed) {
-        (address expected, bytes32 salt) = HookMiner.find(
-            address(this),
-            REQUIRED_FLAGS,
-            type(StaticsSwapFeeHook).creationCode,
-            abi.encode(manager, diamond, HOOK_FEE_BPS)
+    function _createCompatibilityPool(HookCompatibilityERC20 specialToken) private returns (PoolKey memory poolKey) {
+        HookCompatibilityERC20 pairedToken = new HookCompatibilityERC20("Paired", "PAIR");
+        specialToken.mint(address(this), 1_000 ether);
+        pairedToken.mint(address(this), 1_000 ether);
+        _approveCompatibilityToken(specialToken);
+        _approveCompatibilityToken(pairedToken);
+        poolKey = _registerInitializeAndSeed(
+            Currency.wrap(address(specialToken)), Currency.wrap(address(pairedToken)), TICK_SPACING
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, diamond, HOOK_FEE_BPS);
+    }
+
+    function _approveCompatibilityToken(HookCompatibilityERC20 token) private {
+        token.approve(address(swapRouter), type(uint256).max);
+        token.approve(address(modifyLiquidityRouter), type(uint256).max);
+        token.approve(address(donateRouter), type(uint256).max);
+    }
+
+    function _deployHook(address diamond) private returns (StaticsSwapFeeHook deployed) {
+        bytes memory constructorArgs = abi.encode(manager, diamond, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        (address expected, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, diamond, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         assertEq(address(deployed), expected);
     }
 
-    function _createTaxedOutputPool()
-        private
-        returns (PoolKey memory taxedPool, HookTaxToken taxed, PoolId taxedPoolId)
-    {
-        taxed = new HookTaxToken();
-        MockERC20 paired = new MockERC20("Paired Token", "PAIR", 18);
-        taxed.mint(address(this), 10 ether);
-        paired.mint(address(this), 10 ether);
-        taxed.approve(address(modifyLiquidityRouter), type(uint256).max);
-        taxed.approve(address(swapRouter), type(uint256).max);
-        paired.approve(address(modifyLiquidityRouter), type(uint256).max);
-        paired.approve(address(swapRouter), type(uint256).max);
-        Currency taxedCurrency = Currency.wrap(address(taxed));
-        Currency pairedCurrency = Currency.wrap(address(paired));
-        taxedPool = _registerInitializeAndSeed(taxedCurrency, pairedCurrency, 700, TICK_SPACING);
-        taxedPoolId = taxedPool.toId();
-        bool pairedForTaxed = taxedPool.currency0 == pairedCurrency;
-        _swapExactInput(taxedPool, pairedForTaxed, 0.001 ether);
-        assertGt(hook.accruedFees(taxedPoolId, taxedCurrency), 0);
+    function _feeFromNet(uint256 netAmount, uint256 feeBps) private pure returns (uint256) {
+        return Math.mulDiv(netAmount, feeBps, 10_000 - feeBps, Math.Rounding.Ceil);
     }
 
-    function _fundRouterUser(address user, Currency currency, uint256 amount, address router) private {
-        MockERC20 token = MockERC20(Currency.unwrap(currency));
-        token.mint(user, amount);
-        vm.prank(user);
-        token.approve(router, type(uint256).max);
-    }
-
-    function _fee(uint256 realizedAmount) private pure returns (uint256) {
-        return (realizedAmount * HOOK_FEE_BPS + 9_999) / 10_000;
+    function _feeFromGross(uint256 grossAmount, uint256 feeBps) private pure returns (uint256) {
+        return Math.mulDiv(grossAmount, feeBps, 10_000 + feeBps, Math.Rounding.Ceil);
     }
 }

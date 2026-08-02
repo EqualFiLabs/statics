@@ -2,8 +2,8 @@
 
 Statics is one protocol for Statics Dollar and permissionless static baskets.
 It combines fixed multi-asset redemption bundles, arbitrage-oriented action
-fees, indexed PositionNFT rewards, constituent flash loans, and proportional
-self-backed lending.
+fees, global multi-asset staking rewards, constituent flash loans, and
+proportional self-backed lending.
 
 ## Architecture
 
@@ -38,12 +38,30 @@ and returns the static bundle less the selected flat fee. Previously accrued
 fees do not change either quote and new minters do not buy into historical
 yield.
 
-The holder portion of mint, redemption, and flash-loan fees accrues through a
-separate basket-and-asset reward index. Loose BasketTokens remain transferable
-but are not reward eligible. A user deposits or mints BasketTokens into a
-PositionNFT to earn fees and claims the constituent rewards without burning
-principal. If a fee arrives while no position is eligible, it becomes isolated
-protocol revenue for that basket.
+Basket mint, redemption, flash-loan, lending, and Dollar fees no longer reward
+holders of an individual BasketToken. Each fee asset enters the global fee
+ledger. Users stake the configured Statics staking token in a PositionNFT and
+claim their checkpointed share of every admitted reward asset. The ledger has
+64 governed asset slots; first use fills an available slot, and governance can
+retire a slot only after permissionless checkpoint settlement completes. Fees
+that cannot accrue to active stake, including fees for a queued asset, accrue
+to the common Statics treasury.
+
+Canonical Uniswap v4 pools use a zero native LP fee. The hook charges both the
+input and output assets, routes the configured staker and treasury shares into
+the global ledger, and immediately converts matched POL shares into hook-owned
+full-range liquidity. That liquidity has no ordinary withdrawal path and is
+released only after the associated basket enters `ExitOnly` and its pool is
+decommissioned.
+
+The global swap-fee allocation is the default for every canonical pool.
+Timelocked governance may install a pool-specific override using the same
+POL/canonical-LP/staker/treasury allocation model, including zero POL and zero
+canonical-LP allocation for a mature pool, without changing either bilateral
+fee rate. Existing pending POL can still compound and existing permanent
+liquidity remains locked. Clearing the override restores the then-current
+global default; unavailable canonical-LP and staker shares continue to fall
+through to POL.
 
 Flash loans expose only basket constituents. Statics deliberately contains no
 embedded swap router and requires no initial BasketToken liquidity; an
@@ -59,9 +77,10 @@ close while any module leg remains live.
 Basket lending locks eligible BasketTokens in their existing position and
 releases the proportional constituent vector at the basket's configured LTV.
 The immutable protocol ceiling is 95%; a basket may choose less. Origination
-fees reclassify BasketToken backing as protocol revenue. Extension fees are
-paid directly in every outstanding constituent principal and become isolated
-basket protocol revenue. Locked collateral continues to earn basket fees.
+fees reclassify BasketToken backing into the global fee ledger. Extension fees
+are paid directly in every outstanding constituent principal and enter the
+same ledger. Basket collateral does not earn a separate basket-specific reward
+stream.
 Multiple independent loan tranches allow bounded recursive mint-deposit-borrow
 loops without resetting older maturities.
 
@@ -86,9 +105,11 @@ and other callers that cannot produce an EIP-2612 signature.
 Pegged collateral profiles are direct nominal wrappers: they mint only Statics
 Dollar, create no risk series, and charge independent mint and redemption fees
 in the collateral token. Any fungible Statics Dollar can redeem against a
-profile's proportional capacity. Pegged fees are protocol revenue controlled
-by the common Statics treasury. Downside series transitions quarantine every
-pegged exit until all Core books have remained healthy for 48 continuous hours.
+profile's proportional capacity. Pegged fees enter the global fee ledger:
+eligible fees use the standard 90% staker and 10% treasury split, while
+empty-stake or unavailable-slot allocations fall back to the common Statics
+treasury. Downside series transitions quarantine every pegged exit until all
+Core books have remained healthy for 48 continuous hours.
 
 Dollar risk shares can be staked into the shared PositionNFT, activated after
 the Dollar reward gate, moved between passive and opt-in reward tiers, and
@@ -111,9 +132,9 @@ lifecycle logic rather than an immutable restriction on future governance.
 
 ## Permissionless assets and measured accounting
 
-Every basket backing balance, fee reserve, protocol-revenue amount, loan, and
-recovery surplus is keyed by basket and asset. A global physical reservation
-total prevents one module from spending tokens attributed to another module.
+Every basket backing balance, global fee reserve, loan, and recovery surplus is
+kept in an isolated custody account. A global physical reservation total
+prevents one module from spending tokens attributed to another module.
 Direct donations remain unallocated and cannot inflate any internal book.
 
 Token movements use observed balance deltas. Inbound transfers credit what the

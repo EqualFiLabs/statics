@@ -9,7 +9,7 @@ import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/I
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasket} from "src/interfaces/IStaticsBasket.sol";
-import {IStaticsBasketRewards} from "src/interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {IStaticsCustody} from "src/interfaces/IStaticsCustody.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
@@ -420,7 +420,7 @@ contract PeripherySecurityRegressionTest is Test {
             loanDuration: 30 days
         });
         IStaticsBasket basket = IStaticsBasket(deployment.diamond);
-        IStaticsBasketRewards basketYield = IStaticsBasketRewards(deployment.diamond);
+        IStaticsBasketCollateral basketCollateral = IStaticsBasketCollateral(deployment.diamond);
         vm.deal(alice, 1 ether);
         vm.prank(alice);
         (uint256 basketId,) = basket.createBasket{value: 1 ether}(params);
@@ -429,7 +429,7 @@ contract PeripherySecurityRegressionTest is Test {
         basketAsset.mint(alice, quote[0]);
         vm.startPrank(alice);
         basketAsset.approve(deployment.diamond, type(uint256).max);
-        basketYield.mintBasketToPosition(positionId, basketId, 10 ether, quote);
+        basketCollateral.mintBasketCollateral(positionId, basketId, 10 ether, quote);
         staticsDollar.approve(deployment.diamond, 10 ether);
         rewards.donateStaticsDollarRewards(SERIES_ID, 10 ether, 0);
         vm.stopPrank();
@@ -442,20 +442,11 @@ contract PeripherySecurityRegressionTest is Test {
         vm.stopPrank();
 
         (, uint256 dollarBefore) = rewards.pendingSeriesRewards(positionId, SERIES_ID);
-        (, uint256[] memory basketPending) = basketYield.pendingBasketRewards(positionId, basketId);
         assertEq(dollarBefore, 10 ether);
-        assertEq(basketPending[0], 0.045 ether);
-
-        vm.prank(alice);
-        basketYield.claimBasketRewards(positionId, basketId, alice, basketPending);
-        (, uint256 dollarAfterBasketClaim) = rewards.pendingSeriesRewards(positionId, SERIES_ID);
-        assertEq(dollarAfterBasketClaim, dollarBefore);
 
         vm.prank(alice);
         rewards.claimSeriesRewards(positionId, SERIES_ID, alice);
-        assertEq(basketYield.basketPosition(positionId, basketId).eligibleShares, 10 ether);
-        (, basketPending) = basketYield.pendingBasketRewards(positionId, basketId);
-        assertEq(basketPending[0], 0);
+        assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, 10 ether);
     }
 
     function test_DollarSafeMintCallbackCannotCrossTheSharedExecutionLock() public {

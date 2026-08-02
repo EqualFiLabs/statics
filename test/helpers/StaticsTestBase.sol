@@ -6,7 +6,8 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
-import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
+import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
@@ -19,7 +20,9 @@ import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketFacet} from "../../src/facets/BasketFacet.sol";
-import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
+import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
+import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
@@ -30,8 +33,11 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
 contract StaticsTestDeployer {
-    function deploy(address owner, address guardian, address treasury) external returns (StaticsDiamond diamond) {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](13);
+    function deploy(address owner, address guardian, address treasury, address stakingToken)
+        external
+        returns (StaticsDiamond diamond)
+    {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](15);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -42,15 +48,17 @@ contract StaticsTestDeployer {
         cut[7] = _cut(address(new BasketAdminFacet()), StaticsSelectors.basketAdmin());
         cut[8] = _cut(address(new LendingFacet()), StaticsSelectors.lending());
         cut[9] = _cut(address(new FlashLoanFacet()), StaticsSelectors.flashLoan());
-        cut[10] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
+        cut[10] = _cut(address(new BasketCollateralFacet()), StaticsSelectors.basketCollateral());
         cut[11] = _cut(address(new BasketLiquidityFacet()), StaticsSelectors.basketLiquidity());
         cut[12] = _cut(address(new BorrowLiquidityFacet()), StaticsSelectors.borrowLiquidity());
+        cut[13] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
+        cut[14] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
             cut,
             address(init),
-            abi.encodeCall(StaticsProtocolInit.initialize, (guardian, treasury, 1 ether)),
+            abi.encodeCall(StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether)),
             address(0)
         );
     }
@@ -71,7 +79,8 @@ abstract contract StaticsTestBase is Test {
     StaticsDiamond internal diamond;
     IStaticsBasket internal baskets;
     IStaticsBasketAdmin internal basketAdmin;
-    IStaticsBasketRewards internal basketRewards;
+    IStaticsBasketCollateral internal basketCollateral;
+    IStaticsGlobalRewards internal globalRewards;
     IStaticsBasketLiquidity internal basketLiquidity;
     IStaticsCustody internal custody;
     IStaticsGovernance internal governance;
@@ -79,16 +88,19 @@ abstract contract StaticsTestBase is Test {
     IStaticsFlashLoan internal flashLoans;
     MockERC20 internal assetA;
     MockERC20 internal assetB;
+    MockERC20 internal stakingAsset;
 
     function setUp() public virtual {
         assetA = new MockERC20("Asset A", "A", 18);
         assetB = new MockERC20("Asset B", "B", 18);
+        stakingAsset = new MockERC20("Statics", "STAT", 18);
 
-        diamond = new StaticsTestDeployer().deploy(address(this), guardian, treasury);
+        diamond = new StaticsTestDeployer().deploy(address(this), guardian, treasury, address(stakingAsset));
 
         baskets = IStaticsBasket(address(diamond));
         basketAdmin = IStaticsBasketAdmin(address(diamond));
-        basketRewards = IStaticsBasketRewards(address(diamond));
+        basketCollateral = IStaticsBasketCollateral(address(diamond));
+        globalRewards = IStaticsGlobalRewards(address(diamond));
         basketLiquidity = IStaticsBasketLiquidity(address(diamond));
         custody = IStaticsCustody(address(diamond));
         governance = IStaticsGovernance(address(diamond));

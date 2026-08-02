@@ -32,17 +32,21 @@ contract RepositoryIndependenceTest is Test {
 
     function _contains(bytes memory haystack, bytes memory needle) private pure returns (bool) {
         if (needle.length == 0 || needle.length > haystack.length) return false;
+        require(needle.length <= 32, "repository marker exceeds one word");
 
+        bytes32 expected;
+        assembly ("memory-safe") {
+            expected := mload(add(needle, 0x20))
+        }
+        bytes32 mask = bytes32(type(uint256).max << ((32 - needle.length) * 8));
+        expected &= mask;
         uint256 last = haystack.length - needle.length;
         for (uint256 i; i <= last; ++i) {
-            bool matched = true;
-            for (uint256 j; j < needle.length; ++j) {
-                if (haystack[i + j] != needle[j]) {
-                    matched = false;
-                    break;
-                }
+            bytes32 candidate;
+            assembly ("memory-safe") {
+                candidate := mload(add(add(haystack, 0x20), i))
             }
-            if (matched) return true;
+            if (candidate & mask == expected) return true;
         }
         return false;
     }

@@ -4,23 +4,29 @@ import {
   allowsExposureIncrease,
   BasketStatus,
   CanonicalPoolStatus,
+  buildActivateLiquidityPositionCall,
   buildActivateCanonicalPoolCall,
   buildBorrowAndProvideLiquidityCall,
   buildBorrowCall,
   buildCheckpointCanonicalPoolCall,
-  buildClaimBasketRewardsCall,
+  buildClearCanonicalPoolFeeAllocationCall,
+  buildClaimRewardsCall,
+  buildClaimLiquidityRewardsCall,
   buildCreateBasketTransaction,
   buildDecommissionBasketCall,
   buildDepositETHTransaction,
   buildInitializeCanonicalPoolCall,
+  buildIncreaseStakedLiquidityCall,
   buildMintPeggedCall,
   buildRedeemPeggedCall,
+  buildSetSwapFeeConfigurationCall,
+  buildSetCanonicalPoolFeeAllocationCall,
+  buildStakeLiquidityPositionCall,
+  buildUnstakeLiquidityPositionCall,
   buildClaimPeggedProtocolRevenueCall,
   buildRecombineToWETHCall,
   buildRecombineToWETHWithPermitCall,
   buildRecombineToETHWithPermitCall,
-  classifyPrimaryFee,
-  compoundEpochStatus,
   decodePositionInfo,
   effectiveCanonicalFees,
   getSqrtPriceAtTick,
@@ -33,14 +39,14 @@ import {
   quoteBorrowAndProvideLiquidity,
   quoteExtension,
   quoteHookFee,
-  nextProtocolLpFeeSplit,
   quoteMint,
   quoteRangeAmounts,
   quoteRedeem,
   robinhoodChain,
   selectFeeShares,
-  splitProtocolLpFee,
+  splitSwapFee,
   staticsAbi,
+  staticsSwapFeeHookAbi,
   type BasketSnapshot,
   type PermitSignature,
   type UnderlyingLiquidityAdapter,
@@ -72,26 +78,52 @@ const snapshot: BasketSnapshot = {
 };
 
 describe("Statics static basket quotes", () => {
-  it("classifies primary fees exactly and redirects absent holder yield", () => {
-    const allocation = { holderShareBps: 4_500n, liquidityShareBps: 4_500n, protocolShareBps: 1_000n };
-    expect(classifyPrimaryFee(101n, allocation, true)).toEqual({
-      holderAmount: 45n,
-      liquidityAmount: 45n,
-      protocolAmount: 11n,
+  it("splits bilateral hook fees and redirects unavailable reward shares to POL", () => {
+    const configuration = {
+      inputFeeBps: 25n,
+      outputFeeBps: 25n,
+      polShareBps: 5_000n,
+      liquidityProviderShareBps: 1_000n,
+      stakerShareBps: 3_000n,
+      treasuryShareBps: 1_000n,
+    };
+    expect(splitSwapFee(101n, configuration, true, true)).toEqual({
+      polAmount: 50n,
+      liquidityProviderAmount: 10n,
+      stakerAmount: 30n,
+      treasuryAmount: 11n,
     });
-    expect(classifyPrimaryFee(101n, allocation, false)).toEqual({
-      holderAmount: 0n,
-      liquidityAmount: 45n,
-      protocolAmount: 56n,
+    expect(splitSwapFee(101n, configuration, true, false)).toEqual({
+      polAmount: 80n,
+      liquidityProviderAmount: 10n,
+      stakerAmount: 0n,
+      treasuryAmount: 11n,
+    });
+    expect(splitSwapFee(101n, configuration, false, true)).toEqual({
+      polAmount: 60n,
+      liquidityProviderAmount: 0n,
+      stakerAmount: 30n,
+      treasuryAmount: 11n,
     });
   });
 
-  it("rejects fee allocations that do not conserve one hundred percent", () => {
-    expect(() => classifyPrimaryFee(100n, {
-      holderShareBps: 4_500n,
-      liquidityShareBps: 4_500n,
-      protocolShareBps: 999n,
-    }, true)).toThrow("fee allocation must total 10000 bps");
+  it("rejects swap fee splits that do not conserve one hundred percent", () => {
+    expect(() => splitSwapFee(100n, {
+      inputFeeBps: 25n,
+      outputFeeBps: 25n,
+      polShareBps: 5_000n,
+      liquidityProviderShareBps: 1_000n,
+      stakerShareBps: 3_000n,
+      treasuryShareBps: 999n,
+    }, true, true)).toThrow("invalid swap fee split");
+    expect(() => splitSwapFee(100n, {
+      inputFeeBps: 25n,
+      outputFeeBps: 25n,
+      polShareBps: -1_000n,
+      liquidityProviderShareBps: 0n,
+      stakerShareBps: 1_000n,
+      treasuryShareBps: 10_000n,
+    }, true, true)).toThrow("invalid swap fee split");
   });
 
   it("uses the greatest qualifying threshold for a flat fee", () => {
@@ -144,24 +176,15 @@ describe("Statics static basket quotes", () => {
     expect(quoteExactOutput).not.toHaveBeenCalledWith(expect.objectContaining({ tokenOut: basketToken }));
   });
 
-  it("matches hook, LP split, and epoch rounding vectors", () => {
+  it("matches bilateral hook and zero-native-LP fee vectors", () => {
     expect(quoteHookFee(1n, 1n)).toBe(1n);
     expect(quoteHookFee(10_001n, 1n)).toBe(2n);
-    expect(splitProtocolLpFee(101n)).toEqual({ polAmount: 91n, revenueAmount: 10n });
-    expect(nextProtocolLpFeeSplit(9n, 0n, 1n)).toEqual({ polAmount: 0n, revenueAmount: 1n });
-    expect(nextProtocolLpFeeSplit(10n, 1n, 9n)).toEqual({ polAmount: 9n, revenueAmount: 0n });
-    expect(effectiveCanonicalFees(500n, 1n)).toEqual({
-      lpFeePips: 500n,
-      lpFeeBps: 5n,
-      hookFeeBps: 1n,
-      nominalTotalBps: 6n,
+    expect(effectiveCanonicalFees(0n, 25n, 25n)).toEqual({
+      lpFeePips: 0n,
+      lpFeeBps: 0n,
+      inputFeeBps: 25n,
+      outputFeeBps: 25n,
     });
-    expect(compoundEpochStatus(
-      { lastCompoundAt: 100n, nextCompoundAt: 200n, cumulativeSharesMinted: 1n },
-      { interval: 86_400n, youngPoolPeriod: 604_800n, youngPoolCapBps: 1_000n, minimumShares: 10n ** 12n },
-      [50n],
-      199n,
-    )).toEqual({ ready: false, readyAt: 200n, youngPoolCapApplies: true });
   });
 
   it("matches Solidity tick and range amount vectors", () => {
@@ -214,7 +237,17 @@ describe("Statics static basket quotes", () => {
 
   it("exports Robinhood addresses from the generated deployment binding", () => {
     expect(robinhoodChain.chainId).toBe(4_663);
-    expect(robinhoodChain.hookFeeBps).toBe(1);
+    expect(robinhoodChain.inputFeeBps).toBe(25);
+    expect(robinhoodChain.outputFeeBps).toBe(25);
+    expect(robinhoodChain.hookPermissionMask).toBe("0x10cc");
+    expect(robinhoodChain.liquidityCalibration.canonicalLpFeePips).toBe(0);
+    expect(robinhoodChain.liquidityCalibration.hookPermissions).toEqual([
+      "afterInitialize",
+      "beforeSwap",
+      "beforeSwapReturnDelta",
+      "afterSwap",
+      "afterSwapReturnDelta",
+    ]);
     expect(robinhoodChain.contracts.poolManager.address.toLowerCase())
       .toBe("0x8366a39cc670b4001a1121b8f6a443a643e40951");
   });
@@ -251,7 +284,7 @@ describe("Statics unified calldata", () => {
   });
 
   it("exposes position reward claims and terminal lifecycle calls", () => {
-    expect(buildClaimBasketRewardsCall(17n, 4n, receiver, [0n, 0n])).toMatch(/^0x[0-9a-f]+$/);
+    expect(buildClaimRewardsCall(17n, [assetA, assetB], receiver, [0n, 0n])).toMatch(/^0x[0-9a-f]+$/);
     expect(allowsExposureIncrease(BasketStatus.Active)).toBe(true);
     expect(allowsExposureIncrease(BasketStatus.Quarantined)).toBe(false);
     expect(allowsExposureIncrease(BasketStatus.ExitOnly)).toBe(false);
@@ -273,6 +306,83 @@ describe("Statics unified calldata", () => {
       .toBe("activateCanonicalPool");
     expect(CanonicalPoolStatus.Warming).toBe(1);
     expect(CanonicalPoolStatus.Active).toBe(2);
+  });
+
+  it("encodes governed bilateral fee configuration", () => {
+    const data = buildSetSwapFeeConfigurationCall({
+      inputFeeBps: 25n,
+      outputFeeBps: 25n,
+      polShareBps: 5_000n,
+      liquidityProviderShareBps: 1_000n,
+      stakerShareBps: 3_000n,
+      treasuryShareBps: 1_000n,
+    });
+    expect(decodeFunctionData({ abi: staticsAbi, data }).functionName).toBe("setSwapFeeConfiguration");
+    expect(() => buildSetSwapFeeConfigurationCall({
+      inputFeeBps: 65_536n,
+      outputFeeBps: 0n,
+      polShareBps: 5_000n,
+      liquidityProviderShareBps: 1_000n,
+      stakerShareBps: 3_000n,
+      treasuryShareBps: 1_000n,
+    })).toThrow("inputFeeBps exceeds uint16");
+  });
+
+  it("encodes canonical pool allocation overrides and exports their events", () => {
+    const set = buildSetCanonicalPoolFeeAllocationCall(7n, assetA, {
+      polShareBps: 0n,
+      liquidityProviderShareBps: 0n,
+      stakerShareBps: 8_000n,
+      treasuryShareBps: 2_000n,
+    });
+    const decoded = decodeFunctionData({ abi: staticsAbi, data: set });
+    expect(decoded.functionName).toBe("setCanonicalPoolFeeAllocation");
+    expect(decoded.args).toEqual([7n, assetA, {
+      polShareBps: 0,
+      liquidityProviderShareBps: 0,
+      stakerShareBps: 8_000,
+      treasuryShareBps: 2_000,
+    }]);
+    const clear = buildClearCanonicalPoolFeeAllocationCall(7n, assetA);
+    expect(decodeFunctionData({ abi: staticsAbi, data: clear }).functionName)
+      .toBe("clearCanonicalPoolFeeAllocation");
+    expect(staticsAbi.some((item) => item.type === "function" && item.name === "canonicalPoolFeeAllocation"))
+      .toBe(true);
+    expect(staticsAbi.some((item) => item.type === "event" && item.name === "CanonicalPoolFeeAllocationSet"))
+      .toBe(true);
+    expect(staticsSwapFeeHookAbi.some((item) => item.type === "event" && item.name === "PoolFeeAllocationCleared"))
+      .toBe(true);
+    expect(() => buildSetCanonicalPoolFeeAllocationCall(7n, assetA, {
+      polShareBps: 0n,
+      liquidityProviderShareBps: 0n,
+      stakerShareBps: 8_000n,
+      treasuryShareBps: 1_999n,
+    })).toThrow("pool fee allocation must sum to 10000 BPS");
+  });
+
+  it("encodes canonical LP custody, activation, increase, claim, and exit calls", () => {
+    const positionId = 17n;
+    const tokenId = 23n;
+    const stake = buildStakeLiquidityPositionCall(positionId, tokenId);
+    expect(decodeFunctionData({ abi: staticsAbi, data: stake }).functionName)
+      .toBe("stakeLiquidityPosition");
+    const activate = buildActivateLiquidityPositionCall(tokenId);
+    expect(decodeFunctionData({ abi: staticsAbi, data: activate }).functionName)
+      .toBe("activateLiquidityPosition");
+    const increase = buildIncreaseStakedLiquidityCall(positionId, tokenId, {
+      liquidityDelta: 5n,
+      amount0Max: 100n,
+      amount1Max: 200n,
+      deadline: 1_700_003_600n,
+    }, receiver);
+    expect(decodeFunctionData({ abi: staticsAbi, data: increase }).functionName)
+      .toBe("increaseStakedLiquidity");
+    const claim = buildClaimLiquidityRewardsCall(positionId, tokenId, receiver, 1n, 2n);
+    expect(decodeFunctionData({ abi: staticsAbi, data: claim }).functionName)
+      .toBe("claimLiquidityRewards");
+    const unstake = buildUnstakeLiquidityPositionCall(positionId, tokenId, receiver);
+    expect(decodeFunctionData({ abi: staticsAbi, data: unstake }).functionName)
+      .toBe("unstakeLiquidityPosition");
   });
 
   it("encodes the typed Statics Dollar ETH and ordinary exit paths", () => {

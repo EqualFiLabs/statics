@@ -13,7 +13,7 @@ using. Paying the native creation fee is not a compatibility certification.
 
 Internal accounting is isolated by module, basket ID, and asset. Direct token
 donations are unallocated and cannot inflate a basket's recorded backing or
-reward reserve. Shared physical custody additionally records both
+global reward reserve. Shared physical custody additionally records both
 `globalReservedByToken[token]` and module-local reservations.
 
 Every custody operation measures balance deltas:
@@ -45,14 +45,20 @@ force-sent at the EVM level and is not used as an internal accounting source.
 
 Statics Dollar Core collateral remains physically held by
 `StaticsDollarCoreDiamond`, outside the shared Diamond. Dollar periphery books,
-basket backing, basket rewards, basket debt, and recovery surplus use separate
-namespaced ledgers even when they reference the same token or PositionNFT.
+basket backing, basket debt, global fees, staking custody, and recovery surplus
+use separate namespaced ledgers even when they reference the same token or
+PositionNFT. For each token, the Diamond's global reservation is the sum of its
+Dollar, fee, staking, and per-basket account reservations.
 
-Every ERC-20/ERC-1155 custody-mutating facet on `StaticsDiamond` uses the same
-OpenZeppelin `ReentrancyGuard` namespaced storage slot under delegatecall. The
-PositionNFT uses OpenZeppelin's constructorless ERC-721 implementation for the
-same reason; it does not introduce a UUPS, transparent, beacon, or ERC-1967
-proxy. EIP-2535 Diamond cuts remain the sole implementation upgrade mechanism.
+Ordinary ERC-20/ERC-1155 custody-mutating facets on `StaticsDiamond` use the
+same OpenZeppelin `ReentrancyGuard` namespaced storage slot under delegatecall.
+`FlashLoanFacet` instead uses OpenZeppelin's transient guard and acquires the
+persistent slot only during disbursement and repayment. Its callback can
+therefore use ordinary basket mint and redemption, while nested flash loans
+remain blocked. This design requires Cancun/EIP-1153. The PositionNFT uses
+OpenZeppelin's constructorless ERC-721 implementation for the same reason; it
+does not introduce a UUPS, transparent, beacon, or ERC-1967 proxy. EIP-2535
+Diamond cuts remain the sole implementation upgrade mechanism.
 
 Deployment manifests record facet runtime hashes as offchain release evidence.
 The Diamond does not enforce those hashes at dispatch or inspect facet bytecode;
@@ -86,8 +92,10 @@ separate ERC-1155 operator approval.
   Dollar Core governance. Core configuration derives directly from the Core
   Diamond owner, which is the same timelock; there is no second protocol
   governor or internal proposal queue.
-- The configured treasury alone claims basket protocol revenue. Dollar reward
-  and insurance routing remain governed by their isolated Dollar books.
+- Anyone may trigger global treasury fee distribution, but the recipient is
+  fixed to the configured treasury. Dollar insurance and opt-in routing remain
+  governed by their isolated Dollar books; eligible Dollar fees can also enter
+  the global fee ledger.
 
 Diamond ownership uses immediate ERC-173 transfer by the current owner. A
 governance migration must execute through the timelock and verify both Diamond
@@ -95,10 +103,23 @@ owners, the guardian roles, and the treasury after execution.
 
 ## Economic and liveness assumptions
 
-Loose BasketTokens do not earn indexed holder fees. Position owners or approved
-operators must settle and claim rewards through transactions; nothing runs in
-the background. A newly deposited basket leg cannot withdraw until the next
-block. Dollar passive reward eligibility uses its separate 24-hour gate.
+BasketToken ownership and basket collateral do not earn basket-specific fees.
+Global rewards require staking the deployment-configured ERC-20 in a
+PositionNFT. Position owners or approved operators must claim rewards through
+transactions; nothing runs in the background. Every global stake increase
+restarts a 24-hour unstake cooldown, and a newly deposited basket-collateral
+leg cannot withdraw until the next block. Dollar passive Risk Share reward
+eligibility uses its separate 24-hour gate.
+
+Canonical pools use zero native LP fee and separate input/output hook fees.
+Their permanent full-range liquidity is owned by the hook, not by a protocol
+PositionManager NFT, and cannot be released until the pool is decommissioned.
+Full-range user PositionManager NFTs may be voluntarily held by the Diamond to
+earn a separate LP hook allocation. New and increased liquidity waits one block
+for eligibility but has no withdrawal cooldown; exit settles claims before
+returning the NFT. If an LP or global-staker hook allocation cannot be routed,
+it redirects to permanent liquidity. Governance controls pool initialization and activation; checkpoint,
+manager sync, manual compounding, and post-`ExitOnly` unwind are permissionless.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every

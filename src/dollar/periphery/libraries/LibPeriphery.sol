@@ -75,7 +75,6 @@ library LibPeriphery {
         address weth;
         uint16 baseBps;
         uint16 insuranceBps;
-        uint16 passiveRewardBps;
         uint16 redemptionFeeBps;
         uint16 redemptionStakerShareBps;
     }
@@ -92,7 +91,6 @@ library LibPeriphery {
         uint16 insuranceBps;
         uint16 redemptionFeeBps;
         uint16 redemptionStakerShareBps;
-        uint16 passiveRewardBps;
         mapping(uint256 seriesId => SeriesBook book) series;
         mapping(uint256 positionId => mapping(uint256 seriesId => PositionLeg leg)) leg;
         mapping(uint256 positionId => uint256[] seriesIds) positionSeries;
@@ -100,7 +98,6 @@ library LibPeriphery {
         mapping(address token => uint256 amount) reservedByToken;
         mapping(uint256 profileId => uint256 amount) pendingInsurance;
         mapping(address token => uint256 amount) pendingInsuranceByToken;
-        mapping(uint256 profileId => mapping(address token => uint256 amount)) peggedProtocolRevenue;
         mapping(uint256 oldSeriesId => SeriesMigration migration) migration;
         bool initialized;
         ExpectedRiskIngress expectedRiskIngress;
@@ -143,7 +140,6 @@ library LibPeriphery {
         if (ps.initialized) revert AlreadyInitialized();
         if (args.pool == address(0) || args.weth == address(0)) revert ZeroAddress();
         if (uint256(args.baseBps) + uint256(args.insuranceBps) != BPS) revert InvalidSplit();
-        if (args.passiveRewardBps > BPS) revert InvalidSplit();
         if (
             args.redemptionFeeBps > MAX_REDEMPTION_FEE_BPS || args.redemptionStakerShareBps > BPS
                 || args.redemptionStakerShareBps < MIN_REDEMPTION_STAKER_SHARE_BPS
@@ -156,7 +152,6 @@ library LibPeriphery {
         ps.weth = args.weth;
         ps.baseBps = args.baseBps;
         ps.insuranceBps = args.insuranceBps;
-        ps.passiveRewardBps = args.passiveRewardBps;
         ps.redemptionFeeBps = args.redemptionFeeBps;
         ps.redemptionStakerShareBps = args.redemptionStakerShareBps;
         ps.initialized = true;

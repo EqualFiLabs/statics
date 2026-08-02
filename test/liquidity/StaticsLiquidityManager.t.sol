@@ -38,7 +38,8 @@ contract StaticsLiquidityManagerTest is LiquidityManagerTestBase {
         uint256 inventory1Before = liquidityManager.protocolInventory(basketId, Currency.unwrap(canonicalKey.currency1));
         IStaticsLiquidityManager.PositionMovement memory collected =
             liquidityManager.collectProtocolPosition(basketId, address(assetA), block.timestamp + 1 hours);
-        assertTrue(collected.received0 != 0 || collected.received1 != 0);
+        assertEq(collected.received0, 0);
+        assertEq(collected.received1, 0);
         assertEq(
             liquidityManager.protocolInventory(basketId, Currency.unwrap(canonicalKey.currency0)),
             inventory0Before + collected.received0

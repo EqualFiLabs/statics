@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "./LibBasket.sol";
-import {LibBasketRewards} from "./LibBasketRewards.sol";
+import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibGovernance} from "./LibGovernance.sol";
 
@@ -48,7 +48,7 @@ library LibBasketMint {
             if (received < baseIn) revert InsufficientTransferReceived(asset, baseIn, received);
             amountsIn[i] = received;
             bs.vaultBalances[basketId][asset] += baseIn;
-            LibBasketRewards.accrueFee(bs, basketId, asset, received - baseIn);
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, received - baseIn);
         }
         StaticsBasketToken(configured.token).mint(receiver, shares);
         emit IStaticsBasket.BasketMinted(basketId, payer, receiver, shares);
@@ -73,7 +73,7 @@ library LibBasketMint {
             address asset = configured.assets[i];
             uint256 baseIn = LibBasket.backingIncrease(configured.bundleAmounts[i], supply, shares);
             bs.vaultBalances[basketId][asset] += baseIn;
-            LibBasketRewards.accrueFee(bs, basketId, asset, amountsIn[i] - baseIn);
+            LibGlobalRewards.accrueNonSwapFee(LibCustody.basketAccount(basketId), asset, amountsIn[i] - baseIn);
         }
         StaticsBasketToken(configured.token).mint(receiver, shares);
         emit IStaticsBasket.BasketMinted(basketId, payer, receiver, shares);

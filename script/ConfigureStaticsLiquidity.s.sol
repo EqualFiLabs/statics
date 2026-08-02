@@ -7,6 +7,7 @@ import {Script} from "forge-std/Script.sol";
 
 import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsSwapFeeHook} from "../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 
@@ -21,7 +22,8 @@ struct StaticsLiquidityConfig {
     address permit2;
     address hook;
     address manager;
-    uint16 hookFeeBps;
+    uint16 inputFeeBps;
+    uint16 outputFeeBps;
     bytes32 poolManagerCodeHash;
     bytes32 positionManagerCodeHash;
     bytes32 permit2CodeHash;
@@ -29,8 +31,8 @@ struct StaticsLiquidityConfig {
 
 /// @notice Timelock ceremony for installing immutable Statics v4 dependencies.
 contract ConfigureStaticsLiquidity is Script {
-    uint160 private constant REQUIRED_HOOK_FLAGS =
-        Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
     string private constant ROBINHOOD_MANIFEST = "deployments/robinhood-chain-4663.json";
 
     error InvalidDiamond(address diamond);
@@ -39,7 +41,7 @@ contract ConfigureStaticsLiquidity is Script {
     error InvalidCodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidBinding(address target, address expected, address actual);
     error InvalidHookFlags(uint160 expected, uint160 actual);
-    error InvalidHookFee(uint256 expected, uint256 actual);
+    error InvalidHookFees(uint256 expectedInput, uint256 actualInput, uint256 expectedOutput, uint256 actualOutput);
     error LiquidityAlreadyInstalled();
     error LiquidityInstallationFailed();
 
@@ -131,8 +133,11 @@ contract ConfigureStaticsLiquidity is Script {
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
-        if (hook.hookFeeBps() != config.hookFeeBps) {
-            revert InvalidHookFee(config.hookFeeBps, hook.hookFeeBps());
+        IStaticsSwapFeeHook.FeeConfiguration memory feeConfig = hook.feeConfiguration();
+        if (feeConfig.inputFeeBps != config.inputFeeBps || feeConfig.outputFeeBps != config.outputFeeBps) {
+            revert InvalidHookFees(
+                config.inputFeeBps, feeConfig.inputFeeBps, config.outputFeeBps, feeConfig.outputFeeBps
+            );
         }
         uint160 actualFlags = uint160(config.hook) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert InvalidHookFlags(REQUIRED_HOOK_FLAGS, actualFlags);
@@ -170,15 +175,19 @@ contract ConfigureStaticsLiquidity is Script {
 
     function _loadRobinhoodConfig() private view returns (StaticsLiquidityConfig memory config) {
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
-        uint256 hookFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.hookFeeBps");
-        if (hookFee > type(uint16).max) revert InvalidHookFee(type(uint16).max, hookFee);
+        uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
+        uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
+            revert InvalidHookFees(type(uint16).max, inputFee, type(uint16).max, outputFee);
+        }
         config = StaticsLiquidityConfig({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
             hook: vm.envAddress("STATICS_SWAP_FEE_HOOK_ADDRESS"),
             manager: vm.envAddress("STATICS_LIQUIDITY_MANAGER_ADDRESS"),
-            hookFeeBps: uint16(hookFee),
+            inputFeeBps: uint16(inputFee),
+            outputFeeBps: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
             permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")

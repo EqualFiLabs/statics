@@ -5,12 +5,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
-import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketMint} from "../libraries/LibBasketMint.sol";
-import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
+import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
+import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
@@ -83,7 +84,12 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         return _mint(basketId, shares, receiver, maxAmountsIn);
     }
 
-    function createAndMintBasket(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
+    function createAndMintBasketCollateral(
+        uint256 basketId,
+        uint256 shares,
+        address receiver,
+        uint256[] calldata maxAmountsIn
+    )
         external
         nonReentrant
         returns (uint256 positionId, uint256[] memory amountsIn)
@@ -94,11 +100,16 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibCustody.reserve(LibCustody.basketAccount(basketId), configured.token, shares);
-        LibBasketRewards.increasePosition(configured, positionId, basketId, shares);
-        emit IStaticsBasketRewards.BasketPositionDeposited(positionId, basketId, msg.sender, shares);
+        LibBasketCollateral.increasePosition(positionId, basketId, shares);
+        emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);
     }
 
-    function mintBasketToPosition(uint256 positionId, uint256 basketId, uint256 shares, uint256[] calldata maxAmountsIn)
+    function mintBasketCollateral(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 shares,
+        uint256[] calldata maxAmountsIn
+    )
         external
         nonReentrant
         returns (uint256[] memory amountsIn)
@@ -107,8 +118,8 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibCustody.reserve(LibCustody.basketAccount(basketId), configured.token, shares);
-        LibBasketRewards.increasePosition(configured, positionId, basketId, shares);
-        emit IStaticsBasketRewards.BasketPositionDeposited(positionId, basketId, msg.sender, shares);
+        LibBasketCollateral.increasePosition(positionId, basketId, shares);
+        emit IStaticsBasketCollateral.BasketCollateralDeposited(positionId, basketId, msg.sender, shares);
     }
 
     function _mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
@@ -139,7 +150,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         emit BasketRedeemed(basketId, msg.sender, receiver, shares);
     }
 
-    function redeemBasketFromPosition(
+    function redeemBasketCollateral(
         uint256 positionId,
         uint256 basketId,
         uint256 shares,
@@ -156,13 +167,13 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         uint256 supply = IERC20(configured.token).totalSupply();
         amountsOut = _quoteRedeem(bs, configured, basketId, shares, supply);
 
-        LibBasketRewards.decreasePosition(bs, configured, positionId, basketId, shares);
+        LibBasketCollateral.decreasePosition(positionId, basketId, shares);
         LibCustody.release(LibCustody.basketAccount(basketId), configured.token, shares);
         StaticsBasketToken(configured.token).burn(address(this), shares);
         _redeemUnderlying(bs, configured, basketId, shares, supply, receiver, minAmountsOut, amountsOut);
-        LibBasketRewards.deactivateIfEmpty(configured, positionId, basketId);
+        LibBasketCollateral.deactivateIfEmpty(positionId, basketId);
         emit BasketRedeemed(basketId, address(this), receiver, shares);
-        emit IStaticsBasketRewards.BasketPositionRedeemed(positionId, basketId, receiver, shares);
+        emit IStaticsBasketCollateral.BasketCollateralRedeemed(positionId, basketId, receiver, shares);
     }
 
     function _redeemUnderlying(
@@ -184,7 +195,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
             uint256 available = bs.vaultBalances[basketId][asset];
             if (baseOut > available) revert InsufficientVaultBalance(asset, baseOut, available);
             bs.vaultBalances[basketId][asset] = available - baseOut;
-            LibBasketRewards.accrueFee(bs, basketId, asset, baseOut - payout);
+            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, baseOut - payout);
             uint256 received;
             if (payout != 0) {
                 (, received) = LibCustody.pushReserved(custodyAccount, asset, receiver, payout, payout);

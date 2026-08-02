@@ -10,11 +10,13 @@ import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionMa
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
-import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
+import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsDollarGateway} from "../../src/dollar/interfaces/IStaticsDollarGateway.sol";
 import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -32,7 +34,11 @@ contract DeployStaticsTest is Test {
         ConfigureStaticsLiquidity ceremony = new ConfigureStaticsLiquidity();
         DeployStatics deployer = new DeployStatics();
         DeployStatics.Config memory config = DeployStatics.Config({
-            multisig: address(ceremony), guardian: guardian, treasury: treasury, creationFeeAmount: 0.01 ether
+            multisig: address(ceremony),
+            guardian: guardian,
+            treasury: treasury,
+            stakingToken: address(deployer),
+            creationFeeAmount: 0.01 ether
         });
         DeployStatics.V4Config memory v4 = _v4Config();
 
@@ -46,7 +52,8 @@ contract DeployStaticsTest is Test {
             permit2: deployment.permit2,
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
-            hookFeeBps: 1,
+            inputFeeBps: 25,
+            outputFeeBps: 25,
             poolManagerCodeHash: deployment.poolManager.codehash,
             positionManagerCodeHash: deployment.positionManager.codehash,
             permit2CodeHash: deployment.permit2.codehash
@@ -61,23 +68,20 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 7 days);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 20, 172);
+        _assertManifest(diamond, 22, 184);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
-        IStaticsBasketAdmin.BasketFeeAllocation memory allocation = IStaticsBasketAdmin(diamond).basketFeeAllocation();
-        assertEq(allocation.holderShareBps, 4_500);
-        assertEq(allocation.liquidityShareBps, 4_500);
-        assertEq(allocation.protocolShareBps, 1_000);
         assertEq(deployment.gateway, diamond);
         assertEq(deployment.positionNFT, diamond);
         assertEq(IStaticsDollarGateway(diamond).pool(), deployment.core);
         assertEq(CoreViewFacet(deployment.core).periphery(), diamond);
         assertEq(CoreViewFacet(deployment.core).positionNFT(), diamond);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsCustody).interfaceId));
-        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketCollateral).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBorrowLiquidity).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
         (address poolManager, address hook, bool integrationInstalled) =
             IStaticsBasketLiquidity(diamond).liquidityIntegration();
@@ -89,10 +93,17 @@ contract DeployStaticsTest is Test {
         assertEq(manager, deployment.liquidityManager);
         assertEq(StaticsSwapFeeHook(payable(hook)).staticsDiamond(), diamond);
         assertEq(address(StaticsSwapFeeHook(payable(hook)).poolManager()), deployment.poolManager);
-        assertEq(StaticsSwapFeeHook(payable(hook)).hookFeeBps(), 1);
+        IStaticsSwapFeeHook.FeeConfiguration memory feeConfig = StaticsSwapFeeHook(payable(hook)).feeConfiguration();
+        assertEq(feeConfig.inputFeeBps, 25);
+        assertEq(feeConfig.outputFeeBps, 25);
+        assertEq(feeConfig.polShareBps, 5_000);
+        assertEq(feeConfig.liquidityProviderShareBps, 1_000);
+        assertEq(feeConfig.stakerShareBps, 3_000);
+        assertEq(feeConfig.treasuryShareBps, 1_000);
         assertEq(
             uint160(hook) & Hooks.ALL_HOOK_MASK,
-            Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+            Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+                | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         );
         assertEq(StaticsLiquidityManager(manager).staticsDiamond(), diamond);
         assertEq(StaticsLiquidityManager(manager).poolManager(), deployment.poolManager);
@@ -114,7 +125,8 @@ contract DeployStaticsTest is Test {
             poolManager: address(poolManager),
             positionManager: address(positionManager),
             permit2: address(permit2Contract),
-            hookFeeBps: 1,
+            inputFeeBps: 25,
+            outputFeeBps: 25,
             poolManagerCodeHash: address(poolManager).codehash,
             positionManagerCodeHash: address(positionManager).codehash,
             permit2CodeHash: address(permit2Contract).codehash
@@ -127,6 +139,7 @@ contract DeployStaticsTest is Test {
             multisig: makeAddr("multisig"),
             guardian: address(0),
             treasury: makeAddr("treasury"),
+            stakingToken: address(deployer),
             creationFeeAmount: 1 ether
         });
         vm.expectRevert(DeployStatics.InvalidConfig.selector);

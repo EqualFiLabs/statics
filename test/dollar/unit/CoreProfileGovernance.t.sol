@@ -34,6 +34,7 @@ contract CoreProfileGovernanceTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = address(initialOracle);
         config.weth = address(weth);
+        config.stakingToken = address(weth);
         config.riskUri = "ipfs://risk/{id}.json";
         deployment = new DeployCoreBootstrap().deploy(config);
         governance = CoreGovernanceFacet(deployment.core);

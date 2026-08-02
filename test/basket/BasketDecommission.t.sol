@@ -18,7 +18,7 @@ contract BasketDecommissionTest is StaticsTestBase {
         _mintShares(basketId, token, alice, 10 ether);
         vm.startPrank(alice);
         IERC20(token).approve(address(diamond), type(uint256).max);
-        uint256 positionId = basketRewards.createAndDepositBasket(basketId, 10 ether, alice);
+        uint256 positionId = basketCollateral.createAndDepositBasketCollateral(basketId, 10 ether, alice);
         (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 4 ether, alice);
         vm.stopPrank();
 
@@ -67,14 +67,12 @@ contract BasketDecommissionTest is StaticsTestBase {
         assetB.approve(address(diamond), principals[1]);
         lending.repay(loanId);
         vm.roll(block.number + 1);
-        uint256 positionShares = basketRewards.basketPosition(positionId, basketId).eligibleShares;
+        uint256 positionShares = basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares;
         uint256[] memory redemption = baskets.quoteRedeem(basketId, positionShares);
-        basketRewards.redeemBasketFromPosition(positionId, basketId, positionShares, alice, redemption);
+        basketCollateral.redeemBasketCollateral(positionId, basketId, positionShares, alice, redemption);
         vm.stopPrank();
 
-        uint256 revenue = basketAdmin.protocolRevenue(basketId, address(assetA));
-        vm.prank(treasury);
-        basketAdmin.claimProtocolRevenue(basketId, address(assetA), revenue, treasury);
+        globalRewards.distributeTreasuryFees(address(assetA));
         assertEq(IERC20(token).totalSupply(), 0);
     }
 
@@ -128,7 +126,7 @@ contract BasketDecommissionTest is StaticsTestBase {
         _mintShares(basketId, token, alice, 10 ether);
         vm.startPrank(alice);
         IERC20(token).approve(address(diamond), 10 ether);
-        uint256 positionId = basketRewards.createAndDepositBasket(basketId, 10 ether, alice);
+        uint256 positionId = basketCollateral.createAndDepositBasketCollateral(basketId, 10 ether, alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 10 ether, alice);
         vm.stopPrank();
         governance.decommissionBasket(basketId);
@@ -164,14 +162,14 @@ contract BasketDecommissionTest is StaticsTestBase {
         uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
         _fundAndApprove(alice, quote[0], quote[1]);
         vm.prank(alice);
-        (uint256 positionId,) = basketRewards.createAndMintBasket(basketId, 10 ether, alice, quote);
+        (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, quote);
         vm.roll(block.number + 1);
 
         governance.pause(PAUSE_REDEEM);
         governance.decommissionBasket(basketId);
         uint256[] memory redemption = baskets.quoteRedeem(basketId, 10 ether);
         vm.prank(alice);
-        basketRewards.redeemBasketFromPosition(positionId, basketId, 10 ether, alice, redemption);
+        basketCollateral.redeemBasketCollateral(positionId, basketId, 10 ether, alice, redemption);
 
         assertEq(IERC20(token).totalSupply(), 0);
         assertEq(uint8(baskets.basketStatus(basketId)), uint8(IStaticsBasket.BasketStatus.ExitOnly));
