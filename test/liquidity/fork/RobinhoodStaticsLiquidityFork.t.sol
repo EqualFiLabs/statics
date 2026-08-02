@@ -54,7 +54,6 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
 
     function testCompletedStaticsLiquidityLifecycleUsesRobinhoodV4() public {
         (uint256 basketId, address basketToken, uint256 positionId) = _createFundedBasket();
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
         vm.warp(block.timestamp + 1 hours);
         basketLiquidity.activateCanonicalPool(basketId, address(assetA));
 
@@ -69,8 +68,8 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
             deadline: block.timestamp + 1 hours
         });
         vm.prank(alice);
-        (, uint256[] memory userTokenIds) = IStaticsBorrowLiquidity(address(diamond))
-            .borrowAndStakeLiquidity(positionId, basketId, 20 ether, pools);
+        (, uint256[] memory userTokenIds) =
+            IStaticsBorrowLiquidity(address(diamond)).borrowAndStakeLiquidity(positionId, basketId, 20 ether, pools);
         assertEq(userTokenIds.length, 1);
         assertEq(IERC721(address(positionManager)).ownerOf(userTokenIds[0]), address(diamond));
 
@@ -126,8 +125,7 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        vm.prank(alice);
-        (basketId, basketToken) = baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        (basketId, basketToken) = _launchBasket(params, alice, basketAdmin.creationFee());
         uint256[] memory quote = baskets.quoteMint(basketId, 100 ether);
         assetA.mint(alice, quote[0] + 100 ether);
         vm.startPrank(alice);
@@ -175,6 +173,10 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase {
         );
         deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
+    }
+
+    function _installLocalLiquidityIntegration() internal pure override returns (bool) {
+        return false;
     }
 
     function _selectFork(string memory manifest) private {

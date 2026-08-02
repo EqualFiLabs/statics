@@ -12,7 +12,7 @@ contract StaticsDollar is ERC20, ERC20Permit, IStaticsDollar {
 
     address public immutable override pool;
 
-    constructor(address pool_) ERC20("Statics Dollar", "etUSD") ERC20Permit("Statics Dollar") {
+    constructor(address pool_) ERC20("Statics Dollar", "USDstx") ERC20Permit("Statics Dollar") {
         if (pool_ == address(0)) revert ZeroAddress();
         pool = pool_;
     }

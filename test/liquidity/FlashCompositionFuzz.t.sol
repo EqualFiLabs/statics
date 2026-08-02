@@ -40,8 +40,7 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        vm.prank(alice);
-        (uint256 basketId, address basketToken) = baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        (uint256 basketId, address basketToken) = _launchBasket(params, alice, basketAdmin.creationFee());
         uint256[] memory initialMaximums = baskets.quoteMint(basketId, 10 ether);
         tokenA.mint(alice, initialMaximums[0]);
         tokenB.mint(alice, initialMaximums[1]);

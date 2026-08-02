@@ -48,4 +48,17 @@ contract RobinhoodDeploymentConfigTest is Test {
         assertEq(config.outputFeeBps, 25);
         assertEq(config.positionManagerCodeHash, 0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d);
     }
+
+    function testTestnetManifestPinsVerifiedWeth() public view {
+        string memory manifest = vm.readFile("deployments/robinhood-chain-testnet-46630.json");
+
+        assertEq(
+            vm.parseJsonAddress(manifest, ".staticsDollarDependencies.weth.address"),
+            0x33e4191705c386532ba27cBF171Db86919200B94
+        );
+        assertEq(
+            vm.parseJsonBytes32(manifest, ".staticsDollarDependencies.weth.runtimeCodeHash"),
+            0x55f8ac53c64450f01880d8249fc5cb0c69c064e4bcb097ea80a02fff40485a7c
+        );
+    }
 }

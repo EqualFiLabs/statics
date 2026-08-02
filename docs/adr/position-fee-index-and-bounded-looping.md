@@ -125,10 +125,9 @@ Implementation replaces the historical product and contract identifiers with
 `StaticsDollar*` names. Token display names are `Statics Dollar` and
 `Statics Dollar Risk Shares`; the shared NFT display name is `Statics
 Position`. The Risk Shares token represents volatile series only. Exact public
-symbols remain deferred, but the source-level and display-name rebrand is
-complete. Until symbols are selected, the imported `etUSD`, `ETRISK`, and
-`etPOS` symbol literals are retained explicitly and are not compatibility
-aliases or parallel interfaces.
+symbols are `USDstx` for the senior Statics Dollar ERC-20 and `ethLEV` for the
+volatile-series Risk Share ERC-1155. The global staking token uses `STATICS`.
+The PositionNFT symbol remains `etPOS` until separately selected.
 
 ### Unified Diamond and Statics Dollar Core
 
@@ -274,6 +273,20 @@ only the Diamond owner may create and must send no value. At a positive value,
 any caller may create by paying the exact fee. This does not introduce a token
 registry, creator allowlist, or constituent certification; it lets governance
 keep genesis controlled until the permissionless surface is ready.
+
+Genesis is also the canonical-market launch. The creator, including the
+Diamond owner when bootstrapping the first basket, supplies one
+constituent-per-BasketToken square-root price and one constituent liquidity
+budget for every configured asset, a measured aggregate debit cap for every
+constituent, and an execution deadline. Prices are expressed as raw
+smallest-unit constituent amounts per raw BasketToken amount.
+`createBasket` atomically deploys the BasketToken, initializes and
+manager-registers every canonical pool, mints the aggregate pool BasketTokens
+through ordinary backing and mint-fee accounting, and locks full-range
+permanent liquidity. A basket cannot exist in an unseeded, partially
+initialized state. No separate administrator bootstrap or post-creation
+initialization surface exists. Constituents whose transfer behavior cannot
+settle the exact Uniswap v4 liquidity amount fail launch atomically.
 
 ### Multi-asset basket reward index
 
@@ -815,7 +828,7 @@ separates claimable fee yield from redemption backing.
 
 This ADR does not select:
 
-- final public symbols for the Statics Dollar and Dollar risk tokens;
+- the final public symbol for the PositionNFT;
 - concrete mint or redemption fee thresholds and fee-share amounts;
 - whether tier subadditivity is enforced onchain or only surfaced by quotes;
 - router limits on loop depth and execution slippage.

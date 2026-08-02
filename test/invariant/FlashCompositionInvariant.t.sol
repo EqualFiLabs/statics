@@ -416,8 +416,10 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
+        (IStaticsBasket.PoolLaunchParams[] memory launchPools, uint256[] memory launchMaximums) =
+            _fundDefaultLaunch(assets, alice);
         vm.prank(alice);
-        (basketId, basketToken) = baskets.createBasket{value: 1 ether}(params);
+        (basketId, basketToken) = baskets.createBasket{value: 1 ether}(params, launchPools, launchMaximums, type(uint256).max);
         uint256[] memory maximums = baskets.quoteMint(basketId, 100 ether);
         assetA.mint(alice, maximums[0] + 100 ether);
         vm.startPrank(alice);
@@ -427,7 +429,6 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
         IERC20(basketToken).approve(address(v4Router), type(uint256).max);
         vm.stopPrank();
 
-        basketLiquidity.initializeCanonicalPool(basketId, address(assetA), SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory configured =
             basketLiquidity.canonicalPool(basketId, address(assetA));
         pool = PoolKey({

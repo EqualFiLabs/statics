@@ -22,6 +22,8 @@ and the native `value` that must accompany it. Callers should read the current
 The creation parameters include flat mint and redemption fee tiers, a basket
 LTV no greater than the immutable 9,500-basis-point protocol maximum, and a
 recovery penalty that fits inside the collateral remaining at that LTV.
+Callers also provide a launch deadline; use a short quote lifetime so stale
+initial prices cannot be executed later.
 
 Position builders cover global staking, optional BasketToken collateral,
 pull-based multi-asset reward claims, and position-owned borrowing. Borrowing
@@ -72,10 +74,20 @@ Lifecycle helpers expose quarantine, release, and permanent decommissioning;
 ## Canonical liquidity
 
 The package exports the Diamond liquidity and global-reward ABI plus hook,
-manager, PositionManager, and StateView fragments. Governance uses the Diamond
-for canonical pool initialization, activation, and fee configuration. Pool
-checkpointing, reward and treasury distribution, retirement settlement, and
-post-`ExitOnly` unwind retain their permissionless execution paths.
+manager, PositionManager, and StateView fragments.
+`buildCreateBasketTransaction` requires one semantic
+constituent-per-BasketToken square-root price, paired-asset amount, and measured
+complete input cap per constituent, plus a launch deadline. Prices are ratios of
+raw smallest token units, not decimal-normalized display units. Use
+`encodeSqrtPriceAssetPerBasketX96(assetAmountRaw, basketAmountRaw)` to construct
+them. The creation transaction initializes, manager-registers, backs, and
+permanently seeds every canonical pool. There is no standalone initialization
+or manager-sync builder. Constituents must settle the exact Uniswap v4 transfer
+amount; incompatible transfer-tax behavior reverts the complete launch.
+
+Governance uses the Diamond for post-warm-up activation and fee configuration.
+Pool checkpointing, reward and treasury distribution, retirement settlement,
+and post-`ExitOnly` unwind retain their permissionless execution paths.
 
 `quoteHookFee` rounds either realized bilateral fee leg up exactly as the hook
 does. `effectiveCanonicalFees` reports the zero native LP fee and the separate

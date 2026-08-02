@@ -70,8 +70,7 @@ contract LendingMintParityTest is StaticsTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        vm.prank(alice);
-        (uint256 basketId,) = baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        (uint256 basketId,) = _launchBasket(params, alice, basketAdmin.creationFee());
 
         uint256[] memory mintQuote = baskets.quoteMint(basketId, 20 ether);
         vm.startPrank(alice);

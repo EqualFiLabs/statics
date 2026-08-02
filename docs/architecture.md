@@ -104,9 +104,23 @@ not a reason for a protocol registry.
 
 Every configured basket constituent has one canonical BasketToken/constituent
 pool key with the immutable Statics hook, a zero native LP fee, and tick spacing
-10. Pool initialization enters a one-hour warm-up; activation requires enough
-hook observations for a 30-minute reference and a spot deviation no greater
-than the configured one-percent bound.
+10. Basket creation atomically deploys the BasketToken, initializes every
+constituent pool, registers every key with the manager, mints the aggregate
+pool BasketTokens through ordinary backing and fee accounting, and seeds
+full-range permanent liquidity from creator-supplied assets. All pool and
+custody changes roll back if any constituent cannot launch. The same path is
+used for owner-created genesis baskets and public exact-fee creation.
+Creation includes a caller-selected deadline and measured aggregate
+constituent-debit caps. Launch prices use raw smallest-unit constituent amounts
+per raw BasketToken amount, so decimal normalization belongs in the client
+quote rather than the protocol. Canonical v4 launch supports constituents that
+settle the exact requested transfer amount; incompatible transfer-tax behavior
+reverts the entire genesis transaction.
+
+Each launched pool enters a one-hour warm-up but is immediately swappable.
+Activation requires enough hook observations for a 30-minute reference and a
+spot deviation no greater than the configured one-percent bound before
+price-sensitive protocol actions can use it.
 
 The three physical locations keep independent books:
 

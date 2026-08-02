@@ -294,8 +294,8 @@ refactor(dollar): adopt Statics Dollar identity
 - Rename product contracts, interfaces, events, deployment artifacts, and test
   descriptions to Statics Dollar terminology.
 - Preserve behavior while names change.
-- Record final public Dollar, risk-token, and position symbols once selected;
-  retain the imported symbol literals explicitly until that deferred decision.
+- Use the subsequently selected `USDstx` senior-token, `ethLEV` risk-token,
+  and `STATICS` staking-token symbols; keep only the position symbol deferred.
 
 Verification:
 
@@ -315,8 +315,8 @@ Evidence:
   'test/dollar/properties/*.t.sol' --summary` (12 passed, 0 failed)
 - Naming: contracts, interfaces, selectors, deployment fields, environment
   keys, storage domains, and test descriptions use Statics Dollar terminology.
-  The only retained historical product strings are the three symbol literals
-  explicitly deferred by the ADR.
+  Token metadata now uses the selected Statics launch symbols; only the
+  PositionNFT symbol remains deferred by the ADR.
 - Historical kernel policy tests passed for this slice. The later corrective
   `6494f27` commit deliberately removed bytecode scanning and opcode policy in
   favor of standard EIP-2535 owner-controlled cuts.
@@ -1198,10 +1198,10 @@ Evidence:
 
 ## Remaining product decisions
 
-Final public symbols for Statics Dollar, Dollar risk shares, and the PositionNFT
-remain deferred. The current `etUSD`, `ETRISK`, and `etPOS` literals are
-explicit temporary display symbols rather than legacy interfaces. Changing
-them does not alter the implemented contract topology or accounting.
+The Statics Dollar senior token uses `USDstx`, Dollar Risk Shares use `ethLEV`,
+and the global staking token uses `STATICS`. Only the PositionNFT's `etPOS`
+symbol remains deferred. Changing display symbols does not alter the
+implemented contract topology or accounting.
 
 Mint and redemption fee tiers are permissionless per-basket choices rather than
 protocol launch parameters. The first implementation resolves the other

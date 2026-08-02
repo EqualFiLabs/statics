@@ -10,6 +10,7 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {CustomRevert} from "@uniswap/v4-core/src/libraries/CustomRevert.sol";
+import {SqrtPriceMath} from "@uniswap/v4-core/src/libraries/SqrtPriceMath.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -150,6 +151,46 @@ contract HookFeeReceiver {
 
     function decommission(PoolKey calldata key) external {
         IStaticsSwapFeeHook(hook).decommissionPool(key);
+    }
+
+    function seed(IStaticsSwapFeeHook.PermanentLiquiditySeed[] calldata seeds) external {
+        uint256 length = seeds.length;
+        address[] memory currencies = new address[](length * 2);
+        uint256[] memory amounts = new uint256[](length * 2);
+        uint256 currencyCount;
+        for (uint256 i; i < length; ++i) {
+            IStaticsSwapFeeHook.PermanentLiquiditySeed calldata seed_ = seeds[i];
+            uint160 sqrtLower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(seed_.key.tickSpacing));
+            uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(seed_.key.tickSpacing));
+            uint256 amount0 = SqrtPriceMath.getAmount0Delta(1 << 96, sqrtUpper, seed_.liquidity, true);
+            uint256 amount1 = SqrtPriceMath.getAmount1Delta(sqrtLower, 1 << 96, seed_.liquidity, true);
+            currencyCount =
+                _addFunding(currencies, amounts, currencyCount, Currency.unwrap(seed_.key.currency0), amount0);
+            currencyCount =
+                _addFunding(currencies, amounts, currencyCount, Currency.unwrap(seed_.key.currency1), amount1);
+        }
+        for (uint256 i; i < currencyCount; ++i) {
+            IERC20(currencies[i]).forceApprove(hook, amounts[i]);
+        }
+        IStaticsSwapFeeHook(hook).seedPermanentLiquidity(seeds);
+    }
+
+    function _addFunding(
+        address[] memory currencies,
+        uint256[] memory amounts,
+        uint256 length,
+        address currency,
+        uint256 amount
+    ) private pure returns (uint256) {
+        for (uint256 i; i < length; ++i) {
+            if (currencies[i] == currency) {
+                amounts[i] += amount;
+                return length;
+            }
+        }
+        currencies[length] = currency;
+        amounts[length] = amount;
+        return length + 1;
     }
 }
 
@@ -684,6 +725,77 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertGt(amount0, 0);
         assertGt(amount1, 0);
         assertEq(hook.lockedLiquidity(poolId), 0);
+    }
+
+    function testDiamondSeedsMultiplePoolsThroughOnePermanentLiquidityPath() public {
+        HookCompatibilityERC20 shared = new HookCompatibilityERC20("Shared", "SHARED");
+        HookCompatibilityERC20 first = new HookCompatibilityERC20("First", "FIRST");
+        HookCompatibilityERC20 second = new HookCompatibilityERC20("Second", "SECOND");
+        PoolKey memory firstKey = _registerAndInitialize(shared, first);
+        PoolKey memory secondKey = _registerAndInitialize(shared, second);
+        uint128 firstLiquidity = 2 ether;
+        uint128 secondLiquidity = 3 ether;
+        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](2);
+        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: firstKey, liquidity: firstLiquidity});
+        seeds[1] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: secondKey, liquidity: secondLiquidity});
+        shared.mint(address(receiver), 10 ether);
+        first.mint(address(receiver), 10 ether);
+        second.mint(address(receiver), 10 ether);
+
+        receiver.seed(seeds);
+
+        assertEq(hook.lockedLiquidity(firstKey.toId()), firstLiquidity);
+        assertEq(hook.lockedLiquidity(secondKey.toId()), secondLiquidity);
+        assertEq(shared.allowance(address(receiver), address(hook)), 0);
+        assertEq(first.allowance(address(receiver), address(hook)), 0);
+        assertEq(second.allowance(address(receiver), address(hook)), 0);
+    }
+
+    function testPermanentLaunchSeedRejectsDuplicateAndAlreadySeededPools() public {
+        HookCompatibilityERC20 first = new HookCompatibilityERC20("First", "FIRST");
+        HookCompatibilityERC20 second = new HookCompatibilityERC20("Second", "SECOND");
+        PoolKey memory seededKey = _registerAndInitialize(first, second);
+        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](2);
+        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: seededKey, liquidity: 1 ether});
+        seeds[1] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: seededKey, liquidity: 1 ether});
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsSwapFeeHook.DuplicatePermanentLiquiditySeed.selector, seededKey.toId())
+        );
+        receiver.seed(seeds);
+
+        first.mint(address(receiver), 10 ether);
+        second.mint(address(receiver), 10 ether);
+        seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](1);
+        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: seededKey, liquidity: 1 ether});
+        receiver.seed(seeds);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsSwapFeeHook.PermanentLiquidityAlreadySeeded.selector, seededKey.toId())
+        );
+        receiver.seed(seeds);
+    }
+
+    function testPermanentLaunchSeedIsDiamondOnlyAndRollsBackOnFundingFailure() public {
+        HookCompatibilityERC20 first = new HookCompatibilityERC20("First", "FIRST");
+        HookCompatibilityERC20 second = new HookCompatibilityERC20("Second", "SECOND");
+        PoolKey memory unseededKey = _registerAndInitialize(first, second);
+        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](1);
+        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: unseededKey, liquidity: 1 ether});
+
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, address(this)));
+        hook.seedPermanentLiquidity(seeds);
+
+        vm.expectRevert();
+        receiver.seed(seeds);
+        assertEq(hook.lockedLiquidity(unseededKey.toId()), 0);
+    }
+
+    function _registerAndInitialize(HookCompatibilityERC20 first, HookCompatibilityERC20 second)
+        private
+        returns (PoolKey memory poolKey)
+    {
+        poolKey = _poolKey(Currency.wrap(address(first)), Currency.wrap(address(second)), LP_FEE, TICK_SPACING);
+        receiver.registerPool(poolKey);
+        manager.initialize(poolKey, SQRT_PRICE_1_1);
     }
 
     function _assertExactInput(bool zeroForOne, uint256 amountIn) private {

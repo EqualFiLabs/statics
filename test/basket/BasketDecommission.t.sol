@@ -16,6 +16,7 @@ contract BasketDecommissionTest is StaticsTestBase {
 
     function testGuardianQuarantineBlocksExposureAndKeepsSettlementOpen() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchSupply = IERC20(token).totalSupply();
         _mintShares(basketId, token, alice, 10 ether);
         vm.startPrank(alice);
         IERC20(token).approve(address(diamond), type(uint256).max);
@@ -74,7 +75,7 @@ contract BasketDecommissionTest is StaticsTestBase {
         vm.stopPrank();
 
         globalRewards.distributeTreasuryFees(address(assetA));
-        assertEq(IERC20(token).totalSupply(), 0);
+        assertEq(IERC20(token).totalSupply(), launchSupply);
     }
 
     function testGuardianCannotReleaseOrPermanentlyDecommission() public {
@@ -124,6 +125,7 @@ contract BasketDecommissionTest is StaticsTestBase {
 
     function testExitOnlyKeepsPermissionlessRecoveryAvailable() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchSupply = IERC20(token).totalSupply();
         _mintShares(basketId, token, alice, 10 ether);
         vm.startPrank(alice);
         IERC20(token).approve(address(diamond), 10 ether);
@@ -138,7 +140,7 @@ contract BasketDecommissionTest is StaticsTestBase {
         vm.prank(bob);
         lending.recover(loanId);
 
-        assertEq(IERC20(token).totalSupply(), recoveryQuote.unlockedShares);
+        assertEq(IERC20(token).totalSupply(), launchSupply + recoveryQuote.unlockedShares);
         assertEq(
             basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares,
             recoveryQuote.unlockedShares
@@ -151,11 +153,12 @@ contract BasketDecommissionTest is StaticsTestBase {
         basketCollateral.redeemBasketCollateral(
             positionId, basketId, recoveryQuote.unlockedShares, alice, redemption
         );
-        assertEq(IERC20(token).totalSupply(), 0);
+        assertEq(IERC20(token).totalSupply(), launchSupply);
     }
 
     function testExitOnlyRedemptionBypassesGlobalPause() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchSupply = IERC20(token).totalSupply();
         _mintShares(basketId, token, alice, 10 ether);
 
         governance.pause(PAUSE_REDEEM);
@@ -166,13 +169,14 @@ contract BasketDecommissionTest is StaticsTestBase {
         vm.prank(alice);
         baskets.redeem(basketId, shares, alice, redemption);
 
-        assertEq(IERC20(token).totalSupply(), 0);
+        assertEq(IERC20(token).totalSupply(), launchSupply);
         assertEq(uint8(baskets.basketStatus(basketId)), uint8(IStaticsBasket.BasketStatus.ExitOnly));
         assertTrue(governance.isPaused(PAUSE_REDEEM));
     }
 
     function testExitOnlyPositionRedemptionBypassesGlobalPause() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 launchSupply = IERC20(token).totalSupply();
         uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
         _fundAndApprove(alice, quote[0], quote[1]);
         vm.prank(alice);
@@ -185,7 +189,7 @@ contract BasketDecommissionTest is StaticsTestBase {
         vm.prank(alice);
         basketCollateral.redeemBasketCollateral(positionId, basketId, 10 ether, alice, redemption);
 
-        assertEq(IERC20(token).totalSupply(), 0);
+        assertEq(IERC20(token).totalSupply(), launchSupply);
         assertEq(uint8(baskets.basketStatus(basketId)), uint8(IStaticsBasket.BasketStatus.ExitOnly));
         assertTrue(governance.isPaused(PAUSE_REDEEM));
     }

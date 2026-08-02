@@ -4,13 +4,11 @@ pragma solidity 0.8.33;
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsTestBase} from "./StaticsTestBase.sol";
 
@@ -64,8 +62,6 @@ contract CanonicalV4Router is IUnlockCallback {
 
 abstract contract CanonicalPoolTestBase is StaticsTestBase {
     uint160 internal constant SQRT_PRICE_1_1 = 1 << 96;
-    uint160 internal constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
     IPoolManager internal poolManager;
     StaticsSwapFeeHook internal swapFeeHook;
@@ -73,21 +69,8 @@ abstract contract CanonicalPoolTestBase is StaticsTestBase {
 
     function setUp() public virtual override {
         super.setUp();
-        poolManager = IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        swapFeeHook = _deployHook();
-        basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(swapFeeHook));
+        (poolManager, swapFeeHook) = _localLiquidity();
         v4Router = new CanonicalV4Router(poolManager);
-    }
-
-    function _deployHook() private returns (StaticsSwapFeeHook deployed) {
-        (address expected, bytes32 salt) = HookMiner.find(
-            address(this),
-            REQUIRED_HOOK_FLAGS,
-            type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25))
-        );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
-        assertEq(address(deployed), expected);
     }
 
     function _approveV4Router(address user, address token) internal {

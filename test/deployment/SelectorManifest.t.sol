@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
@@ -16,10 +17,10 @@ contract SelectorManifestTest is Test {
         bytes4[] memory expected = new bytes4[](17);
         expected[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         expected[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
-        expected[2] = IStaticsBasketLiquidity.initializeCanonicalPool.selector;
-        expected[3] = IStaticsBasketLiquidity.checkpointCanonicalPool.selector;
-        expected[4] = IStaticsBasketLiquidity.activateCanonicalPool.selector;
-        expected[5] = IStaticsBasketLiquidity.syncCanonicalPoolToManager.selector;
+        expected[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
+        expected[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
+        expected[4] = IStaticsBasketLiquidity.checkpointCanonicalPool.selector;
+        expected[5] = IStaticsBasketLiquidity.activateCanonicalPool.selector;
         expected[6] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
         expected[7] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
         expected[8] = IStaticsBasketLiquidity.liquidityIntegration.selector;

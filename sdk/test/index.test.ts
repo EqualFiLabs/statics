@@ -18,7 +18,6 @@ import {
   buildCreateBasketTransaction,
   buildDecommissionBasketCall,
   buildDepositETHTransaction,
-  buildInitializeCanonicalPoolCall,
   buildIncreaseStakedLiquidityCall,
   buildMintPeggedAndRecombineCall,
   buildMintPeggedAndRecombineWithPermitCall,
@@ -43,6 +42,7 @@ import {
   buildRecombineToETHWithPermitCall,
   decodePositionInfo,
   effectiveCanonicalFees,
+  encodeSqrtPriceAssetPerBasketX96,
   getSqrtPriceAtTick,
   pendingLpFees,
   maximumLiquidityForAmounts,
@@ -468,25 +468,46 @@ describe("Statics unified calldata", () => {
   });
 
   it("encodes exact-fee basket creation with static fee tiers and LTV", () => {
-    const transaction = buildCreateBasketTransaction({
-      name: "Static Basket",
-      symbol: "STATIC",
-      assets: [assetA, assetB],
-      bundleAmounts: [2n * 10n ** 18n, 5n * 10n ** 18n],
-      mintFeeTiers: [{ minActionShares: 0n, feeShares: 5n * 10n ** 16n }],
-      redemptionFeeTiers: [{ minActionShares: 0n, feeShares: 5n * 10n ** 16n }],
-      flashFeeBps: 10,
-      originationFeeBps: 100,
-      extensionFeeBps: 25,
-      ltvBps: 9_500,
-      recoveryPenaltyBps: 500,
-      loanDuration: 7 * 24 * 60 * 60,
-    }, 1n * 10n ** 18n);
+    const transaction = buildCreateBasketTransaction(
+      {
+        name: "Static Basket",
+        symbol: "STATIC",
+        assets: [assetA, assetB],
+        bundleAmounts: [2n * 10n ** 18n, 5n * 10n ** 18n],
+        mintFeeTiers: [{ minActionShares: 0n, feeShares: 5n * 10n ** 16n }],
+        redemptionFeeTiers: [{ minActionShares: 0n, feeShares: 5n * 10n ** 16n }],
+        flashFeeBps: 10,
+        originationFeeBps: 100,
+        extensionFeeBps: 25,
+        ltvBps: 9_500,
+        recoveryPenaltyBps: 500,
+        loanDuration: 7 * 24 * 60 * 60,
+      },
+      [
+        { sqrtPriceAssetPerBasketX96: Q96, pairedAssetAmount: 1n * 10n ** 18n },
+        { sqrtPriceAssetPerBasketX96: Q96, pairedAssetAmount: 2n * 10n ** 18n },
+      ],
+      [25n * 10n ** 18n, 60n * 10n ** 18n],
+      1_900_000_000n,
+      1n * 10n ** 18n,
+    );
 
     const decoded = decodeFunctionData({ abi: staticsAbi, data: transaction.data });
     expect(decoded.functionName).toBe("createBasket");
-    expect(transaction.data.slice(0, 10)).toBe("0x162d5c0d");
+    expect(decoded.args[1]).toEqual([
+      { sqrtPriceAssetPerBasketX96: Q96, pairedAssetAmount: 1n * 10n ** 18n },
+      { sqrtPriceAssetPerBasketX96: Q96, pairedAssetAmount: 2n * 10n ** 18n },
+    ]);
+    expect(decoded.args[2]).toEqual([25n * 10n ** 18n, 60n * 10n ** 18n]);
+    expect(decoded.args[3]).toBe(1_900_000_000n);
     expect(transaction.value).toBe(1n * 10n ** 18n);
+  });
+
+  it("encodes semantic launch prices from raw token units", () => {
+    expect(encodeSqrtPriceAssetPerBasketX96(10n ** 18n, 10n ** 18n)).toBe(Q96);
+    expect(encodeSqrtPriceAssetPerBasketX96(10n ** 6n, 10n ** 18n)).toBe(Q96 / 1_000_000n);
+    expect(encodeSqrtPriceAssetPerBasketX96(10n ** 8n, 10n ** 18n)).toBe(Q96 / 100_000n);
+    expect(() => encodeSqrtPriceAssetPerBasketX96(0n, 1n)).toThrow("raw price amounts must be positive");
   });
 
   it("exposes authoritative basket reads, events, and errors", () => {
@@ -511,6 +532,8 @@ describe("Statics unified calldata", () => {
     });
 
     expect(staticsAbi.some((entry) => entry.type === "event" && entry.name === "BasketCreated"))
+      .toBe(true);
+    expect(staticsAbi.some((entry) => entry.type === "event" && entry.name === "BasketLaunched"))
       .toBe(true);
   });
 
@@ -713,19 +736,17 @@ describe("Statics unified calldata", () => {
     });
   });
 
-  it("encodes the fixed canonical-pool lifecycle without caller-supplied pool policy", () => {
-    const sqrtPriceX96 = 2n ** 96n;
-    const initialize = buildInitializeCanonicalPoolCall(7n, assetA, sqrtPriceX96);
-    const initializeDecoded = decodeFunctionData({ abi: staticsAbi, data: initialize });
-    expect(initializeDecoded.functionName).toBe("initializeCanonicalPool");
-    expect(initializeDecoded.args).toEqual([7n, assetA, sqrtPriceX96]);
-
+  it("exposes only post-launch canonical-pool lifecycle actions", () => {
     const checkpoint = buildCheckpointCanonicalPoolCall(7n, assetA);
     expect(decodeFunctionData({ abi: staticsAbi, data: checkpoint }).functionName)
       .toBe("checkpointCanonicalPool");
     const activate = buildActivateCanonicalPoolCall(7n, assetA);
     expect(decodeFunctionData({ abi: staticsAbi, data: activate }).functionName)
       .toBe("activateCanonicalPool");
+    expect(staticsAbi.some((entry) => entry.type === "function" && entry.name === "initializeCanonicalPool"))
+      .toBe(false);
+    expect(staticsAbi.some((entry) => entry.type === "function" && entry.name === "syncCanonicalPoolToManager"))
+      .toBe(false);
     expect(CanonicalPoolStatus.Warming).toBe(1);
     expect(CanonicalPoolStatus.Active).toBe(2);
   });

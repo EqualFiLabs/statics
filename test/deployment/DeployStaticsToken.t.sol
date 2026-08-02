@@ -7,7 +7,7 @@ import {DeployStaticsToken} from "../../script/DeployStaticsToken.s.sol";
 import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
 
 contract DeployStaticsTokenTest is Test {
-    function testDeploysFixedSupplyToConfiguredRecipient() public {
+    function testDeploysOwnerMintableSupplyToConfiguredRecipient() public {
         address recipient = makeAddr("recipient");
         uint256 initialSupply = 1_000_000_000 ether;
 
@@ -18,5 +18,10 @@ contract DeployStaticsTokenTest is Test {
         assertEq(token.totalSupply(), initialSupply);
         assertEq(token.balanceOf(recipient), initialSupply);
         assertEq(token.nonces(recipient), 0);
+        assertEq(token.owner(), recipient);
+
+        vm.prank(recipient);
+        token.mint(recipient, initialSupply);
+        assertEq(token.totalSupply(), initialSupply * 2);
     }
 }

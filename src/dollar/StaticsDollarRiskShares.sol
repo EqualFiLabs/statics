@@ -10,7 +10,7 @@ contract StaticsDollarRiskShares is ERC1155, IStaticsDollarRiskShares {
 
     address public immutable override pool;
     string public constant override name = "Statics Dollar Risk Shares";
-    string public constant override symbol = "ETRISK";
+    string public constant override symbol = "ethLEV";
 
     constructor(address pool_, string memory uri_) ERC1155(uri_) {
         if (pool_ == address(0)) revert ZeroAddress();

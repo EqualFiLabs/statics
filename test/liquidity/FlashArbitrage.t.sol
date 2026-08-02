@@ -334,8 +334,10 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) = _fundDefaultLaunch(assets, alice);
+        uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.prank(alice);
-        return baskets.createBasket{value: basketAdmin.creationFee()}(params);
+        return baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
     }
 
     function _createStake(address[] memory rewardAssets) private returns (uint256 positionId) {
@@ -380,7 +382,6 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         private
         returns (PoolKey memory key)
     {
-        basketLiquidity.initializeCanonicalPool(basketId, asset, SQRT_PRICE_1_1);
         IStaticsBasketLiquidity.CanonicalPoolView memory configured = basketLiquidity.canonicalPool(basketId, asset);
         key = PoolKey({
             currency0: Currency.wrap(configured.currency0),
