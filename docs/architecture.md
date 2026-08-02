@@ -40,7 +40,7 @@ Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
 neither standalone contract is a second general protocol entrypoint.
 
-The canonical deployment installs 21 facets and 188 selectors on
+The canonical deployment installs 21 facets and 190 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -254,10 +254,10 @@ maintain a second upgrade policy beside ownership.
 The canonical launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
 of both Diamonds. Core administration derives from the Core Diamond owner; it
 does not maintain a second protocol-governor role, internal proposal queue, or
-irreversible configuration locks. The current Robinhood testnet build
-initializes the delay to two minutes; the intended production launch delay
-remains seven days. After deployment, the delay can change only through a
-scheduled timelock call to the timelock itself. The configured multisig proposes
+irreversible configuration locks. The timelock constructor selects two minutes
+for Robinhood testnet and local development, while Robinhood mainnet and other
+chains default to seven days. After deployment, the delay can change only
+through a scheduled timelock call to the timelock itself. The configured multisig proposes
 and may cancel scheduled operations, while execution is open after the current
 delay. The emergency guardian is not a timelock canceller.
 

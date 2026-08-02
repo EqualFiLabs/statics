@@ -7,6 +7,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
+import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketFacet} from "../../src/facets/BasketFacet.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibGovernance} from "../../src/libraries/LibGovernance.sol";
@@ -326,11 +327,19 @@ contract BasketLifecycleTest is StaticsTestBase {
         assertEq(custody.unreservedBalance(address(assetA)), 1 ether);
     }
 
-    function testGovernanceConfigurationDoesNotProbeChosenAddresses() public {
+    function testTreasuryRejectsZeroAndDiamondDestinations() public {
+        vm.expectRevert(abi.encodeWithSelector(BasketAdminFacet.InvalidTreasury.selector, address(0)));
         basketAdmin.setTreasury(address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(BasketAdminFacet.InvalidTreasury.selector, address(diamond)));
+        basketAdmin.setTreasury(address(diamond));
+
+        assertEq(basketAdmin.treasury(), treasury);
+    }
+
+    function testGuardianConfigurationDoesNotProbeChosenAddress() public {
         governance.setGuardian(address(0));
 
-        assertEq(basketAdmin.treasury(), address(0));
         assertEq(governance.guardian(), address(0));
     }
 
@@ -343,8 +352,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         pools[1].pairedAssetAmount = 1;
         (uint256 basketId, address token) = _launchWith(params, pools, alice, 1 ether);
         uint256 launchVault = baskets.vaultBalance(basketId, address(taxed));
-        uint256 launchBasketReserved =
-            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed));
+        uint256 launchBasketReserved = custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed));
         uint256 launchReserved = custody.globalReservedByToken(address(taxed));
         uint256 launchTreasury = globalRewards.treasuryAccrued(address(taxed));
         vm.startPrank(alice);

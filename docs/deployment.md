@@ -166,15 +166,15 @@ a series ID or Risk Shares.
 
 The launcher performs one creation broadcast in this order:
 
-1. Deploy `StaticsTimelock` with the current two-minute Robinhood testnet delay,
-   the multisig as proposer and canceller, open execution, and no bootstrap
-   admin. Restore the intended seven-day delay before production deployment.
+1. Deploy `StaticsTimelock` with a two-minute delay on Robinhood testnet or local
+   development and a seven-day delay on Robinhood mainnet, the multisig as
+   proposer and canceller, open execution, and no bootstrap admin.
 2. Deploy the Chainlink-backed Dollar oracle adapter.
 3. Deploy the eleven Dollar Core facets and Core initializer.
 4. Predict the Core address, deploy the permit-enabled `StaticsDollar` ERC-20 and
    `StaticsDollarRiskShares` ERC-1155 with that permanent authority, then deploy
    and initialize `StaticsDollarCoreDiamond`.
-5. Deploy the twenty-two unified protocol facets and initialize
+5. Deploy the twenty-one unified protocol facets and initialize
    `StaticsDiamond`, including the PositionNFT ERC-721, baskets, reservations,
    global rewards, Dollar periphery, typed gateway, canonical liquidity, and
    optional borrow-to-liquidity action. Initialization permanently records the

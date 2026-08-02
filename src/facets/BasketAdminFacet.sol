@@ -6,6 +6,8 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 
 contract BasketAdminFacet is IStaticsBasketAdmin {
+    error InvalidTreasury(address treasury);
+
     function setCreationFee(uint256 amount) external {
         LibDiamond.enforceIsContractOwner();
         LibBasket.basketStorage().creationFeeAmount = amount;
@@ -14,6 +16,7 @@ contract BasketAdminFacet is IStaticsBasketAdmin {
 
     function setTreasury(address newTreasury) external {
         LibDiamond.enforceIsContractOwner();
+        if (newTreasury == address(0) || newTreasury == address(this)) revert InvalidTreasury(newTreasury);
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         address previousTreasury = bs.treasury;
         bs.treasury = newTreasury;

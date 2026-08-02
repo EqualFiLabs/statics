@@ -186,14 +186,15 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **21 facets / 188 selectors** on `StaticsDiamond`; and
+- **21 facets / 190 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
-enumeration. The public Robinhood testnet deployment used the same 21/188 and
-11/95 shape; its later gateway upgrade replaced five selectors with five
-updated permit-tuple selectors without changing the total. The checked-in Core
-rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
+enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
+shape; its later gateway upgrade replaced five selectors with five updated
+permit-tuple selectors without changing the total. The fresh launcher adds two
+Position-creation-fee selectors for the current 21/190 source shape. The
+checked-in Core rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
 terminal governance cut and 10 / 93 afterward. That rehearsal deliberately
 removes `diamondCut` and `transferOwnership` while proving the remaining value
 paths still execute; it is separate from Core bootstrap finalization, which
@@ -991,9 +992,10 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
-One `StaticsTimelock` owns both Diamonds. The current Robinhood testnet delay is
-two minutes; the production launch delay remains intended to be seven days. The
-configured multisig is proposer and canceller, execution is open after delay,
+One `StaticsTimelock` owns both Diamonds. Its constructor selects two minutes
+for Robinhood testnet and local development, while Robinhood mainnet and other
+chains default to seven days. The configured multisig is proposer and canceller,
+execution is open after delay,
 and the emergency guardian is not a timelock canceller.
 
 The timelock currently controls Diamond cuts, economic configuration, lifecycle
@@ -1150,7 +1152,7 @@ verification, and the five-selector gateway permit upgrade at source commit
 This deployment is an integration beta, not a production qualification. In
 particular, production must replace the mock USDG and oracle fixtures, choose a
 reviewed staking-token policy rather than the uncapped owner-mintable test
-token, restore the intended governance delay, select production roles and
+token, verify the chain-selected governance delay, select production roles and
 parameters, and qualify a single exact release revision.
 
 Release evidence records both Diamonds and tokens, all facet addresses and
@@ -1277,7 +1279,7 @@ the release qualification artifact.
 - acceptable maintenance delays, monitoring, and incident runbooks;
 - final governance powers, independent governance audit, and the ceremony that
   removes Diamond-cut authority;
-- production staking-token design, seven-day timelock restoration, collateral
+- production staking-token design, seven-day timelock verification, collateral
   profiles, and economic parameters;
 - supported front-end routing venues;
 - a revision-pinned release qualification artifact; and
