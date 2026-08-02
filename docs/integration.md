@@ -24,7 +24,7 @@ Use compiled ABIs from these sources:
 | --- | --- | --- |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
-| Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, unstake, claim, distribute treasury fees, and inspect reward slots |
+| Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, select reward assets, claim, distribute treasury fees, and inspect asset books |
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and user-owned v4 positions |
@@ -93,16 +93,18 @@ its deposit block.
 
 Collateral does not enter a basket-specific fee index. To earn global fees,
 approve the configured `stakingToken()` and use `createAndStake(amount,
-receiver)` or `stake(positionId, amount)`. Every increase restarts the 24-hour
-unstake cooldown. Read `stakePosition` and `pendingRewards`, then call
-`claimRewards` with aligned assets and per-asset minimum outputs. These
-position-specific views and actions require ERC-721 ownership or approval.
+receiver, rewardAssets)` or `stake(positionId, amount)`. A position selects at
+most 64 reward assets, while the protocol supports any number globally. Use
+`optInRewardAssets` and `optOutRewardAssets` to change the selection. A new
+selection begins at the current index, receives no historical rewards, and
+restarts the 24-hour unstake cooldown. A full unstake clears selections but
+preserves settled claims.
 
-Reward assets occupy at most 64 governed slots. Index activation, queue,
-retirement, progress, and retirement events. Settlement during retirement is
-permissionless and bounded; start and finalization are governance actions.
-Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the
-configured treasury.
+Read `stakePosition`, `positionRewardAssets`, `rewardAsset`, and
+`pendingRewards`, then call `claimRewards` with aligned assets and per-asset
+minimum outputs. Position-specific views and actions require ERC-721 ownership
+or approval. Anyone may call `distributeTreasuryFees(asset)`, but funds always
+go to the configured treasury.
 
 Before accepting a PositionNFT transfer, inspect global stake and claims,
 basket collateral and locked shares, loan tranches, and Dollar legs.
@@ -161,18 +163,19 @@ If a pool has no activated staked liquidity, its LP share redirects to
 permanent liquidity. If the staker route cannot accept an asset, its share
 independently redirects to permanent liquidity.
 
-The global split is the default for pools without an override. Timelocked
-governance calls `setCanonicalPoolFeeAllocation(basketId, asset, allocation)`
-with POL/canonical-LP/staker/treasury shares totaling 10,000 BPS; this is the
-same allocation schema used by the global configuration. The Diamond derives
+The global six-field configuration is the default for pools without an
+override. Timelocked governance calls
+`setCanonicalPoolFeeConfiguration(basketId, asset, configuration)` with
+pool-specific input/output rates capped at 200 combined BPS and
+POL/canonical-LP/staker/treasury shares totaling 10,000 BPS. The Diamond derives
 the registered PoolId and does not accept arbitrary IDs. A mature pool may set
-both POL and canonical LPs to zero explicitly. `canonicalPoolFeeAllocation`
-returns the effective allocation and an `overridden` flag, while
-`clearCanonicalPoolFeeAllocation` restores the current global split. These
-calls do not change input/output rates or touch existing pending or locked POL.
-A zero-POL pool still compounds previously accumulated two-sided inventory,
-and unavailable canonical-LP or staker amounts still fall through to POL. There
-is no automatic graduation policy.
+both POL and canonical LPs to zero explicitly. `canonicalPoolFeeConfiguration`
+returns the complete effective configuration and an `overridden` flag, while
+`clearCanonicalPoolFeeConfiguration` restores the latest global rates and
+split. Configuration changes do not touch existing pending or locked POL. A
+zero-POL pool still compounds previously accumulated two-sided inventory, and
+unavailable canonical-LP or staker amounts still fall through to POL. There is
+no automatic graduation policy.
 
 The hook transfers staker and treasury shares immediately to the Diamond and
 matches its permanent-liquidity shares into hook-owned full-range liquidity.
@@ -268,10 +271,12 @@ enforcement. Cancun/EIP-1153 is required. See
 the current chain ID, and token address. A permit authorizes only an allowance;
 it does not bind a series, receiver, output asset, or minimum.
 
-Use `recombineToWETHWithPermit`, `recombineToETHWithPermit`, or
-`redeemPeggedWithPermit` for an exact Dollar authorization and exit.
-`mintPeggedWithPermit` instead requires the configured collateral token to
-implement EIP-2612. Matching Risk Shares remain ERC-1155 tokens and require
+Use `recombineToWETHWithPermit`, `recombineToETHWithPermit`,
+`redeemPeggedWithPermit`, or `mintPeggedAndRecombineWithPermit` for an exact
+token authorization and exit. The atomic mint-and-recombine variant permits the
+pegged collateral token rather than Statics Dollar. `mintPeggedWithPermit`
+likewise requires the configured collateral token to implement EIP-2612.
+Matching Risk Shares remain ERC-1155 tokens and require
 `setApprovalForAll(StaticsDiamond, true)`.
 
 Permit submission is permissionless. The gateway tolerates a pre-submitted
@@ -293,6 +298,41 @@ Statics Dollar and return proportional collateral less the redemption fee.
 Pegged profiles create no Risk Shares or series reward denominator. Their fees
 route through global rewards; inspect `treasuryAccrued` and global reward views,
 not removed per-profile protocol-revenue getters.
+
+### Atomic pegged mint-and-recombine exit
+
+A holder of active volatile-series Risk Shares can source the matching senior
+claim from any valid pegged profile and recombine both claims atomically:
+
+1. Call `quoteMintPeggedAndRecombine(peggedProfileId, volatileProfileId,
+   seriesId, riskAmount)` and require `eligible == true` and `exitStatus ==
+   Available`.
+2. Approve the quoted `totalPeggedCollateralIn` to `StaticsDiamond` and grant
+   that address ERC-1155 operator approval for Risk Shares.
+3. Call `mintPeggedAndRecombine` with `maximumPeggedCollateralIn`,
+   `minimumVolatileCollateralOut`, and the intended receiver.
+
+The quote also returns the pegged principal and fee, exact Statics Dollar amount,
+volatile output and fee, and both collateral-token addresses. Refresh it before
+submission because profile fees, oracle state, and series health may change.
+Once a recorded recovery delay has matured, the quote reports the execution
+that will clear that latch as available without requiring a separate checkpoint.
+
+No Statics Dollar approval is needed: the gateway mints the exact senior amount
+directly to the Diamond and immediately burns it with the caller's Risk Shares
+through ordinary Core recombination. The selected series must be `Active` and
+belong to `volatileProfileId`; recoverable and retired series are not routed
+through this operation. The execution functions return `(status,
+peggedCollateralIn, volatileCollateralOut)`. An unavailable execution returns
+its non-`Available` status with zero amounts before permit or custody, emits
+`PeggedMintAndRecombineDeferred`, and preserves the global impairment checkpoint
+and recovery delay. Output slippage is checked against the receiver's observed
+volatile-token balance increase.
+
+`mintPeggedAndRecombineWithPermit` authorizes only the exact pegged collateral
+input through that token's EIP-2612 permit. It still requires ERC-1155 operator
+approval. A pre-submitted permit is tolerated when the caller already has
+sufficient allowance, matching the gateway's other permit variants.
 
 Advanced integrations may call Core directly. Ordinary Core and gateway
 recombination use the same economics. `recombineManaged` is reserved for the
@@ -330,7 +370,8 @@ Index these event families, then reconcile with current views:
   `BasketCollateralRedeemed`;
 - global rewards: `StakingPositionCreated`, `Staked`, `Unstaked`,
   `GlobalFeeAccrued`, `PositionRewardSettled`, `RewardClaimed`,
-  `TreasuryFeesDistributed`, and reward-slot lifecycle events;
+  `TreasuryFeesDistributed`, `RewardAssetOptedIn`, `RewardAssetOptedOut`, and
+  `RewardAssetDustRouted`;
 - lending and flash: `LoanOriginated`, `LoanRepaid`, `LoanExtensionFeePaid`,
   `LoanExtended`, `LoanRecovered`, and `BasketFlashLoan`;
 - canonical lifecycle: `LiquidityIntegrationInstalled`,
@@ -349,7 +390,8 @@ Index these event families, then reconcile with current views:
   `PositionClosed`; and
 - Dollar gateway and routing: `ETHDeposited`, `WETHDeposited`,
   `RecombinedToWETH`, `RecombinedToETH`, `RecombinationDeferred`,
-  `PeggedMintedThroughGateway`, `PeggedRedeemedThroughGateway`,
+  `PeggedMintedThroughGateway`, `PeggedMintedAndRecombined`,
+  `PeggedMintAndRecombineDeferred`, `PeggedRedeemedThroughGateway`,
   `PeggedRedemptionDeferred`, `PoolFeeIndexed`, and `PeggedProfileFeeRouted`.
 
 Events are discovery and history records, not substitutes for onchain state.

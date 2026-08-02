@@ -60,7 +60,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         address receiver;
     }
 
-    struct StoredFeeAllocation {
+    struct StoredPoolFeeConfiguration {
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
         uint16 stakerShareBps;
@@ -79,7 +81,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     mapping(PoolId poolId => bool decommissioned) private decommissionedPools;
     mapping(PoolId poolId => OracleState state) private oracleStates;
     mapping(PoolId poolId => Observation[64] observations) private poolObservations;
-    mapping(PoolId poolId => StoredFeeAllocation allocation) private poolFeeAllocations;
+    mapping(PoolId poolId => StoredPoolFeeConfiguration configuration) private poolFeeConfigurations;
 
     error OnlyStaticsDiamond(address caller);
     error InvalidFeeConfiguration();
@@ -133,39 +135,40 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         );
     }
 
-    function setPoolFeeAllocation(PoolId poolId, FeeAllocation calldata allocation) external {
+    function setPoolFeeConfiguration(PoolId poolId, FeeConfiguration calldata configuration) external {
         _enforceDiamond();
         _enforceRegistered(poolId);
-        if (
-            uint256(allocation.polShareBps) + uint256(allocation.liquidityProviderShareBps)
-                    + uint256(allocation.stakerShareBps) + uint256(allocation.treasuryShareBps) != BPS
-        ) revert InvalidFeeConfiguration();
-        poolFeeAllocations[poolId] = StoredFeeAllocation({
-            polShareBps: allocation.polShareBps,
-            liquidityProviderShareBps: allocation.liquidityProviderShareBps,
-            stakerShareBps: allocation.stakerShareBps,
-            treasuryShareBps: allocation.treasuryShareBps,
+        _validateFeeConfiguration(configuration);
+        poolFeeConfigurations[poolId] = StoredPoolFeeConfiguration({
+            inputFeeBps: configuration.inputFeeBps,
+            outputFeeBps: configuration.outputFeeBps,
+            polShareBps: configuration.polShareBps,
+            liquidityProviderShareBps: configuration.liquidityProviderShareBps,
+            stakerShareBps: configuration.stakerShareBps,
+            treasuryShareBps: configuration.treasuryShareBps,
             enabled: true
         });
-        emit PoolFeeAllocationSet(
+        emit PoolFeeConfigurationSet(
             poolId,
-            allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
-            allocation.stakerShareBps,
-            allocation.treasuryShareBps
+            configuration.inputFeeBps,
+            configuration.outputFeeBps,
+            configuration.polShareBps,
+            configuration.liquidityProviderShareBps,
+            configuration.stakerShareBps,
+            configuration.treasuryShareBps
         );
     }
 
-    function clearPoolFeeAllocation(PoolId poolId) external {
+    function clearPoolFeeConfiguration(PoolId poolId) external {
         _enforceDiamond();
         _enforceRegistered(poolId);
-        delete poolFeeAllocations[poolId];
-        emit PoolFeeAllocationCleared(poolId);
+        delete poolFeeConfigurations[poolId];
+        emit PoolFeeConfigurationCleared(poolId);
     }
 
-    function poolFeeAllocation(PoolId poolId) external view returns (PoolFeeAllocationView memory allocation) {
+    function poolFeeConfiguration(PoolId poolId) external view returns (PoolFeeConfigurationView memory configuration) {
         _enforceRegistered(poolId);
-        return _effectiveFeeAllocation(poolId);
+        return _effectiveFeeConfiguration(poolId);
     }
 
     function registerPool(PoolKey calldata key) external returns (PoolId poolId) {
@@ -342,13 +345,14 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _enforceRegistered(poolId);
         if (decommissionedPools[poolId]) revert PoolIsDecommissioned(poolId);
         bool exactInput = params.amountSpecified < 0;
-        uint16 feeBps = exactInput ? fees.inputFeeBps : fees.outputFeeBps;
+        PoolFeeConfigurationView memory configuration = _effectiveFeeConfiguration(poolId);
+        uint16 feeBps = exactInput ? configuration.inputFeeBps : configuration.outputFeeBps;
         uint256 realized = _absolute(params.amountSpecified);
         uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
         if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
         _takeExact(specified, charged);
-        _allocate(poolId, specified, realized, charged, true);
+        _allocate(poolId, specified, realized, charged, true, configuration);
         _routeDistribution(poolId, specified);
         return (IHooks.beforeSwap.selector, toBeforeSwapDelta(charged.toInt128(), 0), 0);
     }
@@ -364,11 +368,12 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
         int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
         uint256 realized = _absolute(int256(unspecifiedDelta));
-        uint16 feeBps = exactInput ? fees.outputFeeBps : fees.inputFeeBps;
+        PoolFeeConfigurationView memory configuration = _effectiveFeeConfiguration(poolId);
+        uint16 feeBps = exactInput ? configuration.outputFeeBps : configuration.inputFeeBps;
         uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
         if (charged != 0) {
             _takeExact(unspecified, charged);
-            _allocate(poolId, unspecified, realized, charged, false);
+            _allocate(poolId, unspecified, realized, charged, false, configuration);
         }
 
         _routeDistribution(poolId, key.currency0);
@@ -379,11 +384,17 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         return (IHooks.afterSwap.selector, charged.toInt128());
     }
 
-    function _allocate(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg) private {
-        PoolFeeAllocationView memory allocation = _effectiveFeeAllocation(poolId);
-        uint256 polAmount = Math.mulDiv(charged, allocation.polShareBps, BPS);
-        uint256 liquidityProviderAmount = Math.mulDiv(charged, allocation.liquidityProviderShareBps, BPS);
-        uint256 stakerAmount = Math.mulDiv(charged, allocation.stakerShareBps, BPS);
+    function _allocate(
+        PoolId poolId,
+        Currency currency,
+        uint256 realized,
+        uint256 charged,
+        bool specifiedLeg,
+        PoolFeeConfigurationView memory configuration
+    ) private {
+        uint256 polAmount = Math.mulDiv(charged, configuration.polShareBps, BPS);
+        uint256 liquidityProviderAmount = Math.mulDiv(charged, configuration.liquidityProviderShareBps, BPS);
+        uint256 stakerAmount = Math.mulDiv(charged, configuration.stakerShareBps, BPS);
         uint256 treasuryAmount = charged - polAmount - liquidityProviderAmount - stakerAmount;
         if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueLiquidityRewards(poolId)) {
             polAmount += liquidityProviderAmount;
@@ -412,18 +423,26 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         );
     }
 
-    function _effectiveFeeAllocation(PoolId poolId) private view returns (PoolFeeAllocationView memory allocation) {
-        StoredFeeAllocation storage overrideAllocation = poolFeeAllocations[poolId];
-        if (overrideAllocation.enabled) {
-            return PoolFeeAllocationView({
-                polShareBps: overrideAllocation.polShareBps,
-                liquidityProviderShareBps: overrideAllocation.liquidityProviderShareBps,
-                stakerShareBps: overrideAllocation.stakerShareBps,
-                treasuryShareBps: overrideAllocation.treasuryShareBps,
+    function _effectiveFeeConfiguration(PoolId poolId)
+        private
+        view
+        returns (PoolFeeConfigurationView memory configuration)
+    {
+        StoredPoolFeeConfiguration storage overrideConfiguration = poolFeeConfigurations[poolId];
+        if (overrideConfiguration.enabled) {
+            return PoolFeeConfigurationView({
+                inputFeeBps: overrideConfiguration.inputFeeBps,
+                outputFeeBps: overrideConfiguration.outputFeeBps,
+                polShareBps: overrideConfiguration.polShareBps,
+                liquidityProviderShareBps: overrideConfiguration.liquidityProviderShareBps,
+                stakerShareBps: overrideConfiguration.stakerShareBps,
+                treasuryShareBps: overrideConfiguration.treasuryShareBps,
                 overridden: true
             });
         }
-        return PoolFeeAllocationView({
+        return PoolFeeConfigurationView({
+            inputFeeBps: fees.inputFeeBps,
+            outputFeeBps: fees.outputFeeBps,
             polShareBps: fees.polShareBps,
             liquidityProviderShareBps: fees.liquidityProviderShareBps,
             stakerShareBps: fees.stakerShareBps,
@@ -579,12 +598,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint16 stakerShareBps,
         uint16 treasuryShareBps
     ) private {
-        if (
-            uint256(inputFeeBps) + uint256(outputFeeBps) > MAX_COMBINED_FEE_BPS
-                || uint256(polShareBps) + uint256(liquidityProviderShareBps) + uint256(stakerShareBps)
-                        + uint256(treasuryShareBps) != BPS
-        ) revert InvalidFeeConfiguration();
-        fees = FeeConfiguration({
+        FeeConfiguration memory configuration = FeeConfiguration({
             inputFeeBps: inputFeeBps,
             outputFeeBps: outputFeeBps,
             polShareBps: polShareBps,
@@ -592,9 +606,19 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             stakerShareBps: stakerShareBps,
             treasuryShareBps: treasuryShareBps
         });
+        _validateFeeConfiguration(configuration);
+        fees = configuration;
         emit FeeConfigurationSet(
             inputFeeBps, outputFeeBps, polShareBps, liquidityProviderShareBps, stakerShareBps, treasuryShareBps
         );
+    }
+
+    function _validateFeeConfiguration(FeeConfiguration memory configuration) private pure {
+        if (
+            uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps) > MAX_COMBINED_FEE_BPS
+                || uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
+                        + uint256(configuration.stakerShareBps) + uint256(configuration.treasuryShareBps) != BPS
+        ) revert InvalidFeeConfiguration();
     }
 
     function _absolute(int256 value) private pure returns (uint256) {

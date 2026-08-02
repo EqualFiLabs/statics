@@ -11,13 +11,32 @@ interface IStaticsDollarGateway {
         bytes32 s;
     }
 
+    struct PeggedMintAndRecombineQuote {
+        bool eligible;
+        IStaticsDollarCoreTypes.ExitStatus exitStatus;
+        address peggedCollateralToken;
+        address volatileCollateralToken;
+        uint256 staticsDollarAmount;
+        uint256 peggedCollateralPrincipal;
+        uint256 peggedMintFee;
+        uint256 totalPeggedCollateralIn;
+        uint256 volatileCollateralOut;
+        uint256 volatileRecombinationFee;
+    }
+
     error ZeroAddress();
     error ZeroAmount();
     error UnexpectedCollateralProfile(uint256 expectedProfileId, uint256 actualProfileId);
+    error InvalidProfileKind(
+        uint256 profileId, IStaticsDollarCoreTypes.ProfileKind expected, IStaticsDollarCoreTypes.ProfileKind actual
+    );
+    error InvalidProfileMode(uint256 profileId, IStaticsDollarCoreTypes.ProfileMode mode);
     error OutputBelowMinimum(uint256 actual, uint256 minimum);
     error SharesAboveMaximum(uint256 required, uint256 maximum);
     error CollateralAboveMaximum(uint256 required, uint256 maximum);
     error InsufficientTransferReceived(address token, uint256 required, uint256 received);
+    error UnexpectedOutputAmount(address token, uint256 expected, uint256 observed);
+    error SeriesUnavailableForOrdinaryRecombination(uint256 seriesId, IStaticsDollarCoreTypes.SeriesStatus status);
     error ResidualGatewayBalance(address token, uint256 expectedBalance, uint256 actualBalance);
     error ResidualGatewayERC1155Balance(address token, uint256 id, uint256 expectedBalance, uint256 actualBalance);
     error ResidualGatewayNativeBalance(uint256 expectedBalance, uint256 actualBalance);
@@ -76,6 +95,26 @@ interface IStaticsDollarGateway {
         address collateralToken,
         uint256 staticsDollarMinted,
         uint256 collateralIn
+    );
+    event PeggedMintedAndRecombined(
+        address indexed caller,
+        address indexed receiver,
+        uint256 indexed peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskSharesBurned,
+        uint256 peggedCollateralIn,
+        uint256 staticsDollarMintedAndBurned,
+        uint256 volatileCollateralOut
+    );
+    event PeggedMintAndRecombineDeferred(
+        address indexed caller,
+        address indexed receiver,
+        uint256 indexed peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        IStaticsDollarCoreTypes.ExitStatus status,
+        uint256 unhealthyProfileBitmap
     );
     event PeggedRedeemedThroughGateway(
         address indexed caller,
@@ -161,6 +200,38 @@ interface IStaticsDollarGateway {
         address staticsDollarReceiver,
         PermitSignature calldata permitSignature
     ) external returns (uint256 collateralIn);
+
+    function quoteMintPeggedAndRecombine(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount
+    ) external view returns (PeggedMintAndRecombineQuote memory quote);
+
+    function mintPeggedAndRecombine(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount,
+        uint256 maximumPeggedCollateralIn,
+        uint256 minimumVolatileCollateralOut,
+        address receiver
+    )
+        external
+        returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut);
+
+    function mintPeggedAndRecombineWithPermit(
+        uint256 peggedProfileId,
+        uint256 volatileProfileId,
+        uint256 seriesId,
+        uint256 riskAmount,
+        uint256 maximumPeggedCollateralIn,
+        uint256 minimumVolatileCollateralOut,
+        address receiver,
+        PermitSignature calldata permitSignature
+    )
+        external
+        returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut);
 
     function previewPeggedRedemption(uint256 profileId, uint256 staticsDollarAmount)
         external

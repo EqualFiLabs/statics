@@ -33,6 +33,22 @@ exact-amount EIP-2612 signature so approval and WETH or ETH recombination occur
 in one transaction. Risk Shares still require ERC-1155 operator approval. The
 builders do not expose the Core's managed pairing-only recombination selector.
 
+For an atomic pegged-collateral exit, decode
+`quoteMintPeggedAndRecombine` as `PeggedMintAndRecombineQuote`, require an
+eligible, available quote, and refresh it before submission. Use
+`buildQuoteMintPeggedAndRecombineCall`, `buildMintPeggedAndRecombineCall`, or
+`buildMintPeggedAndRecombineWithPermitCall`. The caller approves only the
+quoted pegged collateral input and Risk Shares; temporary Statics Dollar is
+minted directly to the Diamond and requires no user allowance. The route accepts
+only an active series belonging to the selected volatile profile and uses
+ordinary recombination, never recovery or arbitrary external execution. Bound
+the call with `maximumPeggedCollateralIn` and
+`minimumVolatileCollateralOut`; the permit builder authorizes only the pegged
+ERC-20 and does not replace ERC-1155 operator approval. Execution returns
+`(status, peggedCollateralIn, volatileCollateralOut)`. A non-available status
+has zero amounts, consumes neither permit nor custody, and preserves the Core
+health checkpoint; index `PeggedMintAndRecombineDeferred` for those attempts.
+
 The routing interface intentionally supports only underlying tokens. It does
 not require initial BasketToken liquidity. A caller can source constituents,
 mint at the Diamond, and deliver the resulting BasketToken to any external

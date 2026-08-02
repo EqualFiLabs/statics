@@ -1,4 +1,4 @@
-import { decodeFunctionData } from "viem";
+import { decodeErrorResult, decodeFunctionData, encodeErrorResult, encodeFunctionData } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import {
   allowsExposureIncrease,
@@ -9,18 +9,30 @@ import {
   buildBorrowAndProvideLiquidityCall,
   buildBorrowCall,
   buildCheckpointCanonicalPoolCall,
-  buildClearCanonicalPoolFeeAllocationCall,
+  buildClearCanonicalPoolFeeConfigurationCall,
   buildClaimRewardsCall,
   buildClaimLiquidityRewardsCall,
+  buildCreateAndStakeCall,
   buildCreateBasketTransaction,
   buildDecommissionBasketCall,
   buildDepositETHTransaction,
   buildInitializeCanonicalPoolCall,
   buildIncreaseStakedLiquidityCall,
+  buildMintPeggedAndRecombineCall,
+  buildMintPeggedAndRecombineWithPermitCall,
   buildMintPeggedCall,
+  buildMintV4PositionCall,
+  buildQuoteMintPeggedAndRecombineCall,
+  buildOptInRewardAssetsCall,
+  buildOptOutRewardAssetsCall,
+  buildPermit2ApproveCall,
+  buildApproveV4PositionCall,
   buildRedeemPeggedCall,
+  buildRecoverCall,
+  buildRepayCall,
+  buildExtendCall,
   buildSetSwapFeeConfigurationCall,
-  buildSetCanonicalPoolFeeAllocationCall,
+  buildSetCanonicalPoolFeeConfigurationCall,
   buildStakeLiquidityPositionCall,
   buildUnstakeLiquidityPositionCall,
   buildClaimPeggedProtocolRevenueCall,
@@ -31,8 +43,10 @@ import {
   effectiveCanonicalFees,
   getSqrtPriceAtTick,
   pendingLpFees,
+  maximumLiquidityForAmounts,
   planMintUnderlyingRoutes,
   positionSalt,
+  LOAN_RECOVERY_GRACE_PERIOD,
   Q128,
   Q96,
   quoteBorrow,
@@ -46,7 +60,19 @@ import {
   selectFeeShares,
   splitSwapFee,
   staticsAbi,
+  staticsBasketErrorAbi,
+  staticsCollateralErrorAbi,
+  staticsDollarCoreAbi,
+  staticsDollarErrorAbi,
+  staticsDollarRiskTokenAbi,
+  staticsDollarTokenAbi,
+  staticsLendingErrorAbi,
+  staticsPositionErrorAbi,
+  staticsRewardsErrorAbi,
   staticsSwapFeeHookAbi,
+  staticsTokenErrorAbi,
+  permit2AllowanceAbi,
+  v4PositionManagerReadAbi,
   type BasketSnapshot,
   type PermitSignature,
   type UnderlyingLiquidityAdapter,
@@ -254,6 +280,101 @@ describe("Statics static basket quotes", () => {
 });
 
 describe("Statics unified calldata", () => {
+  it("exports the Dollar read and approval surfaces used by clients", () => {
+    expect(
+      decodeFunctionData({
+        abi: staticsDollarCoreAbi,
+        data: encodeFunctionData({
+          abi: staticsDollarCoreAbi,
+          functionName: "previewDeposit",
+          args: [1n, 10n ** 18n],
+        }),
+      })
+    ).toEqual({
+      functionName: "previewDeposit",
+      args: [1n, 10n ** 18n],
+    });
+
+    expect(
+      decodeFunctionData({
+        abi: staticsDollarTokenAbi,
+        data: encodeFunctionData({
+          abi: staticsDollarTokenAbi,
+          functionName: "approve",
+          args: [receiver, 12n],
+        }),
+      }).functionName
+    ).toBe("approve");
+
+    expect(
+      decodeFunctionData({
+        abi: staticsDollarRiskTokenAbi,
+        data: encodeFunctionData({
+          abi: staticsDollarRiskTokenAbi,
+          functionName: "setApprovalForAll",
+          args: [receiver, true],
+        }),
+      }).functionName
+    ).toBe("setApprovalForAll");
+  });
+
+  it("encodes typed pegged mint-and-recombine quote and execution calls", () => {
+    const quoteData = buildQuoteMintPeggedAndRecombineCall(2n, 1n, 7n, 100n);
+    expect(decodeFunctionData({ abi: staticsAbi, data: quoteData })).toEqual({
+      functionName: "quoteMintPeggedAndRecombine",
+      args: [2n, 1n, 7n, 100n],
+    });
+
+    const executionData = buildMintPeggedAndRecombineCall(2n, 1n, 7n, 100n, 101n, 99n, receiver);
+    expect(decodeFunctionData({ abi: staticsAbi, data: executionData })).toEqual({
+      functionName: "mintPeggedAndRecombine",
+      args: [2n, 1n, 7n, 100n, 101n, 99n, receiver],
+    });
+    const executionAbi = staticsAbi.find(
+      (entry) => entry.type === "function" && entry.name === "mintPeggedAndRecombine",
+    );
+    expect(executionAbi && "outputs" in executionAbi
+      ? executionAbi.outputs.map((output) => output.type)
+      : []).toEqual(["uint8", "uint256", "uint256"]);
+
+    const permit: PermitSignature = {
+      deadline: 1_700_000_000n,
+      v: 27,
+      r: `0x${"11".repeat(32)}`,
+      s: `0x${"22".repeat(32)}`,
+    };
+    const permitData = buildMintPeggedAndRecombineWithPermitCall(
+      2n,
+      1n,
+      7n,
+      100n,
+      101n,
+      99n,
+      receiver,
+      permit,
+    );
+    expect(decodeFunctionData({ abi: staticsAbi, data: permitData })).toMatchObject({
+      functionName: "mintPeggedAndRecombineWithPermit",
+      args: [2n, 1n, 7n, 100n, 101n, 99n, receiver, permit],
+    });
+    expect(staticsAbi.some((entry) => entry.type === "event" && entry.name === "PeggedMintedAndRecombined"))
+      .toBe(true);
+    expect(staticsAbi.some((entry) => entry.type === "event" && entry.name === "PeggedMintAndRecombineDeferred"))
+      .toBe(true);
+  });
+
+  it("decodes bounded-output Dollar failures for actionable clients", () => {
+    const encoded = encodeErrorResult({
+      abi: staticsDollarErrorAbi,
+      errorName: "SharesAboveMaximum",
+      args: [101n, 100n],
+    });
+    expect(decodeErrorResult({ abi: staticsDollarErrorAbi, data: encoded })).toMatchObject({
+      errorName: "SharesAboveMaximum",
+      args: [101n, 100n],
+    });
+  });
+
   it("encodes permissionless basket creation with static fee tiers and LTV", () => {
     const transaction = buildCreateBasketTransaction({
       name: "Static Basket",
@@ -275,6 +396,31 @@ describe("Statics unified calldata", () => {
     expect(transaction.value).toBe(1n * 10n ** 18n);
   });
 
+  it("exposes authoritative basket reads, events, and errors", () => {
+    const basketRead = encodeFunctionData({
+      abi: staticsAbi,
+      functionName: "basket",
+      args: [7n],
+    });
+    expect(decodeFunctionData({ abi: staticsAbi, data: basketRead })).toMatchObject({
+      functionName: "basket",
+      args: [7n],
+    });
+
+    const encoded = encodeErrorResult({
+      abi: staticsBasketErrorAbi,
+      errorName: "MaximumInputExceeded",
+      args: [assetA, 101n, 100n],
+    });
+    expect(decodeErrorResult({ abi: staticsBasketErrorAbi, data: encoded })).toMatchObject({
+      errorName: "MaximumInputExceeded",
+      args: [assetA, 101n, 100n],
+    });
+
+    expect(staticsAbi.some((entry) => entry.type === "event" && entry.name === "BasketCreated"))
+      .toBe(true);
+  });
+
   it("keys basket borrowing by shared PositionNFT ID", () => {
     const data = buildBorrowCall(17n, 4n, 5n * 10n ** 18n, receiver);
     const decoded = decodeFunctionData({ abi: staticsAbi, data });
@@ -283,12 +429,162 @@ describe("Statics unified calldata", () => {
     expect(decoded.args).toEqual([17n, 4n, 5n * 10n ** 18n, receiver]);
   });
 
+  it("exposes authoritative loan lifecycle reads, events, errors, and writes", () => {
+    const loanRead = encodeFunctionData({
+      abi: staticsAbi,
+      functionName: "loan",
+      args: [23n],
+    });
+    expect(decodeFunctionData({ abi: staticsAbi, data: loanRead })).toEqual({
+      functionName: "loan",
+      args: [23n],
+    });
+
+    for (const functionName of [
+      "quoteBorrow",
+      "quoteExtension",
+      "outstandingPrincipal",
+      "recoverySurplus",
+    ]) {
+      expect(
+        staticsAbi.some(
+          (entry) => entry.type === "function" && entry.name === functionName,
+        ),
+      ).toBe(true);
+    }
+    for (const eventName of [
+      "LoanOriginated",
+      "LoanRepaid",
+      "LoanExtended",
+      "LoanExtensionFeePaid",
+      "LoanRecovered",
+    ]) {
+      expect(
+        staticsAbi.some(
+          (entry) => entry.type === "event" && entry.name === eventName,
+        ),
+      ).toBe(true);
+    }
+
+    const lendingError = encodeErrorResult({
+      abi: staticsLendingErrorAbi,
+      errorName: "LoanNotRecoverable",
+      args: [23n, 1_700_000_000n],
+    });
+    expect(
+      decodeErrorResult({ abi: staticsLendingErrorAbi, data: lendingError }),
+    ).toMatchObject({
+      errorName: "LoanNotRecoverable",
+      args: [23n, 1_700_000_000n],
+    });
+
+    expect(LOAN_RECOVERY_GRACE_PERIOD).toBe(3_600n);
+    expect(
+      decodeFunctionData({ abi: staticsAbi, data: buildRepayCall(23n) }),
+    ).toEqual({ functionName: "repay", args: [23n] });
+    expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: buildExtendCall(23n, [3n, 5n]),
+      }),
+    ).toEqual({ functionName: "extend", args: [23n, [3n, 5n]] });
+    expect(
+      decodeFunctionData({ abi: staticsAbi, data: buildRecoverCall(23n) }),
+    ).toEqual({ functionName: "recover", args: [23n] });
+  });
+
   it("exposes position reward claims and terminal lifecycle calls", () => {
     expect(buildClaimRewardsCall(17n, [assetA, assetB], receiver, [0n, 0n])).toMatch(/^0x[0-9a-f]+$/);
+    expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: buildCreateAndStakeCall(10n ** 18n, receiver, [assetA, assetB]),
+      }),
+    ).toEqual({
+      functionName: "createAndStake",
+      args: [10n ** 18n, receiver, [assetA, assetB]],
+    });
+    expect(
+      decodeFunctionData({ abi: staticsAbi, data: buildOptInRewardAssetsCall(17n, [assetA]) }).functionName,
+    ).toBe("optInRewardAssets");
+    expect(
+      decodeFunctionData({ abi: staticsAbi, data: buildOptOutRewardAssetsCall(17n, [assetB]) }).functionName,
+    ).toBe("optOutRewardAssets");
     expect(allowsExposureIncrease(BasketStatus.Active)).toBe(true);
     expect(allowsExposureIncrease(BasketStatus.Quarantined)).toBe(false);
     expect(allowsExposureIncrease(BasketStatus.ExitOnly)).toBe(false);
     expect(buildDecommissionBasketCall(7n)).toMatch(/^0x[0-9a-f]+$/);
+  });
+
+  it("exposes authoritative PositionNFT, collateral, and selected-reward interfaces", () => {
+    const ownerRead = encodeFunctionData({
+      abi: staticsAbi,
+      functionName: "ownerOf",
+      args: [17n],
+    });
+    expect(decodeFunctionData({ abi: staticsAbi, data: ownerRead })).toEqual({
+      functionName: "ownerOf",
+      args: [17n],
+    });
+    expect(
+      staticsAbi.some(
+        (entry) => entry.type === "event" && entry.name === "PositionCreated",
+      ),
+    ).toBe(true);
+    expect(
+      staticsAbi.some(
+        (entry) =>
+          entry.type === "event" && entry.name === "BasketCollateralDeposited",
+      ),
+    ).toBe(true);
+
+    const positionError = encodeErrorResult({
+      abi: staticsPositionErrorAbi,
+      errorName: "PositionHasActiveLegs",
+      args: [17n, 2n],
+    });
+    expect(
+      decodeErrorResult({ abi: staticsPositionErrorAbi, data: positionError }),
+    ).toMatchObject({
+      errorName: "PositionHasActiveLegs",
+      args: [17n, 2n],
+    });
+
+    const collateralError = encodeErrorResult({
+      abi: staticsCollateralErrorAbi,
+      errorName: "PositionSharesLocked",
+      args: [10n, 8n],
+    });
+    expect(
+      decodeErrorResult({
+        abi: staticsCollateralErrorAbi,
+        data: collateralError,
+      }),
+    ).toMatchObject({ errorName: "PositionSharesLocked", args: [10n, 8n] });
+
+    const rewardError = encodeErrorResult({
+      abi: staticsRewardsErrorAbi,
+      errorName: "RewardAssetLimitExceeded",
+      args: [17n],
+    });
+    expect(
+      decodeErrorResult({ abi: staticsRewardsErrorAbi, data: rewardError }),
+    ).toMatchObject({
+      errorName: "RewardAssetLimitExceeded",
+      args: [17n],
+    });
+
+    const tokenError = encodeErrorResult({
+      abi: staticsTokenErrorAbi,
+      errorName: "ERC20InsufficientAllowance",
+      args: [receiver, 5n, 10n],
+    });
+    expect(
+      decodeErrorResult({ abi: staticsTokenErrorAbi, data: tokenError }),
+    ).toMatchObject({
+      errorName: "ERC20InsufficientAllowance",
+      args: [receiver, 5n, 10n],
+    });
   });
 
   it("encodes the fixed canonical-pool lifecycle without caller-supplied pool policy", () => {
@@ -328,36 +624,50 @@ describe("Statics unified calldata", () => {
     })).toThrow("inputFeeBps exceeds uint16");
   });
 
-  it("encodes canonical pool allocation overrides and exports their events", () => {
-    const set = buildSetCanonicalPoolFeeAllocationCall(7n, assetA, {
+  it("encodes full canonical pool fee overrides and exports their events", () => {
+    const set = buildSetCanonicalPoolFeeConfigurationCall(7n, assetA, {
+      inputFeeBps: 40n,
+      outputFeeBps: 60n,
       polShareBps: 0n,
       liquidityProviderShareBps: 0n,
       stakerShareBps: 8_000n,
       treasuryShareBps: 2_000n,
     });
     const decoded = decodeFunctionData({ abi: staticsAbi, data: set });
-    expect(decoded.functionName).toBe("setCanonicalPoolFeeAllocation");
+    expect(decoded.functionName).toBe("setCanonicalPoolFeeConfiguration");
     expect(decoded.args).toEqual([7n, assetA, {
+      inputFeeBps: 40,
+      outputFeeBps: 60,
       polShareBps: 0,
       liquidityProviderShareBps: 0,
       stakerShareBps: 8_000,
       treasuryShareBps: 2_000,
     }]);
-    const clear = buildClearCanonicalPoolFeeAllocationCall(7n, assetA);
+    const clear = buildClearCanonicalPoolFeeConfigurationCall(7n, assetA);
     expect(decodeFunctionData({ abi: staticsAbi, data: clear }).functionName)
-      .toBe("clearCanonicalPoolFeeAllocation");
-    expect(staticsAbi.some((item) => item.type === "function" && item.name === "canonicalPoolFeeAllocation"))
+      .toBe("clearCanonicalPoolFeeConfiguration");
+    expect(staticsAbi.some((item) => item.type === "function" && item.name === "canonicalPoolFeeConfiguration"))
       .toBe(true);
-    expect(staticsAbi.some((item) => item.type === "event" && item.name === "CanonicalPoolFeeAllocationSet"))
+    expect(staticsAbi.some((item) => item.type === "event" && item.name === "CanonicalPoolFeeConfigurationSet"))
       .toBe(true);
-    expect(staticsSwapFeeHookAbi.some((item) => item.type === "event" && item.name === "PoolFeeAllocationCleared"))
+    expect(staticsSwapFeeHookAbi.some((item) => item.type === "event" && item.name === "PoolFeeConfigurationCleared"))
       .toBe(true);
-    expect(() => buildSetCanonicalPoolFeeAllocationCall(7n, assetA, {
+    expect(() => buildSetCanonicalPoolFeeConfigurationCall(7n, assetA, {
+      inputFeeBps: 40n,
+      outputFeeBps: 60n,
       polShareBps: 0n,
       liquidityProviderShareBps: 0n,
       stakerShareBps: 8_000n,
       treasuryShareBps: 1_999n,
-    })).toThrow("pool fee allocation must sum to 10000 BPS");
+    })).toThrow("pool fee shares must sum to 10000 BPS");
+    expect(() => buildSetCanonicalPoolFeeConfigurationCall(7n, assetA, {
+      inputFeeBps: 101n,
+      outputFeeBps: 100n,
+      polShareBps: 0n,
+      liquidityProviderShareBps: 0n,
+      stakerShareBps: 8_000n,
+      treasuryShareBps: 2_000n,
+    })).toThrow("combined pool fee rate exceeds 200 BPS");
   });
 
   it("encodes canonical LP custody, activation, increase, claim, and exit calls", () => {
@@ -383,6 +693,39 @@ describe("Statics unified calldata", () => {
     const unstake = buildUnstakeLiquidityPositionCall(positionId, tokenId, receiver);
     expect(decodeFunctionData({ abi: staticsAbi, data: unstake }).functionName)
       .toBe("unstakeLiquidityPosition");
+  });
+
+  it("quotes and encodes bounded wallet-funded v4 position creation", () => {
+    const liquidity = maximumLiquidityForAmounts(Q96, -887_270, 887_270, 100n, 100n);
+    expect(liquidity).toBeGreaterThan(0n);
+    const quoted = quoteRangeAmounts(Q96, -887_270, 887_270, liquidity);
+    expect(quoted.amount0).toBeLessThanOrEqual(100n);
+    expect(quoted.amount1).toBeLessThanOrEqual(100n);
+
+    const approval = buildApproveV4PositionCall(receiver, 23n);
+    expect(decodeFunctionData({ abi: v4PositionManagerReadAbi, data: approval }).functionName)
+      .toBe("approve");
+    const permit2Approval = buildPermit2ApproveCall(assetA, receiver, 100n, 1_700_003_600);
+    expect(decodeFunctionData({ abi: permit2AllowanceAbi, data: permit2Approval }).functionName)
+      .toBe("approve");
+    const mint = buildMintV4PositionCall({
+      poolKey: {
+        currency0: assetA,
+        currency1: basketToken,
+        fee: 0,
+        tickSpacing: 10,
+        hooks: receiver,
+      },
+      tickLower: -887_270,
+      tickUpper: 887_270,
+      liquidity,
+      amount0Max: 100n,
+      amount1Max: 100n,
+      recipient: receiver,
+      deadline: 1_700_003_600n,
+    });
+    expect(decodeFunctionData({ abi: v4PositionManagerReadAbi, data: mint }).functionName)
+      .toBe("modifyLiquidities");
   });
 
   it("encodes the typed Statics Dollar ETH and ordinary exit paths", () => {

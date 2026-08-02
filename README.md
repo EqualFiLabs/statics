@@ -41,11 +41,11 @@ yield.
 Basket mint, redemption, flash-loan, lending, and Dollar fees no longer reward
 holders of an individual BasketToken. Each fee asset enters the global fee
 ledger. Users stake the configured Statics staking token in a PositionNFT and
-claim their checkpointed share of every admitted reward asset. The ledger has
-64 governed asset slots; first use fills an available slot, and governance can
-retire a slot only after permissionless checkpoint settlement completes. Fees
-that cannot accrue to active stake, including fees for a queued asset, accrue
-to the common Statics treasury.
+select up to 64 reward assets for that position. The protocol can index any
+number of reward assets globally; each asset uses only the stake of positions
+that selected it as its denominator. New selections start at the current index
+and cannot capture historical fees. Non-swap fees without eligible selected
+stake accrue entirely to the common Statics treasury.
 
 Canonical Uniswap v4 pools use a zero native LP fee. The hook charges both the
 input and output assets, routes the configured staker and treasury shares into
@@ -54,14 +54,13 @@ full-range liquidity. That liquidity has no ordinary withdrawal path and is
 released only after the associated basket enters `ExitOnly` and its pool is
 decommissioned.
 
-The global swap-fee allocation is the default for every canonical pool.
-Timelocked governance may install a pool-specific override using the same
-POL/canonical-LP/staker/treasury allocation model, including zero POL and zero
-canonical-LP allocation for a mature pool, without changing either bilateral
-fee rate. Existing pending POL can still compound and existing permanent
-liquidity remains locked. Clearing the override restores the then-current
-global default; unavailable canonical-LP and staker shares continue to fall
-through to POL.
+The global swap-fee configuration is the default for every canonical pool.
+Timelocked governance may override both bilateral fee rates and the
+POL/canonical-LP/staker/treasury split for one pool, including zero POL and zero
+canonical-LP allocation for a mature pool. Existing pending POL can still
+compound and existing permanent liquidity remains locked. Clearing the
+override restores the complete then-current global default; unavailable
+canonical-LP and staker shares continue to fall through to POL.
 
 Flash loans expose only basket constituents. Statics deliberately contains no
 embedded swap router and requires no initial BasketToken liquidity; an
@@ -106,9 +105,9 @@ Pegged collateral profiles are direct nominal wrappers: they mint only Statics
 Dollar, create no risk series, and charge independent mint and redemption fees
 in the collateral token. Any fungible Statics Dollar can redeem against a
 profile's proportional capacity. Pegged fees enter the global fee ledger:
-eligible fees use the standard 90% staker and 10% treasury split, while
-empty-stake or unavailable-slot allocations fall back to the common Statics
-treasury. Downside series transitions quarantine every pegged exit until all
+eligible fees use the standard 90% staker and 10% treasury split, while fees
+without eligible selected stake fall back to the common Statics treasury.
+Downside series transitions quarantine every pegged exit until all
 Core books have remained healthy for 48 continuous hours.
 
 Dollar risk shares can be staked into the shared PositionNFT, activated after

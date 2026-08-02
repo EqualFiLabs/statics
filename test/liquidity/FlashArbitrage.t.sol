@@ -9,7 +9,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
@@ -87,6 +87,58 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256[] memory pending = globalRewards.pendingRewards(stakePositionId, rewardAssets);
         assertGt(pending[0], 0);
         assertGt(pending[1], 0);
+    }
+
+    function testCanonicalSwapRoutesOnlySelectedLegToGlobalStakers() public {
+        address[] memory assets = new address[](1);
+        assets[0] = address(assetA);
+        uint256[] memory bundleAmounts = new uint256[](1);
+        bundleAmounts[0] = 1 ether;
+        (uint256 basketId, address basketToken) = _createBasket(assets, bundleAmounts);
+        uint256 stakePositionId = _createStake(_asset(address(assetA)));
+        _mintInitialSupply(basketId, basketToken, assets, 100 ether);
+        PoolKey memory pool = _initializeAndSeed(basketId, basketToken, address(assetA));
+        basketLiquidity.setSwapFeeConfiguration(
+            IStaticsBasketLiquidity.SwapFeeConfiguration({
+                inputFeeBps: 25,
+                outputFeeBps: 25,
+                polShareBps: 0,
+                liquidityProviderShareBps: 0,
+                stakerShareBps: 9_000,
+                treasuryShareBps: 1_000
+            })
+        );
+
+        uint256 basketFeeReserveBefore =
+            custody.reservedByAccount(custody.feeCustodyAccount(), basketToken);
+        uint256 basketTreasuryBefore = globalRewards.treasuryAccrued(basketToken);
+        bool assetIsCurrency0 = pool.currency0 == Currency.wrap(address(assetA));
+        vm.prank(alice);
+        v4Router.swap(
+            pool,
+            SwapParams({
+                zeroForOne: assetIsCurrency0,
+                amountSpecified: -int256(0.1 ether),
+                sqrtPriceLimitX96: assetIsCurrency0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            })
+        );
+
+        address[] memory rewardAssets = _assets(address(assetA), basketToken);
+        vm.prank(alice);
+        uint256[] memory pending = globalRewards.pendingRewards(stakePositionId, rewardAssets);
+        assertGt(pending[0], 0);
+        assertEq(pending[1], 0);
+        assertGt(globalRewards.rewardAsset(address(assetA)).indexedReserve, 0);
+        assertEq(globalRewards.rewardAsset(basketToken).indexedReserve, 0);
+
+        uint256 basketTreasuryDelta = globalRewards.treasuryAccrued(basketToken) - basketTreasuryBefore;
+        assertGt(basketTreasuryDelta, 0);
+        assertEq(
+            custody.reservedByAccount(custody.feeCustodyAccount(), basketToken) - basketFeeReserveBefore,
+            basketTreasuryDelta
+        );
+        assertGt(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(basketToken)), 0);
+        assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(address(assetA))), 0);
     }
 
     function testUnprofitableRouteRevertsWithoutChangingAnyProtocolOrPoolBook() public {
@@ -226,7 +278,11 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         bundleAmounts[0] = 0.4 ether;
         bundleAmounts[1] = 0.4 ether;
         (fixture.basketId, fixture.basketToken) = _createBasket(assets, bundleAmounts);
-        fixture.stakePositionId = _createStake();
+        address[] memory rewardAssets = new address[](3);
+        rewardAssets[0] = assets[0];
+        rewardAssets[1] = assets[1];
+        rewardAssets[2] = fixture.basketToken;
+        fixture.stakePositionId = _createStake(rewardAssets);
         _mintInitialSupply(fixture.basketId, fixture.basketToken, assets, 100 ether);
         fixture.pools = new PoolKey[](2);
         fixture.pools[0] = _initializeAndSeed(fixture.basketId, fixture.basketToken, assets[0]);
@@ -242,7 +298,10 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256[] memory bundleAmounts = new uint256[](1);
         bundleAmounts[0] = 1.5 ether;
         (basketId, basketToken) = _createBasket(assets, bundleAmounts);
-        stakePositionId = _createStake();
+        address[] memory rewardAssets = new address[](2);
+        rewardAssets[0] = assets[0];
+        rewardAssets[1] = basketToken;
+        stakePositionId = _createStake(rewardAssets);
         _mintInitialSupply(basketId, basketToken, assets, 100 ether);
         pool = _initializeAndSeed(basketId, basketToken, assets[0]);
     }
@@ -278,12 +337,23 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         return baskets.createBasket{value: basketAdmin.creationFee()}(params);
     }
 
-    function _createStake() private returns (uint256 positionId) {
+    function _createStake(address[] memory rewardAssets) private returns (uint256 positionId) {
         stakingAsset.mint(alice, 100 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 100 ether);
-        positionId = globalRewards.createAndStake(100 ether, alice);
+        positionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
         vm.stopPrank();
+    }
+
+    function _asset(address asset) private pure returns (address[] memory assets) {
+        assets = new address[](1);
+        assets[0] = asset;
+    }
+
+    function _assets(address first, address second) private pure returns (address[] memory assets) {
+        assets = new address[](2);
+        assets[0] = first;
+        assets[1] = second;
     }
 
     function _mintInitialSupply(uint256 basketId, address basketToken, address[] memory assets, uint256 shares)

@@ -78,6 +78,16 @@ interface IStaticsDollarCore {
         address receiver
     ) external returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut);
 
+    function globalImpairment()
+        external
+        view
+        returns (
+            IStaticsDollarCoreTypes.GlobalHealthPhase phase,
+            uint256 unhealthyProfileBitmap,
+            uint256 totalSeniorDeficitWad,
+            uint256 recoveryAvailableAt
+        );
+
     function checkpointGlobalCollateralExit()
         external
         returns (

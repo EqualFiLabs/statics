@@ -1,6 +1,8 @@
 import {
+  encodeAbiParameters,
   encodeFunctionData,
   parseAbi,
+  parseAbiParameters,
   toHex,
   type Address,
   type ContractEventArgs,
@@ -12,6 +14,7 @@ export { robinhoodChain } from "./generated/robinhoodChain.js";
 export const BPS = 10_000n;
 export const SHARE_SCALE = 10n ** 18n;
 export const MAX_LTV_BPS = 9_500n;
+export const LOAN_RECOVERY_GRACE_PERIOD = 3_600n;
 export const Q96 = 1n << 96n;
 export const Q128 = 1n << 128n;
 export const MAX_UINT256 = (1n << 256n) - 1n;
@@ -48,14 +51,7 @@ export type SwapFeeConfiguration = {
   treasuryShareBps: bigint;
 };
 
-export type FeeAllocation = {
-  polShareBps: bigint;
-  liquidityProviderShareBps: bigint;
-  stakerShareBps: bigint;
-  treasuryShareBps: bigint;
-};
-
-export type PoolFeeAllocation = FeeAllocation & { overridden: boolean };
+export type PoolFeeConfiguration = SwapFeeConfiguration & { overridden: boolean };
 
 export type SwapFeeSplit = {
   polAmount: bigint;
@@ -81,6 +77,21 @@ export type BasketSnapshot = {
   extensionFeeBps: bigint;
   ltvBps: bigint;
   constituents: readonly ConstituentSnapshot[];
+};
+
+export type BasketConfiguration = {
+  token: Address;
+  creator: Address;
+  status: BasketStatus;
+  assets: readonly Address[];
+  bundleAmounts: readonly bigint[];
+  mintFeeTiers: readonly FeeTier[];
+  redemptionFeeTiers: readonly FeeTier[];
+  flashFeeBps: number;
+  originationFeeBps: number;
+  extensionFeeBps: number;
+  ltvBps: number;
+  loanDuration: number;
 };
 
 export type CreateBasketParams = {
@@ -109,6 +120,19 @@ export type PermitSignature = {
   s: Hex;
 };
 
+export type PeggedMintAndRecombineQuote = {
+  eligible: boolean;
+  exitStatus: number;
+  peggedCollateralToken: Address;
+  volatileCollateralToken: Address;
+  staticsDollarAmount: bigint;
+  peggedCollateralPrincipal: bigint;
+  peggedMintFee: bigint;
+  totalPeggedCollateralIn: bigint;
+  volatileCollateralOut: bigint;
+  volatileRecombinationFee: bigint;
+};
+
 export type MintQuoteLeg = {
   asset: Address;
   baseAmount: bigint;
@@ -127,6 +151,16 @@ export type BorrowQuote = {
   feeShares: bigint;
   collateralShares: bigint;
   principals: readonly { asset: Address; amount: bigint }[];
+};
+
+export type LoanSnapshot = {
+  positionId: bigint;
+  basketId: bigint;
+  collateralShares: bigint;
+  feeShares: bigint;
+  maturity: bigint;
+  assets: readonly Address[];
+  principals: readonly bigint[];
 };
 
 export type EffectiveCanonicalFees = {
@@ -150,6 +184,25 @@ export type StakedLiquidityIncreaseRequest = {
   liquidityDelta: bigint;
   amount0Max: bigint;
   amount1Max: bigint;
+  deadline: bigint;
+};
+
+export type V4PoolKey = {
+  currency0: Address;
+  currency1: Address;
+  fee: number;
+  tickSpacing: number;
+  hooks: Address;
+};
+
+export type V4MintPositionRequest = {
+  poolKey: V4PoolKey;
+  tickLower: number;
+  tickUpper: number;
+  liquidity: bigint;
+  amount0Max: bigint;
+  amount1Max: bigint;
+  recipient: Address;
   deadline: bigint;
 };
 
@@ -304,6 +357,27 @@ export function quoteRangeAmounts(
     };
   }
   return { amount0: 0n, amount1: amount1Delta(sqrtLower, sqrtUpper, liquidity) };
+}
+
+export function maximumLiquidityForAmounts(
+  sqrtPriceX96: bigint,
+  tickLower: number,
+  tickUpper: number,
+  amount0Max: bigint,
+  amount1Max: bigint,
+): bigint {
+  if (amount0Max < 0n || amount1Max < 0n || (amount0Max === 0n && amount1Max === 0n)) {
+    throw new Error("invalid liquidity amounts");
+  }
+  let low = 0n;
+  let high = (1n << 128n) - 1n;
+  while (low < high) {
+    const midpoint = (low + high + 1n) >> 1n;
+    const amounts = quoteRangeAmounts(sqrtPriceX96, tickLower, tickUpper, midpoint);
+    if (amounts.amount0 <= amount0Max && amounts.amount1 <= amount1Max) low = midpoint;
+    else high = midpoint - 1n;
+  }
+  return low;
 }
 
 export function pendingLpFees(
@@ -495,6 +569,14 @@ export const staticsAbi = parseAbi([
   "function createBasket((string name,string symbol,address[] assets,uint256[] bundleAmounts,(uint256 minActionShares,uint256 feeShares)[] mintFeeTiers,(uint256 minActionShares,uint256 feeShares)[] redemptionFeeTiers,uint16 flashFeeBps,uint16 originationFeeBps,uint16 extensionFeeBps,uint16 ltvBps,uint40 loanDuration) params) payable returns (uint256 basketId,address token)",
   "function mint(uint256 basketId,uint256 shares,address receiver,uint256[] maxAmountsIn) returns (uint256[] amountsIn)",
   "function redeem(uint256 basketId,uint256 shares,address receiver,uint256[] minAmountsOut) returns (uint256[] amountsOut)",
+  "function quoteMint(uint256 basketId,uint256 shares) view returns (uint256[] amountsIn)",
+  "function quoteRedeem(uint256 basketId,uint256 shares) view returns (uint256[] amountsOut)",
+  "function basket(uint256 basketId) view returns ((address token,address creator,uint8 status,address[] assets,uint256[] bundleAmounts,(uint256 minActionShares,uint256 feeShares)[] mintFeeTiers,(uint256 minActionShares,uint256 feeShares)[] redemptionFeeTiers,uint16 flashFeeBps,uint16 originationFeeBps,uint16 extensionFeeBps,uint16 ltvBps,uint40 loanDuration) result)",
+  "function basketStatus(uint256 basketId) view returns (uint8)",
+  "function basketCount() view returns (uint256)",
+  "function basketIdOf(address token) view returns (uint256 basketId,bool exists)",
+  "function vaultBalance(uint256 basketId,address asset) view returns (uint256)",
+  "function feeSharesFor(uint256 basketId,bool mintAction,uint256 actionShares) view returns (uint256 feeShares)",
   "function createAndDepositBasketCollateral(uint256 basketId,uint256 shares,address receiver) returns (uint256 positionId)",
   "function depositBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares)",
   "function withdrawBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares,address receiver)",
@@ -502,20 +584,19 @@ export const staticsAbi = parseAbi([
   "function mintBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares,uint256[] maxAmountsIn) returns (uint256[] amountsIn)",
   "function redeemBasketCollateral(uint256 positionId,uint256 basketId,uint256 shares,address receiver,uint256[] minAmountsOut) returns (uint256[] amountsOut)",
   "function basketCollateralPosition(uint256 positionId,uint256 basketId) view returns ((uint256 depositedShares,uint256 lockedShares,uint256 withdrawableAfterBlock) position)",
-  "function createAndStake(uint256 amount,address receiver) returns (uint256 positionId)",
+  "function createAndStake(uint256 amount,address receiver,address[] rewardAssets) returns (uint256 positionId)",
   "function stake(uint256 positionId,uint256 amount)",
   "function unstake(uint256 positionId,uint256 amount,address receiver)",
+  "function optInRewardAssets(uint256 positionId,address[] assets)",
+  "function optOutRewardAssets(uint256 positionId,address[] assets)",
   "function claimRewards(uint256 positionId,address[] assets,address receiver,uint256[] minAmountsOut) returns (uint256[] amountsOut)",
   "function distributeTreasuryFees(address asset) returns (uint256 amount)",
-  "function beginRewardAssetRetirement(uint256 slot)",
-  "function settleRetiringRewardAsset(uint256 slot,uint256 maxPositions) returns (uint256 nextPositionId,bool complete)",
-  "function finalizeRewardAssetRetirement(uint256 slot,address replacement)",
   "function pendingRewards(uint256 positionId,address[] assets) view returns (uint256[] amounts)",
-  "function stakePosition(uint256 positionId) view returns ((uint256 stakedBalance,uint256 unstakeAvailableAt,uint256 claimAssetCount) position)",
-  "function rewardAsset(uint256 slot) view returns ((address asset,uint8 status,uint64 generation,uint256 indexRay,uint256 indexRemainder,uint256 indexedReserve,uint256 totalClaimable,uint256 retirementCursor,uint256 retirementHighWater) state)",
-  "function rewardAssetSlot(address asset) view returns (uint256 slot,bool activeOrRetiring)",
-  "function queuedRewardAsset(address asset) view returns (bool queued)",
-  "function rewardAssetQueue(uint256 offset,uint256 limit) view returns (address[] assets,bool[] queued,uint256 totalLength)",
+  "function stakePosition(uint256 positionId) view returns ((uint256 stakedBalance,uint256 unstakeAvailableAt,uint256 claimAssetCount,uint256 optedInAssetCount) position)",
+  "function rewardAsset(address asset) view returns ((uint256 eligibleStake,uint256 indexRay,uint256 indexedReserve,uint256 totalClaimable) state)",
+  "function positionRewardAssets(uint256 positionId) view returns (address[] assets)",
+  "function isRewardAssetOptedIn(uint256 positionId,address asset) view returns (bool)",
+  "function maxRewardAssetsPerPosition() pure returns (uint256)",
   "function stakingToken() view returns (address)",
   "function totalStaked() view returns (uint256)",
   "function treasuryAccrued(address asset) view returns (uint256)",
@@ -523,9 +604,26 @@ export const staticsAbi = parseAbi([
   "function repay(uint256 loanId)",
   "function extend(uint256 loanId,uint256[] grossAmountsIn) returns (uint256[] receivedAmounts)",
   "function recover(uint256 loanId)",
+  "function quoteBorrow(uint256 basketId,uint256 sharesIn) view returns (uint256 feeShares,uint256 collateralShares,address[] assets,uint256[] principals)",
+  "function quoteExtension(uint256 loanId) view returns (address[] assets,uint256[] requiredFees)",
+  "function loan(uint256 loanId) view returns ((uint256 positionId,uint256 basketId,uint256 collateralShares,uint256 feeShares,uint40 maturity,address[] assets,uint256[] principals) result)",
+  "function outstandingPrincipal(uint256 basketId,address asset) view returns (uint256)",
+  "function recoverySurplus(uint256 basketId,address asset) view returns (uint256)",
   "function flashLoan(uint256 basketId,uint256 shares,address receiver,bytes data)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function getApproved(uint256 tokenId) view returns (address)",
+  "function isApprovedForAll(address owner,address operator) view returns (bool)",
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function tokenURI(uint256 tokenId) view returns (string)",
   "function createPosition(address receiver) returns (uint256 positionId)",
   "function closePosition(uint256 positionId)",
+  "function nextPositionId() view returns (uint256)",
+  "function activeLegCount(uint256 positionId) view returns (uint256)",
+  "function positionInitializing(uint256 positionId) view returns (bool)",
+  "function isPositionLegActive(uint256 positionId,bytes32 legKey) view returns (bool)",
+  "function positionKey(uint256 positionId) view returns (bytes32)",
   "function quarantineBasket(uint256 basketId)",
   "function releaseBasketQuarantine(uint256 basketId)",
   "function decommissionBasket(uint256 basketId)",
@@ -535,8 +633,17 @@ export const staticsAbi = parseAbi([
   "function recombineToWETHWithPermit(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minWETHOut,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 wethOut)",
   "function recombineToETH(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minETHOut) returns (uint8 status,uint256 ethOut)",
   "function recombineToETHWithPermit(uint256 seriesId,uint256 staticsDollarAmount,uint256 maxSharesIn,address receiver,uint256 minETHOut,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 ethOut)",
+  "function pool() view returns (address)",
+  "function weth() view returns (address)",
+  "function staticsDollar() view returns (address)",
+  "function staticsDollarRisk() view returns (address)",
+  "function wethProfileId() pure returns (uint256)",
   "function previewPeggedMint(uint256 profileId,uint256 staticsDollarAmount) view returns ((uint256 profileId,address collateralToken,uint256 staticsDollarMinted,uint256 principalCollateral,uint256 feeAmount,uint256 totalCollateralIn,uint256 priceWad) preview)",
   "function mintPegged(uint256 profileId,uint256 staticsDollarAmount,uint256 maximumCollateralIn,address staticsDollarReceiver) returns (uint256 collateralIn)",
+  "function mintPeggedWithPermit(uint256 profileId,uint256 staticsDollarAmount,uint256 maximumCollateralIn,address staticsDollarReceiver,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint256 collateralIn)",
+  "function quoteMintPeggedAndRecombine(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount) view returns ((bool eligible,uint8 exitStatus,address peggedCollateralToken,address volatileCollateralToken,uint256 staticsDollarAmount,uint256 peggedCollateralPrincipal,uint256 peggedMintFee,uint256 totalPeggedCollateralIn,uint256 volatileCollateralOut,uint256 volatileRecombinationFee) quote)",
+  "function mintPeggedAndRecombine(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount,uint256 maximumPeggedCollateralIn,uint256 minimumVolatileCollateralOut,address receiver) returns (uint8 status,uint256 peggedCollateralIn,uint256 volatileCollateralOut)",
+  "function mintPeggedAndRecombineWithPermit(uint256 peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskAmount,uint256 maximumPeggedCollateralIn,uint256 minimumVolatileCollateralOut,address receiver,(uint256 deadline,uint8 v,bytes32 r,bytes32 s) permitSignature) returns (uint8 status,uint256 peggedCollateralIn,uint256 volatileCollateralOut)",
   "function previewPeggedRedemption(uint256 profileId,uint256 staticsDollarAmount) view returns ((uint256 profileId,address collateralToken,uint256 staticsDollarBurned,uint256 grossCollateral,uint256 feeAmount,uint256 collateralOut,uint256 priceWad) preview)",
   "function redeemPegged(uint256 profileId,uint256 staticsDollarAmount,uint256 minimumCollateralOut,address receiver) returns (uint8 status,uint256 collateralOut)",
   "function peggedRedemptionStatus() view returns (uint8 status,uint256 unhealthyProfileBitmap,uint256 totalSeniorDeficitWad,uint256 recoveryAvailableAt)",
@@ -553,9 +660,9 @@ export const staticsAbi = parseAbi([
   "function syncCanonicalPoolToManager(uint256 basketId,address asset) returns (bool synced)",
   "function setSwapFeeConfiguration((uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) configuration)",
   "function swapFeeConfiguration() view returns ((uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) configuration)",
-  "function setCanonicalPoolFeeAllocation(uint256 basketId,address asset,(uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) allocation)",
-  "function clearCanonicalPoolFeeAllocation(uint256 basketId,address asset)",
-  "function canonicalPoolFeeAllocation(uint256 basketId,address asset) view returns ((uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps,bool overridden) allocation)",
+  "function setCanonicalPoolFeeConfiguration(uint256 basketId,address asset,(uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) configuration)",
+  "function clearCanonicalPoolFeeConfiguration(uint256 basketId,address asset)",
+  "function canonicalPoolFeeConfiguration(uint256 basketId,address asset) view returns ((uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps,bool overridden) configuration)",
   "function liquidityManager() view returns (address manager,bool installed)",
   "function unwindBasketLiquidity(uint256 basketId,address asset)",
   "function basketLiquidityUnwound(uint256 basketId,address asset) view returns (bool unwound)",
@@ -570,18 +677,37 @@ export const staticsAbi = parseAbi([
   "function pendingLiquidityRewards(uint256 positionId,uint256 tokenId) view returns (address currency0,uint256 amount0,address currency1,uint256 amount1)",
   "function canAccrueLiquidityRewards(bytes32 poolId) view returns (bool)",
   "function treasury() view returns (address)",
+  "function creationFee() view returns (uint256 amount)",
+  "event PeggedMintedAndRecombined(address indexed caller,address indexed receiver,uint256 indexed peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint256 riskSharesBurned,uint256 peggedCollateralIn,uint256 staticsDollarMintedAndBurned,uint256 volatileCollateralOut)",
+  "event PeggedMintAndRecombineDeferred(address indexed caller,address indexed receiver,uint256 indexed peggedProfileId,uint256 volatileProfileId,uint256 seriesId,uint8 status,uint256 unhealthyProfileBitmap)",
+  "event BasketCreated(uint256 indexed basketId,address indexed token,address indexed creator,string name,string symbol)",
+  "event BasketConfigured(uint256 indexed basketId,address[] assets,uint256[] bundleAmounts,uint16 flashFeeBps,uint16 originationFeeBps,uint16 extensionFeeBps,uint16 ltvBps,uint40 loanDuration)",
+  "event BasketFeeTiersConfigured(uint256 indexed basketId,bool indexed mintAction,uint256[] minActionShares,uint256[] feeShares)",
+  "event BasketMinted(uint256 indexed basketId,address indexed payer,address indexed receiver,uint256 shares)",
+  "event BasketRedeemed(uint256 indexed basketId,address indexed owner,address indexed receiver,uint256 shares)",
+  "event PositionCreated(uint256 indexed positionId,address indexed owner)",
+  "event PositionClosed(uint256 indexed positionId)",
+  "event PositionLegActivated(uint256 indexed positionId,bytes32 indexed legKey)",
+  "event PositionLegDeactivated(uint256 indexed positionId,bytes32 indexed legKey)",
+  "event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)",
+  "event BasketCollateralDeposited(uint256 indexed positionId,uint256 indexed basketId,address indexed payer,uint256 shares)",
+  "event BasketCollateralWithdrawn(uint256 indexed positionId,uint256 indexed basketId,address indexed receiver,uint256 shares)",
+  "event BasketCollateralRedeemed(uint256 indexed positionId,uint256 indexed basketId,address indexed receiver,uint256 shares)",
+  "event LoanOriginated(uint256 indexed loanId,uint256 indexed positionId,uint256 indexed basketId,address operator,address receiver,uint256 sharesIn,uint256 feeShares,uint256 collateralShares,uint40 maturity)",
+  "event LoanRepaid(uint256 indexed loanId,uint256 indexed positionId,address indexed payer)",
+  "event LoanExtended(uint256 indexed loanId,uint40 maturity)",
+  "event LoanExtensionFeePaid(uint256 indexed loanId,address indexed asset,uint256 requiredFee,uint256 receivedFee)",
+  "event LoanRecovered(uint256 indexed loanId,uint256 indexed positionId,address indexed caller,uint256 collateralShares)",
   "event StakingPositionCreated(uint256 indexed positionId,address indexed owner,uint256 amount)",
   "event Staked(uint256 indexed positionId,address indexed payer,uint256 amount,uint256 totalPositionStake)",
   "event Unstaked(uint256 indexed positionId,address indexed receiver,uint256 amount,uint256 totalPositionStake)",
   "event GlobalFeeAccrued(address indexed asset,uint256 grossFee,uint256 stakerAmount,uint256 treasuryAmount,uint256 indexRay)",
   "event RewardClaimed(uint256 indexed positionId,address indexed receiver,address indexed asset,uint256 amount)",
   "event TreasuryFeesDistributed(address indexed asset,address indexed treasury,uint256 amount)",
-  "event RewardAssetActivated(uint8 indexed slot,address indexed asset,uint64 generation)",
-  "event RewardAssetQueued(address indexed asset)",
-  "event RewardAssetRetirementStarted(uint8 indexed slot,address indexed asset,uint64 generation,uint256 positionHighWater)",
-  "event RewardAssetRetirementProgress(uint8 indexed slot,uint256 fromPositionId,uint256 throughPositionId)",
-  "event RewardAssetRetired(uint8 indexed slot,address indexed asset,uint64 generation)",
-  "event PositionRewardSettled(uint256 indexed positionId,address indexed asset,uint64 generation,uint256 amount)",
+  "event RewardAssetOptedIn(uint256 indexed positionId,address indexed asset,uint256 eligibleStake)",
+  "event RewardAssetOptedOut(uint256 indexed positionId,address indexed asset,uint256 eligibleStake)",
+  "event RewardAssetDustRouted(address indexed asset,uint256 amount)",
+  "event PositionRewardSettled(uint256 indexed positionId,address indexed asset,uint256 amount)",
   "event LiquidityIntegrationInstalled(address indexed poolManager,address indexed hook)",
   "event CanonicalPoolInitialized(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId,address currency0,address currency1,uint160 sqrtPriceX96,int24 tick)",
   "event CanonicalPoolCheckpointed(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId,bool observationStored)",
@@ -589,8 +715,8 @@ export const staticsAbi = parseAbi([
   "event LiquidityManagerInstalled(address indexed manager)",
   "event CanonicalPoolSyncedToManager(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId,address manager)",
   "event SwapFeeConfigurationChanged((uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) configuration)",
-  "event CanonicalPoolFeeAllocationSet(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps)",
-  "event CanonicalPoolFeeAllocationCleared(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId)",
+  "event CanonicalPoolFeeConfigurationSet(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId,uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps)",
+  "event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId)",
   "event PermanentLiquidityTreasuryAccrued(uint256 indexed basketId,address indexed sourcePoolAsset,address indexed rewardAsset,uint256 amount)",
   "event BasketLiquidityUnwound(uint256 indexed basketId,address indexed asset,bytes32 indexed poolId,uint256 constituentReleased,uint256 basketTokensBurned)",
   "event BorrowedLiquidityPositionMinted(uint256 indexed loanId,uint256 indexed basketId,address indexed asset,uint256 v4TokenId,address recipient,uint256 liquidity,uint256 spent0,uint256 spent1,uint256 refund0,uint256 refund1)",
@@ -609,9 +735,9 @@ export const staticsSwapFeeHookAbi = parseAbi([
   "function poolManager() view returns (address)",
   "function feeConfiguration() view returns ((uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) config)",
   "function setFeeConfiguration(uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps)",
-  "function setPoolFeeAllocation(bytes32 poolId,(uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) allocation)",
-  "function clearPoolFeeAllocation(bytes32 poolId)",
-  "function poolFeeAllocation(bytes32 poolId) view returns ((uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps,bool overridden) allocation)",
+  "function setPoolFeeConfiguration(bytes32 poolId,(uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps) configuration)",
+  "function clearPoolFeeConfiguration(bytes32 poolId)",
+  "function poolFeeConfiguration(bytes32 poolId) view returns ((uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps,bool overridden) configuration)",
   "function registerPool((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) key) returns (bytes32 poolId)",
   "function decommissionPool((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) key)",
   "function poolDecommissioned(bytes32 poolId) view returns (bool decommissioned)",
@@ -631,8 +757,8 @@ export const staticsSwapFeeHookAbi = parseAbi([
   "event PermanentLiquidityReleased(bytes32 indexed poolId,address indexed receiver,uint128 liquidity,uint256 amount0,uint256 amount1)",
   "event PoolDecommissioned(bytes32 indexed poolId)",
   "event FeeConfigurationSet(uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps)",
-  "event PoolFeeAllocationSet(bytes32 indexed poolId,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps)",
-  "event PoolFeeAllocationCleared(bytes32 indexed poolId)",
+  "event PoolFeeConfigurationSet(bytes32 indexed poolId,uint16 inputFeeBps,uint16 outputFeeBps,uint16 polShareBps,uint16 liquidityProviderShareBps,uint16 stakerShareBps,uint16 treasuryShareBps)",
+  "event PoolFeeConfigurationCleared(bytes32 indexed poolId)",
   "event TickObservationRecorded(bytes32 indexed poolId,uint40 indexed timestamp,int24 tick,int56 tickCumulative,uint8 cardinality)",
 ]);
 
@@ -669,14 +795,26 @@ export const staticsLiquidityManagerAbi = parseAbi([
 ]);
 
 export const v4PositionManagerReadAbi = parseAbi([
+  "function nextTokenId() view returns (uint256)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function getApproved(uint256 tokenId) view returns (address)",
+  "function approve(address to,uint256 tokenId)",
+  "function modifyLiquidities(bytes unlockData,uint256 deadline) payable",
   "function getPositionLiquidity(uint256 tokenId) view returns (uint128 liquidity)",
   "function getPoolAndPositionInfo(uint256 tokenId) view returns ((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks) poolKey,uint256 info)",
   "event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)",
 ]);
 
 export const v4StateViewReadAbi = parseAbi([
+  "function poolManager() view returns (address)",
+  "function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96,int24 tick,uint24 protocolFee,uint24 lpFee)",
   "function getPositionInfo(bytes32 poolId,address owner,int24 tickLower,int24 tickUpper,bytes32 salt) view returns (uint128 liquidity,uint256 feeGrowthInside0LastX128,uint256 feeGrowthInside1LastX128)",
   "function getFeeGrowthInside(bytes32 poolId,int24 tickLower,int24 tickUpper) view returns (uint256 feeGrowthInside0X128,uint256 feeGrowthInside1X128)",
+]);
+
+export const permit2AllowanceAbi = parseAbi([
+  "function allowance(address owner,address token,address spender) view returns (uint160 amount,uint48 expiration,uint48 nonce)",
+  "function approve(address token,address spender,uint160 amount,uint48 expiration)",
 ]);
 
 export type StaticsLiquidityEventName =
@@ -686,11 +824,9 @@ export type StaticsLiquidityEventName =
   | "GlobalFeeAccrued"
   | "RewardClaimed"
   | "TreasuryFeesDistributed"
-  | "RewardAssetActivated"
-  | "RewardAssetQueued"
-  | "RewardAssetRetirementStarted"
-  | "RewardAssetRetirementProgress"
-  | "RewardAssetRetired"
+  | "RewardAssetOptedIn"
+  | "RewardAssetOptedOut"
+  | "RewardAssetDustRouted"
   | "PositionRewardSettled"
   | "LiquidityIntegrationInstalled"
   | "CanonicalPoolInitialized"
@@ -699,8 +835,8 @@ export type StaticsLiquidityEventName =
   | "LiquidityManagerInstalled"
   | "CanonicalPoolSyncedToManager"
   | "SwapFeeConfigurationChanged"
-  | "CanonicalPoolFeeAllocationSet"
-  | "CanonicalPoolFeeAllocationCleared"
+  | "CanonicalPoolFeeConfigurationSet"
+  | "CanonicalPoolFeeConfigurationCleared"
   | "PermanentLiquidityTreasuryAccrued"
   | "BasketLiquidityUnwound"
   | "BorrowedLiquidityPositionMinted"
@@ -716,6 +852,35 @@ export type StaticsLiquidityEventName =
 export type StaticsLiquidityEventArgs<Name extends StaticsLiquidityEventName> =
   ContractEventArgs<typeof staticsAbi, Name>;
 
+export type StaticsPositionEventName =
+  | "PositionCreated"
+  | "PositionClosed"
+  | "PositionLegActivated"
+  | "PositionLegDeactivated"
+  | "Transfer"
+  | "BasketCollateralDeposited"
+  | "BasketCollateralWithdrawn"
+  | "BasketCollateralRedeemed"
+  | "StakingPositionCreated"
+  | "Staked"
+  | "Unstaked"
+  | "RewardAssetOptedIn"
+  | "RewardAssetOptedOut"
+  | "PositionRewardSettled";
+
+export type StaticsPositionEventArgs<Name extends StaticsPositionEventName> =
+  ContractEventArgs<typeof staticsAbi, Name>;
+
+export type StaticsLendingEventName =
+  | "LoanOriginated"
+  | "LoanRepaid"
+  | "LoanExtended"
+  | "LoanExtensionFeePaid"
+  | "LoanRecovered";
+
+export type StaticsLendingEventArgs<Name extends StaticsLendingEventName> =
+  ContractEventArgs<typeof staticsAbi, Name>;
+
 export type StaticsHookEventName =
   | "PoolRegistered"
   | "SwapLegFeeAccrued"
@@ -724,8 +889,8 @@ export type StaticsHookEventName =
   | "PermanentLiquidityReleased"
   | "PoolDecommissioned"
   | "FeeConfigurationSet"
-  | "PoolFeeAllocationSet"
-  | "PoolFeeAllocationCleared"
+  | "PoolFeeConfigurationSet"
+  | "PoolFeeConfigurationCleared"
   | "TickObservationRecorded";
 
 export type StaticsHookEventArgs<Name extends StaticsHookEventName> =
@@ -747,6 +912,12 @@ export type StaticsLiquidityManagerEventArgs<Name extends StaticsLiquidityManage
   ContractEventArgs<typeof staticsLiquidityManagerAbi, Name>;
 
 export const basketTokenAbi = parseAbi([
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner,address spender) view returns (uint256)",
   "function approve(address spender,uint256 value) returns (bool)",
   "function permit(address owner,address spender,uint256 value,uint256 deadline,uint8 v,bytes32 r,bytes32 s)",
   "function nonces(address owner) view returns (uint256)",
@@ -754,6 +925,165 @@ export const basketTokenAbi = parseAbi([
 ]);
 
 export const staticsDollarTokenAbi = basketTokenAbi;
+
+export const staticsBasketErrorAbi = parseAbi([
+  "error BasketNotFound(uint256 basketId)",
+  "error InvalidBasketDefinition()",
+  "error FeeExceedsCap(uint16 feeBps)",
+  "error LtvExceedsMaximum(uint16 ltvBps)",
+  "error InvalidReceiver()",
+  "error InvalidShares()",
+  "error InvalidAmountsLength()",
+  "error MaximumInputExceeded(address asset,uint256 required,uint256 maximum)",
+  "error MinimumOutputNotMet(address asset,uint256 actual,uint256 minimum)",
+  "error ActionPaused(uint256 action)",
+  "error InsufficientVaultBalance(address asset,uint256 required,uint256 available)",
+  "error IncorrectCreationFee(uint256 expected,uint256 actual)",
+  "error CreationFeeTransferFailed(address treasury,uint256 amount)",
+  "error InsufficientTransferReceived(address asset,uint256 required,uint256 received)",
+  "error BasketNotActive(uint256 basketId,uint8 status)",
+]);
+
+export const staticsPositionErrorAbi = parseAbi([
+  "error OnlyDiamondSelf(address caller)",
+  "error PositionInitializing(uint256 positionId)",
+  "error PositionHasActiveLegs(uint256 positionId,uint256 activeLegCount)",
+  "error AlreadyInitialized()",
+  "error NotInitialized()",
+  "error NotPositionOwnerOrApproved(uint256 positionId,address caller)",
+  "error ZeroLegKey()",
+  "error PositionLegAlreadyActive(uint256 positionId,bytes32 legKey)",
+  "error PositionLegNotActive(uint256 positionId,bytes32 legKey)",
+  "error ERC721InvalidOwner(address owner)",
+  "error ERC721NonexistentToken(uint256 tokenId)",
+  "error ERC721IncorrectOwner(address sender,uint256 tokenId,address owner)",
+  "error ERC721InvalidSender(address sender)",
+  "error ERC721InvalidReceiver(address receiver)",
+  "error ERC721InsufficientApproval(address operator,uint256 tokenId)",
+  "error ERC721InvalidApprover(address approver)",
+  "error ERC721InvalidOperator(address operator)",
+]);
+
+export const staticsCollateralErrorAbi = parseAbi([
+  "error BasketNotFound(uint256 basketId)",
+  "error BasketNotActive(uint256 basketId,uint8 status)",
+  "error InvalidShares()",
+  "error InvalidReceiver()",
+  "error InsufficientTransferReceived(address token,uint256 required,uint256 received)",
+  "error InsufficientPositionShares(uint256 requested,uint256 available)",
+  "error PositionSharesLocked(uint256 requested,uint256 unlocked)",
+  "error InsufficientLockedShares(uint256 requested,uint256 locked)",
+  "error PositionDepositTooRecent(uint256 positionId,uint256 basketId,uint256 withdrawableAfterBlock)",
+]);
+
+export const staticsLendingErrorAbi = parseAbi([
+  "error BasketNotFound(uint256 basketId)",
+  "error LoanNotFound(uint256 loanId)",
+  "error InvalidReceiver()",
+  "error InvalidShares()",
+  "error ZeroPrincipal()",
+  "error ActionPaused(uint256 action)",
+  "error InsufficientVaultBalance(address asset,uint256 required,uint256 available)",
+  "error LoanExpired(uint256 loanId,uint40 maturity)",
+  "error LoanNotRecoverable(uint256 loanId,uint256 recoverableAt)",
+  "error MaturityOverflow()",
+  "error InsufficientTransferReceived(address asset,uint256 required,uint256 received)",
+  "error InvalidExtensionInputLength(uint256 provided,uint256 required)",
+]);
+
+export const staticsRewardsErrorAbi = parseAbi([
+  "error InvalidAmount()",
+  "error InvalidReceiver()",
+  "error InvalidAmountsLength()",
+  "error InvalidRewardAssets()",
+  "error InsufficientStake(uint256 requested,uint256 available)",
+  "error UnstakeCooldownActive(uint256 availableAt)",
+  "error IncompatibleStakingToken(uint256 requested,uint256 received)",
+  "error MinimumOutputNotMet(address asset,uint256 actual,uint256 minimum)",
+  "error NoRewards(uint256 positionId)",
+  "error OnlySwapFeeHook(address caller,address expected)",
+  "error IncompatibleRewardAsset(address asset,uint256 requested,uint256 received)",
+  "error InvalidStakingToken()",
+  "error InvalidRewardAsset(address asset)",
+  "error RewardAssetAlreadyOptedIn(uint256 positionId,address asset)",
+  "error RewardAssetNotOptedIn(uint256 positionId,address asset)",
+  "error RewardAssetLimitExceeded(uint256 positionId)",
+]);
+
+export const staticsTokenErrorAbi = parseAbi([
+  "error ERC20InsufficientBalance(address sender,uint256 balance,uint256 needed)",
+  "error ERC20InvalidSender(address sender)",
+  "error ERC20InvalidReceiver(address receiver)",
+  "error ERC20InsufficientAllowance(address spender,uint256 allowance,uint256 needed)",
+  "error ERC20InvalidApprover(address approver)",
+  "error ERC20InvalidSpender(address spender)",
+]);
+
+export const staticsDollarRiskTokenAbi = parseAbi([
+  "function balanceOf(address account,uint256 id) view returns (uint256)",
+  "function isApprovedForAll(address account,address operator) view returns (bool)",
+  "function setApprovalForAll(address operator,bool approved)",
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "event ApprovalForAll(address indexed account,address indexed operator,bool approved)",
+  "event TransferSingle(address indexed operator,address indexed from,address indexed to,uint256 id,uint256 value)",
+]);
+
+export const wethAbi = parseAbi([
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner,address spender) view returns (uint256)",
+  "function approve(address spender,uint256 value) returns (bool)",
+  "function deposit() payable",
+  "function withdraw(uint256 amount)",
+]);
+
+export const staticsDollarCoreAbi = parseAbi([
+  "function staticsDollar() view returns (address)",
+  "function staticsDollarRisk() view returns (address)",
+  "function periphery() view returns (address)",
+  "function bootstrapFinalized() view returns (bool)",
+  "function seniorLiabilities() view returns (uint256)",
+  "function globalImpairmentLatched() view returns (bool)",
+  "function collateralProfile(uint256 profileId) view returns ((address collateralToken,address oracle,uint8 decimals,uint16 collateralRatioBps,uint16 priceBandBps,uint16 mintFeeBps,uint16 redemptionFeeBps,uint16 insuranceTargetBps,uint16 insuranceFeeBps,uint8 kind,uint8 mode,uint256 pegMinPriceWad,uint256 pegMaxPriceWad,uint256 activeSeriesId,uint256 accountedCollateral,uint256 insuranceReserve,uint256 seniorOutstanding,uint256 debtCeiling) profile)",
+  "function riskSeries(uint256 seriesId) view returns ((uint256 profileId,address collateralToken,uint256 seniorOutstanding,uint256 riskSharesOutstanding,uint256 accountedCollateral,uint256 startPriceWad,uint256 collateralPerPairWad,uint256 seniorCollateralPerUnitWad,uint256 juniorCollateralPerUnitWad,uint256 collateralRatioBps,uint256 priceBandBps,uint256 startedAt,uint256 retiredAt,uint256 successorSeriesId,uint8 status) series)",
+  "function previewDeposit(uint256 profileId,uint256 collateralAmount) view returns ((uint256 profileId,uint256 seriesId,uint256 collateralIn,uint256 staticsDollarMinted,uint256 sharesMinted,uint256 feeAmount,uint256 insuranceContribution,uint256 priceWad,uint256 collateralPerPairWad,uint256 collateralRatioBpsAfter) preview)",
+  "function previewRecombine(uint256 seriesId,uint256 staticsDollarAmount) view returns ((uint256 profileId,uint256 seriesId,address collateralToken,uint256 staticsDollarBurned,uint256 sharesBurned,uint256 collateralOut,uint256 feeAmount,uint256 priceWad,uint256 collateralRatioBpsAfter) preview)",
+  "function profileSolvency(uint256 profileId) view returns ((uint256 collateralValueWad,uint256 seniorLiabilitiesWad,uint256 seniorDeficitWad,bool oracleAvailable,bool healthy) solvency)",
+  "function globalImpairment() view returns (uint8 phase,uint256 unhealthyProfileBitmap,uint256 totalSeniorDeficitWad,uint256 recoveryAvailableAt)",
+  "function peggedRedemptionStatus() view returns (uint8 status,uint256 unhealthyProfileBitmap,uint256 totalSeniorDeficitWad,uint256 recoveryAvailableAt)",
+  "function profileOperationPaused(uint256 profileId,uint256 operation) view returns (bool paused)",
+  "function pausedProfileOperations(uint256 profileId) view returns (uint256 operations)",
+  "function collateralUsdPriceWad(uint256 profileId) view returns (uint256 priceWad)",
+  "function profileSeriesCount(uint256 profileId) view returns (uint256 count)",
+  "function profileSeriesAt(uint256 profileId,uint256 index) view returns (uint256 seriesId)",
+]);
+
+export const staticsDollarErrorAbi = parseAbi([
+  "error ZeroAddress()",
+  "error ZeroAmount()",
+  "error InvalidProfile(uint256 profileId)",
+  "error InvalidSeries(uint256 seriesId)",
+  "error InvalidProfileKind(uint256 profileId,uint8 expected,uint8 actual)",
+  "error InvalidProfileMode(uint256 profileId,uint8 mode)",
+  "error ProfileOperationPaused(uint256 profileId,uint256 operation)",
+  "error ProfileImpaired(uint256 profileId,uint256 seniorDeficitWad)",
+  "error OutputBelowMinimum(uint256 actual,uint256 minimum)",
+  "error SharesAboveMaximum(uint256 required,uint256 maximum)",
+  "error CollateralAboveMaximum(uint256 required,uint256 maximum)",
+  "error DepositTooSmall()",
+  "error RedemptionTooSmall()",
+  "error DebtCeilingExceeded(uint256 profileId,uint256 attemptedSeniorOutstanding,uint256 debtCeiling)",
+  "error SeriesNotActive(uint256 seriesId)",
+  "error TransitionRequired(uint256 profileId,uint256 seriesId,uint256 currentPriceWad)",
+  "error CollateralExitUnavailable(uint8 status,uint256 unhealthyProfileBitmap)",
+  "error UnexpectedCollateralProfile(uint256 expectedProfileId,uint256 actualProfileId)",
+  "error InsufficientTransferReceived(address token,uint256 required,uint256 received)",
+  "error UnexpectedOutputAmount(address token,uint256 expected,uint256 observed)",
+  "error SeriesUnavailableForOrdinaryRecombination(uint256 seriesId,uint8 status)",
+  "error UnexpectedExitStatus(uint8 status)",
+  "error UnexpectedRiskIngressState()",
+  "error NativeTransferFailed(address receiver,uint256 amount)",
+]);
 
 export function buildCreateBasketTransaction(
   params: CreateBasketParams,
@@ -763,6 +1093,71 @@ export function buildCreateBasketTransaction(
     data: encodeFunctionData({ abi: staticsAbi, functionName: "createBasket", args: [params] }),
     value: creationFee,
   };
+}
+
+export function buildApproveV4PositionCall(operator: Address, tokenId: bigint): Hex {
+  return encodeFunctionData({
+    abi: v4PositionManagerReadAbi,
+    functionName: "approve",
+    args: [operator, tokenId],
+  });
+}
+
+export function buildPermit2ApproveCall(
+  token: Address,
+  spender: Address,
+  amount: bigint,
+  expiration: number,
+): Hex {
+  if (amount < 0n || amount > ((1n << 160n) - 1n)) throw new Error("Permit2 amount exceeds uint160");
+  if (!Number.isInteger(expiration) || expiration < 0 || expiration > 0xffff_ffff_ffff) {
+    throw new Error("Permit2 expiration exceeds uint48");
+  }
+  return encodeFunctionData({
+    abi: permit2AllowanceAbi,
+    functionName: "approve",
+    args: [token, spender, amount, expiration],
+  });
+}
+
+export function buildMintV4PositionCall(request: V4MintPositionRequest): Hex {
+  if (request.liquidity <= 0n || request.liquidity > ((1n << 128n) - 1n)) {
+    throw new Error("liquidity exceeds uint128");
+  }
+  if (
+    request.amount0Max < 0n
+    || request.amount0Max > ((1n << 128n) - 1n)
+    || request.amount1Max < 0n
+    || request.amount1Max > ((1n << 128n) - 1n)
+  ) throw new Error("position amount exceeds uint128");
+  const position = encodeAbiParameters(
+    parseAbiParameters(
+      "(address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks),int24,int24,uint256,uint128,uint128,address,bytes",
+    ),
+    [
+      request.poolKey,
+      request.tickLower,
+      request.tickUpper,
+      request.liquidity,
+      request.amount0Max,
+      request.amount1Max,
+      request.recipient,
+      "0x",
+    ],
+  );
+  const unlockData = encodeAbiParameters(
+    parseAbiParameters("bytes,bytes[]"),
+    ["0x021212", [
+      position,
+      encodeAbiParameters(parseAbiParameters("address"), [request.poolKey.currency0]),
+      encodeAbiParameters(parseAbiParameters("address"), [request.poolKey.currency1]),
+    ]],
+  );
+  return encodeFunctionData({
+    abi: v4PositionManagerReadAbi,
+    functionName: "modifyLiquidities",
+    args: [unlockData, request.deadline],
+  });
 }
 
 export function buildMintCall(
@@ -845,8 +1240,24 @@ export function buildClaimRewardsCall(
   });
 }
 
-export function buildCreateAndStakeCall(amount: bigint, receiver: Address): Hex {
-  return encodeFunctionData({ abi: staticsAbi, functionName: "createAndStake", args: [amount, receiver] });
+export function buildCreateAndStakeCall(
+  amount: bigint,
+  receiver: Address,
+  rewardAssets: readonly Address[],
+): Hex {
+  return encodeFunctionData({
+    abi: staticsAbi,
+    functionName: "createAndStake",
+    args: [amount, receiver, rewardAssets],
+  });
+}
+
+export function buildOptInRewardAssetsCall(positionId: bigint, assets: readonly Address[]): Hex {
+  return encodeFunctionData({ abi: staticsAbi, functionName: "optInRewardAssets", args: [positionId, assets] });
+}
+
+export function buildOptOutRewardAssetsCall(positionId: bigint, assets: readonly Address[]): Hex {
+  return encodeFunctionData({ abi: staticsAbi, functionName: "optOutRewardAssets", args: [positionId, assets] });
 }
 
 export function buildStakeCall(positionId: bigint, amount: bigint): Hex {
@@ -955,37 +1366,44 @@ export function buildSetSwapFeeConfigurationCall(configuration: SwapFeeConfigura
   });
 }
 
-export function buildSetCanonicalPoolFeeAllocationCall(
+export function buildSetCanonicalPoolFeeConfigurationCall(
   basketId: bigint,
   asset: Address,
-  allocation: FeeAllocation,
+  configuration: SwapFeeConfiguration,
 ): Hex {
   const uint16 = (value: bigint, field: string): number => {
     if (value < 0n || value > 65_535n) throw new Error(`${field} exceeds uint16`);
     return Number(value);
   };
   if (
-    allocation.polShareBps + allocation.liquidityProviderShareBps
-      + allocation.stakerShareBps + allocation.treasuryShareBps !== BPS
+    configuration.inputFeeBps + configuration.outputFeeBps > 200n
   ) {
-    throw new Error("pool fee allocation must sum to 10000 BPS");
+    throw new Error("combined pool fee rate exceeds 200 BPS");
+  }
+  if (
+    configuration.polShareBps + configuration.liquidityProviderShareBps
+      + configuration.stakerShareBps + configuration.treasuryShareBps !== BPS
+  ) {
+    throw new Error("pool fee shares must sum to 10000 BPS");
   }
   return encodeFunctionData({
     abi: staticsAbi,
-    functionName: "setCanonicalPoolFeeAllocation",
+    functionName: "setCanonicalPoolFeeConfiguration",
     args: [basketId, asset, {
-      polShareBps: uint16(allocation.polShareBps, "polShareBps"),
-      liquidityProviderShareBps: uint16(allocation.liquidityProviderShareBps, "liquidityProviderShareBps"),
-      stakerShareBps: uint16(allocation.stakerShareBps, "stakerShareBps"),
-      treasuryShareBps: uint16(allocation.treasuryShareBps, "treasuryShareBps"),
+      inputFeeBps: uint16(configuration.inputFeeBps, "inputFeeBps"),
+      outputFeeBps: uint16(configuration.outputFeeBps, "outputFeeBps"),
+      polShareBps: uint16(configuration.polShareBps, "polShareBps"),
+      liquidityProviderShareBps: uint16(configuration.liquidityProviderShareBps, "liquidityProviderShareBps"),
+      stakerShareBps: uint16(configuration.stakerShareBps, "stakerShareBps"),
+      treasuryShareBps: uint16(configuration.treasuryShareBps, "treasuryShareBps"),
     }],
   });
 }
 
-export function buildClearCanonicalPoolFeeAllocationCall(basketId: bigint, asset: Address): Hex {
+export function buildClearCanonicalPoolFeeConfigurationCall(basketId: bigint, asset: Address): Hex {
   return encodeFunctionData({
     abi: staticsAbi,
-    functionName: "clearCanonicalPoolFeeAllocation",
+    functionName: "clearCanonicalPoolFeeConfiguration",
     args: [basketId, asset],
   });
 }
@@ -1166,6 +1584,69 @@ export function buildMintPeggedCall(
     abi: staticsAbi,
     functionName: "mintPegged",
     args: [profileId, staticsDollarAmount, maximumCollateralIn, staticsDollarReceiver],
+  });
+}
+
+export function buildQuoteMintPeggedAndRecombineCall(
+  peggedProfileId: bigint,
+  volatileProfileId: bigint,
+  seriesId: bigint,
+  riskAmount: bigint,
+): Hex {
+  return encodeFunctionData({
+    abi: staticsAbi,
+    functionName: "quoteMintPeggedAndRecombine",
+    args: [peggedProfileId, volatileProfileId, seriesId, riskAmount],
+  });
+}
+
+export function buildMintPeggedAndRecombineCall(
+  peggedProfileId: bigint,
+  volatileProfileId: bigint,
+  seriesId: bigint,
+  riskAmount: bigint,
+  maximumPeggedCollateralIn: bigint,
+  minimumVolatileCollateralOut: bigint,
+  receiver: Address,
+): Hex {
+  return encodeFunctionData({
+    abi: staticsAbi,
+    functionName: "mintPeggedAndRecombine",
+    args: [
+      peggedProfileId,
+      volatileProfileId,
+      seriesId,
+      riskAmount,
+      maximumPeggedCollateralIn,
+      minimumVolatileCollateralOut,
+      receiver,
+    ],
+  });
+}
+
+export function buildMintPeggedAndRecombineWithPermitCall(
+  peggedProfileId: bigint,
+  volatileProfileId: bigint,
+  seriesId: bigint,
+  riskAmount: bigint,
+  maximumPeggedCollateralIn: bigint,
+  minimumVolatileCollateralOut: bigint,
+  receiver: Address,
+  permitSignature: PermitSignature,
+): Hex {
+  return encodeFunctionData({
+    abi: staticsAbi,
+    functionName: "mintPeggedAndRecombineWithPermit",
+    args: [
+      peggedProfileId,
+      volatileProfileId,
+      seriesId,
+      riskAmount,
+      maximumPeggedCollateralIn,
+      minimumVolatileCollateralOut,
+      receiver,
+      permitSignature,
+    ],
   });
 }
 

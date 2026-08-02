@@ -6,6 +6,7 @@ pragma solidity 0.8.26;
 // scripts need its creation artifact without weakening either compiler pin.
 import {PoolManager} from "@uniswap/v4-core/src/PoolManager.sol";
 import {PositionManager} from "@uniswap/v4-periphery/src/PositionManager.sol";
+import {StateView} from "@uniswap/v4-periphery/src/lens/StateView.sol";
 
 abstract contract V4PoolManagerCompilation {
     function _poolManagerCreationCode() internal pure returns (bytes memory) {
@@ -14,5 +15,9 @@ abstract contract V4PoolManagerCompilation {
 
     function _positionManagerCreationCode() internal pure returns (bytes memory) {
         return type(PositionManager).creationCode;
+    }
+
+    function _stateViewCreationCode() internal pure returns (bytes memory) {
+        return type(StateView).creationCode;
     }
 }

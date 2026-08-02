@@ -5,8 +5,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
+import {LibPosition} from "../../src/position/LibPosition.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -24,10 +26,11 @@ contract FeeAccrualHarness {
 
 contract GlobalRewardsTest is StaticsTestBase {
     function testBasketFeesAccrueAgainstSingleStakingBalanceAndRemainInKind() external {
+        address[] memory selectedAssets = _assets(address(assetA), address(assetB));
         stakingAsset.mint(alice, 100 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), type(uint256).max);
-        uint256 positionId = globalRewards.createAndStake(100 ether, alice);
+        uint256 positionId = globalRewards.createAndStake(100 ether, alice, selectedAssets);
         vm.stopPrank();
 
         (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
@@ -36,11 +39,8 @@ contract GlobalRewardsTest is StaticsTestBase {
         vm.prank(bob);
         baskets.mint(basketId, 10 ether, bob, quote);
 
-        address[] memory assets = new address[](2);
-        assets[0] = address(assetA);
-        assets[1] = address(assetB);
         vm.prank(alice);
-        uint256[] memory pending = globalRewards.pendingRewards(positionId, assets);
+        uint256[] memory pending = globalRewards.pendingRewards(positionId, selectedAssets);
         assertEq(pending[0], 0.18 ether);
         assertEq(pending[1], 0.45 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.02 ether);
@@ -48,7 +48,7 @@ contract GlobalRewardsTest is StaticsTestBase {
 
         uint256[] memory minimums = new uint256[](2);
         vm.prank(alice);
-        uint256[] memory claimed = globalRewards.claimRewards(positionId, assets, alice, minimums);
+        uint256[] memory claimed = globalRewards.claimRewards(positionId, selectedAssets, alice, minimums);
         assertEq(claimed[0], pending[0]);
         assertEq(claimed[1], pending[1]);
         assertEq(assetA.balanceOf(alice), pending[0]);
@@ -72,10 +72,11 @@ contract GlobalRewardsTest is StaticsTestBase {
     }
 
     function testStakeIncreaseRestartsCooldownAndUnstakeSettlesRewards() external {
+        address[] memory selectedAssets = _asset(address(assetA));
         stakingAsset.mint(alice, 11 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), type(uint256).max);
-        uint256 positionId = globalRewards.createAndStake(10 ether, alice);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, selectedAssets);
         vm.stopPrank();
 
         vm.warp(block.timestamp + 24 hours);
@@ -83,9 +84,7 @@ contract GlobalRewardsTest is StaticsTestBase {
         globalRewards.stake(positionId, 1 ether);
         vm.prank(alice);
         uint256 availableAt = globalRewards.stakePosition(positionId).unstakeAvailableAt;
-        vm.expectRevert(
-            abi.encodeWithSelector(GlobalRewardsFacet.UnstakeCooldownActive.selector, availableAt)
-        );
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.UnstakeCooldownActive.selector, availableAt));
         vm.prank(alice);
         globalRewards.unstake(positionId, 1 ether, alice);
 
@@ -94,72 +93,184 @@ contract GlobalRewardsTest is StaticsTestBase {
         globalRewards.unstake(positionId, 11 ether, alice);
         assertEq(stakingAsset.balanceOf(alice), 11 ether);
         assertEq(globalRewards.totalStaked(), 0);
+        vm.prank(alice);
+        assertEq(globalRewards.positionRewardAssets(positionId).length, 0);
     }
 
-    function testGovernanceCanEvictASettledSlotForAnyQueuedAsset() external {
+    function testOptInStartsAtCurrentIndexAndRestartsCooldown() external {
         _installFeeAccrualHarness();
-        stakingAsset.mint(alice, 1 ether);
+        MockERC20 reward = new MockERC20("Reward", "RWD", 18);
+        address[] memory rewardAssets = _asset(address(reward));
+        stakingAsset.mint(alice, 10 ether);
+        stakingAsset.mint(bob, 10 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), type(uint256).max);
-        uint256 positionId = globalRewards.createAndStake(1 ether, alice);
+        uint256 alicePosition = globalRewards.createAndStake(10 ether, alice, rewardAssets);
+        reward.mint(alice, 2 ether);
+        reward.approve(address(diamond), 2 ether);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(reward), 1 ether);
         vm.stopPrank();
 
-        address[] memory rewardAssets = new address[](65);
-        for (uint256 i; i < rewardAssets.length; ++i) {
-            MockERC20 reward = new MockERC20("Reward", "RWD", 18);
-            rewardAssets[i] = address(reward);
-            reward.mint(alice, 1 ether);
-            vm.startPrank(alice);
-            reward.approve(address(diamond), 1 ether);
-            FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(reward), 1 ether);
-            vm.stopPrank();
+        address[] memory noAssets = new address[](0);
+        vm.startPrank(bob);
+        stakingAsset.approve(address(diamond), type(uint256).max);
+        uint256 bobPosition = globalRewards.createAndStake(10 ether, bob, noAssets);
+        globalRewards.optInRewardAssets(bobPosition, rewardAssets);
+        vm.stopPrank();
+
+        vm.prank(bob);
+        assertEq(globalRewards.pendingRewards(bobPosition, rewardAssets)[0], 0);
+        IStaticsGlobalRewards.StakePositionView memory bobStake;
+        vm.prank(bob);
+        bobStake = globalRewards.stakePosition(bobPosition);
+        assertEq(bobStake.unstakeAvailableAt, block.timestamp + 24 hours);
+
+        vm.prank(alice);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(reward), 1 ether);
+
+        vm.prank(alice);
+        assertEq(globalRewards.pendingRewards(alicePosition, rewardAssets)[0], 1.35 ether);
+        vm.prank(bob);
+        assertEq(globalRewards.pendingRewards(bobPosition, rewardAssets)[0], 0.45 ether);
+    }
+
+    function testOptOutPreservesEarnedRewardsAndStopsFutureAccrual() external {
+        _installFeeAccrualHarness();
+        MockERC20 reward = new MockERC20("Reward", "RWD", 18);
+        address[] memory rewardAssets = _asset(address(reward));
+        stakingAsset.mint(alice, 10 ether);
+        reward.mint(alice, 2 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), type(uint256).max);
+        reward.approve(address(diamond), type(uint256).max);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, rewardAssets);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(reward), 1 ether);
+        globalRewards.optOutRewardAssets(positionId, rewardAssets);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(reward), 1 ether);
+        uint256[] memory pending = globalRewards.pendingRewards(positionId, rewardAssets);
+        vm.stopPrank();
+
+        assertEq(pending[0], 0.9 ether);
+        assertEq(globalRewards.treasuryAccrued(address(reward)), 1.1 ether);
+        assertFalse(globalRewards.canAccrueStakerRewards(address(reward)));
+    }
+
+    function testEachPositionMaySelectSixtyFourAcrossMoreThanSixtyFourGlobalAssets() external {
+        address[] memory aliceAssets = new address[](64);
+        address[] memory bobAssets = new address[](64);
+        for (uint256 i; i < 64; ++i) {
+            aliceAssets[i] = address(new MockERC20("Alice Reward", "AR", 18));
+            bobAssets[i] = address(new MockERC20("Bob Reward", "BR", 18));
         }
 
-        assertTrue(globalRewards.queuedRewardAsset(rewardAssets[64]));
-        (address[] memory queuedAssets, bool[] memory queuedStates, uint256 queueLength) =
-            globalRewards.rewardAssetQueue(0, 1);
-        assertEq(queueLength, 1);
-        assertEq(queuedAssets.length, 1);
-        assertEq(queuedAssets[0], rewardAssets[64]);
-        assertTrue(queuedStates[0]);
-        (queuedAssets, queuedStates, queueLength) = globalRewards.rewardAssetQueue(1, type(uint256).max);
-        assertEq(queueLength, 1);
-        assertEq(queuedAssets.length, 0);
-        assertEq(queuedStates.length, 0);
-        (uint256 firstSlot, bool registered) = globalRewards.rewardAssetSlot(rewardAssets[0]);
-        assertTrue(registered);
-        globalRewards.beginRewardAssetRetirement(firstSlot);
-        (uint256 nextPositionId, bool complete) = globalRewards.settleRetiringRewardAsset(firstSlot, 10);
-        assertTrue(complete);
-        assertEq(nextPositionId, 2);
-        globalRewards.finalizeRewardAssetRetirement(firstSlot, rewardAssets[64]);
-
-        IStaticsGlobalRewards.RewardAssetView memory replacement = globalRewards.rewardAsset(firstSlot);
-        assertEq(replacement.asset, rewardAssets[64]);
-        assertEq(uint256(replacement.status), uint256(IStaticsGlobalRewards.RewardAssetStatus.Active));
-        assertEq(replacement.generation, 2);
-        assertFalse(globalRewards.queuedRewardAsset(rewardAssets[64]));
-        (queuedAssets, queuedStates, queueLength) = globalRewards.rewardAssetQueue(0, 1);
-        assertEq(queueLength, 1);
-        assertEq(queuedAssets[0], rewardAssets[64]);
-        assertFalse(queuedStates[0]);
-
-        address[] memory claimAssets = new address[](1);
-        claimAssets[0] = rewardAssets[0];
-        uint256[] memory minimums = new uint256[](1);
-        vm.prank(alice);
-        uint256[] memory claimed = globalRewards.claimRewards(positionId, claimAssets, alice, minimums);
-        assertEq(claimed[0], 0.9 ether);
-
-        MockERC20 replacementToken = MockERC20(rewardAssets[64]);
-        replacementToken.mint(alice, 1 ether);
+        stakingAsset.mint(alice, 1 ether);
+        stakingAsset.mint(bob, 1 ether);
         vm.startPrank(alice);
-        replacementToken.approve(address(diamond), 1 ether);
-        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(replacementToken), 1 ether);
-        claimAssets[0] = address(replacementToken);
-        uint256[] memory pending = globalRewards.pendingRewards(positionId, claimAssets);
+        stakingAsset.approve(address(diamond), 1 ether);
+        uint256 alicePosition = globalRewards.createAndStake(1 ether, alice, aliceAssets);
         vm.stopPrank();
+        vm.startPrank(bob);
+        stakingAsset.approve(address(diamond), 1 ether);
+        uint256 bobPosition = globalRewards.createAndStake(1 ether, bob, bobAssets);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        assertEq(globalRewards.positionRewardAssets(alicePosition).length, 64);
+        vm.prank(bob);
+        assertEq(globalRewards.positionRewardAssets(bobPosition).length, 64);
+        assertEq(globalRewards.rewardAsset(aliceAssets[0]).eligibleStake, 1 ether);
+        assertEq(globalRewards.rewardAsset(bobAssets[63]).eligibleStake, 1 ether);
+
+        address[] memory extra = _asset(address(new MockERC20("Extra Reward", "XR", 18)));
+        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardAssetLimitExceeded.selector, alicePosition));
+        vm.prank(alice);
+        globalRewards.optInRewardAssets(alicePosition, extra);
+    }
+
+    function testFullUnstakeClearsSelectionsButRetainsClaimableRewards() external {
+        _installFeeAccrualHarness();
+        MockERC20 reward = new MockERC20("Reward", "RWD", 18);
+        address[] memory rewardAssets = _asset(address(reward));
+        stakingAsset.mint(alice, 10 ether);
+        reward.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 10 ether);
+        reward.approve(address(diamond), 1 ether);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, rewardAssets);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(reward), 1 ether);
+        vm.warp(block.timestamp + 24 hours);
+        globalRewards.unstake(positionId, 10 ether, alice);
+        address[] memory selected = globalRewards.positionRewardAssets(positionId);
+        uint256[] memory pending = globalRewards.pendingRewards(positionId, rewardAssets);
+        vm.stopPrank();
+
+        assertEq(selected.length, 0);
         assertEq(pending[0], 0.9 ether);
+        assertEq(globalRewards.rewardAsset(address(reward)).eligibleStake, 0);
+        assertFalse(globalRewards.canAccrueStakerRewards(address(reward)));
+    }
+
+    function testOptInReactivatesAnEmptyPositionStakingLeg() external {
+        address[] memory noAssets = new address[](0);
+        stakingAsset.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 1 ether);
+        uint256 positionId = globalRewards.createAndStake(1 ether, alice, noAssets);
+        vm.warp(block.timestamp + 24 hours);
+        globalRewards.unstake(positionId, 1 ether, alice);
+        vm.stopPrank();
+
+        IStaticsPosition positions = IStaticsPosition(address(diamond));
+        assertFalse(positions.isPositionLegActive(positionId, LibPosition.stakingLegKey()));
+
+        vm.prank(alice);
+        globalRewards.optInRewardAssets(positionId, _asset(address(assetA)));
+
+        assertTrue(positions.isPositionLegActive(positionId, LibPosition.stakingLegKey()));
+    }
+
+    function testZeroStakeOptInChurnCannotChangeIndexRounding() external {
+        _installFeeAccrualHarness();
+        MockERC20 churnedReward = new MockERC20("Churned Reward", "CR", 0);
+        MockERC20 controlReward = new MockERC20("Control Reward", "CTR", 0);
+        address[] memory selectedAssets = _assets(address(churnedReward), address(controlReward));
+        uint256 largeStake = 2 * LibGlobalRewards.RAY;
+
+        stakingAsset.mint(alice, largeStake);
+        churnedReward.mint(alice, 4);
+        controlReward.mint(alice, 4);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), largeStake);
+        churnedReward.approve(address(diamond), 4);
+        controlReward.approve(address(diamond), 4);
+        uint256 stakerPosition = globalRewards.createAndStake(largeStake, alice, selectedAssets);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(churnedReward), 2);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(controlReward), 2);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        uint256 emptyPosition = IStaticsPosition(address(diamond)).createPosition(bob);
+        globalRewards.optInRewardAssets(emptyPosition, _asset(address(churnedReward)));
+        globalRewards.optOutRewardAssets(emptyPosition, _asset(address(churnedReward)));
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(churnedReward), 2);
+        FeeAccrualHarness(address(diamond)).accrueNonSwapFee(address(controlReward), 2);
+        uint256[] memory pending = globalRewards.pendingRewards(stakerPosition, selectedAssets);
+        vm.stopPrank();
+
+        IStaticsGlobalRewards.RewardAssetView memory churned = globalRewards.rewardAsset(address(churnedReward));
+        IStaticsGlobalRewards.RewardAssetView memory control = globalRewards.rewardAsset(address(controlReward));
+        assertEq(churned.indexRay, control.indexRay);
+        assertEq(churned.indexedReserve, control.indexedReserve);
+        assertEq(pending[0], pending[1]);
+        assertEq(pending[0], 0);
+
+        vm.prank(alice);
+        globalRewards.optOutRewardAssets(stakerPosition, selectedAssets);
+        assertEq(globalRewards.treasuryAccrued(address(churnedReward)), 4);
+        assertEq(globalRewards.treasuryAccrued(address(controlReward)), 4);
     }
 
     function _installFeeAccrualHarness() private returns (FeeAccrualHarness harness) {
@@ -168,10 +279,19 @@ contract GlobalRewardsTest is StaticsTestBase {
         selectors[0] = FeeAccrualHarness.accrueNonSwapFee.selector;
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
-            facetAddress: address(harness),
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: selectors
+            facetAddress: address(harness), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+    }
+
+    function _asset(address asset) private pure returns (address[] memory assets) {
+        assets = new address[](1);
+        assets[0] = asset;
+    }
+
+    function _assets(address first, address second) private pure returns (address[] memory assets) {
+        assets = new address[](2);
+        assets[0] = first;
+        assets[1] = second;
     }
 }

@@ -31,14 +31,9 @@ interface IStaticsSwapFeeHook {
         uint16 treasuryShareBps;
     }
 
-    struct FeeAllocation {
-        uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
-        uint16 stakerShareBps;
-        uint16 treasuryShareBps;
-    }
-
-    struct PoolFeeAllocationView {
+    struct PoolFeeConfigurationView {
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
         uint16 polShareBps;
         uint16 liquidityProviderShareBps;
         uint16 stakerShareBps;
@@ -76,14 +71,16 @@ interface IStaticsSwapFeeHook {
         uint16 stakerShareBps,
         uint16 treasuryShareBps
     );
-    event PoolFeeAllocationSet(
+    event PoolFeeConfigurationSet(
         PoolId indexed poolId,
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
         uint16 polShareBps,
         uint16 liquidityProviderShareBps,
         uint16 stakerShareBps,
         uint16 treasuryShareBps
     );
-    event PoolFeeAllocationCleared(PoolId indexed poolId);
+    event PoolFeeConfigurationCleared(PoolId indexed poolId);
     event TickObservationRecorded(
         PoolId indexed poolId, uint40 indexed timestamp, int24 tick, int56 tickCumulative, uint8 cardinality
     );
@@ -98,9 +95,9 @@ interface IStaticsSwapFeeHook {
         uint16 stakerShareBps,
         uint16 treasuryShareBps
     ) external;
-    function setPoolFeeAllocation(PoolId poolId, FeeAllocation calldata allocation) external;
-    function clearPoolFeeAllocation(PoolId poolId) external;
-    function poolFeeAllocation(PoolId poolId) external view returns (PoolFeeAllocationView memory allocation);
+    function setPoolFeeConfiguration(PoolId poolId, FeeConfiguration calldata configuration) external;
+    function clearPoolFeeConfiguration(PoolId poolId) external;
+    function poolFeeConfiguration(PoolId poolId) external view returns (PoolFeeConfigurationView memory configuration);
     function registerPool(PoolKey calldata key) external returns (PoolId poolId);
     function decommissionPool(PoolKey calldata key) external;
     function poolDecommissioned(PoolId poolId) external view returns (bool decommissioned);

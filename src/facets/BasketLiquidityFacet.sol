@@ -190,41 +190,47 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
         emit SwapFeeConfigurationChanged(configuration);
     }
 
-    function setCanonicalPoolFeeAllocation(uint256 basketId, address asset, FeeAllocation calldata allocation)
-        external
-    {
+    function setCanonicalPoolFeeConfiguration(
+        uint256 basketId,
+        address asset,
+        SwapFeeConfiguration calldata configuration
+    ) external {
         LibDiamond.enforceIsContractOwner();
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         PoolId poolId = stored.key.toId();
         IStaticsSwapFeeHook(ls.hook)
-            .setPoolFeeAllocation(
+            .setPoolFeeConfiguration(
                 poolId,
-                IStaticsSwapFeeHook.FeeAllocation({
-                    polShareBps: allocation.polShareBps,
-                    liquidityProviderShareBps: allocation.liquidityProviderShareBps,
-                    stakerShareBps: allocation.stakerShareBps,
-                    treasuryShareBps: allocation.treasuryShareBps
+                IStaticsSwapFeeHook.FeeConfiguration({
+                    inputFeeBps: configuration.inputFeeBps,
+                    outputFeeBps: configuration.outputFeeBps,
+                    polShareBps: configuration.polShareBps,
+                    liquidityProviderShareBps: configuration.liquidityProviderShareBps,
+                    stakerShareBps: configuration.stakerShareBps,
+                    treasuryShareBps: configuration.treasuryShareBps
                 })
             );
-        emit CanonicalPoolFeeAllocationSet(
+        emit CanonicalPoolFeeConfigurationSet(
             basketId,
             asset,
             poolId,
-            allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
-            allocation.stakerShareBps,
-            allocation.treasuryShareBps
+            configuration.inputFeeBps,
+            configuration.outputFeeBps,
+            configuration.polShareBps,
+            configuration.liquidityProviderShareBps,
+            configuration.stakerShareBps,
+            configuration.treasuryShareBps
         );
     }
 
-    function clearCanonicalPoolFeeAllocation(uint256 basketId, address asset) external {
+    function clearCanonicalPoolFeeConfiguration(uint256 basketId, address asset) external {
         LibDiamond.enforceIsContractOwner();
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         PoolId poolId = stored.key.toId();
-        IStaticsSwapFeeHook(ls.hook).clearPoolFeeAllocation(poolId);
-        emit CanonicalPoolFeeAllocationCleared(basketId, asset, poolId);
+        IStaticsSwapFeeHook(ls.hook).clearPoolFeeConfiguration(poolId);
+        emit CanonicalPoolFeeConfigurationCleared(basketId, asset, poolId);
     }
 
     function unwindBasketLiquidity(uint256 basketId, address asset) external nonReentrant {
@@ -326,16 +332,18 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, ReentrancyGuard {
         });
     }
 
-    function canonicalPoolFeeAllocation(uint256 basketId, address asset)
+    function canonicalPoolFeeConfiguration(uint256 basketId, address asset)
         external
         view
-        returns (PoolFeeAllocationView memory allocation)
+        returns (PoolFeeConfigurationView memory configuration)
     {
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
-        IStaticsSwapFeeHook.PoolFeeAllocationView memory effective =
-            IStaticsSwapFeeHook(ls.hook).poolFeeAllocation(stored.key.toId());
-        allocation = PoolFeeAllocationView({
+        IStaticsSwapFeeHook.PoolFeeConfigurationView memory effective =
+            IStaticsSwapFeeHook(ls.hook).poolFeeConfiguration(stored.key.toId());
+        configuration = PoolFeeConfigurationView({
+            inputFeeBps: effective.inputFeeBps,
+            outputFeeBps: effective.outputFeeBps,
             polShareBps: effective.polShareBps,
             liquidityProviderShareBps: effective.liquidityProviderShareBps,
             stakerShareBps: effective.stakerShareBps,

@@ -156,11 +156,12 @@ constituent pool with an explicit starting price and activates it only after
 the warm-up, observation, and deviation checks pass. Checkpointing and manager
 sync remain permissionless.
 
-Per-pool fee allocation changes are separate timelocked governance actions.
-Schedule the typed `setCanonicalPoolFeeAllocation` or
-`clearCanonicalPoolFeeAllocation` call against `StaticsDiamond`, record its
-basket, constituent, derived PoolId, and effective allocation, and do not treat
-pool age, liquidity, volume, or oracle state as an automatic graduation rule.
+Per-pool fee configuration changes are separate timelocked governance actions.
+Schedule the typed `setCanonicalPoolFeeConfiguration` or
+`clearCanonicalPoolFeeConfiguration` call against `StaticsDiamond`, record its
+basket, constituent, derived PoolId, effective input/output rates, and fee
+split, and do not treat pool age, liquidity, volume, or oracle state as an
+automatic graduation rule.
 
 Preserve Foundry's `broadcast/DeployStatics.s.sol/<chain-id>/run-latest.json`
 and transaction receipts as the deployment record. Record at minimum:
@@ -199,7 +200,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           22 facets, 184 selectors
+StaticsDiamond:           22 facets, 183 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -212,7 +213,7 @@ Against the deployed addresses, verify:
    the intended proposer/canceller and executor roles are present, and the
    emergency guardian has no timelock cancellation authority;
 3. the Diamond's `guardian()`, `treasury()`, `creationFee()`, `stakingToken()`,
-   `totalStaked()`, reward-slot state, and treasury accruals match the
+   `totalStaked()`, selected reward-asset books, and treasury accruals match the
    authorized launch configuration;
 4. Core `periphery()`, `positionNFT()`, owner, token addresses, WETH profile,
    oracle, sequencer requirement, and debt ceiling match the manifest;
