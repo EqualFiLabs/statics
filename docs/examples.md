@@ -31,6 +31,31 @@ asset, two canonical markets, mint and redemption paths, arbitrage connections,
 basket rewards, self-backed lending, flash liquidity, and a route for future
 third-party LPs. Nothing guarantees demand or earnings; activity must occur.
 
+The creator can deliberately start small. For example, it might seed roughly
+$2,000 of full-range liquidity in each canonical pool. That will be shallow for
+large trades, but it is enough to make both markets executable and expose them
+to arbitrage. Under the current launch-default split, 10% of each charged hook
+fee leg enters permanent protocol-owned liquidity. Any unavailable canonical-LP,
+BasketToken-staker, or STATICS-staker allocation also redirects there. As
+matched BasketToken and constituent fee inventory accumulates, the hook adds it
+back as permanent full-range liquidity.
+
+The shared USDG constituent also connects this basket to every other Statics
+basket and external venue using USDG. If another project launches `BASKET-B`
+against USDG, searchers gain routes such as:
+
+```text
+BASKET-A -> USDG -> BASKET-B
+BASKET-A -> PROJECT-A -> external venue -> USDG -> BASKET-B
+flash-borrow basket A vector -> mint/redeem -> several canonical pools -> repay
+```
+
+Adding WETH as another common constituent introduces another shared settlement
+route. Across many baskets, these links form a multi-pool, multi-asset arbitrage
+graph. A new basket can therefore benefit from existing network liquidity and
+price discovery rather than depending only on its own direct project-token
+pool.
+
 ## Depositing a basket and borrowing constituents
 
 Suppose Alice deposits 100 BasketTokens in PositionNFT 42. The basket's loan

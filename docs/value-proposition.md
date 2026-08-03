@@ -6,6 +6,26 @@ capital into functioning financial markets, while letting users retain
 exposure to assets, earn from their activity, and access liquidity without
 giving up that earning position.
 
+Statics is designed so a creator can begin with modest liquidity and build
+permanent market depth from use. A project might initially place an illustrative
+$2,000 into each BasketToken/constituent pool rather than funding institutional
+depth on day one. The Statics hook directs a governed portion of every charged
+swap-fee leg into protocol-owned liquidity and also redirects unavailable LP or
+staking allocations there. When both sides are available, the hook compounds
+that inventory into permanent full-range liquidity. The project cannot withdraw
+this POL, but its market benefits from the depth it creates. Growth requires
+actual trading and balanced fee inventory; seed liquidity is a starting point,
+not a promise of future depth.
+
+Shared constituents make this more powerful than isolated liquidity mining. A
+basket containing a project token and USDG creates canonical paths from its
+BasketToken into both assets. Every other basket using USDG connects to that
+same settlement asset. WETH can serve the same role. As baskets accumulate,
+searchers can route through multiple BasketToken/USDG, BasketToken/WETH, and
+BasketToken/project-token pools, external venues, ordinary mint and redemption,
+and basket-vector flash loans. Each launch expands a multi-pool, multi-asset
+arbitrage graph rather than creating only one disconnected pair.
+
 ## The complete system
 
 - Projects launch isolated, fixed-composition baskets containing
@@ -35,7 +55,9 @@ giving up that earning position.
   surfaces. The Statics hook charges configurable fees on realized input and
   output, compounds permanent protocol-owned liquidity, and routes revenue
   among eligible LPs, deposited BasketTokens, eligible STATICS stakers, and
-  treasury.
+  treasury. Protocol-owned liquidity has no ordinary withdrawal path while the
+  pool is active, so activity can build enduring market infrastructure instead
+  of temporary rented liquidity.
 - Statics Dollar adds a stable monetary layer. Pegged profiles provide direct
   collateral wrappers. Volatile profiles issue senior `USDstx` and junior
   `ethLEV` Risk Shares; the junior claim absorbs first loss and can supply exit
@@ -57,7 +79,10 @@ giving up that earning position.
 For asset creators and launchpads, Statics turns token inventory and treasury
 capital into a redeemable product, canonical liquidity, arbitrage routes,
 staking, and credit. The basket-creation charge is a predictable service fee,
-while the resulting market can continue producing activity after launch.
+while the resulting market can continue producing activity after launch. A
+modest bootstrap can grow into deeper permanent liquidity, and choosing common
+constituents connects the new basket to existing Statics markets and external
+liquidity through shared arbitrage routes.
 
 For users, Statics makes holding productive without requiring them to abandon
 their underlying exposure to access liquidity. A user can deposit a basket,
