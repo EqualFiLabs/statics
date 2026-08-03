@@ -272,7 +272,7 @@ contract PositionNFTTest is Test {
         assertEq(nft.ownerOf(positionId), alice);
         assertEq(nft.balanceOf(alice), 1);
         assertEq(metadata.name(), "Statics Position");
-        assertEq(metadata.symbol(), "etPOS");
+        assertEq(metadata.symbol(), "STXPOS");
         assertGt(bytes(metadata.tokenURI(positionId)).length, 0);
         assertGt(positionMetadata.positionRenderer().code.length, 0);
         IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
