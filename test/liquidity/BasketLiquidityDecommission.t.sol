@@ -38,7 +38,6 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         });
         _seedAndSwap();
         vm.warp(block.timestamp + 1 hours);
-        basketLiquidity.activateCanonicalPool(basketId, constituent);
     }
 
     function testExitOnlyReleasesPolAndRoutesItToGlobalTreasury() public {

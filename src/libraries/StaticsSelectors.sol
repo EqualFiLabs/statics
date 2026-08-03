@@ -176,24 +176,21 @@ library StaticsSelectors {
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](17);
+        selectors = new bytes4[](14);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
         selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[4] = IStaticsBasketLiquidity.checkpointCanonicalPool.selector;
-        selectors[5] = IStaticsBasketLiquidity.activateCanonicalPool.selector;
-        selectors[6] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
-        selectors[7] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
-        selectors[8] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[9] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[10] = IStaticsBasketLiquidity.liquiditySafetyParameters.selector;
-        selectors[11] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[12] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
-        selectors[13] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[14] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
-        selectors[15] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
-        selectors[16] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+        selectors[4] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
+        selectors[5] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
+        selectors[6] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[7] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[8] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
+        selectors[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
+        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
+        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
     }
 
     function liquidityRewards() internal pure returns (bytes4[] memory selectors) {

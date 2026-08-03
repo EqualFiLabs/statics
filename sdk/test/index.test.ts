@@ -11,13 +11,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   allowsExposureIncrease,
   BasketStatus,
-  CanonicalPoolStatus,
   buildActivateLiquidityPositionCall,
-  buildActivateCanonicalPoolCall,
   buildBorrowAndProvideLiquidityCall,
   buildBorrowAndStakeLiquidityCall,
   buildBorrowCall,
-  buildCheckpointCanonicalPoolCall,
   buildClearCanonicalPoolFeeConfigurationCall,
   buildClaimRewardsCall,
   buildClaimBasketRewardsCall,
@@ -846,19 +843,15 @@ describe("Statics unified calldata", () => {
     });
   });
 
-  it("exposes only post-launch canonical-pool lifecycle actions", () => {
-    const checkpoint = buildCheckpointCanonicalPoolCall(7n, assetA);
-    expect(decodeFunctionData({ abi: staticsAbi, data: checkpoint }).functionName)
-      .toBe("checkpointCanonicalPool");
-    const activate = buildActivateCanonicalPoolCall(7n, assetA);
-    expect(decodeFunctionData({ abi: staticsAbi, data: activate }).functionName)
-      .toBe("activateCanonicalPool");
+  it("exposes canonical pools without a post-launch activation lifecycle", () => {
     expect(staticsAbi.some((entry) => entry.type === "function" && entry.name === "initializeCanonicalPool"))
       .toBe(false);
     expect(staticsAbi.some((entry) => entry.type === "function" && entry.name === "syncCanonicalPoolToManager"))
       .toBe(false);
-    expect(CanonicalPoolStatus.Warming).toBe(1);
-    expect(CanonicalPoolStatus.Active).toBe(2);
+    expect(staticsAbi.some((entry) => entry.type === "function" && entry.name === "checkpointCanonicalPool"))
+      .toBe(false);
+    expect(staticsAbi.some((entry) => entry.type === "function" && entry.name === "activateCanonicalPool"))
+      .toBe(false);
   });
 
   it("encodes governed five-way fee configuration", () => {

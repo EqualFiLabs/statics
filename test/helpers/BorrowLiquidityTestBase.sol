@@ -85,11 +85,6 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
         }
         (basketPositionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 100 ether, alice, quote);
         vm.stopPrank();
-
-        vm.warp(block.timestamp + 1 hours);
-        for (uint256 i; i < count; ++i) {
-            basketLiquidity.activateCanonicalPool(basketId, assets[i]);
-        }
     }
 
     function _poolParams(uint256 liquidity)
@@ -113,15 +108,9 @@ abstract contract BorrowLiquidityTestBase is CanonicalPoolTestBase {
     }
 
     function _assertManagerHasNoUserResidue() internal view {
-        assertEq(
-            IERC20(basketToken).balanceOf(address(liquidityManagerContract)),
-            liquidityManagerContract.totalProtocolInventory(basketToken)
-        );
+        assertEq(IERC20(basketToken).balanceOf(address(liquidityManagerContract)), 0);
         for (uint256 i; i < basketAssets.length; ++i) {
-            assertEq(
-                IERC20(basketAssets[i]).balanceOf(address(liquidityManagerContract)),
-                liquidityManagerContract.totalProtocolInventory(basketAssets[i])
-            );
+            assertEq(IERC20(basketAssets[i]).balanceOf(address(liquidityManagerContract)), 0);
         }
     }
 }

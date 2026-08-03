@@ -241,9 +241,7 @@ contract DiamondGovernanceTest is Test {
             loanDuration: 30 days
         });
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
-        pools[0] = IStaticsBasket.PoolLaunchParams({
-            sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
-        });
+        pools[0] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 10 ether;
         _executeThroughTimelock(
@@ -259,7 +257,6 @@ contract DiamondGovernanceTest is Test {
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
             IStaticsBasketLiquidity(address(diamond)).canonicalPool(0, address(constituent));
         (, address hook,) = IStaticsBasketLiquidity(address(diamond)).liquidityIntegration();
-        assertEq(uint8(canonical.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Warming));
         assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(canonical.poolId), 0);
     }
 
@@ -399,7 +396,8 @@ contract DiamondGovernanceTest is Test {
         vm.deal(stranger, 1 ether);
         vm.startPrank(stranger);
         IERC20(address(constituent)).approve(address(diamond), 10 ether);
-        (basketId,) = IStaticsBasket(address(diamond)).createBasket{value: 1 ether}(params, pools, maximums, type(uint256).max);
+        (basketId,) =
+            IStaticsBasket(address(diamond)).createBasket{value: 1 ether}(params, pools, maximums, type(uint256).max);
         vm.stopPrank();
     }
 

@@ -244,7 +244,6 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         assertEq(pool.basketToken, basketToken);
         assertEq(pool.asset, asset);
         assertEq(pool.hook, hook);
-        assertEq(uint8(pool.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Warming));
         assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId), 0);
         assertTrue(IStaticsLiquidityManager(manager).canonicalPoolHash(0, asset) != bytes32(0));
     }

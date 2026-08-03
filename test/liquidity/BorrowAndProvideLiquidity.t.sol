@@ -61,7 +61,6 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         assertEq(loan.collateralShares, expected.collateralShares);
         assertEq(loan.principals, expected.principals);
         assertGt(IERC20(basketToken).totalSupply(), supplyBefore - expected.feeShares);
-        assertEq(liquidityManagerContract.protocolPositionId(basketId, basketAssets[0]), 0);
         _assertManagerHasNoUserResidue();
 
         IStaticsBasketCollateral.BasketCollateralPosition memory basketCollateralPosition =
@@ -100,7 +99,6 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
             assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenIds[i]), bob);
             assertEq(positionManagerContract.getPositionLiquidity(tokenIds[i]), params[i].liquidity);
             assertGt(IERC20(basketAssets[i]).balanceOf(bob), balancesBefore[i]);
-            assertEq(liquidityManagerContract.protocolPositionId(basketId, basketAssets[i]), 0);
         }
         _assertManagerHasNoUserResidue();
     }
@@ -237,5 +235,4 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
             assertEq(lending.outstandingPrincipal(basketId, basketAssets[i]), 0);
         }
     }
-
 }

@@ -465,7 +465,7 @@ contract PositionNFTTest is Test {
         vm.prank(alice);
         moduleHarness.openObligation(positionId);
 
-        bytes32 stateMappingSlot = bytes32(uint256(LibPosition.STORAGE_POSITION) + 6);
+        bytes32 stateMappingSlot = bytes32(uint256(LibPosition.STORAGE_POSITION) + 4);
         bytes32 positionSlot = keccak256(abi.encode(positionId, stateMappingSlot));
         uint256 packed = uint256(vm.load(address(diamond), positionSlot));
         assertEq(uint64(packed), 3);

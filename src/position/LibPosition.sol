@@ -5,7 +5,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 
 library LibPosition {
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v1");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v2");
     bytes32 internal constant DOLLAR_MODULE = keccak256("statics.position.module.dollar");
     bytes32 internal constant BASKET_MODULE = keccak256("statics.position.module.basket");
     bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
@@ -22,9 +22,6 @@ library LibPosition {
     struct PositionStorage {
         uint256 nextPositionId;
         bool initialized;
-        // Reserved legacy slots. Fresh deployments use `state` below.
-        mapping(uint256 positionId => uint256 count) activeLegCount;
-        mapping(uint256 positionId => bool initializing) positionInitializing;
         mapping(uint256 positionId => mapping(bytes32 legKey => bool active)) activeLeg;
         uint256 creationFeeAmount;
         mapping(uint256 positionId => PackedPositionState value) state;

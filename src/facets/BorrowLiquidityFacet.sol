@@ -11,11 +11,9 @@ import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
-import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketLiquidityMath} from "../libraries/LibBasketLiquidityMath.sol";
@@ -28,10 +26,6 @@ import {LibLiquidityRewards} from "../libraries/LibLiquidityRewards.sol";
 contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
-
-    uint32 private constant REFERENCE_WINDOW = 30 minutes;
-    int24 private constant MAX_POSITIVE_TICK_DEVIATION = 99;
-    int24 private constant MAX_NEGATIVE_TICK_DEVIATION = -100;
 
     struct PreparedPool {
         address asset;
@@ -49,12 +43,9 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     error InvalidPoolCount(uint256 provided, uint256 required);
     error DuplicatePoolAsset(address asset);
     error AssetNotInBasket(uint256 basketId, address asset);
-    error CanonicalPoolNotActive(uint256 basketId, address asset);
-    error CanonicalPoolNotSynced(uint256 basketId, address asset);
     error LiquidityManagerNotInstalled();
     error InvalidLiquidityParameters(address asset);
     error AmountCapExceeded(address token, uint256 required, uint256 maximum);
-    error PriceDeviationTooHigh(int24 referenceTick, int24 spotTick);
     error InsufficientPrincipal(address asset, uint256 required, uint256 available);
     error PositionLiquidityMismatch(uint256 tokenId, uint256 expected, uint256 actual);
     error ActionPaused(uint256 action);
@@ -146,12 +137,11 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         uint256 basketId,
         LiquidityParams[] calldata pools,
         bool requireFullRange
-    ) private returns (PreparedPool[] memory prepared, uint256[] memory poolAssetAmounts, uint256 basketShares) {
+    ) private view returns (PreparedPool[] memory prepared, uint256[] memory poolAssetAmounts, uint256 basketShares) {
         uint256 length = pools.length;
         prepared = new PreparedPool[](length);
         poolAssetAmounts = new uint256[](length);
         bool[] memory seen = new bool[](length);
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
         IPoolManager poolManager = IPoolManager(ls.poolManager);
 
         for (uint256 i; i < length; ++i) {
@@ -160,20 +150,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
             if (seen[assetIndex]) revert DuplicatePoolAsset(supplied.asset);
             seen[assetIndex] = true;
             LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][supplied.asset];
-            if (stored.status != IStaticsBasketLiquidity.CanonicalPoolStatus.Active) {
-                revert CanonicalPoolNotActive(basketId, supplied.asset);
-            }
-            if (!ls.managerPoolSynced[basketId][supplied.asset]) {
-                revert CanonicalPoolNotSynced(basketId, supplied.asset);
-            }
             _validateRange(supplied, stored.key.tickSpacing, requireFullRange);
-
-            hook.checkpoint(stored.key);
-            (int24 referenceTick, int24 spotTick,) = hook.consult(stored.key.toId(), REFERENCE_WINDOW);
-            int256 deviation = int256(spotTick) - int256(referenceTick);
-            if (deviation > MAX_POSITIVE_TICK_DEVIATION || deviation < MAX_NEGATIVE_TICK_DEVIATION) {
-                revert PriceDeviationTooHigh(referenceTick, spotTick);
-            }
             (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(stored.key.toId());
             (uint256 amount0, uint256 amount1) = LibBasketLiquidityMath.rangeAmounts(
                 sqrtPriceX96, supplied.tickLower, supplied.tickUpper, uint128(supplied.liquidity)
@@ -309,10 +286,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         revert AssetNotInBasket(basketId, asset);
     }
 
-    function _validateRange(LiquidityParams calldata supplied, int24 tickSpacing, bool requireFullRange)
-        private
-        view
-    {
+    function _validateRange(LiquidityParams calldata supplied, int24 tickSpacing, bool requireFullRange) private view {
         int24 minimumTick = TickMath.minUsableTick(tickSpacing);
         int24 maximumTick = TickMath.maxUsableTick(tickSpacing);
         if (
