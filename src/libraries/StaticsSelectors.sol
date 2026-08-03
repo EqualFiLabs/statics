@@ -21,7 +21,12 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
-import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
+import {
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionMetadata,
+    IStaticsPositionModule
+} from "../interfaces/IStaticsPosition.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
 
 library StaticsSelectors {
@@ -59,7 +64,7 @@ library StaticsSelectors {
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](23);
+        selectors = new bytes4[](25);
         selectors[0] = IERC721.balanceOf.selector;
         selectors[1] = IERC721.ownerOf.selector;
         selectors[2] = IERC721.approve.selector;
@@ -83,6 +88,8 @@ library StaticsSelectors {
         selectors[20] = IStaticsPositionModule.createPositionForModule.selector;
         selectors[21] = IStaticsPositionFees.setPositionCreationFee.selector;
         selectors[22] = IStaticsPositionFees.positionCreationFee.selector;
+        selectors[23] = IStaticsPositionMetadata.setPositionRenderer.selector;
+        selectors[24] = IStaticsPositionMetadata.positionRenderer.selector;
     }
 
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {

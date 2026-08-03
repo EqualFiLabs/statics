@@ -227,7 +227,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 191 selectors
+StaticsDiamond:           21 facets, 193 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -315,6 +315,8 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 `StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, reward selections, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over the complete economic position. A position cannot close while any module leg remains active.
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
+
+Every valid PositionNFT has deterministic, fully onchain Base64 JSON and SVG metadata. The visual seed is the stable `(chain ID, StaticsDiamond, position ID)` identity, so transfers and position activity do not change the avatar. The Diamond owner may replace or clear the collection-wide renderer; the renderer contains no balances, achievements, risk claims, or other live protocol state.
 
 ### Global rewards
 

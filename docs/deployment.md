@@ -433,7 +433,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 191 selectors
+StaticsDiamond:           21 facets, 193 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -458,12 +458,16 @@ Against the deployed addresses, verify:
    offchain runtime hashes recorded for release provenance match deployed code,
    but the Diamonds do not enforce those hashes during dispatch;
 7. ERC-165 reports the expected custody, global rewards, Dollar gateway,
-   ERC-721, receiver, basket-liquidity, and borrow-to-liquidity interfaces;
-8. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
+   ERC-721, Position metadata, receiver, basket-liquidity, and
+   borrow-to-liquidity interfaces;
+8. `positionRenderer()` equals the recorded renderer, both the renderer and its
+   immutable `avatarSVG()` helper have deployed code, and a minted PositionNFT
+   returns decodable Base64 JSON containing a self-contained Base64 SVG;
+9. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
    hook and manager immutable getters match the Diamond and Robinhood manifest,
    hook address bits equal `0x10cc`, and its input/output fee and revenue split
    equal the reviewed manifest;
-9. every created basket has exactly one initialized canonical pool per
+10. every created basket has exactly one initialized canonical pool per
    constituent, and every pool reports a zero native LP fee, tick spacing 10,
    expected hook, recorded PoolId, corresponding manager key hash, and nonzero
    launch liquidity; its hook-owned pending and locked permanent liquidity

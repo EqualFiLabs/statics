@@ -28,6 +28,7 @@ library LibPosition {
         mapping(uint256 positionId => mapping(bytes32 legKey => bool active)) activeLeg;
         uint256 creationFeeAmount;
         mapping(uint256 positionId => PackedPositionState value) state;
+        address renderer;
     }
 
     error AlreadyInitialized();
@@ -46,11 +47,12 @@ library LibPosition {
         }
     }
 
-    function initialize(uint256 creationFeeAmount) internal {
+    function initialize(uint256 creationFeeAmount, address renderer) internal {
         PositionStorage storage ps = positionStorage();
         if (ps.initialized) revert AlreadyInitialized();
         ps.nextPositionId = 1;
         ps.creationFeeAmount = creationFeeAmount;
+        ps.renderer = renderer;
         ps.initialized = true;
     }
 

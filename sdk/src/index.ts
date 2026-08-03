@@ -780,6 +780,8 @@ export const staticsAbi = parseAbi([
   "function createPosition(address receiver) payable returns (uint256 positionId)",
   "function positionCreationFee() view returns (uint256 amount)",
   "function setPositionCreationFee(uint256 amount)",
+  "function positionRenderer() view returns (address renderer)",
+  "function setPositionRenderer(address newRenderer)",
   "function closePosition(uint256 positionId)",
   "function nextPositionId() view returns (uint256)",
   "function activeLegCount(uint256 positionId) view returns (uint256)",
@@ -854,6 +856,7 @@ export const staticsAbi = parseAbi([
   "event PositionClosed(uint256 indexed positionId)",
   "event PositionCreationFeeSet(uint256 previousAmount,uint256 newAmount)",
   "event PositionCreationFeePaid(uint256 indexed positionId,address indexed treasury,uint256 amount)",
+  "event PositionRendererSet(address indexed previousRenderer,address indexed newRenderer)",
   "event PositionLegAttached(uint256 indexed tokenId,bytes32 indexed legKey,address indexed moduleAuthority,bytes32 moduleType,bytes32 localPositionId,uint256 stateNonce)",
   "event PositionLegDetached(uint256 indexed tokenId,bytes32 indexed legKey,uint256 stateNonce)",
   "event PositionStateChanged(uint256 indexed tokenId,uint256 stateNonce,uint256 activeLegCount,uint256 unresolvedObligationCount)",
@@ -1062,6 +1065,7 @@ export type StaticsPositionEventName =
   | "PositionClosed"
   | "PositionCreationFeeSet"
   | "PositionCreationFeePaid"
+  | "PositionRendererSet"
   | "PositionLegAttached"
   | "PositionLegDetached"
   | "PositionStateChanged"
@@ -1812,6 +1816,10 @@ export function buildCreatePositionCall(receiver: Address): Hex {
 
 export function buildSetPositionCreationFeeCall(amount: bigint): Hex {
   return encodeFunctionData({ abi: staticsAbi, functionName: "setPositionCreationFee", args: [amount] });
+}
+
+export function buildSetPositionRendererCall(newRenderer: Address): Hex {
+  return encodeFunctionData({ abi: staticsAbi, functionName: "setPositionRenderer", args: [newRenderer] });
 }
 
 export function buildClosePositionCall(positionId: bigint): Hex {
