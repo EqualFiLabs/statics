@@ -195,10 +195,10 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
             return;
         }
 
-        string memory rpcUrl = vm.envOr("ROBINHOOD_RPC_URL", string(""));
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
-            vm.skip(true, "ROBINHOOD_RPC_URL is not configured");
+            vm.skip(true, "ROBINHOOD_MAINNET is not configured");
             return;
         }
 

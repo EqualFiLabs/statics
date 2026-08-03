@@ -99,7 +99,7 @@ target network supports transient storage.
 Robinhood Chain compatibility is covered by a pinned-fork test using the
 PoolManager address and block recorded in
 `deployments/robinhood-chain-4663.json`. The RPC is supplied through
-`ROBINHOOD_MAINNET`; `ROBINHOOD_RPC_URL` remains a compatibility fallback.
+`ROBINHOOD_MAINNET`.
 Production addresses continue to come from the deployment manifest rather
 than Solidity constants.
 

@@ -48,7 +48,6 @@ canonical launcher reads:
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed JSON manifest for the owner-funded first basket |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding the approvals and atomic basket launch |
-| `STATICS_GENESIS_ACTIVATION_SALT` | Unique salt binding the canonical-pool activation batch |
 
 `RPC_URL` is consumed by the Forge command rather than Solidity. Do not infer
 feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
@@ -63,12 +62,9 @@ atomically. This source shape is supported only as a fresh deployment: it
 changes Position selectors and introduces packed structural state that legacy
 Positions do not contain.
 
-Do not install these facets over an existing Diamond. The retained
-`script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee` entrypoints
-revert with `FreshDeploymentRequired` so the obsolete Position-fee ceremony
-cannot construct a misleading partial upgrade. Supporting an in-place upgrade
-would require a separately specified and tested selector cut plus per-Position
-state migration; this release makes no such migration claim.
+Do not install these facets over an existing Diamond. Supporting an in-place
+upgrade would require a separately specified and tested selector cut plus
+per-Position state migration; this release makes no such migration claim.
 
 Position fees are forwarded immediately and entirely to the canonical
 treasury. The Diamond does not accrue a native fee balance and there is no
@@ -134,7 +130,7 @@ The target network must implement Cancun transient storage (EIP-1153).
 compose with ordinary persistently guarded basket minting and redemption while
 nested flash loans remain blocked. A production preflight must reject a target
 that lacks EIP-1153. The pinned Robinhood compatibility suite reads
-`ROBINHOOD_MAINNET`, with `ROBINHOOD_RPC_URL` accepted as a legacy fallback.
+`ROBINHOOD_MAINNET`.
 
 The production validator rejects zero governance addresses, missing risk or
 oracle parameters, non-contract dependencies, an invalid oracle range, and the
@@ -175,6 +171,9 @@ The launcher performs one creation broadcast in this order:
    permission bitmap through Foundry's deterministic CREATE2 deployer at
    `0x4e59b44847b379578588920cA78FbF26c0B4956C`, then deploy the manager with
    immutable Diamond, PositionManager, PoolManager, and Permit2 bindings.
+   `afterInitialize` is registration-only: it prevents third parties from
+   pre-initializing a predictable canonical PoolKey, and does not maintain an
+   oracle or create a post-launch activation step.
 
 Both Diamonds are owned by the same timelock from genesis. No later ownership
 handoff or separate PositionNFT/router deployment is required. Because the
@@ -303,15 +302,14 @@ creation must provide one semantic constituent-per-BasketToken square-root
 price, one paired-asset budget, and one complete input cap per constituent.
 The same transaction creates the BasketToken, initializes and manager-registers
 all pools, mints their fully backed BasketTokens, and seeds permanent full-range
-liquidity. Timelocked governance activates each launched pool only after the
-warm-up, observation, and deviation checks pass. Checkpointing remains
-permissionless.
+liquidity. Every launched pool is immediately swappable and available to typed
+liquidity paths.
 
 Per-pool fee configuration changes are separate timelocked governance actions.
 Schedule the typed `setCanonicalPoolFeeConfiguration` or
 `clearCanonicalPoolFeeConfiguration` call against `StaticsDiamond`, record its
 basket, constituent, derived PoolId, effective input/output rates, and fee
-split, and do not treat pool age, liquidity, volume, or oracle state as an
+split, and do not treat pool age, liquidity, or volume as an
 automatic graduation rule.
 
 Preserve Foundry's `broadcast/DeployStatics.s.sol/<chain-id>/run-latest.json`
@@ -327,7 +325,7 @@ and transaction receipts as the deployment record. Record at minimum:
   observed runtime codehash;
 - the immutable `StaticsSwapFeeHook` and `StaticsLiquidityManager`, including
   their Diamond, PoolManager, PositionManager, and Permit2 bindings; and
-- every canonical pool key, PoolId, lifecycle parameter, and hook fee split.
+- every canonical pool key, PoolId, and hook fee split.
 
 Also record hook `pendingPermanentLiquidity` and `lockedLiquidity` snapshots
 for every canonical pool. Permanent liquidity is hook-owned and has no protocol
@@ -337,7 +335,7 @@ events.
 
 The chain manifest records the bilateral hook fees, revenue split, and safety
 calibration. `BasketLaunched`, pool initialization, manager registration,
-activation, and permanent-liquidity events provide the basket-specific
+and permanent-liquidity events provide the basket-specific
 PoolKeys, PoolIds, seed amounts, and aggregate launch supply for release
 evidence. A user v4 position remains external until `LiquidityPositionStaked`
 attaches it to a PositionNFT; activation, increases, claims, and exit have their
@@ -395,34 +393,9 @@ forge script script/LaunchGenesisBasket.s.sol:LaunchGenesisBasket \
 ```
 
 The execution command verifies that exactly the expected basket was created by
-the timelock, its token has nonzero supply and backing, every configured
-canonical pool is warming, every manager key is registered, and every pool has
-nonzero hook-owned permanent liquidity. Pool activation remains a later
-timelocked action after the normal warm-up and oracle checks.
-
-After the configured pool warm-up has elapsed, use the same immutable basket
-configuration with `script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket`.
-The first call checkpoints every pool and refuses to continue unless each pool
-has at least two observations and a usable reference window. Choose a fresh
-`STATICS_GENESIS_ACTIVATION_SALT`, simulate each call without `--broadcast`,
-then checkpoint, schedule, and execute:
-
-```bash
-forge script script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket \
-  --sig 'runCheckpoint()' --rpc-url "$RPC_URL" --broadcast -vv
-
-forge script script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket \
-  --sig 'runSchedule()' --rpc-url "$RPC_URL" --broadcast -vv
-
-forge script script/ActivateGenesisBasket.s.sol:ActivateGenesisBasket \
-  --sig 'runExecute()' --rpc-url "$RPC_URL" --broadcast -vv
-```
-
-The schedule contains one typed `activateCanonicalPool` call per constituent.
-Execution rechecks current oracle history and lets the Diamond enforce the
-configured spot-to-reference deviation bound. It is atomic: if any pool fails
-activation, no pool becomes active. The final validation requires every
-configured pool to report `Active` with a nonzero activation timestamp.
+the timelock, its token has nonzero supply and backing, every manager key is
+registered, and every pool has nonzero hook-owned permanent liquidity. No
+post-launch pool activation ceremony is required.
 
 Do not publish an address manifest until every transaction is confirmed and the
 post-deployment checks below pass.
@@ -433,7 +406,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 193 selectors
+StaticsDiamond:           21 facets, 190 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

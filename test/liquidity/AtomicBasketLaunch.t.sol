@@ -42,7 +42,6 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         for (uint256 i; i < assets.length; ++i) {
             IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
                 basketLiquidity.canonicalPool(basketId, address(assets[i]));
-            assertEq(uint8(canonical.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Warming));
             assertGt(swapFeeHook.lockedLiquidity(canonical.poolId), 0);
             assertGt(poolManager.getLiquidity(canonical.poolId), 0);
             assertGt(assets[i].balanceOf(address(poolManager)), 0);
@@ -58,7 +57,6 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         (uint256 basketId, address basketToken) = _createDefaultBasket(0, 0);
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
             basketLiquidity.canonicalPool(basketId, address(assetA));
-        assertEq(uint8(canonical.status), uint8(IStaticsBasketLiquidity.CanonicalPoolStatus.Warming));
 
         uint256[] memory quote = baskets.quoteMint(basketId, 1 ether);
         _fundAndApprove(alice, quote[0], quote[1]);
@@ -109,9 +107,8 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
 
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
             basketLiquidity.canonicalPool(basketId, address(assets[0]));
-        uint160 expectedPrice = basketToken < address(assets[0])
-            ? semanticPrice
-            : uint160(Math.mulDiv(1 << 96, 1 << 96, semanticPrice));
+        uint160 expectedPrice =
+            basketToken < address(assets[0]) ? semanticPrice : uint160(Math.mulDiv(1 << 96, 1 << 96, semanticPrice));
         (uint160 actualPrice,,,) = poolManager.getSlot0(canonical.poolId);
         assertEq(actualPrice, expectedPrice);
         assertGt(balanceBefore - assets[0].balanceOf(alice), pairedAmount);
@@ -289,11 +286,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
             ? (Currency.wrap(basketToken), Currency.wrap(asset))
             : (Currency.wrap(asset), Currency.wrap(basketToken));
         key = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: 0,
-            tickSpacing: 10,
-            hooks: IHooks(address(swapFeeHook))
+            currency0: currency0, currency1: currency1, fee: 0, tickSpacing: 10, hooks: IHooks(address(swapFeeHook))
         });
     }
 }

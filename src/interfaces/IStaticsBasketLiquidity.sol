@@ -4,12 +4,6 @@ pragma solidity 0.8.33;
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 
 interface IStaticsBasketLiquidity {
-    enum CanonicalPoolStatus {
-        Unconfigured,
-        Warming,
-        Active
-    }
-
     struct CanonicalPoolView {
         PoolId poolId;
         address basketToken;
@@ -19,13 +13,7 @@ interface IStaticsBasketLiquidity {
         address hook;
         uint24 lpFee;
         int24 tickSpacing;
-        CanonicalPoolStatus status;
-        uint40 initializedAt;
-        uint40 activatedAt;
         int24 spotTick;
-        int24 referenceTick;
-        uint8 observationCardinality;
-        bool referenceAvailable;
     }
 
     struct SwapFeeConfiguration {
@@ -60,12 +48,6 @@ interface IStaticsBasketLiquidity {
         uint160 sqrtPriceX96,
         int24 tick
     );
-    event CanonicalPoolCheckpointed(
-        uint256 indexed basketId, address indexed asset, PoolId indexed poolId, bool observationStored
-    );
-    event CanonicalPoolActivated(
-        uint256 indexed basketId, address indexed asset, PoolId indexed poolId, int24 referenceTick, int24 spotTick
-    );
     event CanonicalPoolSyncedToManager(
         uint256 indexed basketId, address indexed asset, PoolId indexed poolId, address manager
     );
@@ -96,10 +78,6 @@ interface IStaticsBasketLiquidity {
 
     function installCanonicalPoolIntegration(address poolManager, address hook) external;
     function installLiquidityManager(address manager) external;
-    function checkpointCanonicalPool(uint256 basketId, address asset) external returns (bool observationStored);
-    function activateCanonicalPool(uint256 basketId, address asset)
-        external
-        returns (int24 referenceTick, int24 spotTick);
     function setSwapFeeConfiguration(SwapFeeConfiguration calldata configuration) external;
     function setCanonicalPoolFeeConfiguration(
         uint256 basketId,
@@ -111,10 +89,6 @@ interface IStaticsBasketLiquidity {
 
     function liquidityIntegration() external view returns (address poolManager, address hook, bool installed);
     function liquidityManager() external view returns (address manager, bool installed);
-    function liquiditySafetyParameters()
-        external
-        pure
-        returns (uint24 lpFee, int24 tickSpacing, uint40 warmup, uint32 referenceWindow, uint16 maxDeviationBps);
     function canonicalPool(uint256 basketId, address asset) external view returns (CanonicalPoolView memory pool);
     function swapFeeConfiguration() external view returns (SwapFeeConfiguration memory configuration);
     function canonicalPoolFeeConfiguration(uint256 basketId, address asset)

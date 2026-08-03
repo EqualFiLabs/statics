@@ -104,9 +104,10 @@ permanently seeds every canonical pool. There is no standalone initialization
 or manager-sync builder. Constituents must settle the exact Uniswap v4 transfer
 amount; incompatible transfer-tax behavior reverts the complete launch.
 
-Governance uses the Diamond for post-warm-up activation and fee configuration.
-Pool checkpointing, reward and treasury distribution, retirement settlement,
-and post-`ExitOnly` unwind retain their permissionless execution paths.
+Canonical pools are usable immediately after atomic basket launch. Governance
+uses the Diamond for fee configuration. Reward and treasury distribution,
+retirement settlement, and post-`ExitOnly` unwind retain their permissionless
+execution paths.
 
 Canonical single-pool browser swaps use `buildQuoteV4ExactInputSingleCall`
 against Robinhood's v4 Quoter and `buildV4ExactInputSingleSwap` against its

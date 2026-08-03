@@ -85,8 +85,6 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
 
     function testCompletedStaticsLiquidityLifecycleUsesRobinhoodV4() public {
         (uint256 basketId, address basketToken, uint256 positionId) = _createFundedBasket();
-        vm.warp(block.timestamp + 1 hours);
-        basketLiquidity.activateCanonicalPool(basketId, address(assetA));
         uint256 userTokenId = _provideCanonicalLiquidity(positionId, basketId);
         assertEq(IERC721(address(positionManager)).ownerOf(userTokenId), address(diamond));
 
@@ -116,14 +114,11 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         basketLiquidity.unwindBasketLiquidity(basketId, address(assetA));
         assertTrue(basketLiquidity.basketLiquidityUnwound(basketId, address(assetA)));
         assertEq(hook.lockedLiquidity(canonical.poolId), 0);
-        assertEq(manager.protocolPositionId(basketId, address(assetA)), 0);
         assertEq(IERC721(address(positionManager)).ownerOf(userTokenId), alice);
     }
 
     function testUniversalRouterQuotesAndSwapsCanonicalHookedPool() public {
         (uint256 basketId, address basketToken, uint256 positionId) = _createFundedBasket();
-        vm.warp(block.timestamp + 1 hours);
-        basketLiquidity.activateCanonicalPool(basketId, address(assetA));
         uint256 liquidityTokenId = _provideCanonicalLiquidity(positionId, basketId);
 
         IStaticsBasketLiquidity.CanonicalPoolView memory configured =
@@ -333,7 +328,6 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             return;
         }
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
-        if (bytes(rpcUrl).length == 0) rpcUrl = vm.envOr("ROBINHOOD_RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
             vm.skip(true, "ROBINHOOD_MAINNET is not configured");

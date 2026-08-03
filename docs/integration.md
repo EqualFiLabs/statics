@@ -46,7 +46,7 @@ facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes
 remain authoritative.
 
-`IStaticsSwapFeeHook` exposes hook fee configuration, observations, pending
+`IStaticsSwapFeeHook` exposes hook fee configuration, pending
 permanent-liquidity inventory, and locked liquidity. The installed manager is
 used for typed user PositionManager NFT creation; canonical permanent liquidity
 is hook-owned and has no protocol PositionManager token ID.
@@ -98,9 +98,7 @@ settlement amount causes the complete creation transaction to revert.
 
 The owner uses this same calldata and funding flow for a zero-fee genesis
 basket; there is no privileged bootstrap path. A successfully launched pool is
-immediately swappable in `Warming` state. Activation after the oracle warm-up
-authorizes price-sensitive protocol exposure such as combined
-borrow-to-liquidity; it is not what creates the market.
+immediately swappable and available to the typed liquidity paths.
 
 Index `BasketCreated`, `BasketConfigured`, `BasketFeeTiersConfigured`,
 `CanonicalPoolInitialized`, `CanonicalPoolSyncedToManager`,
@@ -220,14 +218,12 @@ no arbitrary execution surface.
 
 There is one canonical hooked pool per basket constituent. Read
 `canonicalPool(basketId, asset)` for its PoolId, currencies, hook, zero native
-LP fee, tick spacing 10, lifecycle times, and observation state. Status moves
-from `Unconfigured` to `Warming` to `Active`.
+LP fee, tick spacing 10, and current spot tick.
 
 Pool initialization and permanent seeding are inseparable from basket creation.
-The creator supplies every starting price and paired-asset budget. Activation
-remains timelock-only and requires a one-hour warm-up, enough observations for
-a 30-minute reference, and spot deviation at or below 100 BPS.
-`checkpointCanonicalPool` is permissionless.
+The creator supplies every starting price and paired-asset budget. A successful
+creation makes every canonical pool immediately swappable and available to the
+typed liquidity paths; no post-launch activation transaction is required.
 
 Display input and output hook fees separately from native v4 LP fees:
 
@@ -270,8 +266,9 @@ liquidity is visible through `lockedLiquidity`. Swaps attempt compounding
 atomically, and `compoundPermanentLiquidity` is also permissionless.
 
 There is no primary-fee POL reserve, epoch, ramp, minimum compound size, hook
-settlement call, or protocol PositionManager NFT. Do not use the standalone
-manager's legacy protocol-position reads as a live Diamond accounting surface.
+settlement call, protocol PositionManager NFT, or manager-owned protocol
+inventory. The standalone manager only registers canonical keys and executes
+transaction-scoped user PositionManager NFT mint and increase operations.
 
 When a basket is `ExitOnly`, anyone may call `unwindBasketLiquidity` once per
 constituent. It decommissions the pool, releases hook liquidity, burns returned
@@ -512,12 +509,11 @@ Index these event families, then reconcile with current views:
   `RiskIncentivesRolledOver`, `RiskIncentivesRoutedGlobal`,
   `RiskProceedsAccrued`, and `RiskProceedsClaimed`;
 - canonical lifecycle: `LiquidityIntegrationInstalled`,
-  `CanonicalPoolInitialized`, `CanonicalPoolCheckpointed`,
-  `CanonicalPoolActivated`, `CanonicalPoolSyncedToManager`,
+  `CanonicalPoolInitialized`, `CanonicalPoolSyncedToManager`,
   `SwapFeeConfigurationChanged`, and `BasketLiquidityUnwound`;
 - hook: `SwapLegFeeAccrued`, `PermanentLiquidityAdded`,
   `PermanentLiquidityFeesCollected`, `PermanentLiquidityReleased`,
-  `PoolDecommissioned`, and `TickObservationRecorded`;
+  and `PoolDecommissioned`;
 - user v4 positions: `BorrowedLiquidityPositionMinted`,
   `BorrowedLiquidityProvided`, manager `UserPositionMinted`, and PositionManager
   `Transfer`;

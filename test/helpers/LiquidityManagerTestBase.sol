@@ -65,15 +65,6 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
         });
     }
 
-    function _creditInventory(uint256 basketAmount, uint256 assetAmount) internal {
-        vm.startPrank(alice);
-        IERC20(basketToken).transfer(address(liquidityManager), basketAmount);
-        assetA.transfer(address(liquidityManager), assetAmount);
-        vm.stopPrank();
-        liquidityManager.creditProtocolInventory(basketId, basketToken, basketAmount);
-        liquidityManager.creditProtocolInventory(basketId, address(assetA), assetAmount);
-    }
-
     function _transferUserInventory(uint256 basketAmount, uint256 assetAmount) internal {
         vm.startPrank(alice);
         IERC20(basketToken).transfer(address(liquidityManager), basketAmount);

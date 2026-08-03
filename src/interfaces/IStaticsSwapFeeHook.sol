@@ -17,16 +17,6 @@ interface IStaticsSwapFeeHook {
         bool registered;
     }
 
-    struct OracleStateView {
-        uint40 initializedAt;
-        uint40 lastCheckpointAt;
-        uint40 latestObservationAt;
-        int24 lastTick;
-        int56 tickCumulative;
-        uint8 observationIndex;
-        uint8 observationCardinality;
-    }
-
     struct FeeConfiguration {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
@@ -92,10 +82,6 @@ interface IStaticsSwapFeeHook {
         uint16 treasuryShareBps
     );
     event PoolFeeConfigurationCleared(PoolId indexed poolId);
-    event TickObservationRecorded(
-        PoolId indexed poolId, uint40 indexed timestamp, int24 tick, int56 tickCumulative, uint8 cardinality
-    );
-
     function staticsDiamond() external view returns (address);
     function feeConfiguration() external view returns (FeeConfiguration memory config);
     function setFeeConfiguration(
@@ -121,11 +107,4 @@ interface IStaticsSwapFeeHook {
     function releasePermanentLiquidity(PoolKey calldata key, address receiver)
         external
         returns (uint256 amount0, uint256 amount1);
-    function checkpoint(PoolKey calldata key) external returns (bool observationStored);
-    function oracleState(PoolId poolId) external view returns (OracleStateView memory state);
-    function observationAt(PoolId poolId, uint8 index) external view returns (uint40 timestamp, int56 tickCumulative);
-    function consult(PoolId poolId, uint32 window)
-        external
-        view
-        returns (int24 referenceTick, int24 spotTick, uint40 oldestObservationAt);
 }

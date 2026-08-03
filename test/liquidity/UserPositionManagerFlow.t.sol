@@ -10,11 +10,8 @@ import {LiquidityManagerTestBase} from "../helpers/LiquidityManagerTestBase.sol"
 
 contract UserPositionManagerFlowTest is LiquidityManagerTestBase {
     function testUserPositionMintsDirectlyToRecipientAndRefundsWithoutPersistentBook() public {
-        _creditInventory(20 ether, 20 ether);
         address token0 = Currency.unwrap(canonicalKey.currency0);
         address token1 = Currency.unwrap(canonicalKey.currency1);
-        uint256 inventory0 = liquidityManager.protocolInventory(basketId, token0);
-        uint256 inventory1 = liquidityManager.protocolInventory(basketId, token1);
         _transferUserInventory(6 ether, 6 ether);
 
         uint256 alice0Before = IERC20(token0).balanceOf(alice);
@@ -24,20 +21,17 @@ contract UserPositionManagerFlowTest is LiquidityManagerTestBase {
             liquidityManager.mintUserPosition(request, bob, alice);
 
         assertEq(IERC721(address(positionManagerContract)).ownerOf(movement.tokenId), bob);
-        assertEq(liquidityManager.protocolPositionId(basketId, address(assetA)), 0);
-        assertEq(liquidityManager.protocolInventory(basketId, token0), inventory0);
-        assertEq(liquidityManager.protocolInventory(basketId, token1), inventory1);
         assertEq(IERC20(token0).balanceOf(alice) - alice0Before, refund0);
         assertEq(IERC20(token1).balanceOf(alice) - alice1Before, refund1);
-        assertEq(IERC20(token0).balanceOf(address(liquidityManager)), inventory0);
-        assertEq(IERC20(token1).balanceOf(address(liquidityManager)), inventory1);
+        assertEq(IERC20(token0).balanceOf(address(liquidityManager)), 0);
+        assertEq(IERC20(token1).balanceOf(address(liquidityManager)), 0);
         assertEq(IERC20(token0).allowance(address(liquidityManager), address(permit2Contract)), 0);
         assertEq(IERC20(token1).allowance(address(liquidityManager), address(permit2Contract)), 0);
     }
 
     function testUserPathRejectsInventoryNotPhysicallyReceived() public {
         IStaticsLiquidityManager.PositionRequest memory request = _request(5 ether, 6 ether, 6 ether);
-        vm.expectPartialRevert(StaticsLiquidityManager.InsufficientUnaccountedInventory.selector);
+        vm.expectRevert();
         liquidityManager.mintUserPosition(request, bob, alice);
         assertEq(positionManagerContract.nextTokenId(), 1);
     }
@@ -60,6 +54,5 @@ contract UserPositionManagerFlowTest is LiquidityManagerTestBase {
         IERC721(address(positionManagerContract)).safeTransferFrom(bob, address(liquidityManager), movement.tokenId);
 
         assertEq(IERC721(address(positionManagerContract)).ownerOf(movement.tokenId), bob);
-        assertEq(liquidityManager.protocolPositionId(basketId, address(assetA)), 0);
     }
 }

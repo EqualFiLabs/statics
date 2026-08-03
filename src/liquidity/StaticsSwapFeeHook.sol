@@ -33,25 +33,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     uint256 private constant BPS = 10_000;
     uint256 private constant MAX_COMBINED_FEE_BPS = 200;
-    uint40 private constant OBSERVATION_INTERVAL = 1 minutes;
-    uint8 private constant MAX_OBSERVATIONS = 64;
     uint8 private constant UNLOCK_RELEASE = 1;
     uint8 private constant UNLOCK_SEED = 2;
     bytes32 private constant PERMANENT_LIQUIDITY_SALT = keccak256("statics.permanent.swap.fee.liquidity");
-
-    struct Observation {
-        uint40 timestamp;
-        int56 tickCumulative;
-    }
-
-    struct OracleState {
-        uint40 initializedAt;
-        uint40 lastCheckpointAt;
-        int24 lastTick;
-        int56 tickCumulative;
-        uint8 observationIndex;
-        uint8 observationCardinality;
-    }
 
     struct PendingDistribution {
         uint256 liquidityProvider;
@@ -85,8 +69,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     mapping(PoolId poolId => mapping(Currency currency => PendingDistribution amount)) private distributions;
     mapping(PoolId poolId => uint128 liquidity) private permanentLiquidity;
     mapping(PoolId poolId => bool decommissioned) private decommissionedPools;
-    mapping(PoolId poolId => OracleState state) private oracleStates;
-    mapping(PoolId poolId => Observation[64] observations) private poolObservations;
     mapping(PoolId poolId => StoredPoolFeeConfiguration configuration) private poolFeeConfigurations;
 
     error OnlyStaticsDiamond(address caller);
@@ -104,9 +86,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error PendingLiquidityInsolvent(Currency currency, uint256 required, uint256 available);
     error PermanentLiquidityExceedsPending(Currency currency, uint256 required, uint256 available);
     error UnexpectedLiquidityDelta(int128 amount0, int128 amount1);
-    error PoolAlreadyInitialized(PoolId poolId);
-    error InvalidOracleWindow(uint32 window);
-    error InsufficientOracleHistory(PoolId poolId, uint40 targetTimestamp, uint40 oldestTimestamp);
     error InvalidUnlockCaller(address caller);
     error InvalidReleaseReceiver();
     error EmptyPermanentLiquiditySeed();
@@ -126,6 +105,12 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         permissions.beforeSwapReturnDelta = true;
         permissions.afterSwap = true;
         permissions.afterSwapReturnDelta = true;
+    }
+
+    /// @dev Registration must precede initialization so a third party cannot squat a predictable canonical PoolKey.
+    function _afterInitialize(address, PoolKey calldata key, uint160, int24) internal view override returns (bytes4) {
+        _enforceRegistered(key.toId());
+        return IHooks.afterInitialize.selector;
     }
 
     function feeConfiguration() external view returns (FeeConfiguration memory config) {
@@ -383,73 +368,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _assertPendingSolvency(currency);
     }
 
-    function checkpoint(PoolKey calldata key) external returns (bool observationStored) {
-        PoolId poolId = key.toId();
-        _enforceRegistered(poolId);
-        if (decommissionedPools[poolId]) revert PoolIsDecommissioned(poolId);
-        (, int24 tick,,) = poolManager.getSlot0(poolId);
-        return _checkpoint(poolId, tick);
-    }
-
-    function oracleState(PoolId poolId) external view returns (OracleStateView memory state) {
-        OracleState storage stored = oracleStates[poolId];
-        uint40 latestObservationAt;
-        if (stored.observationCardinality != 0) {
-            latestObservationAt = poolObservations[poolId][stored.observationIndex].timestamp;
-        }
-        state = OracleStateView({
-            initializedAt: stored.initializedAt,
-            lastCheckpointAt: stored.lastCheckpointAt,
-            latestObservationAt: latestObservationAt,
-            lastTick: stored.lastTick,
-            tickCumulative: stored.tickCumulative,
-            observationIndex: stored.observationIndex,
-            observationCardinality: stored.observationCardinality
-        });
-    }
-
-    function observationAt(PoolId poolId, uint8 index) external view returns (uint40 timestamp, int56 tickCumulative) {
-        Observation storage observation = poolObservations[poolId][index];
-        return (observation.timestamp, observation.tickCumulative);
-    }
-
-    function consult(PoolId poolId, uint32 window)
-        external
-        view
-        returns (int24 referenceTick, int24 spotTick, uint40 oldestObservationAt)
-    {
-        if (window == 0) revert InvalidOracleWindow(window);
-        OracleState storage state = oracleStates[poolId];
-        uint40 nowTimestamp = uint40(block.timestamp);
-        if (state.initializedAt == 0 || nowTimestamp < window) {
-            revert InsufficientOracleHistory(poolId, 0, state.initializedAt);
-        }
-        uint40 targetTimestamp = nowTimestamp - window;
-        (int56 currentCumulative,) = _currentCumulative(state, nowTimestamp);
-        (int56 targetCumulative, uint40 oldest) = _cumulativeAt(poolId, state, targetTimestamp, currentCumulative);
-        int256 delta = int256(currentCumulative) - int256(targetCumulative);
-        int256 averageTick = delta / int256(uint256(window));
-        if (delta < 0 && delta % int256(uint256(window)) != 0) --averageTick;
-        referenceTick = int24(averageTick);
-        (, spotTick,,) = poolManager.getSlot0(poolId);
-        oldestObservationAt = oldest;
-    }
-
-    function _afterInitialize(address, PoolKey calldata key, uint160, int24 tick) internal override returns (bytes4) {
-        PoolId poolId = key.toId();
-        _enforceRegistered(poolId);
-        OracleState storage state = oracleStates[poolId];
-        if (state.initializedAt != 0) revert PoolAlreadyInitialized(poolId);
-        uint40 timestamp = uint40(block.timestamp);
-        state.initializedAt = timestamp;
-        state.lastCheckpointAt = timestamp;
-        state.lastTick = tick;
-        state.observationCardinality = 1;
-        poolObservations[poolId][0] = Observation({timestamp: timestamp, tickCumulative: 0});
-        emit TickObservationRecorded(poolId, timestamp, tick, 0, 1);
-        return IHooks.afterInitialize.selector;
-    }
-
     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
         internal
         override
@@ -493,8 +411,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _routeDistribution(poolId, key.currency0);
         _routeDistribution(poolId, key.currency1);
         _compound(key, poolId);
-        (, int24 currentTick,,) = poolManager.getSlot0(poolId);
-        _checkpoint(poolId, currentTick);
         return (IHooks.afterSwap.selector, charged.toInt128());
     }
 
@@ -763,65 +679,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     function _absolute(int256 value) private pure returns (uint256) {
         return value < 0 ? uint256(-(value + 1)) + 1 : uint256(value);
-    }
-
-    function _checkpoint(PoolId poolId, int24 tick) private returns (bool observationStored) {
-        OracleState storage state = oracleStates[poolId];
-        if (state.initializedAt == 0) revert PoolNotRegistered(poolId);
-        uint40 timestamp = uint40(block.timestamp);
-        (int56 currentCumulative, uint40 elapsed) = _currentCumulative(state, timestamp);
-        state.tickCumulative = currentCumulative;
-        state.lastCheckpointAt = timestamp;
-        state.lastTick = tick;
-        Observation storage latest = poolObservations[poolId][state.observationIndex];
-        if (elapsed == 0 || timestamp - latest.timestamp < OBSERVATION_INTERVAL) return false;
-        uint8 nextIndex = state.observationIndex == MAX_OBSERVATIONS - 1 ? 0 : state.observationIndex + 1;
-        state.observationIndex = nextIndex;
-        if (state.observationCardinality < MAX_OBSERVATIONS) ++state.observationCardinality;
-        poolObservations[poolId][nextIndex] = Observation({timestamp: timestamp, tickCumulative: currentCumulative});
-        emit TickObservationRecorded(poolId, timestamp, tick, currentCumulative, state.observationCardinality);
-        return true;
-    }
-
-    function _currentCumulative(OracleState storage state, uint40 timestamp)
-        private
-        view
-        returns (int56 cumulative, uint40 elapsed)
-    {
-        elapsed = timestamp - state.lastCheckpointAt;
-        cumulative = int56(int256(state.tickCumulative) + int256(state.lastTick) * int256(uint256(elapsed)));
-    }
-
-    function _cumulativeAt(PoolId poolId, OracleState storage state, uint40 targetTimestamp, int56 currentCumulative)
-        private
-        view
-        returns (int56 targetCumulative, uint40 oldestTimestamp)
-    {
-        uint8 cardinality = state.observationCardinality;
-        if (cardinality == 0) revert InsufficientOracleHistory(poolId, targetTimestamp, 0);
-        Observation memory beforeOrAt;
-        Observation memory afterOrAt =
-            Observation({timestamp: uint40(block.timestamp), tickCumulative: currentCumulative});
-        oldestTimestamp = type(uint40).max;
-        bool foundBefore;
-        for (uint8 i; i < cardinality; ++i) {
-            Observation memory candidate = poolObservations[poolId][i];
-            if (candidate.timestamp < oldestTimestamp) oldestTimestamp = candidate.timestamp;
-            if (candidate.timestamp <= targetTimestamp && candidate.timestamp >= beforeOrAt.timestamp) {
-                beforeOrAt = candidate;
-                foundBefore = true;
-            }
-            if (candidate.timestamp >= targetTimestamp && candidate.timestamp <= afterOrAt.timestamp) {
-                afterOrAt = candidate;
-            }
-        }
-        if (!foundBefore) revert InsufficientOracleHistory(poolId, targetTimestamp, oldestTimestamp);
-        if (beforeOrAt.timestamp == targetTimestamp) return (beforeOrAt.tickCumulative, oldestTimestamp);
-        uint256 span = afterOrAt.timestamp - beforeOrAt.timestamp;
-        uint256 targetOffset = targetTimestamp - beforeOrAt.timestamp;
-        int256 cumulativeDelta = int256(afterOrAt.tickCumulative) - int256(beforeOrAt.tickCumulative);
-        targetCumulative =
-            int56(int256(beforeOrAt.tickCumulative) + cumulativeDelta * int256(targetOffset) / int256(span));
     }
 
     function _enforceRegistered(PoolId poolId) private view {
