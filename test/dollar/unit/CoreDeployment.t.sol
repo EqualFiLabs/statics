@@ -22,6 +22,8 @@ import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
+import {IStaticsPositionMetadata} from "src/interfaces/IStaticsPosition.sol";
+import {StaticsPositionRenderer} from "src/metadata/StaticsPositionRenderer.sol";
 
 contract ProductionWETHFixture is ERC20 {
     constructor() ERC20("Production WETH Fixture", "pWETH") {}
@@ -84,6 +86,8 @@ contract CoreDeploymentTest is Test {
         assertEq(CoreViewFacet(deployment.core).periphery(), deployment.diamond);
         assertEq(CoreViewFacet(deployment.core).positionNFT(), deployment.positionNFT);
         assertEq(deployment.positionNFT, deployment.diamond);
+        assertEq(IStaticsPositionMetadata(deployment.diamond).positionRenderer(), deployment.positionRenderer);
+        assertEq(address(StaticsPositionRenderer(deployment.positionRenderer).avatarSVG()), deployment.avatarSVG);
         assertEq(deployment.gateway, deployment.diamond);
         assertEq(IStaticsDollarGateway(deployment.gateway).pool(), deployment.core);
         assertEq(OwnershipFacet(deployment.core).owner(), owner);
@@ -91,7 +95,7 @@ contract CoreDeploymentTest is Test {
         assertEq(MockETHUSDOracle(deployment.oracle).priceWad(), 2_500e18);
 
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(deployment.diamond, 21, 191);
+        _assertManifest(deployment.diamond, 21, 193);
     }
 
     function test_LocalBroadcastEntrypointUsesDeployerForAddressPredictions() public {

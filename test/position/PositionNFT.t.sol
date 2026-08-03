@@ -16,10 +16,17 @@ import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {BasketAdminFacet} from "src/facets/BasketAdminFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
-import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "src/interfaces/IStaticsPosition.sol";
+import {
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionMetadata,
+    IStaticsPositionModule
+} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {PositionNFTFacet} from "src/position/PositionNFTFacet.sol";
 import {StaticsSelectors} from "src/libraries/StaticsSelectors.sol";
+import {StaticsAvatarSVG} from "src/metadata/StaticsAvatarSVG.sol";
+import {StaticsPositionRenderer} from "src/metadata/StaticsPositionRenderer.sol";
 
 contract PositionModuleHarnessFacet {
     function createWithLeg(address receiver, bytes32 moduleId, bytes32 localId)
@@ -80,6 +87,15 @@ contract PositionHolder is IERC721Receiver {
     }
 }
 
+contract MetadataPositionReceiver is IERC721Receiver {
+    uint256 public metadataLength;
+
+    function onERC721Received(address, address, uint256 positionId, bytes calldata) external returns (bytes4) {
+        metadataLength = bytes(IERC721Metadata(msg.sender).tokenURI(positionId)).length;
+        return IERC721Receiver.onERC721Received.selector;
+    }
+}
+
 contract RejectNativeValue {
     receive() external payable {
         revert();
@@ -99,6 +115,7 @@ contract PositionNFTTest is Test {
     IERC721Metadata internal metadata;
     IStaticsPosition internal positions;
     IStaticsPositionFees internal positionFees;
+    IStaticsPositionMetadata internal positionMetadata;
     PositionModuleHarnessFacet internal moduleHarness;
     BasketAdminFacet internal basketAdmin;
     address internal treasury = makeAddr("treasury");
@@ -127,12 +144,14 @@ contract PositionNFTTest is Test {
 
         StaticsProtocolInit init = new StaticsProtocolInit();
         PositionReceiver stakingToken = new PositionReceiver(address(0));
+        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             address(this),
             cut,
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.initialize, (makeAddr("guardian"), treasury, address(stakingToken), 0, 0)
+                StaticsProtocolInit.initialize,
+                (makeAddr("guardian"), treasury, address(stakingToken), 0, 0, address(renderer))
             ),
             address(0)
         );
@@ -140,6 +159,7 @@ contract PositionNFTTest is Test {
         metadata = IERC721Metadata(address(diamond));
         positions = IStaticsPosition(address(diamond));
         positionFees = IStaticsPositionFees(address(diamond));
+        positionMetadata = IStaticsPositionMetadata(address(diamond));
         moduleHarness = PositionModuleHarnessFacet(address(diamond));
         basketAdmin = BasketAdminFacet(address(diamond));
     }
@@ -253,7 +273,8 @@ contract PositionNFTTest is Test {
         assertEq(nft.balanceOf(alice), 1);
         assertEq(metadata.name(), "Statics Position");
         assertEq(metadata.symbol(), "etPOS");
-        assertEq(metadata.tokenURI(positionId), "");
+        assertGt(bytes(metadata.tokenURI(positionId)).length, 0);
+        assertGt(positionMetadata.positionRenderer().code.length, 0);
         IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
         assertTrue(state.exists);
         assertEq(state.stateNonce, 1);
@@ -264,12 +285,43 @@ contract PositionNFTTest is Test {
         assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionMetadata).interfaceId));
+    }
+
+    function test_OwnerCanReplaceOrClearPositionRenderer() public {
+        address previousRenderer = positionMetadata.positionRenderer();
+        address replacement = makeAddr("replacement renderer");
+
+        vm.expectEmit(true, true, false, true, address(diamond));
+        emit IStaticsPositionMetadata.PositionRendererSet(previousRenderer, replacement);
+        positionMetadata.setPositionRenderer(replacement);
+        assertEq(positionMetadata.positionRenderer(), replacement);
+
+        positionMetadata.setPositionRenderer(address(0));
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        assertEq(metadata.tokenURI(positionId), "");
+    }
+
+    function test_NonOwnerCannotSetPositionRenderer() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        positionMetadata.setPositionRenderer(alice);
+    }
+
+    function test_SafeMintReceiverCanReadMetadataDuringCallback() public {
+        MetadataPositionReceiver receiver = new MetadataPositionReceiver();
+        uint256 positionId = positions.createPosition(address(receiver));
+
+        assertEq(nft.ownerOf(positionId), address(receiver));
+        assertGt(receiver.metadataLength(), 0);
     }
 
     function test_ApprovalTransferAndSafeTransferUseStandardSemantics() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
         uint256 nonceBefore = positions.positionState(positionId).stateNonce;
+        string memory metadataBefore = metadata.tokenURI(positionId);
 
         vm.prank(alice);
         nft.approve(bob, positionId);
@@ -279,6 +331,7 @@ contract PositionNFTTest is Test {
         assertEq(nft.ownerOf(positionId), carol);
         assertEq(positions.positionState(positionId).stateNonce, nonceBefore);
         assertEq(nft.getApproved(positionId), address(0));
+        assertEq(metadata.tokenURI(positionId), metadataBefore);
 
         PositionHolder receiver = new PositionHolder();
         vm.prank(carol);
@@ -287,6 +340,7 @@ contract PositionNFTTest is Test {
         nft.safeTransferFrom(carol, address(receiver), positionId);
         assertEq(nft.ownerOf(positionId), address(receiver));
         assertEq(positions.positionState(positionId).stateNonce, nonceBefore);
+        assertEq(metadata.tokenURI(positionId), metadataBefore);
     }
 
     function test_Erc721ApprovedOperatorRetainsStaticsModuleAuthority() public {

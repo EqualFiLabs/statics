@@ -27,6 +27,8 @@ import {StaticsDollarGatewayFacet} from "../../src/dollar/periphery/facets/Stati
 import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
+import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
+import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
 
 abstract contract DeployStaticsProtocol {
     struct ProtocolParts {
@@ -50,6 +52,8 @@ abstract contract DeployStaticsProtocol {
         address vault;
         address gateway;
         address init;
+        address avatarSVG;
+        address positionRenderer;
     }
 
     function _deployStaticsProtocol(
@@ -61,7 +65,7 @@ abstract contract DeployStaticsProtocol {
         address stakingToken,
         uint256 creationFeeAmount,
         uint256 positionCreationFeeAmount
-    ) internal returns (address diamond, address positionNFT) {
+    ) internal returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG) {
         ProtocolParts memory parts = _deployProtocolParts();
         IDiamondCut.FacetCut[] memory cut =
             _protocolCut(parts, address(new BasketLiquidityFacet()), address(new LiquidityRewardsFacet()));
@@ -79,12 +83,13 @@ abstract contract DeployStaticsProtocol {
             stakingToken: stakingToken,
             creationFeeAmount: creationFeeAmount,
             positionCreationFeeAmount: positionCreationFeeAmount,
+            positionRenderer: parts.positionRenderer,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(
             finalOwner, cut, parts.init, abi.encodeCall(StaticsProtocolInit.initializeUnified, (args)), weth
         );
-        return (address(deployedDiamond), address(deployedDiamond));
+        return (address(deployedDiamond), address(deployedDiamond), parts.positionRenderer, parts.avatarSVG);
     }
 
     function _deployProtocolParts() internal returns (ProtocolParts memory parts) {
@@ -108,6 +113,8 @@ abstract contract DeployStaticsProtocol {
         parts.vault = address(new PairingVaultFacet());
         parts.gateway = address(new StaticsDollarGatewayFacet());
         parts.init = address(new StaticsProtocolInit());
+        parts.avatarSVG = address(new StaticsAvatarSVG());
+        parts.positionRenderer = address(new StaticsPositionRenderer(StaticsAvatarSVG(parts.avatarSVG)));
     }
 
     function _protocolCut(ProtocolParts memory parts, address basketLiquidity, address liquidityRewards)

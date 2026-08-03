@@ -41,6 +41,10 @@ address through `setPositionRenderer`. A renderer change may change metadata
 for every PositionNFT. No token-level renderer versions or migration records
 are stored.
 
+To remain comfortably below EIP-170, the renderer delegates SVG assembly to one
+stateless `StaticsAvatarSVG` helper fixed immutably in the renderer constructor.
+The helper has no storage, authority, or independent protocol action surface.
+
 `tokenURI` returns Base64 JSON containing a Base64 SVG under `image` and fixed
 visual attributes. It returns an empty string while the renderer is unset.
 The metadata contains no achievements, balances, yield, debt, health, status,
@@ -94,12 +98,14 @@ The JSON contains:
 - visual `attributes` in Field, Boundary, Shell, Interface, Mantle,
   Telemetry, Sigil, and Signal order.
 
-There are no external fonts, images, stylesheets, scripts, URLs, user strings,
-or arbitrary token metadata in the SVG or JSON.
+There are no external fonts, images, stylesheets, scripts, external asset URLs,
+user strings, or arbitrary token metadata in the SVG or JSON. The standard SVG
+namespace declaration is the only URL-shaped markup.
 
 ## Deployment and compatibility
 
-Fresh deployments install the renderer during protocol initialization. The
+Fresh deployments install the renderer during protocol initialization and
+record its immutable SVG helper. The
 PositionNFT remains the Statics Diamond and keeps standard ERC-721 metadata
 support. The renderer is an implementation dependency rather than a second
 user entrypoint.

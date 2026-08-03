@@ -38,6 +38,13 @@ request field. Reusing an existing Position through `stake`,
 `stakeRiskShares`, `depositBasketCollateral`, or `mintBasketCollateral` does
 not pay the fee again. Zero means free Position creation.
 
+`tokenURI(positionId)` returns self-contained Base64 JSON and SVG metadata.
+The avatar depends only on chain ID, Statics Diamond address, and position ID,
+so transfers and protocol activity do not alter it. Governance integrations can
+read `positionRenderer()` and encode `setPositionRenderer` through
+`buildSetPositionRendererCall`; setting the renderer to zero disables metadata
+without changing PositionNFT ownership or protocol state.
+
 Global Statics stake is always withdrawable. A selected reward asset begins
 with pending stake and becomes eligible at the next hourly boundary at least
 24 hours later. Mature stake remains eligible when a position is increased;

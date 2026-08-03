@@ -10,7 +10,9 @@ Most applications need:
 - `StaticsDollar` and `StaticsDollarRiskShares`;
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
-- one `StaticsBasketToken` address per discovered basket; and
+- one `StaticsBasketToken` address per discovered basket;
+- the current PositionNFT renderer only when an application wants to inspect
+  renderer provenance beyond the standard `tokenURI`; and
 - the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
   canonical Uniswap v4 pools.
 
@@ -31,7 +33,7 @@ Use compiled ABIs from these sources:
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute constituent-vector flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
-| PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect, and close positions |
+| PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect, render, and close positions |
 | Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
@@ -174,6 +176,14 @@ Structural membership is available through `isLegActive`; events
 `PositionLegAttached`, `PositionLegDetached`, and `PositionStateChanged` support
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
+
+`tokenURI(positionId)` returns fully onchain Base64 JSON whose `image` is a
+Base64 SVG. The avatar is derived only from the chain ID, Diamond address, and
+position ID, so ownership changes and protocol activity do not change it.
+Applications should treat its eight visual attributes as cosmetic identity,
+not as statements about balances, achievements, yield, debt, or health. The
+Diamond owner may replace or clear the collection-wide renderer, so clients
+that cache metadata may need an explicit refresh after governance changes it.
 
 ## Basket lending and looping
 

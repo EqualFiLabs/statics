@@ -34,13 +34,18 @@ StaticsLiquidityManager
 ├── immutable Diamond, v4 PositionManager, PoolManager, and Permit2 bindings
 ├── canonical-pool registration
 └── typed user-position minting with NFTs delivered directly to users
+
+StaticsPositionRenderer
+├── deterministic Base64 JSON metadata from chain, Diamond, and position ID
+└── immutable StaticsAvatarSVG assembly helper
 ```
 
 Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
-neither standalone contract is a second general protocol entrypoint.
+neither liquidity contract nor either metadata contract is a second general
+protocol entrypoint.
 
-The canonical deployment installs 21 facets and 191 selectors on
+The canonical deployment installs 21 facets and 193 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -59,6 +64,7 @@ That shared ownership does not merge economics. The following storage books are
 separately namespaced:
 
 - PositionNFT ownership and active-leg state;
+- one collection-wide PositionNFT renderer address;
 - global and module-local physical reservations;
 - Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;

@@ -186,15 +186,16 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **21 facets / 191 selectors** on `StaticsDiamond`; and
+- **21 facets / 193 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
 enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
 shape; its later gateway upgrade replaced five selectors with five updated
 permit-tuple selectors without changing the total. The fresh launcher adds two
-Position-creation-fee selectors plus the Modular Position NFT reporting surface
-for the current 21/191 source shape. This shape requires a fresh deployment:
+Position-creation-fee selectors, the Modular Position NFT reporting surface,
+and two collection-wide renderer selectors for the current 21/193 source
+shape. This shape requires a fresh deployment:
 the release does not claim selector or packed-state migration compatibility for
 an older Diamond, and the obsolete Position-fee upgrade ceremony fails closed.
 The
@@ -280,6 +281,23 @@ treasury. The Diamond does not retain or internally accrue this native value.
 Adding legs, collateral, stake, liquidity, or debt to an existing Position does
 not pay the fee again. Closing a Position and opening another creates a new NFT
 and pays the then-current fee.
+
+Each valid PositionNFT exposes fully onchain metadata through `tokenURI`. Its
+immutable visual seed is
+`keccak256(abi.encodePacked(bytes32("STATICS_AVATAR_V1"), block.chainid,
+address(StaticsDiamond), positionId))`, so transfers, approvals, balances,
+claims, Legs, and obligations do not alter the avatar. The returned Base64 JSON
+contains a Base64 SVG and eight cosmetic visual attributes: Field, Boundary,
+Shell, Interface, Mantle, Telemetry, Sigil, and Signal. It contains no live
+status, achievement, yield, debt, health, or rarity semantics.
+
+The Diamond stores one collection-wide renderer address. The owner may replace
+or clear it with `setPositionRenderer`; clearing it makes valid positions return
+an empty URI, and replacement may refresh every avatar. The stateless renderer
+holds one immutable `StaticsAvatarSVG` helper so both contracts remain below
+EIP-170 without placing artwork in Diamond facets or protocol storage. Fresh
+deployments record both addresses. The renderer is not a separate user action
+surface.
 
 `closePosition` succeeds only after all balances, claims, collateral, loans,
 Dollar legs, custodied LP NFTs, and LP claims are empty. Externally held
@@ -1072,7 +1090,7 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Global staking and rewards | `IStaticsGlobalRewards` |
 | Basket lending | `IStaticsLending` |
 | Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
-| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces |
+| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; metadata administration through `IStaticsPositionMetadata` |
 | Basket governance | `IStaticsGovernance` |
 | Custody views | `IStaticsCustody` |
 | Canonical liquidity | `IStaticsBasketLiquidity` |
@@ -1538,6 +1556,8 @@ remainder. Clearing the override restores the latest global rates and shares.
 60. Basket launch helpers accept calls only from the Diamond itself; every user or owner launch enters through `createBasket`.
 61. Dollar Risk incentives accept only the series collateral, Statics Dollar, or configured staking token and reserve measured receipts within the funded series.
 62. Partial Risk-liquidity consumption releases each funded reserve pro rata against pre-fill effective liquidity, while a complete fill drains its rounding remainder.
+63. PositionNFT avatars depend only on chain ID, Diamond address, and position ID; transfers and protocol state changes do not alter their visual identity.
+64. PositionNFT metadata is fully onchain and contains no live financial or achievement claims.
 63. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
 64. The public chain-46630 faucet, mock USDG and oracles, owner-mintable STATICS token, and two-minute timelock are testnet fixtures rather than production defaults.
 

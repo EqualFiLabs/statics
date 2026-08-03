@@ -48,6 +48,7 @@ import {
   buildExtendCall,
   buildSetSwapFeeConfigurationCall,
   buildSetPositionCreationFeeCall,
+  buildSetPositionRendererCall,
   buildSetCanonicalPoolFeeConfigurationCall,
   buildStakeLiquidityPositionCall,
   buildTestnetFaucetClaimCall,
@@ -733,6 +734,17 @@ describe("Statics unified calldata", () => {
       ),
     ).toBe(true);
     expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: buildSetPositionRendererCall(receiver),
+      }),
+    ).toEqual({ functionName: "setPositionRenderer", args: [receiver] });
+    expect(
+      staticsAbi.some(
+        (entry) => entry.type === "function" && entry.name === "positionRenderer",
+      ),
+    ).toBe(true);
+    expect(
       staticsAbi.some(
         (entry) => entry.type === "event" && entry.name === "PositionCreated",
       ),
@@ -740,6 +752,11 @@ describe("Statics unified calldata", () => {
     expect(
       staticsAbi.some(
         (entry) => entry.type === "event" && entry.name === "PositionCreationFeePaid",
+      ),
+    ).toBe(true);
+    expect(
+      staticsAbi.some(
+        (entry) => entry.type === "event" && entry.name === "PositionRendererSet",
       ),
     ).toBe(true);
     for (const functionName of ["positionState", "isLegActive", "isPositionClosable"]) {

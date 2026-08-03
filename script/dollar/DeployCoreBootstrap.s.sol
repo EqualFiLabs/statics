@@ -44,6 +44,8 @@ struct CoreBootstrapDeployment {
     address staticsDollarRisk;
     address diamond;
     address positionNFT;
+    address positionRenderer;
+    address avatarSVG;
 }
 
 contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
@@ -84,20 +86,23 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
 
         (address core, address staticsDollar, address staticsDollarRisk) = _deployCore(config, deploymentCreator);
         if (config.treasury == address(0)) config.treasury = config.owner;
-        (address diamond, address positionNFT) = _deployUnifiedProtocol(config, core);
+        (address diamond, address positionNFT, address positionRenderer, address avatarSVG) =
+            _deployUnifiedProtocol(config, core);
         CoreGovernanceFacet(core).finalizeBootstrap(diamond);
         return CoreBootstrapDeployment({
             core: core,
             staticsDollar: staticsDollar,
             staticsDollarRisk: staticsDollarRisk,
             diamond: diamond,
-            positionNFT: positionNFT
+            positionNFT: positionNFT,
+            positionRenderer: positionRenderer,
+            avatarSVG: avatarSVG
         });
     }
 
     function _deployUnifiedProtocol(CoreBootstrapConfig memory config, address core)
         private
-        returns (address diamond, address positionNFT)
+        returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG)
     {
         return _deployStaticsProtocol(
             core,
