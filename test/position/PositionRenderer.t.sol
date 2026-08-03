@@ -160,6 +160,32 @@ contract PositionRendererTest is Test {
         assertTrue(_contains(svg, '<circle cx="128" cy="95" r="7"'));
     }
 
+    function test_MaximumComponentCompositionFitsMetadataBudget() public view {
+        uint8[8] memory values;
+        uint8[8] memory counts = [uint8(8), 6, 8, 8, 6, 8, 8, 6];
+        bytes32 seed = keccak256("maximum component composition");
+
+        for (uint256 axis; axis < counts.length; ++axis) {
+            uint256 largestLength;
+            uint8 largestOption;
+            for (uint8 option; option < counts[axis]; ++option) {
+                values[axis] = option;
+                uint256 length = bytes(harness.svg(values, seed)).length;
+                if (length > largestLength) {
+                    largestLength = length;
+                    largestOption = option;
+                }
+            }
+            values[axis] = largestOption;
+        }
+
+        uint256 svgLength = bytes(harness.svg(values, seed)).length;
+        uint256 imageLength = bytes(SVG_PREFIX).length + 4 * ((svgLength + 2) / 3);
+        uint256 conservativeJsonLength = imageLength + 1_200;
+        uint256 conservativeUriLength = bytes(JSON_PREFIX).length + 4 * ((conservativeJsonLength + 2) / 3);
+        assertLt(conservativeUriLength, 12_000);
+    }
+
     function test_RendererRuntimeLeavesDeploymentHeadroom() public view {
         assertLt(address(renderer).code.length, 23_500);
         assertLt(address(renderer.avatarSVG()).code.length, 23_500);
