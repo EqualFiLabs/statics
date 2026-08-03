@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Statics Position Avatar Lab</title>
+  <style>
+    :root { color-scheme: dark; --ink:#f5f7f2; --muted:#879087; --panel:#0c100d; --line:#263027; --accent:#8cff00; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#030504; color:var(--ink); font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    button,input,select,textarea { font:inherit; }
+    header { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:center; padding:18px 24px; background:#030504ee; border-bottom:1px solid var(--line); }
+    h1,h2,p { margin:0; }
+    h1 { font-size:16px; letter-spacing:.18em; text-transform:uppercase; }
+    h2 { margin-bottom:14px; font-size:12px; color:var(--muted); letter-spacing:.14em; text-transform:uppercase; }
+    .tag { padding:6px 10px; color:var(--accent); border:1px solid var(--accent); }
+    main { display:grid; grid-template-columns:minmax(290px,380px) minmax(560px,1fr); min-height:100vh; }
+    aside { padding:24px; border-right:1px solid var(--line); }
+    .stage { padding:24px; }
+    .card { margin-bottom:18px; padding:18px; background:var(--panel); border:1px solid var(--line); }
+    .control { display:grid; grid-template-columns:112px 1fr; align-items:center; gap:10px; margin:8px 0; }
+    label { color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+    input,select,textarea { width:100%; color:var(--ink); background:#060806; border:1px solid #374138; border-radius:0; padding:8px; }
+    button { cursor:pointer; color:#030504; background:var(--accent); border:0; padding:9px 12px; font-weight:800; text-transform:uppercase; }
+    button.secondary { color:var(--ink); background:transparent; border:1px solid #4a554b; }
+    .buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .hero { display:grid; grid-template-columns:minmax(280px,430px) 1fr; gap:24px; align-items:start; }
+    .hero-avatar { aspect-ratio:1; width:100%; background:#000; border:1px solid var(--line); }
+    .hero-avatar svg { display:block; width:100%; height:100%; }
+    .sizes { display:flex; align-items:end; gap:20px; margin:18px 0; }
+    .size-preview { display:grid; gap:7px; color:var(--muted); font-size:10px; text-align:center; }
+    .size-preview div { background:#000; border:1px solid var(--line); }
+    .size-preview svg { display:block; width:100%; height:100%; }
+    .traits { display:grid; grid-template-columns:1fr 1fr; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+    .trait { padding:10px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .trait b { display:block; margin-bottom:3px; color:var(--muted); font-size:9px; letter-spacing:.1em; text-transform:uppercase; }
+    .seed { overflow-wrap:anywhere; color:var(--accent); font-size:10px; }
+    textarea { min-height:150px; resize:vertical; font-size:10px; }
+    .sheet { display:grid; grid-template-columns:repeat(8,minmax(90px,1fr)); gap:12px; }
+    .tile { background:#070907; border:1px solid var(--line); }
+    .tile svg { display:block; width:100%; aspect-ratio:1; }
+    .tile span { display:block; padding:5px 7px; color:var(--muted); border-top:1px solid var(--line); font-size:9px; }
+    .note { color:var(--muted); font-size:11px; }
+    @media (max-width:1000px) { main { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } .hero { grid-template-columns:1fr; } .sheet { grid-template-columns:repeat(4,1fr); } }
+    @media (max-width:560px) { header,.stage,aside { padding:14px; } .sheet { grid-template-columns:repeat(3,1fr); gap:8px; } .control { grid-template-columns:92px 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Statics Position Avatar Lab</h1>
+    <div class="tag">SVG / ONCHAIN STUDY</div>
+  </header>
+  <main>
+    <aside>
+      <section class="card">
+        <h2>Position identity</h2>
+        <div class="control"><label for="chainId">Chain ID</label><input id="chainId" value="46630" inputmode="numeric"></div>
+        <div class="control"><label for="diamond">Diamond</label><input id="diamond" value="0x0000000000000000000000000000000000000000"></div>
+        <div class="control"><label for="positionId">Position ID</label><input id="positionId" value="1" inputmode="numeric"></div>
+        <div class="buttons">
+          <button id="next">Next ID</button>
+          <button class="secondary" id="random">Random ID</button>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Trait overrides</h2>
+        <div id="controls"></div>
+        <div class="buttons"><button class="secondary" id="reset">Use deterministic traits</button></div>
+      </section>
+      <section class="card">
+        <h2>Export</h2>
+        <div class="buttons">
+          <button id="download">Download SVG</button>
+          <button class="secondary" id="copy">Copy SVG</button>
+        </div>
+        <p class="note" style="margin-top:12px">This is disposable visual tooling. It has no runtime or metadata dependency.</p>
+      </section>
+    </aside>
+    <section class="stage">
+      <div class="hero">
+        <div>
+          <div id="avatar" class="hero-avatar"></div>
+          <div class="sizes">
+            <div class="size-preview"><div id="p64" style="width:64px;height:64px"></div><span>64 px</span></div>
+            <div class="size-preview"><div id="p128" style="width:128px;height:128px"></div><span>128 px</span></div>
+            <div class="size-preview"><div id="p256" style="width:192px;height:192px"></div><span>256 px source</span></div>
+          </div>
+        </div>
+        <div>
+          <section class="card">
+            <h2>Resolved identity</h2>
+            <div id="traits" class="traits"></div>
+            <p style="margin-top:14px"><label>Seed</label></p>
+            <p id="seed" class="seed"></p>
+            <p id="bytes" class="note" style="margin-top:8px"></p>
+          </section>
+          <section class="card">
+            <h2>Raw SVG</h2>
+            <textarea id="raw" readonly></textarea>
+          </section>
+        </div>
+      </div>
+      <section class="card" style="margin-top:24px">
+        <h2>Deterministic contact sheet · positions 1–48</h2>
+        <div id="sheet" class="sheet"></div>
+      </section>
+    </section>
+  </main>
+<script>
+const TRAITS = {
+  Field:["Void","Grid","Target","Split Horizon","Static Field","Data Panel","Signal Bands","Vault"],
+  Boundary:["Single Ring","Double Ring","Broken Ring","Reticle Ring","Peg Frame","Shield Ring"],
+  Shell:["Round Shell","Angular Helm","Operator Hood","Hex Mask","Box Visor","Heavy Plate","Slim Mask","Split Head"],
+  Interface:["Equal Sign","Narrow Visor","Dual Blocks","Glider","Double Pipe","Peg Bar","Dollar Glyph","Basket Grid"],
+  Mantle:["Minimal Collar","High Collar","Hood Wrap","Armor Neck","Tactical Coat","Split Mantle"],
+  Telemetry:["None","Bar Chart","Line Graph","Metric Blocks","Basket Indicators","Liquidity Panel","Yield Readout","Risk Readout"],
+  Sigil:["Equal Seal","Dollar Core","Basket Core","Risk Share","Staking Sigil","Liquidity Mark","Position Key","Empty"],
+  Signal:["Neon Green","Cyan","Amber","Red","Purple","White Only"]
+};
+const COLORS = ["#8CFF00","#00E5FF","#FFB000","#FF3344","#B55CFF","#FFFFFF"];
+const MASK64=(1n<<64n)-1n;
+const RC=[0x0000000000000001n,0x0000000000008082n,0x800000000000808an,0x8000000080008000n,0x000000000000808bn,0x0000000080000001n,0x8000000080008081n,0x8000000000008009n,0x000000000000008an,0x0000000000000088n,0x0000000080008009n,0x000000008000000an,0x000000008000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,0x8000000000008002n,0x8000000000000080n,0x000000000000800an,0x800000008000000an,0x8000000080008081n,0x8000000000008080n,0x0000000080000001n,0x8000000080008008n];
+const ROT=[[0,36,3,41,18],[1,44,10,45,2],[62,6,43,15,61],[28,55,25,21,56],[27,20,39,8,14]];
+const rol=(v,n)=>n===0?v:((v<<BigInt(n))|(v>>BigInt(64-n)))&MASK64;
+function keccakF(a){
+  for(let r=0;r<24;r++){
+    const c=Array(5),d=Array(5),b=Array(25);
+    for(let x=0;x<5;x++) c[x]=a[x]^a[x+5]^a[x+10]^a[x+15]^a[x+20];
+    for(let x=0;x<5;x++) d[x]=c[(x+4)%5]^rol(c[(x+1)%5],1);
+    for(let x=0;x<5;x++) for(let y=0;y<5;y++) a[x+5*y]=(a[x+5*y]^d[x])&MASK64;
+    for(let x=0;x<5;x++) for(let y=0;y<5;y++) b[y+5*((2*x+3*y)%5)]=rol(a[x+5*y],ROT[x][y]);
+    for(let x=0;x<5;x++) for(let y=0;y<5;y++) a[x+5*y]=(b[x+5*y]^((~b[(x+1)%5+5*y])&b[(x+2)%5+5*y]))&MASK64;
+    a[0]^=RC[r];
+  }
+}
+function keccak256(bytes){
+  const rate=136,p=[...bytes,1]; while((p.length%rate)!==rate-1)p.push(0); p.push(128);
+  const a=Array(25).fill(0n);
+  for(let o=0;o<p.length;o+=rate){
+    for(let i=0;i<rate;i++) a[i>>3]^=BigInt(p[o+i])<<BigInt((i&7)*8);
+    keccakF(a);
+  }
+  const out=[]; for(let i=0;i<32;i++) out.push(Number((a[i>>3]>>BigInt((i&7)*8))&255n)); return out;
+}
+const hexToBytes=h=>(h.replace(/^0x/,"").match(/../g)||[]).map(x=>parseInt(x,16));
+const bytesToHex=b=>"0x"+b.map(x=>x.toString(16).padStart(2,"0")).join("");
+const uint256Hex=n=>BigInt(n||0).toString(16).padStart(64,"0");
+function identityBytes(chain,diamond,id){
+  const domain=Array.from(new TextEncoder().encode("STATICS_AVATAR_V1")); while(domain.length<32)domain.push(0);
+  const addr=diamond.replace(/^0x/,"").padStart(40,"0").slice(-40);
+  return [...domain,...hexToBytes(uint256Hex(chain)),...hexToBytes(addr),...hexToBytes(uint256Hex(id))];
+}
+const seedFor=(chain,diamond,id)=>keccak256(identityBytes(chain,diamond,id));
+const attrs=(stroke="#F5F7F2",fill="none",w=3)=>`stroke="${stroke}" fill="${fill}" stroke-width="${w}" stroke-linecap="square" stroke-linejoin="miter"`;
+function field(i,a,s){
+  if(i===0)return "";
+  if(i===1){let q="";for(let n=32;n<=224;n+=24)q+=`<path d="M${n} 24V232M24 ${n}H232" ${attrs("#273028","none",1)}/>`;return q;}
+  if(i===2)return `<circle cx="128" cy="126" r="92" ${attrs("#273028","none",1)}/><circle cx="128" cy="126" r="70" ${attrs("#273028","none",1)}/><path d="M22 126H234M128 22V230" ${attrs("#273028","none",1)}/>`;
+  if(i===3)return `<path d="M20 132H236V236H20Z" fill="#0E130F"/><path d="M20 132H236" ${attrs(a,"none",2)}/><path d="M35 153H221M44 174H212M56 195H200" ${attrs("#273028","none",1)}/>`;
+  if(i===4){let q="";for(let n=0;n<24;n++){const x=25+(s[n]%204),y=28+(s[(n+7)%32]%190),w=3+(s[(n+13)%32]%13);q+=`<path d="M${x} ${y}h${w}" ${attrs(n%5===0?a:"#39413A","none",n%7===0?2:1)}/>`;}return q;}
+  if(i===5)return `<path d="M28 38H91V78H28ZM165 38H228V78H165ZM28 180H76V220H28Z" ${attrs("#273028","none",1)}/><path d="M37 50h36M37 59h24M174 50h35M174 59h20M37 192h28M37 201h18" ${attrs(a,"none",2)}/>`;
+  if(i===6)return `<path d="M30 48H226M30 58H198M58 68H226M30 188H201M55 198H226M30 208H183" ${attrs("#273028","none",4)}/><path d="M30 48H91M156 68H226M30 208H79" ${attrs(a,"none",4)}/>`;
+  return `<path d="M38 34H218L232 58V205L210 228H46L24 205V58Z" ${attrs("#273028","none",2)}/><path d="M51 49H205M39 64V194M217 64V194M51 213H205" ${attrs(a,"none",2)}/>`;
+}
+function telemetry(i,a){
+  if(i===0)return "";
+  if(i===1)return `<path d="M34 149v-18h7v18M45 149v-31h7v31M56 149v-23h7v23M193 149v-27h7v27M204 149v-16h7v16M215 149v-35h7v35" ${attrs(a,"none",3)}/>`;
+  if(i===2)return `<polyline points="28,145 39,132 50,138 61,113 72,124" ${attrs(a,"none",2)}/><polyline points="184,130 195,119 206,136 217,109 228,118" ${attrs(a,"none",2)}/>`;
+  if(i===3)return `<path d="M29 102h39v12H29zM29 120h27v9H29zM188 96h39v12h-39zM199 114h28v9h-28z" ${attrs(a,"none",2)}/>`;
+  if(i===4)return `<circle cx="38" cy="117" r="4" fill="${a}"/><circle cx="50" cy="117" r="4" fill="#F5F7F2"/><circle cx="62" cy="117" r="4" fill="${a}"/><circle cx="194" cy="117" r="4" fill="#F5F7F2"/><circle cx="206" cy="117" r="4" fill="${a}"/><circle cx="218" cy="117" r="4" fill="#F5F7F2"/>`;
+  if(i===5)return `<path d="M30 103h38v44H30zM188 103h38v44h-38zM37 136v-16h6v16M47 136v-26h6v26M57 136v-10h5v10M195 135h24M195 126h17M195 117h9" ${attrs(a,"none",2)}/>`;
+  if(i===6)return `<path d="M28 105h40v34H28zM188 105h40v34h-40z" ${attrs("#F5F7F2","none",2)}/><path d="M35 129l8-12 7 7 11-13M195 128l9-18 7 13 10-9" ${attrs(a,"none",2)}/>`;
+  return `<path d="M28 105h40v34H28zM188 105h40v34h-40zM35 113h26M35 122h18M195 113h26M203 122h18" ${attrs(a,"none",2)}/><path d="M35 132h8M53 132h8M195 132h8M213 132h8" ${attrs("#F5F7F2","none",2)}/>`;
+}
+function mantle(i,a){
+  const f="#0A0D0B",w="#F5F7F2";
+  if(i===0)return `<path d="M78 169L62 219H194L178 169L157 184H99Z" ${attrs(w,f,3)}/>`;
+  if(i===1)return `<path d="M71 225L82 160L108 179H148L174 160L185 225Z" ${attrs(w,f,4)}/><path d="M95 179v42M161 179v42" ${attrs(a,"none",2)}/>`;
+  if(i===2)return `<path d="M52 226L67 164L91 146L105 178H151L165 146L189 164L204 226Z" ${attrs(w,f,3)}/><path d="M67 164L98 194M189 164L158 194" ${attrs(a,"none",2)}/>`;
+  if(i===3)return `<path d="M59 224L74 171L100 181H156L182 171L197 224Z" ${attrs(w,f,4)}/><path d="M76 184h25v40M180 184h-25v40M104 197h48" ${attrs(a,"none",3)}/>`;
+  if(i===4)return `<path d="M47 227L67 173L98 181H158L189 173L209 227Z" ${attrs(w,f,3)}/><path d="M64 195h128M58 211h140M88 183l-11 44M168 183l11 44" ${attrs("#555F56","none",2)}/>`;
+  return `<path d="M51 226L74 169L111 185V226ZM205 226L182 169L145 185V226Z" ${attrs(w,f,3)}/><path d="M128 180V228M79 177l29 29M177 177l-29 29" ${attrs(a,"none",3)}/>`;
+}
+function shell(i,a){
+  const f="#080B09",w="#F5F7F2";
+  if(i===0)return `<path d="M70 111C70 66 92 43 128 43S186 66 186 111V154C186 181 165 195 128 195S70 181 70 154Z" ${attrs(w,f,4)}/><path d="M79 82C98 59 158 59 177 82" ${attrs(a,"none",2)}/>`;
+  if(i===1)return `<path d="M66 102L85 55L128 38L171 55L190 102L180 169L153 194H103L76 169Z" ${attrs(w,f,4)}/><path d="M85 55l19 29h48l19-29M76 169l32-17h40l32 17" ${attrs(a,"none",2)}/>`;
+  if(i===2)return `<path d="M54 116L72 66L101 40H155L184 66L202 116L186 188L158 205H98L70 188Z" ${attrs(w,f,4)}/><path d="M72 66l28 26-13 91M184 66l-28 26 13 91" ${attrs(a,"none",2)}/>`;
+  if(i===3)return `<path d="M64 89L97 45H159L192 89V158L159 197H97L64 158Z" ${attrs(w,f,4)}/><path d="M97 45l15 30h32l15-30M64 158l37-20h54l37 20" ${attrs(a,"none",2)}/>`;
+  if(i===4)return `<path d="M64 58H192V181L166 199H90L64 181Z" ${attrs(w,f,4)}/><path d="M75 73h106v73H75zM90 181h76" ${attrs(a,"none",2)}/>`;
+  if(i===5)return `<path d="M55 79L84 44H172L201 79L190 181L162 205H94L66 181Z" ${attrs(w,f,6)}/><path d="M84 44l18 35h52l18-35M66 181l35-32h54l35 32" ${attrs(a,"none",3)}/>`;
+  if(i===6)return `<path d="M82 54L109 40H147L174 54L185 101L174 177L151 194H105L82 177L71 101Z" ${attrs(w,f,3)}/><path d="M90 60l20 19h36l20-19M83 168l31-17h28l31 17" ${attrs(a,"none",2)}/>`;
+  return `<path d="M65 92L86 51L123 39V197L91 188L70 163ZM191 92L170 51L133 39V197L165 188L186 163Z" ${attrs(w,f,4)}/><path d="M128 39V198M86 51l27 32M170 51l-27 32" ${attrs(a,"none",2)}/>`;
+}
+function face(i,a){
+  if(i===0)return `<rect x="96" y="101" width="64" height="9" fill="${a}"/><rect x="96" y="126" width="64" height="9" fill="${a}"/>`;
+  if(i===1)return `<path d="M91 110H165L156 125H100Z" fill="${a}"/><path d="M104 116h48" ${attrs("#030504","none",3)}/>`;
+  if(i===2)return `<rect x="92" y="104" width="29" height="26" fill="${a}"/><rect x="135" y="104" width="29" height="26" fill="${a}"/><path d="M121 117h14" ${attrs("#F5F7F2","none",2)}/>`;
+  if(i===3)return `<circle cx="108" cy="133" r="7" fill="${a}"/><circle cx="128" cy="133" r="7" fill="${a}"/><circle cx="148" cy="133" r="7" fill="${a}"/><circle cx="148" cy="114" r="7" fill="${a}"/><circle cx="128" cy="95" r="7" fill="${a}"/>`;
+  if(i===4)return `<path d="M108 99V138M148 99V138" ${attrs(a,"none",8)}/>`;
+  if(i===5)return `<path d="M89 117H167" ${attrs(a,"none",8)}/><path d="M128 98V136" ${attrs("#F5F7F2","none",2)}/><circle cx="128" cy="117" r="5" fill="#030504" stroke="#F5F7F2" stroke-width="2"/>`;
+  if(i===6)return `<path d="M145 99C134 92 111 96 108 108C105 122 149 113 146 130C144 141 121 144 108 135M128 90V149" ${attrs(a,"none",6)}/>`;
+  let q="";for(let y=0;y<3;y++)for(let x=0;x<3;x++)q+=`<rect x="${102+x*19}" y="${96+y*19}" width="13" height="13" fill="${(x+y)%2?a:"#F5F7F2"}"/>`;return q;
+}
+function sigil(i,a){
+  if(i===7)return ""; const y=207;
+  if(i===0)return `<circle cx="128" cy="${y}" r="14" fill="#050705" stroke="${a}" stroke-width="2"/><path d="M119 202h18M119 211h18" ${attrs(a,"none",3)}/>`;
+  if(i===1)return `<circle cx="128" cy="${y}" r="14" fill="#050705" stroke="${a}" stroke-width="2"/><path d="M133 196c-12-5-17 5-5 10s7 15-5 11M128 191v31" ${attrs(a,"none",2)}/>`;
+  if(i===2)return `<rect x="114" y="193" width="28" height="28" fill="#050705" stroke="${a}" stroke-width="2"/><path d="M119 198h7v7h-7zM130 198h7v7h-7zM119 209h7v7h-7zM130 209h7v7h-7z" fill="${a}"/>`;
+  if(i===3)return `<path d="M128 191L143 200L138 218H118L113 200Z" fill="#050705" stroke="${a}" stroke-width="2"/><path d="M128 196v17" ${attrs(a,"none",3)}/>`;
+  if(i===4)return `<path d="M128 190l5 11 12 1-9 8 3 12-11-6-11 6 3-12-9-8 12-1Z" fill="#050705" stroke="${a}" stroke-width="2"/>`;
+  if(i===5)return `<circle cx="128" cy="207" r="14" fill="#050705" stroke="${a}" stroke-width="2"/><path d="M116 212c5-16 19-16 24 0M119 202h18" ${attrs(a,"none",2)}/>`;
+  return `<path d="M114 201l14-10 14 10-5 17h-18Z" fill="#050705" stroke="${a}" stroke-width="2"/><circle cx="128" cy="205" r="4" fill="${a}"/>`;
+}
+function boundary(i,a){
+  if(i===0)return `<circle cx="128" cy="128" r="113" ${attrs("#F5F7F2","none",4)}/>`;
+  if(i===1)return `<circle cx="128" cy="128" r="114" ${attrs("#F5F7F2","none",3)}/><circle cx="128" cy="128" r="105" ${attrs(a,"none",2)}/>`;
+  if(i===2)return `<circle cx="128" cy="128" r="112" ${attrs("#F5F7F2","none",5)} stroke-dasharray="38 13"/><circle cx="128" cy="128" r="103" ${attrs(a,"none",1)} stroke-dasharray="7 18"/>`;
+  if(i===3)return `<circle cx="128" cy="128" r="109" ${attrs("#F5F7F2","none",3)}/><path d="M128 7v25M128 224v25M7 128h25M224 128h25M43 43l17 17M196 196l17 17M43 213l17-17M196 60l17-17" ${attrs(a,"none",4)}/>`;
+  if(i===4)return `<path d="M46 17H210L239 46V210L210 239H46L17 210V46Z" ${attrs("#F5F7F2","none",4)}/><path d="M75 25h106M75 231h106M25 75v106M231 75v106" ${attrs(a,"none",2)}/>`;
+  return `<path d="M128 10L224 40V124C224 184 184 226 128 245C72 226 32 184 32 124V40Z" ${attrs("#F5F7F2","none",4)}/><path d="M128 21L213 48" ${attrs(a,"none",2)}/>`;
+}
+function selected(seed,overrides){
+  const out={}; Object.entries(TRAITS).forEach(([k,v],n)=>out[k]=overrides[k]==="auto"||overrides[k]===undefined?((seed[n*3]*256+seed[n*3+1])%v.length):Number(overrides[k])); return out;
+}
+function svgFor(seed,overrides={}){
+  const t=selected(seed,overrides),a=COLORS[t.Signal],id=bytesToHex(seed).slice(2,12);
+  const art=field(t.Field,a,seed)+telemetry(t.Telemetry,a)+mantle(t.Mantle,a)+shell(t.Shell,a)+face(t.Interface,a)+sigil(t.Sigil,a)+boundary(t.Boundary,a);
+  return {traits:t,svg:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t-${id}"><title id="t-${id}">Statics Position Avatar</title><rect width="256" height="256" fill="#030504"/>${art}</svg>`};
+}
+const controls=document.getElementById("controls"),overrides={};
+for(const [key,values] of Object.entries(TRAITS)){
+  const row=document.createElement("div");row.className="control";const lab=document.createElement("label");lab.textContent=key;const select=document.createElement("select");select.dataset.trait=key;
+  select.innerHTML=`<option value="auto">Deterministic</option>`+values.map((v,i)=>`<option value="${i}">${v}</option>`).join("");select.addEventListener("change",()=>{overrides[key]=select.value;renderMain();});row.append(lab,select);controls.append(row);
+}
+function identity(){return {chain:document.getElementById("chainId").value||0,diamond:document.getElementById("diamond").value,id:document.getElementById("positionId").value||0};}
+function renderMain(){
+  const x=identity(),seed=seedFor(x.chain,x.diamond,x.id),r=svgFor(seed,overrides);
+  ["avatar","p64","p128","p256"].forEach(id=>document.getElementById(id).innerHTML=r.svg);
+  document.getElementById("seed").textContent=bytesToHex(seed);
+  document.getElementById("bytes").textContent=`SVG bytes: ${new TextEncoder().encode(r.svg).length.toLocaleString()} · 256×256 integer-coordinate source`;
+  document.getElementById("raw").value=r.svg;
+  document.getElementById("traits").innerHTML=Object.entries(r.traits).map(([k,v])=>`<div class="trait"><b>${k}</b>${TRAITS[k][v]}</div>`).join("");
+  document.documentElement.style.setProperty("--accent",COLORS[r.traits.Signal]);
+}
+function renderSheet(){
+  const x=identity(),sheet=document.getElementById("sheet");sheet.innerHTML="";
+  for(let id=1;id<=48;id++){const r=svgFor(seedFor(x.chain,x.diamond,id),{}),tile=document.createElement("div");tile.className="tile";tile.innerHTML=r.svg+`<span>POSITION #${id}</span>`;sheet.append(tile);}
+}
+function renderAll(){renderMain();renderSheet();}
+document.getElementById("next").onclick=()=>{document.getElementById("positionId").value=BigInt(identity().id)+1n;renderMain();};
+document.getElementById("random").onclick=()=>{document.getElementById("positionId").value=1+Math.floor(Math.random()*999999);renderMain();};
+document.getElementById("reset").onclick=()=>{document.querySelectorAll("select[data-trait]").forEach(s=>{s.value="auto";overrides[s.dataset.trait]="auto";});renderMain();};
+document.getElementById("download").onclick=()=>{const blob=new Blob([document.getElementById("raw").value],{type:"image/svg+xml"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`statics-position-${identity().id}.svg`;a.click();URL.revokeObjectURL(a.href);};
+document.getElementById("copy").onclick=async()=>{await navigator.clipboard.writeText(document.getElementById("raw").value);document.getElementById("copy").textContent="Copied";setTimeout(()=>document.getElementById("copy").textContent="Copy SVG",900);};
+["chainId","diamond"].forEach(id=>document.getElementById(id).addEventListener("change",renderAll));document.getElementById("positionId").addEventListener("change",renderMain);
+renderAll();
+</script>
+</body>
+</html>
