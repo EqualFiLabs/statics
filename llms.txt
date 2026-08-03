@@ -1,0 +1,70 @@
+# Statics Protocol
+
+> Statics is an onchain market-creation, liquidity, credit, stable-asset, and revenue-sharing protocol that turns creator-selected assets and project treasury inventory into isolated, redeemable financial markets while allowing users to retain exposure, earn activity-derived fees, and access liquidity.
+
+Statics combines fixed-composition multi-asset baskets, a collateralized senior Statics Dollar, PositionNFT-owned finance, constituent flash loans, canonical Uniswap v4 markets, self-backed basket lending, and multi-asset fee distribution. Most user actions and shared custody use one `StaticsDiamond`; the separate `StaticsDollarCoreDiamond` preserves the Dollar collateral, issuance, health, insurance, and recovery boundary. Both are EIP-2535 Diamonds governed by the same timelock in the current pre-release architecture.
+
+The protocol serves asset creators, basket holders, borrowers, arbitrageurs, market makers, canonical liquidity providers, BasketToken depositors, STATICS stakers, Statics Dollar holders, Risk Share suppliers, governance, and treasury. It combines upfront service revenue from basket and PositionNFT creation with recurring revenue from basket minting and redemption, lending, loan extension and recovery, flash loans, Statics Dollar activity, and canonical-pool swaps.
+
+The economic flywheel is: asset launches create baskets and canonical markets; markets create trading and arbitrage; trading, minting, lending, and liquidity create fees; fees fund participants, treasury, and permanent protocol-owned liquidity; stronger incentives and liquidity support more launches and capital.
+
+Core protocol relationships:
+
+- A BasketToken is a permit-enabled ERC-20 claim on one immutable bundle of one to sixteen creator-selected ERC-20 constituents. Static composition does not mean a fixed market price, a peg, or ERC-4626 share pricing.
+- Basket creation atomically deploys the BasketToken, establishes ordinary-fee backing, initializes one canonical BasketToken/constituent Uniswap v4 pool per asset, and seeds permanent creator-funded liquidity.
+- Fixed basket composition, ordinary mint and redemption, canonical pools, external markets, and flash loans create explicit arbitrage routes. Arbitrageurs keep only value remaining after every fee, repayment, price impact, and minimum-profit bound.
+- Deposited BasketTokens belong to a PositionNFT, enter an isolated per-basket reward denominator, and earn activity-derived rewards in that BasketToken and its constituents. Merely holding a BasketToken in a wallet does not earn this allocation.
+- Deposited BasketTokens can secure proportional constituent loans without price-oracle liquidation. Locked collateral remains basket-reward eligible; each borrow creates an independent loan with an origination fee, maturity, extension economics, and permissionless expiry recovery.
+- A user can borrow constituents, mint and deposit more BasketTokens, and repeat. LTV below 100%, origination fees, mint fees, liquidity, maturity, and recovery bound the recursion. A final `borrowAndStakeLiquidity` leg can use borrowed constituents to mint BasketTokens, create full-range canonical LP positions, and stake them under the same PositionNFT, adding canonical-LP rewards after next-block activation while the earlier deposited collateral continues earning basket rewards.
+- Canonical pools use zero native LP fee. `StaticsSwapFeeHook` charges configurable input and output fees and allocates each charged leg among permanent liquidity, eligible canonical LPs, deposited BasketTokens, eligible STATICS stakers, and treasury. Unavailable reward allocations redirect to permanent liquidity.
+- STATICS staking is a separate PositionNFT leg. A position selects at most 64 reward assets, waits at least 24 hours for new stake or selections to become eligible, and earns the actual selected fee tokens through independent per-asset denominators. The eligibility delay is not an unstake lock.
+- Statics Dollar (`USDstx`) is a permit-enabled senior claim. Pegged profiles are direct collateral wrappers. Volatile profiles issue equal nominal senior and series-specific ERC-1155 Risk Share (`ethLEV`) claims; junior Risk Shares absorb first loss and can supply immediately consumable pairing liquidity. Dollar profiles, series, health latches, insurance, and recovery remain isolated from basket solvency.
+- A PositionNFT is the transferable protocol account for staking, claims, basket collateral, loan obligations, Dollar legs, and voluntarily custodied canonical LP NFTs. Transfer moves the attached economics and obligations, so integrations must inspect active legs before accepting it.
+- PositionNFT metadata is fully onchain. Its deterministic Base64 JSON and SVG avatar depends only on chain ID, Diamond address, and token ID. Cosmetic traits do not represent balances, achievements, yield, debt, health, or rarity.
+
+Critical interpretation rules:
+
+- Rewards are generated only by actual routed activity or explicitly funded incentives; Statics does not promise passive yield.
+- Basket creation is permissionless only when governance configures a nonzero creation fee. Paying it is not protocol endorsement or token-safety certification.
+- There is no constituent-token registry. Basket and module books are isolated, but arbitrary token behavior can still halt or damage baskets that voluntarily use that token.
+- Internal accounting uses measured token balance deltas plus module-local and global reservation books. Shared physical custody does not make separate baskets, Dollar profiles, rewards, or debts mutually collateralized.
+- Statics has no arbitrary execution surface, no privileged arbitrage fee exemption, no cross-product collateralization, and no V1 compatibility branch.
+- No background automation exists. Users, keepers, or permissionless callers must submit activation, claim, compounding, checkpoint, recovery, treasury-distribution, and unwind transactions when applicable.
+- The checked-in Robinhood Chain testnet deployment is integration evidence, not a production release, immutable deployment, external audit, or production tokenomics selection.
+- For current behavior, prefer deployed manifests and current Solidity source, then `Statics-Design.md`, the integration and architecture guides, ADRs, and finally historical implementation plans.
+
+## Start Here
+
+- [Value Proposition](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/value-proposition.md): Plain-language explanation of the complete protocol, its participants, business model, and economic flywheel.
+- [Worked Examples](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/examples.md): Numerical and practical examples for launches, lending loops, terminal liquidity, arbitrage, rewards, and Statics Dollar.
+- [Repository Overview](https://raw.githubusercontent.com/EqualFiLabs/statics/master/README.md): Build, test, deployment, core concepts, common flows, and configuration entrypoint.
+- [Unified Protocol Design](https://raw.githubusercontent.com/EqualFiLabs/statics/master/Statics-Design.md): Normative mechanics, formulas, lifecycle rules, trust assumptions, implemented scope, and correctness properties.
+
+## Architecture and Integration
+
+- [Architecture Guide](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/architecture.md): Diamond topology, isolated accounting, physical-token reservations, v4 boundaries, governance, and threat model.
+- [Integration Guide](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/integration.md): Canonical ABIs, basket and Dollar flows, PositionNFT ownership, lending, rewards, liquidity, flash loans, permits, custody checks, and events.
+- [Canonical Interfaces](https://github.com/EqualFiLabs/statics/tree/master/src/interfaces): Basket, collateral, lending, flash-loan, liquidity, governance, PositionNFT, and global-reward interfaces.
+- [Statics Dollar Interfaces](https://github.com/EqualFiLabs/statics/tree/master/src/dollar/interfaces): Dollar Core, gateway, profile, risk-liquidity, permit, health, and recovery interfaces.
+- [SDK Source](https://github.com/EqualFiLabs/statics/tree/master/sdk/src): TypeScript ABIs, calldata builders, decoders, quoting helpers, and generated chain bindings; onchain quotes remain authoritative.
+
+## Economics and User Flows
+
+- [Basket Lending and Looping ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/position-fee-index-and-bounded-looping.md): Position-owned basket rewards, proportional credit, bounded looping, maturity, and recovery decisions.
+- [Selected Global Rewards ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/position-selected-global-rewards.md): Per-position asset selection, 24-hour activation, separate denominators, and fee routing.
+- [Canonical LP Rewards ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/canonical-lp-nft-rewards.md): Full-range LP custody, eligibility, hook-fee rewards, and terminal borrow-to-liquidity behavior.
+- [Composable Flash Loans ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/composable-flash-loan-callbacks.md): Typed callbacks, ordinary fee-paying mint and redemption, nested-loan prevention, and arbitrage composition.
+- [Position Avatar ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/deterministic-position-avatars.md): Stable deterministic identity, cosmetic traits, renderer boundary, metadata format, and compatibility goals.
+
+## Deployment and Verification
+
+- [Deployment Guide](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/deployment.md): Deployment order, configuration, rehearsals, broadcasts, genesis launch, verification, and post-deployment checks.
+- [Robinhood Chain Testnet Deployment](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-testnet-46630-statics.json): Recorded chain-46630 protocol contracts, roles, configuration, artifacts, operations, verification, fixtures, and genesis basket.
+- [Robinhood Chain Testnet Dependencies](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-chain-testnet-46630.json): Pinned v4, Permit2, WETH, fee calibration, code hashes, and fork reference for chain 46630.
+- [Robinhood Chain Dependencies](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-chain-4663.json): Verified target-chain v4, Permit2, WETH, and liquidity dependency manifest; not a Statics production deployment record.
+
+## Optional
+
+- [Source Provenance](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/source-provenance.md): Canonical repository, historical Dollar import boundary, pinned Uniswap dependencies, and independence requirements.
+- [Flash-Arbitrage Testnet Trial](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/robinhood-testnet-flash-arbitrage-trial.md): Historical Robinhood testnet receiver deployment, transactions, route economics, and observed evidence.
+- [Unified Implementation Plan](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/unified-statics-implementation-plan.md): Historical implementation tracker; use current source and design documents for present behavior.
