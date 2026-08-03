@@ -55,38 +55,25 @@ feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
 this repository. Verify chain-specific contracts and make the economic choices
 before broadcasting.
 
-## Existing Diamond Position-fee upgrade
+## Modular Position NFT deployment boundary
 
-New deployments install the payable Position surface and initialize
-`POSITION_CREATION_FEE_AMOUNT` atomically. An existing Diamond must replace the
-five entry facets because Solidity's payable check lives in each facet, even
-though the function selectors do not change.
+New deployments install the payable Position surface, initialize
+`POSITION_CREATION_FEE_AMOUNT`, and register the Modular Position NFT interface
+atomically. This source shape is supported only as a fresh deployment: it
+changes Position selectors and introduces packed structural state that legacy
+Positions do not contain.
 
-`script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee` separates
-facet deployment, timelock scheduling, and timelock execution:
-
-```bash
-forge script script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee \
-  --sig 'runDeployFacets()' --rpc-url "$RPC_URL"
-
-forge script script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee \
-  --sig 'runSchedule()' --rpc-url "$RPC_URL"
-
-forge script script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee \
-  --sig 'runExecute()' --rpc-url "$RPC_URL"
-```
-
-Add `--broadcast` only for an explicitly authorized ceremony. Record the five
-facet addresses emitted by the first command in the matching environment
-variables before scheduling. The timelock batch replaces the Position facet
-and each atomic module-creation selector, adds the two fee selectors, sets the
-fee, and registers `IStaticsPositionFees` in one execution. Its post-execution
-checks verify every selector binding, ERC-165 support, and the configured fee.
+Do not install these facets over an existing Diamond. The retained
+`script/UpgradePositionCreationFee.s.sol:UpgradePositionCreationFee` entrypoints
+revert with `FreshDeploymentRequired` so the obsolete Position-fee ceremony
+cannot construct a misleading partial upgrade. Supporting an in-place upgrade
+would require a separately specified and tested selector cut plus per-Position
+state migration; this release makes no such migration claim.
 
 Position fees are forwarded immediately and entirely to the canonical
 treasury. The Diamond does not accrue a native fee balance and there is no
-separate treasury claim. Existing Position NFTs remain reusable without paying
-again.
+separate treasury claim. Existing Positions in the fresh deployment remain
+reusable without paying again.
 
 Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the protocol with
 `script/DeployStaticsToken.s.sol:DeployStaticsToken`. Set
@@ -446,7 +433,7 @@ The deployment tests establish the expected architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 190 selectors
+StaticsDiamond:           21 facets, 191 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

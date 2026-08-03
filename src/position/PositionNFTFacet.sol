@@ -3,12 +3,19 @@ pragma solidity 0.8.33;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
+import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibPosition} from "./LibPosition.sol";
 
-contract PositionNFTFacet is ERC721Upgradeable, IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule {
+contract PositionNFTFacet is
+    ERC721Upgradeable,
+    IModularPositionNFT,
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionModule
+{
     event PositionCreated(uint256 indexed positionId, address indexed owner);
     event PositionClosed(uint256 indexed positionId);
     event PositionCreationFeeSet(uint256 previousAmount, uint256 newAmount);
@@ -19,22 +26,23 @@ contract PositionNFTFacet is ERC721Upgradeable, IStaticsPosition, IStaticsPositi
     error PositionCreationFeeTransferFailed(address treasury, uint256 amount);
     error PositionInitializing(uint256 positionId);
     error PositionHasActiveLegs(uint256 positionId, uint256 activeLegCount);
+    error PositionHasUnresolvedObligations(uint256 positionId, uint256 unresolvedObligationCount);
 
     function createPosition(address receiver) external payable returns (uint256 positionId) {
         _enforcePositionCreationFee();
-        positionId = _createPosition(receiver, bytes32(0));
+        positionId = _createPosition(receiver, bytes32(0), bytes32(0));
         _forwardPositionCreationFee(positionId);
     }
 
-    function createPositionForModule(address receiver, bytes32 initialLegKey)
+    function createPositionForModule(address receiver, bytes32 moduleType, bytes32 localPositionId)
         external
         payable
         returns (uint256 positionId)
     {
         if (msg.sender != address(this)) revert OnlyDiamondSelf(msg.sender);
-        if (initialLegKey == bytes32(0)) revert LibPosition.ZeroLegKey();
+        if (moduleType == bytes32(0)) revert LibPosition.InvalidModuleType();
         _enforcePositionCreationFee();
-        positionId = _createPosition(receiver, initialLegKey);
+        positionId = _createPosition(receiver, moduleType, localPositionId);
         _forwardPositionCreationFee(positionId);
     }
 
@@ -52,11 +60,15 @@ contract PositionNFTFacet is ERC721Upgradeable, IStaticsPosition, IStaticsPositi
 
     function closePosition(uint256 positionId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
-        if (ps.positionInitializing[positionId]) revert PositionInitializing(positionId);
-        uint256 count = ps.activeLegCount[positionId];
-        if (count != 0) revert PositionHasActiveLegs(positionId, count);
+        LibPosition.PackedPositionState storage state = LibPosition.positionStorage().state[positionId];
+        if (state.initializing) revert PositionInitializing(positionId);
+        if (state.activeLegCount != 0) revert PositionHasActiveLegs(positionId, state.activeLegCount);
+        if (state.unresolvedObligationCount != 0) {
+            revert PositionHasUnresolvedObligations(positionId, state.unresolvedObligationCount);
+        }
+        LibPosition.incrementNonce(positionId);
         _burn(positionId);
+        LibPosition.emitStateChanged(positionId);
         emit PositionClosed(positionId);
     }
 
@@ -65,26 +77,41 @@ contract PositionNFTFacet is ERC721Upgradeable, IStaticsPosition, IStaticsPositi
     }
 
     function activeLegCount(uint256 positionId) external view returns (uint256) {
-        return LibPosition.positionStorage().activeLegCount[positionId];
+        return LibPosition.positionStorage().state[positionId].activeLegCount;
     }
 
     function positionInitializing(uint256 positionId) external view returns (bool) {
-        return LibPosition.positionStorage().positionInitializing[positionId];
+        return LibPosition.positionStorage().state[positionId].initializing;
     }
 
-    function isPositionLegActive(uint256 positionId, bytes32 legKey_) external view returns (bool) {
+    function positionState(uint256 positionId) external view returns (PositionState memory state) {
+        LibPosition.PackedPositionState storage stored = LibPosition.positionStorage().state[positionId];
+        state = PositionState({
+            exists: _ownerOf(positionId) != address(0),
+            stateNonce: stored.stateNonce,
+            activeLegCount: stored.activeLegCount,
+            unresolvedObligationCount: stored.unresolvedObligationCount
+        });
+    }
+
+    function isLegActive(uint256 positionId, bytes32 legKey_) external view returns (bool) {
         return LibPosition.positionStorage().activeLeg[positionId][legKey_];
     }
 
-    function positionKey(uint256 positionId) external view returns (bytes32) {
-        ownerOf(positionId);
-        return keccak256(abi.encode(address(this), positionId));
+    function isPositionClosable(uint256 positionId) external view returns (bool) {
+        LibPosition.PackedPositionState storage state = LibPosition.positionStorage().state[positionId];
+        return _ownerOf(positionId) != address(0) && !state.initializing && state.activeLegCount == 0
+            && state.unresolvedObligationCount == 0;
     }
 
-    function _createPosition(address receiver, bytes32 initialLegKey) private returns (uint256 positionId) {
+    function _createPosition(address receiver, bytes32 moduleType, bytes32 localPositionId)
+        private
+        returns (uint256 positionId)
+    {
         positionId = LibPosition.allocatePositionId();
         _safeMint(receiver, positionId);
-        if (initialLegKey != bytes32(0)) LibPosition.activateLeg(positionId, initialLegKey);
+        LibPosition.emitStateChanged(positionId);
+        if (moduleType != bytes32(0)) LibPosition.activateLeg(positionId, moduleType, localPositionId);
         LibPosition.finishInitialization(positionId);
         emit PositionCreated(positionId, receiver);
     }

@@ -165,9 +165,15 @@ Position-specific views and actions require ERC-721 ownership or approval.
 Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the
 configured treasury.
 
-Before accepting a PositionNFT transfer, inspect global stake and claims,
-basket collateral and locked shares, loan tranches, and Dollar legs.
-`closePosition` succeeds only after every attached protocol leg is empty.
+Before accepting a PositionNFT transfer, call `positionState(positionId)` and
+inspect protocol-specific economics for each discovered Leg. The standardized
+state reports the structural nonce, active-Leg count, and unresolved live-loan
+count; it does not report valuation or solvency. `isPositionClosable` is true
+only for an existing, fully initialized Position with both counts at zero.
+Structural membership is available through `isLegActive`; events
+`PositionLegAttached`, `PositionLegDetached`, and `PositionStateChanged` support
+indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
+positionId)`, with no separate Position Key getter.
 
 ## Basket lending and looping
 
@@ -507,8 +513,9 @@ Index these event families, then reconcile with current views:
   `Transfer`;
 - lifecycle: `BasketQuarantined`, `BasketQuarantineReleased`,
   `BasketDecommissioned`, `ActionsPaused`, and `ActionsUnpaused`;
-- shared positions: ERC-721 `Transfer` and `Approval`, `PositionCreated`, and
-  `PositionClosed`; and
+- shared positions: ERC-721 `Transfer` and `Approval`, `PositionCreated`,
+  `PositionClosed`, `PositionLegAttached`, `PositionLegDetached`, and
+  `PositionStateChanged`; and
 - Dollar gateway and routing: `ETHDeposited`, `WETHDeposited`,
   `RecombinedToWETH`, `RecombinedToETH`, `RecombinationDeferred`,
   `PeggedMintedThroughGateway`, `PeggedMintedAndRecombined`,

@@ -742,6 +742,25 @@ describe("Statics unified calldata", () => {
         (entry) => entry.type === "event" && entry.name === "PositionCreationFeePaid",
       ),
     ).toBe(true);
+    for (const functionName of ["positionState", "isLegActive", "isPositionClosable"]) {
+      expect(
+        staticsAbi.some(
+          (entry) => entry.type === "function" && entry.name === functionName,
+        ),
+      ).toBe(true);
+    }
+    for (const eventName of ["PositionLegAttached", "PositionLegDetached", "PositionStateChanged"]) {
+      expect(
+        staticsAbi.some(
+          (entry) => entry.type === "event" && entry.name === eventName,
+        ),
+      ).toBe(true);
+    }
+    expect(
+      staticsAbi.some(
+        (entry) => entry.type === "function" && entry.name === "positionKey",
+      ),
+    ).toBe(false);
     expect(
       staticsAbi.some(
         (entry) =>

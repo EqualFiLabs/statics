@@ -81,8 +81,19 @@ library LibLoanOrigination {
             LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, feeUnderlying);
             ls.principals[loanId][asset] = principal;
             ls.outstandingPrincipal[basketId][asset] += principal;
-            if (principalReceiver != address(0) && principal != 0) {
-                LibCustody.pushReserved(custodyAccount, asset, principalReceiver, principal, principal);
+        }
+
+        // Publish the live obligation only after all loan accounting is complete,
+        // but before a principal receiver can observe state through a token callback.
+        LibPosition.incrementObligation(positionId);
+        if (principalReceiver != address(0)) {
+            for (uint256 i; i < length; ++i) {
+                uint256 principal = principals[i];
+                if (principal != 0) {
+                    LibCustody.pushReserved(
+                        custodyAccount, configured.assets[i], principalReceiver, principal, principal
+                    );
+                }
             }
         }
 

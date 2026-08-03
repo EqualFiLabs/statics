@@ -16,7 +16,9 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
+import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {LibLiquidityRewards} from "../../src/libraries/LibLiquidityRewards.sol";
+import {LibPosition} from "../../src/position/LibPosition.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
@@ -48,6 +50,10 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         assertEq(pending.pendingLiquidity, 5 ether);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), address(diamond));
         assertFalse(liquidityRewards.canAccrueLiquidityRewards(poolId));
+        assertTrue(
+            IModularPositionNFT(address(diamond))
+                .isLegActive(basketPositionId, LibPosition.liquidityLegKey(address(diamond)))
+        );
 
         vm.roll(block.number + 1);
         liquidityRewards.activateLiquidityPosition(tokenId);
@@ -71,6 +77,10 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         liquidityRewards.unstakeLiquidityPosition(basketPositionId, tokenId, alice);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), alice);
         assertEq(liquidityRewards.poolLiquidityRewards(poolId).totalEligibleLiquidity, 0);
+        assertFalse(
+            IModularPositionNFT(address(diamond))
+                .isLegActive(basketPositionId, LibPosition.liquidityLegKey(address(diamond)))
+        );
     }
 
     function testBorrowAndStakeAtomicallyEarnsLpAndBasketRewards() public {

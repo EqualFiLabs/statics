@@ -784,8 +784,9 @@ export const staticsAbi = parseAbi([
   "function nextPositionId() view returns (uint256)",
   "function activeLegCount(uint256 positionId) view returns (uint256)",
   "function positionInitializing(uint256 positionId) view returns (bool)",
-  "function isPositionLegActive(uint256 positionId,bytes32 legKey) view returns (bool)",
-  "function positionKey(uint256 positionId) view returns (bytes32)",
+  "function positionState(uint256 tokenId) view returns ((bool exists,uint256 stateNonce,uint256 activeLegCount,uint256 unresolvedObligationCount) state)",
+  "function isLegActive(uint256 tokenId,bytes32 legKey) view returns (bool)",
+  "function isPositionClosable(uint256 tokenId) view returns (bool)",
   "function quarantineBasket(uint256 basketId)",
   "function releaseBasketQuarantine(uint256 basketId)",
   "function decommissionBasket(uint256 basketId)",
@@ -853,8 +854,9 @@ export const staticsAbi = parseAbi([
   "event PositionClosed(uint256 indexed positionId)",
   "event PositionCreationFeeSet(uint256 previousAmount,uint256 newAmount)",
   "event PositionCreationFeePaid(uint256 indexed positionId,address indexed treasury,uint256 amount)",
-  "event PositionLegActivated(uint256 indexed positionId,bytes32 indexed legKey)",
-  "event PositionLegDeactivated(uint256 indexed positionId,bytes32 indexed legKey)",
+  "event PositionLegAttached(uint256 indexed tokenId,bytes32 indexed legKey,address indexed moduleAuthority,bytes32 moduleType,bytes32 localPositionId,uint256 stateNonce)",
+  "event PositionLegDetached(uint256 indexed tokenId,bytes32 indexed legKey,uint256 stateNonce)",
+  "event PositionStateChanged(uint256 indexed tokenId,uint256 stateNonce,uint256 activeLegCount,uint256 unresolvedObligationCount)",
   "event Transfer(address indexed from,address indexed to,uint256 indexed tokenId)",
   "event BasketCollateralDeposited(uint256 indexed positionId,uint256 indexed basketId,address indexed payer,uint256 shares)",
   "event BasketCollateralWithdrawn(uint256 indexed positionId,uint256 indexed basketId,address indexed receiver,uint256 shares)",
@@ -1060,8 +1062,9 @@ export type StaticsPositionEventName =
   | "PositionClosed"
   | "PositionCreationFeeSet"
   | "PositionCreationFeePaid"
-  | "PositionLegActivated"
-  | "PositionLegDeactivated"
+  | "PositionLegAttached"
+  | "PositionLegDetached"
+  | "PositionStateChanged"
   | "Transfer"
   | "BasketCollateralDeposited"
   | "BasketCollateralWithdrawn"
@@ -1171,12 +1174,15 @@ export const staticsPositionErrorAbi = parseAbi([
   "error PositionCreationFeeTransferFailed(address treasury,uint256 amount)",
   "error PositionInitializing(uint256 positionId)",
   "error PositionHasActiveLegs(uint256 positionId,uint256 activeLegCount)",
+  "error PositionHasUnresolvedObligations(uint256 positionId,uint256 unresolvedObligationCount)",
   "error AlreadyInitialized()",
   "error NotInitialized()",
   "error NotPositionOwnerOrApproved(uint256 positionId,address caller)",
-  "error ZeroLegKey()",
+  "error InvalidModuleAuthority()",
+  "error InvalidModuleType()",
   "error PositionLegAlreadyActive(uint256 positionId,bytes32 legKey)",
   "error PositionLegNotActive(uint256 positionId,bytes32 legKey)",
+  "error NoUnresolvedPositionObligation(uint256 positionId)",
   "error ERC721InvalidOwner(address owner)",
   "error ERC721NonexistentToken(uint256 tokenId)",
   "error ERC721IncorrectOwner(address sender,uint256 tokenId,address owner)",

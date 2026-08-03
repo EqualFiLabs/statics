@@ -40,7 +40,7 @@ Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
 neither standalone contract is a second general protocol entrypoint.
 
-The canonical deployment installs 21 facets and 190 selectors on
+The canonical deployment installs 21 facets and 191 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and

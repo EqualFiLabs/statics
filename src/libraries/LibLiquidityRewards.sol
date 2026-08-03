@@ -62,8 +62,8 @@ library LibLiquidityRewards {
         }
     }
 
-    function liquidityLegKey() internal pure returns (bytes32) {
-        return LibPosition.legKey(keccak256("statics.position.module.liquidity"), bytes32(uint256(1)));
+    function liquidityLegKey() internal view returns (bytes32) {
+        return LibPosition.liquidityLegKey();
     }
 
     function initializeRecord(
@@ -91,7 +91,9 @@ library LibLiquidityRewards {
             position.currency0 = currency0;
             position.currency1 = currency1;
             ++rs.positionRecordCount[positionId];
-            if (rs.positionRecordCount[positionId] == 1) LibPosition.activateLeg(positionId, liquidityLegKey());
+            if (rs.positionRecordCount[positionId] == 1) {
+                LibPosition.activateLeg(positionId, LibPosition.LIQUIDITY_MODULE, bytes32(uint256(1)));
+            }
         }
         PoolRewards storage pool = rs.pools[poolId];
         position.checkpoint0Ray = pool.index0Ray;

@@ -140,7 +140,7 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         LibPeriphery.PS storage ps = LibPeriphery.s();
         _requireActive(ps, seriesId);
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
-            receiver, LibPosition.dollarLegKey(seriesId)
+            receiver, LibPosition.DOLLAR_MODULE, bytes32(seriesId)
         );
         _stake(ps, positionId, seriesId, msg.sender, amount, true);
     }
@@ -520,7 +520,7 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         if (!leg_.exists) {
             bytes32 legKey = LibPosition.dollarLegKey(seriesId);
             if (!LibPosition.positionStorage().activeLeg[positionId][legKey]) {
-                LibPosition.activateLeg(positionId, legKey);
+                LibPosition.activateLeg(positionId, LibPosition.DOLLAR_MODULE, bytes32(seriesId));
             }
             leg_.exists = true;
             leg_.epoch = book.epoch;

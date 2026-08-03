@@ -767,9 +767,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         bool dollarHasValue = dollarLeg.effectiveShares != 0 || dollarLeg.claimableCollateral != 0
             || dollarLeg.claimableStaticsDollar != 0 || dollarLeg.claimableStatics != 0;
         if (dollarHasValue) {
-            assertTrue(positions.isPositionLegActive(positionId, LibPosition.dollarLegKey(1)));
+            assertTrue(positions.isLegActive(positionId, LibPosition.dollarLegKey(deployment.diamond, 1)));
         }
-        if (positions.isPositionLegActive(positionId, LibPosition.dollarLegKey(1))) ++expectedActiveLegs;
+        if (positions.isLegActive(positionId, LibPosition.dollarLegKey(deployment.diamond, 1))) {
+            ++expectedActiveLegs;
+        }
 
         if (_assertBasketPositionLeg(positionId, firstBasketId)) ++expectedActiveLegs;
         if (_assertBasketPositionLeg(positionId, secondBasketId)) ++expectedActiveLegs;
@@ -778,10 +780,13 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         uint256 firstLocked;
         uint256 secondLocked;
         uint256 length = handler.loanCount();
+        assertEq(positions.positionState(positionId).unresolvedObligationCount, length);
         for (uint256 i; i < length; ++i) {
             IStaticsLending.LoanView memory current = lending.loan(handler.loanIdAt(i));
             assertEq(current.positionId, positionId);
-            assertTrue(positions.isPositionLegActive(positionId, LibPosition.basketLegKey(current.basketId)));
+            assertTrue(
+                positions.isLegActive(positionId, LibPosition.basketLegKey(deployment.diamond, current.basketId))
+            );
             if (current.basketId == firstBasketId) firstLocked += current.collateralShares;
             else secondLocked += current.collateralShares;
         }
@@ -835,7 +840,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     }
 
     function _assertBasketPositionLeg(uint256 positionId, uint256 basketId) private view returns (bool active) {
-        active = positions.isPositionLegActive(positionId, LibPosition.basketLegKey(basketId));
+        active = positions.isLegActive(positionId, LibPosition.basketLegKey(deployment.diamond, basketId));
         IStaticsBasketCollateral.BasketCollateralPosition memory current =
             basketCollateral.basketCollateralPosition(positionId, basketId);
         bool hasValue = current.depositedShares != 0 || current.lockedShares != 0;

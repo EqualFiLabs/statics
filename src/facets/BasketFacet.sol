@@ -117,7 +117,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
     ) external payable nonReentrant returns (uint256 positionId, uint256[] memory amountsIn) {
         if (receiver == address(0)) revert InvalidReceiver();
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
-            receiver, LibPosition.basketLegKey(basketId)
+            receiver, LibPosition.BASKET_MODULE, bytes32(basketId)
         );
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);

@@ -31,7 +31,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
         if (receiver == address(0)) revert InvalidReceiver();
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
-            receiver, LibPosition.stakingLegKey()
+            receiver, LibPosition.STAKING_MODULE, bytes32(uint256(1))
         );
         _optIn(positionId, rewardAssets);
         _increaseStake(positionId, amount);

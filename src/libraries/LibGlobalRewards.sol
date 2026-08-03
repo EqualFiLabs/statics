@@ -272,7 +272,9 @@ library LibGlobalRewards {
     function activateStakingLeg(uint256 positionId) internal {
         bytes32 key = LibPosition.stakingLegKey();
         LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
-        if (!ps.activeLeg[positionId][key]) LibPosition.activateLeg(positionId, key);
+        if (!ps.activeLeg[positionId][key]) {
+            LibPosition.activateLeg(positionId, LibPosition.STAKING_MODULE, bytes32(uint256(1)));
+        }
     }
 
     function deactivateStakingLegIfEmpty(uint256 positionId) internal {
