@@ -2,7 +2,14 @@
 
 Onchain multi-asset protocol targeting Robinhood Chain, implemented as two coordinated EIP-2535 Diamonds. Statics combines fixed-bundle basket tokens, a senior/junior Statics Dollar system, a shared PositionNFT, global multi-asset rewards, proportional self-backed lending, constituent flash loans, and canonical Uniswap v4 liquidity with bilateral hook fees and permanent protocol-owned liquidity.
 
-For protocol invariants, accounting, and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the [architecture guide](./docs/architecture.md), and the [integration guide](./docs/integration.md). Deployment procedures and the recorded Robinhood testnet integration beta are documented in [`docs/deployment.md`](./docs/deployment.md).
+For a plain-language introduction, see the [value proposition](./docs/value-proposition.md)
+and [worked examples](./docs/examples.md). The repository also publishes an
+[LLM-oriented protocol index](./llms.txt). For protocol invariants, accounting,
+and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the
+[architecture guide](./docs/architecture.md), and the
+[integration guide](./docs/integration.md). Deployment procedures and the
+recorded Robinhood testnet integration beta are documented in
+[`docs/deployment.md`](./docs/deployment.md).
 
 ---
 
