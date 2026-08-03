@@ -330,6 +330,64 @@
         "0xa8df9e73",
         "0x19c7085d"
       ]
+    },
+    "genesisBasketRetirement": {
+      "state": "completed",
+      "operationId": "0x243f941074068b8cd8769052b87ad5e9fb49e7b096aec321d5390eb7a13dfdbb",
+      "salt": "0x43b0706ebce5890fa2e919ee989ddac387c4f07068aaa2c4c365a2d4d01eb4ea",
+      "basketId": 0,
+      "quarantineTransaction": "0x887627d7f3f5262fab672e138716cfec9afb26c846e8e533db80cec4a732df03",
+      "quarantineBlock": 96523033,
+      "quarantineTimestamp": "2026-08-03T06:03:28Z",
+      "scheduleTransaction": "0x9ad9c5367adecaa46fa08e2e87d006cb7142796d03443cb4756f832d887b1ccd",
+      "scheduleBlock": 96523321,
+      "scheduleTimestamp": "2026-08-03T06:04:41Z",
+      "readyTimestamp": "2026-08-03T06:06:41Z",
+      "executeTransaction": "0x7e5d9e1aa222a766beb76d3e50f4f0a7f29e4b95c395341d68dfc4c44feaa3eb",
+      "executeBlock": 96524326,
+      "executeTimestamp": "2026-08-03T06:08:37Z",
+      "executeGasUsed": 1122805,
+      "basketStatusAfter": "ExitOnly",
+      "basketTokenSupplyBefore": "2199437500000000000321",
+      "basketTokenSupplyAfter": "1229007973877276056665",
+      "pools": {
+        "TSLA": {
+          "poolId": "0x82d3c54b2f4628241d9d77bb45f9c8f3e499fa18a5c21856d2cf18ab91140433",
+          "lockedLiquidityBefore": "60735114267954971458",
+          "constituentReleased": "9549493406331835806",
+          "basketTokensBurned": "386739769976728479390",
+          "treasuryDistributed": "19383983301864987390",
+          "lockedLiquidityAfter": "0",
+          "totalPoolLiquidityAfter": "0"
+        },
+        "PLTR": {
+          "poolId": "0x88c42566c6c6bc688b752c1c44c14f66f89b15674ff65a18be9806e9e126a83e",
+          "lockedLiquidityBefore": "38369565834962461723",
+          "constituentReleased": "60831463486510104171",
+          "basketTokensBurned": "24315466087853267787",
+          "treasuryDistributed": "70636277916637596404",
+          "lockedLiquidityAfter": "0",
+          "totalPoolLiquidityAfter": "0"
+        },
+        "AMD": {
+          "poolId": "0xa8b0404a7f8c10784215e5c161b3d9cebd97cd08384f174d054ecaac38f739c1",
+          "lockedLiquidityBefore": "71043716824382920334",
+          "constituentReleased": "9025123885174622537",
+          "basketTokensBurned": "559374290058142196479",
+          "treasuryDistributed": "18773440019422808766",
+          "lockedLiquidityAfter": "0",
+          "totalPoolLiquidityAfter": "0"
+        }
+      },
+      "postconditions": {
+        "outstandingPrincipalPerAsset": "0",
+        "basketLiquidityUnwoundPerAsset": true,
+        "poolDecommissionedPerAsset": true,
+        "pendingPermanentLiquidityPerCurrency": "0",
+        "treasuryAccruedPerConstituent": "0",
+        "basketTokenTreasuryAccrued": "2782308713336326122",
+        "redemptionsRemainAvailable": true
+      }
     }
   },
   "verification": {
@@ -350,7 +408,7 @@
     }
   },
   "genesisBasket": {
-    "status": "active",
+    "status": "exit-only",
     "basketId": 0,
     "name": "Tesla-Palantir-AMD-1",
     "symbol": "TPA1",
