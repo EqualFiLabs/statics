@@ -127,7 +127,7 @@ Implementation replaces the historical product and contract identifiers with
 Position`. The Risk Shares token represents volatile series only. Exact public
 symbols are `USDstx` for the senior Statics Dollar ERC-20 and `ethLEV` for the
 volatile-series Risk Share ERC-1155. The global staking token uses `STATICS`.
-The PositionNFT symbol remains `etPOS` until separately selected.
+The PositionNFT symbol is `STXPOS`.
 
 ### Unified Diamond and Statics Dollar Core
 

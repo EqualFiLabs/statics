@@ -90,7 +90,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         if (ds.supportedInterfaces[type(IERC165).interfaceId]) revert AlreadyInitialized();
 
-        __ERC721_init("Statics Position", "etPOS");
+        __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(positionCreationFeeAmount, positionRenderer);
         LibGlobalRewards.initialize(stakingToken);
 

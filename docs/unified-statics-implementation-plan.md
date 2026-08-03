@@ -1199,9 +1199,9 @@ Evidence:
 ## Remaining product decisions
 
 The Statics Dollar senior token uses `USDstx`, Dollar Risk Shares use `ethLEV`,
-and the global staking token uses `STATICS`. Only the PositionNFT's `etPOS`
-symbol remains deferred. Changing display symbols does not alter the
-implemented contract topology or accounting.
+the global staking token uses `STATICS`, and the PositionNFT uses `STXPOS`.
+Changing display symbols does not alter the implemented contract topology or
+accounting.
 
 Mint and redemption fee tiers are permissionless per-basket choices rather than
 protocol launch parameters. The first implementation resolves the other
