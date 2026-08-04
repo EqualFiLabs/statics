@@ -62,11 +62,7 @@ contract PositionModuleHarnessFacet {
     }
 
     function clearOwnerIndexForMigration(uint256 positionId) external {
-        LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
-        address owner = ps.indexedOwner[positionId];
-        delete ps.ownedPositions[owner];
-        delete ps.indexedOwner[positionId];
-        delete ps.ownedPositionIndex[positionId];
+        LibPosition.syncOwnerIndex(positionId, address(0));
     }
 }
 
@@ -356,9 +352,13 @@ contract PositionNFTTest is Test {
     function test_PermissionlessSyncSeedsPreUpgradePositionAndRefreshesMetadata() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
+        vm.prank(alice);
+        uint256 siblingPositionId = positions.createPosition(alice);
         moduleHarness.clearOwnerIndexForMigration(positionId);
-        assertEq(nft.balanceOf(alice), 1);
-        assertEq(ownerIndex.positionCount(alice), 0);
+        assertEq(nft.balanceOf(alice), 2);
+        assertEq(ownerIndex.positionCount(alice), 1);
+        (uint256[] memory positionsBeforeSync,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        assertEq(positionsBeforeSync, _ids(siblingPositionId));
 
         vm.expectEmit(true, true, false, true, address(diamond));
         emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, alice);
@@ -368,10 +368,10 @@ contract PositionNFTTest is Test {
         ownerIndex.syncPositionOwnerIndex(positionId);
 
         (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(alice, 0, 100);
-        assertEq(indexedPositions, _ids(positionId));
+        assertEq(indexedPositions, _ids(siblingPositionId, positionId));
         vm.prank(carol);
         ownerIndex.syncPositionOwnerIndex(positionId);
-        assertEq(ownerIndex.positionCount(alice), 1);
+        assertEq(ownerIndex.positionCount(alice), 2);
     }
 
     function test_TransferSeedsOwnerIndexForUnsyncedPreUpgradePosition() public {
