@@ -6,8 +6,10 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IModularPositionNFT} from "src/interfaces/IModularPositionNFT.sol";
+import {IPositionOwnerIndex} from "src/interfaces/IPositionOwnerIndex.sol";
 
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {StaticsProtocolInit} from "src/diamond/StaticsProtocolInit.sol";
@@ -57,6 +59,10 @@ contract PositionModuleHarnessFacet {
     function resolveObligation(uint256 positionId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibPosition.decrementObligation(positionId);
+    }
+
+    function clearOwnerIndexForMigration(uint256 positionId) external {
+        LibPosition.syncOwnerIndex(positionId, address(0));
     }
 }
 
@@ -116,6 +122,7 @@ contract PositionNFTTest is Test {
     IStaticsPosition internal positions;
     IStaticsPositionFees internal positionFees;
     IStaticsPositionMetadata internal positionMetadata;
+    IPositionOwnerIndex internal ownerIndex;
     PositionModuleHarnessFacet internal moduleHarness;
     BasketAdminFacet internal basketAdmin;
     address internal treasury = makeAddr("treasury");
@@ -133,12 +140,13 @@ contract PositionNFTTest is Test {
         cut[1] = _cut(address(loupeFacet), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(ownershipFacet), StaticsSelectors.ownership());
         cut[3] = _cut(address(positionFacet), StaticsSelectors.position());
-        bytes4[] memory harnessSelectors = new bytes4[](5);
+        bytes4[] memory harnessSelectors = new bytes4[](6);
         harnessSelectors[0] = PositionModuleHarnessFacet.createWithLeg.selector;
         harnessSelectors[1] = PositionModuleHarnessFacet.activate.selector;
         harnessSelectors[2] = PositionModuleHarnessFacet.deactivate.selector;
         harnessSelectors[3] = PositionModuleHarnessFacet.openObligation.selector;
         harnessSelectors[4] = PositionModuleHarnessFacet.resolveObligation.selector;
+        harnessSelectors[5] = PositionModuleHarnessFacet.clearOwnerIndexForMigration.selector;
         cut[4] = _cut(address(harnessFacet), harnessSelectors);
         cut[5] = _cut(address(basketAdminFacet), StaticsSelectors.basketAdmin());
 
@@ -160,6 +168,7 @@ contract PositionNFTTest is Test {
         positions = IStaticsPosition(address(diamond));
         positionFees = IStaticsPositionFees(address(diamond));
         positionMetadata = IStaticsPositionMetadata(address(diamond));
+        ownerIndex = IPositionOwnerIndex(address(diamond));
         moduleHarness = PositionModuleHarnessFacet(address(diamond));
         basketAdmin = BasketAdminFacet(address(diamond));
     }
@@ -286,6 +295,106 @@ contract PositionNFTTest is Test {
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionMetadata).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IPositionOwnerIndex).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(bytes4(0x49064906)));
+    }
+
+    function test_OwnerIndexPaginatesCurrentPositions() public {
+        vm.startPrank(alice);
+        uint256 first = positions.createPosition(alice);
+        uint256 second = positions.createPosition(alice);
+        uint256 third = positions.createPosition(alice);
+        vm.stopPrank();
+        positions.createPosition(bob);
+
+        assertEq(ownerIndex.positionCount(alice), 3);
+        assertEq(ownerIndex.positionCount(bob), 1);
+
+        (uint256[] memory firstPage, uint256 nextCursor) = ownerIndex.positionsOfOwner(alice, 0, 2);
+        assertEq(firstPage, _ids(first, second));
+        assertEq(nextCursor, 2);
+
+        (uint256[] memory secondPage, uint256 endCursor) = ownerIndex.positionsOfOwner(alice, nextCursor, 2);
+        assertEq(secondPage, _ids(third));
+        assertEq(endCursor, 3);
+
+        (uint256[] memory emptyPage, uint256 stableCursor) = ownerIndex.positionsOfOwner(alice, 99, 2);
+        assertEq(emptyPage.length, 0);
+        assertEq(stableCursor, 3);
+    }
+
+    function test_OwnerIndexTracksTransferSelfTransferAndBurn() public {
+        vm.startPrank(alice);
+        uint256 first = positions.createPosition(alice);
+        uint256 second = positions.createPosition(alice);
+        nft.transferFrom(alice, bob, first);
+        nft.transferFrom(alice, alice, second);
+        vm.stopPrank();
+
+        (uint256[] memory alicePositions,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        (uint256[] memory bobPositions,) = ownerIndex.positionsOfOwner(bob, 0, 100);
+        assertEq(alicePositions, _ids(second));
+        assertEq(bobPositions, _ids(first));
+
+        vm.prank(bob);
+        positions.closePosition(first);
+        assertEq(ownerIndex.positionCount(bob), 0);
+    }
+
+    function test_PaginationRejectsZeroOrOversizedPages() public {
+        vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.InvalidPositionPageSize.selector, 0, 100));
+        ownerIndex.positionsOfOwner(alice, 0, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.InvalidPositionPageSize.selector, 101, 100));
+        ownerIndex.positionsOfOwner(alice, 0, 101);
+    }
+
+    function test_PermissionlessSyncSeedsPreUpgradePositionAndRefreshesMetadata() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        vm.prank(alice);
+        uint256 siblingPositionId = positions.createPosition(alice);
+        moduleHarness.clearOwnerIndexForMigration(positionId);
+        assertEq(nft.balanceOf(alice), 2);
+        assertEq(ownerIndex.positionCount(alice), 1);
+        (uint256[] memory positionsBeforeSync,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        assertEq(positionsBeforeSync, _ids(siblingPositionId));
+
+        vm.expectEmit(true, true, false, true, address(diamond));
+        emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, alice);
+        vm.expectEmit(true, false, false, true, address(diamond));
+        emit IERC4906.MetadataUpdate(positionId);
+        vm.prank(carol);
+        ownerIndex.syncPositionOwnerIndex(positionId);
+
+        (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        assertEq(indexedPositions, _ids(siblingPositionId, positionId));
+        vm.prank(carol);
+        ownerIndex.syncPositionOwnerIndex(positionId);
+        assertEq(ownerIndex.positionCount(alice), 2);
+    }
+
+    function test_TransferSeedsOwnerIndexForUnsyncedPreUpgradePosition() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        moduleHarness.clearOwnerIndexForMigration(positionId);
+
+        vm.prank(alice);
+        nft.transferFrom(alice, bob, positionId);
+
+        assertEq(ownerIndex.positionCount(alice), 0);
+        assertEq(ownerIndex.positionCount(bob), 1);
+        (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(bob, 0, 100);
+        assertEq(indexedPositions, _ids(positionId));
+    }
+
+    function test_RendererChangeRefreshesEveryAllocatedPositionMetadata() public {
+        positions.createPosition(alice);
+        positions.createPosition(bob);
+
+        vm.expectEmit(false, false, false, true, address(diamond));
+        emit IERC4906.BatchMetadataUpdate(1, 2);
+        positionMetadata.setPositionRenderer(makeAddr("replacement renderer"));
     }
 
     function test_OwnerCanReplaceOrClearPositionRenderer() public {
@@ -478,5 +587,16 @@ contract PositionNFTTest is Test {
         return IDiamondCut.FacetCut({
             facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
+    }
+
+    function _ids(uint256 first) private pure returns (uint256[] memory values) {
+        values = new uint256[](1);
+        values[0] = first;
+    }
+
+    function _ids(uint256 first, uint256 second) private pure returns (uint256[] memory values) {
+        values = new uint256[](2);
+        values[0] = first;
+        values[1] = second;
     }
 }

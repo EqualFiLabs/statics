@@ -763,7 +763,39 @@ describe("Statics unified calldata", () => {
         ),
       ).toBe(true);
     }
+    for (const functionName of [
+      "positionCount",
+      "positionsOfOwner",
+      "syncPositionOwnerIndex",
+    ]) {
+      expect(
+        staticsAbi.some(
+          (entry) => entry.type === "function" && entry.name === functionName,
+        ),
+      ).toBe(true);
+    }
+    expect(
+      decodeFunctionData({
+        abi: staticsAbi,
+        data: encodeFunctionData({
+          abi: staticsAbi,
+          functionName: "syncPositionOwnerIndex",
+          args: [17n],
+        }),
+      }),
+    ).toEqual({ functionName: "syncPositionOwnerIndex", args: [17n] });
     for (const eventName of ["PositionLegAttached", "PositionLegDetached", "PositionStateChanged"]) {
+      expect(
+        staticsAbi.some(
+          (entry) => entry.type === "event" && entry.name === eventName,
+        ),
+      ).toBe(true);
+    }
+    for (const eventName of [
+      "PositionOwnerIndexSynced",
+      "MetadataUpdate",
+      "BatchMetadataUpdate",
+    ]) {
       expect(
         staticsAbi.some(
           (entry) => entry.type === "event" && entry.name === eventName,
