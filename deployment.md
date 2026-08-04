@@ -68,6 +68,38 @@ ERC-165.
 | Position state nonce | Enabled |
 | Position creation fee | `0.001 ETH` |
 
+### Position owner-index upgrade — 2026-08-03
+
+The StaticsDiamond was upgraded in place through its existing timelock. No
+protocol, token, basket, pool, renderer, or application address changed.
+
+| Field | Value |
+| --- | --- |
+| PositionNFTFacet | `0x1120d7282f852823b9e29e7e9d28Ca31B141E8DB` |
+| Facet runtime code hash | `0x22f409552f822fff8bb17163617308ac1243ebe0f5e99eb24dbc1560edad5345` |
+| Owner-index interface ID | `0x7ef5913d` |
+| ERC-4906 interface ID | `0x49064906` |
+| Timelock operation ID | `0xbcc7574e72ea63613749258e6527c8d71c056c1635a4eb841bca731baa16ca1d` |
+| Timelock salt | `0x70f60cc324218784219c453a2963d4501de3441541c9e7e0e914844f4b040066` |
+| Protocol source commit | `1c63511` |
+| Upgrade ceremony commit | `b72a743` |
+
+| Action | Block | Transaction |
+| --- | ---: | --- |
+| Deploy verified PositionNFTFacet | `96877243` | `0x92a57642a700a3ef81c7bfcdc67cab5b793466423c36549c0abd05aaf9117116` |
+| Schedule governed diamond cut | `96877551` | `0xf6c4efe228107cd9ff54f4f962eec9e589ba60a021bdf25e1697a8b5d2d487d2` |
+| Execute governed diamond cut | `96878117` | `0xbdcec23ec0dc29efa575328882dc0aff02ac16fea7c6cca6c924c4cfc16180d5` |
+| Synchronize Position `1` | `96878343` | `0x57fb4700cabec46374c01893cc3c94e03bf8f92eea5d73394e598bc827ac6358` |
+| Synchronize Position `2` | `96878343` | `0x4e75e7bcd3186d2f3934d644293a46d416e9eb6a6e3c4d843357ff99595bec11` |
+
+Live readback confirmed all 28 Position selectors route to the verified facet,
+both new interface IDs are advertised, and the timelock operation is complete.
+Historical Positions `1` and `2` remain owned by
+`0x81709E16Bf99936891Cc720689f269103fabeD91`, preserve their pre-upgrade
+Position state, and are returned by the paginated owner index as `[1, 2]`.
+Each synchronization emitted both `PositionOwnerIndexSynced` and ERC-4906
+`MetadataUpdate`.
+
 ## Testnet collateral and oracle fixtures
 
 | Contract | Address |
