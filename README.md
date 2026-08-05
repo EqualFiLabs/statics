@@ -136,7 +136,7 @@ statics/
 
 ## Setup
 
-OpenZeppelin, Forge Standard Library, and Uniswap v4 are pinned git submodules. Initialize the complete dependency tree after cloning:
+OpenZeppelin, Forge Standard Library, Uniswap v4, and the TypeScript SDK are pinned git submodules. Initialize the complete dependency tree after cloning:
 
 ```shell
 git submodule update --init --recursive
