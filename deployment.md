@@ -10,11 +10,13 @@ testnet deployments.
 | Network | Robinhood Chain Testnet |
 | Chain ID | `46630` |
 | Explorer | <https://explorer.testnet.chain.robinhood.com> |
-| Deployment start block | `97383161` |
+| Release start block | `97382446` |
+| Protocol deployment start block | `97383161` |
 | Genesis basket execution block | `97392218` |
 | Deployer | `0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316` |
 | Source branch | `feat/position-portfolio` |
-| Source commit | `724df0fe80be8e376a5cb61811d02e1ef7413707` |
+| Runtime source commit | `724df0fe80be8e376a5cb61811d02e1ef7413707` |
+| Deployment tooling commit | `9baa3a87bf120fdd02340359a2594590394181a8` |
 
 ## Protocol contracts
 

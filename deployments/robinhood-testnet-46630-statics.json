@@ -5,12 +5,14 @@
     "chainId": 46630,
     "explorer": "https://explorer.testnet.chain.robinhood.com",
     "deploymentTimestamp": "2026-08-05T18:18:32Z",
-    "deploymentStartBlock": 97383161
+    "releaseStartBlock": 97382446,
+    "protocolDeploymentStartBlock": 97383161
   },
   "source": {
     "repository": "https://github.com/EqualFiLabs/statics",
     "branch": "feat/position-portfolio",
-    "protocolDeploymentCommit": "724df0fe80be8e376a5cb61811d02e1ef7413707"
+    "protocolDeploymentCommit": "724df0fe80be8e376a5cb61811d02e1ef7413707",
+    "deploymentToolingCommit": "9baa3a87bf120fdd02340359a2594590394181a8"
   },
   "deployer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
   "roles": {
@@ -111,7 +113,7 @@
     "mockUsdg": {
       "address": "0x3c9dCe3FD17f3FC8A1929B1614b2c99124129Da1",
       "runtimeCodeHash": "0x9c8f77b351af6eec700c86095467d0fb41f6f7bec159fa00416005decd8a80b6",
-      "deploymentTransaction": "0x030c6d8253e77b888a222a502a786b64d0c7143ba4d28cae014c1ac90d9d1444",
+      "deploymentTransaction": "0x2a734a83ed9a34632dac5b49aa7d676495e9d5f342292eb02d8a16ba408aa112",
       "deploymentBlock": 97386805
     },
     "faucet": {
