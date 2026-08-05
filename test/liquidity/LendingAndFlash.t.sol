@@ -273,6 +273,9 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(borrowQuote.debtShares, 20 ether);
         assertEq(borrowQuote.penaltyShares, 1 ether);
         IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(loanId);
+        (uint256[] memory indexedLoans,) = positionPortfolio.loanIdsOfPosition(positionId, 0, 100);
+        assertEq(indexedLoans.length, 1);
+        assertEq(indexedLoans[0], loanId);
         assertEq(recoveryQuote.burnShares, 21 ether);
         assertEq(recoveryQuote.unlockedShares, 79 ether);
         assertEq(recoveryQuote.callerAmounts[0], 0.4 ether);
@@ -288,6 +291,9 @@ contract LendingAndFlashTest is StaticsTestBase {
         vm.warp(block.timestamp + 1);
         vm.prank(bob);
         lending.recover(loanId);
+
+        (uint256[] memory activeLoans,) = positionPortfolio.loanIdsOfPosition(positionId, 0, 100);
+        assertEq(activeLoans.length, 0);
 
         IStaticsBasketCollateral.BasketCollateralPosition memory position =
             basketCollateral.basketCollateralPosition(positionId, basketId);

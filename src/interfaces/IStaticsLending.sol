@@ -47,9 +47,7 @@ interface IStaticsLending {
     );
     event LoanRepaid(uint256 indexed loanId, uint256 indexed positionId, address indexed payer);
     event LoanExtended(uint256 indexed loanId, uint40 maturity);
-    event LoanExtensionFeePaid(
-        uint256 indexed loanId, address indexed asset, uint256 requiredFee, uint256 receivedFee
-    );
+    event LoanExtensionFeePaid(uint256 indexed loanId, address indexed asset, uint256 requiredFee, uint256 receivedFee);
     event LoanRecovered(
         uint256 indexed loanId,
         uint256 indexed positionId,
@@ -81,4 +79,5 @@ interface IStaticsLending {
         returns (address[] memory assets, uint256[] memory requiredFees);
     function loan(uint256 loanId) external view returns (LoanView memory);
     function outstandingPrincipal(uint256 basketId, address asset) external view returns (uint256);
+    function recoveryGracePeriod() external pure returns (uint256);
 }
