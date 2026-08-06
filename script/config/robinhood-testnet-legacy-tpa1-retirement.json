@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "network": {
+    "name": "Robinhood Chain Testnet",
+    "chainId": 46630
+  },
+  "sourceManifest": "deployments/robinhood-testnet-46630-statics.json",
+  "retirement": {
+    "salt": "0x43b0706ebce5890fa2e919ee989ddac387c4f07068aaa2c4c365a2d4d01eb4ea",
+    "diamond": "0x69Af9C58e9E283032AE0087c38EF5E27c28E8345",
+    "diamondRuntimeCodeHash": "0xbf27d1322cbc853cbe80b153af2bffb465dc882cf187bdc1aeba19a90bb281db",
+    "timelock": "0xD31e75a901149ba6c615B257624D349c2D001318",
+    "timelockRuntimeCodeHash": "0xa1cda154474103557d201bd81e2c9e131ad4d8d1643bcc10bae7b4d69fe9c44a",
+    "guardian": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "treasury": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "hook": "0x9c683B8253578be82D741b592dc10a0c637CD0cc",
+    "hookRuntimeCodeHash": "0xc5a86a25aa5217e8b45d3605066e38a7f6eaadba73b06e8b9e73e4ff6822d137",
+    "governanceFacet": "0xCffFC7d3c6ff4E65c89b70Ce19e1Ad758c5bEB4A",
+    "basketLiquidityFacet": "0x585eDd31D090Dea1c2213b54c5a2fE6D5B3c78A6",
+    "globalRewardsFacet": "0xC01f2E2E4e32503AfB455d7D08F6dDfEbbc28bAd",
+    "basketId": 0,
+    "basketToken": "0xe930ab200Aa592CCcFA003625a0C6784F95B923b",
+    "basketTokenRuntimeCodeHash": "0x3d96f8d5174745e4736ef4c71e5e8c5e2a55dce9a2507a19e710ef3e8814f04d",
+    "assets": [
+      "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+      "0x71178BAc73cBeb415514eB542a8995b82669778d"
+    ],
+    "poolIds": [
+      "0x82d3c54b2f4628241d9d77bb45f9c8f3e499fa18a5c21856d2cf18ab91140433",
+      "0x88c42566c6c6bc688b752c1c44c14f66f89b15674ff65a18be9806e9e126a83e",
+      "0xa8b0404a7f8c10784215e5c161b3d9cebd97cd08384f174d054ecaac38f739c1"
+    ]
+  }
+}
