@@ -12,6 +12,7 @@ import {LibCustody} from "./LibCustody.sol";
 import {LibGovernance} from "./LibGovernance.sol";
 import {LibLending} from "./LibLending.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 
 library LibLoanOrigination {
     error BasketNotFound(uint256 basketId);
@@ -67,6 +68,7 @@ library LibLoanOrigination {
             penaltyShares: quoted.penaltyShares,
             maturity: maturity
         });
+        LibPositionPortfolio.addLoan(positionId, loanId);
 
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
