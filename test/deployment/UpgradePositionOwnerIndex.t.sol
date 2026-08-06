@@ -177,6 +177,8 @@ contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
         address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
         address proposer = vm.envAddress("STATICS_TIMELOCK_PROPOSER");
         uint256[] memory positionIds = vm.envUint("POSITION_OWNER_INDEX_IDS", ",");
+        assertGt(positionIds.length, 0, "position IDs required");
+        assertLe(positionIds.length, 100, "position ID page exceeds limit");
         UpgradePositionOwnerIndex ceremony = new UpgradePositionOwnerIndex();
         PositionNFTFacet replacement = new PositionNFTFacet();
         StaticsTimelock timelock = StaticsTimelock(payable(IERC173(diamond).owner()));
@@ -185,6 +187,7 @@ contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
         bytes32[] memory statesBefore = new bytes32[](positionIds.length);
         for (uint256 i; i < positionIds.length; ++i) {
             ownersBefore[i] = IERC721(diamond).ownerOf(positionIds[i]);
+            assertEq(ownersBefore[i], ownersBefore[0], "positions must share an owner");
             statesBefore[i] = keccak256(abi.encode(IModularPositionNFT(diamond).positionState(positionIds[i])));
         }
 
@@ -209,7 +212,7 @@ contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
         address owner = ownersBefore[0];
         assertEq(IPositionOwnerIndex(diamond).positionCount(owner), positionIds.length);
         (uint256[] memory indexedPositions, uint256 nextCursor) =
-            IPositionOwnerIndex(diamond).positionsOfOwner(owner, 0, 100);
+            IPositionOwnerIndex(diamond).positionsOfOwner(owner, 0, positionIds.length);
         assertEq(indexedPositions, positionIds);
         assertEq(nextCursor, positionIds.length);
     }
