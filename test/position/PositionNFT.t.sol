@@ -6,8 +6,10 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IModularPositionNFT} from "src/interfaces/IModularPositionNFT.sol";
+import {IPositionOwnerIndex} from "src/interfaces/IPositionOwnerIndex.sol";
 
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {StaticsProtocolInit} from "src/diamond/StaticsProtocolInit.sol";
@@ -16,10 +18,17 @@ import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {BasketAdminFacet} from "src/facets/BasketAdminFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
-import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "src/interfaces/IStaticsPosition.sol";
+import {
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionMetadata,
+    IStaticsPositionModule
+} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {PositionNFTFacet} from "src/position/PositionNFTFacet.sol";
 import {StaticsSelectors} from "src/libraries/StaticsSelectors.sol";
+import {StaticsAvatarSVG} from "src/metadata/StaticsAvatarSVG.sol";
+import {StaticsPositionRenderer} from "src/metadata/StaticsPositionRenderer.sol";
 
 contract PositionModuleHarnessFacet {
     function createWithLeg(address receiver, bytes32 moduleId, bytes32 localId)
@@ -51,6 +60,10 @@ contract PositionModuleHarnessFacet {
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibPosition.decrementObligation(positionId);
     }
+
+    function clearOwnerIndexForMigration(uint256 positionId) external {
+        LibPosition.syncOwnerIndex(positionId, address(0));
+    }
 }
 
 contract PositionReceiver is IERC721Receiver {
@@ -80,6 +93,15 @@ contract PositionHolder is IERC721Receiver {
     }
 }
 
+contract MetadataPositionReceiver is IERC721Receiver {
+    uint256 public metadataLength;
+
+    function onERC721Received(address, address, uint256 positionId, bytes calldata) external returns (bytes4) {
+        metadataLength = bytes(IERC721Metadata(msg.sender).tokenURI(positionId)).length;
+        return IERC721Receiver.onERC721Received.selector;
+    }
+}
+
 contract RejectNativeValue {
     receive() external payable {
         revert();
@@ -99,6 +121,8 @@ contract PositionNFTTest is Test {
     IERC721Metadata internal metadata;
     IStaticsPosition internal positions;
     IStaticsPositionFees internal positionFees;
+    IStaticsPositionMetadata internal positionMetadata;
+    IPositionOwnerIndex internal ownerIndex;
     PositionModuleHarnessFacet internal moduleHarness;
     BasketAdminFacet internal basketAdmin;
     address internal treasury = makeAddr("treasury");
@@ -116,23 +140,26 @@ contract PositionNFTTest is Test {
         cut[1] = _cut(address(loupeFacet), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(ownershipFacet), StaticsSelectors.ownership());
         cut[3] = _cut(address(positionFacet), StaticsSelectors.position());
-        bytes4[] memory harnessSelectors = new bytes4[](5);
+        bytes4[] memory harnessSelectors = new bytes4[](6);
         harnessSelectors[0] = PositionModuleHarnessFacet.createWithLeg.selector;
         harnessSelectors[1] = PositionModuleHarnessFacet.activate.selector;
         harnessSelectors[2] = PositionModuleHarnessFacet.deactivate.selector;
         harnessSelectors[3] = PositionModuleHarnessFacet.openObligation.selector;
         harnessSelectors[4] = PositionModuleHarnessFacet.resolveObligation.selector;
+        harnessSelectors[5] = PositionModuleHarnessFacet.clearOwnerIndexForMigration.selector;
         cut[4] = _cut(address(harnessFacet), harnessSelectors);
         cut[5] = _cut(address(basketAdminFacet), StaticsSelectors.basketAdmin());
 
         StaticsProtocolInit init = new StaticsProtocolInit();
         PositionReceiver stakingToken = new PositionReceiver(address(0));
+        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             address(this),
             cut,
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.initialize, (makeAddr("guardian"), treasury, address(stakingToken), 0, 0)
+                StaticsProtocolInit.initialize,
+                (makeAddr("guardian"), treasury, address(stakingToken), 0, 0, address(renderer))
             ),
             address(0)
         );
@@ -140,6 +167,8 @@ contract PositionNFTTest is Test {
         metadata = IERC721Metadata(address(diamond));
         positions = IStaticsPosition(address(diamond));
         positionFees = IStaticsPositionFees(address(diamond));
+        positionMetadata = IStaticsPositionMetadata(address(diamond));
+        ownerIndex = IPositionOwnerIndex(address(diamond));
         moduleHarness = PositionModuleHarnessFacet(address(diamond));
         basketAdmin = BasketAdminFacet(address(diamond));
     }
@@ -252,8 +281,9 @@ contract PositionNFTTest is Test {
         assertEq(nft.ownerOf(positionId), alice);
         assertEq(nft.balanceOf(alice), 1);
         assertEq(metadata.name(), "Statics Position");
-        assertEq(metadata.symbol(), "etPOS");
-        assertEq(metadata.tokenURI(positionId), "");
+        assertEq(metadata.symbol(), "STXPOS");
+        assertGt(bytes(metadata.tokenURI(positionId)).length, 0);
+        assertGt(positionMetadata.positionRenderer().code.length, 0);
         IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
         assertTrue(state.exists);
         assertEq(state.stateNonce, 1);
@@ -264,12 +294,143 @@ contract PositionNFTTest is Test {
         assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionMetadata).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IPositionOwnerIndex).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(bytes4(0x49064906)));
+    }
+
+    function test_OwnerIndexPaginatesCurrentPositions() public {
+        vm.startPrank(alice);
+        uint256 first = positions.createPosition(alice);
+        uint256 second = positions.createPosition(alice);
+        uint256 third = positions.createPosition(alice);
+        vm.stopPrank();
+        positions.createPosition(bob);
+
+        assertEq(ownerIndex.positionCount(alice), 3);
+        assertEq(ownerIndex.positionCount(bob), 1);
+
+        (uint256[] memory firstPage, uint256 nextCursor) = ownerIndex.positionsOfOwner(alice, 0, 2);
+        assertEq(firstPage, _ids(first, second));
+        assertEq(nextCursor, 2);
+
+        (uint256[] memory secondPage, uint256 endCursor) = ownerIndex.positionsOfOwner(alice, nextCursor, 2);
+        assertEq(secondPage, _ids(third));
+        assertEq(endCursor, 3);
+
+        (uint256[] memory emptyPage, uint256 stableCursor) = ownerIndex.positionsOfOwner(alice, 99, 2);
+        assertEq(emptyPage.length, 0);
+        assertEq(stableCursor, 3);
+    }
+
+    function test_OwnerIndexTracksTransferSelfTransferAndBurn() public {
+        vm.startPrank(alice);
+        uint256 first = positions.createPosition(alice);
+        uint256 second = positions.createPosition(alice);
+        nft.transferFrom(alice, bob, first);
+        nft.transferFrom(alice, alice, second);
+        vm.stopPrank();
+
+        (uint256[] memory alicePositions,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        (uint256[] memory bobPositions,) = ownerIndex.positionsOfOwner(bob, 0, 100);
+        assertEq(alicePositions, _ids(second));
+        assertEq(bobPositions, _ids(first));
+
+        vm.prank(bob);
+        positions.closePosition(first);
+        assertEq(ownerIndex.positionCount(bob), 0);
+    }
+
+    function test_PaginationRejectsZeroOrOversizedPages() public {
+        vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.InvalidPositionPageSize.selector, 0, 100));
+        ownerIndex.positionsOfOwner(alice, 0, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.InvalidPositionPageSize.selector, 101, 100));
+        ownerIndex.positionsOfOwner(alice, 0, 101);
+    }
+
+    function test_PermissionlessSyncSeedsPreUpgradePositionAndRefreshesMetadata() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        vm.prank(alice);
+        uint256 siblingPositionId = positions.createPosition(alice);
+        moduleHarness.clearOwnerIndexForMigration(positionId);
+        assertEq(nft.balanceOf(alice), 2);
+        assertEq(ownerIndex.positionCount(alice), 1);
+        (uint256[] memory positionsBeforeSync,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        assertEq(positionsBeforeSync, _ids(siblingPositionId));
+
+        vm.expectEmit(true, true, false, true, address(diamond));
+        emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, alice);
+        vm.expectEmit(true, false, false, true, address(diamond));
+        emit IERC4906.MetadataUpdate(positionId);
+        vm.prank(carol);
+        ownerIndex.syncPositionOwnerIndex(positionId);
+
+        (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(alice, 0, 100);
+        assertEq(indexedPositions, _ids(siblingPositionId, positionId));
+        vm.prank(carol);
+        ownerIndex.syncPositionOwnerIndex(positionId);
+        assertEq(ownerIndex.positionCount(alice), 2);
+    }
+
+    function test_TransferSeedsOwnerIndexForUnsyncedPreUpgradePosition() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        moduleHarness.clearOwnerIndexForMigration(positionId);
+
+        vm.prank(alice);
+        nft.transferFrom(alice, bob, positionId);
+
+        assertEq(ownerIndex.positionCount(alice), 0);
+        assertEq(ownerIndex.positionCount(bob), 1);
+        (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(bob, 0, 100);
+        assertEq(indexedPositions, _ids(positionId));
+    }
+
+    function test_RendererChangeRefreshesEveryAllocatedPositionMetadata() public {
+        positions.createPosition(alice);
+        positions.createPosition(bob);
+
+        vm.expectEmit(false, false, false, true, address(diamond));
+        emit IERC4906.BatchMetadataUpdate(1, 2);
+        positionMetadata.setPositionRenderer(makeAddr("replacement renderer"));
+    }
+
+    function test_OwnerCanReplaceOrClearPositionRenderer() public {
+        address previousRenderer = positionMetadata.positionRenderer();
+        address replacement = makeAddr("replacement renderer");
+
+        vm.expectEmit(true, true, false, true, address(diamond));
+        emit IStaticsPositionMetadata.PositionRendererSet(previousRenderer, replacement);
+        positionMetadata.setPositionRenderer(replacement);
+        assertEq(positionMetadata.positionRenderer(), replacement);
+
+        positionMetadata.setPositionRenderer(address(0));
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+        assertEq(metadata.tokenURI(positionId), "");
+    }
+
+    function test_NonOwnerCannotSetPositionRenderer() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        positionMetadata.setPositionRenderer(alice);
+    }
+
+    function test_SafeMintReceiverCanReadMetadataDuringCallback() public {
+        MetadataPositionReceiver receiver = new MetadataPositionReceiver();
+        uint256 positionId = positions.createPosition(address(receiver));
+
+        assertEq(nft.ownerOf(positionId), address(receiver));
+        assertGt(receiver.metadataLength(), 0);
     }
 
     function test_ApprovalTransferAndSafeTransferUseStandardSemantics() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
         uint256 nonceBefore = positions.positionState(positionId).stateNonce;
+        string memory metadataBefore = metadata.tokenURI(positionId);
 
         vm.prank(alice);
         nft.approve(bob, positionId);
@@ -279,6 +440,7 @@ contract PositionNFTTest is Test {
         assertEq(nft.ownerOf(positionId), carol);
         assertEq(positions.positionState(positionId).stateNonce, nonceBefore);
         assertEq(nft.getApproved(positionId), address(0));
+        assertEq(metadata.tokenURI(positionId), metadataBefore);
 
         PositionHolder receiver = new PositionHolder();
         vm.prank(carol);
@@ -287,6 +449,7 @@ contract PositionNFTTest is Test {
         nft.safeTransferFrom(carol, address(receiver), positionId);
         assertEq(nft.ownerOf(positionId), address(receiver));
         assertEq(positions.positionState(positionId).stateNonce, nonceBefore);
+        assertEq(metadata.tokenURI(positionId), metadataBefore);
     }
 
     function test_Erc721ApprovedOperatorRetainsStaticsModuleAuthority() public {
@@ -411,7 +574,7 @@ contract PositionNFTTest is Test {
         vm.prank(alice);
         moduleHarness.openObligation(positionId);
 
-        bytes32 stateMappingSlot = bytes32(uint256(LibPosition.STORAGE_POSITION) + 6);
+        bytes32 stateMappingSlot = bytes32(uint256(LibPosition.STORAGE_POSITION) + 4);
         bytes32 positionSlot = keccak256(abi.encode(positionId, stateMappingSlot));
         uint256 packed = uint256(vm.load(address(diamond), positionSlot));
         assertEq(uint64(packed), 3);
@@ -424,5 +587,16 @@ contract PositionNFTTest is Test {
         return IDiamondCut.FacetCut({
             facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
+    }
+
+    function _ids(uint256 first) private pure returns (uint256[] memory values) {
+        values = new uint256[](1);
+        values[0] = first;
+    }
+
+    function _ids(uint256 first, uint256 second) private pure returns (uint256[] memory values) {
+        values = new uint256[](2);
+        values[0] = first;
+        values[1] = second;
     }
 }

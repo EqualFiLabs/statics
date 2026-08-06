@@ -21,7 +21,14 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
-import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
+import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
+import {
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionMetadata,
+    IStaticsPositionModule
+} from "../interfaces/IStaticsPosition.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
 
 library StaticsSelectors {
@@ -59,7 +66,7 @@ library StaticsSelectors {
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](23);
+        selectors = new bytes4[](28);
         selectors[0] = IERC721.balanceOf.selector;
         selectors[1] = IERC721.ownerOf.selector;
         selectors[2] = IERC721.approve.selector;
@@ -83,11 +90,26 @@ library StaticsSelectors {
         selectors[20] = IStaticsPositionModule.createPositionForModule.selector;
         selectors[21] = IStaticsPositionFees.setPositionCreationFee.selector;
         selectors[22] = IStaticsPositionFees.positionCreationFee.selector;
+        selectors[23] = IStaticsPositionMetadata.setPositionRenderer.selector;
+        selectors[24] = IStaticsPositionMetadata.positionRenderer.selector;
+        selectors[25] = IPositionOwnerIndex.positionCount.selector;
+        selectors[26] = IPositionOwnerIndex.positionsOfOwner.selector;
+        selectors[27] = IPositionOwnerIndex.syncPositionOwnerIndex.selector;
     }
 
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = StaticsInterfaceInit.setInterfaces.selector;
+    }
+
+    function positionPortfolio() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
+        selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
+        selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
+        selectors[3] = IStaticsPositionPortfolio.liquidityPositionIdsOfPosition.selector;
+        selectors[4] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
+        selectors[5] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
     }
 
     function custody() internal pure returns (bytes4[] memory selectors) {
@@ -169,24 +191,21 @@ library StaticsSelectors {
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](17);
+        selectors = new bytes4[](14);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
         selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[4] = IStaticsBasketLiquidity.checkpointCanonicalPool.selector;
-        selectors[5] = IStaticsBasketLiquidity.activateCanonicalPool.selector;
-        selectors[6] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
-        selectors[7] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
-        selectors[8] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[9] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[10] = IStaticsBasketLiquidity.liquiditySafetyParameters.selector;
-        selectors[11] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[12] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
-        selectors[13] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[14] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
-        selectors[15] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
-        selectors[16] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+        selectors[4] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
+        selectors[5] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
+        selectors[6] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[7] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[8] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
+        selectors[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
+        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
+        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
     }
 
     function liquidityRewards() internal pure returns (bytes4[] memory selectors) {
@@ -205,7 +224,7 @@ library StaticsSelectors {
     }
 
     function lending() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsLending.borrow.selector;
         selectors[1] = IStaticsLending.repay.selector;
         selectors[2] = IStaticsLending.extend.selector;
@@ -215,6 +234,7 @@ library StaticsSelectors {
         selectors[6] = IStaticsLending.quoteExtension.selector;
         selectors[7] = IStaticsLending.loan.selector;
         selectors[8] = IStaticsLending.outstandingPrincipal.selector;
+        selectors[9] = IStaticsLending.recoveryGracePeriod.selector;
     }
 
     function borrowLiquidity() internal pure returns (bytes4[] memory selectors) {

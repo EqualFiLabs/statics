@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 
 library LibBasketCollateral {
     bytes32 internal constant COLLATERAL_STORAGE_POSITION = keccak256("statics.storage.basket.collateral.v1");
@@ -36,6 +37,8 @@ library LibBasketCollateral {
         if (!ps.activeLeg[positionId][legKey]) {
             LibPosition.activateLeg(positionId, LibPosition.BASKET_MODULE, bytes32(basketId));
         }
+        // Position creation can attach the initial basket leg before collateral is recorded.
+        LibPositionPortfolio.addBasket(positionId, basketId);
         position.depositedShares += shares;
         position.lastDepositBlock = block.number;
     }
@@ -93,6 +96,9 @@ library LibBasketCollateral {
         if (position.depositedShares != 0 || position.lockedShares != 0) return;
         bytes32 key = LibPosition.basketLegKey(basketId);
         LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
-        if (ps.activeLeg[positionId][key]) LibPosition.deactivateLeg(positionId, key);
+        if (ps.activeLeg[positionId][key]) {
+            LibPosition.deactivateLeg(positionId, key);
+            LibPositionPortfolio.removeBasket(positionId, basketId);
+        }
     }
 }

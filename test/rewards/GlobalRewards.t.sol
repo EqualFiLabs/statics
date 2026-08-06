@@ -220,6 +220,14 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertEq(pending[0], 0.9 ether);
         assertEq(globalRewards.treasuryAccrued(address(reward)), 1.1 ether);
         assertFalse(globalRewards.canAccrueStakerRewards(address(reward)));
+        (address[] memory retained,) = positionPortfolio.globalRewardAssetsOfPosition(positionId, 0, 100);
+        assertEq(retained.length, 1);
+        assertEq(retained[0], address(reward));
+
+        vm.prank(alice);
+        globalRewards.claimRewards(positionId, rewardAssets, alice, new uint256[](1));
+        (address[] memory cleared,) = positionPortfolio.globalRewardAssetsOfPosition(positionId, 0, 100);
+        assertEq(cleared.length, 0);
     }
 
     function testEachPositionMaySelectSixtyFourAcrossMoreThanSixtyFourGlobalAssets() external {
@@ -285,6 +293,13 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertEq(pending[0], 0.9 ether);
         assertEq(globalRewards.rewardAsset(address(reward)).eligibleStake, 0);
         assertFalse(globalRewards.canAccrueStakerRewards(address(reward)));
+        (address[] memory retained,) = positionPortfolio.globalRewardAssetsOfPosition(positionId, 0, 100);
+        assertEq(retained.length, 1);
+
+        vm.prank(alice);
+        globalRewards.claimRewards(positionId, rewardAssets, alice, new uint256[](1));
+        (address[] memory cleared,) = positionPortfolio.globalRewardAssetsOfPosition(positionId, 0, 100);
+        assertEq(cleared.length, 0);
     }
 
     function testOptInReactivatesAnEmptyPositionStakingLeg() external {

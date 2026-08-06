@@ -27,20 +27,25 @@ StaticsBasketToken (one address per basket)
 └── transferable ERC-20 Permit representation of one static bundle
 
 StaticsSwapFeeHook
-├── bilateral canonical-pool swap fees and bounded tick observations
+├── bilateral canonical-pool swap fees
 └── hook-owned full-range permanent liquidity
 
 StaticsLiquidityManager
 ├── immutable Diamond, v4 PositionManager, PoolManager, and Permit2 bindings
 ├── canonical-pool registration
 └── typed user-position minting with NFTs delivered directly to users
+
+StaticsPositionRenderer
+├── deterministic Base64 JSON metadata from chain, Diamond, and position ID
+└── immutable StaticsAvatarSVG assembly helper
 ```
 
 Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
-neither standalone contract is a second general protocol entrypoint.
+neither liquidity contract nor either metadata contract is a second general
+protocol entrypoint.
 
-The canonical deployment installs 21 facets and 191 selectors on
+The canonical deployment installs 21 facets and 190 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -59,6 +64,7 @@ That shared ownership does not merge economics. The following storage books are
 separately namespaced:
 
 - PositionNFT ownership and active-leg state;
+- one collection-wide PositionNFT renderer address;
 - global and module-local physical reservations;
 - Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;
@@ -117,10 +123,9 @@ quote rather than the protocol. Canonical v4 launch supports constituents that
 settle the exact requested transfer amount; incompatible transfer-tax behavior
 reverts the entire genesis transaction.
 
-Each launched pool enters a one-hour warm-up but is immediately swappable.
-Activation requires enough hook observations for a 30-minute reference and a
-spot deviation no greater than the configured one-percent bound before
-price-sensitive protocol actions can use it.
+Each launched pool is immediately swappable and available to the typed
+borrow-to-liquidity and canonical LP reward paths. Callers bound execution with
+token amount caps and deadlines.
 
 The three physical locations keep independent books:
 
@@ -210,10 +215,8 @@ every account using that same physical token insolvent or unusable. Basket and
 token reputation remain a user-agency concern; exit-only decommissioning is
 the governed containment path.
 
-Price checks bound activation and combined entry against the
-hook's time-weighted observations. They do not guarantee fair execution during
-oracle manipulation, sequencer failure, extreme volatility, or insufficient
-history. Callers must simulate current state and impose amount caps and
+Combined liquidity entry uses the current v4 pool state to calculate required
+token amounts. Callers must simulate current state and impose amount caps and
 deadlines. The manager and hook expose only typed v4 operations and immutable
 bindings; neither exposes arbitrary calls, approvals, swaps, or upgradeable
 logic.

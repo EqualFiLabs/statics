@@ -17,6 +17,7 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
+import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsProtocolInit} from "../../src/diamond/StaticsProtocolInit.sol";
 import {DiamondCutFacet} from "../../src/facets/DiamondCutFacet.sol";
@@ -35,8 +36,11 @@ import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
+import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
+import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
+import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
@@ -45,7 +49,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](16);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](17);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -62,12 +66,16 @@ contract StaticsTestDeployer {
         cut[13] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
         cut[14] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
         cut[15] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
+        cut[16] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
         StaticsProtocolInit init = new StaticsProtocolInit();
+        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             owner,
             cut,
             address(init),
-            abi.encodeCall(StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether, 0)),
+            abi.encodeCall(
+                StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether, 0, address(renderer))
+            ),
             address(0)
         );
     }
@@ -100,6 +108,7 @@ abstract contract StaticsTestBase is Test {
     IStaticsGovernance internal governance;
     IStaticsLending internal lending;
     IStaticsFlashLoan internal flashLoans;
+    IStaticsPositionPortfolio internal positionPortfolio;
     MockERC20 internal assetA;
     MockERC20 internal assetB;
     MockERC20 internal stakingAsset;
@@ -123,6 +132,7 @@ abstract contract StaticsTestBase is Test {
         governance = IStaticsGovernance(address(diamond));
         lending = IStaticsLending(address(diamond));
         flashLoans = IStaticsFlashLoan(address(diamond));
+        positionPortfolio = IStaticsPositionPortfolio(address(diamond));
         vm.deal(alice, 100 ether);
 
         if (_installLocalLiquidityIntegration()) {

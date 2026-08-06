@@ -111,6 +111,7 @@ contract CoreUpgradeRehearsalTest is Test {
     }
 
     function test_FinalRemovalManifestKeepsValuePathsAndCannotRestoreUpgrades() public {
+        vm.createDir("artifacts/diamond-manifests", true);
         (uint256 minted, uint256 shares) = _depositOneWeth();
         (bytes32 beforeManifest, uint256 beforeSelectors) =
             _writeManifest("pre-finalization", "artifacts/diamond-manifests/core-rehearsal-pre-finalization.json");

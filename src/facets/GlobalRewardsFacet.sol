@@ -9,6 +9,7 @@ import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 
 contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error InvalidAmount();
@@ -103,6 +104,9 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
                 position.claimable[asset] = 0;
                 --position.claimAssetCount;
                 rs.totalClaimable[asset] -= amount;
+                if (position.optedInIndexPlusOne[asset] == 0) {
+                    LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
+                }
                 (, amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
                 emit RewardClaimed(positionId, receiver, asset, amount);
             }

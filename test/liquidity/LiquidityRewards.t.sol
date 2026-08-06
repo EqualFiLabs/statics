@@ -215,6 +215,13 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         assertGt(pending[0], 0);
         assertGt(pending[1], 0);
 
+        vm.roll(block.number + 1);
+        vm.prank(alice);
+        basketCollateral.withdrawBasketCollateral(basketPositionId, basketId, 100 ether, alice);
+        (uint256[] memory retainedBasketIds,) = positionPortfolio.basketIdsOfPosition(basketPositionId, 0, 100);
+        assertEq(retainedBasketIds.length, 1);
+        assertEq(retainedBasketIds[0], basketId);
+
         uint256 basketBefore = IERC20(basketToken).balanceOf(alice);
         uint256 constituentBefore = IERC20(basketAssets[0]).balanceOf(alice);
         vm.prank(alice);
@@ -222,6 +229,8 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         assertEq(IERC20(basketToken).balanceOf(alice) - basketBefore, claimed[0]);
         assertEq(IERC20(basketAssets[0]).balanceOf(alice) - constituentBefore, claimed[1]);
         assertEq(claimed, pending);
+        (uint256[] memory clearedBasketIds,) = positionPortfolio.basketIdsOfPosition(basketPositionId, 0, 100);
+        assertEq(clearedBasketIds.length, 0);
     }
 
     function testBasketRewardClaimRejectsOutboundTransferShortfall() public {
@@ -316,6 +325,9 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         IERC721(address(positionManagerContract)).approve(address(diamond), tokenId);
         liquidityRewards.stakeLiquidityPosition(basketPositionId, tokenId);
         vm.stopPrank();
+        (uint256[] memory stakedIds,) = positionPortfolio.liquidityPositionIdsOfPosition(basketPositionId, 0, 100);
+        assertEq(stakedIds.length, 1);
+        assertEq(stakedIds[0], tokenId);
         vm.roll(block.number + 1);
         liquidityRewards.activateLiquidityPosition(tokenId);
         _swapConstituentIntoPool(0.001 ether);
@@ -323,6 +335,8 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         vm.prank(alice);
         liquidityRewards.unstakeLiquidityPosition(basketPositionId, tokenId, alice);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), alice);
+        (uint256[] memory retainedIds,) = positionPortfolio.liquidityPositionIdsOfPosition(basketPositionId, 0, 100);
+        assertEq(retainedIds.length, 1);
         vm.prank(alice);
         IERC721(address(diamond)).transferFrom(alice, bob, basketPositionId);
 
@@ -334,6 +348,8 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
             liquidityRewards.claimLiquidityRewards(basketPositionId, tokenId, bob, 0, 0);
         assertGt(amount0 + amount1, 0);
         assertEq(liquidityRewards.stakedLiquidityPosition(tokenId).positionId, 0);
+        (uint256[] memory clearedIds,) = positionPortfolio.liquidityPositionIdsOfPosition(basketPositionId, 0, 100);
+        assertEq(clearedIds.length, 0);
     }
 
     function testSameBlockStakeSwapAndExitEarnsNoLiquidityReward() public {

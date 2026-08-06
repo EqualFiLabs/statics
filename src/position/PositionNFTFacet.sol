@@ -2,9 +2,17 @@
 pragma solidity 0.8.33;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
-import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
+import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {
+    IStaticsPosition,
+    IStaticsPositionFees,
+    IStaticsPositionMetadata,
+    IStaticsPositionModule
+} from "../interfaces/IStaticsPosition.sol";
+import {IStaticsPositionRenderer} from "../interfaces/IStaticsPositionRenderer.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibPosition} from "./LibPosition.sol";
@@ -14,8 +22,11 @@ contract PositionNFTFacet is
     IModularPositionNFT,
     IStaticsPosition,
     IStaticsPositionFees,
+    IStaticsPositionMetadata,
     IStaticsPositionModule
 {
+    uint256 internal constant MAX_POSITION_PAGE_SIZE = 100;
+
     event PositionCreated(uint256 indexed positionId, address indexed owner);
     event PositionClosed(uint256 indexed positionId);
     event PositionCreationFeeSet(uint256 previousAmount, uint256 newAmount);
@@ -27,6 +38,7 @@ contract PositionNFTFacet is
     error PositionInitializing(uint256 positionId);
     error PositionHasActiveLegs(uint256 positionId, uint256 activeLegCount);
     error PositionHasUnresolvedObligations(uint256 positionId, uint256 unresolvedObligationCount);
+    error InvalidPositionPageSize(uint256 requested, uint256 maximum);
 
     function createPosition(address receiver) external payable returns (uint256 positionId) {
         _enforcePositionCreationFee();
@@ -56,6 +68,59 @@ contract PositionNFTFacet is
 
     function positionCreationFee() external view returns (uint256) {
         return LibPosition.positionStorage().creationFeeAmount;
+    }
+
+    function setPositionRenderer(address newRenderer) external {
+        LibDiamond.enforceIsContractOwner();
+        LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
+        address previousRenderer = ps.renderer;
+        ps.renderer = newRenderer;
+        emit PositionRendererSet(previousRenderer, newRenderer);
+        if (ps.nextPositionId > 1) {
+            emit IERC4906.BatchMetadataUpdate(1, ps.nextPositionId - 1);
+        }
+    }
+
+    function positionRenderer() external view returns (address) {
+        return LibPosition.positionStorage().renderer;
+    }
+
+    function positionCount(address owner) external view returns (uint256) {
+        return LibPosition.positionStorage().ownedPositions[owner].length;
+    }
+
+    function positionsOfOwner(address owner, uint256 cursor, uint256 limit)
+        external
+        view
+        returns (uint256[] memory positionIds, uint256 nextCursor)
+    {
+        if (limit == 0 || limit > MAX_POSITION_PAGE_SIZE) {
+            revert InvalidPositionPageSize(limit, MAX_POSITION_PAGE_SIZE);
+        }
+        uint256[] storage ownedPositions = LibPosition.positionStorage().ownedPositions[owner];
+        uint256 length = ownedPositions.length;
+        if (cursor >= length) return (new uint256[](0), length);
+        uint256 remaining = length - cursor;
+        uint256 pageLength = remaining < limit ? remaining : limit;
+        positionIds = new uint256[](pageLength);
+        for (uint256 i; i < pageLength; ++i) {
+            positionIds[i] = ownedPositions[cursor + i];
+        }
+        nextCursor = cursor + pageLength;
+    }
+
+    function syncPositionOwnerIndex(uint256 positionId) external {
+        address owner = ownerOf(positionId);
+        LibPosition.syncOwnerIndex(positionId, owner);
+        emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, owner);
+        emit IERC4906.MetadataUpdate(positionId);
+    }
+
+    function tokenURI(uint256 positionId) public view override returns (string memory) {
+        _requireOwned(positionId);
+        address renderer = LibPosition.positionStorage().renderer;
+        if (renderer == address(0)) return "";
+        return IStaticsPositionRenderer(renderer).renderTokenURI(address(this), positionId);
     }
 
     function closePosition(uint256 positionId) external {
@@ -114,6 +179,11 @@ contract PositionNFTFacet is
         if (moduleType != bytes32(0)) LibPosition.activateLeg(positionId, moduleType, localPositionId);
         LibPosition.finishInitialization(positionId);
         emit PositionCreated(positionId, receiver);
+    }
+
+    function _update(address to, uint256 tokenId, address auth) internal override returns (address previousOwner) {
+        previousOwner = super._update(to, tokenId, auth);
+        LibPosition.syncOwnerIndex(tokenId, to);
     }
 
     function _enforcePositionCreationFee() private view {

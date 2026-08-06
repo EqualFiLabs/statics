@@ -198,7 +198,6 @@ contract LaunchGenesisBasket is Script {
                 launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i]
                     || baskets.vaultBalance(basketId, asset) == 0 || pool.asset != asset
                     || pool.basketToken != launched.token || pool.hook != hook
-                    || pool.status != IStaticsBasketLiquidity.CanonicalPoolStatus.Warming
                     || IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId) == 0
                     || IStaticsLiquidityManager(manager).canonicalPoolHash(basketId, asset)
                         != PoolId.unwrap(pool.poolId)

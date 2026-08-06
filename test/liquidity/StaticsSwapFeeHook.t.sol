@@ -220,7 +220,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         receiver.setRewardAssetEligible(Currency.unwrap(key.currency1), true);
     }
 
-    function testMinedAddressEnablesOnlyBilateralFeePermissions() public view {
+    function testMinedAddressEnablesRegistrationAndBilateralFeePermissions() public view {
         assertEq(uint160(address(hook)) & Hooks.ALL_HOOK_MASK, REQUIRED_FLAGS);
         Hooks.Permissions memory permissions = hook.getHookPermissions();
         assertTrue(permissions.afterInitialize);

@@ -175,7 +175,6 @@ StaticsDiamond
         |
         +-------------------------> StaticsSwapFeeHook
         |                           ├── bilateral swap fees
-        |                           ├── observations
         |                           └── hook-owned permanent liquidity
         |
         +-------------------------> StaticsLiquidityManager
@@ -186,15 +185,16 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **21 facets / 191 selectors** on `StaticsDiamond`; and
+- **21 facets / 190 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
 enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
 shape; its later gateway upgrade replaced five selectors with five updated
 permit-tuple selectors without changing the total. The fresh launcher adds two
-Position-creation-fee selectors plus the Modular Position NFT reporting surface
-for the current 21/191 source shape. This shape requires a fresh deployment:
+Position-creation-fee selectors, the Modular Position NFT reporting surface,
+and two collection-wide renderer selectors for the current 21/190 source
+shape. This shape requires a fresh deployment:
 the release does not claim selector or packed-state migration compatibility for
 an older Diamond, and the obsolete Position-fee upgrade ceremony fails closed.
 The
@@ -280,6 +280,23 @@ treasury. The Diamond does not retain or internally accrue this native value.
 Adding legs, collateral, stake, liquidity, or debt to an existing Position does
 not pay the fee again. Closing a Position and opening another creates a new NFT
 and pays the then-current fee.
+
+Each valid PositionNFT exposes fully onchain metadata through `tokenURI`. Its
+immutable visual seed is
+`keccak256(abi.encodePacked(bytes32("STATICS_AVATAR_V1"), block.chainid,
+address(StaticsDiamond), positionId))`, so transfers, approvals, balances,
+claims, Legs, and obligations do not alter the avatar. The returned Base64 JSON
+contains a Base64 SVG and eight cosmetic visual attributes: Field, Boundary,
+Shell, Interface, Mantle, Telemetry, Sigil, and Signal. It contains no live
+status, achievement, yield, debt, health, or rarity semantics.
+
+The Diamond stores one collection-wide renderer address. The owner may replace
+or clear it with `setPositionRenderer`; clearing it makes valid positions return
+an empty URI, and replacement may refresh every avatar. The stateless renderer
+holds one immutable `StaticsAvatarSVG` helper so both contracts remain below
+EIP-170 without placing artwork in Diamond facets or protocol storage. Fresh
+deployments record both addresses. The renderer is not a separate user action
+surface.
 
 `closePosition` succeeds only after all balances, claims, collateral, loans,
 Dollar legs, custodied LP NFTs, and LP claims are empty. Externally held
@@ -595,17 +612,13 @@ currencies are the BasketToken and constituent, with:
 | --- | --- |
 | Native v4 LP fee | 0 |
 | Tick spacing | 10 |
-| Warm-up | 1 hour |
-| Reference window | 30 minutes |
-| Maximum spot/reference deviation | 100 BPS |
 
 Initialization is atomic with basket creation and uses the creator-supplied
-price and asset budget. The new pool is immediately swappable in `Warming`
-state. Activation remains owner/timelock-only because it authorizes
-price-sensitive protocol exposure; it requires warm-up, at least two
-observations, a valid 30-minute reference, and the fixed deviation bound.
-Checkpointing is permissionless. There is no standalone initialization or
-manager-sync action.
+price and asset budget. A successful creation makes the pool immediately
+swappable and available to the typed borrow-to-liquidity and canonical LP
+reward paths. There is no standalone initialization, activation, checkpoint,
+or manager-sync action. Liquidity entry uses current pool state and remains
+bounded by caller-supplied token caps and deadlines.
 
 The installed hook rejects native currency and nonzero native LP fees for
 registered canonical pools. Unregistered pools are not canonical.
@@ -976,8 +989,6 @@ Basket states are `Active`, `Quarantined`, and `ExitOnly`.
 | Redeem | Yes | Yes | Yes |
 | Repay | Yes | Yes | Yes |
 | Mature-loan recovery | Permissionless | Permissionless | Permissionless |
-| Pool activate | Timelock-only after launch warm-up | No | No |
-| Pool checkpoint | Permissionless if configured | Permissionless if configured | Until decommissioned |
 | Hook swap and compounding | Until pool decommission | Until pool decommission | Until unwind decommissions pool |
 | Canonical LP NFT stake or increase | Subject to liquidity pause | No | No |
 | Pending LP reward activation | Permissionless until pool decommission | Permissionless until pool decommission | Until pool decommissioned |
@@ -991,12 +1002,12 @@ active basket. Governance releases quarantine, unpauses, or enters the
 Redemption is not guardian-pausable.
 
 No keeper runs automatically and no maintenance caller is guaranteed. Claims,
-pending LP reward activation, checkpoints, basket-loan recovery,
+pending LP reward activation, basket-loan recovery,
 manual hook compounding, treasury distribution, and ExitOnly unwind can remain
 pending indefinitely until someone submits a transaction. Basket-loan recovery
 pays its caller 20% of the configured penalty backing; Dollar expired-risk
 recovery includes its separate quoted keeper bounty. Claims, LP activation,
-checkpoints, manual compounding, treasury distribution, and ExitOnly unwind pay
+manual compounding, treasury distribution, and ExitOnly unwind pay
 no protocol bounty, so their liveness depends on users, governance, integrators,
 or externally motivated keepers. Swap execution itself routes fees and attempts matched
 permanent-liquidity compounding atomically, but does not provide liveness when a
@@ -1013,7 +1024,7 @@ execution is open after delay,
 and the emergency guardian is not a timelock canceller.
 
 The timelock currently controls Diamond cuts, economic configuration, lifecycle
-release and decommissioning, canonical pool activation, hook fee configuration,
+release and decommissioning, hook fee configuration,
 and treasury or guardian changes. Reward-asset selection is a PositionNFT owner
 action and requires no governance admission or retirement.
 
@@ -1072,7 +1083,7 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Global staking and rewards | `IStaticsGlobalRewards` |
 | Basket lending | `IStaticsLending` |
 | Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
-| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces |
+| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; metadata administration through `IStaticsPositionMetadata` |
 | Basket governance | `IStaticsGovernance` |
 | Custody views | `IStaticsCustody` |
 | Canonical liquidity | `IStaticsBasketLiquidity` |
@@ -1119,8 +1130,7 @@ The target chain must support Cancun/EIP-1153. The launcher selects
 `deployments/robinhood-chain-testnet-46630.json` on testnet from
 `block.chainid`, and rejects other chains. These files pin external dependency,
 runtime-hash, and calibration evidence; neither is a Statics address manifest.
-Mainnet fork tests read `ROBINHOOD_MAINNET`, with `ROBINHOOD_RPC_URL` retained
-as a legacy fallback, while the dependency-only testnet fork reads
+Mainnet fork tests read `ROBINHOOD_MAINNET`, while the dependency-only testnet fork reads
 `ROBINHOOD_TESTNET_RPC_URL`. Checked-in chain-31337 broadcasts are local
 rehearsal records. No production Statics address manifest is recorded.
 
@@ -1130,7 +1140,8 @@ rehearsal records. No production Statics address manifest is recorded.
 testnet address and operation record. It is separate from the chain dependency
 manifest and records the initial protocol deployment, timelocked liquidity and
 profile configuration, later facet upgrades, source verification, testnet
-fixtures, and genesis-basket launch and activation.
+fixtures, and genesis-basket launch and activation under the superseded
+deployment lifecycle.
 
 | Component | Robinhood Chain testnet address or value |
 | --- | --- |
@@ -1158,7 +1169,7 @@ three stock-token fixtures used by TPA1.
 TPA1 is an active three-constituent basket representing `0.01` TSLA, `0.01`
 PLTR, and `0.01` AMD per BasketToken. Its three canonical pools launched with
 creator-funded full-range permanent liquidity and were later activated through
-the timelock after the normal observation and deviation checks. The manifest
+the timelock under the superseded deployment lifecycle. The manifest
 records the PoolIds, token and facet code hashes, transaction hashes, source
 verification, and the five-selector gateway permit upgrade at source commit
 `3fa1e52c01792133bb958da67960a1d68f83aabe`.
@@ -1504,7 +1515,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 26. Failed callbacks or repayment checks leave no partial protocol or pool state.
 27. Canonical pools use the installed hook, zero native LP fee, and tick spacing 10.
 28. Basket creation initializes, manager-registers, and permanently seeds exactly one canonical pool per constituent or reverts without creating the basket.
-29. Canonical pools are immediately swappable while Warming, but activation cannot bypass timelock ownership, warm-up, observations, or deviation checks.
+29. Canonical pools are immediately swappable and available to typed liquidity paths after atomic creation and seeding.
 30. Hook input and output fees apply without caller or flash-receiver exemption.
 31. Every swap-fee leg conserves across POL, canonical LP, basket staker, global Statics staker, and treasury routing.
 32. Hook permanent liquidity cannot be released before pool decommissioning.
@@ -1538,6 +1549,8 @@ remainder. Clearing the override restores the latest global rates and shares.
 60. Basket launch helpers accept calls only from the Diamond itself; every user or owner launch enters through `createBasket`.
 61. Dollar Risk incentives accept only the series collateral, Statics Dollar, or configured staking token and reserve measured receipts within the funded series.
 62. Partial Risk-liquidity consumption releases each funded reserve pro rata against pre-fill effective liquidity, while a complete fill drains its rounding remainder.
+63. PositionNFT avatars depend only on chain ID, Diamond address, and position ID; transfers and protocol state changes do not alter their visual identity.
+64. PositionNFT metadata is fully onchain and contains no live financial or achievement claims.
 63. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
 64. The public chain-46630 faucet, mock USDG and oracles, owner-mintable STATICS token, and two-minute timelock are testnet fixtures rather than production defaults.
 
@@ -1556,7 +1569,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 | **Fee account** | Diamond reservation holding global staker claims and treasury accruals |
 | **Staking account** | Diamond reservation holding the configured staking token |
 | **Permanent liquidity (POL)** | Hook-owned full-range canonical liquidity seeded by the basket creator and expanded from swap-fee allocations |
-| **Canonical pool** | BasketToken/constituent v4 pool atomically initialized and seeded during basket creation, then timelock-activated after its warm-up checks |
+| **Canonical pool** | BasketToken/constituent v4 pool atomically initialized, manager-registered, seeded, and made usable during basket creation |
 | **Bilateral hook fee** | Separate fee applied to realized input and output swap legs |
 | **PositionNFT** | Shared ERC-721 owning Statics staking, basket collateral and loans, Dollar legs, and voluntarily custodied LP NFTs and claims |
 | **ExitOnly** | Basket state that is terminal under installed facets, blocking new exposure while preserving exits and risk reduction |

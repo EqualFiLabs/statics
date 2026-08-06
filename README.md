@@ -2,7 +2,14 @@
 
 Onchain multi-asset protocol targeting Robinhood Chain, implemented as two coordinated EIP-2535 Diamonds. Statics combines fixed-bundle basket tokens, a senior/junior Statics Dollar system, a shared PositionNFT, global multi-asset rewards, proportional self-backed lending, constituent flash loans, and canonical Uniswap v4 liquidity with bilateral hook fees and permanent protocol-owned liquidity.
 
-For protocol invariants, accounting, and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the [architecture guide](./docs/architecture.md), and the [integration guide](./docs/integration.md). Deployment procedures and the recorded Robinhood testnet integration beta are documented in [`docs/deployment.md`](./docs/deployment.md).
+For a plain-language introduction, see the [value proposition](./docs/value-proposition.md)
+and [worked examples](./docs/examples.md). The repository also publishes an
+[LLM-oriented protocol index](./llms.txt). For protocol invariants, accounting,
+and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the
+[architecture guide](./docs/architecture.md), and the
+[integration guide](./docs/integration.md). Deployment procedures and the
+recorded Robinhood testnet integration beta are documented in
+[`docs/deployment.md`](./docs/deployment.md).
 
 ---
 
@@ -129,7 +136,7 @@ statics/
 
 ## Setup
 
-OpenZeppelin, Forge Standard Library, and Uniswap v4 are pinned git submodules. Initialize the complete dependency tree after cloning:
+OpenZeppelin, Forge Standard Library, Uniswap v4, and the TypeScript SDK are pinned git submodules. Initialize the complete dependency tree after cloning:
 
 ```shell
 git submodule update --init --recursive
@@ -196,7 +203,7 @@ The default profile uses 1,000 fuzz runs and 256 invariant runs at depth 50. The
 
 ### Fork evidence
 
-Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`, with `ROBINHOOD_RPC_URL` retained as a legacy fallback. A missing RPC causes environment-gated tests to skip unless the matching `REQUIRE_*` flag is enabled.
+Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`. A missing RPC causes environment-gated tests to skip unless the matching `REQUIRE_*` flag is enabled.
 
 Run the focused deployed-router proof with:
 
@@ -227,7 +234,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 191 selectors
+StaticsDiamond:           21 facets, 190 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -262,8 +269,7 @@ The release sequence is intentionally explicit:
 5. Schedule and execute the timelocked canonical-liquidity installation.
 6. Configure the pegged Mock USDG profile.
 7. Schedule and execute the owner-funded genesis basket launch.
-8. Checkpoint, schedule, and execute canonical-pool activation after the warm-up and oracle checks.
-9. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
+8. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
 
 Focused deployment proofs:
 
@@ -298,7 +304,7 @@ forge script script/DeployStatics.s.sol:DeployStatics \
   -vv
 ```
 
-Do not treat a successful broadcast as complete release evidence. Verify every standalone contract and facet, preserve transaction receipts outside version control, and update the reviewed deployment manifest. See [`docs/deployment.md`](./docs/deployment.md) for the complete configuration, governance ceremonies, genesis basket, activation, and post-deployment checklist.
+Do not treat a successful broadcast as complete release evidence. Verify every standalone contract and facet, preserve transaction receipts outside version control, and update the reviewed deployment manifest. See [`docs/deployment.md`](./docs/deployment.md) for the complete configuration, governance ceremonies, genesis basket, and post-deployment checklist.
 
 ---
 
@@ -315,6 +321,8 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 `StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, reward selections, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over the complete economic position. A position cannot close while any module leg remains active.
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
+
+Every valid PositionNFT has deterministic, fully onchain Base64 JSON and SVG metadata. The visual seed is the stable `(chain ID, StaticsDiamond, position ID)` identity, so transfers and position activity do not change the avatar. The Diamond owner may replace or clear the collection-wide renderer; the renderer contains no balances, achievements, risk claims, or other live protocol state.
 
 ### Global rewards
 
@@ -452,7 +460,6 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |
-| `STATICS_GENESIS_ACTIVATION_SALT` | Unique salt binding canonical-pool activation |
 | `ROBINHOOD_MAINNET` | Archive-capable Robinhood RPC for required mainnet fork proof |
 | `ROBINHOOD_TESTNET_RPC_URL` | Robinhood testnet RPC for simulation and authorized broadcast |
 | `ROBINHOOD_TESTNET_VERIFIER_URL` | Blockscout verification endpoint |

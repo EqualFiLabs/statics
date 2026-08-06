@@ -34,11 +34,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
 
     uint24 private constant CANONICAL_LP_FEE = 0;
     int24 private constant CANONICAL_TICK_SPACING = 10;
-    uint40 private constant POOL_WARMUP = 1 hours;
-    uint32 private constant REFERENCE_WINDOW = 30 minutes;
-    uint16 private constant MAX_DEVIATION_BPS = 100;
-    int24 private constant MAX_POSITIVE_TICK_DEVIATION = 99;
-    int24 private constant MAX_NEGATIVE_TICK_DEVIATION = -100;
 
     error LiquidityIntegrationAlreadyInstalled();
     error LiquidityIntegrationNotInstalled();
@@ -49,10 +44,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     error BasketNotFound(uint256 basketId);
     error AssetNotInBasket(uint256 basketId, address asset);
     error CanonicalPoolNotConfigured(uint256 basketId, address asset);
-    error InvalidCanonicalPoolStatus(uint256 basketId, address asset, CanonicalPoolStatus status);
-    error PoolStillWarming(uint256 basketId, address asset, uint256 readyAt);
-    error InsufficientObservations(uint256 basketId, address asset, uint8 cardinality);
-    error PriceDeviationTooHigh(int24 referenceTick, int24 spotTick);
     error BasketNotExitOnly(uint256 basketId, IStaticsBasket.BasketStatus status);
     error BasketLiquidityAlreadyUnwound(uint256 basketId, address asset);
     error ReleasedAmountMismatch(address token, uint256 reported, uint256 observed);
@@ -159,12 +150,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             IStaticsBasket.PoolLaunchParams calldata launch = pools[i];
             uint256 basketAmount;
             (seeds[i], basketAmount, assetAmounts[i]) = _prepareCanonicalPoolSeed(
-                ls,
-                configured.token,
-                basketId,
-                asset,
-                launch.sqrtPriceAssetPerBasketX96,
-                launch.pairedAssetAmount
+                ls, configured.token, basketId, asset, launch.sqrtPriceAssetPerBasketX96, launch.pairedAssetAmount
             );
             if (assetAmounts[i] >= maxAmountsIn[i]) {
                 revert LaunchInputExceedsMaximum(asset, assetAmounts[i], maxAmountsIn[i]);
@@ -245,41 +231,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         }
     }
 
-    function checkpointCanonicalPool(uint256 basketId, address asset) external returns (bool observationStored) {
-        (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
-            _configuredPool(basketId, asset);
-        observationStored = IStaticsSwapFeeHook(ls.hook).checkpoint(stored.key);
-        emit CanonicalPoolCheckpointed(basketId, asset, stored.key.toId(), observationStored);
-    }
-
-    function activateCanonicalPool(uint256 basketId, address asset)
-        external
-        returns (int24 referenceTick, int24 spotTick)
-    {
-        LibDiamond.enforceIsContractOwner();
-        _enforceLiquidityAvailable();
-        LibBasket.enforceActive(_basket(basketId), basketId);
-        (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
-            _configuredPool(basketId, asset);
-        if (stored.status != CanonicalPoolStatus.Warming) {
-            revert InvalidCanonicalPoolStatus(basketId, asset, stored.status);
-        }
-        uint256 readyAt = uint256(stored.initializedAt) + POOL_WARMUP;
-        if (block.timestamp < readyAt) revert PoolStillWarming(basketId, asset, readyAt);
-
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
-        hook.checkpoint(stored.key);
-        IStaticsSwapFeeHook.OracleStateView memory oracle = hook.oracleState(stored.key.toId());
-        if (oracle.observationCardinality < 2) {
-            revert InsufficientObservations(basketId, asset, oracle.observationCardinality);
-        }
-        (referenceTick, spotTick,) = hook.consult(stored.key.toId(), REFERENCE_WINDOW);
-        _enforceDeviation(referenceTick, spotTick);
-        stored.status = CanonicalPoolStatus.Active;
-        stored.activatedAt = uint40(block.timestamp);
-        emit CanonicalPoolActivated(basketId, asset, stored.key.toId(), referenceTick, spotTick);
-    }
-
     function setSwapFeeConfiguration(SwapFeeConfiguration calldata configuration) external {
         LibDiamond.enforceIsContractOwner();
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
@@ -350,13 +301,11 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         _enforceConstituent(configured, basketId, asset);
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
-        if (ls.liquidityUnwound[basketId][asset]) revert BasketLiquidityAlreadyUnwound(basketId, asset);
-        ls.liquidityUnwound[basketId][asset] = true;
-
         address basketToken = configured.token;
         uint256 basketBefore = IERC20(basketToken).balanceOf(address(this));
         uint256 assetBefore = IERC20(asset).balanceOf(address(this));
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        if (hook.poolDecommissioned(stored.key.toId())) revert BasketLiquidityAlreadyUnwound(basketId, asset);
         hook.decommissionPool(stored.key);
         (uint256 released0, uint256 released1) = hook.releasePermanentLiquidity(stored.key, address(this));
         bool basketIsCurrency0 = Currency.unwrap(stored.key.currency0) == basketToken;
@@ -384,30 +333,12 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         return (ls.manager, ls.managerInstalled);
     }
 
-    function liquiditySafetyParameters()
-        external
-        pure
-        returns (uint24 lpFee, int24 tickSpacing, uint40 warmup, uint32 referenceWindow, uint16 maxDeviationBps)
-    {
-        return (CANONICAL_LP_FEE, CANONICAL_TICK_SPACING, POOL_WARMUP, REFERENCE_WINDOW, MAX_DEVIATION_BPS);
-    }
-
     function canonicalPool(uint256 basketId, address asset) external view returns (CanonicalPoolView memory pool) {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][asset];
-        if (stored.status == CanonicalPoolStatus.Unconfigured) revert CanonicalPoolNotConfigured(basketId, asset);
+        if (address(stored.key.hooks) == address(0)) revert CanonicalPoolNotConfigured(basketId, asset);
         PoolId poolId = stored.key.toId();
         (, int24 spotTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
-        IStaticsSwapFeeHook.OracleStateView memory oracle = hook.oracleState(poolId);
-        int24 referenceTick;
-        bool referenceAvailable;
-        if (block.timestamp >= REFERENCE_WINDOW) {
-            try hook.consult(poolId, REFERENCE_WINDOW) returns (int24 referenceTick_, int24, uint40) {
-                referenceTick = referenceTick_;
-                referenceAvailable = true;
-            } catch {}
-        }
         pool = CanonicalPoolView({
             poolId: poolId,
             basketToken: _basket(basketId).token,
@@ -417,13 +348,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             hook: address(stored.key.hooks),
             lpFee: stored.key.fee,
             tickSpacing: stored.key.tickSpacing,
-            status: stored.status,
-            initializedAt: stored.initializedAt,
-            activatedAt: stored.activatedAt,
-            spotTick: spotTick,
-            referenceTick: referenceTick,
-            observationCardinality: oracle.observationCardinality,
-            referenceAvailable: referenceAvailable
+            spotTick: spotTick
         });
     }
 
@@ -464,7 +389,10 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     }
 
     function basketLiquidityUnwound(uint256 basketId, address asset) external view returns (bool unwound) {
-        return LibBasketLiquidity.liquidityStorage().liquidityUnwound[basketId][asset];
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][asset];
+        if (address(stored.key.hooks) == address(0)) return false;
+        return IStaticsSwapFeeHook(ls.hook).poolDecommissioned(stored.key.toId());
     }
 
     function _initializeCanonicalPool(
@@ -493,8 +421,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
 
         LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][asset];
         stored.key = key;
-        stored.status = CanonicalPoolStatus.Warming;
-        stored.initializedAt = uint40(block.timestamp);
         association.basketId = basketId;
         association.asset = asset;
         association.associated = true;
@@ -502,7 +428,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         IStaticsSwapFeeHook(ls.hook).registerPool(key);
         int24 tick = IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
         IStaticsLiquidityManager(ls.manager).registerCanonicalPool(basketId, asset, key);
-        ls.managerPoolSynced[basketId][asset] = true;
         emit CanonicalPoolInitialized(
             basketId, asset, poolId, Currency.unwrap(currency0), Currency.unwrap(currency1), sqrtPriceX96, tick
         );
@@ -572,7 +497,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     {
         ls = LibBasketLiquidity.liquidityStorage();
         stored = ls.canonicalPools[basketId][asset];
-        if (stored.status == CanonicalPoolStatus.Unconfigured) revert CanonicalPoolNotConfigured(basketId, asset);
+        if (address(stored.key.hooks) == address(0)) revert CanonicalPoolNotConfigured(basketId, asset);
     }
 
     function _basket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {
@@ -586,13 +511,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             if (configured.assets[i] == asset) return;
         }
         revert AssetNotInBasket(basketId, asset);
-    }
-
-    function _enforceDeviation(int24 referenceTick, int24 spotTick) private pure {
-        int256 deviation = int256(spotTick) - int256(referenceTick);
-        if (deviation > MAX_POSITIVE_TICK_DEVIATION || deviation < MAX_NEGATIVE_TICK_DEVIATION) {
-            revert PriceDeviationTooHigh(referenceTick, spotTick);
-        }
     }
 
     function _enforceReleased(address token, uint256 beforeBalance, uint256 reported) private view {

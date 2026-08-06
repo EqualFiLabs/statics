@@ -218,8 +218,7 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             assertEq(block.number, forkBlock, "selected fork is not pinned");
             return;
         }
-        string memory legacyRpcUrl = vm.envOr("ROBINHOOD_RPC_URL", string(""));
-        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", legacyRpcUrl);
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
             vm.skip(true, "ROBINHOOD_MAINNET is not configured");

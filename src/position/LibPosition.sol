@@ -5,7 +5,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 
 library LibPosition {
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v1");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v2");
     bytes32 internal constant DOLLAR_MODULE = keccak256("statics.position.module.dollar");
     bytes32 internal constant BASKET_MODULE = keccak256("statics.position.module.basket");
     bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
@@ -22,12 +22,13 @@ library LibPosition {
     struct PositionStorage {
         uint256 nextPositionId;
         bool initialized;
-        // Reserved legacy slots. Fresh deployments use `state` below.
-        mapping(uint256 positionId => uint256 count) activeLegCount;
-        mapping(uint256 positionId => bool initializing) positionInitializing;
         mapping(uint256 positionId => mapping(bytes32 legKey => bool active)) activeLeg;
         uint256 creationFeeAmount;
         mapping(uint256 positionId => PackedPositionState value) state;
+        address renderer;
+        mapping(address owner => uint256[] positionIds) ownedPositions;
+        mapping(uint256 positionId => address owner) indexedOwner;
+        mapping(uint256 positionId => uint256 indexPlusOne) ownedPositionIndex;
     }
 
     error AlreadyInitialized();
@@ -38,6 +39,7 @@ library LibPosition {
     error PositionLegAlreadyActive(uint256 positionId, bytes32 legKey);
     error PositionLegNotActive(uint256 positionId, bytes32 legKey);
     error NoUnresolvedPositionObligation(uint256 positionId);
+    error PositionOwnerIndexCorrupted(uint256 positionId, address indexedOwner);
 
     function positionStorage() internal pure returns (PositionStorage storage ps) {
         bytes32 slot = STORAGE_POSITION;
@@ -46,11 +48,12 @@ library LibPosition {
         }
     }
 
-    function initialize(uint256 creationFeeAmount) internal {
+    function initialize(uint256 creationFeeAmount, address renderer) internal {
         PositionStorage storage ps = positionStorage();
         if (ps.initialized) revert AlreadyInitialized();
         ps.nextPositionId = 1;
         ps.creationFeeAmount = creationFeeAmount;
+        ps.renderer = renderer;
         ps.initialized = true;
     }
 
@@ -65,6 +68,52 @@ library LibPosition {
 
     function finishInitialization(uint256 positionId) internal {
         positionStorage().state[positionId].initializing = false;
+    }
+
+    function syncOwnerIndex(uint256 positionId, address owner) internal returns (bool changed) {
+        PositionStorage storage ps = positionStorage();
+        address previousOwner = ps.indexedOwner[positionId];
+        uint256 previousIndexPlusOne = ps.ownedPositionIndex[positionId];
+        if (previousOwner == owner && previousOwner != address(0) && previousIndexPlusOne != 0) {
+            uint256 previousIndex = previousIndexPlusOne - 1;
+            uint256[] storage currentPositions = ps.ownedPositions[owner];
+            if (previousIndex >= currentPositions.length || currentPositions[previousIndex] != positionId) {
+                revert PositionOwnerIndexCorrupted(positionId, previousOwner);
+            }
+            return false;
+        }
+        if (previousOwner != address(0) || previousIndexPlusOne != 0) {
+            _removeOwnerIndex(ps, positionId, previousOwner, previousIndexPlusOne);
+        }
+        if (owner != address(0)) {
+            uint256[] storage nextPositions = ps.ownedPositions[owner];
+            nextPositions.push(positionId);
+            ps.indexedOwner[positionId] = owner;
+            ps.ownedPositionIndex[positionId] = nextPositions.length;
+        }
+        return true;
+    }
+
+    function _removeOwnerIndex(PositionStorage storage ps, uint256 positionId, address owner, uint256 indexPlusOne)
+        private
+    {
+        if (owner == address(0) || indexPlusOne == 0) {
+            revert PositionOwnerIndexCorrupted(positionId, owner);
+        }
+        uint256[] storage positions = ps.ownedPositions[owner];
+        uint256 index = indexPlusOne - 1;
+        if (index >= positions.length || positions[index] != positionId) {
+            revert PositionOwnerIndexCorrupted(positionId, owner);
+        }
+        uint256 lastIndex = positions.length - 1;
+        if (index != lastIndex) {
+            uint256 movedPositionId = positions[lastIndex];
+            positions[index] = movedPositionId;
+            ps.ownedPositionIndex[movedPositionId] = index + 1;
+        }
+        positions.pop();
+        delete ps.indexedOwner[positionId];
+        delete ps.ownedPositionIndex[positionId];
     }
 
     function legKey(address moduleAuthority, bytes32 moduleType, bytes32 localPositionId)
