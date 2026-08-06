@@ -18,7 +18,13 @@ contract RetireLegacyGenesisBasketForkTest is Test {
     TimelockController private timelock;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("ROBINHOOD_TESTNET"), FORK_BLOCK);
+        string memory rpcUrl = vm.envOr("ROBINHOOD_TESTNET", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
+            vm.skip(true, "ROBINHOOD_TESTNET is not configured");
+            return;
+        }
+        vm.createSelectFork(rpcUrl, FORK_BLOCK);
         retirement = new RetireLegacyGenesisBasket();
         config = retirement.loadConfig(CONFIG_PATH);
         timelock = TimelockController(payable(config.timelock));
