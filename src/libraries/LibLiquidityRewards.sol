@@ -6,6 +6,7 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 
 library LibLiquidityRewards {
     bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.liquidity.rewards.v1");
@@ -91,6 +92,7 @@ library LibLiquidityRewards {
             position.currency0 = currency0;
             position.currency1 = currency1;
             ++rs.positionRecordCount[positionId];
+            LibPositionPortfolio.addLiquidityPosition(positionId, tokenId);
             if (rs.positionRecordCount[positionId] == 1) {
                 LibPosition.activateLeg(positionId, LibPosition.LIQUIDITY_MODULE, bytes32(uint256(1)));
             }
@@ -248,6 +250,7 @@ library LibLiquidityRewards {
         if (position.staked || position.claimable0 != 0 || position.claimable1 != 0) return;
         uint256 positionId = position.positionId;
         delete rs.positions[tokenId];
+        LibPositionPortfolio.removeLiquidityPosition(positionId, tokenId);
         uint256 count = --rs.positionRecordCount[positionId];
         if (count == 0) LibPosition.deactivateLeg(positionId, liquidityLegKey());
     }

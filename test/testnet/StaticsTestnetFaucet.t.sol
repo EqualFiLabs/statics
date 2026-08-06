@@ -42,6 +42,38 @@ contract StaticsTestnetFaucetTest is Test {
         }
     }
 
+    function testDeploymentScriptLoadsConfiguredAssetsAndRejectsMissingCode() public {
+        _configureDeploymentAssets();
+
+        DeployStaticsTestnetFaucet deployment = new DeployStaticsTestnetFaucet();
+        address[5] memory assets = deployment.loadAssets();
+
+        for (uint256 i; i < assets.length; ++i) {
+            assertEq(assets[i], address(tokens[i]));
+        }
+
+        vm.setEnv("STATICS_FAUCET_AMD", vm.toString(address(0xBEEF)));
+
+        vm.expectRevert(abi.encodeWithSelector(DeployStaticsTestnetFaucet.InvalidAsset.selector, 4, address(0xBEEF)));
+        deployment.loadAssets();
+
+        _configureDeploymentAssets();
+        vm.setEnv("STATICS_FAUCET_AMD", vm.toString(address(tokens[3])));
+        vm.expectRevert(
+            abi.encodeWithSelector(DeployStaticsTestnetFaucet.DuplicateAsset.selector, 4, 3, address(tokens[3]))
+        );
+        deployment.loadAssets();
+
+        _configureDeploymentAssets();
+        vm.setEnv("STATICS_FAUCET_USDG", vm.toString(address(tokens[1])));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployStaticsTestnetFaucet.InvalidAssetDecimals.selector, 0, address(tokens[1]), 6, 18
+            )
+        );
+        deployment.loadAssets();
+    }
+
     function testClaimTransfersCompleteBundleAndStartsCooldown() public {
         vm.prank(alice);
         faucet.claim();
@@ -126,6 +158,14 @@ contract StaticsTestnetFaucetTest is Test {
         for (uint256 i; i < 5; ++i) {
             tokens[i].mint(address(faucet), _amount(i) * count);
         }
+    }
+
+    function _configureDeploymentAssets() private {
+        vm.setEnv("STATICS_FAUCET_USDG", vm.toString(address(tokens[0])));
+        vm.setEnv("STATICS_FAUCET_STATICS", vm.toString(address(tokens[1])));
+        vm.setEnv("STATICS_FAUCET_TSLA", vm.toString(address(tokens[2])));
+        vm.setEnv("STATICS_FAUCET_PLTR", vm.toString(address(tokens[3])));
+        vm.setEnv("STATICS_FAUCET_AMD", vm.toString(address(tokens[4])));
     }
 
     function _amount(uint256 index) private view returns (uint256) {

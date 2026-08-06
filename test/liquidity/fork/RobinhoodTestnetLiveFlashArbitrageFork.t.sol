@@ -21,11 +21,13 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
-    string private constant DEPLOYMENT_PATH = "deployments/robinhood-testnet-46630-statics.json";
     string private constant BASKET_CONFIG_PATH = "script/config/robinhood-testnet-tpa1.json";
+    uint256 private constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
     uint256 private constant DISTORTED_STATE_BLOCK = 95_711_656;
     bytes32 private constant DISTORTED_STATE_BLOCK_HASH =
         0xb10619351ec96f14099ea771ca6eaff4e76542e813fcf6a4358114272376b410;
+    address private constant HISTORICAL_DIAMOND = 0x69Af9C58e9E283032AE0087c38EF5E27c28E8345;
+    address private constant HISTORICAL_EXECUTOR = 0xD31e75a901149ba6c615B257624D349c2D001318;
 
     IStaticsBasket private baskets;
     IStaticsBasketLiquidity private liquidity;
@@ -48,20 +50,18 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
         assertEq(blockhash(DISTORTED_STATE_BLOCK), DISTORTED_STATE_BLOCK_HASH, "fork block hash drift");
         vm.rollFork(forkId, DISTORTED_STATE_BLOCK);
 
-        string memory deployment = vm.readFile(DEPLOYMENT_PATH);
         string memory basketConfig = vm.readFile(BASKET_CONFIG_PATH);
-        assertEq(block.chainid, vm.parseJsonUint(deployment, ".network.chainId"));
+        assertEq(block.chainid, ROBINHOOD_TESTNET_CHAIN_ID);
 
-        address diamond = vm.parseJsonAddress(deployment, ".contracts.staticsDiamond.address");
-        executor = vm.parseJsonAddress(deployment, ".contracts.timelock.address");
+        executor = HISTORICAL_EXECUTOR;
         basketId = vm.parseJsonUint(basketConfig, ".expectedBasketId");
         basketAssets.push(vm.parseJsonAddress(basketConfig, ".assets[0]"));
         basketAssets.push(vm.parseJsonAddress(basketConfig, ".assets[1]"));
         basketAssets.push(vm.parseJsonAddress(basketConfig, ".assets[2]"));
 
-        baskets = IStaticsBasket(diamond);
-        liquidity = IStaticsBasketLiquidity(diamond);
-        flashLoans = IStaticsFlashLoan(diamond);
+        baskets = IStaticsBasket(HISTORICAL_DIAMOND);
+        liquidity = IStaticsBasketLiquidity(HISTORICAL_DIAMOND);
+        flashLoans = IStaticsFlashLoan(HISTORICAL_DIAMOND);
         (address manager, address hookAddress, bool installed) = liquidity.liquidityIntegration();
         assertTrue(installed);
         assertTrue(manager.code.length != 0);

@@ -7,6 +7,7 @@ import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 
 library LibGlobalRewards {
     using SafeCast for uint256;
@@ -123,6 +124,7 @@ library LibGlobalRewards {
         _rollMatured(asset, book);
         position.optedInAssets.push(asset);
         position.optedInIndexPlusOne[asset] = position.optedInAssets.length;
+        LibPositionPortfolio.addGlobalRewardAsset(positionId, asset);
         PositionSelection storage selection = position.selections[asset];
         selection.checkpointRay = book.indexRay;
         if (position.balance != 0) _increasePending(positionId, asset, selection, book, position.balance);
@@ -145,6 +147,7 @@ library LibGlobalRewards {
             book.pendingStake -= removedPending;
         }
         _removeOptIn(position, asset, indexPlusOne);
+        if (position.claimable[asset] == 0) LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
         _routeDustIfEmpty(rs, asset, book);
         emit IStaticsGlobalRewards.RewardAssetOptedOut(positionId, asset, removedEligible, removedPending);
     }
@@ -203,6 +206,7 @@ library LibGlobalRewards {
             position.optedInAssets.pop();
             delete position.optedInIndexPlusOne[asset];
             delete position.selections[asset];
+            if (position.claimable[asset] == 0) LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
             emit IStaticsGlobalRewards.RewardAssetOptedOut(positionId, asset, 0, 0);
         }
     }

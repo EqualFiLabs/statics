@@ -14,6 +14,7 @@ import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
 import {LibLoanOrigination} from "../libraries/LibLoanOrigination.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 
 contract LendingFacet is IStaticsLending, ReentrancyGuard {
     error BasketNotFound(uint256 basketId);
@@ -54,6 +55,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
             delete ls.principals[loanId][asset];
         }
         delete ls.loans[loanId];
+        LibPositionPortfolio.removeLoan(current.positionId, loanId);
         LibBasketRewards.unlockAfterRepay(current.positionId, current.basketId, configured, current.collateralShares);
         LibPosition.decrementObligation(current.positionId);
         emit LoanRepaid(loanId, current.positionId, msg.sender);
@@ -134,6 +136,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
             emit RecoveryPenaltyDistributed(loanId, asset, callerAmount, callerReceived, protocolAmount);
         }
         delete ls.loans[loanId];
+        LibPositionPortfolio.removeLoan(current.positionId, loanId);
         LibCustody.release(custodyAccount, configured.token, quoted.burnShares);
         StaticsBasketToken(configured.token).burn(address(this), quoted.burnShares);
         LibBasketRewards.deactivateIfEmpty(current.positionId, current.basketId);
@@ -195,6 +198,10 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
 
     function outstandingPrincipal(uint256 basketId, address asset) external view returns (uint256) {
         return LibLending.lendingStorage().outstandingPrincipal[basketId][asset];
+    }
+
+    function recoveryGracePeriod() external pure returns (uint256) {
+        return LibLending.RECOVERY_GRACE_PERIOD;
     }
 
     function _getBasket(LibBasket.BasketStorage storage bs, uint256 basketId)

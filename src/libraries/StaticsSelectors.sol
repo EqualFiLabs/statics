@@ -22,6 +22,7 @@ import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
 import {
     IStaticsPosition,
     IStaticsPositionFees,
@@ -99,6 +100,16 @@ library StaticsSelectors {
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = StaticsInterfaceInit.setInterfaces.selector;
+    }
+
+    function positionPortfolio() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
+        selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
+        selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
+        selectors[3] = IStaticsPositionPortfolio.liquidityPositionIdsOfPosition.selector;
+        selectors[4] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
+        selectors[5] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
     }
 
     function custody() internal pure returns (bytes4[] memory selectors) {
@@ -213,7 +224,7 @@ library StaticsSelectors {
     }
 
     function lending() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsLending.borrow.selector;
         selectors[1] = IStaticsLending.repay.selector;
         selectors[2] = IStaticsLending.extend.selector;
@@ -223,6 +234,7 @@ library StaticsSelectors {
         selectors[6] = IStaticsLending.quoteExtension.selector;
         selectors[7] = IStaticsLending.loan.selector;
         selectors[8] = IStaticsLending.outstandingPrincipal.selector;
+        selectors[9] = IStaticsLending.recoveryGracePeriod.selector;
     }
 
     function borrowLiquidity() internal pure returns (bytes4[] memory selectors) {

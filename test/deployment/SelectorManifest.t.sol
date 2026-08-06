@@ -11,6 +11,7 @@ import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRe
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
+import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {
     IStaticsPosition,
     IStaticsPositionFees,
@@ -71,6 +72,24 @@ contract SelectorManifestTest is Test {
         }
     }
 
+    function testPositionPortfolioSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.positionPortfolio();
+        bytes4[] memory expected = new bytes4[](6);
+        expected[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
+        expected[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
+        expected[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
+        expected[3] = IStaticsPositionPortfolio.liquidityPositionIdsOfPosition.selector;
+        expected[4] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
+        expected[5] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+        assertEq(actual.length, expected.length);
+        for (uint256 i; i < actual.length; ++i) {
+            assertEq(actual[i], expected[i]);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(actual[i], actual[j]);
+            }
+        }
+    }
+
     function testBorrowLiquiditySelectorManifestIsExact() public pure {
         bytes4[] memory selectors = StaticsSelectors.borrowLiquidity();
         assertEq(selectors.length, 2);
@@ -80,7 +99,7 @@ contract SelectorManifestTest is Test {
 
     function testLendingSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.lending();
-        bytes4[] memory expected = new bytes4[](9);
+        bytes4[] memory expected = new bytes4[](10);
         expected[0] = IStaticsLending.borrow.selector;
         expected[1] = IStaticsLending.repay.selector;
         expected[2] = IStaticsLending.extend.selector;
@@ -90,6 +109,7 @@ contract SelectorManifestTest is Test {
         expected[6] = IStaticsLending.quoteExtension.selector;
         expected[7] = IStaticsLending.loan.selector;
         expected[8] = IStaticsLending.outstandingPrincipal.selector;
+        expected[9] = IStaticsLending.recoveryGracePeriod.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);
