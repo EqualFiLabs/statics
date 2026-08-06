@@ -164,13 +164,15 @@ contract UpgradePositionOwnerIndexTest is Test {
 }
 
 contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
+    uint256 private constant PRE_UPGRADE_FORK_BLOCK = 96_877_243;
+
     function testRehearsesUpgradeAgainstLiveRobinhoodState() public {
         string memory rpcUrl = vm.envOr("ROBINHOOD_TESTNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
             return;
         }
-        vm.createSelectFork(rpcUrl);
+        vm.createSelectFork(rpcUrl, PRE_UPGRADE_FORK_BLOCK);
 
         address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
         address proposer = vm.envAddress("STATICS_TIMELOCK_PROPOSER");
