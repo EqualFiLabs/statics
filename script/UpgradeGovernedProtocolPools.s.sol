@@ -68,15 +68,16 @@ contract UpgradeGovernedProtocolPools is Script {
         (address oldManager, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
         if (!integrationInstalled || !managerInstalled) revert InvalidLiquidityIntegration();
         IStaticsLiquidityManager oldBinding = IStaticsLiquidityManager(oldManager);
+        address positionManager = oldBinding.positionManager();
+        address permit2 = oldBinding.permit2();
 
         vm.startBroadcast(privateKey);
         contracts_.basketLiquidityFacet = address(new BasketLiquidityFacet());
         contracts_.borrowLiquidityFacet = address(new BorrowLiquidityFacet());
         contracts_.liquidityRewardsFacet = address(new LiquidityRewardsFacet());
         contracts_.protocolPoolFacet = address(new ProtocolPoolFacet());
-        contracts_.liquidityManager = address(
-            new StaticsLiquidityManager(diamond, oldBinding.positionManager(), poolManager, oldBinding.permit2())
-        );
+        contracts_.liquidityManager =
+            address(new StaticsLiquidityManager(diamond, positionManager, poolManager, permit2));
         vm.stopBroadcast();
 
         _validateContracts(diamond, contracts_);
