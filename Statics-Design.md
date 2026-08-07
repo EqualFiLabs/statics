@@ -26,7 +26,7 @@ recorded; no production Statics deployment is recorded
 9. [Global Staking and Rewards](#global-staking-and-rewards)
 10. [Position-Owned Basket Lending](#position-owned-basket-lending)
 11. [Basket Flash Loans](#basket-flash-loans)
-12. [Canonical Uniswap v4 Liquidity](#canonical-uniswap-v4-liquidity)
+12. [Protocol Uniswap v4 Liquidity](#protocol-uniswap-v4-liquidity)
 13. [Borrow-to-Liquidity](#borrow-to-liquidity)
 14. [Statics Dollar](#statics-dollar)
 15. [Custody, Reservations, and Accounting Isolation](#custody-reservations-and-accounting-isolation)
@@ -603,7 +603,7 @@ responsibility. Statics provides no receiver allowlist, generic router,
 callback privilege, or fee exemption. Cancun transient storage (EIP-1153) is a
 deployment prerequisite.
 
-## Canonical Uniswap v4 Liquidity
+## Protocol Uniswap v4 Liquidity
 
 There is at most one canonical hooked pool per basket constituent. Its
 currencies are the BasketToken and constituent, with:
@@ -622,6 +622,19 @@ bounded by caller-supplied token caps and deadlines.
 
 The installed hook rejects native currency and nonzero native LP fees for
 registered canonical pools. Unregistered pools are not canonical.
+
+Timelocked governance may also create a protocol pool between any two
+compatible ERC-20 assets. Governance selects the pair, raw-unit initial price,
+seed ceilings, minimum liquidity, and approved payer; Statics fixes the hook,
+zero native LP fee, tick spacing 10, and full-range permanent-liquidity policy.
+Registration, PoolManager initialization, funding, and seeding succeed or
+revert together. The pool is active immediately, with no TWAP, oracle,
+warmup, or activation dependency.
+
+`protocolPool(poolId)` normalizes both `BasketCanonical` and `Governance`
+records. Governance registration is market configuration only: it does not
+admit assets as basket backing, Dollar collateral, lending assets, or basket
+rewards. Discovery is event-indexed rather than stored in an unbounded array.
 
 ### Bilateral hook fees
 
@@ -654,7 +667,7 @@ full-range position during swap settlement. Unmatched amounts remain pending;
 anyone may call `compoundPermanentLiquidity` later.
 
 The global fee configuration is the default, not an immutable pool policy.
-Timelocked Diamond governance may set a complete seven-field canonical-pool
+Timelocked Diamond governance may set a complete seven-field protocol-pool
 override containing the input rate, output rate, and the five-way POL,
 canonical-LP, basket-staker, Statics-staker, and treasury allocation. The two
 rates must still total at most 200 BPS, and the five shares must total 10,000
@@ -666,6 +679,10 @@ two-sided pending inventory remains eligible for compounding. The unavailable
 canonical-LP, basket-staker, and Statics-staker fallbacks to POL are identical
 under global and pool configurations. No threshold, volume, liquidity, or
 oracle rule changes an override automatically.
+
+Governance pools have no basket reward recipient. Their configured
+basket-staker share redirects to permanent liquidity, while activated LP,
+selected Statics-staker, and treasury routes behave like canonical pools.
 
 Permanent liquidity is hook-owned and locked while the pool is active. It has
 no PositionManager token ID, 24-hour epoch, seven-day ramp, minimum epoch size,
@@ -681,10 +698,10 @@ BasketTokens, reduces their represented backing, and accrues the released
 constituent and backing reclassification to global treasury fees. User-owned
 PositionManager NFTs are untouched.
 
-### Canonical LP rewards
+### Protocol-pool LP rewards
 
 Any unsubscribed, nonzero, full-range PositionManager NFT for an active
-canonical pool may be attached to a PositionNFT and transferred into voluntary
+protocol pool may be attached to a PositionNFT and transferred into voluntary
 Diamond custody only when the LP NFT and PositionNFT have the same current
 owner. PositionNFT authorization or ERC-721 approval alone does not substitute
 for that ownership match. Eligibility does not depend on whether the NFT
@@ -698,6 +715,17 @@ rewards to the PositionNFT before returning the NFT, so a later reward-token
 failure cannot trap the external position. Unclaimed rewards remain attached
 to the PositionNFT, and transferring that PositionNFT transfers claim and
 custody authority. Users must unstake before decreasing or burning the v4 NFT.
+
+The immutable liquidity manager validates the supplied PoolKey by PoolId
+against the Diamond's normalized registry. It has no basket-specific pool
+cache. Governance may replace the manager only with one immutably bound to the
+same Diamond, PoolManager, PositionManager, and Permit2; replacement revokes
+the old PositionManager operator approval before granting the new one.
+
+Governance pools have a separate irreversible decommission path. It stops
+swaps, releases hook-owned liquidity and pending inventory into treasury
+accounting, and does not burn BasketTokens or touch user LP NFTs. Claims and
+unstaking remain available after decommissioning.
 
 ## Borrow-to-Liquidity
 
@@ -721,7 +749,7 @@ registration revert atomically.
 
 For both paths, the caller supplies one aligned entry per constituent with its
 tick range, exact liquidity, per-currency maximums, and deadline. Every pool
-must be active, manager-synced, unique, and associated with the basket
+must be active, unique, and associated with the basket
 constituent. Any stale price, bad pool, cap, deadline, range, approval, or
 principal requirement reverts the loan, mint, and every LP creation.
 
@@ -1514,7 +1542,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 25. Measured flash excess, not merely the quote, is routed as a non-swap fee.
 26. Failed callbacks or repayment checks leave no partial protocol or pool state.
 27. Canonical pools use the installed hook, zero native LP fee, and tick spacing 10.
-28. Basket creation initializes, manager-registers, and permanently seeds exactly one canonical pool per constituent or reverts without creating the basket.
+28. Basket creation registers, initializes, and permanently seeds exactly one canonical pool per constituent or reverts without creating the basket.
 29. Canonical pools are immediately swappable and available to typed liquidity paths after atomic creation and seeding.
 30. Hook input and output fees apply without caller or flash-receiver exemption.
 31. Every swap-fee leg conserves across POL, canonical LP, basket staker, global Statics staker, and treasury routing.
@@ -1568,8 +1596,8 @@ remainder. Clearing the override restores the latest global rates and shares.
 | **Risk incentive reserve** | Permissionlessly funded series-isolated collateral, Statics Dollar, or STATICS released only as Risk liquidity is consumed |
 | **Fee account** | Diamond reservation holding global staker claims and treasury accruals |
 | **Staking account** | Diamond reservation holding the configured staking token |
-| **Permanent liquidity (POL)** | Hook-owned full-range canonical liquidity seeded by the basket creator and expanded from swap-fee allocations |
-| **Canonical pool** | BasketToken/constituent v4 pool atomically initialized, manager-registered, seeded, and made usable during basket creation |
+| **Permanent liquidity (POL)** | Hook-owned full-range protocol-pool liquidity seeded at pool creation and expanded from swap-fee allocations |
+| **Canonical pool** | BasketToken/constituent v4 pool atomically registered, initialized, seeded, and made usable during basket creation |
 | **Bilateral hook fee** | Separate fee applied to realized input and output swap legs |
 | **PositionNFT** | Shared ERC-721 owning Statics staking, basket collateral and loans, Dollar legs, and voluntarily custodied LP NFTs and claims |
 | **ExitOnly** | Basket state that is terminal under installed facets, blocking new exposure while preserving exits and risk reduction |
