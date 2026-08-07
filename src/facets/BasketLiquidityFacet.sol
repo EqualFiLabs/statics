@@ -25,6 +25,7 @@ import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
+import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 
 contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchModule, ReentrancyGuard {
@@ -414,6 +415,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             hooks: IHooks(ls.hook)
         });
         PoolId poolId = key.toId();
+        LibProtocolPools.enforceUnregistered(poolId);
         LibBasketLiquidity.PoolAssociation storage association = ls.poolAssociations[poolId];
         if (association.associated) {
             revert CanonicalPoolAlreadyAssociated(poolId, association.basketId, association.asset);
@@ -427,11 +429,9 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
 
         IStaticsSwapFeeHook(ls.hook).registerPool(key);
         int24 tick = IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
-        IStaticsLiquidityManager(ls.manager).registerCanonicalPool(basketId, asset, key);
         emit CanonicalPoolInitialized(
             basketId, asset, poolId, Currency.unwrap(currency0), Currency.unwrap(currency1), sqrtPriceX96, tick
         );
-        emit CanonicalPoolSyncedToManager(basketId, asset, poolId, ls.manager);
     }
 
     function _canonicalSqrtPrice(address basketToken, address asset, uint160 sqrtPriceAssetPerBasketX96)

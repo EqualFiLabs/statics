@@ -143,6 +143,7 @@ StaticsSwapFeeHook
 └── hook-owned full-range v4 liquidity
 
 StaticsLiquidityManager
+├── normalized protocol-pool validation by PoolId
 ├── typed user PositionManager NFT creation
 └── typed increases for Diamond-custodied user positions
 ```
@@ -150,30 +151,41 @@ StaticsLiquidityManager
 Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, while the pool's native LP fee remains zero.
 The default fee is 50 basis points on input and 50 basis points on output, split
-10% to POL, 25% to activated canonical LPs, 25% to deposited BasketToken
+10% to POL, 25% to activated protocol-pool LPs, 25% to deposited BasketToken
 positions, 15% to global Statics stakers, and 25% to treasury. An unavailable
 LP, basket-staker, or Statics-staker allocation is independently redirected to
 POL. A registered pool may override the complete seven-field configuration;
 clearing that override restores the latest global rates and split.
 
-This global configuration is the default. The basket-liquidity facet lets
-timelocked governance resolve a registered canonical pool by `basketId` and
-constituent, then override its input/output rates and five-way
+This global configuration is the default. Basket-specific entrypoints resolve
+a canonical pool by `basketId` and constituent, while protocol-pool entrypoints
+address either pool class directly by PoolId. Timelocked governance may
+override input/output rates and the five-way
 POL/canonical-LP/basket-staker/Statics-staker/treasury split. The two rates may
 total at most 200 BPS, the split must total 10,000 BPS, and POL or canonical
 LPs may explicitly be set to zero. Clearing the override restores the latest
 global rates and split.
 Overrides never release or reclassify pending POL, never remove permanent
 liquidity, and do not alter decommissioning. Unavailable canonical-LP,
-basket-staker, and Statics-staker shares still redirect to POL.
+basket-staker, and Statics-staker shares still redirect to POL. Governance
+pools have no basket reward book, so their basket-staker allocation always
+redirects to POL before fee delivery.
+
+The normalized registry recognizes existing basket canonical pools without a
+storage migration and stores governance-created pools in a separate namespace.
+Governance creates a fixed-policy PoolKey between any two compatible ERC-20s,
+initializes it, and permanently seeds full-range liquidity from an approved
+payer in one transaction. Registration does not admit either asset as basket
+backing, Dollar collateral, or a borrowable asset.
 
 After every swap, matched POL amounts are added as hook-owned full-range
 liquidity in the same pool. No caller, administrator, or treasury can withdraw
 active-pool POL. On `ExitOnly`, permissionless decommissioning releases it,
 burns the released BasketTokens, and reserves the resulting constituents for
 the common treasury. User-owned v4 positions remain under their owners'
-control and collect no native LP fee. A full-range canonical NFT may instead
-be attached to a PositionNFT and held by the Diamond to earn the LP hook share.
+control and collect no native LP fee. A full-range NFT for either protocol-pool
+class may instead be attached to a PositionNFT and held by the Diamond to earn
+the LP hook share.
 New and increased liquidity activates in the next block; there is no exit
 cooldown.
 
@@ -215,11 +227,12 @@ every account using that same physical token insolvent or unusable. Basket and
 token reputation remain a user-agency concern; exit-only decommissioning is
 the governed containment path.
 
-Combined liquidity entry uses the current v4 pool state to calculate required
-token amounts. Callers must simulate current state and impose amount caps and
-deadlines. The manager and hook expose only typed v4 operations and immutable
-bindings; neither exposes arbitrary calls, approvals, swaps, or upgradeable
-logic.
+Combined basket liquidity entry uses the current v4 pool state to calculate
+required token amounts. Callers must simulate current state and impose amount
+caps and deadlines. The manager and hook expose only typed v4 operations and
+immutable bindings; the manager verifies every PoolKey against the Diamond's normalized
+registry and neither contract exposes arbitrary calls, approvals, swaps, or
+upgradeable logic.
 
 ## Upgradeability model
 

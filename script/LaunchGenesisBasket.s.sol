@@ -3,14 +3,13 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
-import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Script} from "forge-std/Script.sol";
 
 import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsLiquidityManager} from "../src/interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../src/interfaces/IStaticsSwapFeeHook.sol";
 
 struct GenesisBasketLaunchConfig {
@@ -186,7 +185,7 @@ contract LaunchGenesisBasket is Script {
         ) revert GenesisLaunchFailed(basketId);
 
         (, address hook, bool integrationInstalled) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
-        (address manager, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
+        (, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
         if (!integrationInstalled || !managerInstalled) revert GenesisLaunchFailed(basketId);
 
         uint256 assetCount = config.basket.assets.length;
@@ -194,13 +193,16 @@ contract LaunchGenesisBasket is Script {
             address asset = config.basket.assets[i];
             IStaticsBasketLiquidity.CanonicalPoolView memory pool =
                 IStaticsBasketLiquidity(diamond).canonicalPool(basketId, asset);
+            IStaticsProtocolPools.ProtocolPoolView memory protocolPool =
+                IStaticsProtocolPools(diamond).protocolPool(pool.poolId);
             if (
                 launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i]
                     || baskets.vaultBalance(basketId, asset) == 0 || pool.asset != asset
                     || pool.basketToken != launched.token || pool.hook != hook
                     || IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId) == 0
-                    || IStaticsLiquidityManager(manager).canonicalPoolHash(basketId, asset)
-                        != PoolId.unwrap(pool.poolId)
+                    || protocolPool.kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
+                    || protocolPool.basketId != basketId || protocolPool.basketAsset != asset
+                    || protocolPool.decommissioned
             ) revert InvalidLaunchedPool(basketId, asset);
         }
         emit GenesisBasketLaunchValidated(basketId, launched.token, timelock, assetCount);

@@ -15,6 +15,7 @@ import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
@@ -122,7 +123,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 22, 200);
+        _assertManifest(diamond, 23, 209);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
@@ -144,6 +145,7 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBorrowLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolPools).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionMetadata).interfaceId));

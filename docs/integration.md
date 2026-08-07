@@ -214,11 +214,17 @@ initial deposited shares and 19 times initial debt. External looping helpers
 must impose depth, approval, quote-freshness, and slippage limits. Statics has
 no arbitrary execution surface.
 
-## Canonical pools and permanent liquidity
+## Protocol pools and permanent liquidity
 
 There is one canonical hooked pool per basket constituent. Read
 `canonicalPool(basketId, asset)` for its PoolId, currencies, hook, zero native
 LP fee, tick spacing 10, and current spot tick.
+
+The Diamond also supports governance-created protocol pools with no basket
+association. Read `protocolPool(poolId)` to resolve either class and
+`isProtocolPool(poolId)` for a bounded registration check. Index
+`CanonicalPoolInitialized` and `GovernancePoolCreated` for discovery; the
+Diamond deliberately provides no unbounded pool array.
 
 Pool initialization and permanent seeding are inseparable from basket creation.
 The creator supplies every starting price and paired-asset budget. A successful
@@ -242,6 +248,19 @@ router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
 If a pool has no activated staked liquidity, its LP share redirects to
 permanent liquidity. If the basket or Statics reward route cannot accrue its
 asset, that share independently redirects to permanent liquidity.
+
+Timelocked governance creates a standalone pool with
+`createGovernancePool(params)`. Use `quoteGovernancePool(params)` first to
+derive the fixed PoolKey, normalized sorted price, maximum full-range
+liquidity, and exact token debits. The separate `payer` must approve the
+Diamond for both assets before execution. Creation, hook registration,
+PoolManager initialization, and permanent seeding are atomic; the pool is live
+when the call succeeds and has no activation or TWAP ceremony.
+
+PoolId-based `setProtocolPoolFeeConfiguration`,
+`clearProtocolPoolFeeConfiguration`, and `protocolPoolFeeConfiguration`
+support both pool classes. Governance pools cannot accrue basket-staker
+rewards; that configured share redirects to permanent liquidity.
 
 The global seven-field configuration is the default for pools without an
 override. Timelocked governance calls
@@ -267,8 +286,14 @@ atomically, and `compoundPermanentLiquidity` is also permissionless.
 
 There is no primary-fee POL reserve, epoch, ramp, minimum compound size, hook
 settlement call, protocol PositionManager NFT, or manager-owned protocol
-inventory. The standalone manager only registers canonical keys and executes
-transaction-scoped user PositionManager NFT mint and increase operations.
+inventory. The standalone manager resolves exact PoolKeys from the Diamond's
+protocol-pool registry and executes transaction-scoped PositionManager NFT
+mint and increase operations.
+
+Only a governance pool may use `decommissionGovernancePool(poolId)`. The call
+stops later swaps and managed LP actions, releases permanent liquidity to
+treasury accounting, and leaves all user PositionManager NFTs untouched.
+Previously earned rewards remain claimable and staked NFTs remain withdrawable.
 
 When a basket is `ExitOnly`, anyone may call `unwindBasketLiquidity` once per
 constituent. It decommissions the pool, releases hook liquidity, burns returned
@@ -302,7 +327,7 @@ also require bounded currency approvals to the Diamond.
 
 `borrowAndProvideLiquidity(positionId, basketId, sharesIn, pools, lpRecipient)`
 is optional; ordinary `borrow` remains available. The combined call requires
-one active, manager-synced canonical pool per constituent with no duplicates.
+one active registered canonical pool per constituent with no duplicates.
 Each entry supplies an aligned tick range, exact liquidity, per-currency
 maximums, and a deadline.
 

@@ -20,6 +20,7 @@ import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
+import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
@@ -206,6 +207,19 @@ library StaticsSelectors {
         selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
         selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
         selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+    }
+
+    function protocolPools() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](9);
+        selectors[0] = IStaticsProtocolPools.quoteGovernancePool.selector;
+        selectors[1] = IStaticsProtocolPools.createGovernancePool.selector;
+        selectors[2] = IStaticsProtocolPools.setProtocolPoolFeeConfiguration.selector;
+        selectors[3] = IStaticsProtocolPools.clearProtocolPoolFeeConfiguration.selector;
+        selectors[4] = IStaticsProtocolPools.protocolPoolFeeConfiguration.selector;
+        selectors[5] = IStaticsProtocolPools.decommissionGovernancePool.selector;
+        selectors[6] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        selectors[7] = IStaticsProtocolPools.protocolPool.selector;
+        selectors[8] = IStaticsProtocolPools.isProtocolPool.selector;
     }
 
     function liquidityRewards() internal pure returns (bytes4[] memory selectors) {

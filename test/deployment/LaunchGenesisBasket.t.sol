@@ -14,7 +14,7 @@ import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsLiquidityManager} from "../../src/interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -240,12 +240,16 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         IStaticsBasketLiquidity liquidity = IStaticsBasketLiquidity(deployment.diamond);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = liquidity.canonicalPool(0, asset);
         (, address hook,) = liquidity.liquidityIntegration();
-        (address manager,) = liquidity.liquidityManager();
         assertEq(pool.basketToken, basketToken);
         assertEq(pool.asset, asset);
         assertEq(pool.hook, hook);
         assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId), 0);
-        assertTrue(IStaticsLiquidityManager(manager).canonicalPoolHash(0, asset) != bytes32(0));
+        IStaticsProtocolPools.ProtocolPoolView memory protocolPool =
+            IStaticsProtocolPools(deployment.diamond).protocolPool(pool.poolId);
+        assertEq(uint256(protocolPool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical));
+        assertEq(protocolPool.basketId, 0);
+        assertEq(protocolPool.basketAsset, asset);
+        assertFalse(protocolPool.decommissioned);
     }
 
     function _v4Config() private returns (DeployStatics.V4Config memory config) {
