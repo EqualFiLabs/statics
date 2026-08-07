@@ -14,6 +14,7 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
+import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {LibPosition} from "../../src/position/LibPosition.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -83,10 +84,18 @@ contract GovernancePoolLiquidityLifecycleTest is BorrowLiquidityTestBase {
         assertEq(positionManagerContract.getPositionLiquidity(tokenId), 6 ether);
         assertEq(tokenA.balanceOf(address(liquidityManagerContract)), 0);
         assertEq(tokenB.balanceOf(address(liquidityManagerContract)), 0);
+        uint256 unstakedTokenId = _mintExternalPosition(key, 1 ether);
 
         protocolPools.decommissionGovernancePool(poolId);
         assertTrue(protocolPools.protocolPool(poolId).decommissioned);
         _expectDecommissionedSwapRevert(key, address(tokenA), 0.001 ether);
+
+        vm.startPrank(alice);
+        IERC721(address(positionManagerContract)).approve(address(diamond), unstakedTokenId);
+        vm.expectRevert(abi.encodeWithSelector(LiquidityRewardsFacet.PoolDecommissioned.selector, poolId));
+        liquidityRewards.stakeLiquidityPosition(basketPositionId, unstakedTokenId);
+        vm.stopPrank();
+        assertEq(IERC721(address(positionManagerContract)).ownerOf(unstakedTokenId), alice);
 
         vm.startPrank(alice);
         tokenA.approve(address(diamond), type(uint256).max);

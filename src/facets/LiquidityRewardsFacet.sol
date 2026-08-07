@@ -57,6 +57,7 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
         PoolId poolId = key.toId();
         (IStaticsProtocolPools.ProtocolPoolKind kind,, uint256 basketId, address basketAsset) =
             LibProtocolPools.enforceRegistered(poolId);
+        if (_poolIsDecommissioned(poolId)) revert PoolDecommissioned(poolId);
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
             LibBasket.enforceActive(LibBasket.basketStorage().baskets[basketId], basketId);
         }
