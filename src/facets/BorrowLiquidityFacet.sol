@@ -202,8 +202,6 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
                 LibCustody.pushReserved(custodyAccount, plan.asset, managerAddress, plan.assetAmount, plan.assetAmount);
             bool basketIsCurrency0 = Currency.unwrap(plan.key.currency0) == basketToken;
             IStaticsLiquidityManager.PositionRequest memory request = IStaticsLiquidityManager.PositionRequest({
-                basketId: basketId,
-                asset: plan.asset,
                 poolKey: plan.key,
                 tickLower: plan.tickLower,
                 tickUpper: plan.tickUpper,

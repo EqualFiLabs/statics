@@ -6,10 +6,12 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsLiquidityManager} from "../../src/interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {CanonicalPoolTestBase} from "./CanonicalPoolTestBase.sol";
 
@@ -36,7 +38,6 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
 
         (basketId, basketToken) = _createDefaultBasket(0, 0);
         canonicalKey = _canonicalKey();
-        liquidityManager.registerCanonicalPool(basketId, address(assetA), canonicalKey);
 
         uint256[] memory quote = baskets.quoteMint(basketId, 200 ether);
         _fundAndApprove(alice, quote[0], quote[1]);
@@ -53,8 +54,6 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
         returns (IStaticsLiquidityManager.PositionRequest memory request)
     {
         request = IStaticsLiquidityManager.PositionRequest({
-            basketId: basketId,
-            asset: address(assetA),
             poolKey: canonicalKey,
             tickLower: TickMath.minUsableTick(10),
             tickUpper: TickMath.maxUsableTick(10),
@@ -63,6 +62,10 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
             amount1Limit: amount1Limit,
             deadline: block.timestamp + 1 hours
         });
+    }
+
+    function protocolPool(PoolId poolId) external view returns (IStaticsProtocolPools.ProtocolPoolView memory pool) {
+        return IStaticsProtocolPools(address(diamond)).protocolPool(poolId);
     }
 
     function _transferUserInventory(uint256 basketAmount, uint256 assetAmount) internal {

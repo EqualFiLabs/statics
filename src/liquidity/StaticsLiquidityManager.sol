@@ -6,26 +6,27 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 
 contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using PoolIdLibrary for PoolKey;
 
     address public immutable staticsDiamond;
     address public immutable positionManager;
     address public immutable poolManager;
     address public immutable permit2;
 
-    mapping(uint256 basketId => mapping(address asset => bytes32 keyHash)) public canonicalPoolHash;
-
     error OnlyStaticsDiamond(address caller);
-    error CanonicalPoolAlreadyRegistered(uint256 basketId, address asset);
-    error CanonicalPoolNotRegistered(uint256 basketId, address asset);
-    error CanonicalPoolMismatch(uint256 basketId, address asset);
+    error ProtocolPoolNotRegistered(bytes32 poolId);
+    error ProtocolPoolMismatch(bytes32 poolId);
+    error ProtocolPoolDecommissioned(bytes32 poolId);
     error InvalidRecipient();
     error InvalidPositionParameters();
     error AmountExceedsPermit2(uint256 amount);
@@ -38,16 +39,6 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         positionManager = positionManager_;
         poolManager = poolManager_;
         permit2 = permit2_;
-    }
-
-    function registerCanonicalPool(uint256 basketId, address asset, PoolKey calldata key) external {
-        _enforceDiamond();
-        if (canonicalPoolHash[basketId][asset] != bytes32(0)) {
-            revert CanonicalPoolAlreadyRegistered(basketId, asset);
-        }
-        bytes32 keyHash = keccak256(abi.encode(key));
-        canonicalPoolHash[basketId][asset] = keyHash;
-        emit CanonicalPoolRegistered(basketId, asset, keyHash);
     }
 
     function mintUserPosition(PositionRequest calldata request, address recipient, address refundRecipient)
@@ -66,8 +57,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         (, refund0) = _refundUser(token0, refundRecipient, allocatedRefund0);
         (, refund1) = _refundUser(token1, refundRecipient, allocatedRefund1);
         emit UserPositionMinted(
-            request.basketId,
-            request.asset,
+            PoolId.unwrap(request.poolKey.toId()),
             movement.tokenId,
             recipient,
             refundRecipient,
@@ -90,9 +80,9 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         if (actualOwner != staticsDiamond) {
             revert PositionOwnershipMismatch(tokenId, staticsDiamond, actualOwner);
         }
-        PoolKey memory actualKey = _positionKey(request.basketId, request.asset, tokenId);
+        PoolKey memory actualKey = _positionKey(tokenId);
         if (keccak256(abi.encode(actualKey)) != keccak256(abi.encode(request.poolKey))) {
-            revert CanonicalPoolMismatch(request.basketId, request.asset);
+            revert ProtocolPoolMismatch(PoolId.unwrap(request.poolKey.toId()));
         }
         address token0 = Currency.unwrap(request.poolKey.currency0);
         address token1 = Currency.unwrap(request.poolKey.currency1);
@@ -102,8 +92,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         (, refund0) = _refundUser(token0, refundRecipient, allocatedRefund0);
         (, refund1) = _refundUser(token1, refundRecipient, allocatedRefund1);
         emit UserPositionIncreased(
-            request.basketId,
-            request.asset,
+            PoolId.unwrap(request.poolKey.toId()),
             tokenId,
             refundRecipient,
             request.liquidity,
@@ -156,9 +145,9 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         if (actualOwner != recipient) revert PositionOwnershipMismatch(movement.tokenId, recipient, actualOwner);
     }
 
-    function _positionKey(uint256 basketId, address asset, uint256 tokenId) private view returns (PoolKey memory key) {
+    function _positionKey(uint256 tokenId) private view returns (PoolKey memory key) {
         (key,) = IPositionManager(positionManager).getPoolAndPositionInfo(tokenId);
-        _enforcePool(basketId, asset, key);
+        _enforcePool(key);
     }
 
     function _closePlan(uint256 action, bytes memory actionParams, PoolKey memory key)
@@ -210,17 +199,20 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     }
 
     function _validateRequest(PositionRequest calldata request) private view {
-        _enforcePool(request.basketId, request.asset, request.poolKey);
+        _enforcePool(request.poolKey);
         if (
             request.liquidity == 0 || request.tickLower >= request.tickUpper || request.deadline < block.timestamp
                 || request.amount0Limit > type(uint128).max || request.amount1Limit > type(uint128).max
         ) revert InvalidPositionParameters();
     }
 
-    function _enforcePool(uint256 basketId, address asset, PoolKey memory key) private view {
-        bytes32 expected = canonicalPoolHash[basketId][asset];
-        if (expected == bytes32(0)) revert CanonicalPoolNotRegistered(basketId, asset);
-        if (expected != keccak256(abi.encode(key))) revert CanonicalPoolMismatch(basketId, asset);
+    function _enforcePool(PoolKey memory key) private view {
+        bytes32 poolId = PoolId.unwrap(key.toId());
+        IStaticsProtocolPools.ProtocolPoolView memory registered =
+            IStaticsProtocolPools(staticsDiamond).protocolPool(key.toId());
+        if (registered.kind == IStaticsProtocolPools.ProtocolPoolKind.None) revert ProtocolPoolNotRegistered(poolId);
+        if (keccak256(abi.encode(registered.key)) != keccak256(abi.encode(key))) revert ProtocolPoolMismatch(poolId);
+        if (registered.decommissioned) revert ProtocolPoolDecommissioned(poolId);
     }
 
     function _enforceDiamond() private view {

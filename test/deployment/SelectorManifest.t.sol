@@ -9,6 +9,7 @@ import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquid
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
@@ -63,6 +64,27 @@ contract SelectorManifestTest is Test {
         expected[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
         expected[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
 
+        assertEq(actual.length, expected.length);
+        for (uint256 i; i < actual.length; ++i) {
+            assertEq(actual[i], expected[i]);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(actual[i], actual[j]);
+            }
+        }
+    }
+
+    function testProtocolPoolSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.protocolPools();
+        bytes4[] memory expected = new bytes4[](9);
+        expected[0] = IStaticsProtocolPools.quoteGovernancePool.selector;
+        expected[1] = IStaticsProtocolPools.createGovernancePool.selector;
+        expected[2] = IStaticsProtocolPools.setProtocolPoolFeeConfiguration.selector;
+        expected[3] = IStaticsProtocolPools.clearProtocolPoolFeeConfiguration.selector;
+        expected[4] = IStaticsProtocolPools.protocolPoolFeeConfiguration.selector;
+        expected[5] = IStaticsProtocolPools.decommissionGovernancePool.selector;
+        expected[6] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        expected[7] = IStaticsProtocolPools.protocolPool.selector;
+        expected[8] = IStaticsProtocolPools.isProtocolPool.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

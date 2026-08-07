@@ -37,6 +37,7 @@ import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
+import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
@@ -49,7 +50,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](17);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](18);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -67,6 +68,7 @@ contract StaticsTestDeployer {
         cut[14] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
         cut[15] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
         cut[16] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
+        cut[17] = _cut(address(new ProtocolPoolFacet()), StaticsSelectors.protocolPools());
         StaticsProtocolInit init = new StaticsProtocolInit();
         StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
