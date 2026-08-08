@@ -2,14 +2,8 @@
 
 ## Static Multi-Asset Baskets, Statics Dollar, Position-Owned Finance, and Permanent Liquidity
 
-**Version:** 2.5
-
-**Status:** Living implementation design; Robinhood Chain testnet deployment
-recorded; no production Statics deployment is recorded
-
-**Last updated:** 2026-07-31
-
-**Source revision reviewed:** `04d16fd30abd59aafe7af6d7f7a0db2e40681205`
+**Status:** Living implementation design; current Solidity and deployment
+manifests remain authoritative; no production Statics deployment is recorded
 
 ---
 
@@ -36,7 +30,7 @@ recorded; no production Statics deployment is recorded
 19. [Deployment Model](#deployment-model)
 20. [Security and Trust Assumptions](#security-and-trust-assumptions)
 21. [Testing and Assurance](#testing-and-assurance)
-22. [Implemented, Deferred, and Excluded](#implemented-deferred-and-excluded)
+22. [Implemented, Production Readiness, and Excluded](#implemented-production-readiness-and-excluded)
 23. [Appendix A: Formula Reference](#appendix-a-formula-reference)
 24. [Appendix B: Correctness Properties](#appendix-b-correctness-properties)
 25. [Appendix C: Terminology](#appendix-c-terminology)
@@ -100,23 +94,21 @@ backing or let one basket consume another basket's assets.
 
 ### Release qualification
 
-This document describes the implementation at the reviewed source revision, not
-an audit, immutable release record, or production qualification. The
-source-controlled Robinhood Chain testnet manifest records a public test
-deployment, later gateway upgrade, verified active sources, fixtures, and
-genesis basket. It is useful integration evidence, but its mock collateral,
-owner-mintable staking token, faucet, two-minute timelock, and test parameters
-are deliberately not production defaults. Production value requires an
-independent contract and governance review, target-chain rehearsal, verified
-contract publication, explicit governance and economic configuration, and
-successful default, security-profile, deployment, and pinned-fork test runs
-against the exact release commit.
+This document describes the current implementation model, not an audit,
+immutable release record, or production qualification. The source-controlled
+Robinhood Chain testnet manifest records a public test deployment, governed
+upgrades, verified sources, fixtures, and a genesis basket. It is useful
+integration evidence, but its mock collateral, owner-mintable staking token,
+faucet, two-minute timelock, and test parameters are deliberately not
+production defaults. Production value requires independent contract and
+governance review, target-chain rehearsal, verified contract publication,
+explicit governance and economic configuration, and successful validation
+against one exact release commit.
 
 A release qualification record must bind one source commit and design version
 to compiler settings, constructor and governance inputs, dependency and
 selector manifests, runtime-code hashes, test profiles and timestamps, deployed
-addresses, and explorer verification. Historical internal reviews and X-Ray
-reports predate the reviewed revision. Checked-in chain-31337 rehearsal
+addresses, and explorer verification. Checked-in chain-31337 rehearsal
 manifests remain local test artifacts. The separate chain-46630 deployment
 manifest is public testnet evidence, but it does not qualify a later production
 binary or configuration.
@@ -181,30 +173,27 @@ StaticsDiamond
                                     └── typed user PositionManager NFT creation
 ```
 
-### Canonical deployment shape
+### Fresh-deployment shape
 
 The current launcher and deployment tests expect:
 
-- **21 facets / 190 selectors** on `StaticsDiamond`; and
+- **23 facets / 209 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
-enumeration. The public Robinhood testnet deployment used a 21/188 and 11/95
-shape; its later gateway upgrade replaced five selectors with five updated
-permit-tuple selectors without changing the total. The fresh launcher adds two
-Position-creation-fee selectors, the Modular Position NFT reporting surface,
-and two collection-wide renderer selectors for the current 21/190 source
-shape. This shape requires a fresh deployment:
-the release does not claim selector or packed-state migration compatibility for
-an older Diamond, and the obsolete Position-fee upgrade ceremony fails closed.
-The
-checked-in Core rehearsal snapshots record 11 facets / 95 selectors before the rehearsed
-terminal governance cut and 10 / 93 afterward. That rehearsal deliberately
-removes `diamondCut` and `transferOwnership` while proving the remaining value
-paths still execute; it is separate from Core bootstrap finalization, which
-validates wiring and clears bootstrap authority without removing selectors.
-Regenerate both rehearsal snapshots from the exact release commit before using
-them as production qualification evidence.
+enumeration. Governed upgrades can change the live selector set without
+changing either Diamond address, so current deployed state belongs in the
+deployment manifest rather than this design document. Structural Position
+changes require an explicit storage-compatibility and migration design; they
+must not be inferred safe from the fresh-launch selector manifest.
+
+Checked-in Core rehearsal snapshots record the selector shape before and after
+the rehearsed terminal governance cut. That rehearsal deliberately removes
+`diamondCut` and `transferOwnership` while proving the remaining value paths
+still execute; it is separate from Core bootstrap finalization, which validates
+wiring and clears bootstrap authority without removing selectors. Regenerate
+rehearsal snapshots from the exact release commit before treating them as
+release evidence.
 
 `StaticsDiamond` is simultaneously the basket action address, PositionNFT
 address, Statics Dollar gateway, Core periphery, Core fee receiver, and managed
@@ -1136,7 +1125,7 @@ except the Diamond itself and should not be exposed as user launch actions.
 
 `script/DeployStatics.s.sol:DeployStatics` is the canonical full-stack
 launcher. It deploys the timelock, Dollar oracle adapter, Core facets and
-Diamond, Dollar tokens, 21 unified facets and `StaticsDiamond`, and the
+Diamond, Dollar tokens, 23 unified facets and `StaticsDiamond`, and the
 immutable v4 hook and manager. A separate timelock ceremony installs the hook
 and manager into the Diamond. Basket creation is valid only after that
 installation because every basket must launch all of its canonical pools and
@@ -1160,63 +1149,22 @@ The target chain must support Cancun/EIP-1153. The launcher selects
 runtime-hash, and calibration evidence; neither is a Statics address manifest.
 Mainnet fork tests read `ROBINHOOD_MAINNET`, while the dependency-only testnet fork reads
 `ROBINHOOD_TESTNET_RPC_URL`. Checked-in chain-31337 broadcasts are local
-rehearsal records. No production Statics address manifest is recorded.
+rehearsal records. No Robinhood mainnet Statics address manifest is recorded.
 
 ### Recorded Robinhood Chain testnet deployment
 
-`deployments/robinhood-testnet-46630-statics.json` is the canonical public
-testnet address and operation record. It is separate from the chain dependency
-manifest and records the initial protocol deployment, timelocked liquidity and
-profile configuration, later facet upgrades, source verification, testnet
-fixtures, and genesis-basket launch and activation under the superseded
-deployment lifecycle.
+The human-readable [`deployment.md`](deployment.md) summarizes the current
+Robinhood Chain testnet integration beta. The machine-readable
+[`deployments/robinhood-testnet-46630-statics.json`](deployments/robinhood-testnet-46630-statics.json)
+is the canonical address, configuration, operation, source-verification, and
+upgrade record. Mutable deployment facts are intentionally not duplicated in
+this design document.
 
-| Component | Robinhood Chain testnet address or value |
-| --- | --- |
-| Chain ID | `46630` |
-| `StaticsDiamond` and PositionNFT | `0x69Af9C58e9E283032AE0087c38EF5E27c28E8345` |
-| `StaticsDollarCoreDiamond` | `0xb925eb5867556698D80eff49Ce939914f03532e2` |
-| Statics Dollar (`USDstx`) | `0x387CA4c8D9a6E535f11DbA594A0D56d65BF1d2e5` |
-| Risk Shares (`ethLEV`) | `0x399Bbcbc82cd6eDa43F18d957E75feB09C66C709` |
-| Testnet staking token (`STATICS`) | `0x309b077A86d0d9365987793A470be98367c0A305` |
-| `StaticsTimelock` | `0xD31e75a901149ba6c615B257624D349c2D001318` |
-| `StaticsSwapFeeHook` | `0x9c683B8253578be82D741b592dc10a0c637CD0cc` |
-| `StaticsLiquidityManager` | `0xd12b47594bDe07B86446d8ee7014b8477B6526c1` |
-| Mock USDG | `0x2c0DEA86D8fBdb652305B37ea7cF3f1cdC2A1371` |
-| Testnet fixture faucet | `0x8ac164E8A62184d2d2f6393ffb64C81157972207` |
-| Genesis BasketToken (`TPA1`) | `0xe930ab200Aa592CCcFA003625a0C6784F95B923b` |
-
-The testnet timelock currently has a two-minute minimum delay and basket
-creation remains owner-only because its creation fee is zero. The initial WETH
-volatile profile is profile 1. Mock USDG profile 2 is active with a
-`0.95–1.05` peg band, 5-BPS mint fee, 7-BPS redemption fee, and a test debt
-ceiling. The faucet is an ownerless fixed-inventory fixture with a one-day
-per-wallet cooldown; it distributes mock USDG, owner-minted STATICS, and the
-three stock-token fixtures used by TPA1.
-
-TPA1 is an active three-constituent basket representing `0.01` TSLA, `0.01`
-PLTR, and `0.01` AMD per BasketToken. Its three canonical pools launched with
-creator-funded full-range permanent liquidity and were later activated through
-the timelock under the superseded deployment lifecycle. The manifest
-records the PoolIds, token and facet code hashes, transaction hashes, source
-verification, and the five-selector gateway permit upgrade at source commit
-`3fa1e52c01792133bb958da67960a1d68f83aabe`.
-
-This deployment is an integration beta, not a production qualification. In
-particular, production must replace the mock USDG and oracle fixtures, choose a
-reviewed staking-token policy rather than the uncapped owner-mintable test
-token, verify the chain-selected governance delay, select production roles and
-parameters, and qualify a single exact release revision.
-
-Release evidence records both Diamonds and tokens, all facet addresses and
-runtime hashes, immutable hook and manager bindings, canonical PoolKeys and
-PoolIds, hook input/output rates and split, pending and locked permanent
-liquidity, and user PositionManager NFTs discovered from ordinary events. It
-does not record nonexistent protocol PositionManager token IDs. A qualifying
-release must package those facts with the exact source revision, design version,
-compiler profile and settings, selector-manifest and dependency-manifest hashes,
-test timestamps and profiles, governance configuration, and verification
-receipts as one revision-pinned record.
+The testnet release uses explicit fixtures and test parameters and is not a
+production qualification. Production must replace mock collateral and oracle
+fixtures, choose a reviewed staking-token policy, verify the intended
+governance delay and roles, select economic parameters, and qualify one exact
+release revision.
 
 ## Security and Trust Assumptions
 
@@ -1251,8 +1199,7 @@ receipts as one revision-pinned record.
 - Basket-loan recovery and Dollar expired-risk recovery have distinct
   caller-incentive formulas; other basket and liquidity maintenance has no
   guaranteed caller or protocol bounty.
-- Historical internal audits, release-QA notes, and X-Ray reports do not cover
-  the reviewed revision and are not independent production assurance.
+- Repository tests and local analysis are not independent production assurance.
 
 ## Testing and Assurance
 
@@ -1260,49 +1207,20 @@ The test pyramid includes focused unit and harness proofs, live value-moving
 integration flows, fuzz tests, stateful invariants, deployment rehearsals,
 canonical Uniswap v4 tests, and a pinned Robinhood Chain fork shape.
 
-The reviewed tree contains 73 Foundry `.t.sol` files and 471 test or invariant
-function declarations by static source scan, including 22 `testFuzz` functions
-and 31 invariants. Static SDK inspection finds 35 declared tests in one tracked
-SDK test file. These are source inventory counts, not executed outcomes;
-inherited suites, abstract contracts, environment gates, and runner selection
-mean declarations and executed outcomes need not sum directly.
+The repository contains focused source coverage for custody, rewards, lending,
+recovery, Dollar profiles, canonical and governed pools, permits, deployment,
+selector routing, and testnet fixtures. Test counts and pass totals are release
+evidence rather than protocol design and are intentionally not frozen here.
 
-The most recent complete validation record in this document predates the
-reviewed revision. It ran on 2026-07-26 at
-`5b8dbbda9562eb66cfcebd3e0ade873e4ad99b51` and recorded:
+Before production approval, execute and preserve the complete default and
+security profiles, focused deployment proofs, local canonical-pool integration
+flows, every required pinned Robinhood fork suite, SDK tests, and SDK build
+against the exact release commit. Record the timestamp, environment, commands,
+outcomes, skips, and commit in the release qualification artifact. A focused
+test, skipped environment-gated fork, or successful public testnet transaction
+does not substitute for that complete qualification.
 
-```text
-Default Foundry profile:  403 passed, 0 failed, 7 skipped across 63 suites
-Security Foundry profile: 403 passed, 0 failed, 7 skipped across 63 suites
-SDK:                      30 passed; TypeScript build passed
-Robinhood flash-arbitrage fork: 1 passed, 0 failed
-```
-
-The seven default-profile skips were environment-gated external Base or
-Robinhood fork flows. The Robinhood flash-arbitrage fork was separately
-executed against the pinned chain-4663 PoolManager and proved both composed
-arbitrage directions; it does not imply that every external fork suite ran.
-
-Later focused suites added source coverage for permissionless Risk incentives,
-consumption-only Risk liquidity, one- and sixteen-asset atomic launches,
-testnet oracle and faucet fixtures, the chain-46630 v4 deployment, the active
-TPA1 pools, signed Universal Router swaps, and exact or reusable gateway permit
-allowances. The source-controlled testnet manifest additionally records
-executed deployment and governance transactions. Neither focused commit
-evidence nor a successful public testnet transaction substitutes for a complete
-suite against this reviewed revision.
-
-The source-only Aderyn review found no new in-scope reward-eligibility issue,
-but it is neither an independent nor formal audit. The 2026-07-19 internal
-audit and release-QA record, and the X-Ray snapshot, cover earlier commits with
-older facet, selector, and test counts and do not qualify this revision.
-Before production approval, repeat and preserve the complete profiles, focused
-deployment proof, local canonical-pool arbitrage tests, every required pinned
-Robinhood fork suite, SDK tests, and SDK build against the exact release
-commit. Record the timestamp, environment, profile, skips, and full commit in
-the release qualification artifact.
-
-## Implemented, Deferred, and Excluded
+## Implemented, Production Readiness, and Excluded
 
 ### Implemented
 
@@ -1327,16 +1245,14 @@ the release qualification artifact.
 - SDK quote, calldata, permit, canonical-swap, faucet, and
   position-management helpers.
 
-### Deferred pre-release decisions and operations
+### Production readiness boundaries
 
-- acceptable maintenance delays, monitoring, and incident runbooks;
-- final governance powers, independent governance audit, and the ceremony that
-  removes Diamond-cut authority;
-- production staking-token design, seven-day timelock verification, collateral
-  profiles, and economic parameters;
-- supported front-end routing venues;
+- independent contract and governance review;
+- final governance powers and the ceremony that removes Diamond-cut authority;
+- production staking-token design, timelock verification, collateral profiles,
+  and economic parameters;
 - a revision-pinned release qualification artifact; and
-- post-audit production deployment addresses and explorer verification.
+- production deployment addresses and explorer verification.
 
 ### Intentionally excluded
 
@@ -1579,8 +1495,8 @@ remainder. Clearing the override restores the latest global rates and shares.
 62. Partial Risk-liquidity consumption releases each funded reserve pro rata against pre-fill effective liquidity, while a complete fill drains its rounding remainder.
 63. PositionNFT avatars depend only on chain ID, Diamond address, and position ID; transfers and protocol state changes do not alter their visual identity.
 64. PositionNFT metadata is fully onchain and contains no live financial or achievement claims.
-63. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
-64. The public chain-46630 faucet, mock USDG and oracles, owner-mintable STATICS token, and two-minute timelock are testnet fixtures rather than production defaults.
+65. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
+66. The public chain-46630 faucet, mock USDG and oracles, owner-mintable STATICS token, and two-minute timelock are testnet fixtures rather than production defaults.
 
 ## Appendix C: Terminology
 

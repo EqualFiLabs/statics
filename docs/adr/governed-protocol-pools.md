@@ -1,14 +1,14 @@
 # ADR: Governed Uniswap v4 protocol pools
 
-- Status: Accepted
+- Status: Accepted and implemented
 - Date: 2026-08-06
 - Scope: Statics pool registration, permanent liquidity, fee routing, LP rewards,
   governance, indexing, and upgrade compatibility
 
 ## Context
 
-Statics currently creates one canonical Uniswap v4 pool for every basket
-constituent during atomic basket creation. Each pool uses the installed
+Before this decision, Statics created one canonical Uniswap v4 pool for every
+basket constituent during atomic basket creation. Each pool uses the installed
 `StaticsSwapFeeHook`, has zero native v4 LP fee, uses tick spacing 10, launches
 with creator-funded full-range permanent liquidity, and is associated with one
 `basketId` and one constituent asset.
@@ -19,7 +19,7 @@ two non-native currencies with zero native LP fee, and the hook independently
 tracks pool fee overrides, fee inventory, permanent liquidity, and
 decommissioned state by `PoolId`.
 
-The remaining protocol surfaces are basket-specific:
+The remaining protocol surfaces were basket-specific:
 
 - pool creation is only reachable as an internal step of basket creation;
 - Diamond pool identity is stored as `basketId + constituent`;
@@ -625,117 +625,6 @@ live verification execute.
     liquidity.
 14. Existing basket canonical creation, fee routing, borrowing, rewards, and
     ExitOnly unwind remain behaviorally unchanged.
-
-## Validation requirements
-
-### Focused unit and fuzz coverage
-
-- owner and timelock authorization;
-- liquidity-pause behavior;
-- token contract, distinctness, ordering, decimal, and native-currency cases;
-- sqrt-price orientation, inversion, boundary, rounding, and full-range math;
-- maximum debit and minimum-liquidity enforcement;
-- duplicate governance, canonical, hook, and PoolManager state rejection;
-- exact-transfer rejection for fee-on-transfer and other incompatible mocks;
-- atomic rollback after failures at registration, initialization, funding, and
-  seeding boundaries;
-- normalized protocol-pool views for both pool classes;
-- governance-pool fee configuration and all unavailable-recipient fallbacks;
-- generic LP stake, next-block activation, increase, settlement, claim, and
-  exit;
-- rejection of generic pools by basket borrow-to-liquidity paths;
-- manager replacement binding and approval checks;
-- governance-pool decommissioning, treasury reservation, and post-exit claims;
-  and
-- regression coverage for basket canonical decommissioning and backing burn.
-
-Fuzz tests cover token ordering, heterogeneous decimals, valid sqrt-price
-ranges, maximum amount ratios, liquidity rounding, and repeated pool-record
-collision attempts.
-
-### Live local v4 integration
-
-A launch-level test uses real local Uniswap v4 PoolManager, PositionManager,
-Permit2, Universal Router, the production Statics hook, and the governance
-timelock flow. It must:
-
-1. schedule and execute the Diamond upgrade and manager replacement;
-2. approve two mock assets with different decimals from a distinct payer;
-3. schedule and execute governance-pool creation;
-4. prove the PoolManager slot, hook registration, full-range locked liquidity,
-   exact payer debits, and cleared allowances;
-5. swap in both directions through the Universal Router;
-6. prove bilateral fee allocation, fallback routing, and matched POL
-   compounding;
-7. mint an external full-range PositionManager NFT, stake it under a
-   PositionNFT, activate it in the next block, swap, settle, and claim both
-   currencies;
-8. increase and unstake the LP position through the generic manager;
-9. decommission the pool through governance;
-10. prove treasury recovery and blocked later swaps; and
-11. prove the user can still claim and recover the PositionManager NFT.
-
-Synthetic balance injection does not substitute for these value-moving flows.
-
-### Regression and invariant coverage
-
-- Existing basket creation still atomically initializes and seeds exactly one
-  canonical pool per constituent.
-- Existing canonical LP reward, borrow-to-liquidity, fee accounting, flash
-  arbitrage, custody-solvency, and decommission suites remain green.
-- Unified invariants include both pool classes and assert registry exclusivity,
-  hook solvency, Diamond reservation solvency, and noninterference between
-  governance-pool treasury recovery and basket backing.
-
-### Robinhood fork rehearsal
-
-Before testnet execution, a pinned Robinhood fork uses the deployed
-PoolManager, PositionManager, Permit2, Universal Router, StaticsDiamond, and
-hook. It rehearses the exact timelock upgrade and one governance-pool launch
-without broadcasting. An environment-gated skipped test is not execution
-evidence; the release gate requires the configured fork and zero skipped fork
-cases.
-
-## Downstream requirements
-
-- Update the Solidity interfaces and selector manifest.
-- Update the tracked SDK PoolKey, pool view, fee configuration, manager, and
-  event bindings.
-- Add deployment and upgrade scripts with preflight binding and code-hash
-  checks.
-- Add Ponder entities and handlers for both pool classes.
-- Add an admin/governance UI that quotes the normalized price and seed amounts,
-  surfaces the payer and permanent-liquidity consequence, and constructs the
-  timelock proposal.
-- Add user pool discovery and LP-position flows without labeling governance
-  registration as collateral or risk approval.
-- Update `Statics-Design.md`, `docs/architecture.md`, and
-  `docs/integration.md` when the behavior is implemented.
-- Record the manager address, upgrade transaction, timelock operation, runtime
-  code hashes, and live readback in the deployment manifest after execution.
-
-## Acceptance criteria
-
-The feature is complete only when:
-
-- one timelock execution can create, initialize, fund, and permanently seed a
-  governance pool between two compatible ERC-20 assets;
-- the resulting pool is immediately swappable through ordinary Uniswap v4
-  routing;
-- no warmup, TWAP, activation, or trusted AMM price dependency exists;
-- swaps grow pool-local permanent liquidity and route eligible LP, global, and
-  treasury allocations without a basket association;
-- full-range user LP NFTs can be staked, activated, rewarded, increased,
-  claimed, and exited through PositionNFT authorization;
-- basket-only reward and lending paths reject governance pools;
-- governance can irreversibly decommission the pool and recover permanent
-  liquidity to treasury without affecting user LP NFTs;
-- existing basket canonical pools and Eves integration remain operational at
-  their existing Diamond address;
-- focused, live local, invariant, regression, and required Robinhood fork gates
-  pass; and
-- source documentation, SDK bindings, Ponder schema, deployment artifacts, and
-  live configuration agree.
 
 ## Consequences
 

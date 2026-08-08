@@ -2,8 +2,8 @@
 
 Statics holds user assets and should not carry production value before
 independent review, testnet operation, and verified contract publication. The
-repository test suite and internal review are not an external audit. No public
-deployment is recorded in this repository.
+repository test suite is not an external audit. The repository records a public
+Robinhood Chain testnet integration beta, but no production deployment.
 
 ## Permissionless constituent risk
 
@@ -103,15 +103,17 @@ owners, the guardian roles, and the treasury after execution.
 
 ## Economic and liveness assumptions
 
-BasketToken ownership and basket collateral do not earn basket-specific fees.
-Global rewards require staking the deployment-configured ERC-20 in a
-PositionNFT. Position owners or approved operators must claim rewards through
-transactions; nothing runs in the background. Global stake is always
-withdrawable, but initial stake, reward-asset selections, and top-ups mature
-through a per-asset hourly ring no earlier than 24 hours after scheduling. Fee
-and position interactions roll due buckets. A newly deposited
-basket-collateral leg cannot withdraw until the next block. Dollar passive Risk
-Share reward eligibility uses its separate 24-hour gate.
+Holding a BasketToken in a wallet does not earn basket-specific fees. Deposited
+BasketTokens, including collateral locked for a basket loan, enter the isolated
+basket reward denominator. Global rewards separately require staking the
+deployment-configured ERC-20 in a PositionNFT. Position owners or approved
+operators must claim rewards through transactions; nothing runs in the
+background. Global stake is always withdrawable, but initial stake,
+reward-asset selections, and top-ups mature through a per-asset hourly ring no
+earlier than 24 hours after scheduling. Fee and position interactions roll due
+buckets. A newly deposited basket-collateral leg cannot withdraw until the next
+block. Dollar passive Risk Share reward eligibility uses its separate 24-hour
+gate.
 
 Canonical pools use zero native LP fee and separate input/output hook fees.
 Their permanent full-range liquidity is owned by the hook, not by a protocol
@@ -120,14 +122,19 @@ Full-range user PositionManager NFTs may be voluntarily held by the Diamond to
 earn a separate LP hook allocation. New and increased liquidity waits one block
 for eligibility but has no withdrawal cooldown; exit settles claims before
 returning the NFT. If an LP or global-staker hook allocation cannot be routed,
-it redirects to permanent liquidity. Governance controls pool initialization and activation; checkpoint,
-manager sync, manual compounding, and post-`ExitOnly` unwind are permissionless.
+it redirects to permanent liquidity. Basket and governed-pool creation each
+initialize and seed their pools atomically, with no separate pool activation or
+warmup. Governance controls governed-pool creation, fee configuration, and
+decommissioning. Permanent-liquidity compounding and eligible post-decommission
+unwind are permissionless; LP reward activation remains a separate next-block
+position action.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every
 basket lifecycle state. Recovery becomes permissionless after maturity plus
-one hour and currently pays no caller bounty, so keepers must have an external
-reason to execute it.
+one hour. The recovery caller receives 20% of configured penalty backing, while
+the remaining 80% enters the protocol fee route; principal is not paid to the
+caller.
 
 `ExitOnly` preserves redemption, repayment, recovery, and treasury claims in
 the installed facets. Timelocked Diamond upgradeability means governance can

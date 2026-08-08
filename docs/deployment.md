@@ -8,14 +8,10 @@ lower-level scripts under `script/dollar/` exist for focused tests and local
 development; they are not the canonical production entrypoint.
 
 This repository records a public Robinhood Chain testnet integration beta in
-`deployments/robinhood-testnet-46630-statics.json`; it is not a production
-deployment. Running any new broadcast remains a state-changing external action
-and requires explicit authorization for the network, broadcaster, and expected
-costs.
-
-The receiver deployment, approvals, executed TPA1 flash-arbitrage route,
-realized profits, post-state evidence, and explorer-indexing note are collected
-in `docs/robinhood-testnet-flash-arbitrage-trial.md`.
+`deployment.md` and `deployments/robinhood-testnet-46630-statics.json`; it is
+not a production deployment. Running any new broadcast remains a state-changing
+external action and requires explicit authorization for the network,
+broadcaster, and expected costs.
 
 ## Required configuration
 
@@ -54,17 +50,19 @@ feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
 this repository. Verify chain-specific contracts and make the economic choices
 before broadcasting.
 
-## Modular Position NFT deployment boundary
+## Position NFT compatibility boundary
 
-New deployments install the payable Position surface, initialize
+Fresh deployments install the payable Position surface, initialize
 `POSITION_CREATION_FEE_AMOUNT`, and register the Modular Position NFT interface
-atomically. This source shape is supported only as a fresh deployment: it
-changes Position selectors and introduces packed structural state that legacy
-Positions do not contain.
+atomically. Introducing that surface into a legacy deployment changes Position
+selectors and requires packed structural state that legacy Positions do not
+contain.
 
-Do not install these facets over an existing Diamond. Supporting an in-place
-upgrade would require a separately specified and tested selector cut plus
-per-Position state migration; this release makes no such migration claim.
+Do not apply the fresh-launch Position facets directly to a legacy Diamond.
+Structural Position changes require a separately specified selector cut,
+storage-compatibility proof, and, where necessary, per-Position migration. This
+boundary does not prohibit ordinary in-place facet upgrades that preserve
+storage and provide their own selector, interface, and deployment validation.
 
 Position fees are forwarded immediately and entirely to the canonical
 treasury. The Diamond does not accrue a native fee balance and there is no
@@ -402,11 +400,11 @@ post-deployment checks below pass.
 
 ## Post-deployment verification
 
-The deployment tests establish the expected architecture:
+The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           21 facets, 190 selectors
+StaticsDiamond:           23 facets, 209 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

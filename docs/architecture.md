@@ -32,7 +32,7 @@ StaticsSwapFeeHook
 
 StaticsLiquidityManager
 ├── immutable Diamond, v4 PositionManager, PoolManager, and Permit2 bindings
-├── canonical-pool registration
+├── registered PoolKey validation and token settlement
 └── typed user-position minting with NFTs delivered directly to users
 
 StaticsPositionRenderer
@@ -45,13 +45,16 @@ the canonical pool key, while only the Diamond can call the liquidity manager;
 neither liquidity contract nor either metadata contract is a second general
 protocol entrypoint.
 
-The canonical deployment installs 21 facets and 190 selectors on
+The fresh-deployment launcher installs 23 facets and 209 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
 `script/dollar/DeployCoreBootstrap.s.sol`; deployment tests enumerate every
-installed selector, verify its routed facet and runtime hash, and assert the
-exact totals.
+installed selector, verify its routed facet and that every facet has runtime
+code, and assert those fresh-launch totals. Runtime hashes are recorded in
+release and rehearsal manifests rather than asserted by the fresh-deployment
+manifest test. Later governed upgrades can change the deployed selector set;
+the current deployment manifest records that live release state.
 
 ## One address without one economic book
 
