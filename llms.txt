@@ -35,7 +35,7 @@ Critical interpretation rules:
 - Statics has no arbitrary execution surface, no privileged arbitrage fee exemption, no cross-product collateralization, and no V1 compatibility branch.
 - No background automation exists. Users, keepers, or permissionless callers must submit activation, claim, compounding, checkpoint, recovery, treasury-distribution, and unwind transactions when applicable.
 - The checked-in Robinhood Chain testnet deployment is integration evidence, not a production release, immutable deployment, external audit, or production tokenomics selection.
-- For current behavior, prefer deployed manifests and current Solidity source, then `Statics-Design.md`, the integration and architecture guides, ADRs, and finally historical implementation plans.
+- For current behavior, prefer deployed manifests and current Solidity source, then `Statics-Design.md`, the integration and architecture guides, and ADRs.
 
 ## Start Here
 
@@ -63,12 +63,11 @@ Critical interpretation rules:
 ## Deployment and Verification
 
 - [Deployment Guide](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/deployment.md): Deployment order, configuration, rehearsals, broadcasts, genesis launch, verification, and post-deployment checks.
+- [Current Robinhood Chain Testnet Record](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployment.md): Human-readable addresses, governance, operations, fixtures, and verification summary for the current chain-46630 deployment.
 - [Robinhood Chain Testnet Deployment](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-testnet-46630-statics.json): Recorded chain-46630 protocol contracts, roles, configuration, artifacts, operations, verification, fixtures, and genesis basket.
 - [Robinhood Chain Testnet Dependencies](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-chain-testnet-46630.json): Pinned v4, Permit2, WETH, fee calibration, code hashes, and fork reference for chain 46630.
 - [Robinhood Chain Dependencies](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-chain-4663.json): Verified target-chain v4, Permit2, WETH, and liquidity dependency manifest; not a Statics production deployment record.
 
 ## Optional
 
-- [Source Provenance](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/source-provenance.md): Canonical repository, historical Dollar import boundary, pinned Uniswap dependencies, and independence requirements.
-- [Flash-Arbitrage Testnet Trial](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/robinhood-testnet-flash-arbitrage-trial.md): Historical Robinhood testnet receiver deployment, transactions, route economics, and observed evidence.
-- [Unified Implementation Plan](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/unified-statics-implementation-plan.md): Historical implementation tracker; use current source and design documents for present behavior.
+- [Source Provenance](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/source-provenance.md): Canonical source boundary, pinned Uniswap dependencies, licenses, and runtime compatibility notes.

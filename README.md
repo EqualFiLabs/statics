@@ -7,9 +7,11 @@ and [worked examples](./docs/examples.md). The repository also publishes an
 [LLM-oriented protocol index](./llms.txt). For protocol invariants, accounting,
 and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the
 [architecture guide](./docs/architecture.md), and the
-[integration guide](./docs/integration.md). Deployment procedures and the
-recorded Robinhood testnet integration beta are documented in
-[`docs/deployment.md`](./docs/deployment.md).
+[integration guide](./docs/integration.md). See the
+[deployment guide](./docs/deployment.md) for procedures, the
+[current deployment record](./deployment.md) for a human-readable summary, and
+the [Robinhood testnet manifest](./deployments/robinhood-testnet-46630-statics.json)
+for the canonical machine-readable integration-beta state.
 
 ---
 
@@ -258,7 +260,10 @@ Use an ephemeral Anvil key only. Local fixtures and addresses are not production
 
 ### Robinhood Chain testnet
 
-Robinhood testnet is chain `46630`. The repository records the current integration-beta manifest at [`deployments/robinhood-testnet-46630-statics.json`](./deployments/robinhood-testnet-46630-statics.json).
+Robinhood testnet is chain `46630`. The repository records the current
+integration beta in [`deployment.md`](./deployment.md), with canonical
+machine-readable state in
+[`deployments/robinhood-testnet-46630-statics.json`](./deployments/robinhood-testnet-46630-statics.json).
 
 The release sequence is intentionally explicit:
 

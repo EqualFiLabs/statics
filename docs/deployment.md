@@ -8,14 +8,10 @@ lower-level scripts under `script/dollar/` exist for focused tests and local
 development; they are not the canonical production entrypoint.
 
 This repository records a public Robinhood Chain testnet integration beta in
-`deployments/robinhood-testnet-46630-statics.json`; it is not a production
-deployment. Running any new broadcast remains a state-changing external action
-and requires explicit authorization for the network, broadcaster, and expected
-costs.
-
-The receiver deployment, approvals, executed TPA1 flash-arbitrage route,
-realized profits, post-state evidence, and explorer-indexing note are collected
-in `docs/robinhood-testnet-flash-arbitrage-trial.md`.
+`deployment.md` and `deployments/robinhood-testnet-46630-statics.json`; it is
+not a production deployment. Running any new broadcast remains a state-changing
+external action and requires explicit authorization for the network,
+broadcaster, and expected costs.
 
 ## Required configuration
 
