@@ -232,7 +232,7 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 
 The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
 
-The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. The installed architecture is:
+The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors

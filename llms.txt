@@ -33,7 +33,7 @@ Critical interpretation rules:
 - There is no constituent-token registry. Basket and module books are isolated, but arbitrary token behavior can still halt or damage baskets that voluntarily use that token.
 - Internal accounting uses measured token balance deltas plus module-local and global reservation books. Shared physical custody does not make separate baskets, Dollar profiles, rewards, or debts mutually collateralized.
 - Statics has no arbitrary execution surface, no privileged arbitrage fee exemption, no cross-product collateralization, and no V1 compatibility branch.
-- No background automation exists. Users, keepers, or permissionless callers must submit activation, claim, compounding, checkpoint, recovery, treasury-distribution, and unwind transactions when applicable.
+- No background automation exists. Users, keepers, or permissionless callers must submit LP reward activation, claim, compounding, checkpoint, recovery, treasury-distribution, and unwind transactions when applicable; pools themselves are live upon atomic creation and seeding.
 - The checked-in Robinhood Chain testnet deployment is integration evidence, not a production release, immutable deployment, external audit, or production tokenomics selection.
 - For current behavior, prefer deployed manifests and current Solidity source, then `Statics-Design.md`, the integration and architecture guides, and ADRs.
 

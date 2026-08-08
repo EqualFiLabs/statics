@@ -50,17 +50,19 @@ feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
 this repository. Verify chain-specific contracts and make the economic choices
 before broadcasting.
 
-## Modular Position NFT deployment boundary
+## Position NFT compatibility boundary
 
-New deployments install the payable Position surface, initialize
+Fresh deployments install the payable Position surface, initialize
 `POSITION_CREATION_FEE_AMOUNT`, and register the Modular Position NFT interface
-atomically. This source shape is supported only as a fresh deployment: it
-changes Position selectors and introduces packed structural state that legacy
-Positions do not contain.
+atomically. Introducing that surface into a legacy deployment changes Position
+selectors and requires packed structural state that legacy Positions do not
+contain.
 
-Do not install these facets over an existing Diamond. Supporting an in-place
-upgrade would require a separately specified and tested selector cut plus
-per-Position state migration; this release makes no such migration claim.
+Do not apply the fresh-launch Position facets directly to a legacy Diamond.
+Structural Position changes require a separately specified selector cut,
+storage-compatibility proof, and, where necessary, per-Position migration. This
+boundary does not prohibit ordinary in-place facet upgrades that preserve
+storage and provide their own selector, interface, and deployment validation.
 
 Position fees are forwarded immediately and entirely to the canonical
 treasury. The Diamond does not accrue a native fee balance and there is no
@@ -398,7 +400,7 @@ post-deployment checks below pass.
 
 ## Post-deployment verification
 
-The deployment tests establish the expected architecture:
+The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
