@@ -5,14 +5,19 @@
     "chainId": 46630,
     "explorer": "https://explorer.testnet.chain.robinhood.com",
     "deploymentTimestamp": "2026-08-05T18:18:32Z",
+    "lastUpgradeTimestamp": "2026-08-07T11:26:15Z",
     "releaseStartBlock": 97382446,
-    "protocolDeploymentStartBlock": 97383161
+    "protocolDeploymentStartBlock": 97383161,
+    "lastUpgradeBlock": 97967966
   },
   "source": {
     "repository": "https://github.com/EqualFiLabs/statics",
     "branch": "feat/position-portfolio",
     "protocolDeploymentCommit": "724df0fe80be8e376a5cb61811d02e1ef7413707",
-    "deploymentToolingCommit": "9baa3a87bf120fdd02340359a2594590394181a8"
+    "deploymentToolingCommit": "9baa3a87bf120fdd02340359a2594590394181a8",
+    "currentBranch": "master",
+    "currentProtocolCommit": "aeed216abe9d8d08d589b5a66aba637f9a04822b",
+    "staticsSdkCommit": "135b68b8c404a1f567ae834c2e46e517e5788e28"
   },
   "deployer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
   "roles": {
@@ -85,10 +90,34 @@
       "deploymentBlock": 97383167
     },
     "liquidityManager": {
-      "address": "0xbE5A795ae0754D8D36F6EdFD546e55f5E60d6455",
-      "runtimeCodeHash": "0x1e107bdcef45fe1bcf06f2d5ca5cdaf462182928f73a50107b2ad984f5a737b7",
-      "deploymentTransaction": "0xcfd1135a929c5ed6898d3acc1b3f3c4f3a5c96ec433acaf100d976ad52b749d4",
-      "deploymentBlock": 97383167
+      "address": "0x9E8B33ff86e36fe64ba2f1504fF53bE586F4183A",
+      "runtimeCodeHash": "0xc24a2bdc27399ebf3c2522253151f410b5e99f2b05630dbb58e17c95a7ad34eb",
+      "deploymentTransaction": "0xc730e879df2dc23335e2e3151984485af5a54ff182ae595c68712855f1deb3e0",
+      "deploymentBlock": 97966705
+    },
+    "basketLiquidityFacet": {
+      "address": "0x8d9F1307c4659Bd49372c50F26455cc9B561d935",
+      "runtimeCodeHash": "0x06621a16fbfbcec85c35c21ba23da20796381fff809e7e7a11b672cea4dcda91",
+      "deploymentTransaction": "0xd9c3db418dd90ea4a88eb0a594bbaa96b6a4f5bb39920910fde5808a4481f1d9",
+      "deploymentBlock": 97966704
+    },
+    "borrowLiquidityFacet": {
+      "address": "0xa2a4C8214af55Fd3f0eB9ecf393E6D18a33789Ab",
+      "runtimeCodeHash": "0x11ae7e9069287ab77eb04475af306234d3c9a3190ddd0b61bca3a2f54a7d6536",
+      "deploymentTransaction": "0xabce80a1c15a37da2ca188cb5ca71a66e7554dea9b087b5d0379404f2cfb018f",
+      "deploymentBlock": 97966705
+    },
+    "liquidityRewardsFacet": {
+      "address": "0x9F7eB83b08a40a9Fb8474E2C81C37922F0810779",
+      "runtimeCodeHash": "0x36a921f08c9be246d7ec239c7183be373cb36809fe239ccf279cf2769649e052",
+      "deploymentTransaction": "0x56ec68ea493165c64447ad92969ea19f84a01a63657a4aa9d28ed2ddfb265663",
+      "deploymentBlock": 97966705
+    },
+    "protocolPoolFacet": {
+      "address": "0x117FBbb83daF7c20fCd4f05a7D17DCfA1b354b0C",
+      "runtimeCodeHash": "0x755f5b559849f0cfcfb4e69ff8f7f5caa0cad05eb32f4e03a188e4a909cebaee",
+      "deploymentTransaction": "0x6c533c7c8c043d4fb8bd542874e26a9dfe7532409038504b06524f1588fa3ab7",
+      "deploymentBlock": 97966705
     }
   },
   "testnetFixtures": {
@@ -148,6 +177,7 @@
     "recoveryGracePeriodSeconds": 3600,
     "modularPositionNftInterfaceId": "0x212b8e93",
     "positionPortfolioInterfaceId": "0xcc04fb90",
+    "protocolPoolsInterfaceId": "0xa076af5a",
     "positionPortfolioMaximumPageSize": 100,
     "usdgProfile": {
       "profileId": 2,
@@ -180,6 +210,36 @@
       "scheduleTransaction": "0x82aef868400f2746389a7b5a05f0fba40628cfa074966d996b04f382282f7752",
       "executeTransaction": "0x6dea9be534f3562079a0ae1d0abf64d0a3586e5cb46e6d45c05697cd48696589",
       "executionBlock": 97392218
+    },
+    "governedProtocolPoolsUpgrade": {
+      "sourceCommit": "aeed216abe9d8d08d589b5a66aba637f9a04822b",
+      "staticsSdkCommit": "135b68b8c404a1f567ae834c2e46e517e5788e28",
+      "operationId": "0xfc6796b6a905c0d756dcd1600d26f03f43fbcb1e6fa0ecfa83e5f8947dadc3fb",
+      "salt": "0x861048550c38d784f071b44ba808a2a2665b1749708c3282dfbd1e3d3a22fe42",
+      "scheduleTransaction": "0xfe15fa5aa9be31fd0351e38ed29e131baf12480ecd3a39637c774e0487548b54",
+      "scheduleBlock": 97967059,
+      "executeTransaction": "0xddaba73eb230742db2be8ab8712c0975e5eb24d15b2ab574bf46ff5af2063220",
+      "executionBlock": 97967966,
+      "previousLiquidityManager": "0xbE5A795ae0754D8D36F6EdFD546e55f5E60d6455",
+      "newLiquidityManager": "0x9E8B33ff86e36fe64ba2f1504fF53bE586F4183A",
+      "liveProofPoolCreated": false,
+      "statePreservation": {
+        "canonicalPoolFeeConfigurationHash": "0x45ee6362e4a3e2f8921fb37bc791b817a97a98287af843cba0021f0d6bd259a7",
+        "assets": {
+          "TSLA": {
+            "canonicalPoolStateHash": "0x7070c5bebf6c79169c4ae013d0b7b5062594f69559748fe7bf14b5ed82924584",
+            "lockedLiquidity": "59476986874706005307"
+          },
+          "PLTR": {
+            "canonicalPoolStateHash": "0xf49fceb7cc0c141a5b417283b8051d0053b38a78ab8163fe7d81bf863703ab7e",
+            "lockedLiquidity": "38177718944347366654"
+          },
+          "AMD": {
+            "canonicalPoolStateHash": "0xa6c11b40b2fceb060e0803d152ea53cd3676c9f9fc51ea04f6ab718456812f37",
+            "lockedLiquidity": "70778940270537527356"
+          }
+        }
+      }
     }
   },
   "genesisBasket": {
@@ -223,6 +283,9 @@
     "allFreshContractsSourceVerified": true,
     "liveOwnershipAndConfigurationReadback": true,
     "livePositionInterfaceReadback": true,
+    "liveProtocolPoolsInterfaceReadback": true,
+    "canonicalPoolStatePreservedAcrossUpgrade": true,
+    "liquidityManagerApprovalHandoffVerified": true,
     "allRecordedTransactionsSucceeded": true
   }
 }

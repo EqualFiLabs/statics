@@ -13,10 +13,14 @@ testnet deployments.
 | Release start block | `97382446` |
 | Protocol deployment start block | `97383161` |
 | Genesis basket execution block | `97392218` |
+| Governed protocol pools upgrade block | `97967966` |
 | Deployer | `0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316` |
-| Source branch | `feat/position-portfolio` |
-| Runtime source commit | `724df0fe80be8e376a5cb61811d02e1ef7413707` |
+| Initial source branch | `feat/position-portfolio` |
+| Initial runtime source commit | `724df0fe80be8e376a5cb61811d02e1ef7413707` |
 | Deployment tooling commit | `9baa3a87bf120fdd02340359a2594590394181a8` |
+| Current source branch | `master` |
+| Current protocol commit | `aeed216abe9d8d08d589b5a66aba637f9a04822b` |
+| Statics SDK commit | `135b68b8c404a1f567ae834c2e46e517e5788e28` |
 
 ## Protocol contracts
 
@@ -29,7 +33,7 @@ testnet deployments.
 | Statics token (`STATICS`) | `0xF46cC8F00C24bb622ECe0f771Cc4B53b40722d81` |
 | Statics Dollar oracle | `0x69a88C213eda8db22373Fd9C113bB988231652e2` |
 | Swap-fee hook | `0x9718C37742F6650BdD7147e0e4854f5bb0Bd90Cc` |
-| Liquidity manager | `0xbE5A795ae0754D8D36F6EdFD546e55f5E60d6455` |
+| Liquidity manager | `0x9E8B33ff86e36fe64ba2f1504fF53bE586F4183A` |
 | Position renderer | `0x6da774A3B27B267D1926fEf7FFeB71cC80a6700C` |
 | Avatar SVG | `0x4D5513E2e4B0A0f547E850420437D841CFF6Ca8C` |
 | Statics faucet | `0xDc74E592efbe3CE5A86785E89E50b53Fe0F8F04E` |
@@ -62,6 +66,31 @@ The StaticsDiamond advertises both interfaces through ERC-165.
 
 Portfolio pages are limited to 100 entries. A client should read all pages at
 one block because ordering may change when attached protocol state changes.
+
+## Governed protocol pools upgrade
+
+The existing StaticsDiamond was upgraded in place through its governance
+timelock. The Diamond, Dollar contracts, hook, PoolManager, and existing pool
+IDs did not change. Integrators continue to use the same StaticsDiamond address.
+
+| Field | Value |
+| --- | --- |
+| ERC-165 interface ID | `0xa076af5a` |
+| BasketLiquidityFacet | `0x8d9F1307c4659Bd49372c50F26455cc9B561d935` |
+| BorrowLiquidityFacet | `0xa2a4C8214af55Fd3f0eB9ecf393E6D18a33789Ab` |
+| LiquidityRewardsFacet | `0x9F7eB83b08a40a9Fb8474E2C81C37922F0810779` |
+| ProtocolPoolFacet | `0x117FBbb83daF7c20fCd4f05a7D17DCfA1b354b0C` |
+| Previous liquidity manager | `0xbE5A795ae0754D8D36F6EdFD546e55f5E60d6455` |
+| Current liquidity manager | `0x9E8B33ff86e36fe64ba2f1504fF53bE586F4183A` |
+| Timelock operation | `0xfc6796b6a905c0d756dcd1600d26f03f43fbcb1e6fa0ecfa83e5f8947dadc3fb` |
+| Schedule transaction | `0xfe15fa5aa9be31fd0351e38ed29e131baf12480ecd3a39637c774e0487548b54` |
+| Execute transaction | `0xddaba73eb230742db2be8ab8712c0975e5eb24d15b2ab574bf46ff5af2063220` |
+
+Live post-upgrade readback confirmed the new selector routes and ERC-165
+interface, revoked the old manager's PositionManager approval, and approved the
+new manager. The TSLA, PLTR, and AMD canonical pool definitions, fee settings,
+and locked-liquidity values exactly matched their pre-upgrade snapshots. No
+governance proof pool was created during deployment.
 
 ## USDG profile and testnet fixtures
 
