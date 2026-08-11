@@ -61,4 +61,12 @@ contract RobinhoodDeploymentConfigTest is Test {
             0x55f8ac53c64450f01880d8249fc5cb0c69c064e4bcb097ea80a02fff40485a7c
         );
     }
+
+    function testRobinhoodManifestsRequireDonationGuardedHook() public view {
+        string memory mainnetManifest = vm.readFile("deployments/robinhood-chain-4663.json");
+        string memory testnetManifest = vm.readFile("deployments/robinhood-chain-testnet-46630.json");
+
+        assertEq(vm.parseJsonString(mainnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
+        assertEq(vm.parseJsonString(testnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
+    }
 }

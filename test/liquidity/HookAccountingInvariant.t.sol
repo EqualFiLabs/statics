@@ -16,7 +16,6 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
-import {PoolDonateTest} from "@uniswap/v4-core/src/test/PoolDonateTest.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
@@ -84,7 +83,6 @@ contract HookInvariantFeeReceiver {
 
 contract HookAccountingHandler is Test {
     PoolSwapTest private immutable router;
-    PoolDonateTest private immutable donor;
     StaticsSwapFeeHook private immutable hook;
     HookInvariantFeeReceiver private immutable receiver;
     PoolId private immutable poolId;
@@ -99,13 +97,11 @@ contract HookAccountingHandler is Test {
 
     constructor(
         PoolSwapTest router_,
-        PoolDonateTest donor_,
         StaticsSwapFeeHook hook_,
         HookInvariantFeeReceiver receiver_,
         PoolKey memory key_
     ) {
         router = router_;
-        donor = donor_;
         hook = hook_;
         receiver = receiver_;
         key = key_;
@@ -114,8 +110,6 @@ contract HookAccountingHandler is Test {
         token1 = Currency.unwrap(key_.currency1);
         IERC20(token0).approve(address(router_), type(uint256).max);
         IERC20(token1).approve(address(router_), type(uint256).max);
-        IERC20(token0).approve(address(donor_), type(uint256).max);
-        IERC20(token1).approve(address(donor_), type(uint256).max);
     }
 
     function swapExactInput(uint256 rawAmount, bool zeroForOne) external {
@@ -126,13 +120,6 @@ contract HookAccountingHandler is Test {
     function swapExactOutput(uint256 rawAmount, bool zeroForOne) external {
         uint256 amount = bound(rawAmount, 1_000, 0.0001 ether);
         _swap(int256(amount), zeroForOne);
-    }
-
-    function donate(uint256 rawAmount0, uint256 rawAmount1) external {
-        uint256 amount0 = bound(rawAmount0, 1, 0.001 ether);
-        uint256 amount1 = bound(rawAmount1, 1, 0.001 ether);
-        PoolKey memory poolKey = key;
-        try donor.donate(poolKey, amount0, amount1, "") {} catch {}
     }
 
     function setPoolConfiguration(
@@ -206,7 +193,8 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
     uint16 private constant INPUT_FEE_BPS = 25;
     uint16 private constant OUTPUT_FEE_BPS = 25;
     uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
 
     HookInvariantFeeReceiver private receiver;
     StaticsSwapFeeHook private hook;
@@ -225,7 +213,7 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         manager.initialize(poolKey, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(poolKey, LIQUIDITY_PARAMS, "");
 
-        handler = new HookAccountingHandler(swapRouter, donateRouter, hook, receiver, poolKey);
+        handler = new HookAccountingHandler(swapRouter, hook, receiver, poolKey);
         MockERC20(Currency.unwrap(currency0)).mint(address(handler), 1_000_000 ether);
         MockERC20(Currency.unwrap(currency1)).mint(address(handler), 1_000_000 ether);
         targetContract(address(handler));

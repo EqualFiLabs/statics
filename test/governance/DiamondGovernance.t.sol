@@ -38,7 +38,8 @@ contract VersionFacet {
 
 contract DiamondGovernanceTest is Test {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
     uint256 internal constant PAUSE_MINT = 1 << 0;
     uint256 internal constant PAUSE_BORROW = 1 << 1;
     uint256 internal constant PAUSE_EXTEND = 1 << 2;

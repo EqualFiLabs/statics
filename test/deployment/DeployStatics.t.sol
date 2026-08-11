@@ -177,7 +177,7 @@ contract DeployStaticsTest is Test {
         assertEq(
             uint160(hook) & Hooks.ALL_HOOK_MASK,
             Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
-                | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+                | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_DONATE_FLAG
         );
         assertEq(StaticsLiquidityManager(manager).staticsDiamond(), diamond);
         assertEq(StaticsLiquidityManager(manager).poolManager(), deployment.poolManager);

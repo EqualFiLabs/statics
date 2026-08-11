@@ -93,6 +93,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error PermanentLiquidityAlreadySeeded(PoolId poolId);
     error DuplicatePermanentLiquiditySeed(PoolId poolId);
     error UnexpectedCurrencyDelta(Currency currency, int256 delta);
+    error CanonicalPoolDonationForbidden();
 
     constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
         staticsDiamond = diamond;
@@ -105,12 +106,22 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         permissions.beforeSwapReturnDelta = true;
         permissions.afterSwap = true;
         permissions.afterSwapReturnDelta = true;
+        permissions.beforeDonate = true;
     }
 
     /// @dev Registration must precede initialization so a third party cannot squat a predictable canonical PoolKey.
     function _afterInitialize(address, PoolKey calldata key, uint160, int24) internal view override returns (bytes4) {
         _enforceRegistered(key.toId());
         return IHooks.afterInitialize.selector;
+    }
+
+    function _beforeDonate(address, PoolKey calldata, uint256, uint256, bytes calldata)
+        internal
+        pure
+        override
+        returns (bytes4)
+    {
+        revert CanonicalPoolDonationForbidden();
     }
 
     function feeConfiguration() external view returns (FeeConfiguration memory config) {
@@ -437,7 +448,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             basketStakerAmount = 0;
         }
         if (!IStaticsGlobalRewards(staticsDiamond).canAccrueStakerRewards(Currency.unwrap(currency))) {
-            polAmount += staticsStakerAmount;
+            treasuryAmount += staticsStakerAmount;
             staticsStakerAmount = 0;
         }
         polPending[poolId][currency] += polAmount;

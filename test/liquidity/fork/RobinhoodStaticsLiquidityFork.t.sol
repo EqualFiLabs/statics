@@ -40,7 +40,8 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
     string private constant MANIFEST_PATH = "deployments/robinhood-chain-4663.json";
     uint160 private constant SQRT_PRICE_1_1 = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
     bytes1 private constant PERMIT2_PERMIT_COMMAND = 0x0a;
     bytes1 private constant V4_SWAP_COMMAND = 0x10;
     uint256 private constant FIRST_SWAPPER_KEY = 0xA11CE;
