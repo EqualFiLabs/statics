@@ -155,10 +155,11 @@ Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, while the pool's native LP fee remains zero.
 The default fee is 50 basis points on input and 50 basis points on output, split
 10% to POL, 25% to activated protocol-pool LPs, 25% to deposited BasketToken
-positions, 15% to global Statics stakers, and 25% to treasury. An unavailable
-LP, basket-staker, or Statics-staker allocation is independently redirected to
-POL. A registered pool may override the complete seven-field configuration;
-clearing that override restores the latest global rates and split.
+positions, 15% to global Statics stakers, and 25% to treasury. Unavailable LP
+and basket-staker allocations independently redirect to POL. An unavailable
+global Statics-staker allocation redirects to treasury. A registered pool may
+override the complete seven-field configuration; clearing that override
+restores the latest global rates and split.
 
 This global configuration is the default. Basket-specific entrypoints resolve
 a canonical pool by `basketId` and constituent, while protocol-pool entrypoints
@@ -169,10 +170,15 @@ total at most 200 BPS, the split must total 10,000 BPS, and POL or canonical
 LPs may explicitly be set to zero. Clearing the override restores the latest
 global rates and split.
 Overrides never release or reclassify pending POL, never remove permanent
-liquidity, and do not alter decommissioning. Unavailable canonical-LP,
-basket-staker, and Statics-staker shares still redirect to POL. Governance
-pools have no basket reward book, so their basket-staker allocation always
-redirects to POL before fee delivery.
+liquidity, and do not alter decommissioning. Unavailable canonical-LP and
+basket-staker shares still redirect to POL; unavailable global Statics-staker
+shares redirect to treasury. Governance pools have no basket reward book, so
+their basket-staker allocation always redirects to POL before fee delivery.
+
+Protocol pools reject native Uniswap v4 donations in `beforeDonate`. This
+prevents third parties from injecting an opposite-side asset into pending POL
+and forcing hook-owned inventory to compound at a manipulated spot price.
+Protocol seeding and swap-fee routing remain the only POL inventory sources.
 
 The normalized registry recognizes existing basket canonical pools without a
 storage migration and stores governance-created pools in a separate namespace.
