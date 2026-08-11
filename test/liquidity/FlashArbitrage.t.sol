@@ -258,7 +258,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
             custody.reservedByAccount(custody.feeCustodyAccount(), basketToken) - basketFeeReserveBefore,
             basketTreasuryDelta
         );
-        assertGt(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(basketToken)), 0);
+        assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(basketToken)), 0);
         assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(address(assetA))), 0);
     }
 
