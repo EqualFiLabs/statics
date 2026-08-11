@@ -574,7 +574,8 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
 
 contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
     uint256 internal constant FIRST_WETH_BUNDLE = 0.001 ether;
     uint256 internal constant SECOND_WETH_BUNDLE = 0.002 ether;
     uint256 internal constant MAX_LTV_BPS = 9_500;

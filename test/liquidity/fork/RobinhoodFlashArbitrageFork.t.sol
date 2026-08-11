@@ -26,7 +26,8 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
     string private constant MANIFEST_PATH = "deployments/robinhood-chain-4663.json";
     uint160 private constant SQRT_PRICE_1_1 = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
 
     IPoolManager private poolManager;
     StaticsSwapFeeHook private hook;

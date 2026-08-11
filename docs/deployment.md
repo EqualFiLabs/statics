@@ -165,13 +165,19 @@ The launcher performs one creation broadcast in this order:
    gateway. The Core owner may later add or revoke managed recovery holders.
 7. Validate the manifest's PoolManager, PositionManager, and Permit2 code hashes
    and PositionManager immutable bindings.
-8. Mine and deploy the bilateral-fee hook at the required `0x10cc`
+8. Mine and deploy the bilateral-fee hook at the required `0x10ec`
    permission bitmap through Foundry's deterministic CREATE2 deployer at
    `0x4e59b44847b379578588920cA78FbF26c0B4956C`, then deploy the manager with
    immutable Diamond, PositionManager, PoolManager, and Permit2 bindings.
    `afterInitialize` is registration-only: it prevents third parties from
    pre-initializing a predictable canonical PoolKey, and does not maintain an
-   oracle or create a post-launch activation step.
+   oracle or create a post-launch activation step. `beforeDonate` rejects all
+   native PoolManager donations to registered Statics pools.
+
+The `beforeDonate` permission changes the hook address and every PoolKey. The
+existing public testnet remains a historical deployment with its original
+hook; do not treat these calibration changes as an in-place upgrade. Rehearse a
+second fresh testnet deployment with the `0x10ec` hook before mainnet.
 
 Both Diamonds are owned by the same timelock from genesis. No later ownership
 handoff or separate PositionNFT/router deployment is required. Because the
@@ -436,7 +442,7 @@ Against the deployed addresses, verify:
    returns decodable Base64 JSON containing a self-contained Base64 SVG;
 9. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
    hook and manager immutable getters match the Diamond and Robinhood manifest,
-   hook address bits equal `0x10cc`, and its input/output fee and revenue split
+   hook address bits equal `0x10ec`, and its input/output fee and revenue split
    equal the reviewed manifest;
 10. every created basket has exactly one initialized canonical pool per
    constituent, and every pool reports a zero native LP fee, tick spacing 10,

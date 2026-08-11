@@ -349,7 +349,7 @@ allocates it as follows:
   basket share redirects to permanent liquidity before fee delivery.
 - The global Statics-staker share enters the currency's global reward book only
   when that currency has eligible selected stake; otherwise it redirects to
-  permanent liquidity.
+  treasury.
 - The treasury share enters the shared fee reservation and currency-specific
   treasury accounting.
 
@@ -365,7 +365,8 @@ been redirected to permanent liquidity.
 
 Matched pool-local permanent-liquidity inventory compounds during ordinary
 swap execution through the existing hook. No keeper or scheduled maintenance
-call is introduced.
+call is introduced. Native PoolManager donations to protocol pools revert in
+`beforeDonate`; this pool type does not accept public donation-router flows.
 
 ## User LP positions and PositionNFTs
 

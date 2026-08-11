@@ -13,7 +13,8 @@ import {DeployStaticsDollar, StaticsDollarLocalConfig, StaticsDollarStackDeploym
 /// @notice Complete local-only Statics deployment for browser and integration rehearsals.
 contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
     address private constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     error HookAddressMismatch(address expected, address actual);

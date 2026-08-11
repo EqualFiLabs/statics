@@ -92,7 +92,8 @@ contract StaticsTestDeployer {
 abstract contract StaticsTestBase is Test {
     uint160 internal constant DEFAULT_LAUNCH_SQRT_PRICE = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
 
     address internal guardian = makeAddr("guardian");
     address internal treasury = makeAddr("treasury");

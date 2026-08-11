@@ -202,7 +202,8 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     uint24 private constant LP_FEE = 0;
     int24 private constant TICK_SPACING = 10;
     uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
 
     HookFeeReceiver private receiver;
     StaticsSwapFeeHook private hook;
@@ -228,6 +229,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertTrue(permissions.beforeSwapReturnDelta);
         assertTrue(permissions.afterSwap);
         assertTrue(permissions.afterSwapReturnDelta);
+        assertTrue(permissions.beforeDonate);
         assertEq(hook.staticsDiamond(), address(receiver));
         IStaticsSwapFeeHook.FeeConfiguration memory config = hook.feeConfiguration();
         assertEq(config.inputFeeBps, INPUT_FEE_BPS);
@@ -251,41 +253,115 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertGt(hook.lockedLiquidity(poolId), 0);
     }
 
-    function testNoStakersRedirectsStakerShareIntoPermanentLiquidity() public {
+    function testNoStakersRedirectsStakerShareToTreasury() public {
+        receiver.setPoolFeeConfiguration(
+            poolId,
+            IStaticsSwapFeeHook.FeeConfiguration({
+                inputFeeBps: INPUT_FEE_BPS,
+                outputFeeBps: OUTPUT_FEE_BPS,
+                polShareBps: 0,
+                liquidityProviderShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
+                treasuryShareBps: 2_000
+            })
+        );
         receiver.setStakersEligible(false);
-        _swapExactInput(true, 0.001 ether);
+        uint256 amountIn = 0.001 ether;
+        BalanceDelta delta = _swapExactInput(true, amountIn);
+        uint256 netOutput = uint256(uint128(delta.amount1()));
+        uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 outputFee = _feeFromNet(netOutput, OUTPUT_FEE_BPS);
         assertEq(receiver.stakerFees(Currency.unwrap(key.currency0)), 0);
         assertEq(receiver.stakerFees(Currency.unwrap(key.currency1)), 0);
-        assertGt(receiver.treasuryFees(Currency.unwrap(key.currency0)), 0);
-        assertGt(receiver.treasuryFees(Currency.unwrap(key.currency1)), 0);
-        assertGt(hook.lockedLiquidity(poolId), 0);
+        assertEq(receiver.treasuryFees(Currency.unwrap(key.currency0)), inputFee);
+        assertEq(receiver.treasuryFees(Currency.unwrap(key.currency1)), outputFee);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), 0);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), 0);
+        assertEq(hook.lockedLiquidity(poolId), 0);
     }
 
     function testEachSwapLegChecksItsAssetEligibleStake() public {
+        receiver.setPoolFeeConfiguration(
+            poolId,
+            IStaticsSwapFeeHook.FeeConfiguration({
+                inputFeeBps: INPUT_FEE_BPS,
+                outputFeeBps: OUTPUT_FEE_BPS,
+                polShareBps: 0,
+                liquidityProviderShareBps: 0,
+                basketStakerShareBps: 0,
+                staticsStakerShareBps: 8_000,
+                treasuryShareBps: 2_000
+            })
+        );
         address specified = Currency.unwrap(key.currency0);
         address unspecified = Currency.unwrap(key.currency1);
         receiver.setRewardAssetEligible(unspecified, false);
-        _swapExactInput(true, 0.001 ether);
+        uint256 amountIn = 0.001 ether;
+        BalanceDelta delta = _swapExactInput(true, amountIn);
+        uint256 netOutput = uint256(uint128(delta.amount1()));
+        uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 outputFee = _feeFromNet(netOutput, OUTPUT_FEE_BPS);
+        uint256 inputStaker = Math.mulDiv(inputFee, 8_000, 10_000);
 
-        assertGt(receiver.stakerFees(specified), 0);
+        assertEq(receiver.stakerFees(specified), inputStaker);
         assertEq(receiver.stakerFees(unspecified), 0);
-        assertGt(receiver.treasuryFees(specified), 0);
-        assertGt(receiver.treasuryFees(unspecified), 0);
+        assertEq(receiver.treasuryFees(specified), inputFee - inputStaker);
+        assertEq(receiver.treasuryFees(unspecified), outputFee);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), 0);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), 0);
+        assertEq(hook.lockedLiquidity(poolId), 0);
     }
 
-    function testDonatedPositionFeesRemainPolAndDoNotBlockSwaps() public {
+    function testUnavailableLpAndBasketSharesStillRedirectToPol() public {
+        receiver.setPoolFeeConfiguration(
+            poolId,
+            IStaticsSwapFeeHook.FeeConfiguration({
+                inputFeeBps: INPUT_FEE_BPS,
+                outputFeeBps: OUTPUT_FEE_BPS,
+                polShareBps: 0,
+                liquidityProviderShareBps: 5_000,
+                basketStakerShareBps: 5_000,
+                staticsStakerShareBps: 0,
+                treasuryShareBps: 0
+            })
+        );
         _swapExactInput(true, 0.001 ether);
+        assertGt(hook.lockedLiquidity(poolId), 0);
+        assertEq(receiver.stakerFees(Currency.unwrap(key.currency0)), 0);
+        assertEq(receiver.stakerFees(Currency.unwrap(key.currency1)), 0);
+        assertEq(receiver.treasuryFees(Currency.unwrap(key.currency0)), 0);
+        assertEq(receiver.treasuryFees(Currency.unwrap(key.currency1)), 0);
+    }
+
+    function testNativePoolDonationsAreForbiddenAndAtomic() public {
+        uint256 balance0Before = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
+        uint256 balance1Before = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
         uint128 lockedBefore = hook.lockedLiquidity(poolId);
+        uint256 pending0Before = hook.pendingPermanentLiquidity(poolId, key.currency0);
+        uint256 pending1Before = hook.pendingPermanentLiquidity(poolId, key.currency1);
+
+        vm.expectRevert(
+            _wrappedHookRevert(
+                IHooks.beforeDonate.selector,
+                abi.encodeWithSelector(StaticsSwapFeeHook.CanonicalPoolDonationForbidden.selector)
+            )
+        );
+        donateRouter.donate(key, 1 ether, 0, "");
+
+        vm.expectRevert(
+            _wrappedHookRevert(
+                IHooks.beforeDonate.selector,
+                abi.encodeWithSelector(StaticsSwapFeeHook.CanonicalPoolDonationForbidden.selector)
+            )
+        );
         donateRouter.donate(key, 1 ether, 1 ether, "");
 
-        _swapExactInput(false, 1_000);
-
-        assertGe(hook.lockedLiquidity(poolId), lockedBefore);
-        assertGt(
-            hook.pendingPermanentLiquidity(poolId, key.currency0)
-                + hook.pendingPermanentLiquidity(poolId, key.currency1),
-            0
-        );
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this)), balance0Before);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this)), balance1Before);
+        assertEq(hook.lockedLiquidity(poolId), lockedBefore);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), pending0Before);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), pending1Before);
     }
 
     function testSenderExtraDebitFromHookRevertsSwapBeforeCrossPoolInventoryCanBeSpent() public {
@@ -568,30 +644,6 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(hook.pendingPermanentLiquidity(poolId, key.currency1), pending1Before);
     }
 
-    function testUnavailableStakerShareFromOverrideStillFallsThroughToPol() public {
-        receiver.setPoolFeeConfiguration(
-            poolId,
-            IStaticsSwapFeeHook.FeeConfiguration({
-                inputFeeBps: 25,
-                outputFeeBps: 25,
-                polShareBps: 0,
-                liquidityProviderShareBps: 0,
-                basketStakerShareBps: 0,
-                staticsStakerShareBps: 8_000,
-                treasuryShareBps: 2_000
-            })
-        );
-        receiver.setStakersEligible(false);
-        _swapExactInput(true, 0.001 ether);
-        assertEq(receiver.stakerFees(Currency.unwrap(key.currency0)), 0);
-        assertEq(receiver.stakerFees(Currency.unwrap(key.currency1)), 0);
-        assertGt(
-            hook.lockedLiquidity(poolId) + hook.pendingPermanentLiquidity(poolId, key.currency0)
-                + hook.pendingPermanentLiquidity(poolId, key.currency1),
-            0
-        );
-    }
-
     function testPoolOverrideControlsOnlyItsPoolRatesAndAllocation() public {
         HookCompatibilityERC20 secondToken = new HookCompatibilityERC20("Second Pool", "SECOND");
         PoolKey memory secondKey = _createCompatibilityPool(secondToken);
@@ -654,36 +706,6 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(secondConfiguration.liquidityProviderShareBps, 1_000);
         assertEq(secondConfiguration.staticsStakerShareBps, 2_000);
         assertEq(secondConfiguration.treasuryShareBps, 1_000);
-    }
-
-    function testExistingPendingPolCompoundsAfterZeroPolOverride() public {
-        // Recreate the prior effective POL route so both currencies retain pending inventory.
-        receiver.setFeeConfiguration(25, 25, 7_000, 0, 2_000, 1_000);
-        _swapExactInput(true, 0.001 ether);
-        uint128 lockedBeforeDonation = hook.lockedLiquidity(poolId);
-        donateRouter.donate(key, 0.001 ether, 0.001 ether, "");
-        _swapExactInput(false, 1_000);
-        uint256 pending0 = hook.pendingPermanentLiquidity(poolId, key.currency0);
-        uint256 pending1 = hook.pendingPermanentLiquidity(poolId, key.currency1);
-        assertGt(pending0, 0);
-        assertGt(pending1, 0);
-
-        receiver.setPoolFeeConfiguration(
-            poolId,
-            IStaticsSwapFeeHook.FeeConfiguration({
-                inputFeeBps: 25,
-                outputFeeBps: 25,
-                polShareBps: 0,
-                liquidityProviderShareBps: 0,
-                basketStakerShareBps: 0,
-                staticsStakerShareBps: 8_000,
-                treasuryShareBps: 2_000
-            })
-        );
-        _swapExactInput(true, 1_000);
-        assertGt(hook.lockedLiquidity(poolId), lockedBeforeDonation);
-        assertLt(hook.pendingPermanentLiquidity(poolId, key.currency0), pending0);
-        assertLt(hook.pendingPermanentLiquidity(poolId, key.currency1), pending1);
     }
 
     function testLiquidityProviderShareHasNoIndependentCap() public {
@@ -948,6 +970,16 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         deployed = new StaticsSwapFeeHook{salt: salt}(manager, diamond, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         assertEq(address(deployed), expected);
+    }
+
+    function _wrappedHookRevert(bytes4 selector, bytes memory reason) private view returns (bytes memory) {
+        return abi.encodeWithSelector(
+            CustomRevert.WrappedError.selector,
+            address(hook),
+            selector,
+            reason,
+            abi.encodeWithSelector(Hooks.HookCallFailed.selector)
+        );
     }
 
     function _feeFromNet(uint256 netAmount, uint256 feeBps) private pure returns (uint256) {

@@ -33,7 +33,8 @@ struct StaticsLiquidityConfig {
 /// @notice Timelock ceremony for installing immutable Statics v4 dependencies.
 contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
     error InvalidDiamond(address diamond);
     error InvalidTimelock(address timelock);
     error InvalidContract(address target);

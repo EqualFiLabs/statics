@@ -69,7 +69,8 @@ remainder enters treasury.
 
 For canonical swap fees, `canAccrueStakerRewards(asset)` is true only when the
 asset has eligible selected stake. The hook routes an unavailable staker share
-to protocol-owned liquidity under the existing swap allocation policy.
+to treasury. This canonical-swap fallback is refined by
+`canonical-pool-donation-hardening.md`.
 
 ## Consequences
 

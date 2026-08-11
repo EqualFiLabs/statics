@@ -16,7 +16,7 @@
   "staticsLiquidityCalibration": {
     "inputFeeBps": 50,
     "outputFeeBps": 50,
-    "hookPermissionMask": "0x10cc",
+    "hookPermissionMask": "0x10ec",
     "canonicalLpFeePips": 0,
     "canonicalTickSpacing": 10,
     "polShareBps": 1000,
@@ -29,7 +29,8 @@
       "beforeSwap",
       "beforeSwapReturnDelta",
       "afterSwap",
-      "afterSwapReturnDelta"
+      "afterSwapReturnDelta",
+      "beforeDonate"
     ]
   },
   "contracts": {

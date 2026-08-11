@@ -246,8 +246,9 @@ Governance may update the bilateral rates and split; their combined rate is
 capped at 200 BPS. Hook fees apply to every canonical swap without caller,
 router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
 If a pool has no activated staked liquidity, its LP share redirects to
-permanent liquidity. If the basket or Statics reward route cannot accrue its
-asset, that share independently redirects to permanent liquidity.
+permanent liquidity. If the basket reward route cannot accrue its asset, that
+share redirects to permanent liquidity. If the global Statics reward route
+cannot accrue its asset, that share redirects to treasury.
 
 Timelocked governance creates a standalone pool with
 `createGovernancePool(params)`. Use `quoteGovernancePool(params)` first to
@@ -273,9 +274,10 @@ both POL and canonical LPs to zero explicitly. `canonicalPoolFeeConfiguration`
 returns the complete effective configuration and an `overridden` flag, while
 `clearCanonicalPoolFeeConfiguration` restores the latest global rates and
 split. Configuration changes do not touch existing pending or locked POL. A
-zero-POL pool still compounds previously accumulated two-sided inventory, and
-unavailable canonical-LP, basket-staker, or Statics-staker amounts still fall
-through to POL. There is no automatic graduation policy.
+zero-POL pool still compounds previously accumulated two-sided inventory.
+Unavailable canonical-LP and basket-staker amounts still fall through to POL;
+an unavailable global Statics-staker amount falls through to treasury. There
+is no automatic graduation policy.
 
 The hook transfers both staker shares and treasury shares immediately to the
 Diamond and
@@ -283,6 +285,11 @@ matches its permanent-liquidity shares into hook-owned full-range liquidity.
 Unmatched inventory is visible through `pendingPermanentLiquidity`; deployed
 liquidity is visible through `lockedLiquidity`. Swaps attempt compounding
 atomically, and `compoundPermanentLiquidity` is also permissionless.
+
+Native PoolManager donations to a protocol pool always revert in
+`beforeDonate`. Integrators must not use Uniswap donation routers with Statics
+pools. Protocol seeding and swap-fee allocation are the supported sources of
+pending POL.
 
 There is no primary-fee POL reserve, epoch, ramp, minimum compound size, hook
 settlement call, protocol PositionManager NFT, or manager-owned protocol

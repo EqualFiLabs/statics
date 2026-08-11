@@ -84,7 +84,7 @@ backing or let one basket consume another basket's assets.
 | Basket mint and redemption fees | Constituent assets enter global non-swap rewards | 90% to matured selected global stake and 10% to treasury; 100% treasury if no eligible stake |
 | Basket-loan origination fee | Backing represented by burned fee shares enters global non-swap rewards | Same global 90/10 or treasury-only rule |
 | Extension payment, repayment excess, and measured flash excess | Full measured fee receipt enters global non-swap rewards | Same global 90/10 or treasury-only rule |
-| Canonical swap hook fee | Effective global or pool-specific rates and five-way split | Unavailable LP, basket-staker, or Statics-staker shares independently redirect to POL |
+| Canonical swap hook fee | Effective global or pool-specific rates and five-way split | Unavailable LP and basket-staker shares redirect to POL; an unavailable Statics-staker share redirects to treasury |
 | Mature basket-loan recovery penalty | 20% to recovery caller and 80% to global non-swap rewards | Global portion uses the same 90/10 or treasury-only rule |
 | Pegged-profile mint and redemption fee | Entire collateral-token fee enters global non-swap rewards | Same global 90/10 or treasury-only rule |
 | Active volatile-series fee | Configured insurance share to insurance; complete remaining reward share enters global non-swap rewards | Ineligible series or profile mode sends the complete would-be reward share to insurance |
@@ -643,9 +643,9 @@ For each charged leg, the launch split is:
 ```
 
 Treasury receives split dust. If a pool has no activated staked liquidity, its
-LP share redirects to permanent liquidity. If either basket or Statics staking
-cannot accept the reward asset, that share independently redirects to
-permanent liquidity.
+LP share redirects to permanent liquidity. If basket staking cannot accept the
+reward asset, that share redirects to permanent liquidity. If global Statics
+staking cannot accept the reward asset, that share redirects to treasury.
 
 LP, basket-staker, Statics-staker, and treasury shares are transferred
 immediately to the Diamond's fee ledger. LP shares accrue through pool-local
@@ -665,9 +665,10 @@ BPS. Clearing an override restores the latest global rates and split.
 Overrides change only future charges and allocation: pending POL is not
 released or reclassified, hook-owned liquidity stays permanent, and existing
 two-sided pending inventory remains eligible for compounding. The unavailable
-canonical-LP, basket-staker, and Statics-staker fallbacks to POL are identical
-under global and pool configurations. No threshold, volume, liquidity, or
-oracle rule changes an override automatically.
+canonical-LP and basket-staker fallbacks to POL and the unavailable
+Statics-staker fallback to treasury are identical under global and pool
+configurations. No threshold, volume, liquidity, or oracle rule changes an
+override automatically.
 
 Governance pools have no basket reward recipient. Their configured
 basket-staker share redirects to permanent liquidity, while activated LP,
@@ -1477,7 +1478,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 44. Pool eligible liquidity equals the activated liquidity recorded for its custodied NFTs.
 45. Mature-loan recovery burns only debt plus the creator-configured penalty, clears principal, unlocks remaining collateral, and splits penalty backing 20% to the caller and 80% to protocol fees.
 46. A failed gateway permit never substitutes another owner: the typed action still pulls only from `msg.sender` under ordinary allowance rules, while a successful permit may deliberately preserve allowance above the current action input.
-47. Complete pool fee overrides change only future input/output charges and routing, preserve the 200-BPS combined-rate cap, and preserve the same unavailable-LP, unavailable-basket-staker, and unavailable-Statics-staker fallbacks to POL.
+47. Complete pool fee overrides change only future input/output charges and routing, preserve the 200-BPS combined-rate cap, preserve unavailable-LP and unavailable-basket-staker fallbacks to POL, and preserve the unavailable-Statics-staker fallback to treasury.
 48. Guardian quarantine contains an active basket but neither releases quarantine nor adjudicates a black-swan physical deficit.
 49. Core bootstrap finalization clears bootstrap authority but does not remove Diamond-cut authority.
 50. Final V1 immutability requires explicit removal of implementation-upgrade authority; later dependency replacement uses terminal V1 wind-down and a separate V2 rather than live migration.
@@ -1497,6 +1498,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 64. PositionNFT metadata is fully onchain and contains no live financial or achievement claims.
 65. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
 66. The public chain-46630 faucet, mock USDG and oracles, owner-mintable STATICS token, and two-minute timelock are testnet fixtures rather than production defaults.
+67. Native PoolManager donations to protocol pools always revert; POL inventory enters only through protocol seeding and swap-fee allocation.
 
 ## Appendix C: Terminology
 
