@@ -13,7 +13,7 @@ depth on day one. The Statics hook directs a governed portion of every charged
 swap-fee leg into protocol-owned liquidity and also redirects unavailable LP or
 staking allocations there. When both sides are available, the hook compounds
 that inventory into permanent full-range liquidity. The project cannot withdraw
-this POL, but its market benefits from the depth it creates. Growth requires
+this locked liquidity, but its market benefits from the depth it creates. Growth requires
 actual trading and balanced fee inventory; seed liquidity is a starting point,
 not a promise of future depth.
 
@@ -54,8 +54,8 @@ arbitrage graph rather than creating only one disconnected pair.
 - Canonical Uniswap v4 pools provide public liquidity and standard routing
   surfaces. The Statics hook charges configurable fees on realized input and
   output, compounds permanent protocol-owned liquidity, and routes revenue
-  among eligible LPs, deposited BasketTokens, eligible STATICS stakers, and
-  treasury. Protocol-owned liquidity has no ordinary withdrawal path while the
+  among locked liquidity, eligible LPs, deposited BasketTokens, eligible
+  STATICS stakers, StonkBrokers, index creators, and treasury. Protocol-owned liquidity has no ordinary withdrawal path while the
   pool is active, so activity can build enduring market infrastructure instead
   of temporary rented liquidity.
 - Statics Dollar adds a stable monetary layer. Pegged profiles provide direct
@@ -68,18 +68,24 @@ arbitrage graph rather than creating only one disconnected pair.
   generated across the protocol. Stakers receive the actual collected tokens
   through independent per-asset indexes rather than requiring every reward to
   be converted into a common payout asset.
+- A fixed collection of 5,555 Genesis NFTs enhances STATICS reward weight
+  without gating protocol access. Activating higher tiers permanently burns
+  STATICS, a linked Genesis cannot transfer, and activation resets when the
+  Genesis changes owners.
 - PositionNFTs are transferable protocol accounts. One position can control
   STATICS stake, basket collateral, reward claims, independent loans, Statics
-  Dollar legs, and voluntarily custodied canonical LP NFTs. Its deterministic
-  onchain avatar provides stable visual identity without presenting balances,
-  achievements, yield, debt, or health as cosmetic traits.
+  Dollar legs, and voluntarily custodied canonical LP NFTs. PositionNFTs use
+  minimal financial-account metadata; deterministic onchain avatars and tier
+  presentation belong to the scarce Genesis collection.
 
 ## Participant value
 
 For asset creators and launchpads, Statics turns token inventory and treasury
 capital into a redeemable product, canonical liquidity, arbitrage routes,
 staking, and credit. The basket-creation charge is a predictable service fee,
-while the resulting market can continue producing activity after launch. A
+while the resulting market can continue producing activity after launch. The
+recorded index creator also earns a pull-based share of canonical swap revenue,
+aligning recurring compensation with actual market use. A
 modest bootstrap can grow into deeper permanent liquidity, and choosing common
 constituents connects the new basket to existing Statics markets and external
 liquidity through shared arbitrage routes.
@@ -101,9 +107,9 @@ volatile collateral uses series-specific junior Risk Shares, insurance, and
 recovery rather than hiding every profile inside one shared solvency book.
 
 For the protocol, each new market can generate upfront revenue and recurring
-activity. Revenue can fund treasury, permanent liquidity, canonical LPs,
-deposited BasketTokens, and STATICS stakers according to the applicable governed
-route.
+activity. Revenue can fund treasury, locked liquidity, canonical LPs,
+deposited BasketTokens, STATICS stakers, index creators, and strategic partners
+according to the applicable governed route.
 
 ## Business model
 

@@ -1,8 +1,12 @@
 # ADR: Deterministic PositionNFT avatars
 
-- Status: Accepted
+- Status: Superseded by `genesis-tokenomics-and-swap-revenue.md`
 - Date: 2026-08-02
 - Scope: Statics PositionNFT metadata and visual identity
+
+> **Superseded (2026-08-13).** PositionNFT metadata is now minimal
+> financial-account JSON. The deterministic SVG renderer and activation-tier
+> presentation belong to Genesis NFTs.
 
 ## Context
 

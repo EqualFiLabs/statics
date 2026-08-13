@@ -9,6 +9,11 @@
 > public genesis to owner-only zero-value creation; a positive fee opens
 > exact-fee public creation. Managed recovery holders are explicitly admitted
 > and revocable by the Dollar Core owner.
+>
+> **Tokenomics amendment (2026-08-13).** Fixed STATICS, Genesis effective
+> weight, PositionNFT transfer credits, and the seven-way canonical swap split
+> are specified by `genesis-tokenomics-and-swap-revenue.md` and supersede any
+> conflicting token, metadata, or five-way fee text below.
 
 - Status: Accepted as amended
 - Date: 2026-07-18; amended 2026-07-19, 2026-07-20, 2026-07-25, and 2026-07-26

@@ -9,10 +9,11 @@ Most applications need:
 - `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
 - `StaticsDollar` and `StaticsDollarRiskShares`;
 - WETH and the configured Dollar oracle;
-- the configured global staking token;
+- the fixed-supply `StaticsToken` used for global staking and activation burns;
+- the 5,555-token `StaticsGenesis` collection and its renderer;
 - one `StaticsBasketToken` address per discovered basket;
-- the current PositionNFT renderer only when an application wants to inspect
-  renderer provenance beyond the standard `tokenURI`; and
+- `IStaticsGenesisStaking` and `IStaticsProtocolRevenue` at the Diamond for
+  links, activation, transfer credits, creator claims, and partner distribution; and
 - the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
   canonical Uniswap v4 pools.
 
@@ -28,6 +29,8 @@ Use compiled ABIs from these sources:
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
 | Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, select reward assets, claim, distribute treasury fees, and inspect asset books |
+| Genesis staking | `src/interfaces/IStaticsGenesisStaking.sol` | Activate, link, unlink, and inspect effective reward multipliers |
+| Protocol revenue | `src/interfaces/IStaticsProtocolRevenue.sol` | Claim creator and transferred-position credits; distribute partner accrual |
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
@@ -146,9 +149,9 @@ required because each basket has at most sixteen assets. Read
 `claimBasketRewards`. Locked collateral remains eligible while borrowed.
 Withdrawn or recovered shares settle first and stop earning.
 
-To earn global Statics-staker fees, approve the configured `stakingToken()` and
-use `createAndStake(amount,
-receiver, rewardAssets)` or `stake(positionId, amount)`. A position selects at
+To earn global STATICS-staker fees, approve the fixed token returned by
+`stakingToken()` and use `createAndStake(amount, receiver, rewardAssets)` or
+`stake(positionId, amount)`. A position selects at
 most 64 reward assets, while the protocol supports any number globally. Use
 `optInRewardAssets` and `optOutRewardAssets` to change the selection. A new
 selection and every top-up enter a pending tranche that matures at the next
@@ -159,11 +162,30 @@ full unstake clears selections but preserves settled claims.
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
 per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`
-timestamp and pending/eligible split. Fee accrual or the next position action
-rolls due maturity buckets; no separate activation transaction is required.
+timestamp and pending/eligible split. Fee accrual rolls due maturity buckets.
+Before a multi-asset stake, Genesis, or PositionNFT transfer transition, call
+`rewardBookNeedsCheckpoint(asset)` for the position's assets and pass stale
+assets to permissionless `checkpointRewardAssets` in batches of at most eight.
+The transition otherwise reverts with the first stale asset so unrelated
+global maturity work cannot push the owner transaction above the gas cap.
 Position-specific views and actions require ERC-721 ownership or approval.
 Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the
 configured treasury.
+
+An unactivated Genesis provides no boost. A direct Genesis owner calls
+`activateGenesis(genesisId, targetTier, maxBurn)` after approving cumulative
+STATICS burn cost. Activation must advance and may cross several sequential
+tiers atomically. Tier multipliers are 1.10x, 1.15x, 1.20x, and 1.25x.
+
+`linkGenesis(genesisId, positionId)` requires the caller to directly own both
+NFTs and both registry directions to be empty. The activated multiplier applies
+immediately to already-eligible stake and to pending stake when it matures;
+linking never restarts or bypasses the 24-hour delay. `unlinkGenesis` settles
+the old interval and returns future weight to 1.00x. A linked Genesis cannot
+transfer. An owner-changing Genesis transfer resets activation, while an
+owner-changing PositionNFT transfer clears the link but leaves the Genesis tier
+with its owner. Checkpoint stale selected assets before link, unlink, activation,
+stake changes, or PositionNFT transfer.
 
 Before accepting a PositionNFT transfer, call `positionState(positionId)` and
 inspect protocol-specific economics for each discovered Leg. The standardized
@@ -175,13 +197,19 @@ Structural membership is available through `isLegActive`; events
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
 
-`tokenURI(positionId)` returns fully onchain Base64 JSON whose `image` is a
-Base64 SVG. The avatar is derived only from the chain ID, Diamond address, and
-position ID, so ownership changes and protocol activity do not change it.
-Applications should treat its eight visual attributes as cosmetic identity,
-not as statements about balances, achievements, yield, debt, or health. The
-Diamond owner may replace or clear the collection-wide renderer, so clients
-that cache metadata may need an explicit refresh after governance changes it.
+The PositionNFT transfer hook settles its global reward-asset union before
+ownership changes. Earned rewards become per-asset
+`positionTransferRewardCredit` for the previous owner and do not transfer with
+the PositionNFT. The previous owner later calls
+`claimPositionTransferRevenue(asset, receiver, minReceived)`. No reward token
+is called from the ERC-721 transfer path, so an incompatible reward asset cannot
+block transfer of the financial account.
+
+`tokenURI(positionId)` returns minimal fully onchain Base64 JSON describing the
+token as a transferable financial account; it has no image or renderer
+governance. Genesis `tokenURI` owns the deterministic onchain SVG presentation
+and includes activation tier metadata. Genesis metadata refreshes on activation
+and owner-changing transfer.
 
 ## Basket lending and looping
 
@@ -237,18 +265,27 @@ Display input and output hook fees separately from native v4 LP fees:
 native v4 LP fee: 0
 launch input hook fee:  50 BPS on the realized input leg
 launch output hook fee: 50 BPS on the realized output leg
-launch split: 10% permanent liquidity / 25% eligible canonical LPs /
-              25% deposited BasketTokens / 15% global Statics stakers /
-              25% treasury
+launch split: 10% locked liquidity / 20% eligible canonical LPs /
+              20% deposited BasketTokens / 15% eligible STATICS stakers /
+              10% StonkBrokers / 5% index creator / 20% treasury
 ```
 
 Governance may update the bilateral rates and split; their combined rate is
 capped at 200 BPS. Hook fees apply to every canonical swap without caller,
 router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
-If a pool has no activated staked liquidity, its LP share redirects to
-permanent liquidity. If the basket reward route cannot accrue its asset, that
-share redirects to permanent liquidity. If the global Statics reward route
-cannot accrue its asset, that share redirects to treasury.
+If a pool has no activated staked liquidity, its LP share redirects to locked
+liquidity. If the basket reward route cannot accrue its asset, that share
+redirects to locked liquidity. If the global STATICS reward route cannot
+accrue its asset, that share redirects to treasury. A missing partner or index
+creator also redirects that class's allocation to treasury.
+
+The creator recorded by `BasketCreated` receives the 5% allocation through
+`creatorRewardCredit(creator, asset)` and pulls it with
+`claimCreatorRevenue`. The configured partner accrues by recipient and asset,
+so changing the recipient does not redirect prior accrual. Anyone may call
+`distributePartnerRevenue(recipient, asset)`; the current default pays the
+caller a 1% tip from that accrual and the remainder to the snapshotted
+recipient. The governance tip cap is 5%. Swap execution calls neither recipient.
 
 Timelocked governance creates a standalone pool with
 `createGovernancePool(params)`. Use `quoteGovernancePool(params)` first to
@@ -263,25 +300,24 @@ PoolId-based `setProtocolPoolFeeConfiguration`,
 support both pool classes. Governance pools cannot accrue basket-staker
 rewards; that configured share redirects to permanent liquidity.
 
-The global seven-field configuration is the default for pools without an
+The global nine-field configuration is the default for pools without an
 override. Timelocked governance calls
 `setCanonicalPoolFeeConfiguration(basketId, asset, configuration)` with
 pool-specific input/output rates capped at 200 combined BPS and
-POL/canonical-LP/basket-staker/Statics-staker/treasury shares totaling 10,000
-BPS. The Diamond derives
+locked-liquidity/canonical-LP/basket-staker/STATICS-staker/partner/creator/
+treasury shares totaling 10,000 BPS. The Diamond derives
 the registered PoolId and does not accept arbitrary IDs. A mature pool may set
-both POL and canonical LPs to zero explicitly. `canonicalPoolFeeConfiguration`
+both locked liquidity and canonical LPs to zero explicitly. `canonicalPoolFeeConfiguration`
 returns the complete effective configuration and an `overridden` flag, while
 `clearCanonicalPoolFeeConfiguration` restores the latest global rates and
-split. Configuration changes do not touch existing pending or locked POL. A
-zero-POL pool still compounds previously accumulated two-sided inventory.
-Unavailable canonical-LP and basket-staker amounts still fall through to POL;
-an unavailable global Statics-staker amount falls through to treasury. There
-is no automatic graduation policy.
+split. Configuration changes do not touch existing pending or deployed locked
+liquidity. A zero-allocation pool still compounds previously accumulated
+two-sided inventory. Unavailable canonical-LP and basket-staker amounts still
+fall through to locked liquidity; an unavailable global STATICS-staker amount
+falls through to treasury. There is no automatic graduation policy.
 
-The hook transfers both staker shares and treasury shares immediately to the
-Diamond and
-matches its permanent-liquidity shares into hook-owned full-range liquidity.
+The hook transfers all non-locked allocations once to the Diamond and matches
+its locked-liquidity shares into hook-owned full-range liquidity.
 Unmatched inventory is visible through `pendingPermanentLiquidity`; deployed
 liquidity is visible through `lockedLiquidity`. Swaps attempt compounding
 atomically, and `compoundPermanentLiquidity` is also permissionless.
@@ -289,9 +325,9 @@ atomically, and `compoundPermanentLiquidity` is also permissionless.
 Native PoolManager donations to a protocol pool always revert in
 `beforeDonate`. Integrators must not use Uniswap donation routers with Statics
 pools. Protocol seeding and swap-fee allocation are the supported sources of
-pending POL.
+pending locked liquidity.
 
-There is no primary-fee POL reserve, epoch, ramp, minimum compound size, hook
+There is no primary-fee locked liquidity reserve, epoch, ramp, minimum compound size, hook
 settlement call, protocol PositionManager NFT, or manager-owned protocol
 inventory. The standalone manager resolves exact PoolKeys from the Diamond's
 protocol-pool registry and executes transaction-scoped PositionManager NFT

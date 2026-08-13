@@ -26,6 +26,14 @@ StaticsDollarCoreDiamond
 StaticsBasketToken (one address per basket)
 └── transferable ERC-20 Permit representation of one static bundle
 
+StaticsToken
+└── fixed 1-billion supply, Permit, and holder-authorized burns
+
+StaticsGenesis
+├── fixed IDs 1..5,555 and one-time binding to StaticsDiamond
+├── transfer-reset activation tiers and one-to-one PositionNFT links
+└── deterministic Base64 JSON rendered by StaticsGenesisRenderer + StaticsAvatarSVG
+
 StaticsSwapFeeHook
 ├── bilateral canonical-pool swap fees
 └── hook-owned full-range permanent liquidity
@@ -35,17 +43,14 @@ StaticsLiquidityManager
 ├── registered PoolKey validation and token settlement
 └── typed user-position minting with NFTs delivered directly to users
 
-StaticsPositionRenderer
-├── deterministic Base64 JSON metadata from chain, Diamond, and position ID
-└── immutable StaticsAvatarSVG assembly helper
 ```
 
 Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
-neither liquidity contract nor either metadata contract is a second general
+neither liquidity contract nor the Genesis metadata contracts are a second general
 protocol entrypoint.
 
-The fresh-deployment launcher installs 23 facets and 209 selectors on
+The fresh-deployment launcher installs 25 facets and 231 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -67,7 +72,8 @@ That shared ownership does not merge economics. The following storage books are
 separately namespaced:
 
 - PositionNFT ownership and active-leg state;
-- one collection-wide PositionNFT renderer address;
+- Genesis tier, one-to-one link, and activation-cost state;
+- creator, partner, and previous-PositionNFT-owner revenue liabilities;
 - global and module-local physical reservations;
 - Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;
@@ -109,6 +115,31 @@ can still create a physical token-wide failure for every basket using it. The
 creation switch does not certify constituents, and this shared-token risk is
 not a reason for a protocol registry.
 
+## Genesis effective-weight transitions
+
+Global reward books separately track actual eligible/pending STATICS and
+effective eligible/pending weight. Fee accrual increases each asset's monotonic
+index using total effective eligible weight as the denominator. An unactivated
+or unlinked position contributes exactly its actual stake; linked activation
+tiers contribute 1.10x, 1.15x, 1.20x, or 1.25x weight without creating a token
+claim above actual stake.
+
+Link, unlink, activation, and PositionNFT ownership transitions first settle
+the completed index interval at the old registered weight, preserve any
+pending-stake maturity timestamp, then replace denominator weight for future
+index increases. Permissionless checkpointing processes stale reward books in
+batches of at most eight; mandatory owner transitions fail fast on a stale book
+instead of rolling unrelated global maturity buckets. The one-to-one link,
+64-asset union, and bounded maintenance batches keep each transaction below the
+16 million gas cap.
+
+An owner-changing PositionNFT transfer settles its reward-asset union, moves
+crystallized rewards to `positionTransferRewardCredit[previousOwner][asset]`,
+returns continuing stake to 1.00x weight, and clears its Genesis link before
+ownership changes. It never calls arbitrary reward tokens. Creator rewards use
+the same pull-based liability pattern, while partner accrual is snapshotted by
+recipient and may be distributed permissionlessly with a bounded caller tip.
+
 ## Canonical v4 liquidity boundaries
 
 Every configured basket constituent has one canonical BasketToken/constituent
@@ -138,11 +169,11 @@ StaticsDiamond
 ├── per-basket BasketToken and constituent reward indexes
 ├── global per-asset staking reward reserves
 ├── global per-asset treasury reserves
-├── custody for the configured staking token
+├── custody for fixed-supply STATICS
 └── voluntary custody for reward-eligible PositionManager NFTs
 
 StaticsSwapFeeHook
-├── per-pool/per-currency pending POL
+├── per-pool/per-currency pending locked liquidity
 └── hook-owned full-range v4 liquidity
 
 StaticsLiquidityManager
@@ -153,32 +184,34 @@ StaticsLiquidityManager
 
 Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, while the pool's native LP fee remains zero.
-The default fee is 50 basis points on input and 50 basis points on output, split
-10% to POL, 25% to activated protocol-pool LPs, 25% to deposited BasketToken
-positions, 15% to global Statics stakers, and 25% to treasury. Unavailable LP
-and basket-staker allocations independently redirect to POL. An unavailable
-global Statics-staker allocation redirects to treasury. A registered pool may
-override the complete seven-field configuration; clearing that override
+The default fee is 50 basis points on input and 50 basis points on output,
+split 10% to locked liquidity, 20% to activated protocol-pool LPs, 20% to
+deposited BasketToken positions, 15% to eligible STATICS stakers, 10% to
+StonkBrokers, 5% to the basket's index creator, and 20% to treasury.
+Unavailable LP and basket-staker allocations independently redirect to locked
+liquidity. An unavailable STATICS-staker allocation, missing partner, or
+missing creator redirects to treasury. A registered pool may override the
+complete nine-field configuration; clearing that override
 restores the latest global rates and split.
 
 This global configuration is the default. Basket-specific entrypoints resolve
 a canonical pool by `basketId` and constituent, while protocol-pool entrypoints
 address either pool class directly by PoolId. Timelocked governance may
-override input/output rates and the five-way
-POL/canonical-LP/basket-staker/Statics-staker/treasury split. The two rates may
-total at most 200 BPS, the split must total 10,000 BPS, and POL or canonical
+override input/output rates and the seven-way locked-liquidity/canonical-LP/
+basket-staker/STATICS-staker/partner/creator/treasury split. The two rates may
+total at most 200 BPS, the split must total 10,000 BPS, and locked liquidity or canonical
 LPs may explicitly be set to zero. Clearing the override restores the latest
 global rates and split.
-Overrides never release or reclassify pending POL, never remove permanent
+Overrides never release or reclassify pending locked liquidity, never remove permanent
 liquidity, and do not alter decommissioning. Unavailable canonical-LP and
-basket-staker shares still redirect to POL; unavailable global Statics-staker
+basket-staker shares still redirect to locked liquidity; unavailable global Statics-staker
 shares redirect to treasury. Governance pools have no basket reward book, so
-their basket-staker allocation always redirects to POL before fee delivery.
+their basket-staker allocation always redirects to locked liquidity before fee delivery.
 
 Protocol pools reject native Uniswap v4 donations in `beforeDonate`. This
-prevents third parties from injecting an opposite-side asset into pending POL
+prevents third parties from injecting an opposite-side asset into pending locked liquidity
 and forcing hook-owned inventory to compound at a manipulated spot price.
-Protocol seeding and swap-fee routing remain the only POL inventory sources.
+Protocol seeding and swap-fee routing remain the only locked liquidity inventory sources.
 
 The normalized registry recognizes existing basket canonical pools without a
 storage migration and stores governance-created pools in a separate namespace.
@@ -187,9 +220,9 @@ initializes it, and permanently seeds full-range liquidity from an approved
 payer in one transaction. Registration does not admit either asset as basket
 backing, Dollar collateral, or a borrowable asset.
 
-After every swap, matched POL amounts are added as hook-owned full-range
+After every swap, matched locked liquidity amounts are added as hook-owned full-range
 liquidity in the same pool. No caller, administrator, or treasury can withdraw
-active-pool POL. On `ExitOnly`, permissionless decommissioning releases it,
+active-pool locked liquidity. On `ExitOnly`, permissionless decommissioning releases it,
 burns the released BasketTokens, and reserves the resulting constituents for
 the common treasury. User-owned v4 positions remain under their owners'
 control and collect no native LP fee. A full-range NFT for either protocol-pool
@@ -223,9 +256,9 @@ hook liquidity. User-owned v4 NFTs remain under their owners' control.
 ## Liquidity threat model
 
 The hook fee cannot make unhooked competing pools pay Statics. Canonical status,
-POL, SDK metadata, and supported routing are the incentive for concentrating
+locked liquidity, SDK metadata, and supported routing are the incentive for concentrating
 activity in the hooked pool. Concentrated liquidity also carries ordinary
-price-range and inventory risk; Statics uses full-range POL and does not swap
+price-range and inventory risk; Statics uses full-range locked liquidity and does not swap
 mismatched inventory to hide that exposure.
 
 Permissionless baskets may contain taxed, rebasing, callback-capable, or

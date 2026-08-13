@@ -1,7 +1,10 @@
 # Statics — Robinhood Chain Testnet Deployment
 
-This is the current Statics testnet release. It replaces all previous Robinhood
-testnet deployments.
+This is the historical Statics integration-beta deployment record. Its
+owner-mintable STATICS token, PositionNFT renderer, selector manifest, reward
+storage, and five-way swap split are intentionally incompatible with the
+clean-break Genesis tokenomics release. These addresses remain evidence of the
+recorded testnet deployment; they are not current release targets.
 
 ## Release
 

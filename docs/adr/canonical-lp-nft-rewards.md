@@ -4,6 +4,10 @@
 
 Accepted and implemented.
 
+The LP custody and eligibility decision remains active. The five-way launch
+split below is superseded by `genesis-tokenomics-and-swap-revenue.md`, which
+reduces the LP allocation to 20% and introduces partner and creator classes.
+
 ## Decision
 
 Statics allocates a configurable share of bilateral canonical-pool hook fees to

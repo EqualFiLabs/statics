@@ -7,9 +7,10 @@ It deploys Statics Dollar Core and the unified user Diamond together. The
 lower-level scripts under `script/dollar/` exist for focused tests and local
 development; they are not the canonical production entrypoint.
 
-This repository records a public Robinhood Chain testnet integration beta in
+This repository records the superseded public Robinhood Chain testnet integration beta in
 `deployment.md` and `deployments/robinhood-testnet-46630-statics.json`; it is
-not a production deployment. Running any new broadcast remains a state-changing
+historical evidence, not a deployment compatible with this clean-break
+tokenomics release or a production deployment. Running any new broadcast remains a state-changing
 external action and requires explicit authorization for the network,
 broadcaster, and expected costs.
 
@@ -24,7 +25,7 @@ canonical launcher reads:
 | `MULTISIG` | Sole initial timelock proposer |
 | `GUARDIAN` | Basket guardian and initial Dollar profile guardian |
 | `TREASURY` | Common basket and Statics Dollar protocol treasury |
-| `STAKING_TOKEN` | Deployed `StaticsToken` address used as the immutable global staking denominator |
+| `STONKBROKERS_RECIPIENT` | Initial partner recipient; zero routes the partner allocation to treasury until governance configures one |
 | `BASKET_CREATION_FEE_AMOUNT` | `0` closes public creation and permits owner-only zero-value genesis; a positive value opens exact-fee public creation |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for every new Position NFT; `0` makes creation free and does not disable it; initial target is `1000000000000000` wei (`0.001 ETH`) |
 | `WETH_ADDRESS` | Verified canonical WETH for the target chain |
@@ -50,34 +51,24 @@ feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
 this repository. Verify chain-specific contracts and make the economic choices
 before broadcasting.
 
-## Position NFT compatibility boundary
+## Clean-break deployment boundary
 
-Fresh deployments install the payable Position surface, initialize
-`POSITION_CREATION_FEE_AMOUNT`, and register the Modular Position NFT interface
-atomically. Introducing that surface into a legacy deployment changes Position
-selectors and requires packed structural state that legacy Positions do not
-contain.
-
-Do not apply the fresh-launch Position facets directly to a legacy Diamond.
-Structural Position changes require a separately specified selector cut,
-storage-compatibility proof, and, where necessary, per-Position migration. This
-boundary does not prohibit ordinary in-place facet upgrades that preserve
-storage and provide their own selector, interface, and deployment validation.
+This release is a fresh deployment. It intentionally provides no migration or
+compatibility path for the prior owner-mintable token, PositionNFT renderer,
+reward storage, five-way hook configuration, or deployed selector manifest.
+Do not apply these facets as an in-place cut to the historical testnet Diamond.
 
 Position fees are forwarded immediately and entirely to the canonical
 treasury. The Diamond does not accrue a native fee balance and there is no
 separate treasury claim. Existing Positions in the fresh deployment remain
 reusable without paying again.
 
-Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the protocol with
-`script/DeployStaticsToken.s.sol:DeployStaticsToken`. Set
-`STATICS_TOKEN_RECIPIENT` and `STATICS_TOKEN_INITIAL_SUPPLY`, then use the
-resulting address as `STAKING_TOKEN`. This deployment token is for testnet: it
-uses the `STATICS` symbol, supports ERC-2612 permit, makes the initial recipient
-its OpenZeppelin owner, and lets that owner mint without a configured cap.
-Transfer ownership if a different testnet operator should control emissions.
-Do not use this uncapped owner-mintable implementation as the finalized
-mainnet staking token.
+The canonical launcher deploys `StaticsToken`, `StaticsGenesis`,
+`StaticsGenesisRenderer`, and `StaticsAvatarSVG` itself. STATICS mints its exact
+1-billion supply once to `TREASURY`; it has no ownership or later mint surface.
+Genesis mints IDs 1 through 5,555 to the same treasury, binds once to the new
+Diamond, and permanently deletes its temporary bootstrap binder. The standalone
+token script remains a focused deployment utility, not an extra production step.
 
 The current Robinhood testnet deployment configuration has no verified
 canonical addresses for the two Chainlink AggregatorV3 dependencies required
@@ -230,20 +221,7 @@ forge script script/DeployStatics.s.sol:DeployStatics \
   -vv
 ```
 
-For Robinhood testnet, first deploy and verify the owner-mintable staking token:
-
-```bash
-forge script script/DeployStaticsToken.s.sol:DeployStaticsToken \
-  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
-  --chain-id 46630 \
-  --broadcast \
-  --verify \
-  --verifier blockscout \
-  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
-  -vv
-```
-
-Deploy and verify the testnet oracle fixtures:
+For Robinhood testnet, first deploy and verify the testnet oracle fixtures:
 
 ```bash
 forge script \
@@ -257,9 +235,9 @@ forge script \
   -vv
 ```
 
-Set `STAKING_TOKEN`, `ETH_USD_FEED`, and `SEQUENCER_UPTIME_FEED` to the
-confirmed outputs and retain the USDG oracle address for the later pegged
-profile ceremony. Then simulate the full launcher without `--broadcast`. After
+Set `ETH_USD_FEED`, `SEQUENCER_UPTIME_FEED`, and the intended
+`STONKBROKERS_RECIPIENT`, and retain the USDG oracle address for the later
+pegged profile ceremony. Then simulate the full launcher without `--broadcast`. After
 explicit authorization for the protocol broadcast, publish its sources in the
 same operation:
 
@@ -410,7 +388,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           23 facets, 209 selectors
+StaticsDiamond:           25 facets, 231 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -424,8 +402,8 @@ Against the deployed addresses, verify:
    launch), the intended proposer/canceller and executor roles are present, and
    the emergency guardian has no timelock cancellation authority;
 3. the Diamond's `guardian()`, `treasury()`, `creationFee()`, `stakingToken()`,
-   `totalStaked()`, selected reward-asset books, and treasury accruals match the
-   authorized launch configuration;
+   partner recipient and tip, `totalStaked()`, selected reward-asset books, and
+   treasury accruals match the authorized launch configuration;
 4. Core `periphery()`, `positionNFT()`, owner, token addresses, WETH profile,
    oracle, sequencer requirement, and debt ceiling match the manifest;
 5. Statics Dollar exposes `permit`, `nonces`, and `DOMAIN_SEPARATOR`; its
@@ -434,12 +412,14 @@ Against the deployed addresses, verify:
 6. both loupe manifests contain the exact facet and selector totals above; any
    offchain runtime hashes recorded for release provenance match deployed code,
    but the Diamonds do not enforce those hashes during dispatch;
-7. ERC-165 reports the expected custody, global rewards, Dollar gateway,
-   ERC-721, Position metadata, receiver, basket-liquidity, and
+7. ERC-165 reports the expected custody, global rewards, Genesis staking,
+   protocol revenue, Dollar gateway, ERC-721, receiver, basket-liquidity, and
    borrow-to-liquidity interfaces;
-8. `positionRenderer()` equals the recorded renderer, both the renderer and its
-   immutable `avatarSVG()` helper have deployed code, and a minted PositionNFT
-   returns decodable Base64 JSON containing a self-contained Base64 SVG;
+8. `StaticsToken.totalSupply()` and the treasury balance equal 1 billion
+   STATICS; Genesis IDs 1 and 5,555 belong to treasury; `protocol()` equals the
+   Diamond; `bootstrapBinder()` is zero; the renderer and immutable
+   `avatarSVG()` helper have deployed code; Genesis metadata decodes to a
+   self-contained SVG; and PositionNFT metadata contains no image;
 9. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
    hook and manager immutable getters match the Diamond and Robinhood manifest,
    hook address bits equal `0x10ec`, and its input/output fee and revenue split
@@ -449,10 +429,10 @@ Against the deployed addresses, verify:
    expected hook, recorded PoolId, corresponding manager key hash, and nonzero
    launch liquidity; its hook-owned pending and locked permanent liquidity
    agree with launch and hook events;
-10. every pool allocation view matches the reviewed global default or its
+11. every pool allocation view matches the reviewed global default or its
     timelocked override, and clearing a rehearsal override restores the current
-    global allocation without changing fee rates or existing POL; and
-11. verified source publication uses this canonical repository and compiler
+    global allocation without changing fee rates or existing locked liquidity; and
+12. verified source publication uses this canonical repository and compiler
    configuration (`solc 0.8.33`, Cancun, optimizer 200, via IR, no bytecode
    metadata hash).
 

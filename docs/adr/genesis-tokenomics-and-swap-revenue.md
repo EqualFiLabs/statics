@@ -1,6 +1,6 @@
 # ADR: Genesis Tokenomics and Expanded Swap Revenue
 
-- Status: Accepted direction; implementation and final launch parameters pending
+- Status: Accepted and implemented for clean-break deployment
 - Date: 2026-08-12
 - Scope: STATICS supply, Genesis NFTs, PositionNFT staking weight, transfer
   settlement, canonical swap-fee allocation, creator rewards, StonkBrokers
@@ -52,17 +52,16 @@ rewards.
 
 ## STATICS supply and distribution
 
-STATICS has a fixed target supply of approximately one billion tokens and no
-continuing emissions. The working launch allocation is:
+STATICS has a fixed supply of exactly one billion tokens and no continuing
+emissions. The working Genesis allocation is:
 
 ```text
 5,555 Genesis NFTs * 180,018 STATICS = 999,999,990 STATICS
 ```
 
-The final release will choose either that exact supply or an explicitly
-adjusted one-billion-token allocation before deployment. After launch
-distribution, no owner, governance, emission controller, or other authority may
-mint additional STATICS.
+The 10-token arithmetic remainder stays in treasury unless the separate launch
+distribution specification assigns it differently. No owner, governance,
+emission controller, or other authority may mint additional STATICS.
 
 Each Genesis NFT represents one fixed launch allocation. The exact Anvil
 distribution, claim timing, custody, and unclaimed-allocation treatment will be
@@ -82,6 +81,17 @@ Genesis activation progresses sequentially:
 Unactivated -> Tier 1 -> Tier 2 -> Tier 3 -> Tier 4
 ```
 
+Genesis receives the deterministic onchain SVG renderer formerly associated
+with PositionNFTs. Genesis metadata includes activation tier and refreshes on
+activation and owner-changing transfer. PositionNFT metadata is reduced to
+minimal onchain financial-account JSON with no image or replaceable renderer.
+
+Fresh deployment mints IDs 1 through 5,555 to treasury before the Diamond
+exists. The collection records its actual constructor caller as a temporary
+bootstrap binder. That address may bind the collection to one deployed
+protocol exactly once, after which the binder is deleted and transfers become
+available subject to the protocol hook.
+
 An unactivated Genesis NFT provides no staking boost. Each transition requires
 the current owner to burn the configured amount of STATICS. A holder may cross
 several tiers in one transaction by burning the cumulative current cost of
@@ -100,13 +110,12 @@ if the current cumulative cost exceeds that bound. Activation is atomic: the
 complete burn and every linked-position reward update succeed together or no
 state changes.
 
-The timelock may configure future tier-transition costs and multipliers within
-bounded ranges. Configuration changes affect future activation and future
-reward-index intervals only. Governance cannot downgrade an earned tier,
-reprice or refund a completed burn, or increase a past reward claim. Initial
-multipliers, burn costs, and their exact governance bounds remain release
-parameters. The intended multiplier range is modest, with Tier 4 currently
-expected to be no greater than approximately 1.25x.
+The implemented multipliers are 1.10x, 1.15x, 1.20x, and 1.25x. Transition
+costs default to 10,000, 20,000, 30,000, and 40,000 STATICS. The timelock may
+configure a future transition cost from 1,000 through 100,000 STATICS.
+Configuration changes affect future activation only. Governance cannot change
+earned tier, reprice or refund a completed burn, change the tier multipliers,
+or increase a past reward claim.
 
 ## Activation reset on Genesis transfer
 
@@ -153,9 +162,9 @@ selected global reward assets:
 1. verify common ownership and unused registry entries;
 2. settle each selection through its current reward index using its old
    registered weight;
-3. record the bidirectional link;
-4. replace the old denominator weight with the weight derived from the current
+3. replace the old denominator weight with the weight derived from the current
    Genesis tier; and
+4. record the bidirectional link; and
 5. leave every pending-stake maturity schedule unchanged.
 
 ### Unlink
@@ -215,6 +224,13 @@ position's effective weight, the protocol:
 
 The global index remains monotonic. A new multiplier never applies
 retroactively to an index interval accumulated under the old multiplier.
+
+Reward books expose permissionless checkpointing in bounded batches of up to
+eight assets. A mandatory multi-asset transition reverts with the first stale
+book instead of rolling unrelated global maturity buckets inside the owner
+transaction. Anyone may checkpoint the reported asset batches and retry. This
+keeps each maintenance transaction below the 16 million gas cap without
+changing eligibility or reward ownership.
 
 When a linked Genesis advances one or several tiers, the activation transaction
 settles its one linked PositionNFT under the old tier before installing the new
@@ -362,17 +378,18 @@ StonkBrokers is the initial strategic partner. Its allocation accrues per asset
 in an isolated internal ledger:
 
 ```text
-stonkBrokersAccrued[asset] += partner allocation
+partnerAccrued[currentRecipient][asset] += partner allocation
 ```
 
 No partner token transfer occurs during swap settlement. Anyone may invoke a
-per-asset distribution function. The recipient is the fixed governance-set
-StonkBrokers address and cannot be chosen by the caller.
+recipient-and-asset distribution function. The recipient identifies the
+governance-set address whose accrual was snapshotted when fees routed; changing
+the current partner does not redirect historical accrual.
 
 For one distribution:
 
 ```text
-gross partner accrual = stonkBrokersAccrued[asset]
+gross partner accrual = partnerAccrued[recipient][asset]
 caller tip            = gross partner accrual * distributionTipBps / 10,000
 partner payment       = gross partner accrual - caller tip
 ```
@@ -428,7 +445,6 @@ through transaction reversion.
 
 While Statics remains upgradeable, the timelock may configure:
 
-- tier multipliers within bounded ranges;
 - future tier-transition burn costs;
 - the global and pool-specific seven-way swap splits totaling 10,000 BPS;
 - the StonkBrokers recipient; and
@@ -438,6 +454,7 @@ Governance cannot:
 
 - mint STATICS after fixed launch distribution;
 - restore burned STATICS;
+- change the implemented tier multipliers;
 - downgrade an earned tier except through the mandatory reset caused by a
   Genesis ownership transfer;
 - transfer or seize creator credits, previous-owner reward credits, or partner
@@ -461,24 +478,18 @@ qualification and deployment manifests before mainnet.
 - Index creators receive performance-linked revenue while the protocol keeps
   100% of the upfront creation fee.
 - StonkBrokers distribution has an explicit permissionless liveness incentive.
-- Earlier five-way swap-split documentation must be synchronized when this
-  decision is implemented.
+- Earlier five-way swap-split documentation is superseded by this decision.
 - The existing owner-mintable testnet STATICS token, public testnet deployment,
   and five-way hook configuration are historical integration fixtures, not
   compatibility requirements for the greenfield release.
 
 ## Deferred parameters and mechanics
 
-The following decisions are intentionally deferred and must be resolved before
-implementation or release qualification, as applicable:
+The following launch choices remain deferred to release qualification:
 
-- exact fixed supply: 999,999,990 or an adjusted one-billion allocation;
 - Anvil distribution, claims, custody, and unclaimed Genesis allocations;
-- final tier multipliers and transition burn costs;
-- precise governance bounds for tier parameters;
 - final basket creation fee;
-- final StonkBrokers tip default before mainnet; and
-- public interface names and event schemas consistent with this state machine.
+- final StonkBrokers tip default before mainnet.
 
 Deferred parameter selection does not reopen the accepted architectural
 decisions: fixed supply, no emissions, no unactivated boost, sequential

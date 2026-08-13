@@ -1,6 +1,6 @@
 # Statics
 
-Onchain multi-asset protocol targeting Robinhood Chain, implemented as two coordinated EIP-2535 Diamonds. Statics combines fixed-bundle basket tokens, a senior/junior Statics Dollar system, a shared PositionNFT, global multi-asset rewards, proportional self-backed lending, constituent flash loans, and canonical Uniswap v4 liquidity with bilateral hook fees and permanent protocol-owned liquidity.
+Onchain multi-asset protocol targeting Robinhood Chain, implemented as two coordinated EIP-2535 Diamonds. Statics combines fixed-bundle basket tokens, a senior/junior Statics Dollar system, a shared PositionNFT, fixed-supply STATICS and Genesis-enhanced multi-asset rewards, proportional self-backed lending, constituent flash loans, and canonical Uniswap v4 liquidity with bilateral hook fees and locked protocol-owned liquidity.
 
 For a plain-language introduction, see the [value proposition](./docs/value-proposition.md)
 and [worked examples](./docs/examples.md). The repository also publishes an
@@ -41,11 +41,12 @@ for the canonical machine-readable integration-beta state.
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
 | **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, selected global rewards, and staked canonical-liquidity positions. |
-| **Global rewards** | Positions stake the configured Statics token and select up to 64 reward assets; new selections cannot capture historical fees. |
+| **Genesis collection** | A fixed collection of 5,555 ERC-721s can be activated by burning STATICS and linked one-to-one with PositionNFTs to increase effective reward weight. |
+| **Global rewards** | Positions stake fixed-supply STATICS and select up to 64 reward assets; new selections cannot capture historical fees. |
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
 | **Flash composition** | Basket constituents can be borrowed atomically through a typed callback while nested flash loans remain blocked. |
 | **Canonical v4 liquidity** | Protocol-created BasketToken/constituent pools use zero native LP fee and a Statics hook that charges bilateral input/output fees. |
-| **Permanent liquidity** | The hook converts matched POL allocations into hook-owned full-range liquidity with no ordinary withdrawal path. |
+| **Locked liquidity** | The hook converts matched allocations into hook-owned full-range liquidity with no ordinary withdrawal path. |
 | **Governed lifecycle** | A shared timelock owns both Diamonds; guardians can restrict exposure while repayment, recovery, and exit paths remain available. |
 
 ---
@@ -69,6 +70,7 @@ for the canonical machine-readable integration-beta state.
 │  ├─ Basket creation / mint / redemption / lifecycle               │
 │  ├─ Basket collateral / lending / repayment / recovery            │
 │  ├─ Global Statics staking + selected multi-asset rewards          │
+│  ├─ Genesis activation + one-to-one PositionNFT reward boosts      │
 │  ├─ Dollar gateway + pairing-risk liquidity                        │
 │  ├─ Constituent flash loans                                        │
 │  └─ Canonical-pool configuration + liquidity-position rewards      │
@@ -80,7 +82,7 @@ for the canonical machine-readable integration-beta state.
                  Uniswap v4 PoolManager + PositionManager
                                │
                  StaticsSwapFeeHook + LiquidityManager
-                 bilateral fees + permanent full-range POL
+                 bilateral fees + locked full-range liquidity
 ```
 
 `StaticsDiamond` is the normal integration address, but the Dollar Core remains a separate custody and solvency boundary. Both Diamonds are owned by the same `StaticsTimelock`. Each basket has its own transferable ERC-20 token; module accounting and physical-token reservations remain isolated inside the Diamond.
@@ -103,7 +105,7 @@ statics/
 │   ├── liquidity/                   # v4 hook, liquidity manager, and pool accounting
 │   ├── periphery/                   # Typed flash-arbitrage receiver
 │   ├── governance/                  # Statics timelock
-│   ├── tokens/                      # Basket and Statics staking tokens
+│   ├── tokens/                      # Basket, fixed STATICS, and Genesis tokens
 │   ├── testnet/                     # Public-testnet faucet
 │   ├── interfaces/                  # User and integration interfaces
 │   └── libraries/                   # Shared storage, custody, fee, and math libraries
@@ -112,8 +114,8 @@ statics/
 ├── test/
 │   ├── basket/                      # Basket lifecycle and custody flows
 │   ├── dollar/                      # Unit, integration, property, and fork coverage
-│   ├── liquidity/                   # v4, flash, POL, lending, and fork coverage
-│   ├── rewards/                     # Global and basket reward behavior
+│   ├── liquidity/                   # v4, flash, locked liquidity, lending, and fork coverage
+│   ├── rewards/                     # Global, Genesis, basket, and revenue-credit behavior
 │   ├── invariant/                   # Cross-module stateful invariants
 │   └── deployment/                  # Launcher, manifest, and ceremony proofs
 ├── sdk/                             # TypeScript ABIs, decoders, builders, and chain bindings
@@ -230,13 +232,13 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 
 ## Deploy
 
-The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
+The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys fixed-supply `StaticsToken`, the 5,555-token `StaticsGenesis` collection and its renderer, `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           23 facets, 209 selectors
+StaticsDiamond:           25 facets, 231 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -267,14 +269,13 @@ machine-readable state in
 
 The release sequence is intentionally explicit:
 
-1. Deploy and verify the owner-mintable testnet Statics staking token.
-2. Deploy and verify the testnet ETH/USD, sequencer-uptime, and USDG oracle fixtures.
-3. Set the confirmed staking-token and oracle addresses in the ignored release environment.
-4. Simulate, inspect, then broadcast and verify the canonical Statics launcher.
-5. Schedule and execute the timelocked canonical-liquidity installation.
-6. Configure the pegged Mock USDG profile.
-7. Schedule and execute the owner-funded genesis basket launch.
-8. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
+1. Deploy and verify the testnet ETH/USD, sequencer-uptime, and USDG oracle fixtures.
+2. Set the confirmed oracle addresses and StonkBrokers recipient in the ignored release environment.
+3. Simulate, inspect, then broadcast and verify the canonical Statics launcher, including fixed STATICS and Genesis deployment.
+4. Schedule and execute the timelocked canonical-liquidity installation.
+5. Configure the pegged Mock USDG profile.
+6. Schedule and execute the owner-funded genesis basket launch.
+7. Verify both Diamond manifests, ownership, selector routing, token supply, Genesis binding, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
 
 Focused deployment proofs:
 
@@ -323,15 +324,25 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 ### Shared PositionNFT
 
-`StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, reward selections, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over the complete economic position. A position cannot close while any module leg remains active.
+`StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, STATICS stake, reward selections, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over that complete portfolio, including its assets and liabilities. Before an owner-changing transfer, earned global rewards are settled into pull-based credits for the previous owner and any Genesis link is cleared; the recipient receives the continuing stake at ordinary 1.00x weight. A position cannot close while any module leg remains active.
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
-Every valid PositionNFT has deterministic, fully onchain Base64 JSON and SVG metadata. The visual seed is the stable `(chain ID, StaticsDiamond, position ID)` identity, so transfers and position activity do not change the avatar. The Diamond owner may replace or clear the collection-wide renderer; the renderer contains no balances, achievements, risk claims, or other live protocol state.
+PositionNFT metadata is intentionally minimal financial-account JSON and contains no rendered avatar. Deterministic onchain SVG identity belongs to the scarce Genesis collection instead.
+
+### STATICS and Genesis
+
+`StaticsToken` mints exactly 1 billion STATICS to the configured treasury at deployment and exposes no later mint authority. It supports permit and holder-authorized burns. Protocol rewards come from collected activity fees, not token emissions.
+
+`StaticsGenesis` mints token IDs 1 through 5,555 once. An unactivated Genesis provides no boost. Its owner may burn the cumulative configured transition costs to activate directly through Tier 1, 2, 3, or 4, with immutable launch multipliers of 1.10x, 1.15x, 1.20x, and 1.25x. Future activation costs are governance-configurable within 1,000 to 100,000 STATICS per transition.
+
+One Genesis may link to one commonly owned PositionNFT and vice versa. Link, unlink, and activation settle the old reward-index interval before changing effective weight and do not restart the 24-hour staking eligibility clock. A linked Genesis cannot transfer. An owner-changing Genesis transfer resets its activation tier to zero; a PositionNFT transfer clears its Genesis link without resetting the Genesis tier.
 
 ### Global rewards
 
-Users stake the configured Statics ERC-20 in a PositionNFT and opt into selected reward assets. Each asset indexes rewards only across positions that selected it. Eligibility begins after the configured delay, so a new selection cannot capture historical fees. Unsupported or temporarily ineligible fee shares fall through to the governed accounting destination rather than remaining unbooked.
+Users stake STATICS in a PositionNFT and opt into selected reward assets. Each asset indexes rewards only across positions that selected it, using effective eligible weight after any linked activated-Genesis multiplier. Eligibility begins after the configured delay, so a new selection cannot capture historical fees. Unsupported or temporarily ineligible fee shares fall through to the governed accounting destination rather than remaining unbooked.
+
+Reward maturity is maintained through permissionless checkpoints of up to eight assets per transaction. Weight-changing Genesis actions and PositionNFT transfers fail fast when a selected reward book needs maintenance, so anyone can checkpoint the reported assets in bounded batches and retry without calling any reward token.
 
 Canonical LP rewards are separate: users may stake eligible full-range PositionManager NFTs for active Statics pools, accrue next-block liquidity weight, claim rewards, and unstake the NFT without a cooldown.
 
@@ -341,9 +352,9 @@ Basket lending locks deposited BasketTokens and releases the proportional consti
 
 ### Canonical liquidity and bilateral fees
 
-Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The pool uses zero native LP fee. `StaticsSwapFeeHook` charges configured fees on both input and output, then allocates them across permanent POL, eligible canonical LP positions, deposited BasketTokens, global Statics stakers, and treasury.
+Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The pool uses zero native LP fee. `StaticsSwapFeeHook` charges configured fees on both input and output, then allocates the default split across locked liquidity (10%), eligible canonical LP positions (20%), deposited BasketTokens (20%), eligible STATICS stakers (15%), StonkBrokers (10%), the index creator (5%), and treasury (20%). Partner and creator amounts accrue as isolated pull-based liabilities rather than calling recipients during swaps.
 
-Matched POL inventory is converted into hook-owned full-range liquidity. It has no normal withdrawal path and can unwind only after the basket enters `ExitOnly` and its canonical pool is decommissioned. Timelocked per-pool overrides may replace or clear the complete global fee configuration.
+Matched locked-liquidity inventory is converted into hook-owned full-range liquidity. It has no normal withdrawal path and can unwind only after the basket enters `ExitOnly` and its canonical pool is decommissioned. Timelocked per-pool overrides may replace or clear the complete global seven-way fee configuration.
 
 ### Statics Dollar profiles
 
@@ -448,7 +459,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `MULTISIG` | Initial timelock proposer and governance authority |
 | `GUARDIAN` | Basket and initial Dollar emergency guardian |
 | `TREASURY` | Shared protocol treasury |
-| `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
+| `STONKBROKERS_RECIPIENT` | Initial partner recipient; zero routes the partner allocation to treasury until configured |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
 | `WETH_ADDRESS` | Verified WETH for the selected chain |

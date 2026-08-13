@@ -250,12 +250,15 @@ profile from silently masking another profile's impairment.
 ## Transferring a PositionNFT
 
 If Alice transfers PositionNFT 42 to Bob, Bob receives control over every
-attached protocol leg, including deposited and locked BasketTokens, reward
-claims, outstanding loan obligations, STATICS stake, Dollar legs, and LP NFTs
-voluntarily held by the Diamond. Externally held v4 LP NFTs do not transfer with
-the PositionNFT.
+attached protocol leg, including deposited and locked BasketTokens, outstanding
+loan obligations, STATICS stake, continuing reward selections, Dollar legs,
+and LP NFTs voluntarily held by the Diamond. Externally held v4 LP NFTs do not
+transfer with the PositionNFT.
 
-The onchain avatar remains visually stable because its seed depends on chain
-ID, the Statics Diamond, and token ID—not its owner or financial state. Bob must
-inspect `positionState` and the module-specific views before accepting the NFT;
-the avatar is identity, not a solvency or achievement badge.
+Immediately before ownership changes, the Diamond settles global rewards and
+credits them per asset to Alice, clears any Genesis link, and reweights the
+continuing stake to 1.00x. Alice can pull those credits later even if one reward
+token is temporarily incompatible. Bob must inspect `positionState` and the
+module-specific views before accepting the NFT. PositionNFT metadata is a
+minimal financial-account description; the onchain avatar and activation-tier
+presentation belong to Genesis NFTs.
