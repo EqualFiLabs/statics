@@ -8,15 +8,14 @@ import {StaticsToken} from "../src/tokens/StaticsToken.sol";
 contract DeployStaticsToken is Script {
     function run() external returns (StaticsToken token) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        address recipient = vm.envAddress("STATICS_TOKEN_RECIPIENT");
-        uint256 initialSupply = vm.envUint("STATICS_TOKEN_INITIAL_SUPPLY");
+        address treasury = vm.envAddress("STATICS_TREASURY");
 
         vm.startBroadcast(privateKey);
-        token = deploy(recipient, initialSupply);
+        token = deploy(treasury);
         vm.stopBroadcast();
     }
 
-    function deploy(address recipient, uint256 initialSupply) public returns (StaticsToken token) {
-        token = new StaticsToken(recipient, initialSupply);
+    function deploy(address treasury) public returns (StaticsToken token) {
+        token = new StaticsToken(treasury);
     }
 }

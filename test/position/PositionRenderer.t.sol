@@ -2,10 +2,11 @@
 pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
+import {IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
 import {LibAvatarSVG} from "../../src/metadata/LibAvatarSVG.sol";
 import {LibAvatarTraits} from "../../src/metadata/LibAvatarTraits.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
+import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 
 contract AvatarRendererHarness {
     function seed(uint256 chainId, address collection, uint256 tokenId) external pure returns (bytes32) {
@@ -37,30 +38,50 @@ contract AvatarRendererHarness {
             sigil: values[6],
             signal: values[7]
         });
-        return LibAvatarSVG.render(value, selected);
+        return LibAvatarSVG.render(value, selected, 0);
     }
 }
 
-contract PositionRendererTest is Test {
+contract GenesisTierMock is IStaticsGenesisProtocol {
+    mapping(uint256 genesisId => uint8 tier) internal tiers;
+
+    function setTier(uint256 genesisId, uint8 tier) external {
+        tiers[genesisId] = tier;
+    }
+
+    function genesisTier(uint256 genesisId) external view returns (uint8) {
+        return tiers[genesisId];
+    }
+
+    function onGenesisTransfer(uint256, address, address) external pure {}
+}
+
+contract GenesisRendererTest is Test {
     string internal constant JSON_PREFIX = "data:application/json;base64,";
     string internal constant SVG_PREFIX = "data:image/svg+xml;base64,";
 
-    StaticsPositionRenderer internal renderer;
+    StaticsGenesisRenderer internal renderer;
+    GenesisTierMock internal protocol;
     AvatarRendererHarness internal harness;
 
     function setUp() public {
         vm.chainId(46_630);
-        renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
+        renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
+        protocol = new GenesisTierMock();
         harness = new AvatarRendererHarness();
     }
 
     function test_RenderTokenURIContainsSelfContainedMetadata() public view {
-        string memory uri = renderer.renderTokenURI(address(0x51A71C5), 42);
+        string memory uri = renderer.renderTokenURI(address(0x51A71C5), 42, address(protocol));
         assertTrue(_startsWith(uri, JSON_PREFIX));
 
         string memory json = string(_decodeBase64(_afterPrefix(uri, JSON_PREFIX)));
-        assertEq(vm.parseJsonString(json, ".name"), "Statics Position #42");
-        assertEq(vm.parseJsonString(json, ".description"), "A transferable position in the Statics Protocol.");
+        assertEq(vm.parseJsonString(json, ".name"), "Statics Genesis #42");
+        assertEq(
+            vm.parseJsonString(json, ".description"),
+            "A scarce Genesis asset enhancing STATICS staking reward weight."
+        );
+        assertEq(vm.parseJsonUint(json, ".attributes[8].value"), 0);
 
         string memory image = vm.parseJsonString(json, ".image");
         assertTrue(_startsWith(image, SVG_PREFIX));
@@ -78,10 +99,21 @@ contract PositionRendererTest is Test {
     }
 
     function test_RenderTokenURIIsStableForIdentity() public view {
-        string memory first = renderer.renderTokenURI(address(0x51A71C5), 42);
-        string memory second = renderer.renderTokenURI(address(0x51A71C5), 42);
+        string memory first = renderer.renderTokenURI(address(0x51A71C5), 42, address(protocol));
+        string memory second = renderer.renderTokenURI(address(0x51A71C5), 42, address(protocol));
         assertEq(first, second);
-        assertEq(keccak256(bytes(first)), 0x7a9b22c82d80ff2bc12ef56ba728e3d13a59433d34f64bc845d318dc54fb7ead);
+    }
+
+    function test_ActivationTierChangesOnlyTierPresentation() public {
+        string memory beforeUri = renderer.renderTokenURI(address(0x51A71C5), 42, address(protocol));
+        protocol.setTier(42, 4);
+        string memory afterUri = renderer.renderTokenURI(address(0x51A71C5), 42, address(protocol));
+
+        assertNotEq(beforeUri, afterUri);
+        string memory json = string(_decodeBase64(_afterPrefix(afterUri, JSON_PREFIX)));
+        assertEq(vm.parseJsonUint(json, ".attributes[8].value"), 4);
+        string memory svg = string(_decodeBase64(_afterPrefix(vm.parseJsonString(json, ".image"), SVG_PREFIX)));
+        assertTrue(_contains(svg, 'id="activation-tier"'));
     }
 
     function test_SeedSeparatesChainCollectionAndToken() public view {

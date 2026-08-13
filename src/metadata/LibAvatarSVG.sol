@@ -12,7 +12,7 @@ library LibAvatarSVG {
     string internal constant PLATE = "#080B09";
     string internal constant GRID = "#273028";
 
-    function render(bytes32 seed, LibAvatarTraits.Traits memory traits_) internal pure returns (string memory) {
+    function render(bytes32 seed, LibAvatarTraits.Traits memory traits_, uint8 tier) internal pure returns (string memory) {
         string memory accent = LibAvatarTraits.signalColor(traits_.signal);
         string memory foreground = string.concat(
             _field(traits_.field, accent, seed),
@@ -23,7 +23,8 @@ library LibAvatarSVG {
         string memory overlay = string.concat(
             _interface(traits_.interfaceType, accent),
             _sigil(traits_.sigil, accent),
-            _boundary(traits_.boundary, accent)
+            _boundary(traits_.boundary, accent),
+            _activationOverlay(tier, accent)
         );
         return string.concat(
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">',
@@ -31,6 +32,28 @@ library LibAvatarSVG {
             foreground,
             overlay,
             "</svg>"
+        );
+    }
+
+    function _activationOverlay(uint8 tier, string memory accent) private pure returns (string memory) {
+        if (tier == 0) return "";
+        bytes memory marks;
+        for (uint256 i; i < tier; ++i) {
+            marks = abi.encodePacked(
+                marks,
+                '<rect x="',
+                (104 + i * 14).toString(),
+                '" y="232" width="8" height="8" fill="',
+                accent,
+                '"/>'
+            );
+        }
+        return string.concat(
+            '<g id="activation-tier"><rect x="96" y="226" width="64" height="20" rx="4" fill="#080B09" stroke="',
+            accent,
+            '"/>',
+            string(marks),
+            "</g>"
         );
     }
 

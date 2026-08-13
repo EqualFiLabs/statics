@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Test} from "forge-std/Test.sol";
 import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
 
@@ -17,7 +16,7 @@ contract StaticsTokenTest is Test {
     function setUp() public {
         (holder, holderKey) = makeAddrAndKey("holder");
         spender = makeAddr("spender");
-        token = new StaticsToken(holder, 1_000_000_000 ether);
+        token = new StaticsToken(holder);
     }
 
     function testInitialDistributionUsesStaticsIdentity() public view {
@@ -25,42 +24,25 @@ contract StaticsTokenTest is Test {
         assertEq(token.symbol(), "STATICS");
         assertEq(token.totalSupply(), 1_000_000_000 ether);
         assertEq(token.balanceOf(holder), token.totalSupply());
-        assertEq(token.owner(), holder);
+        assertEq(token.FIXED_SUPPLY(), 1_000_000_000 ether);
     }
 
-    function testOwnerMintsWithoutConfiguredCap() public {
-        address recipient = makeAddr("recipient");
-        uint256 firstMint = type(uint128).max;
-        uint256 secondMint = type(uint128).max;
-
-        vm.startPrank(holder);
-        token.mint(recipient, firstMint);
-        token.mint(recipient, secondMint);
-        vm.stopPrank();
-
-        assertEq(token.balanceOf(recipient), firstMint + secondMint);
-        assertEq(token.totalSupply(), 1_000_000_000 ether + firstMint + secondMint);
-    }
-
-    function testNonOwnerCannotMint() public {
-        address stranger = makeAddr("stranger");
-        vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        token.mint(stranger, 1 ether);
-    }
-
-    function testTransferredOwnershipMovesMintAuthority() public {
-        address nextOwner = makeAddr("nextOwner");
+    function testBurnAndBurnFromOnlyReduceSupply() public {
         vm.prank(holder);
-        token.transferOwnership(nextOwner);
+        token.burn(100 ether);
 
         vm.prank(holder);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, holder));
-        token.mint(holder, 1 ether);
+        token.approve(spender, 50 ether);
+        vm.prank(spender);
+        token.burnFrom(holder, 50 ether);
 
-        vm.prank(nextOwner);
-        token.mint(nextOwner, 1 ether);
-        assertEq(token.balanceOf(nextOwner), 1 ether);
+        assertEq(token.totalSupply(), 1_000_000_000 ether - 150 ether);
+        assertEq(token.balanceOf(holder), token.totalSupply());
+    }
+
+    function testRevertWhenTreasuryIsZero() public {
+        vm.expectRevert(StaticsToken.InvalidTreasury.selector);
+        new StaticsToken(address(0));
     }
 
     function testPermitAuthorizesStakingAllowance() public {

@@ -2,7 +2,7 @@
 pragma solidity 0.8.33;
 
 library LibAvatarTraits {
-    bytes32 internal constant DOMAIN = bytes32("STATICS_AVATAR_V1");
+    bytes32 internal constant DOMAIN = bytes32("STATICS_GENESIS_AVATAR_V1");
 
     uint8 internal constant FIELD_COUNT = 8;
     uint8 internal constant BOUNDARY_COUNT = 6;
