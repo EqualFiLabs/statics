@@ -255,10 +255,12 @@ loan obligations, STATICS stake, continuing reward selections, Dollar legs,
 and LP NFTs voluntarily held by the Diamond. Externally held v4 LP NFTs do not
 transfer with the PositionNFT.
 
-Immediately before ownership changes, the Diamond settles global rewards and
-credits them per asset to Alice, clears any Genesis link, and reweights the
-continuing stake to 1.00x. Alice can pull those credits later even if one reward
-token is temporarily incompatible. Bob must inspect `positionState` and the
-module-specific views before accepting the NFT. PositionNFT metadata is a
-minimal financial-account description; the onchain avatar and activation-tier
+If PositionNFT 42 is linked to Alice's Genesis NFT, transfer first reverts and
+Alice must explicitly unlink it. Unlinking settles the boosted interval and
+returns future effective weight to 1.00x. The later PositionNFT transfer does
+not settle or detach rewards: its selected assets, maturity schedules,
+checkpoints, and accrued claims remain attached, so Bob receives them with the
+rest of the account. Bob must inspect `positionState` and the module-specific
+views before accepting the NFT. PositionNFT metadata is a minimal
+financial-account description; the onchain avatar and activation-tier
 presentation belong to Genesis NFTs.

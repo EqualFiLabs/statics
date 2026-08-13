@@ -238,7 +238,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           25 facets, 231 selectors
+StaticsDiamond:           25 facets, 229 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -324,7 +324,7 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 ### Shared PositionNFT
 
-`StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, STATICS stake, reward selections, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over that complete portfolio, including its assets and liabilities. Before an owner-changing transfer, earned global rewards are settled into pull-based credits for the previous owner and any Genesis link is cleared; the recipient receives the continuing stake at ordinary 1.00x weight. A position cannot close while any module leg remains active.
+`StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, STATICS stake, reward selections, accrued rewards, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over that complete portfolio, including its assets and liabilities, without changing its reward books or global reward denominators. A linked PositionNFT must be explicitly unlinked from Genesis before it can transfer. A position cannot close while any module leg remains active.
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
@@ -336,13 +336,13 @@ PositionNFT metadata is intentionally minimal financial-account JSON and contain
 
 `StaticsGenesis` mints token IDs 1 through 5,555 once. An unactivated Genesis provides no boost. Its owner may burn the cumulative configured transition costs to activate directly through Tier 1, 2, 3, or 4, with immutable launch multipliers of 1.10x, 1.15x, 1.20x, and 1.25x. Future activation costs are governance-configurable within 1,000 to 100,000 STATICS per transition.
 
-One Genesis may link to one commonly owned PositionNFT and vice versa. Link, unlink, and activation settle the old reward-index interval before changing effective weight and do not restart the 24-hour staking eligibility clock. A linked Genesis cannot transfer. An owner-changing Genesis transfer resets its activation tier to zero; a PositionNFT transfer clears its Genesis link without resetting the Genesis tier.
+One Genesis may link to one commonly owned PositionNFT and vice versa. Link, unlink, and activation settle the old reward-index interval before changing effective weight and do not restart the 24-hour staking eligibility clock. Neither NFT can transfer while linked. The owner must explicitly unlink first; an owner-changing Genesis transfer then resets its activation tier to zero, while the unlinked PositionNFT transfers its complete reward-bearing portfolio unchanged.
 
 ### Global rewards
 
 Users stake STATICS in a PositionNFT and opt into selected reward assets. Each asset indexes rewards only across positions that selected it, using effective eligible weight after any linked activated-Genesis multiplier. Eligibility begins after the configured delay, so a new selection cannot capture historical fees. Unsupported or temporarily ineligible fee shares fall through to the governed accounting destination rather than remaining unbooked.
 
-Reward maturity is maintained through permissionless checkpoints of up to eight assets per transaction. Weight-changing Genesis actions and PositionNFT transfers fail fast when a selected reward book needs maintenance, so anyone can checkpoint the reported assets in bounded batches and retry without calling any reward token.
+Reward maturity is maintained through permissionless checkpoints of up to eight assets per transaction. Only elapsed epochs containing pending maturity buckets require work; empty elapsed epochs fast-forward without making a book stale. Weight-changing stake and Genesis actions fail fast when selected books have due nonempty buckets, so anyone can checkpoint the reported assets in bounded batches and retry without calling any reward token. PositionNFT transfer performs no reward transition.
 
 Canonical LP rewards are separate: users may stake eligible full-range PositionManager NFTs for active Statics pools, accrue next-block liquidity weight, claim rewards, and unstake the NFT without a cooldown.
 

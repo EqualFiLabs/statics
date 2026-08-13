@@ -179,7 +179,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **25 facets / 231 selectors** on `StaticsDiamond`; and
+- **25 facets / 229 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -242,8 +242,8 @@ be configured from 1,000 through 100,000 STATICS for future transitions.
 
 One Genesis may link to one commonly owned PositionNFT and vice versa. A linked
 Genesis cannot transfer. Unlinking preserves activation; an owner-changing
-Genesis transfer resets it. PositionNFT transfer clears the link but does not
-transfer or reset the Genesis.
+Genesis transfer resets it. A linked PositionNFT also cannot transfer; its owner
+must explicitly unlink first.
 
 ## Shared PositionNFT
 
@@ -259,10 +259,10 @@ One PositionNFT can own several independent legs:
 
 ERC-721 ownership and approvals authorize attached legs. Transferring the NFT
 transfers its staking balance, continuing reward selections, collateral,
-obligations, and control of voluntarily custodied LP NFTs. Earned global rewards
-are first detached into per-asset credits for the previous owner, and any
-Genesis multiplier is removed. Integrators must inspect every active leg before
-accepting a transfer.
+obligations, accrued global rewards, reward checkpoints, and control of
+voluntarily custodied LP NFTs. Reward accounting remains keyed to the
+PositionNFT, so transfer changes neither a global reward denominator nor any
+book. Integrators must inspect every active leg before accepting a transfer.
 
 The Diamond implements the pre-ERC Modular Position NFT reporting interface
 (`0x212b8e93`). `positionState` reports current existence, a structural nonce,
@@ -456,27 +456,30 @@ a per-asset pending tranche that matures at the next hourly boundary at least
 Fee accrual rolls the affected asset's bounded maturity ring before updating
 its index. Mandatory multi-asset transitions do not roll unrelated global
 books: anyone checkpoints stale books with `checkpointRewardAssets` in batches
-of at most eight, then retries the owner action. Each matured bucket records its
-activation index so pending stake cannot capture historical fees. `unstake`
+of at most eight, then retries the owner action. Only due nonempty maturity
+buckets make a book stale; elapsed empty epochs fast-forward without requiring
+maintenance. Each matured bucket records its activation index so pending stake
+cannot capture historical fees. `unstake`
 removes pending stake before eligible stake and requires an exact outbound
 transfer. A full unstake clears the selection list while preserving already
 settled claims.
 
 Each selected asset separately tracks actual eligible/pending stake and
 effective eligible/pending weight. Its monotonic 1e27 index increases by the
-STATICS-staker fee divided by total effective eligible weight. Before link,
-unlink, activation, stake, or transfer changes a position's weight, the old
-index interval settles at its prior weight and the checkpoint advances. Only
-future index increases use the replacement weight. Multiplier changes preserve
-pending eligibility timestamps and never create withdrawable STATICS.
+STATICS-staker fee divided by total effective eligible weight. The division
+remainder is carried in that asset's book and folded into later accruals instead
+of being discarded. Before link, unlink, activation, or stake changes a
+position's weight, the old index interval settles at its prior weight and the
+checkpoint advances. Only future index increases use the replacement weight.
+Multiplier changes preserve pending eligibility timestamps and never create
+withdrawable STATICS.
 
-An owner-changing PositionNFT transfer processes the selected-plus-detached-
-claim asset union, bounded at 64. It settles each asset, credits crystallized
-rewards to `positionTransferRewardCredit[previousOwner][asset]`, clears those
-position claimables, returns continuing stake to 1.00x, and clears the Genesis
-link before the ERC-721 owner changes. Credits are reserved, never expire, and
-are pulled later to a nonzero receiver with a caller-selected minimum received
-amount. Arbitrary reward tokens are never called during PositionNFT transfer.
+An owner-changing PositionNFT transfer is not a reward-weight transition. A
+linked PositionNFT must be explicitly unlinked before transfer. Once unlinked,
+ERC-721 transfer leaves its selected assets, stake, checkpoints, claimables, and
+the global denominators unchanged; the recipient acquires the complete
+reward-bearing position. Arbitrary reward tokens are never called during
+PositionNFT transfer.
 
 ### Non-swap fee routing
 
@@ -503,8 +506,9 @@ eligible stake returns to zero.
 The ledger can create a reward book for any asset and uses 1e27 index
 precision. Each PositionNFT may select at most 64 assets. Permissionless
 eight-asset checkpoint batches bound global maturity maintenance, while
-stale-book guards keep mandatory position and Genesis transitions below the 16
-million gas cap without imposing a protocol-wide asset cap. Each asset's index
+stale-book guards keep mandatory weight-changing position and Genesis
+transitions below the 16 million gas cap without imposing a protocol-wide asset
+cap. Each asset's index
 denominator is the matured eligible stake of positions
 currently selected into that asset. A new selection enters pending state; its
 maturity bucket records the then-current index, and the position accrues only
@@ -1215,7 +1219,9 @@ release revision.
   token analysis; a physical reservation deficit is a black-swan incident,
   contained through fail-closed checks and guardian quarantine rather than a
   routine socialized-loss waterfall.
-- PositionNFT transfer moves all attached protocol rights and obligations.
+- PositionNFT transfer moves all attached protocol rights and obligations,
+  including global reward state, and requires any Genesis link to be removed
+  first.
 - Dollar safety depends on configured oracle, sequencer, collateral, health,
   and governance parameters.
 - Canonical liquidity inherits Uniswap v4, immutable-dependency,
@@ -1337,18 +1343,21 @@ For reward asset `a`, when `eligibleStake[a] > 0`:
 ```text
 staker = floor(grossFee * 9,000 / D)
 treasury = grossFee - staker
-indexDelta[a] = floor(staker * RAY / eligibleStake[a])
+scaled[a] = staker * RAY + priorScaledRemainder[a]
+indexDelta[a] = floor(scaled[a] / eligibleStake[a])
+scaledRemainder[a] = scaled[a] % eligibleStake[a]
 indexRay[a] += indexDelta[a]
 indexedAmount[a] += staker
 position accrual = floor(positionEligibleStake * indexDelta / RAY)
 ```
 
-Otherwise `staker = 0` and `treasury = grossFee`. Each accrual floors
-independently; there is no carried division remainder. If eligible stake later
-reaches zero, indexed whole-token value that never crystallized to positions is
-routed to treasury. Pending selection stake is excluded. When its hourly bucket
-matures, the bucket's then-current index becomes its activation checkpoint, and
-that stake accrues only from later index growth.
+Otherwise `staker = 0` and `treasury = grossFee`. Index division carries its
+per-asset scaled remainder across accruals and nonzero denominator changes. If
+eligible stake later reaches zero, the scaled remainder is cleared and indexed
+whole-token value that never crystallized to positions is routed to treasury.
+Pending selection stake is excluded. When its hourly bucket matures, the
+bucket's then-current index becomes its activation checkpoint, and that stake
+accrues only from later index growth.
 
 ### Basket position rewards
 
@@ -1512,7 +1521,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 36. Pegged profile fees route through the global non-swap ledger.
 37. Volatile Dollar insurance and reward routing remain profile- and series-state aware.
 38. Dollar Core collateral remains outside Diamond custody reservations.
-39. PositionNFT transfer moves control of attached protocol legs and voluntarily custodied v4 NFTs, but not externally held v4 NFTs, earned global rewards, or a Genesis multiplier.
+39. PositionNFT transfer moves control of attached protocol legs, accrued rewards, reward checkpoints, and voluntarily custodied v4 NFTs, but not externally held v4 NFTs; a linked PositionNFT must be explicitly unlinked before transfer.
 40. Diamond cuts and ERC-165 declarations remain synchronized.
 41. Newly staked or increased LP liquidity cannot earn before the next block.
 42. Existing activated LP liquidity keeps earning while an increase delta waits for activation.
@@ -1543,8 +1552,8 @@ remainder. Clearing the override restores the latest global rates and shares.
 67. Native PoolManager donations to protocol pools always revert; locked-liquidity inventory enters only through protocol seeding and swap-fee allocation.
 68. STATICS supply starts at exactly 1 billion, has no later mint authority, and every Genesis activation burn only reduces supply.
 69. A Genesis and PositionNFT link one-to-one under common direct ownership; a linked Genesis cannot transfer, and an owner-changing Genesis transfer resets activation.
-70. Link, unlink, activation, and PositionNFT transfer settle the old reward-index interval before changing effective denominator weight and preserve pending maturity.
-71. PositionNFT transfer credits crystallized global rewards to the previous owner without calling reward tokens; creator and partner recipients are likewise never called during swap execution.
+70. Link, unlink, activation, and stake changes settle the old reward-index interval before changing effective denominator weight and preserve pending maturity; PositionNFT transfer changes no reward weight.
+71. PositionNFT transfer preserves its complete reward accounting without calling reward tokens; creator and partner recipients are likewise never called during swap execution.
 
 ## Appendix C: Terminology
 
@@ -1563,7 +1572,6 @@ remainder. Clearing the override restores the latest global rates and shares.
 | **Fee account** | Diamond reservation holding global staker claims and treasury accruals |
 | **Staking account** | Diamond reservation holding actual staked STATICS |
 | **Locked liquidity** | Hook-owned full-range protocol-pool liquidity seeded at pool creation and expanded from swap-fee allocations |
-| **Position transfer credit** | Reserved per-owner, per-asset global reward crystallized before a PositionNFT changes owners |
 | **Creator reward credit** | Reserved per-creator, per-asset canonical swap revenue pulled outside swap execution |
 | **Partner accrual** | Reserved per-recipient, per-asset canonical swap revenue distributable permissionlessly with a caller tip |
 | **Canonical pool** | BasketToken/constituent v4 pool atomically registered, initialized, seeded, and made usable during basket creation |

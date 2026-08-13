@@ -50,7 +50,7 @@ the canonical pool key, while only the Diamond can call the liquidity manager;
 neither liquidity contract nor the Genesis metadata contracts are a second general
 protocol entrypoint.
 
-The fresh-deployment launcher installs 25 facets and 231 selectors on
+The fresh-deployment launcher installs 25 facets and 229 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -124,21 +124,21 @@ or unlinked position contributes exactly its actual stake; linked activation
 tiers contribute 1.10x, 1.15x, 1.20x, or 1.25x weight without creating a token
 claim above actual stake.
 
-Link, unlink, activation, and PositionNFT ownership transitions first settle
-the completed index interval at the old registered weight, preserve any
-pending-stake maturity timestamp, then replace denominator weight for future
-index increases. Permissionless checkpointing processes stale reward books in
-batches of at most eight; mandatory owner transitions fail fast on a stale book
-instead of rolling unrelated global maturity buckets. The one-to-one link,
-64-asset union, and bounded maintenance batches keep each transaction below the
-16 million gas cap.
+Link, unlink, activation, and stake changes first settle the completed index
+interval at the old registered weight, preserve any pending-stake maturity
+timestamp, then replace denominator weight for future index increases.
+Permissionless checkpointing processes due nonempty maturity buckets in batches
+of at most eight assets; elapsed empty epochs fast-forward without making a book
+stale. The one-to-one link, 64-active-selection bound, and bounded maintenance
+batches keep weight-changing transactions below the 16 million gas target.
 
-An owner-changing PositionNFT transfer settles its reward-asset union, moves
-crystallized rewards to `positionTransferRewardCredit[previousOwner][asset]`,
-returns continuing stake to 1.00x weight, and clears its Genesis link before
-ownership changes. It never calls arbitrary reward tokens. Creator rewards use
-the same pull-based liability pattern, while partner accrual is snapshotted by
-recipient and may be distributed permissionlessly with a bounded caller tip.
+Neither NFT can transfer while linked. After explicit unlinking, an
+owner-changing PositionNFT transfer changes only ERC-721 authority: stake,
+selections, checkpoints, accrued rewards, assets, and liabilities remain keyed
+to the PositionNFT and move with it. The transfer neither changes a reward
+denominator nor calls arbitrary reward tokens. Creator rewards use a pull-based
+liability, while partner accrual is snapshotted by recipient and may be
+distributed permissionlessly with a bounded caller tip.
 
 ## Canonical v4 liquidity boundaries
 

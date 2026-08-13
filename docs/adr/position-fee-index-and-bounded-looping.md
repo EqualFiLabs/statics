@@ -11,12 +11,13 @@
 > and revocable by the Dollar Core owner.
 >
 > **Tokenomics amendment (2026-08-13).** Fixed STATICS, Genesis effective
-> weight, PositionNFT transfer credits, and the seven-way canonical swap split
-> are specified by `genesis-tokenomics-and-swap-revenue.md` and supersede any
+> weight, PositionNFT-owned reward books, carried per-asset index remainders,
+> complete PositionNFT transfer, and the seven-way canonical swap split are
+> specified by `genesis-tokenomics-and-swap-revenue.md` and supersede any
 > conflicting token, metadata, or five-way fee text below.
 
 - Status: Accepted as amended
-- Date: 2026-07-18; amended 2026-07-19, 2026-07-20, 2026-07-25, and 2026-07-26
+- Date: 2026-07-18; amended 2026-07-19, 2026-07-20, 2026-07-25, 2026-07-26, and 2026-08-13
 - Scope: Protocol unification, Statics Dollar, basket minting and redemption,
   fee distribution, positions, and self-backed lending
 

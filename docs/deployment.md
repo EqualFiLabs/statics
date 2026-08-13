@@ -388,7 +388,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           25 facets, 231 selectors
+StaticsDiamond:           25 facets, 229 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

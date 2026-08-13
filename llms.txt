@@ -24,7 +24,7 @@ Core protocol relationships:
 - STATICS has a fixed 1-billion supply and no later mint authority. Staking is a separate PositionNFT leg: a position selects at most 64 reward assets, waits at least 24 hours for new stake or selections to become eligible, and earns actual selected fee tokens through independent per-asset effective-weight denominators. The eligibility delay is not an unstake lock.
 - `StaticsGenesis` is a fixed collection of 5,555 ERC-721s. Activation burns STATICS and unlocks 1.10x through 1.25x effective staking weight. One Genesis links to one commonly owned PositionNFT; linked Genesis NFTs cannot transfer, and any owner-changing Genesis transfer resets activation.
 - Statics Dollar (`USDstx`) is a permit-enabled senior claim. Pegged profiles are direct collateral wrappers. Volatile profiles issue equal nominal senior and series-specific ERC-1155 Risk Share (`ethLEV`) claims; junior Risk Shares absorb first loss and can supply immediately consumable pairing liquidity. Dollar profiles, series, health latches, insurance, and recovery remain isolated from basket solvency.
-- A PositionNFT is the transferable protocol account for staking, basket collateral, loan obligations, Dollar legs, and voluntarily custodied canonical LP NFTs. Transfer moves its assets and obligations, but first settles global rewards into pull-based previous-owner credits, clears any Genesis link, and returns future staking weight to 1.00x.
+- A PositionNFT is the transferable protocol account for staking, reward books and claims, basket collateral, loan obligations, Dollar legs, and voluntarily custodied canonical LP NFTs. Neither NFT can transfer while linked to Genesis. After explicit unlinking, PositionNFT transfer moves the complete account without changing reward checkpoints or denominators.
 - PositionNFT metadata is minimal onchain financial-account JSON. Deterministic Base64 JSON and SVG identity belongs to Genesis NFTs and includes their activation tier.
 
 Critical interpretation rules:
@@ -59,7 +59,7 @@ Critical interpretation rules:
 - [Selected Global Rewards ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/position-selected-global-rewards.md): Per-position asset selection, 24-hour activation, separate denominators, and fee routing.
 - [Canonical LP Rewards ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/canonical-lp-nft-rewards.md): Full-range LP custody, eligibility, hook-fee rewards, and terminal borrow-to-liquidity behavior.
 - [Composable Flash Loans ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/composable-flash-loan-callbacks.md): Typed callbacks, ordinary fee-paying mint and redemption, nested-loan prevention, and arbitrage composition.
-- [Genesis Tokenomics ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/genesis-tokenomics-and-swap-revenue.md): Fixed STATICS, Genesis activation and linking, effective-weight settlement, transfer credits, and the seven-way swap split.
+- [Genesis Tokenomics ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/genesis-tokenomics-and-swap-revenue.md): Fixed STATICS, Genesis activation and linking, carried-remainder effective-weight indexes, complete PositionNFT transfer, and the seven-way swap split.
 
 ## Deployment and Verification
 

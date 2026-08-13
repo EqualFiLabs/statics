@@ -2,8 +2,8 @@
 
 - Status: Accepted and implemented for clean-break deployment
 - Date: 2026-08-12
-- Scope: STATICS supply, Genesis NFTs, PositionNFT staking weight, transfer
-  settlement, canonical swap-fee allocation, creator rewards, StonkBrokers
+- Scope: STATICS supply, Genesis NFTs, PositionNFT staking weight and transfer
+  semantics, canonical swap-fee allocation, creator rewards, StonkBrokers
   distribution, and treasury revenue
 
 ## Context
@@ -41,7 +41,7 @@ Statics will replace the testnet tokenomics with:
    STATICS;
 3. a one-to-one optional link between one Genesis NFT and one PositionNFT;
 4. Genesis-enhanced effective weight inside the existing global reward indexes;
-5. transfer-time reward settlement into pull-based previous-owner credits; and
+5. PositionNFT-owned reward books and complete portfolio transfer; and
 6. a seven-way canonical swap-fee split supporting StonkBrokers and index
    creators.
 
@@ -209,12 +209,16 @@ Each selected reward asset keeps its existing cumulative 1e27 reward index.
 Fee accrual uses total effective eligible weight as its denominator:
 
 ```text
+scaled numerator
+    = staker fee * 1e27 + prior per-asset remainder
 index increase
-    = staker fee * 1e27 / total effective eligible weight
+    = floor(scaled numerator / total effective eligible weight)
+new remainder
+    = scaled numerator % total effective eligible weight
 ```
 
-Before any link, unlink, tier, stake, or ownership transition changes a
-position's effective weight, the protocol:
+Before any link, unlink, tier, or stake transition changes a position's
+effective weight, the protocol:
 
 1. settles the completed index interval using the previously registered
    effective weight;
@@ -223,13 +227,19 @@ position's effective weight, the protocol:
 4. adds the new effective weight for subsequent index increases.
 
 The global index remains monotonic. A new multiplier never applies
-retroactively to an index interval accumulated under the old multiplier.
+retroactively to an index interval accumulated under the old multiplier. Each
+asset carries its own division remainder across later accruals and nonzero
+denominator changes. When its eligible denominator reaches zero, the remainder
+is cleared and whole-token indexed dust is routed through the existing treasury
+fallback.
 
 Reward books expose permissionless checkpointing in bounded batches of up to
-eight assets. A mandatory multi-asset transition reverts with the first stale
-book instead of rolling unrelated global maturity buckets inside the owner
-transaction. Anyone may checkpoint the reported asset batches and retry. This
-keeps each maintenance transaction below the 16 million gas cap without
+eight assets. A book is stale only when an elapsed epoch contains a due nonempty
+maturity bucket; empty elapsed epochs fast-forward without mandatory
+maintenance. A mandatory multi-asset weight transition reverts with the first
+stale book instead of rolling unrelated global maturity buckets inside the
+owner transaction. Anyone may checkpoint the reported asset batches and retry.
+This keeps each maintenance transaction below the 16 million gas cap without
 changing eligibility or reward ownership.
 
 When a linked Genesis advances one or several tiers, the activation transaction
@@ -237,63 +247,32 @@ settles its one linked PositionNFT under the old tier before installing the new
 tier and effective weight. The existing 64-asset PositionNFT selection bound
 also bounds this transition.
 
-## PositionNFT transfer settlement
+## PositionNFT transfer semantics
 
-A PositionNFT continues to transfer its portfolio, including:
+A PositionNFT transfers its complete portfolio, including:
 
 - actual staked STATICS and reward-asset selections;
+- reward checkpoints, pending schedules, and accrued claims;
 - basket collateral and loans;
 - Statics Dollar legs and liabilities;
 - custodied liquidity positions; and
 - all other attached assets, rights, and obligations unless a module explicitly
   defines a transfer boundary.
 
-The previous owner's Genesis multiplier and global rewards earned before the
-transfer do not transfer.
+Reward accounting is keyed to the PositionNFT rather than its current owner.
+An owner-changing transfer therefore performs no reward settlement, iterates no
+reward-asset array, changes no denominator, and creates no address-level credit.
+The recipient acquires the same position checkpoints and may claim both
+crystallized and uncrystallized rewards through the ordinary claim path.
 
-For an actual owner-changing PositionNFT transfer, the transfer hook performs
-accounting before changing ownership:
+A PositionNFT cannot transfer while linked to Genesis. Its owner must explicitly
+unlink first, which settles the completed index interval at boosted weight and
+returns future denominator weight to 1.00x. The subsequent ERC-721 transfer is
+accounting-neutral. The Genesis remains with its owner at its existing tier.
 
-1. settle every selected global reward asset using the previous registered
-   weight;
-2. move all crystallized global rewards from the PositionNFT into credits owned
-   by the previous owner;
-3. advance the reward checkpoints and clear those PositionNFT claimables;
-4. replace boosted denominator weight with ordinary 1.00x weight;
-5. clear any Genesis link; and
-6. transfer the PositionNFT with its remaining portfolio.
-
-The recipient begins future index intervals at ordinary weight and may later
-link an activated Genesis NFT that they own.
-
-An approved operator or marketplace may initiate the PositionNFT transfer, but
-the reward credits always belong to the previous onchain owner. Minting,
-burning, and same-owner transfers use their appropriate lifecycle rules rather
-than pretending to be an owner-changing sale.
-
-## Previous-owner reward credits
-
-PositionNFT transfer performs no arbitrary ERC-20 reward delivery. It records
-address-level, per-asset credits instead:
-
-```text
-positionTransferRewardCredit[previousOwner][asset] += settled amount
-```
-
-Credits:
-
-- support EOAs, Safes, and contract owners;
-- aggregate across transferred PositionNFTs;
-- remain fully reserved in Diamond fee custody;
-- never expire;
-- cannot be redirected or confiscated by governance;
-- are unaffected by later PositionNFT or Genesis transfers; and
-- may be pulled later by the credited owner to a nonzero receiver they choose.
-
-A failed withdrawal leaves the credit unchanged. Users may withdraw assets
-separately, so one paused, blocklisting, reverting, taxed, or otherwise
-incompatible token cannot block PositionNFT transfer or withdrawal of another
-asset.
+This keeps arbitrary ERC-20 calls and reward-book iteration out of the ERC-721
+transfer hook while preserving the core financial-account rule: all assets,
+liabilities, rights, and reward state move with the PositionNFT.
 
 ## Canonical swap fees
 
@@ -425,14 +404,14 @@ routes unless a later decision explicitly changes them.
 
 ## Custody and execution boundaries
 
-Partner accrual, creator credits, previous-owner transfer credits, STATICS
-reward claims, LP claims, basket-staker claims, and treasury accrual are
-separate liabilities over the shared fee custody reservation. Each route must
+Partner accrual, creator credits, STATICS reward claims, LP claims,
+basket-staker claims, and treasury accrual are separate liabilities over the
+shared fee custody reservation. Each route must
 update its internal liability before any external transfer and may debit only
 its own recorded amount.
 
 Swap execution must not call creator or partner recipients. PositionNFT
-transfer must not call arbitrary reward tokens. Pull-based withdrawal and
+transfer must not call arbitrary reward tokens. Pull-based claims and
 permissionless partner distribution isolate incompatible token behavior from
 the critical swap and ERC-721 transfer paths.
 
@@ -457,7 +436,7 @@ Governance cannot:
 - change the implemented tier multipliers;
 - downgrade an earned tier except through the mandatory reset caused by a
   Genesis ownership transfer;
-- transfer or seize creator credits, previous-owner reward credits, or partner
+- transfer or seize creator credits, PositionNFT reward claims, or partner
   accrual outside their defined routes; or
 - make Genesis ownership a requirement for ordinary protocol use.
 
@@ -469,12 +448,12 @@ qualification and deployment manifests before mainnet.
 - STATICS becomes a fixed-supply, activity-funded revenue-sharing token.
 - Genesis scarcity, burn-funded activation, and transfer resets create a
   recurring deflationary incentive without restricting protocol access.
-- One-to-one linking bounds every activation and transfer-time reward update to
-  one PositionNFT and at most 64 selected assets.
-- A PositionNFT remains a broad transferable portfolio, but prior-owner global
-  rewards and Genesis multipliers do not transfer with it.
-- Pull-based credits keep arbitrary ERC-20 behavior out of PositionNFT transfer
-  and canonical swap execution.
+- One-to-one linking bounds every activation or unlink reward-weight update to
+  one PositionNFT and at most 64 active selected assets.
+- A PositionNFT remains a broad transferable portfolio whose reward books and
+  claims move intact; its Genesis link must be removed before transfer.
+- Accounting-neutral PositionNFT transfer and pull-based creator claims keep
+  arbitrary ERC-20 behavior out of ERC-721 transfer and canonical swaps.
 - Index creators receive performance-linked revenue while the protocol keeps
   100% of the upfront creation fee.
 - StonkBrokers distribution has an explicit permissionless liveness incentive.
@@ -493,8 +472,9 @@ The following launch choices remain deferred to release qualification:
 
 Deferred parameter selection does not reopen the accepted architectural
 decisions: fixed supply, no emissions, no unactivated boost, sequential
-burn-funded tiers, transfer reset, one-to-one linking, effective-weight index
-accounting, pull-based credits, the seven recipient classes, and
+  burn-funded tiers, transfer reset, one-to-one linking, effective-weight index
+  accounting with carried per-asset remainders, PositionNFT-owned reward books,
+  pull-based creator claims, the seven recipient classes, and
 permissionless tipped partner distribution.
 
 ## Superseded alternatives
@@ -510,5 +490,5 @@ Statics will not implement:
   effective-weight denominator;
 - retroactive multiplier application to completed index intervals;
 - token emissions to fund staking rewards;
-- inline reward-token delivery during PositionNFT transfer; or
+- transfer-time reward settlement or reward-token delivery; or
 - push-based creator or partner transfers during swap execution.

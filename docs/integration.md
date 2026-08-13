@@ -13,7 +13,7 @@ Most applications need:
 - the 5,555-token `StaticsGenesis` collection and its renderer;
 - one `StaticsBasketToken` address per discovered basket;
 - `IStaticsGenesisStaking` and `IStaticsProtocolRevenue` at the Diamond for
-  links, activation, transfer credits, creator claims, and partner distribution; and
+  links, activation, creator claims, and partner distribution; and
 - the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
   canonical Uniswap v4 pools.
 
@@ -162,8 +162,10 @@ full unstake clears selections but preserves settled claims.
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
 per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`
-timestamp and pending/eligible split. Fee accrual rolls due maturity buckets.
-Before a multi-asset stake, Genesis, or PositionNFT transfer transition, call
+timestamp and pending/eligible split. `rewardAsset` also exposes the per-asset
+`indexRemainder` carried into later index accruals. Fee accrual rolls due
+maturity buckets; elapsed epochs with no pending bucket require no checkpoint.
+Before a multi-asset stake or Genesis weight transition, call
 `rewardBookNeedsCheckpoint(asset)` for the position's assets and pass stale
 assets to permissionless `checkpointRewardAssets` in batches of at most eight.
 The transition otherwise reverts with the first stale asset so unrelated
@@ -182,10 +184,11 @@ NFTs and both registry directions to be empty. The activated multiplier applies
 immediately to already-eligible stake and to pending stake when it matures;
 linking never restarts or bypasses the 24-hour delay. `unlinkGenesis` settles
 the old interval and returns future weight to 1.00x. A linked Genesis cannot
-transfer. An owner-changing Genesis transfer resets activation, while an
-owner-changing PositionNFT transfer clears the link but leaves the Genesis tier
-with its owner. Checkpoint stale selected assets before link, unlink, activation,
-stake changes, or PositionNFT transfer.
+transfer. A PositionNFT cannot transfer while linked either: unlink it first.
+An owner-changing Genesis transfer then resets activation, while the unlinked
+PositionNFT transfers all of its stake, reward selections, checkpoints, and
+accrued claims unchanged. Checkpoint stale selected assets before link, unlink,
+activation, or stake changes.
 
 Before accepting a PositionNFT transfer, call `positionState(positionId)` and
 inspect protocol-specific economics for each discovered Leg. The standardized
@@ -197,13 +200,12 @@ Structural membership is available through `isLegActive`; events
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
 
-The PositionNFT transfer hook settles its global reward-asset union before
-ownership changes. Earned rewards become per-asset
-`positionTransferRewardCredit` for the previous owner and do not transfer with
-the PositionNFT. The previous owner later calls
-`claimPositionTransferRevenue(asset, receiver, minReceived)`. No reward token
-is called from the ERC-721 transfer path, so an incompatible reward asset cannot
-block transfer of the financial account.
+The PositionNFT transfer hook does not settle rewards, iterate reward assets, or
+change any global denominator. Every selected asset, checkpoint, pending or
+eligible stake amount, and accrued claim stays keyed to the PositionNFT and
+therefore transfers to its new owner. No reward token is called from the
+ERC-721 transfer path. The recipient may claim the position's rewards through
+the ordinary `claimRewards` path.
 
 `tokenURI(positionId)` returns minimal fully onchain Base64 JSON describing the
 token as a transferable financial account; it has no image or renderer
