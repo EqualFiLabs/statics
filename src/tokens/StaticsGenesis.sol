@@ -5,7 +5,7 @@ import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Consecutive} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Consecutive.sol";
-import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
+import {IStaticsGenesis, IStaticsGenesisBinding, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 
 /// @notice Immutable collection of the 5,555 scarce Statics Genesis NFTs.
@@ -38,6 +38,13 @@ contract StaticsGenesis is ERC721Consecutive, IERC4906, IStaticsGenesis {
         if (protocol != address(0)) revert ProtocolAlreadyBound();
         if (msg.sender != bootstrapBinder) revert UnauthorizedBootstrapBinder(msg.sender);
         if (protocol_ == address(0) || protocol_.code.length == 0) revert InvalidProtocol();
+        address collection;
+        try IStaticsGenesisBinding(protocol_).genesisCollection() returns (address reportedCollection) {
+            collection = reportedCollection;
+        } catch {
+            revert InvalidProtocol();
+        }
+        if (collection != address(this)) revert InvalidProtocol();
         protocol = protocol_;
         delete bootstrapBinder;
         emit BatchMetadataUpdate(1, COLLECTION_SIZE);

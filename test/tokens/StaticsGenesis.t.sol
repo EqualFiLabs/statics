@@ -8,7 +8,10 @@ import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 
+contract NonconformingProtocolMock {}
+
 contract GenesisProtocolMock is IStaticsGenesisProtocol {
+    address public genesisCollection;
     uint256 public lastGenesisId;
     address public lastPreviousOwner;
     address public lastNewOwner;
@@ -32,6 +35,10 @@ contract GenesisProtocolMock is IStaticsGenesisProtocol {
         tiers[genesisId] = tier;
     }
 
+    function setGenesisCollection(address collection) external {
+        genesisCollection = collection;
+    }
+
     function refresh(StaticsGenesis genesis, uint256 genesisId) external {
         genesis.refreshMetadata(genesisId);
     }
@@ -47,6 +54,7 @@ contract StaticsGenesisTest is Test {
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(treasury, renderer);
         protocol = new GenesisProtocolMock();
+        protocol.setGenesisCollection(address(genesis));
     }
 
     function test_ConstructorMintsFixedCollectionAcrossOneBasedIds() public view {
@@ -72,6 +80,20 @@ contract StaticsGenesisTest is Test {
         assertEq(protocol.lastGenesisId(), 1);
         assertEq(protocol.lastPreviousOwner(), treasury);
         assertEq(protocol.lastNewOwner(), receiver);
+    }
+
+    function test_BindingRejectsNonconformingOrWrongCollectionProtocol() public {
+        NonconformingProtocolMock nonconforming = new NonconformingProtocolMock();
+        vm.expectRevert(StaticsGenesis.InvalidProtocol.selector);
+        genesis.bindProtocol(address(nonconforming));
+
+        GenesisProtocolMock wrongCollection = new GenesisProtocolMock();
+        wrongCollection.setGenesisCollection(makeAddr("wrongCollection"));
+        vm.expectRevert(StaticsGenesis.InvalidProtocol.selector);
+        genesis.bindProtocol(address(wrongCollection));
+
+        genesis.bindProtocol(address(protocol));
+        assertEq(genesis.protocol(), address(protocol));
     }
 
     function test_ProtocolCanBlockLinkedTransferAndResetTierOnAllowedTransfer() public {

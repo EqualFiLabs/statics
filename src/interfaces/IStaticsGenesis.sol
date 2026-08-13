@@ -14,3 +14,7 @@ interface IStaticsGenesisProtocol {
     function onGenesisTransfer(uint256 genesisId, address previousOwner, address newOwner) external;
     function genesisTier(uint256 genesisId) external view returns (uint8);
 }
+
+interface IStaticsGenesisBinding {
+    function genesisCollection() external view returns (address);
+}
