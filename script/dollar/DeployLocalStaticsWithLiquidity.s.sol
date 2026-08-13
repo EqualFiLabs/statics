@@ -12,6 +12,8 @@ import {DeployStaticsDollar, StaticsDollarLocalConfig, StaticsDollarStackDeploym
 
 /// @notice Complete local-only Statics deployment for browser and integration rehearsals.
 contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
+    uint16 private constant INPUT_FEE_BPS = 50;
+    uint16 private constant OUTPUT_FEE_BPS = 50;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -50,12 +52,15 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
         );
         address stateView = _deployCode("out/StateView.sol/StateView.json", abi.encode(poolManager), "STATE_VIEW");
 
-        bytes memory constructorArgs = abi.encode(IPoolManager(poolManager), deployment.diamond, uint16(25), uint16(25));
+        (uint16 inputFeeBps, uint16 outputFeeBps) = localHookFees();
+        bytes memory constructorArgs =
+            abi.encode(IPoolManager(poolManager), deployment.diamond, inputFeeBps, outputFeeBps);
         (address expectedHook, bytes32 salt) = HookMiner.find(
             FOUNDRY_CREATE2_DEPLOYER, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs
         );
-        StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(IPoolManager(poolManager), deployment.diamond, 50, 50);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
+            IPoolManager(poolManager), deployment.diamond, inputFeeBps, outputFeeBps
+        );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager liquidityManager =
             new StaticsLiquidityManager(deployment.diamond, positionManager, poolManager, permit2);
@@ -71,6 +76,10 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
         deployment.liquidityManager = address(liquidityManager);
         deployment.stateView = stateView;
         _logLocalDeployment(deployment);
+    }
+
+    function localHookFees() public pure returns (uint16 inputFeeBps, uint16 outputFeeBps) {
+        return (INPUT_FEE_BPS, OUTPUT_FEE_BPS);
     }
 
     function _deployCode(string memory artifact, bytes memory constructorArgs, bytes32 dependency)

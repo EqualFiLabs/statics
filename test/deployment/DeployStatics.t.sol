@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
@@ -38,6 +39,7 @@ import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
+import {DeployLocalStaticsWithLiquidity} from "../../script/dollar/DeployLocalStaticsWithLiquidity.s.sol";
 import {ConfigureStaticsLiquidity, StaticsLiquidityConfig} from "../../script/ConfigureStaticsLiquidity.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
@@ -45,6 +47,25 @@ import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract DeployStaticsTest is Test {
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
+    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
+        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        | Hooks.BEFORE_DONATE_FLAG;
+
+    function testLocalLiquidityLauncherMinesTheDeployedHookInitCode() public {
+        DeployLocalStaticsWithLiquidity launcher = new DeployLocalStaticsWithLiquidity();
+        (uint16 inputFeeBps, uint16 outputFeeBps) = launcher.localHookFees();
+        IPoolManager manager = IPoolManager(makeAddr("poolManager"));
+        address diamond = makeAddr("diamond");
+        bytes memory constructorArgs = abi.encode(manager, diamond, inputFeeBps, outputFeeBps);
+        (address expectedHook, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(manager, diamond, inputFeeBps, outputFeeBps);
+
+        assertEq(address(hook), expectedHook);
+        assertEq(inputFeeBps, 50);
+        assertEq(outputFeeBps, 50);
+    }
 
     function testCanonicalLauncherCreatesOnlyDeployableContracts() public {
         DeployStatics deployer = new DeployStatics();
