@@ -12,9 +12,6 @@ import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "..
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGenesis} from "../libraries/LibGenesis.sol";
-import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
-import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
-import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {LibPosition} from "./LibPosition.sol";
 
 contract PositionNFTFacet is
@@ -38,6 +35,7 @@ contract PositionNFTFacet is
     error PositionInitializing(uint256 positionId);
     error PositionHasActiveLegs(uint256 positionId, uint256 activeLegCount);
     error PositionHasUnresolvedObligations(uint256 positionId, uint256 unresolvedObligationCount);
+    error PositionLinkedToGenesis(uint256 positionId, uint256 genesisId);
     error InvalidPositionPageSize(uint256 requested, uint256 maximum);
 
     function createPosition(address receiver) external payable returns (uint256 positionId) {
@@ -171,33 +169,16 @@ contract PositionNFTFacet is
     function _update(address to, uint256 tokenId, address auth) internal override returns (address previousOwner) {
         previousOwner = _ownerOf(tokenId);
         bool ownerChangingTransfer = previousOwner != address(0) && to != address(0) && previousOwner != to;
-        if (ownerChangingTransfer) _preparePositionTransfer(tokenId, previousOwner);
+        if (ownerChangingTransfer) {
+            uint256 genesisId = LibGenesis.genesisStorage().linkedGenesis[tokenId];
+            if (genesisId != 0) revert PositionLinkedToGenesis(tokenId, genesisId);
+        }
         previousOwner = super._update(to, tokenId, auth);
         if (to == address(0)) {
             uint256 genesisId = LibGenesis.clearPositionLink(tokenId);
             if (genesisId != 0) emit IStaticsGenesisStaking.GenesisUnlinked(genesisId, tokenId, previousOwner);
         }
         LibPosition.syncOwnerIndex(tokenId, to);
-    }
-
-    function _preparePositionTransfer(uint256 positionId, address previousOwner) private {
-        LibGlobalRewards.enforcePositionRewardBooksFresh(positionId);
-        address[] memory assets = LibPositionPortfolio.portfolioStorage().globalRewardAssets[positionId].values;
-        uint256 length = assets.length;
-        for (uint256 i; i < length; ++i) {
-            address asset = assets[i];
-            LibGlobalRewards.settleAsset(positionId, asset);
-            uint256 amount = LibGlobalRewards.detachClaim(positionId, asset);
-            LibProtocolRevenue.creditPositionTransfer(previousOwner, asset, amount);
-        }
-
-        uint16 previousMultiplier = LibGenesis.positionMultiplier(positionId);
-        if (previousMultiplier != LibGenesis.BASE_MULTIPLIER_BPS) {
-            LibGlobalRewards.transitionPositionWeight(positionId, previousMultiplier, LibGenesis.BASE_MULTIPLIER_BPS);
-        }
-        LibGlobalRewards.deactivateStakingLegIfEmpty(positionId);
-        uint256 genesisId = LibGenesis.clearPositionLink(positionId);
-        if (genesisId != 0) emit IStaticsGenesisStaking.GenesisUnlinked(genesisId, positionId, previousOwner);
     }
 
     function _enforcePositionCreationFee() private view {

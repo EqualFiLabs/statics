@@ -3,13 +3,9 @@ pragma solidity 0.8.33;
 
 interface IStaticsProtocolRevenue {
     event CreatorRevenueAccrued(address indexed creator, address indexed asset, uint256 amount);
-    event PositionTransferRevenueAccrued(address indexed owner, address indexed asset, uint256 amount);
     event PartnerRevenueAccrued(address indexed recipient, address indexed asset, uint256 amount);
     event CreatorRevenueClaimed(
         address indexed creator, address indexed asset, address indexed receiver, uint256 amount
-    );
-    event PositionTransferRevenueClaimed(
-        address indexed owner, address indexed asset, address indexed receiver, uint256 amount
     );
     event PartnerRevenueDistributed(
         address indexed recipient,
@@ -25,9 +21,6 @@ interface IStaticsProtocolRevenue {
     function claimCreatorRevenue(address asset, address receiver, uint256 minReceived)
         external
         returns (uint256 received);
-    function claimPositionTransferRevenue(address asset, address receiver, uint256 minReceived)
-        external
-        returns (uint256 received);
     function distributePartnerRevenue(address recipient, address asset)
         external
         returns (uint256 distributed, uint256 tip);
@@ -35,12 +28,8 @@ interface IStaticsProtocolRevenue {
     function setPartnerDistributionTipBps(uint16 tipBps) external;
 
     function creatorRewardCredit(address creator, address asset) external view returns (uint256);
-    function positionTransferRewardCredit(address owner, address asset) external view returns (uint256);
     function partnerAccrued(address recipient, address asset) external view returns (uint256);
     function partnerRecipient() external view returns (address);
     function partnerDistributionTipBps() external view returns (uint16);
-    function protocolRevenueLiabilities(address asset)
-        external
-        view
-        returns (uint256 creator, uint256 positionTransfer, uint256 partner);
+    function protocolRevenueLiabilities(address asset) external view returns (uint256 creator, uint256 partner);
 }

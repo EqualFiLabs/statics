@@ -7,10 +7,10 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {GenesisFacet} from "../../src/facets/GenesisFacet.sol";
 import {IStaticsGenesisStaking} from "../../src/interfaces/IStaticsGenesisStaking.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
-import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
 import {LibGenesis} from "../../src/libraries/LibGenesis.sol";
+import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -27,14 +27,12 @@ contract GenesisFeeAccrualHarness {
 contract GenesisRewardsTest is StaticsTestBase {
     uint256 internal constant MAX_TRANSACTION_GAS = 16_000_000;
     IStaticsGenesisStaking internal genesisStaking;
-    IStaticsProtocolRevenue internal protocolRevenue;
     IERC721 internal genesisNFT;
     GenesisFeeAccrualHarness internal feeHarness;
 
     function setUp() public override {
         super.setUp();
         genesisStaking = IStaticsGenesisStaking(address(diamond));
-        protocolRevenue = IStaticsProtocolRevenue(address(diamond));
         genesisNFT = IERC721(genesisStaking.genesisCollection());
         feeHarness = new GenesisFeeAccrualHarness();
         bytes4[] memory selectors = new bytes4[](1);
@@ -100,7 +98,7 @@ contract GenesisRewardsTest is StaticsTestBase {
         assertEq(globalRewards.pendingRewards(bobPosition, _asset(address(reward)))[0], 90 ether);
     }
 
-    function test_PositionTransferDetachesRewardsAndClearsGenesisWeight() public {
+    function test_LinkedPositionRequiresExplicitUnlinkBeforeTransferAndKeepsRewards() public {
         MockERC20 reward = new MockERC20("Reward", "RWD", 18);
         uint256 positionId = _stake(alice, 100 ether, address(reward));
         _warpEligible(positionId, address(reward), alice);
@@ -113,26 +111,33 @@ contract GenesisRewardsTest is StaticsTestBase {
         vm.stopPrank();
         _accrue(reward, alice, 100 ether);
         vm.prank(alice);
-        uint256 expectedCredit = globalRewards.pendingRewards(positionId, _asset(address(reward)))[0];
+        uint256 expectedRewards = globalRewards.pendingRewards(positionId, _asset(address(reward)))[0];
 
         vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(PositionNFTFacet.PositionLinkedToGenesis.selector, positionId, 3));
         IERC721(address(diamond)).transferFrom(alice, bob, positionId);
 
+        vm.prank(alice);
+        genesisStaking.unlinkGenesis(3);
         assertEq(genesisStaking.linkedGenesis(positionId), 0);
         assertEq(genesisStaking.linkedPosition(3), 0);
         assertEq(genesisStaking.positionRewardMultiplierBps(positionId), 10_000);
-        uint256 credit = protocolRevenue.positionTransferRewardCredit(alice, address(reward));
-        assertEq(credit, expectedCredit);
+        vm.prank(alice);
+        assertEq(globalRewards.pendingRewards(positionId, _asset(address(reward)))[0], expectedRewards);
+
+        vm.prank(alice);
+        IERC721(address(diamond)).transferFrom(alice, bob, positionId);
         vm.prank(bob);
         IStaticsGlobalRewards.RewardSelectionView memory selection =
             globalRewards.rewardSelection(positionId, address(reward));
         assertEq(selection.actualEligibleStake, 100 ether);
         assertEq(selection.effectiveEligibleWeight, 100 ether);
 
-        vm.prank(alice);
-        uint256 received = protocolRevenue.claimPositionTransferRevenue(address(reward), alice, credit);
-        assertEq(received, credit);
-        assertEq(reward.balanceOf(alice), credit);
+        vm.prank(bob);
+        uint256[] memory received =
+            globalRewards.claimRewards(positionId, _asset(address(reward)), bob, new uint256[](1));
+        assertEq(received[0], expectedRewards);
+        assertEq(reward.balanceOf(bob), expectedRewards);
     }
 
     function test_GenesisCannotTransferWhileLinkedAndResetsActivationAfterUnlink() public {
@@ -178,7 +183,14 @@ contract GenesisRewardsTest is StaticsTestBase {
         genesisStaking.linkGenesis(7, positionId);
         vm.stopPrank();
 
-        vm.warp(block.timestamp + 25 hours);
+        stakingAsset.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 1 ether);
+        globalRewards.stake(positionId, 1 ether);
+        uint40 eligibleAt = globalRewards.rewardSelection(positionId, address(assetA)).eligibleAt;
+        vm.stopPrank();
+
+        vm.warp(eligibleAt);
         assertTrue(globalRewards.rewardBookNeedsCheckpoint(address(assetA)));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardBookNeedsCheckpoint.selector, address(assetA)));
@@ -232,7 +244,6 @@ contract GenesisRewardsTest is StaticsTestBase {
         uint256 unlinkGas = gasBefore - gasleft();
         emit log_named_uint("64-asset Genesis unlink gas", unlinkGas);
         assertLt(unlinkGas, MAX_TRANSACTION_GAS);
-        genesisStaking.linkGenesis(5, positionId);
         vm.stopPrank();
 
         for (uint256 i; i < rewardAssets.length; ++i) {
@@ -252,9 +263,11 @@ contract GenesisRewardsTest is StaticsTestBase {
         vm.stopPrank();
         assertLt(transferGas, MAX_TRANSACTION_GAS);
         assertEq(genesisStaking.linkedGenesis(positionId), 0);
+        vm.startPrank(bob);
         for (uint256 i; i < rewardAssets.length; ++i) {
-            assertGt(protocolRevenue.positionTransferRewardCredit(alice, rewardAssets[i]), 0);
+            assertGt(globalRewards.pendingRewards(positionId, _asset(rewardAssets[i]))[0], 0);
         }
+        vm.stopPrank();
     }
 
     function _stake(address owner, uint256 amount, address rewardAsset) private returns (uint256 positionId) {
@@ -433,13 +446,9 @@ contract ColdPositionTransferGasTest is StaticsTestBase {
     uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
 
     uint256 private positionId;
-    IStaticsGenesisStaking private genesisStaking;
-    IERC721 private genesisNFT;
 
     function setUp() public override {
         super.setUp();
-        genesisStaking = IStaticsGenesisStaking(address(diamond));
-        genesisNFT = IERC721(genesisStaking.genesisCollection());
         GenesisFeeAccrualHarness implementation = new GenesisFeeAccrualHarness();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = GenesisFeeAccrualHarness.accrueNonSwapFee.selector;
@@ -476,26 +485,6 @@ contract ColdPositionTransferGasTest is StaticsTestBase {
             feeHarness.accrueNonSwapFee(address(reward), 1 ether);
             vm.stopPrank();
         }
-        vm.prank(treasury);
-        genesisNFT.transferFrom(treasury, alice, 8);
-        stakingAsset.mint(alice, 100_000 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), 100_000 ether);
-        genesisStaking.activateGenesis(8, 4, 100_000 ether);
-        genesisStaking.linkGenesis(8, positionId);
-        vm.stopPrank();
-
-        vm.warp(block.timestamp + 25 hours);
-        for (uint256 i; i < rewardAssets.length; ++i) {
-            assertTrue(globalRewards.rewardBookNeedsCheckpoint(rewardAssets[i]));
-        }
-        for (uint256 offset; offset < rewardAssets.length; offset += 8) {
-            address[] memory batch = new address[](8);
-            for (uint256 i; i < batch.length; ++i) {
-                batch[i] = rewardAssets[offset + i];
-            }
-            globalRewards.checkpointRewardAssets(batch);
-        }
         vm.warp(block.timestamp + 23 hours);
         for (uint256 i; i < rewardAssets.length; ++i) {
             assertFalse(globalRewards.rewardBookNeedsCheckpoint(rewardAssets[i]));
@@ -507,7 +496,7 @@ contract ColdPositionTransferGasTest is StaticsTestBase {
         uint256 gasBefore = gasleft();
         IERC721(address(diamond)).transferFrom(alice, bob, positionId);
         uint256 transferGas = gasBefore - gasleft();
-        emit log_named_uint("cold 64-asset boosted PositionNFT transfer gas after 23 empty epochs", transferGas);
+        emit log_named_uint("cold 64-asset PositionNFT transfer after 23 empty epochs", transferGas);
         assertLt(transferGas, MAX_TRANSACTION_GAS);
     }
 }

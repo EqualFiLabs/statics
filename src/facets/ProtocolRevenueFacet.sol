@@ -33,25 +33,6 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         return actualReceived;
     }
 
-    function claimPositionTransferRevenue(address asset, address receiver, uint256 minReceived)
-        external
-        nonReentrant
-        returns (uint256 received)
-    {
-        if (receiver == address(0)) revert InvalidReceiver();
-        LibProtocolRevenue.RevenueStorage storage rs = LibProtocolRevenue.revenueStorage();
-        uint256 amount = rs.positionTransferRewardCredit[msg.sender][asset];
-        if (amount == 0) revert NoRevenue(msg.sender, asset);
-        rs.positionTransferRewardCredit[msg.sender][asset] = 0;
-        rs.totalPositionTransferLiability[asset] -= amount;
-        (uint256 spent, uint256 actualReceived) =
-            LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
-        if (spent != amount) revert IncompatibleRevenueAsset(asset, amount, spent, actualReceived);
-        if (actualReceived < minReceived) revert MinimumOutputNotMet(asset, actualReceived, minReceived);
-        emit PositionTransferRevenueClaimed(msg.sender, asset, receiver, amount);
-        return actualReceived;
-    }
-
     function distributePartnerRevenue(address recipient, address asset)
         external
         nonReentrant
@@ -99,10 +80,6 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         return LibProtocolRevenue.revenueStorage().creatorRewardCredit[creator][asset];
     }
 
-    function positionTransferRewardCredit(address owner, address asset) external view returns (uint256) {
-        return LibProtocolRevenue.revenueStorage().positionTransferRewardCredit[owner][asset];
-    }
-
     function partnerAccrued(address recipient, address asset) external view returns (uint256) {
         return LibProtocolRevenue.revenueStorage().partnerAccrued[recipient][asset];
     }
@@ -115,13 +92,8 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         return LibProtocolRevenue.revenueStorage().partnerTipBps;
     }
 
-    function protocolRevenueLiabilities(address asset)
-        external
-        view
-        returns (uint256 creator, uint256 positionTransfer, uint256 partner)
-    {
+    function protocolRevenueLiabilities(address asset) external view returns (uint256 creator, uint256 partner) {
         LibProtocolRevenue.RevenueStorage storage rs = LibProtocolRevenue.revenueStorage();
-        return
-            (rs.totalCreatorLiability[asset], rs.totalPositionTransferLiability[asset], rs.totalPartnerLiability[asset]);
+        return (rs.totalCreatorLiability[asset], rs.totalPartnerLiability[asset]);
     }
 }

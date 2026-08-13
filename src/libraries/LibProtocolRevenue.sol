@@ -10,10 +10,8 @@ library LibProtocolRevenue {
 
     struct RevenueStorage {
         mapping(address creator => mapping(address asset => uint256 amount)) creatorRewardCredit;
-        mapping(address owner => mapping(address asset => uint256 amount)) positionTransferRewardCredit;
         mapping(address recipient => mapping(address asset => uint256 amount)) partnerAccrued;
         mapping(address asset => uint256 amount) totalCreatorLiability;
-        mapping(address asset => uint256 amount) totalPositionTransferLiability;
         mapping(address asset => uint256 amount) totalPartnerLiability;
         address partnerRecipient;
         uint16 partnerTipBps;
@@ -42,14 +40,6 @@ library LibProtocolRevenue {
         rs.creatorRewardCredit[creator][asset] += amount;
         rs.totalCreatorLiability[asset] += amount;
         emit IStaticsProtocolRevenue.CreatorRevenueAccrued(creator, asset, amount);
-    }
-
-    function creditPositionTransfer(address owner, address asset, uint256 amount) internal {
-        if (amount == 0) return;
-        RevenueStorage storage rs = revenueStorage();
-        rs.positionTransferRewardCredit[owner][asset] += amount;
-        rs.totalPositionTransferLiability[asset] += amount;
-        emit IStaticsProtocolRevenue.PositionTransferRevenueAccrued(owner, asset, amount);
     }
 
     function creditPartner(address recipient, address asset, uint256 amount) internal {

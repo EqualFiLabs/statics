@@ -65,18 +65,16 @@ contract SelectorManifestTest is Test {
 
     function testProtocolRevenueSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.protocolRevenue();
-        bytes4[] memory expected = new bytes4[](11);
+        bytes4[] memory expected = new bytes4[](9);
         expected[0] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
-        expected[1] = IStaticsProtocolRevenue.claimPositionTransferRevenue.selector;
-        expected[2] = IStaticsProtocolRevenue.distributePartnerRevenue.selector;
-        expected[3] = IStaticsProtocolRevenue.setPartnerRecipient.selector;
-        expected[4] = IStaticsProtocolRevenue.setPartnerDistributionTipBps.selector;
-        expected[5] = IStaticsProtocolRevenue.creatorRewardCredit.selector;
-        expected[6] = IStaticsProtocolRevenue.positionTransferRewardCredit.selector;
-        expected[7] = IStaticsProtocolRevenue.partnerAccrued.selector;
-        expected[8] = IStaticsProtocolRevenue.partnerRecipient.selector;
-        expected[9] = IStaticsProtocolRevenue.partnerDistributionTipBps.selector;
-        expected[10] = IStaticsProtocolRevenue.protocolRevenueLiabilities.selector;
+        expected[1] = IStaticsProtocolRevenue.distributePartnerRevenue.selector;
+        expected[2] = IStaticsProtocolRevenue.setPartnerRecipient.selector;
+        expected[3] = IStaticsProtocolRevenue.setPartnerDistributionTipBps.selector;
+        expected[4] = IStaticsProtocolRevenue.creatorRewardCredit.selector;
+        expected[5] = IStaticsProtocolRevenue.partnerAccrued.selector;
+        expected[6] = IStaticsProtocolRevenue.partnerRecipient.selector;
+        expected[7] = IStaticsProtocolRevenue.partnerDistributionTipBps.selector;
+        expected[8] = IStaticsProtocolRevenue.protocolRevenueLiabilities.selector;
         _assertExactAndCollisionFree(actual, expected);
     }
 

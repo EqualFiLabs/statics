@@ -158,6 +158,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
             effectiveEligibleWeight: LibGlobalRewards.effectiveEligibleWeight(stored),
             effectivePendingWeight: LibGlobalRewards.effectivePendingWeight(stored),
             indexRay: stored.indexRay,
+            indexRemainder: stored.indexRemainder,
             indexedReserve: stored.indexedAmount,
             totalClaimable: rs.totalClaimable[asset]
         });

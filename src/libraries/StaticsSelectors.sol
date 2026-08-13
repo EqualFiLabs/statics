@@ -196,18 +196,16 @@ library StaticsSelectors {
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](11);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
-        selectors[1] = IStaticsProtocolRevenue.claimPositionTransferRevenue.selector;
-        selectors[2] = IStaticsProtocolRevenue.distributePartnerRevenue.selector;
-        selectors[3] = IStaticsProtocolRevenue.setPartnerRecipient.selector;
-        selectors[4] = IStaticsProtocolRevenue.setPartnerDistributionTipBps.selector;
-        selectors[5] = IStaticsProtocolRevenue.creatorRewardCredit.selector;
-        selectors[6] = IStaticsProtocolRevenue.positionTransferRewardCredit.selector;
-        selectors[7] = IStaticsProtocolRevenue.partnerAccrued.selector;
-        selectors[8] = IStaticsProtocolRevenue.partnerRecipient.selector;
-        selectors[9] = IStaticsProtocolRevenue.partnerDistributionTipBps.selector;
-        selectors[10] = IStaticsProtocolRevenue.protocolRevenueLiabilities.selector;
+        selectors[1] = IStaticsProtocolRevenue.distributePartnerRevenue.selector;
+        selectors[2] = IStaticsProtocolRevenue.setPartnerRecipient.selector;
+        selectors[3] = IStaticsProtocolRevenue.setPartnerDistributionTipBps.selector;
+        selectors[4] = IStaticsProtocolRevenue.creatorRewardCredit.selector;
+        selectors[5] = IStaticsProtocolRevenue.partnerAccrued.selector;
+        selectors[6] = IStaticsProtocolRevenue.partnerRecipient.selector;
+        selectors[7] = IStaticsProtocolRevenue.partnerDistributionTipBps.selector;
+        selectors[8] = IStaticsProtocolRevenue.protocolRevenueLiabilities.selector;
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {

@@ -83,6 +83,9 @@ contract ProtocolRevenueTest is StaticsTestBase {
         assertEq(revenue.creatorRewardCredit(alice, address(assetA)), creatorAmount);
         assertEq(revenue.partnerAccrued(bob, address(assetA)), partnerAmount);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), treasuryAmount);
+        (uint256 creatorLiability, uint256 partnerLiability) = revenue.protocolRevenueLiabilities(address(assetA));
+        assertEq(creatorLiability, creatorAmount);
+        assertEq(partnerLiability, partnerAmount);
 
         vm.prank(alice);
         assertEq(revenue.claimCreatorRevenue(address(assetA), alice, creatorAmount), creatorAmount);
@@ -93,6 +96,9 @@ contract ProtocolRevenueTest is StaticsTestBase {
         assertEq(tip, 0.1 ether);
         assertEq(assetA.balanceOf(bob), distributed);
         assertEq(assetA.balanceOf(caller), tip);
+        (creatorLiability, partnerLiability) = revenue.protocolRevenueLiabilities(address(assetA));
+        assertEq(creatorLiability, 0);
+        assertEq(partnerLiability, 0);
     }
 
     function test_PartnerAccrualRemainsWithHistoricalRecipientAfterConfigurationChange() public {

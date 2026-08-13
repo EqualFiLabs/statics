@@ -8,6 +8,7 @@ interface IStaticsGlobalRewards {
         uint256 effectiveEligibleWeight;
         uint256 effectivePendingWeight;
         uint256 indexRay;
+        uint256 indexRemainder;
         uint256 indexedReserve;
         uint256 totalClaimable;
     }

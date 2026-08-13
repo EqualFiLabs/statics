@@ -28,6 +28,7 @@ library LibGlobalRewards {
         uint256 effectiveEligibleWeight;
         uint256 effectivePendingWeight;
         uint256 indexRay;
+        uint256 indexRemainder;
         uint256 indexedAmount;
         uint256 crystallizedAmount;
         uint40 nextBucketEpoch;
@@ -129,9 +130,7 @@ library LibGlobalRewards {
         RewardStorage storage rs = rewardStorage();
         StakePosition storage position = rs.positions[positionId];
         if (position.optedInIndexPlusOne[asset] != 0) revert RewardAssetAlreadyOptedIn(positionId, asset);
-        LibPositionPortfolio.AddressIndex storage unionIndex =
-            LibPositionPortfolio.portfolioStorage().globalRewardAssets[positionId];
-        if (unionIndex.indexPlusOne[asset] == 0 && unionIndex.values.length == MAX_REWARD_ASSETS_PER_POSITION) {
+        if (position.optedInAssets.length == MAX_REWARD_ASSETS_PER_POSITION) {
             revert RewardAssetLimitExceeded(positionId);
         }
         RewardBook storage book = rs.books[asset];
@@ -299,11 +298,6 @@ library LibGlobalRewards {
         }
     }
 
-    function enforcePositionRewardBooksFresh(uint256 positionId) internal view {
-        RewardStorage storage rs = rewardStorage();
-        _enforcePositionBooksFresh(rs, rs.positions[positionId]);
-    }
-
     function rewardBookNeedsCheckpoint(address asset) internal view returns (bool) {
         return _needsCheckpoint(rewardStorage().books[asset]);
     }
@@ -329,17 +323,6 @@ library LibGlobalRewards {
         PositionSelection storage selection = position.selections[asset];
         _settleEligible(rs, position, positionId, asset, selection, book);
         _syncMatured(position, positionId, asset, selection, book);
-    }
-
-    function detachClaim(uint256 positionId, address asset) internal returns (uint256 amount) {
-        RewardStorage storage rs = rewardStorage();
-        StakePosition storage position = rs.positions[positionId];
-        amount = position.claimable[asset];
-        if (amount == 0) return 0;
-        position.claimable[asset] = 0;
-        --position.claimAssetCount;
-        rs.totalClaimable[asset] -= amount;
-        if (position.optedInIndexPlusOne[asset] == 0) LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
     }
 
     function pending(uint256 positionId, address asset) internal view returns (uint256 amount) {
@@ -439,7 +422,9 @@ library LibGlobalRewards {
     }
 
     function _routeDustIfEmpty(RewardStorage storage rs, address asset, RewardBook storage book) private {
-        if (book.effectiveEligibleWeight != 0 || book.indexedAmount == 0) return;
+        if (book.effectiveEligibleWeight != 0) return;
+        book.indexRemainder = 0;
+        if (book.indexedAmount == 0) return;
         uint256 dust = book.indexedAmount - book.crystallizedAmount;
         book.indexedAmount = 0;
         book.crystallizedAmount = 0;
@@ -449,8 +434,15 @@ library LibGlobalRewards {
     }
 
     function _increaseIndex(RewardBook storage book, uint256 amount, uint256 denominator) private {
-        uint256 delta = Math.mulDiv(amount, RAY, denominator);
+        uint256 priorRemainder = book.indexRemainder;
+        uint256 delta = Math.mulDiv(amount, RAY, denominator) + priorRemainder / denominator;
+        uint256 remainder = mulmod(amount, RAY, denominator) + priorRemainder % denominator;
+        if (remainder >= denominator) {
+            ++delta;
+            remainder -= denominator;
+        }
         book.indexRay += delta;
+        book.indexRemainder = remainder;
         book.indexedAmount += amount;
     }
 
@@ -563,6 +555,10 @@ library LibGlobalRewards {
         uint256 elapsed = uint256(currentEpoch - nextEpoch) + 1;
         if (elapsed > REWARD_BUCKET_COUNT) elapsed = REWARD_BUCKET_COUNT;
         uint8 cursor = book.bucketCursor;
+        if ((book.pendingBucketBitmap & _bucketMask(cursor, elapsed)) == 0) {
+            _advanceBucketWindow(book, currentEpoch, nextEpoch, elapsed);
+            return;
+        }
         for (uint256 i; i < elapsed; ++i) {
             uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
             uint40 epoch = nextEpoch + uint40(i);
@@ -590,13 +586,7 @@ library LibGlobalRewards {
             }
         }
 
-        if (uint256(currentEpoch - nextEpoch) + 1 >= REWARD_BUCKET_COUNT) {
-            book.nextBucketEpoch = currentEpoch + 1;
-            book.bucketCursor = 0;
-        } else {
-            book.nextBucketEpoch = nextEpoch + uint40(elapsed);
-            book.bucketCursor = uint8((uint256(cursor) + elapsed) % REWARD_BUCKET_COUNT);
-        }
+        _advanceBucketWindow(book, currentEpoch, nextEpoch, elapsed);
     }
 
     function _addPendingBucket(RewardBook storage book, uint40 eligibleAt, uint256 stake, uint256 weight) private {
@@ -643,13 +633,27 @@ library LibGlobalRewards {
         if (currentEpoch < nextEpoch) return false;
         uint256 elapsed = uint256(currentEpoch - nextEpoch) + 1;
         if (elapsed > REWARD_BUCKET_COUNT) elapsed = REWARD_BUCKET_COUNT;
-        uint32 bitmap = book.pendingBucketBitmap;
-        uint8 cursor = book.bucketCursor;
-        for (uint256 i; i < elapsed; ++i) {
-            uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
-            if (bitmap & (uint32(1) << index) != 0) return true;
+        return (book.pendingBucketBitmap & _bucketMask(book.bucketCursor, elapsed)) != 0;
+    }
+
+    function _bucketMask(uint8 cursor, uint256 elapsed) private pure returns (uint32 mask) {
+        if (elapsed >= REWARD_BUCKET_COUNT) return uint32((uint256(1) << REWARD_BUCKET_COUNT) - 1);
+        uint256 untilWrap = REWARD_BUCKET_COUNT - cursor;
+        if (elapsed <= untilWrap) return uint32(((uint256(1) << elapsed) - 1) << cursor);
+        uint256 wrapped = elapsed - untilWrap;
+        mask = uint32((((uint256(1) << untilWrap) - 1) << cursor) | ((uint256(1) << wrapped) - 1));
+    }
+
+    function _advanceBucketWindow(RewardBook storage book, uint40 currentEpoch, uint40 nextEpoch, uint256 elapsed)
+        private
+    {
+        if (uint256(currentEpoch - nextEpoch) + 1 >= REWARD_BUCKET_COUNT) {
+            book.nextBucketEpoch = currentEpoch + 1;
+            book.bucketCursor = 0;
+        } else {
+            book.nextBucketEpoch = nextEpoch + uint40(elapsed);
+            book.bucketCursor = uint8((uint256(book.bucketCursor) + elapsed) % REWARD_BUCKET_COUNT);
         }
-        return elapsed >= REWARD_BUCKET_COUNT - 1;
     }
 
     function _enforcePositionBooksFresh(RewardStorage storage rs, StakePosition storage position) private view {
