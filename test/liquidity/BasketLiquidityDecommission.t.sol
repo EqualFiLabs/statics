@@ -40,7 +40,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         vm.warp(block.timestamp + 1 hours);
     }
 
-    function testExitOnlyReleasesPolAndRoutesItToGlobalTreasury() public {
+    function testExitOnlyReleasesLockedLiquidityAndRoutesItToGlobalTreasury() public {
         uint128 lockedBefore = swapFeeHook.lockedLiquidity(canonicalKey.toId());
         uint256 supplyBefore = IERC20(basketToken).totalSupply();
         uint256 vaultBefore = baskets.vaultBalance(basketId, constituent);
@@ -82,17 +82,19 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
             inputFeeBps: 40,
             outputFeeBps: 60,
-            polShareBps: 6_000,
+            lockedLiquidityShareBps: 6_000,
             liquidityProviderShareBps: 1_000,
             basketStakerShareBps: 0,
             staticsStakerShareBps: 2_000,
+            stonkBrokersShareBps: 0,
+            indexCreatorShareBps: 0,
             treasuryShareBps: 1_000
         });
         basketLiquidity.setSwapFeeConfiguration(configuration);
         IStaticsBasketLiquidity.SwapFeeConfiguration memory stored = basketLiquidity.swapFeeConfiguration();
         assertEq(stored.inputFeeBps, 40);
         assertEq(stored.outputFeeBps, 60);
-        assertEq(stored.polShareBps, 6_000);
+        assertEq(stored.lockedLiquidityShareBps, 6_000);
         assertEq(stored.liquidityProviderShareBps, 1_000);
     }
 

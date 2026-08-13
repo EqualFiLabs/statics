@@ -22,6 +22,7 @@ import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLiquidityRewards} from "../libraries/LibLiquidityRewards.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 
 contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
@@ -230,6 +231,8 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
         uint256 liquidityProviderAmount,
         uint256 basketStakerAmount,
         uint256 staticsStakerAmount,
+        uint256 stonkBrokersAmount,
+        uint256 indexCreatorAmount,
         uint256 treasuryAmount
     ) external nonReentrant {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
@@ -242,7 +245,8 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.Governance && basketStakerAmount != 0) {
             revert GovernancePoolBasketReward(poolId, basketStakerAmount);
         }
-        uint256 total = liquidityProviderAmount + basketStakerAmount + staticsStakerAmount + treasuryAmount;
+        uint256 total = liquidityProviderAmount + basketStakerAmount + staticsStakerAmount + stonkBrokersAmount
+            + indexCreatorAmount + treasuryAmount;
         if (total == 0) return;
         uint256 received = LibCustody.pull(asset, msg.sender, total);
         if (received != total) revert IncompatibleLiquidityAsset(asset, total, received);
@@ -257,6 +261,23 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
             );
         }
         LibGlobalRewards.accrueReservedSwapStakerFee(asset, staticsStakerAmount);
+        LibProtocolRevenue.RevenueStorage storage revenue = LibProtocolRevenue.revenueStorage();
+        address partner = revenue.partnerRecipient;
+        if (partner == address(0)) {
+            treasuryAmount += stonkBrokersAmount;
+        } else {
+            LibProtocolRevenue.creditPartner(partner, asset, stonkBrokersAmount);
+        }
+        if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
+            address creator = LibBasket.basketStorage().baskets[basketId].creator;
+            if (creator == address(0)) {
+                treasuryAmount += indexCreatorAmount;
+            } else {
+                LibProtocolRevenue.creditCreator(creator, asset, indexCreatorAmount);
+            }
+        } else {
+            treasuryAmount += indexCreatorAmount;
+        }
         LibGlobalRewards.accrueReservedTreasuryFee(asset, treasuryAmount);
     }
 

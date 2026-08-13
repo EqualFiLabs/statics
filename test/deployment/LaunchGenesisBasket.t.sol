@@ -2,7 +2,6 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
@@ -128,7 +127,7 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             multisig: address(ceremony),
             guardian: makeAddr("guardian"),
             treasury: makeAddr("treasury"),
-            stakingToken: address(deployer),
+            partnerRecipient: address(0),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0
         });

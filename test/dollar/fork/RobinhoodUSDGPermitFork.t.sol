@@ -50,7 +50,7 @@ contract RobinhoodUSDGPermitForkTest is Test {
         CoreBootstrapConfig memory config;
         config.owner = owner;
         config.profileGuardian = owner;
-        config.stakingToken = address(usdg);
+        config.partnerRecipient = address(0);
         config.initialOracle = address(wethOracle);
         config.weth = address(weth);
         config.collateralRatioBps = 15_000;

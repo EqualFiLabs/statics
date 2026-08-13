@@ -20,20 +20,24 @@ interface IStaticsSwapFeeHook {
     struct FeeConfiguration {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
-        uint16 polShareBps;
+        uint16 lockedLiquidityShareBps;
         uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
+        uint16 stonkBrokersShareBps;
+        uint16 indexCreatorShareBps;
         uint16 treasuryShareBps;
     }
 
     struct PoolFeeConfigurationView {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
-        uint16 polShareBps;
+        uint16 lockedLiquidityShareBps;
         uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
+        uint16 stonkBrokersShareBps;
+        uint16 indexCreatorShareBps;
         uint16 treasuryShareBps;
         bool overridden;
     }
@@ -45,10 +49,12 @@ interface IStaticsSwapFeeHook {
         bool indexed specifiedLeg,
         uint256 realizedAmount,
         uint256 chargedAmount,
-        uint256 polAmount,
+        uint256 lockedLiquidityAmount,
         uint256 liquidityProviderAmount,
         uint256 basketStakerAmount,
         uint256 staticsStakerAmount,
+        uint256 stonkBrokersAmount,
+        uint256 indexCreatorAmount,
         uint256 treasuryAmount
     );
     event PermanentLiquidityAdded(
@@ -65,20 +71,24 @@ interface IStaticsSwapFeeHook {
     event FeeConfigurationSet(
         uint16 inputFeeBps,
         uint16 outputFeeBps,
-        uint16 polShareBps,
+        uint16 lockedLiquidityShareBps,
         uint16 liquidityProviderShareBps,
         uint16 basketStakerShareBps,
         uint16 staticsStakerShareBps,
+        uint16 stonkBrokersShareBps,
+        uint16 indexCreatorShareBps,
         uint16 treasuryShareBps
     );
     event PoolFeeConfigurationSet(
         PoolId indexed poolId,
         uint16 inputFeeBps,
         uint16 outputFeeBps,
-        uint16 polShareBps,
+        uint16 lockedLiquidityShareBps,
         uint16 liquidityProviderShareBps,
         uint16 basketStakerShareBps,
         uint16 staticsStakerShareBps,
+        uint16 stonkBrokersShareBps,
+        uint16 indexCreatorShareBps,
         uint16 treasuryShareBps
     );
     event PoolFeeConfigurationCleared(PoolId indexed poolId);
@@ -87,10 +97,12 @@ interface IStaticsSwapFeeHook {
     function setFeeConfiguration(
         uint16 inputFeeBps,
         uint16 outputFeeBps,
-        uint16 polShareBps,
+        uint16 lockedLiquidityShareBps,
         uint16 liquidityProviderShareBps,
         uint16 basketStakerShareBps,
         uint16 staticsStakerShareBps,
+        uint16 stonkBrokersShareBps,
+        uint16 indexCreatorShareBps,
         uint16 treasuryShareBps
     ) external;
     function setPoolFeeConfiguration(PoolId poolId, FeeConfiguration calldata configuration) external;

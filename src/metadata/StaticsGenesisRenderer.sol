@@ -25,9 +25,8 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         uint8 tier = protocol == address(0) ? 0 : IStaticsGenesisProtocol(protocol).genesisTier(tokenId);
         bytes32 seed = LibAvatarTraits.seed(block.chainid, collection, tokenId);
         LibAvatarTraits.Traits memory traits_ = LibAvatarTraits.derive(seed);
-        string memory image = string.concat(
-            "data:image/svg+xml;base64,", Base64.encode(bytes(avatarSVG.renderSVG(seed, traits_, tier)))
-        );
+        string memory image =
+            string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(avatarSVG.renderSVG(seed, traits_, tier))));
         bytes memory json = abi.encodePacked(
             '{"name":"Statics Genesis #',
             tokenId.toString(),

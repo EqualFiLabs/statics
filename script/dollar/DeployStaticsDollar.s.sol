@@ -14,7 +14,7 @@ struct StaticsDollarProductionConfig {
     address owner;
     address profileGuardian;
     address treasury;
-    address stakingToken;
+    address partnerRecipient;
     uint256 creationFeeAmount;
     uint256 positionCreationFeeAmount;
     address weth;
@@ -34,7 +34,7 @@ struct StaticsDollarLocalConfig {
     address owner;
     address profileGuardian;
     address treasury;
-    address stakingToken;
+    address partnerRecipient;
     uint256 creationFeeAmount;
     uint256 positionCreationFeeAmount;
     address weth;
@@ -59,7 +59,9 @@ struct StaticsDollarStackDeployment {
     address oracle;
     address diamond;
     address positionNFT;
-    address positionRenderer;
+    address staticsToken;
+    address genesisNFT;
+    address genesisRenderer;
     address avatarSVG;
     address poolManager;
     address positionManager;
@@ -101,7 +103,9 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
         console2.log("WETH_ADDRESS", deployment.weth);
         console2.log("STATICS_DOLLAR_ORACLE_ADDRESS", deployment.oracle);
         console2.log("STATICS_DOLLAR_POSITION_NFT_ADDRESS", deployment.positionNFT);
-        console2.log("STATICS_POSITION_RENDERER_ADDRESS", deployment.positionRenderer);
+        console2.log("STATICS_TOKEN_ADDRESS", deployment.staticsToken);
+        console2.log("STATICS_GENESIS_NFT_ADDRESS", deployment.genesisNFT);
+        console2.log("STATICS_GENESIS_RENDERER_ADDRESS", deployment.genesisRenderer);
         console2.log("STATICS_AVATAR_SVG_ADDRESS", deployment.avatarSVG);
         if (deployment.usdg != address(0)) {
             console2.log("STATICS_DOLLAR_USDG_ADDRESS", deployment.usdg);
@@ -142,7 +146,7 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             config.owner,
             config.profileGuardian,
             config.treasury,
-            config.stakingToken,
+            config.partnerRecipient,
             config.creationFeeAmount,
             config.positionCreationFeeAmount,
             config.weth,
@@ -192,7 +196,6 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             if (!config.deployMockWeth) revert LocalDependencyMissing(WETH_FIELD);
             config.weth = address(new CanonicalWETH9());
         }
-        if (config.stakingToken == address(0)) config.stakingToken = config.weth;
         if (config.oracle == address(0)) {
             if (!config.deployMockOracle) revert LocalDependencyMissing(ETH_USD_FEED_FIELD);
             uint256 price = config.mockOraclePriceWad == 0 ? 2_500e18 : config.mockOraclePriceWad;
@@ -203,7 +206,7 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             config.owner,
             config.profileGuardian,
             config.treasury,
-            config.stakingToken,
+            config.partnerRecipient,
             config.creationFeeAmount,
             config.positionCreationFeeAmount,
             config.weth,
@@ -222,7 +225,7 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
         address owner,
         address profileGuardian,
         address treasury,
-        address stakingToken,
+        address partnerRecipient,
         uint256 creationFeeAmount,
         uint256 positionCreationFeeAmount,
         address weth,
@@ -239,7 +242,7 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             owner: owner,
             profileGuardian: profileGuardian,
             treasury: treasury,
-            stakingToken: stakingToken,
+            partnerRecipient: partnerRecipient,
             creationFeeAmount: creationFeeAmount,
             positionCreationFeeAmount: positionCreationFeeAmount,
             initialOracle: oracle,
@@ -260,7 +263,9 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
         deployment.oracle = oracle;
         deployment.diamond = coreDeployment.diamond;
         deployment.positionNFT = coreDeployment.positionNFT;
-        deployment.positionRenderer = coreDeployment.positionRenderer;
+        deployment.staticsToken = coreDeployment.staticsToken;
+        deployment.genesisNFT = coreDeployment.genesisNFT;
+        deployment.genesisRenderer = coreDeployment.genesisRenderer;
         deployment.avatarSVG = coreDeployment.avatarSVG;
         deployment.gateway = deployment.diamond;
     }
@@ -308,7 +313,7 @@ contract DeployStaticsDollar is DeployStaticsDollarBase {
             owner: vm.envAddress("STATICS_DOLLAR_OWNER"),
             profileGuardian: vm.envAddress("STATICS_DOLLAR_PROFILE_GUARDIAN"),
             treasury: vm.envAddress("STATICS_TREASURY"),
-            stakingToken: vm.envAddress("STAKING_TOKEN"),
+            partnerRecipient: vm.envOr("STONKBROKERS_RECIPIENT", address(0)),
             creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
             weth: vm.envAddress("WETH_ADDRESS"),

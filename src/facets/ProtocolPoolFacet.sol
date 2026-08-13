@@ -153,10 +153,12 @@ contract ProtocolPoolFacet is IStaticsProtocolPools, ReentrancyGuard {
         configuration = IStaticsBasketLiquidity.PoolFeeConfigurationView({
             inputFeeBps: stored.inputFeeBps,
             outputFeeBps: stored.outputFeeBps,
-            polShareBps: stored.polShareBps,
+            lockedLiquidityShareBps: stored.lockedLiquidityShareBps,
             liquidityProviderShareBps: stored.liquidityProviderShareBps,
             basketStakerShareBps: stored.basketStakerShareBps,
             staticsStakerShareBps: stored.staticsStakerShareBps,
+            stonkBrokersShareBps: stored.stonkBrokersShareBps,
+            indexCreatorShareBps: stored.indexCreatorShareBps,
             treasuryShareBps: stored.treasuryShareBps,
             overridden: stored.overridden
         });
@@ -349,10 +351,12 @@ contract ProtocolPoolFacet is IStaticsProtocolPools, ReentrancyGuard {
         return IStaticsSwapFeeHook.FeeConfiguration({
             inputFeeBps: configuration.inputFeeBps,
             outputFeeBps: configuration.outputFeeBps,
-            polShareBps: configuration.polShareBps,
+            lockedLiquidityShareBps: configuration.lockedLiquidityShareBps,
             liquidityProviderShareBps: configuration.liquidityProviderShareBps,
             basketStakerShareBps: configuration.basketStakerShareBps,
             staticsStakerShareBps: configuration.staticsStakerShareBps,
+            stonkBrokersShareBps: configuration.stonkBrokersShareBps,
+            indexCreatorShareBps: configuration.indexCreatorShareBps,
             treasuryShareBps: configuration.treasuryShareBps
         });
     }

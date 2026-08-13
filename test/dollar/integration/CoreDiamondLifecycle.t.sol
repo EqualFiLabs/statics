@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {
     CoreBootstrapConfig,
@@ -71,7 +72,7 @@ contract CoreDiamondLifecycleTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = address(wethOracle);
         config.weth = address(weth);
-        config.stakingToken = address(weth);
+        config.partnerRecipient = address(0);
         config.riskUri = "ipfs://risk/{id}.json";
         deployment = new DeployCoreBootstrap().deploy(config);
         mintFacet = CoreMintFacet(deployment.core);
@@ -211,9 +212,11 @@ contract CoreDiamondLifecycleTest is Test {
         governance.setProfileRiskConfig(1, risk);
 
         vm.deal(alice, 3 ether);
+        vm.prank(owner);
+        IERC20(deployment.staticsToken).transfer(alice, 1 ether);
         vm.startPrank(alice);
         weth.deposit{value: 3 ether}();
-        weth.approve(deployment.diamond, 1 ether);
+        IERC20(deployment.staticsToken).approve(deployment.diamond, 1 ether);
         address[] memory assets = new address[](1);
         assets[0] = address(weth);
         uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice, assets);
@@ -236,10 +239,10 @@ contract CoreDiamondLifecycleTest is Test {
 
     function test_PeggedFeeUsesGlobalNinetyTenSplit() public {
         (uint256 profileId, MockUSDC usdc,) = _activatePeggedProfile();
-        vm.deal(alice, 1 ether);
+        vm.prank(owner);
+        IERC20(deployment.staticsToken).transfer(alice, 1 ether);
         vm.startPrank(alice);
-        weth.deposit{value: 1 ether}();
-        weth.approve(deployment.diamond, 1 ether);
+        IERC20(deployment.staticsToken).approve(deployment.diamond, 1 ether);
         address[] memory assets = new address[](1);
         assets[0] = address(usdc);
         uint256 positionId = IStaticsGlobalRewards(deployment.diamond).createAndStake(1 ether, alice, assets);

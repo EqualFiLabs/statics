@@ -12,7 +12,11 @@ library LibAvatarSVG {
     string internal constant PLATE = "#080B09";
     string internal constant GRID = "#273028";
 
-    function render(bytes32 seed, LibAvatarTraits.Traits memory traits_, uint8 tier) internal pure returns (string memory) {
+    function render(bytes32 seed, LibAvatarTraits.Traits memory traits_, uint8 tier)
+        internal
+        pure
+        returns (string memory)
+    {
         string memory accent = LibAvatarTraits.signalColor(traits_.signal);
         string memory foreground = string.concat(
             _field(traits_.field, accent, seed),
@@ -40,12 +44,7 @@ library LibAvatarSVG {
         bytes memory marks;
         for (uint256 i; i < tier; ++i) {
             marks = abi.encodePacked(
-                marks,
-                '<rect x="',
-                (104 + i * 14).toString(),
-                '" y="232" width="8" height="8" fill="',
-                accent,
-                '"/>'
+                marks, '<rect x="', (104 + i * 14).toString(), '" y="232" width="8" height="8" fill="', accent, '"/>'
             );
         }
         return string.concat(

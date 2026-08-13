@@ -104,7 +104,7 @@ contract GlobalRewardOptInHandler is Test {
         for (uint256 i; i < positionIds.length; ++i) {
             uint256 positionId = positionIds[i];
             if (rewards.isRewardAssetOptedIn(positionId, asset)) {
-                total += rewards.rewardSelection(positionId, asset).eligibleStake;
+                total += rewards.rewardSelection(positionId, asset).actualEligibleStake;
             }
         }
     }
@@ -113,7 +113,7 @@ contract GlobalRewardOptInHandler is Test {
         for (uint256 i; i < positionIds.length; ++i) {
             uint256 positionId = positionIds[i];
             if (rewards.isRewardAssetOptedIn(positionId, asset)) {
-                total += rewards.rewardSelection(positionId, asset).pendingStake;
+                total += rewards.rewardSelection(positionId, asset).actualPendingStake;
             }
         }
     }
@@ -188,8 +188,8 @@ contract GlobalRewardOptInInvariantTest is StdInvariant, StaticsTestBase {
     function invariantEligibleStakeMatchesSelectedPositionBalances() public view {
         for (uint256 i; i < handler.rewardTokenCount(); ++i) {
             address asset = handler.rewardToken(i);
-            assertEq(globalRewards.rewardAsset(asset).eligibleStake, handler.eligibleStake(asset));
-            assertEq(globalRewards.rewardAsset(asset).pendingStake, handler.pendingStake(asset));
+            assertEq(globalRewards.rewardAsset(asset).actualEligibleStake, handler.eligibleStake(asset));
+            assertEq(globalRewards.rewardAsset(asset).actualPendingStake, handler.pendingStake(asset));
         }
     }
 

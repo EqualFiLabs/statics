@@ -17,6 +17,11 @@ contract MockERC20 is ERC20 {
     function mint(address receiver, uint256 amount) external {
         _mint(receiver, amount);
     }
+
+    function burnFrom(address account, uint256 amount) external {
+        _spendAllowance(account, msg.sender, amount);
+        _burn(account, amount);
+    }
 }
 
 contract MockFeeOnTransferERC20 is MockERC20 {
@@ -42,7 +47,7 @@ contract MockOutboundFeeERC20 is MockERC20 {
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        if (from == taxedSender && to != address(0)) {
+        if (taxedSender != address(0) && from == taxedSender && to != address(0)) {
             uint256 fee = value / 100;
             super._update(from, address(0), fee);
             value -= fee;
@@ -61,7 +66,7 @@ contract MockSenderExtraFeeERC20 is MockERC20 {
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        if (from == taxedSender && to != address(0)) {
+        if (taxedSender != address(0) && from == taxedSender && to != address(0)) {
             super._update(from, address(0), value / 100);
         }
         super._update(from, to, value);

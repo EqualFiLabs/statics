@@ -78,7 +78,7 @@ contract CoreDiamondStorageTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = address(oracle);
         config.weth = address(weth);
-        config.stakingToken = address(weth);
+        config.partnerRecipient = address(0);
         CoreBootstrapDeployment memory deployment = new DeployCoreBootstrap().deploy(config);
         core = deployment.core;
         cut = IDiamondCut(core);

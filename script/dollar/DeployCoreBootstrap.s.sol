@@ -25,7 +25,7 @@ struct CoreBootstrapConfig {
     address owner;
     address profileGuardian;
     address treasury;
-    address stakingToken;
+    address partnerRecipient;
     uint256 creationFeeAmount;
     uint256 positionCreationFeeAmount;
     address initialOracle;
@@ -44,7 +44,9 @@ struct CoreBootstrapDeployment {
     address staticsDollarRisk;
     address diamond;
     address positionNFT;
-    address positionRenderer;
+    address staticsToken;
+    address genesisNFT;
+    address genesisRenderer;
     address avatarSVG;
 }
 
@@ -78,7 +80,7 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
     {
         if (
             config.owner == address(0) || config.profileGuardian == address(0) || config.initialOracle == address(0)
-                || config.weth == address(0) || config.stakingToken == address(0) || deploymentCreator == address(0)
+                || config.weth == address(0) || deploymentCreator == address(0)
         ) revert ZeroAddress();
         if (config.collateralRatioBps == 0) config.collateralRatioBps = 15_000;
         if (config.priceBandBps == 0) config.priceBandBps = 15_000;
@@ -86,8 +88,14 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
 
         (address core, address staticsDollar, address staticsDollarRisk) = _deployCore(config, deploymentCreator);
         if (config.treasury == address(0)) config.treasury = config.owner;
-        (address diamond, address positionNFT, address positionRenderer, address avatarSVG) =
-            _deployUnifiedProtocol(config, core);
+        (
+            address diamond,
+            address positionNFT,
+            address staticsToken,
+            address genesisNFT,
+            address genesisRenderer,
+            address avatarSVG
+        ) = _deployUnifiedProtocol(config, core);
         CoreGovernanceFacet(core).finalizeBootstrap(diamond);
         return CoreBootstrapDeployment({
             core: core,
@@ -95,14 +103,23 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
             staticsDollarRisk: staticsDollarRisk,
             diamond: diamond,
             positionNFT: positionNFT,
-            positionRenderer: positionRenderer,
+            staticsToken: staticsToken,
+            genesisNFT: genesisNFT,
+            genesisRenderer: genesisRenderer,
             avatarSVG: avatarSVG
         });
     }
 
     function _deployUnifiedProtocol(CoreBootstrapConfig memory config, address core)
         private
-        returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG)
+        returns (
+            address diamond,
+            address positionNFT,
+            address staticsToken,
+            address genesisNFT,
+            address genesisRenderer,
+            address avatarSVG
+        )
     {
         return _deployStaticsProtocol(
             core,
@@ -110,7 +127,7 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
             config.owner,
             config.profileGuardian,
             config.treasury,
-            config.stakingToken,
+            config.partnerRecipient,
             config.creationFeeAmount,
             config.positionCreationFeeAmount
         );

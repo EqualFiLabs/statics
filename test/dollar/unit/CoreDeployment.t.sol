@@ -22,8 +22,9 @@ import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
-import {IStaticsPositionMetadata} from "src/interfaces/IStaticsPosition.sol";
-import {StaticsPositionRenderer} from "src/metadata/StaticsPositionRenderer.sol";
+import {StaticsGenesisRenderer} from "src/metadata/StaticsGenesisRenderer.sol";
+import {StaticsGenesis} from "src/tokens/StaticsGenesis.sol";
+import {StaticsToken} from "src/tokens/StaticsToken.sol";
 
 contract ProductionWETHFixture is ERC20 {
     constructor() ERC20("Production WETH Fixture", "pWETH") {}
@@ -86,8 +87,10 @@ contract CoreDeploymentTest is Test {
         assertEq(CoreViewFacet(deployment.core).periphery(), deployment.diamond);
         assertEq(CoreViewFacet(deployment.core).positionNFT(), deployment.positionNFT);
         assertEq(deployment.positionNFT, deployment.diamond);
-        assertEq(IStaticsPositionMetadata(deployment.diamond).positionRenderer(), deployment.positionRenderer);
-        assertEq(address(StaticsPositionRenderer(deployment.positionRenderer).avatarSVG()), deployment.avatarSVG);
+        assertEq(address(StaticsGenesisRenderer(deployment.genesisRenderer).avatarSVG()), deployment.avatarSVG);
+        assertEq(StaticsGenesis(deployment.genesisNFT).protocol(), deployment.diamond);
+        assertEq(StaticsGenesis(deployment.genesisNFT).ownerOf(1), owner);
+        assertEq(StaticsToken(deployment.staticsToken).balanceOf(owner), 1_000_000_000 ether);
         assertEq(deployment.gateway, deployment.diamond);
         assertEq(IStaticsDollarGateway(deployment.gateway).pool(), deployment.core);
         assertEq(OwnershipFacet(deployment.core).owner(), owner);
@@ -95,7 +98,7 @@ contract CoreDeploymentTest is Test {
         assertEq(MockETHUSDOracle(deployment.oracle).priceWad(), 2_500e18);
 
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(deployment.diamond, 23, 209);
+        _assertManifest(deployment.diamond, 25, 231);
     }
 
     function test_LocalBroadcastEntrypointUsesDeployerForAddressPredictions() public {
@@ -219,7 +222,7 @@ contract CoreDeploymentTest is Test {
             owner: owner,
             profileGuardian: profileGuardian,
             treasury: makeAddr("treasury"),
-            stakingToken: weth,
+            partnerRecipient: address(0),
             creationFeeAmount: 1 ether,
             positionCreationFeeAmount: 0.001 ether,
             weth: weth,

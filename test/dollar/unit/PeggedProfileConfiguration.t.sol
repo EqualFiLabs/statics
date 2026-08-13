@@ -41,7 +41,7 @@ contract PeggedProfileConfigurationTest is Test {
         bootstrap.profileGuardian = makeAddr("profileGuardian");
         bootstrap.initialOracle = address(wethOracle);
         bootstrap.weth = address(weth);
-        bootstrap.stakingToken = address(weth);
+        bootstrap.partnerRecipient = address(0);
         bootstrap.riskUri = "ipfs://risk/{id}.json";
         deployment = new DeployCoreBootstrap().deploy(bootstrap);
 

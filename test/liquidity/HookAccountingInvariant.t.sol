@@ -59,11 +59,13 @@ contract HookInvariantFeeReceiver {
         uint256 liquidityProviderAmount,
         uint256 basketStakerAmount,
         uint256 staticsStakerAmount,
+        uint256 stonkBrokersAmount,
+        uint256 indexCreatorAmount,
         uint256 treasuryAmount
     ) external {
         require(liquidityProviderAmount == 0);
         require(basketStakerAmount == 0);
-        routeSwapFees(asset, staticsStakerAmount, treasuryAmount);
+        routeSwapFees(asset, staticsStakerAmount, treasuryAmount + stonkBrokersAmount + indexCreatorAmount);
     }
 
     function registerPool(PoolKey calldata key) external returns (PoolId) {
@@ -125,25 +127,28 @@ contract HookAccountingHandler is Test {
     function setPoolConfiguration(
         uint256 rawInputFeeBps,
         uint256 rawOutputFeeBps,
-        uint256 rawPolShareBps,
+        uint256 rawLockedLiquidityShareBps,
         uint256 rawLiquidityProviderShareBps,
         uint256 rawStakerShareBps
     ) external {
         uint256 inputFeeBps = bound(rawInputFeeBps, 1, 199);
         uint256 outputFeeBps = bound(rawOutputFeeBps, 1, 200 - inputFeeBps);
-        uint256 polShareBps = bound(rawPolShareBps, 0, 10_000);
-        uint256 liquidityProviderShareBps = bound(rawLiquidityProviderShareBps, 0, 10_000 - polShareBps);
-        uint256 staticsStakerShareBps = bound(rawStakerShareBps, 0, 10_000 - polShareBps - liquidityProviderShareBps);
-        uint256 treasuryShareBps = 10_000 - polShareBps - liquidityProviderShareBps - staticsStakerShareBps;
+        uint256 lockedLiquidityShareBps = bound(rawLockedLiquidityShareBps, 0, 10_000);
+        uint256 liquidityProviderShareBps = bound(rawLiquidityProviderShareBps, 0, 10_000 - lockedLiquidityShareBps);
+        uint256 staticsStakerShareBps =
+            bound(rawStakerShareBps, 0, 10_000 - lockedLiquidityShareBps - liquidityProviderShareBps);
+        uint256 treasuryShareBps = 10_000 - lockedLiquidityShareBps - liquidityProviderShareBps - staticsStakerShareBps;
         receiver.setPoolFeeConfiguration(
             poolId,
             IStaticsSwapFeeHook.FeeConfiguration({
                 inputFeeBps: uint16(inputFeeBps),
                 outputFeeBps: uint16(outputFeeBps),
-                polShareBps: uint16(polShareBps),
+                lockedLiquidityShareBps: uint16(lockedLiquidityShareBps),
                 liquidityProviderShareBps: uint16(liquidityProviderShareBps),
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: uint16(staticsStakerShareBps),
+                stonkBrokersShareBps: 0,
+                indexCreatorShareBps: 0,
                 treasuryShareBps: uint16(treasuryShareBps)
             })
         );
@@ -221,7 +226,7 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
 
     function invariantEverySuccessfulSwapRoutesBothFeeLegs() public view {
         assertFalse(handler.missedFeeLeg(), "realized two-asset swap missed one fee leg");
-        assertFalse(handler.liquidityDecreased(), "locked POL liquidity decreased");
+        assertFalse(handler.liquidityDecreased(), "locked liquidity decreased");
     }
 
     function invariantReceiverBalancesMatchRoutedFeeLedgers() public view {
@@ -244,8 +249,9 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         IStaticsSwapFeeHook.PoolFeeConfigurationView memory configuration = hook.poolFeeConfiguration(poolId);
         assertLe(uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps), 200);
         assertEq(
-            uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
+            uint256(configuration.lockedLiquidityShareBps) + uint256(configuration.liquidityProviderShareBps)
                 + uint256(configuration.basketStakerShareBps) + uint256(configuration.staticsStakerShareBps)
+                + uint256(configuration.stonkBrokersShareBps) + uint256(configuration.indexCreatorShareBps)
                 + uint256(configuration.treasuryShareBps),
             10_000
         );

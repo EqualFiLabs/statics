@@ -7,26 +7,27 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGenesisStaking} from "../../src/interfaces/IStaticsGenesisStaking.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
+import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {
     IStaticsPosition,
     IStaticsPositionFees,
-    IStaticsPositionMetadata,
     IStaticsPositionModule
 } from "../../src/interfaces/IStaticsPosition.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
-    function testPositionSelectorManifestIncludesFeesAndMetadata() public pure {
+    function testPositionSelectorManifestContainsOnlyFinancialAccountSurface() public pure {
         assertEq(type(IModularPositionNFT).interfaceId, bytes4(0x212b8e93));
         assertEq(type(IPositionOwnerIndex).interfaceId, bytes4(0x7ef5913d));
         bytes4[] memory selectors = StaticsSelectors.position();
-        assertEq(selectors.length, 28);
+        assertEq(selectors.length, 26);
         assertEq(selectors[12], IStaticsPosition.createPosition.selector);
         assertEq(selectors[17], IModularPositionNFT.positionState.selector);
         assertEq(selectors[18], IModularPositionNFT.isLegActive.selector);
@@ -34,16 +35,49 @@ contract SelectorManifestTest is Test {
         assertEq(selectors[20], IStaticsPositionModule.createPositionForModule.selector);
         assertEq(selectors[21], IStaticsPositionFees.setPositionCreationFee.selector);
         assertEq(selectors[22], IStaticsPositionFees.positionCreationFee.selector);
-        assertEq(selectors[23], IStaticsPositionMetadata.setPositionRenderer.selector);
-        assertEq(selectors[24], IStaticsPositionMetadata.positionRenderer.selector);
-        assertEq(selectors[25], IPositionOwnerIndex.positionCount.selector);
-        assertEq(selectors[26], IPositionOwnerIndex.positionsOfOwner.selector);
-        assertEq(selectors[27], IPositionOwnerIndex.syncPositionOwnerIndex.selector);
+        assertEq(selectors[23], IPositionOwnerIndex.positionCount.selector);
+        assertEq(selectors[24], IPositionOwnerIndex.positionsOfOwner.selector);
+        assertEq(selectors[25], IPositionOwnerIndex.syncPositionOwnerIndex.selector);
         for (uint256 i; i < selectors.length; ++i) {
             for (uint256 j; j < i; ++j) {
                 assertNotEq(selectors[i], selectors[j]);
             }
         }
+    }
+
+    function testGenesisSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.genesis();
+        bytes4[] memory expected = new bytes4[](12);
+        expected[0] = IStaticsGenesisStaking.linkGenesis.selector;
+        expected[1] = IStaticsGenesisStaking.unlinkGenesis.selector;
+        expected[2] = IStaticsGenesisStaking.activateGenesis.selector;
+        expected[3] = IStaticsGenesisStaking.setGenesisActivationCost.selector;
+        expected[4] = IStaticsGenesisStaking.onGenesisTransfer.selector;
+        expected[5] = IStaticsGenesisStaking.genesisCollection.selector;
+        expected[6] = IStaticsGenesisStaking.genesisState.selector;
+        expected[7] = IStaticsGenesisStaking.genesisTier.selector;
+        expected[8] = IStaticsGenesisStaking.genesisActivationCost.selector;
+        expected[9] = IStaticsGenesisStaking.linkedPosition.selector;
+        expected[10] = IStaticsGenesisStaking.linkedGenesis.selector;
+        expected[11] = IStaticsGenesisStaking.positionRewardMultiplierBps.selector;
+        _assertExactAndCollisionFree(actual, expected);
+    }
+
+    function testProtocolRevenueSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.protocolRevenue();
+        bytes4[] memory expected = new bytes4[](11);
+        expected[0] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
+        expected[1] = IStaticsProtocolRevenue.claimPositionTransferRevenue.selector;
+        expected[2] = IStaticsProtocolRevenue.distributePartnerRevenue.selector;
+        expected[3] = IStaticsProtocolRevenue.setPartnerRecipient.selector;
+        expected[4] = IStaticsProtocolRevenue.setPartnerDistributionTipBps.selector;
+        expected[5] = IStaticsProtocolRevenue.creatorRewardCredit.selector;
+        expected[6] = IStaticsProtocolRevenue.positionTransferRewardCredit.selector;
+        expected[7] = IStaticsProtocolRevenue.partnerAccrued.selector;
+        expected[8] = IStaticsProtocolRevenue.partnerRecipient.selector;
+        expected[9] = IStaticsProtocolRevenue.partnerDistributionTipBps.selector;
+        expected[10] = IStaticsProtocolRevenue.protocolRevenueLiabilities.selector;
+        _assertExactAndCollisionFree(actual, expected);
     }
 
     function testLiquiditySelectorManifestIsExactAndCollisionFree() public pure {
@@ -143,7 +177,7 @@ contract SelectorManifestTest is Test {
 
     function testGlobalRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.globalRewards();
-        bytes4[] memory expected = new bytes4[](21);
+        bytes4[] memory expected = new bytes4[](22);
         expected[0] = IStaticsGlobalRewards.createAndStake.selector;
         expected[1] = IStaticsGlobalRewards.stake.selector;
         expected[2] = IStaticsGlobalRewards.unstake.selector;
@@ -164,7 +198,8 @@ contract SelectorManifestTest is Test {
         expected[17] = IStaticsGlobalRewards.totalStaked.selector;
         expected[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
         expected[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        expected[20] = IStaticsGlobalRewards.routeSwapFees.selector;
+        expected[20] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        expected[21] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);
@@ -188,6 +223,16 @@ contract SelectorManifestTest is Test {
         expected[8] = IStaticsLiquidityRewards.pendingLiquidityRewards.selector;
         expected[9] = IStaticsLiquidityRewards.canAccrueLiquidityRewards.selector;
         expected[10] = IStaticsLiquidityRewards.canAccrueBasketRewards.selector;
+        assertEq(actual.length, expected.length);
+        for (uint256 i; i < actual.length; ++i) {
+            assertEq(actual[i], expected[i]);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(actual[i], actual[j]);
+            }
+        }
+    }
+
+    function _assertExactAndCollisionFree(bytes4[] memory actual, bytes4[] memory expected) private pure {
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

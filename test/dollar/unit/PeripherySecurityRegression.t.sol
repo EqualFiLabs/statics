@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -21,7 +22,6 @@ import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 import {PairingVaultFacet} from "src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
-import {MockERC20, MockFeeOnTransferERC20} from "test/mocks/MockERC20.sol";
 
 contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
     uint256 internal constant PROFILE_ID = 1;
@@ -41,7 +41,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
     MockETHUSDOracle internal oracle;
     StakingFacet internal staking;
     PairingVaultFacet internal vault;
-    MockERC20 internal statics;
+    IERC20 internal statics;
 
     function setUp() public {
         vm.warp(30 days);
@@ -52,8 +52,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         config.deployMockOracle = true;
         config.mockOraclePriceWad = 2_500e18;
         config.riskUri = "ipfs://risk/{id}.json";
-        statics = new MockERC20("Statics", "STATICS", 18);
-        config.stakingToken = address(statics);
+        config.partnerRecipient = address(0);
         deployment = new DeployStaticsDollar().deployLocal(config);
         core = IStaticsDollarCore(deployment.core);
         transition = CoreTransitionFacet(deployment.core);
@@ -63,7 +62,9 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         oracle = MockETHUSDOracle(deployment.oracle);
         staking = StakingFacet(deployment.diamond);
         vault = PairingVaultFacet(deployment.diamond);
-        statics.mint(alice, 1_000 ether);
+        statics = IERC20(deployment.staticsToken);
+        vm.prank(owner);
+        statics.transfer(alice, 1_000 ether);
     }
 
     function test_PermissionlessFundingReservesCanonicalRiskIncentivesWithoutLiquidity() public {
@@ -91,30 +92,6 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(staking.reservedBalance(address(weth)), 1 ether);
         assertEq(staking.reservedBalance(address(staticsDollar)), dollars);
         assertEq(staking.reservedBalance(address(statics)), 100 ether);
-    }
-
-    function test_RiskFundingCreditsMeasuredReceipt() public {
-        MockFeeOnTransferERC20 taxedStatics = new MockFeeOnTransferERC20();
-        StaticsDollarLocalConfig memory config;
-        config.owner = owner;
-        config.profileGuardian = owner;
-        config.deployMockWeth = true;
-        config.deployMockOracle = true;
-        config.mockOraclePriceWad = 2_500e18;
-        config.riskUri = "ipfs://risk/{id}.json";
-        config.stakingToken = address(taxedStatics);
-        StaticsDollarStackDeployment memory taxedDeployment = new DeployStaticsDollar().deployLocal(config);
-        StakingFacet taxedStaking = StakingFacet(taxedDeployment.diamond);
-
-        taxedStatics.mint(alice, 10 ether);
-        vm.startPrank(alice);
-        taxedStatics.approve(taxedDeployment.diamond, 10 ether);
-        uint256 received = taxedStaking.fundRiskStaticsIncentives(SERIES_ID, 10 ether);
-        vm.stopPrank();
-
-        assertEq(received, 9.9 ether);
-        assertEq(taxedStaking.riskIncentives(SERIES_ID).staticsReserve, received);
-        assertEq(taxedStaking.reservedBalance(address(taxedStatics)), received);
     }
 
     function test_RiskFundingRejectsTransitioningSeries() public {
@@ -219,54 +196,6 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(rewards.treasuryAccrued(address(statics)), 25 ether);
     }
 
-    function test_ClaimsAggregateWhenCollateralAndStaticsAreTheSameToken() public {
-        CanonicalWETH9 sharedToken = new CanonicalWETH9();
-        StaticsDollarLocalConfig memory config;
-        config.owner = owner;
-        config.profileGuardian = owner;
-        config.weth = address(sharedToken);
-        config.stakingToken = address(sharedToken);
-        config.deployMockOracle = true;
-        config.mockOraclePriceWad = 2_500e18;
-        config.riskUri = "ipfs://risk/{id}.json";
-        StaticsDollarStackDeployment memory sharedDeployment = new DeployStaticsDollar().deployLocal(config);
-        IStaticsDollarCore sharedCore = IStaticsDollarCore(sharedDeployment.core);
-        StakingFacet sharedStaking = StakingFacet(sharedDeployment.diamond);
-        PairingVaultFacet sharedVault = PairingVaultFacet(sharedDeployment.diamond);
-        StaticsDollar sharedDollar = StaticsDollar(sharedDeployment.staticsDollar);
-        StaticsDollarRiskShares sharedRisk = StaticsDollarRiskShares(sharedDeployment.staticsDollarRisk);
-
-        vm.deal(alice, 2 ether);
-        vm.startPrank(alice);
-        sharedToken.deposit{value: 2 ether}();
-        sharedToken.approve(sharedDeployment.core, 1 ether);
-        (, uint256 aliceDollars, uint256 aliceShares) =
-            sharedCore.depositCollateral(PROFILE_ID, 1 ether, 0, 0, alice, alice);
-        sharedRisk.setApprovalForAll(sharedDeployment.diamond, true);
-        uint256 positionId = sharedStaking.createAndStakeRiskShares(SERIES_ID, aliceShares / 2, alice);
-        sharedToken.approve(sharedDeployment.diamond, 1 ether);
-        sharedStaking.fundRiskCollateralIncentives(SERIES_ID, 0.4 ether);
-        sharedStaking.fundRiskStaticsIncentives(SERIES_ID, 0.6 ether);
-        vm.stopPrank();
-
-        vm.deal(redeemer, 1 ether);
-        vm.startPrank(redeemer);
-        sharedToken.deposit{value: 1 ether}();
-        sharedToken.approve(sharedDeployment.core, 1 ether);
-        (, uint256 redeemerDollars,) = sharedCore.depositCollateral(PROFILE_ID, 1 ether, 0, 0, redeemer, redeemer);
-        sharedDollar.approve(sharedDeployment.diamond, redeemerDollars);
-        sharedVault.redeem(SERIES_ID, aliceShares / 2, aliceShares / 2, 0, block.timestamp, redeemer);
-        vm.stopPrank();
-
-        uint256 beforeClaim = sharedToken.balanceOf(bob);
-        vm.prank(alice);
-        (uint256 collateralClaimed, uint256 dollarClaimed, uint256 staticsClaimed) =
-            sharedStaking.claimRiskProceeds(positionId, SERIES_ID, bob);
-        assertEq(dollarClaimed, 0);
-        assertEq(sharedToken.balanceOf(bob) - beforeClaim, collateralClaimed + staticsClaimed);
-        assertEq(aliceDollars, sharedDollar.balanceOf(alice));
-    }
-
     function test_RiskSharesAreImmediatelyConsumableAndUnconsumedSharesWithdraw() public {
         (, uint256 shares) = _deposit(alice, 1 ether);
         uint256 amount = shares / 2;
@@ -298,8 +227,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         IStaticsDollarCoreTypes.StableCollateralProfile memory profileBefore = core.collateralProfile(PROFILE_ID);
         vm.startPrank(redeemer);
         staticsDollar.approve(deployment.diamond, redeemerDollar);
-        (, uint256 filled,) =
-            vault.redeem(SERIES_ID, fill, fill, 0, block.timestamp, redeemer);
+        (, uint256 filled,) = vault.redeem(SERIES_ID, fill, fill, 0, block.timestamp, redeemer);
         vm.stopPrank();
 
         assertEq(filled, fill);
@@ -503,16 +431,10 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(staking.riskLiquidity(positionId, successorSeriesId).effectiveShares, successorPrincipal);
         assertEq(staking.totalRiskLiquidity(successorSeriesId), successorPrincipal);
         assertEq(staticsDollarRisk.balanceOf(deployment.diamond, successorSeriesId), successorPrincipal);
-        assertEq(
-            staking.riskLiquidity(positionId, SERIES_ID).claimableStaticsDollar,
-            successorPrincipal
-        );
+        assertEq(staking.riskLiquidity(positionId, SERIES_ID).claimableStaticsDollar, successorPrincipal);
     }
 
-    function _deposit(address account, uint256 collateralAmount)
-        internal
-        returns (uint256 dollars, uint256 shares)
-    {
+    function _deposit(address account, uint256 collateralAmount) internal returns (uint256 dollars, uint256 shares) {
         vm.deal(account, collateralAmount);
         vm.startPrank(account);
         weth.deposit{value: collateralAmount}();

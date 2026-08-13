@@ -37,14 +37,13 @@ contract UpgradeGovernedProtocolPoolsTest is Test {
 
     function setUp() public {
         ceremony = new UpgradeGovernedProtocolPools();
-        MockERC20 stakingToken = new MockERC20("Statics", "STAT", 18);
         DeployStatics deployer = new DeployStatics();
         (deployment, timelock) = deployer.deployWithLiquidity(
             DeployStatics.Config({
                 multisig: address(ceremony),
                 guardian: makeAddr("guardian"),
                 treasury: makeAddr("treasury"),
-                stakingToken: address(stakingToken),
+                partnerRecipient: address(0),
                 creationFeeAmount: 0,
                 positionCreationFeeAmount: 0
             }),

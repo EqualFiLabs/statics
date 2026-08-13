@@ -19,8 +19,12 @@ import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
-import {IStaticsPositionFees, IStaticsPositionMetadata} from "../../src/interfaces/IStaticsPosition.sol";
-import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
+import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
+import {IStaticsGenesisStaking} from "../../src/interfaces/IStaticsGenesisStaking.sol";
+import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
+import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
+import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
@@ -48,7 +52,7 @@ contract DeployStaticsTest is Test {
             multisig: makeAddr("multisig"),
             guardian: makeAddr("guardian"),
             treasury: makeAddr("treasury"),
-            stakingToken: address(deployer),
+            partnerRecipient: address(0),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0
         });
@@ -71,7 +75,7 @@ contract DeployStaticsTest is Test {
             multisig: makeAddr("multisig"),
             guardian: makeAddr("guardian"),
             treasury: makeAddr("treasury"),
-            stakingToken: address(deployer),
+            partnerRecipient: address(0),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0.001 ether
         });
@@ -91,7 +95,7 @@ contract DeployStaticsTest is Test {
             multisig: address(ceremony),
             guardian: guardian,
             treasury: treasury,
-            stakingToken: address(deployer),
+            partnerRecipient: makeAddr("stonkbrokers"),
             creationFeeAmount: 0.01 ether,
             positionCreationFeeAmount: 0
         });
@@ -123,16 +127,18 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 23, 209);
+        _assertManifest(diamond, 25, 231);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
         assertEq(IStaticsPositionFees(diamond).positionCreationFee(), 0);
         assertEq(deployment.gateway, diamond);
         assertEq(deployment.positionNFT, diamond);
-        assertEq(IStaticsPositionMetadata(diamond).positionRenderer(), deployment.positionRenderer);
-        assertEq(address(StaticsPositionRenderer(deployment.positionRenderer).avatarSVG()), deployment.avatarSVG);
-        assertGt(deployment.positionRenderer.code.length, 0);
+        assertEq(address(StaticsGenesisRenderer(deployment.genesisRenderer).avatarSVG()), deployment.avatarSVG);
+        assertEq(StaticsGenesis(deployment.genesisNFT).protocol(), diamond);
+        assertEq(StaticsGenesis(deployment.genesisNFT).ownerOf(1), treasury);
+        assertEq(StaticsToken(deployment.staticsToken).balanceOf(treasury), 1_000_000_000 ether);
+        assertGt(deployment.genesisRenderer.code.length, 0);
         assertGt(deployment.avatarSVG.code.length, 0);
         assertEq(StaticsDollar(deployment.staticsDollar).symbol(), "USDstx");
         assertEq(StaticsDollarRiskShares(deployment.staticsDollarRisk).symbol(), "ethLEV");
@@ -148,11 +154,11 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolPools).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionFees).interfaceId));
-        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionMetadata).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGenesisStaking).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolRevenue).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IModularPositionNFT).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IPositionOwnerIndex).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionPortfolio).interfaceId));
-        assertTrue(IERC165(diamond).supportsInterface(bytes4(0x49064906)));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarRiskLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarRiskIncentives).interfaceId));
@@ -169,11 +175,14 @@ contract DeployStaticsTest is Test {
         IStaticsSwapFeeHook.FeeConfiguration memory feeConfig = StaticsSwapFeeHook(payable(hook)).feeConfiguration();
         assertEq(feeConfig.inputFeeBps, 25);
         assertEq(feeConfig.outputFeeBps, 25);
-        assertEq(feeConfig.polShareBps, 1_000);
-        assertEq(feeConfig.liquidityProviderShareBps, 2_500);
-        assertEq(feeConfig.basketStakerShareBps, 2_500);
+        assertEq(feeConfig.lockedLiquidityShareBps, 1_000);
+        assertEq(feeConfig.liquidityProviderShareBps, 2_000);
+        assertEq(feeConfig.basketStakerShareBps, 2_000);
         assertEq(feeConfig.staticsStakerShareBps, 1_500);
-        assertEq(feeConfig.treasuryShareBps, 2_500);
+        assertEq(feeConfig.stonkBrokersShareBps, 1_000);
+        assertEq(feeConfig.indexCreatorShareBps, 500);
+        assertEq(feeConfig.treasuryShareBps, 2_000);
+        assertEq(IStaticsProtocolRevenue(diamond).partnerRecipient(), config.partnerRecipient);
         assertEq(
             uint160(hook) & Hooks.ALL_HOOK_MASK,
             Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
@@ -213,7 +222,7 @@ contract DeployStaticsTest is Test {
             multisig: makeAddr("multisig"),
             guardian: address(0),
             treasury: makeAddr("treasury"),
-            stakingToken: address(deployer),
+            partnerRecipient: address(0),
             creationFeeAmount: 1 ether,
             positionCreationFeeAmount: 0
         });

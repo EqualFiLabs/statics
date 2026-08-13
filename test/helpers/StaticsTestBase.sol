@@ -29,6 +29,8 @@ import {BasketFacet} from "../../src/facets/BasketFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {GenesisFacet} from "../../src/facets/GenesisFacet.sol";
+import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
@@ -41,7 +43,8 @@ import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
+import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
+import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
@@ -50,7 +53,9 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](18);
+        StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
+        StaticsGenesis genesisCollection = new StaticsGenesis(treasury, renderer);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](20);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -69,17 +74,20 @@ contract StaticsTestDeployer {
         cut[15] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
         cut[16] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
         cut[17] = _cut(address(new ProtocolPoolFacet()), StaticsSelectors.protocolPools());
+        cut[18] = _cut(address(new GenesisFacet()), StaticsSelectors.genesis());
+        cut[19] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
         StaticsProtocolInit init = new StaticsProtocolInit();
-        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             owner,
             cut,
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether, 0, address(renderer))
+                StaticsProtocolInit.initialize,
+                (guardian, treasury, stakingToken, address(genesisCollection), address(0), 1 ether, 0)
             ),
             address(0)
         );
+        genesisCollection.bindProtocol(address(diamond));
     }
 
     function _cut(address facet, bytes4[] memory selectors) private pure returns (IDiamondCut.FacetCut memory) {

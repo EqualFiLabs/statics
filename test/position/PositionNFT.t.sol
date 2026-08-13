@@ -6,8 +6,8 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {IModularPositionNFT} from "src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "src/interfaces/IPositionOwnerIndex.sol";
 
@@ -18,17 +18,13 @@ import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {BasketAdminFacet} from "src/facets/BasketAdminFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
-import {
-    IStaticsPosition,
-    IStaticsPositionFees,
-    IStaticsPositionMetadata,
-    IStaticsPositionModule
-} from "src/interfaces/IStaticsPosition.sol";
+import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {PositionNFTFacet} from "src/position/PositionNFTFacet.sol";
 import {StaticsSelectors} from "src/libraries/StaticsSelectors.sol";
 import {StaticsAvatarSVG} from "src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "src/metadata/StaticsPositionRenderer.sol";
+import {StaticsGenesisRenderer} from "src/metadata/StaticsGenesisRenderer.sol";
+import {StaticsGenesis} from "src/tokens/StaticsGenesis.sol";
 
 contract PositionModuleHarnessFacet {
     function createWithLeg(address receiver, bytes32 moduleId, bytes32 localId)
@@ -121,7 +117,6 @@ contract PositionNFTTest is Test {
     IERC721Metadata internal metadata;
     IStaticsPosition internal positions;
     IStaticsPositionFees internal positionFees;
-    IStaticsPositionMetadata internal positionMetadata;
     IPositionOwnerIndex internal ownerIndex;
     PositionModuleHarnessFacet internal moduleHarness;
     BasketAdminFacet internal basketAdmin;
@@ -152,14 +147,15 @@ contract PositionNFTTest is Test {
 
         StaticsProtocolInit init = new StaticsProtocolInit();
         PositionReceiver stakingToken = new PositionReceiver(address(0));
-        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
+        StaticsGenesis genesisCollection =
+            new StaticsGenesis(treasury, new StaticsGenesisRenderer(new StaticsAvatarSVG()));
         diamond = new StaticsDiamond(
             address(this),
             cut,
             address(init),
             abi.encodeCall(
                 StaticsProtocolInit.initialize,
-                (makeAddr("guardian"), treasury, address(stakingToken), 0, 0, address(renderer))
+                (makeAddr("guardian"), treasury, address(stakingToken), address(genesisCollection), address(0), 0, 0)
             ),
             address(0)
         );
@@ -167,7 +163,6 @@ contract PositionNFTTest is Test {
         metadata = IERC721Metadata(address(diamond));
         positions = IStaticsPosition(address(diamond));
         positionFees = IStaticsPositionFees(address(diamond));
-        positionMetadata = IStaticsPositionMetadata(address(diamond));
         ownerIndex = IPositionOwnerIndex(address(diamond));
         moduleHarness = PositionModuleHarnessFacet(address(diamond));
         basketAdmin = BasketAdminFacet(address(diamond));
@@ -282,8 +277,12 @@ contract PositionNFTTest is Test {
         assertEq(nft.balanceOf(alice), 1);
         assertEq(metadata.name(), "Statics Position");
         assertEq(metadata.symbol(), "STXPOS");
-        assertGt(bytes(metadata.tokenURI(positionId)).length, 0);
-        assertGt(positionMetadata.positionRenderer().code.length, 0);
+        string memory expectedJson =
+            '{"name":"Statics Position #1","description":"A transferable financial account containing its Statics protocol assets and liabilities."}';
+        assertEq(
+            metadata.tokenURI(positionId),
+            string.concat("data:application/json;base64,", Base64.encode(bytes(expectedJson)))
+        );
         IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
         assertTrue(state.exists);
         assertEq(state.stateNonce, 1);
@@ -294,9 +293,7 @@ contract PositionNFTTest is Test {
         assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
-        assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionMetadata).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IPositionOwnerIndex).interfaceId));
-        assertTrue(IERC165(address(diamond)).supportsInterface(bytes4(0x49064906)));
     }
 
     function test_OwnerIndexPaginatesCurrentPositions() public {
@@ -349,7 +346,7 @@ contract PositionNFTTest is Test {
         ownerIndex.positionsOfOwner(alice, 0, 101);
     }
 
-    function test_PermissionlessSyncSeedsPreUpgradePositionAndRefreshesMetadata() public {
+    function test_PermissionlessSyncSeedsPreUpgradePosition() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
         vm.prank(alice);
@@ -362,8 +359,6 @@ contract PositionNFTTest is Test {
 
         vm.expectEmit(true, true, false, true, address(diamond));
         emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, alice);
-        vm.expectEmit(true, false, false, true, address(diamond));
-        emit IERC4906.MetadataUpdate(positionId);
         vm.prank(carol);
         ownerIndex.syncPositionOwnerIndex(positionId);
 
@@ -386,36 +381,6 @@ contract PositionNFTTest is Test {
         assertEq(ownerIndex.positionCount(bob), 1);
         (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(bob, 0, 100);
         assertEq(indexedPositions, _ids(positionId));
-    }
-
-    function test_RendererChangeRefreshesEveryAllocatedPositionMetadata() public {
-        positions.createPosition(alice);
-        positions.createPosition(bob);
-
-        vm.expectEmit(false, false, false, true, address(diamond));
-        emit IERC4906.BatchMetadataUpdate(1, 2);
-        positionMetadata.setPositionRenderer(makeAddr("replacement renderer"));
-    }
-
-    function test_OwnerCanReplaceOrClearPositionRenderer() public {
-        address previousRenderer = positionMetadata.positionRenderer();
-        address replacement = makeAddr("replacement renderer");
-
-        vm.expectEmit(true, true, false, true, address(diamond));
-        emit IStaticsPositionMetadata.PositionRendererSet(previousRenderer, replacement);
-        positionMetadata.setPositionRenderer(replacement);
-        assertEq(positionMetadata.positionRenderer(), replacement);
-
-        positionMetadata.setPositionRenderer(address(0));
-        vm.prank(alice);
-        uint256 positionId = positions.createPosition(alice);
-        assertEq(metadata.tokenURI(positionId), "");
-    }
-
-    function test_NonOwnerCannotSetPositionRenderer() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        positionMetadata.setPositionRenderer(alice);
     }
 
     function test_SafeMintReceiverCanReadMetadataDuringCallback() public {

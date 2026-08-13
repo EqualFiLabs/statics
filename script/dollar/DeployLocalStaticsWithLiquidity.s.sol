@@ -55,7 +55,7 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
             FOUNDRY_CREATE2_DEPLOYER, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs
         );
         StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(IPoolManager(poolManager), deployment.diamond, 25, 25);
+            new StaticsSwapFeeHook{salt: salt}(IPoolManager(poolManager), deployment.diamond, 50, 50);
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager liquidityManager =
             new StaticsLiquidityManager(deployment.diamond, positionManager, poolManager, permit2);

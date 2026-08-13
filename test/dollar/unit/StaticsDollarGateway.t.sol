@@ -74,7 +74,7 @@ contract StaticsDollarGatewayTest is Test {
         config.profileGuardian = owner;
         config.initialOracle = address(oracle);
         config.weth = address(weth);
-        config.stakingToken = address(weth);
+        config.partnerRecipient = address(0);
         config.collateralRatioBps = COLLATERAL_RATIO_BPS;
         config.priceBandBps = PRICE_BAND_BPS;
         config.debtCeiling = type(uint256).max;

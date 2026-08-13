@@ -84,7 +84,7 @@ contract PeggedMintAndRecombineInvariantTest is Test {
         config.profileGuardian = owner;
         config.initialOracle = address(wethOracle);
         config.weth = address(weth);
-        config.stakingToken = address(weth);
+        config.partnerRecipient = address(0);
         config.collateralRatioBps = 15_000;
         config.priceBandBps = 15_000;
         config.debtCeiling = type(uint256).max;

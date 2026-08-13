@@ -9,6 +9,8 @@ import {BasketFacet} from "../../src/facets/BasketFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {GenesisFacet} from "../../src/facets/GenesisFacet.sol";
+import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
@@ -30,7 +32,9 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
+import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
+import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
+import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
 
 abstract contract DeployStaticsProtocol {
     struct ProtocolParts {
@@ -45,6 +49,8 @@ abstract contract DeployStaticsProtocol {
         address basketCollateral;
         address basketRewards;
         address globalRewards;
+        address genesis;
+        address protocolRevenue;
         address basketAdmin;
         address borrowLiquidity;
         address lending;
@@ -56,7 +62,7 @@ abstract contract DeployStaticsProtocol {
         address gateway;
         address init;
         address avatarSVG;
-        address positionRenderer;
+        address genesisRenderer;
         address protocolPools;
     }
 
@@ -66,11 +72,23 @@ abstract contract DeployStaticsProtocol {
         address finalOwner,
         address guardian,
         address treasury,
-        address stakingToken,
+        address partnerRecipient,
         uint256 creationFeeAmount,
         uint256 positionCreationFeeAmount
-    ) internal returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG) {
+    )
+        internal
+        returns (
+            address diamond,
+            address positionNFT,
+            address staticsToken,
+            address genesisNFT,
+            address genesisRenderer,
+            address avatarSVG
+        )
+    {
         ProtocolParts memory parts = _deployProtocolParts();
+        StaticsToken deployedToken = new StaticsToken(treasury);
+        StaticsGenesis deployedGenesis = new StaticsGenesis(treasury, StaticsGenesisRenderer(parts.genesisRenderer));
         IDiamondCut.FacetCut[] memory cut =
             _protocolCut(parts, address(new BasketLiquidityFacet()), address(new LiquidityRewardsFacet()));
         LibPeriphery.InitArgs memory dollarArgs = LibPeriphery.InitArgs({
@@ -84,16 +102,25 @@ abstract contract DeployStaticsProtocol {
         StaticsProtocolInit.UnifiedInitArgs memory args = StaticsProtocolInit.UnifiedInitArgs({
             guardian: guardian,
             treasury: treasury,
-            stakingToken: stakingToken,
+            stakingToken: address(deployedToken),
+            genesisCollection: address(deployedGenesis),
+            partnerRecipient: partnerRecipient,
             creationFeeAmount: creationFeeAmount,
             positionCreationFeeAmount: positionCreationFeeAmount,
-            positionRenderer: parts.positionRenderer,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(
             finalOwner, cut, parts.init, abi.encodeCall(StaticsProtocolInit.initializeUnified, (args)), weth
         );
-        return (address(deployedDiamond), address(deployedDiamond), parts.positionRenderer, parts.avatarSVG);
+        deployedGenesis.bindProtocol(address(deployedDiamond));
+        return (
+            address(deployedDiamond),
+            address(deployedDiamond),
+            address(deployedToken),
+            address(deployedGenesis),
+            parts.genesisRenderer,
+            parts.avatarSVG
+        );
     }
 
     function _deployProtocolParts() internal returns (ProtocolParts memory parts) {
@@ -108,6 +135,8 @@ abstract contract DeployStaticsProtocol {
         parts.basketCollateral = address(new BasketCollateralFacet());
         parts.basketRewards = address(new BasketRewardsFacet());
         parts.globalRewards = address(new GlobalRewardsFacet());
+        parts.genesis = address(new GenesisFacet());
+        parts.protocolRevenue = address(new ProtocolRevenueFacet());
         parts.basketAdmin = address(new BasketAdminFacet());
         parts.borrowLiquidity = address(new BorrowLiquidityFacet());
         parts.lending = address(new LendingFacet());
@@ -119,7 +148,7 @@ abstract contract DeployStaticsProtocol {
         parts.gateway = address(new StaticsDollarGatewayFacet());
         parts.init = address(new StaticsProtocolInit());
         parts.avatarSVG = address(new StaticsAvatarSVG());
-        parts.positionRenderer = address(new StaticsPositionRenderer(StaticsAvatarSVG(parts.avatarSVG)));
+        parts.genesisRenderer = address(new StaticsGenesisRenderer(StaticsAvatarSVG(parts.avatarSVG)));
         parts.protocolPools = address(new ProtocolPoolFacet());
     }
 
@@ -128,7 +157,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](23);
+        cut = new IDiamondCut.FacetCut[](25);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -164,6 +193,10 @@ abstract contract DeployStaticsProtocol {
         );
         cut[22] =
             IDiamondCut.FacetCut(parts.protocolPools, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPools());
+        cut[23] = IDiamondCut.FacetCut(parts.genesis, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesis());
+        cut[24] = IDiamondCut.FacetCut(
+            parts.protocolRevenue, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolRevenue()
+        );
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {

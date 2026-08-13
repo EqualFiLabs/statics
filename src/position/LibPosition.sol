@@ -5,7 +5,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 
 library LibPosition {
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v2");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.position.storage.v3");
     bytes32 internal constant DOLLAR_MODULE = keccak256("statics.position.module.dollar");
     bytes32 internal constant BASKET_MODULE = keccak256("statics.position.module.basket");
     bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
@@ -25,7 +25,6 @@ library LibPosition {
         mapping(uint256 positionId => mapping(bytes32 legKey => bool active)) activeLeg;
         uint256 creationFeeAmount;
         mapping(uint256 positionId => PackedPositionState value) state;
-        address renderer;
         mapping(address owner => uint256[] positionIds) ownedPositions;
         mapping(uint256 positionId => address owner) indexedOwner;
         mapping(uint256 positionId => uint256 indexPlusOne) ownedPositionIndex;
@@ -48,12 +47,11 @@ library LibPosition {
         }
     }
 
-    function initialize(uint256 creationFeeAmount, address renderer) internal {
+    function initialize(uint256 creationFeeAmount) internal {
         PositionStorage storage ps = positionStorage();
         if (ps.initialized) revert AlreadyInitialized();
         ps.nextPositionId = 1;
         ps.creationFeeAmount = creationFeeAmount;
-        ps.renderer = renderer;
         ps.initialized = true;
     }
 

@@ -26,7 +26,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         address multisig;
         address guardian;
         address treasury;
-        address stakingToken;
+        address partnerRecipient;
         uint256 creationFeeAmount;
         uint256 positionCreationFeeAmount;
     }
@@ -61,7 +61,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             multisig: vm.envAddress("MULTISIG"),
             guardian: vm.envAddress("GUARDIAN"),
             treasury: vm.envAddress("TREASURY"),
-            stakingToken: vm.envAddress("STAKING_TOKEN"),
+            partnerRecipient: vm.envOr("STONKBROKERS_RECIPIENT", address(0)),
             creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT")
         });
@@ -69,7 +69,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             owner: address(0),
             profileGuardian: address(0),
             treasury: address(0),
-            stakingToken: address(0),
+            partnerRecipient: address(0),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0,
             weth: vm.envAddress("WETH_ADDRESS"),
@@ -102,7 +102,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         local.owner = address(timelock);
         local.profileGuardian = config.guardian;
         local.treasury = config.treasury;
-        local.stakingToken = config.stakingToken;
+        local.partnerRecipient = config.partnerRecipient;
         local.creationFeeAmount = config.creationFeeAmount;
         local.positionCreationFeeAmount = config.positionCreationFeeAmount;
         local.deployMockWeth = true;
@@ -141,7 +141,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         production.owner = address(timelock);
         production.profileGuardian = config.guardian;
         production.treasury = config.treasury;
-        production.stakingToken = config.stakingToken;
+        production.partnerRecipient = config.partnerRecipient;
         production.creationFeeAmount = config.creationFeeAmount;
         production.positionCreationFeeAmount = config.positionCreationFeeAmount;
         deployment = _deployProduction(production, deploymentCreator);

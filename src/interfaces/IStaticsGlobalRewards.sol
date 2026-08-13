@@ -3,8 +3,10 @@ pragma solidity >=0.8.26 <0.9.0;
 
 interface IStaticsGlobalRewards {
     struct RewardAssetView {
-        uint256 eligibleStake;
-        uint256 pendingStake;
+        uint256 actualEligibleStake;
+        uint256 actualPendingStake;
+        uint256 effectiveEligibleWeight;
+        uint256 effectivePendingWeight;
         uint256 indexRay;
         uint256 indexedReserve;
         uint256 totalClaimable;
@@ -18,8 +20,10 @@ interface IStaticsGlobalRewards {
 
     struct RewardSelectionView {
         bool selected;
-        uint256 eligibleStake;
-        uint256 pendingStake;
+        uint256 actualEligibleStake;
+        uint256 actualPendingStake;
+        uint256 effectiveEligibleWeight;
+        uint256 effectivePendingWeight;
         uint40 eligibleAt;
     }
 
@@ -27,21 +31,54 @@ interface IStaticsGlobalRewards {
     event Staked(uint256 indexed positionId, address indexed payer, uint256 amount, uint256 totalPositionStake);
     event Unstaked(uint256 indexed positionId, address indexed receiver, uint256 amount, uint256 totalPositionStake);
     event RewardAssetOptedIn(
-        uint256 indexed positionId, address indexed asset, uint256 pendingStake, uint40 eligibleAt
+        uint256 indexed positionId,
+        address indexed asset,
+        uint256 actualPendingStake,
+        uint256 effectivePendingWeight,
+        uint40 eligibleAt
     );
     event RewardStakeScheduled(
-        uint256 indexed positionId, address indexed asset, uint256 pendingStake, uint40 eligibleAt
+        uint256 indexed positionId,
+        address indexed asset,
+        uint256 actualPendingStake,
+        uint256 effectivePendingWeight,
+        uint40 eligibleAt
     );
     event RewardBucketMatured(
-        address indexed asset, uint40 indexed eligibleAt, uint256 amount, uint256 eligibleStake, uint256 indexRay
+        address indexed asset,
+        uint40 indexed eligibleAt,
+        uint256 actualStake,
+        uint256 effectiveWeight,
+        uint256 totalActualEligibleStake,
+        uint256 totalEffectiveEligibleWeight,
+        uint256 indexRay
     );
     event PositionRewardEligibilityActivated(
-        uint256 indexed positionId, address indexed asset, uint256 amount, uint40 eligibleAt, uint256 activationIndexRay
+        uint256 indexed positionId,
+        address indexed asset,
+        uint256 actualStake,
+        uint256 effectiveWeight,
+        uint40 eligibleAt,
+        uint256 activationIndexRay
     );
     event RewardAssetOptedOut(
-        uint256 indexed positionId, address indexed asset, uint256 removedEligibleStake, uint256 removedPendingStake
+        uint256 indexed positionId,
+        address indexed asset,
+        uint256 removedActualEligibleStake,
+        uint256 removedActualPendingStake,
+        uint256 removedEffectiveEligibleWeight,
+        uint256 removedEffectivePendingWeight
+    );
+    event PositionRewardWeightChanged(
+        uint256 indexed positionId,
+        address indexed asset,
+        uint16 previousMultiplierBps,
+        uint16 newMultiplierBps,
+        uint256 effectiveEligibleWeight,
+        uint256 effectivePendingWeight
     );
     event RewardAssetDustRouted(address indexed asset, uint256 amount);
+    event RewardBookCheckpointed(address indexed asset);
     event GlobalFeeAccrued(
         address indexed asset, uint256 grossFee, uint256 stakerAmount, uint256 treasuryAmount, uint256 indexRay
     );
@@ -70,8 +107,6 @@ interface IStaticsGlobalRewards {
     ) external returns (uint256[] memory amountsOut);
 
     function distributeTreasuryFees(address asset) external returns (uint256 amount);
-
-    function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) external;
 
     function pendingRewards(uint256 positionId, address[] calldata assets)
         external
@@ -104,4 +139,6 @@ interface IStaticsGlobalRewards {
     function treasuryAccrued(address asset) external view returns (uint256);
 
     function canAccrueStakerRewards(address asset) external view returns (bool);
+    function checkpointRewardAssets(address[] calldata assets) external;
+    function rewardBookNeedsCheckpoint(address asset) external view returns (bool);
 }

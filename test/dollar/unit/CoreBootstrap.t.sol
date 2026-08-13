@@ -108,7 +108,7 @@ contract CoreBootstrapTest is Test {
         assertEq(deployment.positionNFT, deployment.diamond);
         assertEq(ownership.owner(), owner);
         assertEq(loupe.facetAddresses().length, 11);
-        assertEq(staticsLoupe.facetAddresses().length, 23);
+        assertEq(staticsLoupe.facetAddresses().length, 25);
         assertTrue(loupe.facetAddress(CoreGovernanceFacet.setManagedRecoveryHolder.selector) != address(0));
         assertEq(loupe.facetAddress(bytes4(keccak256("registerManagedRecoveryHolder()"))), address(0));
         assertEq(IStaticsBasket(deployment.diamond).basketCount(), 0);
@@ -250,7 +250,7 @@ contract CoreBootstrapTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = oracle;
         config.weth = weth;
-        config.stakingToken = weth;
+        config.partnerRecipient = address(0);
         config.riskUri = "ipfs://risk/{id}.json";
     }
 

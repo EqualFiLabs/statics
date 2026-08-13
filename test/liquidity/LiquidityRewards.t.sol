@@ -158,10 +158,12 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: 40,
                 outputFeeBps: 60,
-                polShareBps: 0,
+                lockedLiquidityShareBps: 0,
                 liquidityProviderShareBps: 10_000,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 0,
+                stonkBrokersShareBps: 0,
+                indexCreatorShareBps: 0,
                 treasuryShareBps: 0
             })
         );
@@ -200,10 +202,12 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: 40,
                 outputFeeBps: 60,
-                polShareBps: 0,
+                lockedLiquidityShareBps: 0,
                 liquidityProviderShareBps: 0,
                 basketStakerShareBps: 10_000,
                 staticsStakerShareBps: 0,
+                stonkBrokersShareBps: 0,
+                indexCreatorShareBps: 0,
                 treasuryShareBps: 0
             })
         );
@@ -246,10 +250,12 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: 40,
                 outputFeeBps: 60,
-                polShareBps: 0,
+                lockedLiquidityShareBps: 0,
                 liquidityProviderShareBps: 0,
                 basketStakerShareBps: 10_000,
                 staticsStakerShareBps: 0,
+                stonkBrokersShareBps: 0,
+                indexCreatorShareBps: 0,
                 treasuryShareBps: 0
             })
         );

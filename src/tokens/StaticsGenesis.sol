@@ -13,7 +13,7 @@ contract StaticsGenesis is ERC721Consecutive, IERC4906, IStaticsGenesis {
     uint256 public constant COLLECTION_SIZE = 5_555;
     bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
-    address public immutable bootstrapBinder;
+    address public bootstrapBinder;
     IStaticsGenesisRenderer public immutable renderer;
     address public protocol;
 
@@ -25,23 +25,21 @@ contract StaticsGenesis is ERC721Consecutive, IERC4906, IStaticsGenesis {
     error UnauthorizedProtocol(address caller);
     error TransfersDisabled();
 
-    constructor(address treasury, address bootstrapBinder_, IStaticsGenesisRenderer renderer_)
-        ERC721("Statics Genesis", "STATICS-GENESIS")
-    {
+    constructor(address treasury, IStaticsGenesisRenderer renderer_) ERC721("Statics Genesis", "STATICS-GENESIS") {
         if (treasury == address(0)) revert InvalidTreasury();
-        if (bootstrapBinder_ == address(0)) revert InvalidProtocol();
         if (address(renderer_) == address(0)) revert InvalidRenderer();
-        bootstrapBinder = bootstrapBinder_;
+        bootstrapBinder = msg.sender;
         renderer = renderer_;
         _mintConsecutive(treasury, 5_000);
         _mintConsecutive(treasury, 555);
     }
 
     function bindProtocol(address protocol_) external {
-        if (msg.sender != bootstrapBinder) revert UnauthorizedBootstrapBinder(msg.sender);
         if (protocol != address(0)) revert ProtocolAlreadyBound();
+        if (msg.sender != bootstrapBinder) revert UnauthorizedBootstrapBinder(msg.sender);
         if (protocol_ == address(0) || protocol_.code.length == 0) revert InvalidProtocol();
         protocol = protocol_;
+        delete bootstrapBinder;
         emit BatchMetadataUpdate(1, COLLECTION_SIZE);
     }
 

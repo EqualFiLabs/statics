@@ -160,10 +160,12 @@ contract GovernanceProtocolPoolsTest is CanonicalPoolTestBase {
         IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
             inputFeeBps: 15,
             outputFeeBps: 20,
-            polShareBps: 2_000,
+            lockedLiquidityShareBps: 2_000,
             liquidityProviderShareBps: 2_000,
             basketStakerShareBps: 1_000,
             staticsStakerShareBps: 2_000,
+            stonkBrokersShareBps: 0,
+            indexCreatorShareBps: 0,
             treasuryShareBps: 3_000
         });
         protocolPools.setProtocolPoolFeeConfiguration(poolId, configuration);

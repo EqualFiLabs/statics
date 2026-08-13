@@ -95,6 +95,8 @@ interface IStaticsLiquidityRewards {
         uint256 liquidityProviderAmount,
         uint256 basketStakerAmount,
         uint256 staticsStakerAmount,
+        uint256 stonkBrokersAmount,
+        uint256 indexCreatorAmount,
         uint256 treasuryAmount
     ) external;
 

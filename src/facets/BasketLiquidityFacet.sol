@@ -240,10 +240,12 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             .setFeeConfiguration(
                 configuration.inputFeeBps,
                 configuration.outputFeeBps,
-                configuration.polShareBps,
+                configuration.lockedLiquidityShareBps,
                 configuration.liquidityProviderShareBps,
                 configuration.basketStakerShareBps,
                 configuration.staticsStakerShareBps,
+                configuration.stonkBrokersShareBps,
+                configuration.indexCreatorShareBps,
                 configuration.treasuryShareBps
             );
         emit SwapFeeConfigurationChanged(configuration);
@@ -264,10 +266,12 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
                 IStaticsSwapFeeHook.FeeConfiguration({
                     inputFeeBps: configuration.inputFeeBps,
                     outputFeeBps: configuration.outputFeeBps,
-                    polShareBps: configuration.polShareBps,
+                    lockedLiquidityShareBps: configuration.lockedLiquidityShareBps,
                     liquidityProviderShareBps: configuration.liquidityProviderShareBps,
                     basketStakerShareBps: configuration.basketStakerShareBps,
                     staticsStakerShareBps: configuration.staticsStakerShareBps,
+                    stonkBrokersShareBps: configuration.stonkBrokersShareBps,
+                    indexCreatorShareBps: configuration.indexCreatorShareBps,
                     treasuryShareBps: configuration.treasuryShareBps
                 })
             );
@@ -277,10 +281,12 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             poolId,
             configuration.inputFeeBps,
             configuration.outputFeeBps,
-            configuration.polShareBps,
+            configuration.lockedLiquidityShareBps,
             configuration.liquidityProviderShareBps,
             configuration.basketStakerShareBps,
             configuration.staticsStakerShareBps,
+            configuration.stonkBrokersShareBps,
+            configuration.indexCreatorShareBps,
             configuration.treasuryShareBps
         );
     }
@@ -320,7 +326,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             LibGlobalRewards.accrueReservedTreasuryFee(asset, constituent);
             emit PermanentLiquidityTreasuryAccrued(basketId, asset, asset, constituent);
         }
-        _burnPolBasketTokens(configured, basketId, asset, basketTokens);
+        _burnLockedLiquidityBasketTokens(configured, basketId, asset, basketTokens);
         emit BasketLiquidityUnwound(basketId, asset, stored.key.toId(), constituent, basketTokens);
     }
 
@@ -360,10 +366,12 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         configuration = SwapFeeConfiguration({
             inputFeeBps: stored.inputFeeBps,
             outputFeeBps: stored.outputFeeBps,
-            polShareBps: stored.polShareBps,
+            lockedLiquidityShareBps: stored.lockedLiquidityShareBps,
             liquidityProviderShareBps: stored.liquidityProviderShareBps,
             basketStakerShareBps: stored.basketStakerShareBps,
             staticsStakerShareBps: stored.staticsStakerShareBps,
+            stonkBrokersShareBps: stored.stonkBrokersShareBps,
+            indexCreatorShareBps: stored.indexCreatorShareBps,
             treasuryShareBps: stored.treasuryShareBps
         });
     }
@@ -380,10 +388,12 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         configuration = PoolFeeConfigurationView({
             inputFeeBps: effective.inputFeeBps,
             outputFeeBps: effective.outputFeeBps,
-            polShareBps: effective.polShareBps,
+            lockedLiquidityShareBps: effective.lockedLiquidityShareBps,
             liquidityProviderShareBps: effective.liquidityProviderShareBps,
             basketStakerShareBps: effective.basketStakerShareBps,
             staticsStakerShareBps: effective.staticsStakerShareBps,
+            stonkBrokersShareBps: effective.stonkBrokersShareBps,
+            indexCreatorShareBps: effective.indexCreatorShareBps,
             treasuryShareBps: effective.treasuryShareBps,
             overridden: effective.overridden
         });
@@ -461,7 +471,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         }
     }
 
-    function _burnPolBasketTokens(
+    function _burnLockedLiquidityBasketTokens(
         LibBasket.Basket storage configured,
         uint256 basketId,
         address sourcePoolAsset,

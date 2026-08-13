@@ -76,7 +76,7 @@ contract CoreSeriesRecoveryTest is Test {
         config.profileGuardian = profileGuardian;
         config.initialOracle = address(oracle);
         config.weth = address(weth);
-        config.stakingToken = address(weth);
+        config.partnerRecipient = address(0);
         config.riskUri = "ipfs://risk/{id}.json";
         deployment = new DeployCoreBootstrap().deploy(config);
         mintFacet = CoreMintFacet(deployment.core);

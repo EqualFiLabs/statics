@@ -107,7 +107,9 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
             vaultBefore + flashAmounts[1],
             "mint backing or flash principal not recorded"
         );
-        assertGt(hook.lockedLiquidity(pools[1].toId()), lockedLiquidityBefore, "route did not compound POL");
+        assertGt(
+            hook.lockedLiquidity(pools[1].toId()), lockedLiquidityBefore, "route did not compound locked liquidity"
+        );
         for (uint256 i; i < basketAssets.length; ++i) {
             assertGe(profits[i], minimumProfits[i]);
             assertEq(IERC20(basketAssets[i]).balanceOf(executor), executorBalancesBefore[i] + profits[i]);

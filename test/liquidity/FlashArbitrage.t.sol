@@ -12,7 +12,6 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {StaticsFlashArbitrageReceiver} from "../../src/periphery/StaticsFlashArbitrageReceiver.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 import {FlashArbitrageReceiver, ICanonicalV4SwapRouter} from "../mocks/FlashArbitrageReceiver.sol";
@@ -223,10 +222,12 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: 25,
                 outputFeeBps: 25,
-                polShareBps: 0,
+                lockedLiquidityShareBps: 0,
                 liquidityProviderShareBps: 0,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 9_000,
+                stonkBrokersShareBps: 0,
+                indexCreatorShareBps: 0,
                 treasuryShareBps: 1_000
             })
         );
@@ -538,10 +539,12 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: uint16(bound(rawInputFeeBps, 0, 100)),
                 outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100)),
-                polShareBps: 5_000,
+                lockedLiquidityShareBps: 5_000,
                 liquidityProviderShareBps: 1_000,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 3_000,
+                stonkBrokersShareBps: 0,
+                indexCreatorShareBps: 0,
                 treasuryShareBps: 1_000
             })
         );

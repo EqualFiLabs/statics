@@ -19,20 +19,24 @@ interface IStaticsBasketLiquidity {
     struct SwapFeeConfiguration {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
-        uint16 polShareBps;
+        uint16 lockedLiquidityShareBps;
         uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
+        uint16 stonkBrokersShareBps;
+        uint16 indexCreatorShareBps;
         uint16 treasuryShareBps;
     }
 
     struct PoolFeeConfigurationView {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
-        uint16 polShareBps;
+        uint16 lockedLiquidityShareBps;
         uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
+        uint16 stonkBrokersShareBps;
+        uint16 indexCreatorShareBps;
         uint16 treasuryShareBps;
         bool overridden;
     }
@@ -58,10 +62,12 @@ interface IStaticsBasketLiquidity {
         PoolId indexed poolId,
         uint16 inputFeeBps,
         uint16 outputFeeBps,
-        uint16 polShareBps,
+        uint16 lockedLiquidityShareBps,
         uint16 liquidityProviderShareBps,
         uint16 basketStakerShareBps,
         uint16 staticsStakerShareBps,
+        uint16 stonkBrokersShareBps,
+        uint16 indexCreatorShareBps,
         uint16 treasuryShareBps
     );
     event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId, address indexed asset, PoolId indexed poolId);

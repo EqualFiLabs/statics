@@ -14,6 +14,8 @@ import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGenesisStaking} from "../interfaces/IStaticsGenesisStaking.sol";
+import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
@@ -22,7 +24,7 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
-import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionMetadata} from "../interfaces/IStaticsPosition.sol";
+import {IStaticsPosition, IStaticsPositionFees} from "../interfaces/IStaticsPosition.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
@@ -34,6 +36,8 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibGenesis} from "../libraries/LibGenesis.sol";
+import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract StaticsProtocolInit is ERC721Upgradeable {
@@ -41,9 +45,10 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address guardian;
         address treasury;
         address stakingToken;
+        address genesisCollection;
+        address partnerRecipient;
         uint256 creationFeeAmount;
         uint256 positionCreationFeeAmount;
-        address positionRenderer;
         LibPeriphery.InitArgs dollar;
     }
 
@@ -55,12 +60,19 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address guardian,
         address treasury,
         address stakingToken,
+        address genesisCollection,
+        address partnerRecipient,
         uint256 creationFeeAmount,
-        uint256 positionCreationFeeAmount,
-        address positionRenderer
+        uint256 positionCreationFeeAmount
     ) external initializer {
         _initializeProtocol(
-            guardian, treasury, stakingToken, creationFeeAmount, positionCreationFeeAmount, positionRenderer
+            guardian,
+            treasury,
+            stakingToken,
+            genesisCollection,
+            partnerRecipient,
+            creationFeeAmount,
+            positionCreationFeeAmount
         );
     }
 
@@ -69,9 +81,10 @@ contract StaticsProtocolInit is ERC721Upgradeable {
             args.guardian,
             args.treasury,
             args.stakingToken,
+            args.genesisCollection,
+            args.partnerRecipient,
             args.creationFeeAmount,
-            args.positionCreationFeeAmount,
-            args.positionRenderer
+            args.positionCreationFeeAmount
         );
         LibPeriphery.initialize(args.dollar);
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
@@ -84,9 +97,10 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address guardian,
         address treasury,
         address stakingToken,
+        address genesisCollection,
+        address partnerRecipient,
         uint256 creationFeeAmount,
-        uint256 positionCreationFeeAmount,
-        address positionRenderer
+        uint256 positionCreationFeeAmount
     ) private {
         if (guardian == address(0)) revert InvalidGuardian();
         if (treasury == address(0) || treasury == address(this)) revert InvalidTreasury();
@@ -94,8 +108,10 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         if (ds.supportedInterfaces[type(IERC165).interfaceId]) revert AlreadyInitialized();
 
         __ERC721_init("Statics Position", "STXPOS");
-        LibPosition.initialize(positionCreationFeeAmount, positionRenderer);
+        LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
+        LibGenesis.initialize(genesisCollection, stakingToken);
+        LibProtocolRevenue.initialize(partnerRecipient);
 
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
         ds.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
@@ -107,6 +123,8 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsGlobalRewards).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsGenesisStaking).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsProtocolRevenue).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketLiquidity).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBorrowLiquidity).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsCustody).interfaceId] = true;
@@ -119,11 +137,9 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsPositionMetadata).interfaceId] = true;
         ds.supportedInterfaces[type(IModularPositionNFT).interfaceId] = true;
         ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionPortfolio).interfaceId] = true;
-        ds.supportedInterfaces[bytes4(0x49064906)] = true;
 
         LibGovernance.governanceStorage().guardian = guardian;
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();

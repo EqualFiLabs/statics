@@ -45,7 +45,7 @@ contract StaticsGenesisTest is Test {
 
     function setUp() public {
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
-        genesis = new StaticsGenesis(treasury, address(this), renderer);
+        genesis = new StaticsGenesis(treasury, renderer);
         protocol = new GenesisProtocolMock();
     }
 
@@ -62,6 +62,7 @@ contract StaticsGenesisTest is Test {
         genesis.transferFrom(treasury, receiver, 1);
 
         genesis.bindProtocol(address(protocol));
+        assertEq(genesis.bootstrapBinder(), address(0));
         vm.expectRevert(StaticsGenesis.ProtocolAlreadyBound.selector);
         genesis.bindProtocol(address(protocol));
 

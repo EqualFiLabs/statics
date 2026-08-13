@@ -7,7 +7,7 @@ import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
-import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibGenesis} from "../libraries/LibGenesis.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 
@@ -20,8 +20,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error IncompatibleStakingToken(uint256 requested, uint256 received);
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error NoRewards(uint256 positionId);
-    error OnlySwapFeeHook(address caller, address expected);
-    error IncompatibleRewardAsset(address asset, uint256 requested, uint256 received);
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
@@ -53,7 +51,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
         uint256 balance = position.balance;
         if (amount > balance) revert InsufficientStake(amount, balance);
-        LibGlobalRewards.decreaseStake(positionId, amount);
+        LibGlobalRewards.decreaseStake(positionId, amount, LibGenesis.positionMultiplier(positionId));
         position.balance = balance - amount;
         rs.totalStaked -= amount;
         if (position.balance == 0) LibGlobalRewards.clearOptInsAfterFullUnstake(positionId);
@@ -128,18 +126,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         emit TreasuryFeesDistributed(asset, treasury_, amount);
     }
 
-    function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) external nonReentrant {
-        address expected = LibBasketLiquidity.liquidityStorage().hook;
-        if (msg.sender != expected) revert OnlySwapFeeHook(msg.sender, expected);
-        uint256 total = stakerAmount + treasuryAmount;
-        if (total == 0) return;
-        uint256 received = LibCustody.pull(asset, msg.sender, total);
-        if (received != total) revert IncompatibleRewardAsset(asset, total, received);
-        LibCustody.reserve(LibCustody.feeAccount(), asset, total);
-        LibGlobalRewards.accrueReservedSwapStakerFee(asset, stakerAmount);
-        LibGlobalRewards.accrueReservedTreasuryFee(asset, treasuryAmount);
-    }
-
     function pendingRewards(uint256 positionId, address[] calldata assets)
         external
         view
@@ -167,8 +153,10 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.RewardBook storage stored = rs.books[asset];
         state = RewardAssetView({
-            eligibleStake: LibGlobalRewards.effectiveEligibleStake(stored),
-            pendingStake: LibGlobalRewards.effectivePendingStake(stored),
+            actualEligibleStake: LibGlobalRewards.effectiveActualEligibleStake(stored),
+            actualPendingStake: LibGlobalRewards.effectiveActualPendingStake(stored),
+            effectiveEligibleWeight: LibGlobalRewards.effectiveEligibleWeight(stored),
+            effectivePendingWeight: LibGlobalRewards.effectivePendingWeight(stored),
             indexRay: stored.indexRay,
             indexedReserve: stored.indexedAmount,
             totalClaimable: rs.totalClaimable[asset]
@@ -219,19 +207,27 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
-        return LibGlobalRewards.effectiveEligibleStake(LibGlobalRewards.rewardStorage().books[asset]) != 0;
+        return LibGlobalRewards.effectiveEligibleWeight(LibGlobalRewards.rewardStorage().books[asset]) != 0;
+    }
+
+    function checkpointRewardAssets(address[] calldata assets) external {
+        LibGlobalRewards.checkpointRewardAssets(assets);
+    }
+
+    function rewardBookNeedsCheckpoint(address asset) external view returns (bool) {
+        return LibGlobalRewards.rewardBookNeedsCheckpoint(asset);
     }
 
     function _optIn(uint256 positionId, address[] calldata assets) private {
         uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
-            LibGlobalRewards.optIn(positionId, assets[i]);
+            LibGlobalRewards.optIn(positionId, assets[i], LibGenesis.positionMultiplier(positionId));
         }
     }
 
     function _increaseStake(uint256 positionId, uint256 amount) private {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
-        LibGlobalRewards.increaseStake(positionId, amount);
+        LibGlobalRewards.increaseStake(positionId, amount, LibGenesis.positionMultiplier(positionId));
         uint256 received = LibCustody.pullAndReserve(LibCustody.stakingAccount(), rs.stakingToken, msg.sender, amount);
         if (received != amount) revert IncompatibleStakingToken(amount, received);
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
