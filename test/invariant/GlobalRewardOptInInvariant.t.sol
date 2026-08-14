@@ -79,6 +79,7 @@ contract GlobalRewardOptInHandler is Test {
 
     function stake(uint256 rawPosition, uint256 rawAmount) external {
         uint256 positionId = positionIds[rawPosition % positionIds.length];
+        _checkpointPosition(positionId);
         rewards.stake(positionId, bound(rawAmount, 1, 25 ether));
     }
 
@@ -86,6 +87,7 @@ contract GlobalRewardOptInHandler is Test {
         uint256 positionId = positionIds[rawPosition % positionIds.length];
         uint256 balance = rewards.stakePosition(positionId).stakedBalance;
         if (balance == 0) return;
+        _checkpointPosition(positionId);
         rewards.unstake(positionId, bound(rawAmount, 1, balance), address(this));
     }
 
@@ -155,6 +157,27 @@ contract GlobalRewardOptInHandler is Test {
 
     function feeReservation(address asset) external view returns (uint256) {
         return custody.reservedByAccount(custody.feeCustodyAccount(), asset);
+    }
+
+    function _checkpointPosition(uint256 positionId) private {
+        address[] memory selected = rewards.positionRewardAssets(positionId);
+        address[] memory batch = new address[](8);
+        uint256 batchLength;
+        for (uint256 i; i < selected.length; ++i) {
+            if (!rewards.rewardBookNeedsCheckpoint(selected[i])) continue;
+            batch[batchLength++] = selected[i];
+            if (batchLength == batch.length) {
+                rewards.checkpointRewardAssets(batch);
+                batch = new address[](8);
+                batchLength = 0;
+            }
+        }
+        if (batchLength == 0) return;
+        address[] memory tail = new address[](batchLength);
+        for (uint256 i; i < batchLength; ++i) {
+            tail[i] = batch[i];
+        }
+        rewards.checkpointRewardAssets(tail);
     }
 
     function _asset(address asset) private pure returns (address[] memory assets) {
