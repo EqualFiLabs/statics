@@ -262,9 +262,11 @@ Use an ephemeral Anvil key only. Local fixtures and addresses are not production
 
 ### Robinhood Chain testnet
 
-Robinhood testnet is chain `46630`. The repository records the current
-integration beta in [`deployment.md`](./deployment.md), with canonical
-machine-readable state in
+Robinhood testnet is chain `46630`. The current clean-break Genesis release is
+recorded in
+[`deployments/robinhood-testnet-46630-statics-genesis.json`](./deployments/robinhood-testnet-46630-statics-genesis.json).
+The previous integration beta remains preserved as historical evidence in
+[`deployment.md`](./deployment.md) and
 [`deployments/robinhood-testnet-46630-statics.json`](./deployments/robinhood-testnet-46630-statics.json).
 
 The release sequence is intentionally explicit:

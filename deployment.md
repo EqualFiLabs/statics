@@ -6,6 +6,9 @@ storage, and five-way swap split are intentionally incompatible with the
 clean-break Genesis tokenomics release. These addresses remain evidence of the
 recorded testnet deployment; they are not current release targets.
 
+The current clean-break Genesis deployment is recorded separately in
+[`deployments/robinhood-testnet-46630-statics-genesis.json`](deployments/robinhood-testnet-46630-statics-genesis.json).
+
 ## Release
 
 | Field | Value |

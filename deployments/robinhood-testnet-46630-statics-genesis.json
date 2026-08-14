@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "network": {
+    "name": "Robinhood Chain Testnet",
+    "chainId": 46630,
+    "explorer": "https://explorer.testnet.chain.robinhood.com",
+    "deploymentTimestamp": "2026-08-14T10:36:00-06:00",
+    "protocolDeploymentStartBlock": 101168708,
+    "staticsDiamondDeploymentBlock": 101169765,
+    "genesisBasketExecutionBlock": 101209052
+  },
+  "source": {
+    "repository": "https://github.com/EqualFiLabs/statics",
+    "branch": "feat/genesis-tokenomics",
+    "deploymentCommit": "e69baaba8b21994a5cd6ccceb3ccd922c6d95c16",
+    "sdkCommit": "d1b8940ea31521343ab96e1f9b8517d1e71bbaa9"
+  },
+  "deployer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+  "contracts": {
+    "timelock": {
+      "address": "0xCde0C4419196C76B0f890ef573A28bB0118702fa",
+      "runtimeCodeHash": "0xbad4f9259856d315bc36e0e33bd0c2123d39c59ec1d00ca9c4efe27c8a0eca99",
+      "deploymentTransaction": "0xd9405c7facd6e6dc1ecea3704ed6c823d59431a0725cc9a30fa3eb95cbc8d4ef",
+      "deploymentBlock": 101168708
+    },
+    "staticsDollarCoreDiamond": {
+      "address": "0xe469D218381C68e111557d012Fc6b497c296A7a2",
+      "runtimeCodeHash": "0x35c10006ccb33b16c89c2c70508c41c4ff924a31b83f5e5a3f51b2e9856a069c",
+      "deploymentTransaction": "0xafec2fe033e141fce7d097b0627efe47d17348e2ce6b3f4b5257dba41f0dbf42",
+      "deploymentBlock": 101169224
+    },
+    "staticsDollar": {
+      "address": "0x7a7aA56dcA62946819803cD770f5DA6a711D2ef0",
+      "runtimeCodeHash": "0x1ad929ed605f5e5450fdeccff4b18605feabd3f7511b69bc15ef946ff8f22301",
+      "deploymentTransaction": "0x40ccd3ef06b30b21b8a7ab40514c6b228d44b15fd7f23052eda9d7552782b727",
+      "deploymentBlock": 101169198
+    },
+    "staticsDollarRiskShares": {
+      "address": "0x4993fC3D4Ce3f095262fe5acD8Afce06550c1979",
+      "runtimeCodeHash": "0x18e687f13fcd534c5c2e0c465e52dec35143db430d4243d8ad57b561debebf0e",
+      "deploymentTransaction": "0x930a65f46da409170e43ca19515fd299a43fd63b5f3eb3a876579de424d43017",
+      "deploymentBlock": 101169202
+    },
+    "staticsDiamond": {
+      "address": "0xd41199E3A980dBcC5D3fB3fbD7B973cf255F474E",
+      "runtimeCodeHash": "0xbf27d1322cbc853cbe80b153af2bffb465dc882cf187bdc1aeba19a90bb281db",
+      "deploymentTransaction": "0xef4588465eca0cab9ac8b62f3863470745afc7a9930e2ce283baacf9c847b567",
+      "deploymentBlock": 101169765
+    },
+    "staticsDollarOracle": {
+      "address": "0xF2B56CeEc0Be809486e24Cf31A0b4c0aB6011845",
+      "runtimeCodeHash": "0xfbf5ea96fc311a467a7ba93eee2aa8a6b7e808c2be8585df77ee035d4b78f007",
+      "deploymentTransaction": "0x414ec794cbe03b266e93f203a3995807a77c0f629750c60db4f003e524fb187b",
+      "deploymentBlock": 101168995
+    },
+    "staticsToken": {
+      "address": "0x9b120633B04BD16dB98f346bC709C8e045689A83",
+      "runtimeCodeHash": "0xc704cfeafbfdcdcd004fa0ef4c4d8af86383d54d5610f3e790129a9311a35f27",
+      "deploymentTransaction": "0x5bbbd5af8a0b7c9bf17d013315627da4bcc98d461688bb819af72d7d2cdd7e80",
+      "deploymentBlock": 101169690
+    },
+    "genesisNFT": {
+      "address": "0xD07A692076E226D69608F1Ca34024705D9eBBF2d",
+      "runtimeCodeHash": "0x1894614318b9ee18b34cab6ad116ae513c10f99bdddd2119e724699a089545eb",
+      "deploymentTransaction": "0x2427efd0ef6f81e7339eb5ae72acedfe2609434e63303c3bbd552afab3e89dd6",
+      "deploymentBlock": 101169703
+    },
+    "genesisRenderer": {
+      "address": "0xB7a0722ecf5A6EAFA23573D2250DD6a465b7CaB4",
+      "runtimeCodeHash": "0xb3c26a23d91f764ad3f7ac494469e069d4eca3e0fddc6bd247a5272a4823f923",
+      "deploymentTransaction": "0xf9deba1eb93ec1c2a54a60b52652c48ab1a60768347d92daba2e4439eeafec09",
+      "deploymentBlock": 101169660
+    },
+    "avatarSVG": {
+      "address": "0x641535d09e6D5a76651d6707AdBe37Cf4656f655",
+      "runtimeCodeHash": "0x0be229cf3ae4d5b5a37bcddf2501e583460729a35f9c80d8de2ffb2120785787",
+      "deploymentTransaction": "0xbe33a4b9def2ff59f705a15a40ab9d4a19799d38edfa83fadb5a618710279e0a",
+      "deploymentBlock": 101169650
+    },
+    "swapFeeHook": {
+      "address": "0x120B21978627e2b821d2B91786cB3359703090EC",
+      "runtimeCodeHash": "0x8686a94ff4f85d449b77288ced44c2222b6a599527f93c17d1cf9b423bc00066",
+      "deploymentTransaction": "0x148ca9f6e919b279727e5eed96cb2773c5ab844e55b4ae4c889541508185638c",
+      "deploymentBlock": 101169794
+    },
+    "liquidityManager": {
+      "address": "0xa8484f431F7b48616669b0357125eDEE70234682",
+      "runtimeCodeHash": "0x8e15091bac456625e466e3c0a2f34f2bf80f4c39c179c54b7d8540d9793d5497",
+      "deploymentTransaction": "0x5f445afd5ac08c8d7329df17ff6a9f45a5edb9e008149d15cf770a0776596e81",
+      "deploymentBlock": 101169805
+    }
+  },
+  "externalDependencies": {
+    "weth": {
+      "address": "0x33e4191705c386532ba27cBF171Db86919200B94",
+      "runtimeCodeHash": "0x55f8ac53c64450f01880d8249fc5cb0c69c064e4bcb097ea80a02fff40485a7c"
+    },
+    "poolManager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "runtimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    "positionManager": {
+      "address": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+      "runtimeCodeHash": "0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d"
+    },
+    "permit2": {
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "runtimeCodeHash": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259"
+    },
+    "stateView": {
+      "address": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+      "runtimeCodeHash": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6"
+    },
+    "quoter": {
+      "address": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+      "runtimeCodeHash": "0xd707b1da8cb165e5ea35a3b4450d971eb562ec171e23492aa117036b78a868f6"
+    },
+    "universalRouter": {
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "runtimeCodeHash": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f"
+    }
+  },
+  "testnetFixtures": {
+    "ethUsdFeed": {
+      "address": "0x9340ee0d37E3b7dbeb556b14302Da9eeBC64CB43",
+      "runtimeCodeHash": "0x1e6208efff854be83a78259cf278001d155799b1ff8429664dfb0c9b6e76fc1d",
+      "deploymentTransaction": "0x20f2f0b07d6938ee79efa89c102c0ba63b7b44669b632a3961b6aa08f5086bda"
+    },
+    "sequencerUptimeFeed": {
+      "address": "0xDf89eb9E7c8b8420e1C49376B22e20D19AA3f2DF",
+      "runtimeCodeHash": "0x6678d6cce14650533663ea9ae0b658774419e5c59e49aed97d501307427f299d",
+      "deploymentTransaction": "0x96ce79d068506bc09dcbb6fb7f19b565ad6cbd73e49eb843bb265c6a19f7d5ee"
+    },
+    "usdgOracle": {
+      "address": "0x247c3543B7f710311B44735f76ef087ACa242b8e",
+      "runtimeCodeHash": "0xa857db54d9b01b50490fb464d00b35a531d4637ce7b3a2d45e33dfaa10d5e662",
+      "deploymentTransaction": "0x638be4aa17b741acfd94364ff22a6a4f1434b8efb09e12de171dd81da56b7a27"
+    },
+    "mockUsdg": {
+      "address": "0xe46898175ffBdC6788432b2c537eE4033B809A88",
+      "runtimeCodeHash": "0x1628ff1ae48c5fe529343b4786fcfd05b96ac4171c356f6ef12f3ea4656cb679",
+      "deploymentTransaction": "0xa78d41a785d4972a30ef0da011390e1da7bf13a8ddb2c5d61e34232ddf466d70",
+      "mintTransaction": "0x1d9916c2aeaa8a3e01eaea1b40469f15499488db0bb0b65032963c26f01e6e17",
+      "ownershipTransaction": "0x0ef4854a2f883fee792c23bbe1af69441736edcb6c8e51ac4449e7fabd62709c"
+    }
+  },
+  "roles": {
+    "protocolOwner": "0xCde0C4419196C76B0f890ef573A28bB0118702fa",
+    "dollarCoreOwner": "0xCde0C4419196C76B0f890ef573A28bB0118702fa",
+    "timelockProposer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "timelockCanceller": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "timelockExecutor": "0x0000000000000000000000000000000000000000",
+    "guardian": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "treasury": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "partnerRecipient": "0x4CF8e4D37F561815F208565a5b6Ca8a85b143205"
+  },
+  "configuration": {
+    "timelockDelaySeconds": 120,
+    "basketCreationFeeWei": "0",
+    "positionCreationFeeWei": "1000000000000000",
+    "staticsSupply": "1000000000000000000000000000",
+    "genesisSupply": 5555,
+    "partnerCheckpointTipBps": 100,
+    "swapFees": {
+      "inputFeeBps": 50,
+      "outputFeeBps": 50,
+      "lockedLiquidityShareBps": 1000,
+      "liquidityProviderShareBps": 2000,
+      "basketStakerShareBps": 2000,
+      "staticsStakerShareBps": 1500,
+      "stonkBrokersShareBps": 1000,
+      "indexCreatorShareBps": 500,
+      "treasuryShareBps": 2000
+    },
+    "usdgProfile": {
+      "profileId": 2,
+      "collateralDecimals": 6,
+      "minimumPriceWad": "950000000000000000",
+      "maximumPriceWad": "1050000000000000000",
+      "mintFeeBps": 5,
+      "redemptionFeeBps": 7,
+      "debtCeilingWad": "1000000000000000000000000",
+      "mode": "Active"
+    }
+  },
+  "operations": {
+    "liquidityInstallation": {
+      "operationId": "0xf3e99e1a6c13fbdc5dd0ae2a3247bc29c5bf0490390d048d2646e46aeb728fac",
+      "scheduleTransaction": "0x858a0813d68fa944f99a236c25ba95e8b876d57cd6aac366787e593ab2d7a9c8",
+      "executeTransaction": "0x809570c426387e5ed6e5fc701b3a16387c5a2fce199d745ac08e210c03ef4722"
+    },
+    "usdgProfile": {
+      "operationId": "0xb5103e19af6aaff302e25e898d966158097ad98c122fc7952522d96fc629d32a",
+      "scheduleTransaction": "0xa585a4026b6f944f7fcf4cb6735cc7b0214a009a8f0fe9e6c0251d0135e71c79",
+      "executeTransaction": "0xcb63fb453dd0b0ab2ea7bc84262c6d5ea5b1f167fdd00e9558b88c6eb495df7e"
+    },
+    "genesisBasket": {
+      "operationId": "0x3ded1baeee51a98ab9a3390e1454596f97d3209a486b5c4110adb3039e512f96",
+      "fundingTransactions": [
+        "0xf8a87eabb0d326c089c09ff89a1adb79e55ffa36b7b32a0cbf8bd37804f0d51b",
+        "0xbabc2eceea4bbb79a682ab27eb97489480f0371cf377e58d018fc14cf221f743",
+        "0x4208aad71e375e3ec3f252b1eff7ac684c1884668b48009505ee43ed4cf3bfd9"
+      ],
+      "scheduleTransaction": "0xf771ac2091c4c74a564809a22320a54d4412cf38b4a7b188a788dbb924567e07",
+      "executeTransaction": "0xa09a138488f8e1d7d04383713816d6f33114477e6d0c41a8fb5a6b62d04ac755"
+    }
+  },
+  "genesisBasket": {
+    "status": "active",
+    "basketId": 0,
+    "name": "Tesla-Palantir-AMD-1",
+    "symbol": "TPA1",
+    "token": "0xd106346677A9886098c4E17a6F9d3B98381d8c04",
+    "tokenRuntimeCodeHash": "0x88685dfd53c3820c9b542b95ec15ff3e39e931a0a58ec773d4e5566544c548c1",
+    "creator": "0xCde0C4419196C76B0f890ef573A28bB0118702fa",
+    "totalSupply": "1000000000000000000321",
+    "assets": [
+      {
+        "symbol": "TSLA",
+        "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "poolId": "0x0ff514074b4993dafcd6f213da68e5942cd3032bf2410e3e017fb707b6325dd9",
+        "vaultBalance": "10000000000000000004",
+        "lockedLiquidity": "59437390507878971758",
+        "spotTick": 35648
+      },
+      {
+        "symbol": "PLTR",
+        "address": "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+        "poolId": "0xa2b79573445564c0c0c5166149fb3ac9dc6c022d2258f5a55821286329b4b1f5",
+        "vaultBalance": "10000000000000000004",
+        "lockedLiquidity": "38177718944347366654",
+        "spotTick": 26794
+      },
+      {
+        "symbol": "AMD",
+        "address": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        "poolId": "0x565b7770de5e035a2a8daca1006335cfe798dab125ddea3429b383c9db2793d2",
+        "vaultBalance": "10000000000000000004",
+        "lockedLiquidity": "70778940270537527356",
+        "spotTick": 39141
+      }
+    ]
+  },
+  "verification": {
+    "allFreshDeploymentContractsVerified": true,
+    "basketTokenVerified": true,
+    "strictRuntimeAndBindingChecksPassed": true,
+    "checkedAt": "2026-08-14T12:43:00-06:00"
+  }
+}
