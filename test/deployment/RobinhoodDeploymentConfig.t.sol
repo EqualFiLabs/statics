@@ -69,4 +69,20 @@ contract RobinhoodDeploymentConfigTest is Test {
         assertEq(vm.parseJsonString(mainnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
         assertEq(vm.parseJsonString(testnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
     }
+
+    function testRobinhoodManifestsPinSevenWayFeeSplit() public view {
+        _assertSevenWayFeeSplit(vm.readFile("deployments/robinhood-chain-4663.json"));
+        _assertSevenWayFeeSplit(vm.readFile("deployments/robinhood-chain-testnet-46630.json"));
+    }
+
+    function _assertSevenWayFeeSplit(string memory manifest) private pure {
+        string memory root = ".staticsLiquidityCalibration";
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".lockedLiquidityShareBps")), 1_000);
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".liquidityProviderShareBps")), 2_000);
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".basketStakerShareBps")), 2_000);
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".staticsStakerShareBps")), 1_500);
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".stonkBrokersShareBps")), 1_000);
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".indexCreatorShareBps")), 500);
+        assertEq(vm.parseJsonUint(manifest, string.concat(root, ".treasuryShareBps")), 2_000);
+    }
 }
