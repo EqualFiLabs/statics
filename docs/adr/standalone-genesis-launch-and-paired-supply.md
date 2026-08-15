@@ -3,8 +3,8 @@
 - Status: Accepted direction; implementation pending
 - Date: 2026-08-15
 - Scope: standalone STATICS launch, Genesis NFT issuance and backing,
-  bonding-curve distribution, Uniswap v4 graduation, fee revenue, and later
-  Statics Diamond integration
+  single-sided Uniswap v4 distribution, hook fee revenue, and later Statics
+  Diamond integration
 - Supersedes: the unmerged Genesis-tokenomics direction on
   `feat/genesis-tokenomics`
 
@@ -12,9 +12,10 @@
 
 Statics needs a launchable Genesis product before the complete Statics Diamond
 is ready. The release must establish the STATICS token, the 5,555-token Genesis
-collection, a fully backed fixed-price conversion between the two, an initial
-market, and a canonical Uniswap v4 market that can survive the later launch of
-the full protocol.
+collection, a fully backed fixed-price conversion between the two, and a
+canonical Uniswap v4 market that can survive the later launch of the full
+protocol. The launch market and the long-lived canonical market are the same
+pool.
 
 The launch must not require EqualFi Labs to sell a discretionary treasury token
 allocation to fund development. Users acquire STATICS from a market. EqualFi
@@ -37,9 +38,8 @@ Statics will launch a standalone contract set consisting of:
 1. `StaticsToken`;
 2. `StaticsGenesis`;
 3. `StaticsGenesisVault`;
-4. `StaticsBondingCurve`;
-5. `StaticsV4Hook`; and
-6. one-shot graduation and pool-initialization logic.
+4. `StaticsV4Hook`; and
+5. an authorized one-time pool and launch-position initialization path.
 
 None of these contracts will require the Statics Diamond to exist. The full
 protocol must later adopt the deployed token, Genesis collection, hook, and
@@ -105,8 +105,8 @@ The 500 vault-owned NFTs are inventory, not circulating redemption liabilities,
 and therefore do not increase required backing while they remain in the vault.
 
 The treasury's 90,005,000 STATICS is a genesis founder allocation equivalent to
-500 paired units in liquid-token form. It is not bonding-curve revenue, hook
-revenue, sale proceeds, Genesis backing, or market liquidity.
+500 paired units in liquid-token form. It is not hook revenue, sale proceeds,
+Genesis backing, or market liquidity.
 
 ## Token-form and NFT-form conservation
 
@@ -197,7 +197,7 @@ Transfer-related activation reset, PositionNFT linking, and reward-weight
 transitions belong to the later full-protocol integration. Those mechanics may
 not weaken or complicate the fixed redemption claim.
 
-## Bonding curve
+## One-sided Uniswap v4 launch market
 
 The initial public market receives exactly:
 
@@ -205,95 +205,57 @@ The initial public market receives exactly:
 4,500 * 180,010 = 810,045,000 STATICS
 ```
 
-The accepted curve direction is a supply-indexed linear integral curve:
-
-```text
-marginal price: p(q) = p0 + kq
-
-reserve function: R(q) = p0*q + k*q^2/2
-```
-
-where `q` is the quantity distributed by the curve. A purchase moving the curve
-from `q1` to `q2` pays `R(q2) - R(q1)` plus an explicit trading fee.
-
-The initial release will not support selling STATICS back into the curve.
-STATICS is fungible, so the curve cannot distinguish tokens it distributed from
-treasury-allocated, transferred, or vault-redeemed STATICS. A two-sided curve
-would let externally sourced tokens compete for WETH accumulated from public
-buyers unless every non-curve allocation were contractually locked.
-
-The curve will use pre-minted inventory and cannot mint STATICS. Curve pricing,
-reserve accounting, fee accounting, and graduation state must use bounded
-integer arithmetic with explicit user slippage and deadline protection.
-
-Exact `p0`, `k`, fee rate, per-wallet policy if any, opening conditions, and the
-graduation threshold remain launch-parameter decisions.
-
-## Curve accounting
-
-Curve WETH custody maintains separate logical classes:
-
-```text
-migration reserve
-treasury trading-fee credit
-graduation caller incentive, if configured
-```
-
-Custody must cover the sum of those classes. Curve cost becomes migration
-reserve. The explicit fee becomes pull-based treasury revenue. Fee revenue may
-never be counted as migration liquidity, and migration reserves may never be
-claimed as operating revenue.
-
-The treasury's 90,005,000 genesis STATICS allocation is also not curve revenue.
-The intended operating revenue begins with curve trading fees.
-
-## Deterministic graduation
-
-Graduation will use an immutable sold-supply or equivalent deterministic curve
-state threshold. It will not depend on an administrator-selected price, an
-external oracle, treasury revenue, or an informal market-cap observation.
-
-When the threshold is reached:
-
-1. the curve enters `GraduationReady` and closes permanently;
-2. no later curve purchase or sale can change its terminal state;
-3. any caller may execute the bounded one-time graduation transition;
-4. accumulated migration WETH and remaining curve STATICS seed the canonical
-   STATICS/WETH Uniswap v4 pool; and
-5. the pool begins at the curve's fee-exclusive terminal marginal price, subject
-   only to defined integer and tick rounding.
-
-Remaining curve inventory is not an extra token allocation. It is the token-form
-public inventory that becomes the initial STATICS side of V4 liquidity. After
-graduation, users acquire those tokens through V4 and may convert them into
-Genesis NFTs through the vault.
-
-The graduation caller must have a credible liveness incentive or an explicit
-operator. Any caller incentive must be isolated from Genesis backing and
-migration principal.
-
-## Canonical Uniswap v4 market
-
-The canonical launch market is:
+The public inventory is deposited directly into the canonical market:
 
 ```text
 STATICS / WETH
 ```
 
-It uses zero native Uniswap v4 LP fees and the standalone Statics hook. Initial
-liquidity is protocol-owned full-range liquidity. The initial canonical pool's
-liquidity policy must not expose a path for treasury or controller withdrawal of
-the permanent position.
+The pool is initialized at a configured opening price with a protocol-owned,
+single-sided concentrated-liquidity position containing the complete
+810,045,000-STATICS public allocation and no WETH. The position range and
+liquidity define the launch price path through native Uniswap v4 concentrated-
+liquidity math. Statics will not reimplement swap pricing through hook custom
+accounting.
+
+The pool supports WETH-to-STATICS purchases immediately. A purchase moves WETH
+into the position and STATICS out to the buyer. STATICS-to-WETH sales become
+possible only to the extent the position has accumulated WETH through prior
+purchases or later explicit liquidity additions. Treasury, vault-redeemed, and
+other externally sourced STATICS therefore trade under the same ordinary pool
+rules without creating an unfunded WETH liability.
+
+The launch requires no treasury WETH contribution and no third-party liquidity.
+The initial STATICS inventory is market principal, not a token sale by treasury
+and not operating revenue. WETH received by the position remains market
+liquidity. Only explicitly charged hook fees become operating revenue.
+
+There is no separate bonding-curve contract, reserve vault, graduation
+threshold, graduation transaction, or migration to another market. The
+canonical PoolId, hook, price history, and liquidity position exist from the
+first trade and remain the market later adopted by the full Statics protocol.
+
+The launch position is permanent protocol-owned liquidity. Neither treasury nor
+the controller may remove it or claim its principal. Any future in-pool
+repositioning, range extension, or exceptional decommission path requires a
+separate explicit governance decision that preserves market-asset accounting;
+it is not implicit authority of the launch controller.
+
+The pool uses zero native Uniswap v4 LP fees and the standalone Statics hook.
+Additional user or protocol liquidity may be supported under the hook's defined
+pool policy, but the market must never depend on that additional liquidity to
+open or continue accounting for the launch position.
 
 As users acquire STATICS and deposit it into the Genesis Vault, the V4 position
 naturally shifts from STATICS toward WETH. Genesis redemptions return STATICS to
 liquid circulation. This market behavior is part of the paired design rather
 than a backing shortfall.
 
-The pool initialization path must bind the expected PoolKey, initializer, hook,
-terminal `sqrtPriceX96`, and liquidity policy before initialization. A third
-party must not be able to initialize the predictable canonical pool at another
-price.
+The pool initialization path must atomically bind the expected PoolKey,
+authorized initializer, hook, opening `sqrtPriceX96`, launch range, launch
+liquidity, and exact STATICS inventory before public trading. A third party must
+not be able to initialize the predictable canonical pool at another price or
+modify the launch position.
 
 ## Standalone Statics v4 hook
 
@@ -350,20 +312,17 @@ circulating Genesis NFTs * P
 
 This custody serves only valid redemption.
 
-### Market reserves
+### Market liquidity
 
-This includes curve principal, remaining market inventory, graduation assets,
-and permanent V4 liquidity. These assets create and maintain the market and are
-not operating revenue.
+This includes the launch position's STATICS inventory, the WETH accumulated by
+that position through swaps, and any later protocol-owned liquidity explicitly
+added to the market. These assets create and maintain the market and are not
+operating revenue.
 
 ### Trading-fee revenue
 
-```text
-bonding-curve trading fees
-+ V4 hook trading fees
-```
-
-This is the initial operating revenue stream for continued Statics development.
+This consists only of V4 hook trading fees. It is the initial operating revenue
+stream for continued Statics development.
 
 No asset amount may be counted in more than one bucket.
 
@@ -398,9 +357,10 @@ The following values or guarantees are immutable:
 - the combined hook-fee safety ceiling; and
 - the permanent-liquidity policy of the launch STATICS/WETH pool.
 
-Curve parameters and the terminal-price rule must be fixed before public trading
-opens. Governance may configure future per-pool hook fee rates, allocations,
-recipients, and approved pool integrations only within immutable bounds.
+The canonical PoolKey, opening price, launch range, launch liquidity, and
+inventory amount must be fixed before public trading opens. Governance may
+configure future per-pool hook fee rates, allocations, recipients, and approved
+pool integrations only within immutable bounds.
 
 ## Security invariants
 
@@ -414,36 +374,49 @@ Implementation and release validation must prove at minimum:
 6. The 500 vault-owned NFTs create no liability until they leave inventory.
 7. Redemption pays exactly `P` or reverts atomically.
 8. No administrative path can consume or withdraw Genesis backing.
-9. Curve and hook custody cover every recorded reserve and fee liability.
+9. PoolManager, position, and hook custody cover every recorded market asset and
+   fee liability.
 10. No WETH or STATICS amount is recorded in two economic buckets.
-11. Curve price and reserve movement remain monotonic and solvent under all
-    valid purchase sequences and rounding boundaries.
-12. Graduation executes once, at the committed PoolId and terminal price.
-13. Unauthorized pool initialization and liquidity modification revert.
-14. Hook allocations sum to every fee collected on both swap legs.
-15. Recipient changes cannot redirect historical fee claims.
-16. Permanent STATICS/WETH liquidity never decreases.
-17. Direct token or NFT donations can only overcollateralize custody and cannot
+11. The launch position begins with exactly 810,045,000 STATICS and requires no
+    WETH contribution.
+12. The market cannot pay out more WETH principal than the position has
+    accumulated through prior swaps or later explicit liquidity additions.
+13. Price and inventory movement follow native V4 concentrated-liquidity math
+    under all valid swap sequences and rounding boundaries.
+14. The canonical pool is initialized once at the committed PoolId, opening
+    price, and launch range.
+15. Unauthorized pool initialization and liquidity modification revert.
+16. Hook allocations sum to every fee collected on both swap legs.
+17. Recipient changes cannot redirect historical fee claims.
+18. Permanent STATICS/WETH launch liquidity never decreases.
+19. Direct token or NFT donations can only overcollateralize custody and cannot
     create withdrawable revenue or unearned claims.
-18. Activation burns cannot debit or reduce Genesis backing.
+20. Activation burns cannot debit or reduce Genesis backing.
 
 Stateful invariant tests must exercise arbitrary sequences of public issuance,
-inventory purchase, NFT transfer, redemption, direct donation, curve purchase,
-fee claim, graduation, exact-input swaps, exact-output swaps, and later burn
-integration. Real V4 integration tests must prove both swap directions and the
-complete graduation lifecycle.
+inventory purchase, NFT transfer, redemption, direct donation, exact-input
+swaps, exact-output swaps, hook-fee claims, and later burn integration. Real V4
+integration tests must prove launch from zero WETH, inventory distribution,
+both swap directions after WETH enters the position, fee routing, and market-
+asset conservation.
 
 ## Non-goals
 
 - Deploying the complete Statics Diamond in the Genesis release.
 - Ongoing STATICS emissions or discretionary minting.
 - Selling Genesis NFTs directly for ETH or WETH.
-- Supporting curve sellback in the initial release.
-- Treating Genesis backing or migration reserves as treasury revenue.
+- Deploying a separate bonding curve, auction, graduation mechanism, or market
+  migration path.
+- Requiring treasury WETH or third-party liquidity to open the market.
+- Guaranteeing a fixed WETH raise, sold supply, terminal price, or time to sell
+  through the launch range.
+- Treating Genesis backing or V4 market liquidity as treasury revenue.
 - Giving treasury or governance a Genesis-backing withdrawal path.
 - Promising an ETH, WETH, or fiat-denominated NFT floor.
-- Finalizing exact curve prices, fee rates, graduation threshold, caller bounty,
-  tick spacing, or controller addresses in this ADR.
+- Using the canonical pool's spot price as a manipulation-resistant protocol
+  oracle.
+- Finalizing the opening price, launch range, fee rates, tick spacing, or
+  controller addresses in this ADR.
 - Finalizing PositionNFT reward-weight implementation in the standalone release.
 
 ## Consequences
@@ -455,8 +428,8 @@ complete graduation lifecycle.
 - Every redemption reverses that transition exactly.
 - Maximum NFT backing can approach the complete token supply; liquid market
   depth is therefore endogenous to Genesis issuance and redemption.
-- V4 liquidity supplies token-form public inventory after curve graduation and
-  can shift toward WETH as Genesis demand absorbs STATICS.
+- V4 liquidity supplies token-form public inventory from the first trade and can
+  shift toward WETH as Genesis demand absorbs STATICS.
 - Future activation burns preserve existing NFT floors while reducing future
   conversion capacity and increasing scarcity.
 - Operating revenue is observable market-fee revenue rather than an accounting
@@ -468,13 +441,16 @@ complete graduation lifecycle.
 
 The implementation specification must settle:
 
-- curve `p0`, `k`, fee rate, and user quote interface;
-- deterministic graduation threshold;
-- graduation caller incentive;
+- the opening human price and its token-order-correct `sqrtPriceX96` value;
+- tick spacing, one-sided launch-range endpoints, and the exact liquidity value
+  that deposits 810,045,000 STATICS;
+- behavior when price reaches either end of the launch range, including whether
+  any later range extension or repositioning can ever be authorized;
 - initial V4 input/output hook fee rates and combined ceiling;
-- V4 tick spacing and exact full-range liquidity calculation;
+- whether third-party liquidity is permissionless, restricted, or disabled for
+  the canonical launch pool;
 - deployment controller, treasury, and later control-acceptance process;
-- precise treatment of unmatched migration assets and V4 rounding dust;
+- precise treatment of V4 rounding dust;
 - metadata behavior before and after later activation integration; and
 - the narrow future interface through which the Diamond coordinates Genesis
   tier, link, and reward-weight transitions.
