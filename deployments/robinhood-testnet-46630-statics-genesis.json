@@ -142,6 +142,21 @@
       "deploymentTransaction": "0xa78d41a785d4972a30ef0da011390e1da7bf13a8ddb2c5d61e34232ddf466d70",
       "mintTransaction": "0x1d9916c2aeaa8a3e01eaea1b40469f15499488db0bb0b65032963c26f01e6e17",
       "ownershipTransaction": "0x0ef4854a2f883fee792c23bbe1af69441736edcb6c8e51ac4449e7fabd62709c"
+    },
+    "faucet": {
+      "address": "0xC00BE4eC9D2AF217DdD2989695249208CfD459eA",
+      "runtimeCodeHash": "0xa0903aaf8ebd61099837a652bbb657ed715196ae265306f05b030b8facf7f103",
+      "deploymentTransaction": "0xc87083e7a568163fa95e0efe012c3c77d89ff5bfbf04a3f43d00276c60a1a8f1",
+      "deploymentBlock": 101541162,
+      "cooldownSeconds": 86400,
+      "fundedClaimBundles": 80,
+      "funding": {
+        "USDG": "0xaca32c977e0fb496ed8e2459bc78195d63b4362e95ec1a23d8107fb0fcb113cf",
+        "STATICS": "0x8733169cc78e537f2ac766a1bb3d8d54e98e62e741863decf300e6b2202bb037",
+        "TSLA": "0x7a0bd6ebbd070ddb0d72aa706ef70bd3bcfe2f9f233a2006be7964bfe205ed35",
+        "PLTR": "0x377f279318bdf74b1a02b276bb7e38690a1effc903b892a204f3b386ec86897f",
+        "AMD": "0x8750356ce6e30380a3d772f267d40270555327f5066548c7751f82eab14c79d1"
+      }
     }
   },
   "roles": {
