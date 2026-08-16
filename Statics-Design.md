@@ -271,11 +271,11 @@ Adding legs, collateral, stake, liquidity, or debt to an existing Position does
 not pay the fee again. Closing a Position and opening another creates a new NFT
 and pays the then-current fee.
 
-Each valid PositionNFT exposes simple Base64 JSON through `tokenURI`. It names
-the token and describes it as a transferable financial account, but includes
-no image or renderer dependency and no live status, achievement, yield, debt,
-health, or rarity semantics. Deterministic onchain SVG identity belongs to the
-scarce Genesis collection and may reflect its future activation tier.
+Each valid PositionNFT exposes Base64 JSON through `tokenURI`. It names the
+token, describes it as a transferable financial account, and embeds a stable
+logo-and-ID SVG assembled internally without a mutable renderer. It includes no
+live status, achievement, yield, debt, health, or rarity semantics. Generative
+and tier-aware onchain SVG identity belongs to the scarce Genesis collection.
 
 `closePosition` succeeds only after all balances, claims, collateral, loans,
 Dollar legs, custodied LP NFTs, and LP claims are empty. Externally held
@@ -1091,7 +1091,7 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Global staking and rewards | `IStaticsGlobalRewards` |
 | Basket lending | `IStaticsLending` |
 | Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
-| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; renderer-free onchain financial-account metadata |
+| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; onchain financial-account metadata with an internal logo-and-ID SVG and no mutable renderer |
 | Genesis NFT and vault | `IStaticsGenesis` and `IStaticsGenesisVault` |
 | Standalone Genesis market | `IStaticsV4Hook` and `IStaticsHookController` |
 | Basket governance | `IStaticsGovernance` |
@@ -1486,7 +1486,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 61. Dollar Risk incentives accept only the series collateral, Statics Dollar, or configured staking token and reserve measured receipts within the funded series.
 62. Partial Risk-liquidity consumption releases each funded reserve pro rata against pre-fill effective liquidity, while a complete fill drains its rounding remainder.
 63. Genesis SVG metadata is fully onchain and keeps redemption backing separate from activation-tier presentation.
-64. PositionNFT metadata is fully onchain, renderer-free, and contains no live financial or achievement claims.
+64. PositionNFT metadata is fully onchain, includes a stable logo-and-ID SVG assembled internally without a mutable renderer, and contains no live financial or achievement claims.
 65. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
 66. The public chain-46630 faucet, mock USDG and oracles, and two-minute timelock are testnet fixtures rather than production defaults.
 67. Native PoolManager donations to protocol pools always revert; POL inventory enters only through protocol seeding and swap-fee allocation.
