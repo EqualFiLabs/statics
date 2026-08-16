@@ -41,7 +41,7 @@ for the canonical machine-readable integration-beta state.
 
 | Capability | Summary |
 |---|---|
-| **Standalone Genesis** | 5,555 Genesis NFTs are mechanically paired with 180,010 STATICS each; the vault preserves exact redemption backing and the launch does not depend on either Diamond. |
+| **Standalone Genesis** | 5,555 marketplace-compatible Genesis NFTs are mechanically paired with 180,010 STATICS each; acquisitions add a flat native treasury fee while redemption backing remains exact and Diamond-independent. |
 | **Permanent STATICS/WETH market** | Six hook-owned v4 ranges distribute the public allocation without paired WETH, while bilateral fees route 25% to permanent full-range liquidity and 75% to treasury. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
@@ -511,6 +511,8 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
+| `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI for standalone Genesis |
+| `STATICS_GENESIS_EXTERNAL_URL_BASE` | Genesis token-page base URL before the appended token ID |
 | `WETH_ADDRESS` | Verified WETH for the selected chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
 | `SEQUENCER_UPTIME_FEED` | Verified target-chain sequencer uptime feed |
