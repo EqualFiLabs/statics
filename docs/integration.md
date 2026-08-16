@@ -4,6 +4,10 @@
 
 Most applications need:
 
+- `StaticsToken`, `StaticsGenesis`, and `StaticsGenesisVault` for the
+  standalone token/NFT conversion lifecycle;
+- `StaticsV4Hook` and `StaticsHookController` for the permanent STATICS/WETH
+  market, fee configuration, pull claims, and later controller handoff;
 - `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
   and ordinary Statics Dollar gateway address;
 - `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
@@ -11,8 +15,6 @@ Most applications need:
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
 - one `StaticsBasketToken` address per discovered basket;
-- the current PositionNFT renderer only when an application wants to inspect
-  renderer provenance beyond the standard `tokenURI`; and
 - the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
   canonical Uniswap v4 pools.
 
@@ -24,6 +26,9 @@ Use compiled ABIs from these sources:
 
 | Surface | Canonical source | Main use |
 | --- | --- | --- |
+| Genesis NFT | `src/interfaces/IStaticsGenesis.sol` | Ownership, metadata, future protocol binding, and transfer-tier reset callback |
+| Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Buy, redeem, inspect inventory, and verify backing |
+| Genesis v4 market | `src/interfaces/IStaticsV4Hook.sol` and `IStaticsHookController.sol` | Pool configuration, compounding, and pull-based revenue |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
@@ -33,7 +38,7 @@ Use compiled ABIs from these sources:
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute constituent-vector flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
-| PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect, render, and close positions |
+| PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect metadata, and close positions |
 | Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
@@ -175,13 +180,10 @@ Structural membership is available through `isLegActive`; events
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
 
-`tokenURI(positionId)` returns fully onchain Base64 JSON whose `image` is a
-Base64 SVG. The avatar is derived only from the chain ID, Diamond address, and
-position ID, so ownership changes and protocol activity do not change it.
-Applications should treat its eight visual attributes as cosmetic identity,
-not as statements about balances, achievements, yield, debt, or health. The
-Diamond owner may replace or clear the collection-wide renderer, so clients
-that cache metadata may need an explicit refresh after governance changes it.
+`tokenURI(positionId)` returns simple fully onchain Base64 JSON identifying the
+NFT as a transferable Statics financial account. It deliberately contains no
+image, balance, achievement, yield, debt, health, or risk representation.
+Generated onchain SVG identity is reserved for `StaticsGenesis.tokenURI`.
 
 ## Basket lending and looping
 

@@ -1,8 +1,13 @@
 # ADR: Deterministic PositionNFT avatars
 
-- Status: Accepted
+- Status: Superseded by `standalone-genesis-launch-and-paired-supply.md`
 - Date: 2026-08-02
 - Scope: Statics PositionNFT metadata and visual identity
+
+The deterministic SVG system was retained but moved to the scarce Genesis NFT
+collection. PositionNFTs now expose plain onchain financial-account metadata
+without a configurable renderer. The decision below records the earlier design
+and is not the current implementation.
 
 ## Context
 

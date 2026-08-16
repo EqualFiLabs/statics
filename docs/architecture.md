@@ -2,8 +2,22 @@
 
 ## Contract topology
 
-Statics intentionally exposes one ordinary user address while preserving a
-separate Statics Dollar solvency backend.
+The standalone Genesis release establishes the permanent token, collection,
+backing, and market before either Diamond exists:
+
+```text
+StaticsToken (999,955,550 fixed supply)
+├── StaticsGenesisVault <──> StaticsGenesis (5,555 NFTs)
+│   └── fixed 180,010-STATICS redemption backing per circulating NFT
+└── StaticsV4Hook + StaticsHookController
+    ├── six permanent STATICS-only launch ranges
+    ├── bilateral swap fees
+    └── 25% permanent full-range liquidity / 75% pull-based treasury revenue
+```
+
+The later full protocol exposes one ordinary user address while preserving a
+separate Statics Dollar solvency backend. It can accept control of the existing
+standalone controller without replacing the Genesis market.
 
 ```text
 StaticsTimelock
@@ -35,17 +49,17 @@ StaticsLiquidityManager
 ├── registered PoolKey validation and token settlement
 └── typed user-position minting with NFTs delivered directly to users
 
-StaticsPositionRenderer
-├── deterministic Base64 JSON metadata from chain, Diamond, and position ID
-└── immutable StaticsAvatarSVG assembly helper
+StaticsGenesisRenderer
+├── deterministic Base64 JSON and SVG for the scarce Genesis collection
+└── immutable StaticsAvatarSVG assembly helper with activation-tier input
 ```
 
 Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
-neither liquidity contract nor either metadata contract is a second general
+neither liquidity contract nor the metadata renderer is a second general
 protocol entrypoint.
 
-The fresh-deployment launcher installs 23 facets and 209 selectors on
+The fresh-deployment launcher installs 23 facets and 207 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -67,7 +81,6 @@ That shared ownership does not merge economics. The following storage books are
 separately namespaced:
 
 - PositionNFT ownership and active-leg state;
-- one collection-wide PositionNFT renderer address;
 - global and module-local physical reservations;
 - Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;
