@@ -34,7 +34,9 @@ contract DeployStaticsGenesisTest is Test {
                 weth: address(weth),
                 poolManager: address(manager),
                 inputFeeBps: 50,
-                outputFeeBps: 50
+                outputFeeBps: 50,
+                contractURI: "ipfs://statics-genesis/contract.json",
+                externalURLBase: "https://statics.finance/genesis/"
             })
         );
 
@@ -53,8 +55,17 @@ contract DeployStaticsGenesisTest is Test {
         assertEq(genesis.balanceOf(treasury), 555);
         assertEq(genesis.balanceOf(deployment.genesisVault), 5_000);
         assertEq(genesis.mintedSupply(), 5_555);
+        assertEq(genesis.owner(), governance);
+        assertEq(genesis.contractURI(), "ipfs://statics-genesis/contract.json");
+        assertEq(genesis.externalURLBase(), "https://statics.finance/genesis/");
+        assertEq(genesis.getTransferValidator(), address(0));
+        (address royaltyReceiver, uint256 royaltyAmount) = genesis.royaltyInfo(1, 1 ether);
+        assertEq(royaltyReceiver, treasury);
+        assertEq(royaltyAmount, 0.05 ether);
         assertEq(vault.tokenBacking(), 99_905_550 ether);
         assertEq(vault.requiredBacking(), 99_905_550 ether);
+        assertEq(vault.nativeAcquisitionFee(), 0.003 ether);
+        assertEq(vault.nativeFeeRecipient(), treasury);
 
         assertEq(controller.owner(), governance);
         assertEq(controller.hook(), deployment.v4Hook);
@@ -92,7 +103,9 @@ contract DeployStaticsGenesisTest is Test {
             weth: address(weth),
             poolManager: address(manager),
             inputFeeBps: 150,
-            outputFeeBps: 51
+            outputFeeBps: 51,
+            contractURI: "ipfs://statics-genesis/contract.json",
+            externalURLBase: "https://statics.finance/genesis/"
         });
 
         vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFeeRate.selector, 201));
@@ -102,6 +115,11 @@ contract DeployStaticsGenesisTest is Test {
         config.outputFeeBps = 50;
         config.poolManager = address(0);
         vm.expectRevert(DeployStaticsGenesis.ZeroAddress.selector);
+        deployer.deploy(config);
+
+        config.poolManager = address(manager);
+        config.contractURI = "";
+        vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
         deployer.deploy(config);
     }
 
@@ -117,7 +135,9 @@ contract DeployStaticsGenesisTest is Test {
                 weth: address(weth),
                 poolManager: address(manager),
                 inputFeeBps: 50,
-                outputFeeBps: 50
+                outputFeeBps: 50,
+                contractURI: "ipfs://statics-genesis/contract.json",
+                externalURLBase: "https://statics.finance/genesis/"
             })
         );
 

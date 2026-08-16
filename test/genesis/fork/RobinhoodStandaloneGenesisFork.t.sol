@@ -27,6 +27,7 @@ import {
     StaticsGenesisDeployment,
     StaticsGenesisDeploymentConfig
 } from "../../../script/DeployStaticsGenesis.s.sol";
+import {StaticsGenesisVault} from "../../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsHookController} from "../../../src/genesis/StaticsHookController.sol";
 import {RevenueChannel} from "../../../src/interfaces/IStaticsHookController.sol";
 import {IStaticsV4Hook} from "../../../src/interfaces/IStaticsV4Hook.sol";
@@ -160,19 +161,46 @@ abstract contract RobinhoodStandaloneGenesisForkTest is Test, LiquidityOperation
         vm.setEnv("POOL_MANAGER_ADDRESS", vm.toString(robinhood.poolManager));
         vm.setEnv("STATICS_GENESIS_INPUT_FEE_BPS", "50");
         vm.setEnv("STATICS_GENESIS_OUTPUT_FEE_BPS", "50");
+        vm.setEnv("STATICS_GENESIS_CONTRACT_URI", "ipfs://statics-genesis/contract.json");
+        vm.setEnv("STATICS_GENESIS_EXTERNAL_URL_BASE", "https://statics.finance/genesis/");
 
         StaticsGenesisDeployment memory deployment = new DeployStaticsGenesis().run();
         StaticsToken deployedStatics = StaticsToken(deployment.statics);
+        StaticsGenesis deployedGenesis = StaticsGenesis(deployment.genesis);
+        StaticsGenesisVault deployedVault = StaticsGenesisVault(deployment.genesisVault);
         StaticsHookController deployedController = StaticsHookController(deployment.hookController);
         StaticsV4Hook deployedHook = StaticsV4Hook(deployment.v4Hook);
 
         assertEq(deployedStatics.totalSupply(), 999_955_550 ether);
         assertEq(deployedStatics.balanceOf(deployment.v4Hook), 810_045_000 ether);
         assertEq(deployedStatics.balanceOf(treasury), 90_005_000 ether);
+        assertEq(deployedGenesis.owner(), governance);
+        assertEq(deployedGenesis.contractURI(), "ipfs://statics-genesis/contract.json");
+        assertEq(deployedGenesis.externalURLBase(), "https://statics.finance/genesis/");
+        assertEq(deployedGenesis.getTransferValidator(), address(0));
+        (address royaltyReceiver, uint256 royaltyAmount) = deployedGenesis.royaltyInfo(1, 1 ether);
+        assertEq(royaltyReceiver, treasury);
+        assertEq(royaltyAmount, 0.05 ether);
+        assertEq(deployedVault.nativeAcquisitionFee(), 0.003 ether);
+        assertEq(deployedVault.nativeFeeRecipient(), treasury);
         assertEq(deployedController.owner(), governance);
         assertEq(deployedController.hook(), deployment.v4Hook);
         assertFalse(deployedHook.poolConfiguration(deployedHook.canonicalPoolId()).initialized);
         assertFalse(deployedHook.launchInventoryInstalled());
+
+        vm.deal(treasury, 1 ether);
+        vm.startPrank(treasury);
+        deployedStatics.approve(address(deployedVault), deployedVault.GENESIS_PRICE());
+        deployedVault.buyGenesis{value: deployedVault.nativeAcquisitionFee()}(556, treasury);
+        vm.stopPrank();
+        assertEq(deployedGenesis.ownerOf(556), treasury);
+        assertEq(deployedVault.claimableNativeFees(treasury), 0.003 ether);
+
+        address payout = makeAddr("forkGenesisFeePayout");
+        vm.prank(treasury);
+        deployedVault.claimNativeAcquisitionFees(payable(payout));
+        assertEq(payout.balance, 0.003 ether);
+        assertEq(deployedVault.totalNativeFeeLiability(), 0);
     }
 
     function testPinnedForkCompletesStandaloneLaunchTradingAndClaims() public {
@@ -297,7 +325,9 @@ abstract contract RobinhoodStandaloneGenesisForkTest is Test, LiquidityOperation
                 weth: robinhood.weth,
                 poolManager: robinhood.poolManager,
                 inputFeeBps: 50,
-                outputFeeBps: 50
+                outputFeeBps: 50,
+                contractURI: "ipfs://statics-genesis/contract.json",
+                externalURLBase: "https://statics.finance/genesis/"
             })
         );
         statics = StaticsToken(genesisDeployment.statics);

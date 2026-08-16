@@ -26,8 +26,8 @@ Use compiled ABIs from these sources:
 
 | Surface | Canonical source | Main use |
 | --- | --- | --- |
-| Genesis NFT | `src/interfaces/IStaticsGenesis.sol` | Ownership, metadata, future protocol binding, and transfer-tier reset callback |
-| Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Buy, redeem, inspect inventory, and verify backing |
+| Genesis NFT | `src/interfaces/IStaticsGenesis.sol`, `IERC5192.sol`, and `ICreatorToken.sol` | Ownership, metadata, link locks, optional transfer validation, future protocol binding, and transfer-tier reset callback |
+| Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote and pay acquisition fees, buy, redeem, claim native revenue, inspect inventory, and verify backing |
 | Genesis v4 market | `src/interfaces/IStaticsV4Hook.sol` and `IStaticsHookController.sol` | Pool configuration, compounding, and pull-based revenue |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
@@ -46,11 +46,25 @@ Use compiled ABIs from these sources:
 | Dollar Core | `src/dollar/core/interfaces/IStaticsDollarCore.sol` | Direct issuance, recombination, health, and recovery |
 | Statics Dollar | `src/dollar/interfaces/IStaticsDollar.sol` | ERC-20 transfers, allowances, and EIP-2612 permit |
 
-All 5,555 Genesis NFTs exist from deployment. Integrators purchase a selected
-vault-owned token with `buyGenesis(tokenId, receiver)` and return an owned token
-for its fixed STATICS backing with `redeemGenesis(tokenId, receiver)`. A token
-returned through redemption becomes ordinary vault inventory and may be
-purchased again.
+All 5,555 Genesis NFTs exist from deployment. Integrators call
+`quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
+token, approve the returned 180,010-STATICS price, and send the returned native
+fee with payable `buyGenesis(tokenId, receiver)`. Incorrect native payment
+reverts atomically. `redeemGenesis(tokenId, receiver)` returns the fixed STATICS
+backing without a native fee. A redeemed token becomes ordinary vault inventory
+and may be purchased again.
+
+Native acquisition fees accrue to the recipient configured when each purchase
+settles. Recipient changes affect only later purchases. Each credited recipient
+pulls historical revenue with `claimNativeAcquisitionFees(receiver)`; clients
+must not treat the vault's full native balance as withdrawable revenue because
+forced surplus is not part of the liability ledger.
+
+`getTransferValidator() == address(0)` means ordinary unrestricted ERC-721
+transfers. If governance later configures a validator, marketplaces must satisfy
+that policy; the vault has no bypass. After the full protocol is bound,
+`locked(tokenId)` reflects its Genesis-to-Position registry. A locked Genesis
+must be unlinked before either an ordinary transfer or vault redemption.
 
 Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in

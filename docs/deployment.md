@@ -22,12 +22,14 @@ WETH and Uniswap v4 PoolManager and reads:
 | Variable | Meaning |
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
-| `STATICS_GENESIS_GOVERNANCE` | Initial owner of the permanent two-step hook controller and one-time Genesis protocol binder |
-| `STATICS_GENESIS_TREASURY` | Recipient of 555 Genesis NFTs, 90,005,000 liquid STATICS, and the initial 75% treasury fee allocation |
+| `STATICS_GENESIS_GOVERNANCE` | Initial two-step owner of the hook controller, Genesis vault, and persistent Genesis collection administration |
+| `STATICS_GENESIS_TREASURY` | Recipient of 555 Genesis NFTs, 90,005,000 liquid STATICS, initial hook revenue, Genesis acquisition fees, and 5% royalties |
 | `WETH_ADDRESS` | Verified WETH paired with STATICS |
 | `POOL_MANAGER_ADDRESS` | Verified Uniswap v4 PoolManager |
 | `STATICS_GENESIS_INPUT_FEE_BPS` | Specified-leg hook rate |
 | `STATICS_GENESIS_OUTPUT_FEE_BPS` | Realized-output-leg hook rate |
+| `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
+| `STATICS_GENESIS_EXTERNAL_URL_BASE` | Token-page base URL; the Genesis token ID is appended directly |
 
 The two hook rates may total at most 200 basis points. The deployment:
 
@@ -35,11 +37,20 @@ The two hook rates may total at most 200 basis points. The deployment:
 2. creates the complete 5,555-NFT collection, sending 555 fully backed Genesis
    NFTs to treasury and all 5,000 remaining NFTs to vault inventory;
 3. places 99,905,550 STATICS in the vault as the exact founder-NFT backing;
-4. transfers 90,005,000 liquid founder STATICS to treasury;
-5. transfers 810,045,000 STATICS to the mined hook for the six-position public
+4. configures a 5% discoverable collection royalty, a zero transfer validator,
+   and a `0.003 ETH` vault acquisition fee, all within immutable caps;
+5. transfers 90,005,000 liquid founder STATICS to treasury;
+6. transfers 810,045,000 STATICS to the mined hook for the six-position public
    inventory curve; and
-6. permanently binds the hook to its controller while leaving the canonical
+7. permanently binds the hook to its controller while leaving the canonical
    pool uninitialized.
+
+The metadata strings must be finalized and tested before deployment. Collection
+ownership remains with governance after the future protocol bind and cannot be
+renounced. Vault purchases require the current native acquisition fee in
+addition to exactly 180,010 STATICS; redemption returns exactly 180,010 STATICS
+and charges no native fee. Acquisition revenue is credited to a pull ledger, so
+the treasury claims it separately and cannot block purchases by reverting.
 
 Before simulation or broadcast, execute the required pinned mainnet and
 testnet V4 compatibility proof:

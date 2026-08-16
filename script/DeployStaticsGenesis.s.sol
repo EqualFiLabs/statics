@@ -23,6 +23,8 @@ struct StaticsGenesisDeploymentConfig {
     address poolManager;
     uint16 inputFeeBps;
     uint16 outputFeeBps;
+    string contractURI;
+    string externalURLBase;
 }
 
 struct StaticsGenesisDeployment {
@@ -49,6 +51,7 @@ contract DeployStaticsGenesis is Script {
 
     error ZeroAddress();
     error InvalidFeeRate(uint256 combinedFeeBps);
+    error InvalidMetadataURI();
     error HookAddressMismatch(address expected, address actual);
     error AllocationMismatch(uint256 remaining);
 
@@ -65,7 +68,9 @@ contract DeployStaticsGenesis is Script {
             weth: vm.envAddress("WETH_ADDRESS"),
             poolManager: vm.envAddress("POOL_MANAGER_ADDRESS"),
             inputFeeBps: uint16(inputFeeBps),
-            outputFeeBps: uint16(outputFeeBps)
+            outputFeeBps: uint16(outputFeeBps),
+            contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
+            externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
         });
         _validate(config);
 
@@ -111,8 +116,8 @@ contract DeployStaticsGenesis is Script {
             address(vault),
             renderer,
             config.governance,
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            config.contractURI,
+            config.externalURLBase
         );
         StaticsHookController controller = new StaticsHookController(config.governance, hookBinder);
 
@@ -178,6 +183,9 @@ contract DeployStaticsGenesis is Script {
                 || config.poolManager == address(0) || config.weth.code.length == 0
                 || config.poolManager.code.length == 0
         ) revert ZeroAddress();
+        if (bytes(config.contractURI).length == 0 || bytes(config.externalURLBase).length == 0) {
+            revert InvalidMetadataURI();
+        }
         uint256 combinedFee = uint256(config.inputFeeBps) + config.outputFeeBps;
         if (combinedFee > 200) revert InvalidFeeRate(combinedFee);
     }
