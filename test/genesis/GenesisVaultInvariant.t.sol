@@ -86,7 +86,14 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         vault = new StaticsGenesisVault(statics, address(this), address(this), founderTreasury);
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
-        genesis = new StaticsGenesis(founderTreasury, address(vault), renderer, address(this));
+        genesis = new StaticsGenesis(
+            founderTreasury,
+            address(vault),
+            renderer,
+            address(this),
+            "ipfs://statics-genesis/contract.json",
+            "https://statics.finance/genesis/"
+        );
         statics.transfer(address(vault), 99_905_550 ether);
         statics.transfer(founderTreasury, 90_005_000 ether);
         vault.finalizeGenesisCollection(address(genesis));

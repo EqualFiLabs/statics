@@ -106,7 +106,14 @@ contract DeployStaticsGenesis is Script {
             new StaticsGenesisVault(IERC20(address(statics)), initialTokenHolder, config.governance, config.treasury);
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
-        StaticsGenesis genesis = new StaticsGenesis(config.treasury, address(vault), renderer, config.governance);
+        StaticsGenesis genesis = new StaticsGenesis(
+            config.treasury,
+            address(vault),
+            renderer,
+            config.governance,
+            "ipfs://statics-genesis/contract.json",
+            "https://statics.finance/genesis/"
+        );
         StaticsHookController controller = new StaticsHookController(config.governance, hookBinder);
 
         IERC20(address(statics)).safeTransfer(address(vault), FOUNDER_BACKING);

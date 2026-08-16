@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Test} from "forge-std/Test.sol";
+import {IERC7572} from "../../src/interfaces/IERC7572.sol";
 import {GenesisVaultAccounting} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
@@ -73,7 +74,14 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             vault = new StaticsGenesisVault(statics, address(this), governance, founderTreasury);
             StaticsAvatarSVG avatar = new StaticsAvatarSVG();
             StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
-            genesis = new StaticsGenesis(founderTreasury, address(vault), renderer, address(this));
+            genesis = new StaticsGenesis(
+                founderTreasury,
+                address(vault),
+                renderer,
+                address(this),
+                "ipfs://statics-genesis/contract.json",
+                "https://statics.finance/genesis/"
+            );
 
             statics.transfer(address(vault), FOUNDER_BACKING);
             statics.transfer(founderTreasury, FOUNDER_LIQUID);
@@ -219,7 +227,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(protocol.lastTransferredId(), 1);
             assertEq(protocol.lastFrom(), founderTreasury);
             assertEq(protocol.lastTo(), receiver);
-            assertEq(genesis.owner(), address(0));
+            assertEq(genesis.owner(), address(this));
         }
 
         function testGenesisMetadataReflectsBoundProtocolTier() public {
@@ -244,11 +252,60 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(keccak256(bytes(unavailableTier)), keccak256(bytes(unbound)));
         }
 
+        function testGenesisPublishesMarketplaceMetadataAndCappedRoyalty() public {
+            assertEq(genesis.contractURI(), "ipfs://statics-genesis/contract.json");
+            assertTrue(genesis.supportsInterface(type(IERC7572).interfaceId));
+            assertTrue(genesis.supportsInterface(type(IERC2981).interfaceId));
+
+            (address receiver, uint256 amount) = genesis.royaltyInfo(1, 1 ether);
+            assertEq(receiver, founderTreasury);
+            assertEq(amount, 0.05 ether);
+
+            address updatedReceiver = makeAddr("updatedRoyaltyReceiver");
+            genesis.setDefaultRoyalty(updatedReceiver, 1_000);
+            (receiver, amount) = genesis.royaltyInfo(1, 1 ether);
+            assertEq(receiver, updatedReceiver);
+            assertEq(amount, 0.1 ether);
+
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesis.RoyaltyExceedsMaximum.selector, uint96(1_001), uint96(1_000))
+            );
+            genesis.setDefaultRoyalty(updatedReceiver, 1_001);
+        }
+
+        function testMetadataURLsRemainOwnerConfigurable() public {
+            string memory originalTokenURI = genesis.tokenURI(1);
+            genesis.setContractURI("ipfs://updated/contract.json");
+            genesis.setExternalURLBase("https://app.statics.finance/genesis/");
+
+            assertEq(genesis.contractURI(), "ipfs://updated/contract.json");
+            assertEq(genesis.externalURLBase(), "https://app.statics.finance/genesis/");
+            assertNotEq(keccak256(bytes(originalTokenURI)), keccak256(bytes(genesis.tokenURI(1))));
+        }
+
+        function testProtocolBindingPreservesTwoStepCollectionOwnership() public {
+            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
+            genesis.bindProtocol(address(protocol));
+            assertEq(genesis.owner(), address(this));
+
+            address nextOwner = makeAddr("nextOwner");
+            genesis.transferOwnership(nextOwner);
+            assertEq(genesis.owner(), address(this));
+            assertEq(genesis.pendingOwner(), nextOwner);
+            vm.prank(nextOwner);
+            genesis.acceptOwnership();
+            assertEq(genesis.owner(), nextOwner);
+
+            vm.prank(nextOwner);
+            vm.expectRevert(StaticsGenesis.OwnershipRenunciationDisabled.selector);
+            genesis.renounceOwnership();
+        }
+
         function testProtocolBindingIsOneTimeAndCollectionValidated() public {
             MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
             genesis.bindProtocol(address(protocol));
 
-            vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+            vm.expectRevert(StaticsGenesis.ProtocolAlreadyBound.selector);
             genesis.bindProtocol(address(protocol));
         }
 
@@ -258,7 +315,12 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             StaticsAvatarSVG avatar = new StaticsAvatarSVG();
             StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
             StaticsGenesis emptyGenesis = new StaticsGenesis(
-                founderTreasury, address(emptyVault), renderer, address(this)
+                founderTreasury,
+                address(emptyVault),
+                renderer,
+                address(this),
+                "ipfs://statics-genesis/contract.json",
+                "https://statics.finance/genesis/"
             );
 
             vm.expectRevert(

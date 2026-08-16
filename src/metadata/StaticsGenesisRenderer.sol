@@ -20,7 +20,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         avatarSVG = avatarSVG_;
     }
 
-    function renderTokenURI(address collection, uint256 tokenId, address protocol)
+    function renderTokenURI(address collection, uint256 tokenId, address protocol, string calldata externalURLBase)
         external
         view
         returns (string memory uri)
@@ -40,6 +40,9 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
             tokenId.toString(),
             '","description":"A fixed-supply Statics Genesis NFT redeemable for 180,010 STATICS.","image":"',
             image,
+            '","external_url":"',
+            externalURLBase,
+            tokenId.toString(),
             '","attributes":[',
             _attributes(traits_),
             ",",
