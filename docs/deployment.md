@@ -515,8 +515,8 @@ Against the deployed addresses, verify:
 7. ERC-165 reports the expected custody, global rewards, Dollar gateway,
    ERC-721 metadata, receiver, basket-liquidity, and
    borrow-to-liquidity interfaces;
-8. a minted PositionNFT returns decodable Base64 JSON describing the
-   transferable financial account without an image or mutable renderer;
+8. a minted PositionNFT returns decodable Base64 JSON with the stable Statics
+   logo and Position ID SVG, without mutable renderer configuration;
 9. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
    hook and manager immutable getters match the Diamond and Robinhood manifest,
    hook address bits equal `0x10ec`, and its input/output fee and revenue split

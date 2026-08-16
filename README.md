@@ -108,7 +108,7 @@ statics/
 │   │   └── testnet/                 # Explicit public-testnet oracle fixtures
 │   ├── liquidity/                   # v4 hook, liquidity manager, and pool accounting
 │   ├── genesis/                     # Genesis vault and standalone hook controller
-│   ├── metadata/                    # Genesis onchain SVG renderer
+│   ├── metadata/                    # Genesis artwork and PositionNFT logo metadata
 │   ├── periphery/                   # Typed flash-arbitrage receiver
 │   ├── governance/                  # Statics timelock
 │   ├── tokens/                      # Basket and Statics staking tokens
@@ -384,10 +384,10 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
-Every valid PositionNFT has simple, fully onchain Base64 JSON identifying it as
-a transferable financial account. Generated SVG identity belongs to the
-scarce Genesis collection, where metadata can also reflect the NFT's future
-activation tier.
+Every valid PositionNFT has fully onchain Base64 JSON and a stable Base64 SVG
+showing the Statics logo and Position ID. The image deliberately excludes live
+financial state. Generative SVG identity belongs to the scarce Genesis
+collection, where metadata can also reflect the NFT's future activation tier.
 
 ### Global rewards
 

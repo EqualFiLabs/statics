@@ -59,7 +59,7 @@ Critical interpretation rules:
 - [Selected Global Rewards ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/position-selected-global-rewards.md): Per-position asset selection, 24-hour activation, separate denominators, and fee routing.
 - [Canonical LP Rewards ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/canonical-lp-nft-rewards.md): Full-range LP custody, eligibility, hook-fee rewards, and terminal borrow-to-liquidity behavior.
 - [Composable Flash Loans ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/composable-flash-loan-callbacks.md): Typed callbacks, ordinary fee-paying mint and redemption, nested-loan prevention, and arbitrage composition.
-- [Position Avatar ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/deterministic-position-avatars.md): Stable deterministic identity, cosmetic traits, renderer boundary, metadata format, and compatibility goals.
+- [Position NFT Logo Metadata ADR](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/adr/position-nft-logo-metadata.md): Stable branded PositionNFT artwork, metadata format, and renderer-free implementation boundary.
 
 ## Deployment and Verification
 

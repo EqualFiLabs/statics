@@ -192,10 +192,11 @@ Structural membership is available through `isLegActive`; events
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
 
-`tokenURI(positionId)` returns simple fully onchain Base64 JSON identifying the
-NFT as a transferable Statics financial account. It deliberately contains no
-image, balance, achievement, yield, debt, health, or risk representation.
-Generated onchain SVG identity is reserved for `StaticsGenesis.tokenURI`.
+`tokenURI(positionId)` returns fully onchain Base64 JSON with a Base64 SVG
+showing the Statics logo and `POSITION #<positionId>`. The stable image contains
+no balance, achievement, yield, debt, health, risk, ownership, or live position
+state. Generative onchain SVG identity remains reserved for
+`StaticsGenesis.tokenURI`.
 
 ## Basket lending and looping
 
