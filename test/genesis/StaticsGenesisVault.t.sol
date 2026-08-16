@@ -119,6 +119,27 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(vault.requiredBacking(), FOUNDER_BACKING);
         }
 
+        function testCompleteLazyMintThenPurchaseVaultInventory() public {
+            uint256 publicMintCost = 4_500 * PRICE;
+            statics.transfer(buyer, publicMintCost);
+            vm.prank(founderTreasury);
+            statics.transfer(buyer, PRICE);
+            vm.prank(buyer);
+            statics.approve(address(vault), publicMintCost + PRICE);
+
+            vm.startPrank(buyer);
+            for (uint256 i; i < 4_500; ++i) vault.buyNewGenesis(buyer);
+            vault.buyInventoryGenesis(556, buyer);
+            vm.stopPrank();
+
+            assertEq(genesis.mintedSupply(), 5_555);
+            assertEq(genesis.ownerOf(5_555), buyer);
+            assertEq(genesis.ownerOf(556), buyer);
+            assertEq(vault.vaultInventory(), 499);
+            assertEq(vault.tokenBacking(), vault.requiredBacking());
+            assertEq(statics.balanceOf(address(vault)), vault.requiredBacking());
+        }
+
         function testPurchasePauseDoesNotBlockRedemption() public {
             _fundAndApproveBuyer(PRICE);
             vm.prank(buyer);
@@ -153,6 +174,18 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(protocol.lastFrom(), founderTreasury);
             assertEq(protocol.lastTo(), receiver);
             assertEq(genesis.owner(), address(0));
+        }
+
+        function testGenesisMetadataReflectsBoundProtocolTier() public {
+            string memory unactivated = genesis.tokenURI(1);
+            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
+            genesis.bindProtocol(address(protocol));
+            protocol.setTier(1, 4);
+
+            string memory activated = genesis.tokenURI(1);
+            assertTrue(bytes(unactivated).length > 100);
+            assertTrue(bytes(activated).length > 100);
+            assertNotEq(keccak256(bytes(unactivated)), keccak256(bytes(activated)));
         }
 
         function testProtocolBindingIsOneTimeAndCollectionValidated() public {
