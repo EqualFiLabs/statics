@@ -1,10 +1,10 @@
-# ADR: Standalone Genesis launch with a permanent V4 multicurve market
+# ADR: Standalone Genesis launch with a permanent V4 laddered market
 
 - Status: Accepted direction; implementation pending
 - Date: 2026-08-15
 - Scope: standalone STATICS and Genesis issuance, fixed Genesis backing,
-  one-sided Uniswap v4 multicurve distribution, bilateral hook fees, permanent
-  fee-funded liquidity, and later Statics Diamond integration
+  eight-position one-sided Uniswap v4 distribution, bilateral hook fees,
+  permanent fee-funded liquidity, and later Statics Diamond integration
 - Supersedes: the unmerged Genesis-tokenomics direction on
   `feat/genesis-tokenomics` and this ADR's earlier single-position launch design
 
@@ -37,15 +37,16 @@ Statics will launch through the canonical STATICS/WETH Uniswap v4 pool from the
 first trade. There is no separate bonding-curve contract, graduation event, or
 market migration.
 
-The 810,045,000-STATICS public allocation will be placed into three permanent,
-one-sided concentrated-liquidity regions:
+The 810,045,000-STATICS public allocation will be placed into eight permanent,
+one-sided concentrated-liquidity positions organized into three economic
+regions:
 
-| Launch region | Share | STATICS | Genesis-equivalent units | Purpose |
-| --- | ---: | ---: | ---: | --- |
-| Discovery | 3% | 24,301,350 | 135 | Limit cheap early inventory while establishing price |
-| Main market | 95% | 769,542,750 | 4,275 | Provide the long-lived broad market |
-| Extreme tail | 2% | 16,200,900 | 90 | Preserve continuity at extraordinary valuations |
-| **Total** | **100%** | **810,045,000** | **4,500** | |
+| Launch region | Share | STATICS | Genesis-equivalent units | Position layout | Reference FDV domain |
+| --- | ---: | ---: | ---: | --- | --- |
+| Discovery | 3% | 24,301,350 | 135 | 3 positions of 45 units | $250,000 to $1 million |
+| Main market | 95% | 769,542,750 | 4,275 | 3 early positions of 225 units plus 1 standard position of 3,600 units | $1 million to $100 million |
+| Extreme tail | 2% | 16,200,900 | 90 | 1 position of 90 units | $100 million to $100 billion |
+| **Total** | **100%** | **810,045,000** | **4,500** | **8 positions** | |
 
 The launch uses a standalone refactor of the existing Statics swap-fee hook,
 including its bilateral input/output fee accounting and bounded per-pool split
@@ -58,9 +59,9 @@ Statics treasury:                     75%
 All other allocations:                 0%
 ```
 
-The three launch regions are immutable market principal. The 25% fee allocation
-creates separate, fee-funded, full-range permanent liquidity. These two forms
-of liquidity must never share an accounting bucket.
+The eight launch positions are immutable market principal. The 25% fee
+allocation creates separate, fee-funded, full-range permanent liquidity. These
+two forms of liquidity must never share an accounting bucket.
 
 ## Contract topology
 
@@ -243,7 +244,7 @@ Transfer-related activation reset, PositionNFT linking, and reward-weight
 transitions belong to later full-protocol integration. Those mechanics may not
 weaken or complicate the fixed redemption claim.
 
-## Canonical V4 multicurve market
+## Canonical V4 laddered market
 
 The canonical launch market is:
 
@@ -252,10 +253,10 @@ STATICS / WETH
 ```
 
 The pool is initialized at a committed opening `sqrtPriceX96` with no WETH and
-exactly 810,045,000 STATICS distributed across the three launch regions. Native
-Uniswap v4 concentrated-liquidity math remains the sole swap-pricing mechanism.
-The hook does not implement a parallel bonding-curve equation through custom
-accounting.
+exactly 810,045,000 STATICS distributed across eight adjacent launch positions.
+Native Uniswap v4 concentrated-liquidity math remains the sole swap-pricing
+mechanism. The hook does not implement a parallel bonding-curve equation
+through custom accounting.
 
 The three-region shape is informed by Doppler Multicurve and current Bankr
 launches. Doppler demonstrates that one wide constant-liquidity position makes
@@ -265,24 +266,89 @@ that market-structure lesson without adopting Doppler's Airlock, token factory,
 migration, governance, fee contracts, or Diamond assumptions.
 
 An observed Bankr/Doppler Base launch on 2026-08-15 used three adjacent
-single-position regions weighted 3%/95%/2%. Statics adopts those simple inventory
-weights as a starting market structure because they map exactly to 135/4,275/90
-Genesis-equivalent units. Bankr's tick endpoints, token supply, starting price,
-fee schedule, vesting, and control model are not Statics parameters.
+single-position regions weighted 3%/95%/2%. Statics adopts those aggregate
+inventory weights because they map exactly to 135/4,275/90 Genesis-equivalent
+units. It does not adopt the observed three-position implementation. Modeling
+showed that placing the complete 95% main allocation into one broad position
+made too much inventory available near the bottom of the main range.
+
+The accepted Statics structure divides discovery into three equal-token rungs,
+divides the first 675 main-market units into three equal-token rungs, and then
+hands pricing to one standard main position. One final position supplies the
+extreme tail. This produces eight positions without changing the immutable
+3%/95%/2% regional allocation.
 
 The launch regions have distinct roles:
 
 - **Discovery:** a deliberately small tranche near the opening price limits
-  early inventory capture and establishes an observable market.
-- **Main market:** the overwhelming majority of public inventory spans the
-  economically relevant long-lived price domain.
+  early inventory capture and establishes an observable market through three
+  45-unit rungs.
+- **Main market:** three 225-unit early-main rungs continue controlled price
+  discovery from approximately $1 million to $10 million FDV, after which one
+  3,600-unit position supplies ordinary pricing through approximately
+  $100 million FDV.
 - **Extreme tail:** a small final tranche extends toward the maximum practical
   tick so there is no ordinary graduation or range-handoff event.
 
-The exact ticks, opening price, and market-cap endpoints remain implementation
-parameters to be modeled before deployment. Their allocation weights are fixed
-by this decision at 3%/95%/2%. Tick derivation must account for token ordering,
-token decimals, tick spacing, and rounding.
+### Accepted reference price and tick model
+
+The accepted model uses tick spacing 10 and the following reference values:
+
+```text
+STATICS genesis supply:       999,955,550
+Public market inventory:      810,045,000
+STATICS per Genesis unit:         180,010
+Reference ETH price:             $1,624.95
+```
+
+The USD fully diluted valuations below are modeling coordinates, not onchain
+oracle guarantees. The committed ticks set STATICS/WETH prices. Their realized
+USD values move with the external WETH/USD price.
+
+When STATICS is `currency0`, the accepted reference schedule is:
+
+| Position | Region | Tick range | Genesis units | STATICS | Reference tick-aligned FDV range |
+| --- | --- | --- | ---: | ---: | ---: |
+| D1 | Discovery | `-156880 / -152260` | 45 | 8,100,450 | $250,005 to $396,811 |
+| D2 | Discovery | `-152260 / -147640` | 45 | 8,100,450 | $396,811 to $629,822 |
+| D3 | Discovery | `-147640 / -143020` | 45 | 8,100,450 | $629,822 to $999,658 |
+| E1 | Early main | `-143020 / -135340` | 225 | 40,502,250 | $999,658 to $2,154,632 |
+| E2 | Early main | `-135340 / -127670` | 225 | 40,502,250 | $2,154,632 to $4,639,383 |
+| E3 | Early main | `-127670 / -119990` | 225 | 40,502,250 | $4,639,383 to $9,999,580 |
+| M1 | Standard main | `-119990 / -96960` | 3,600 | 648,036,000 | $9,999,580 to $100,025,777 |
+| T1 | Extreme tail | `-96960 / -27880` | 90 | 16,200,900 | $100,025,777 to $100,015,709,113 |
+
+If STATICS is `currency1`, each range is negated and reversed: a token0 range
+`[tickLower, tickUpper]` becomes `[-tickUpper, -tickLower]`. The initialization
+tick is transformed the same way. The launch manifest must record the resolved
+token order, eight ranges, opening tick, and exact `sqrtPriceX96`; callers must
+not infer ordering from this table.
+
+The tick table is the accepted implementation and test baseline. Before public
+deployment, the release manifest must explicitly ratify either this exact table
+or a uniformly re-derived table that preserves the accepted reference FDV
+boundaries at a newly approved WETH/USD reference. Once the pool initializes,
+the actual ticks and opening price are permanent.
+
+The modeled marginal clearing points for the eight-position structure are:
+
+| Public inventory sold | Approximate FDV |
+| ---: | ---: |
+| 3% | $1.00 million |
+| 10% | $2.83 million |
+| 15% | $6.09 million |
+| 18% | $10.00 million |
+| 25% | $11.31 million |
+| 50% | $18.95 million |
+| 75% | $38.03 million |
+| 90% | $67.62 million |
+| 98% | $100.03 million |
+
+A sixteen-position variant improved the 10% and 15% clearing points only to
+approximately $2.92 million and $6.29 million. That marginal improvement does
+not justify doubling launch-position count, initialization gas, stored position
+records, or audit surface. Eight positions are the accepted complexity/economic
+tradeoff.
 
 The launch requires no treasury WETH contribution and no third-party liquidity.
 WETH-to-STATICS purchases are possible immediately. STATICS-to-WETH sales are
@@ -309,16 +375,31 @@ atomically:
 2. verify the hook holds exactly the 810,045,000-STATICS public inventory
    assigned for launch;
 3. initialize the canonical pool at the committed price;
-4. create the discovery, main, and extreme-tail positions with unique salts;
-5. settle exactly 24,301,350, 769,542,750, and 16,200,900 STATICS into those
-   positions, subject only to explicitly accounted V4 rounding dust;
-6. verify that no WETH was required; and
-7. permanently close the launch-initialization authority.
+4. create D1-D3, E1-E3, M1, and T1 with their committed ranges and unique salts;
+5. settle exactly 8,100,450 STATICS into each discovery position, exactly
+   40,502,250 STATICS into each early-main position, exactly 648,036,000 STATICS
+   into M1, and exactly 16,200,900 STATICS into T1, subject only to explicitly
+   accounted V4 rounding dust;
+6. verify that the eight positions consume exactly 810,045,000 STATICS before
+   accounted rounding dust;
+7. verify that no WETH was required; and
+8. permanently close the launch-initialization authority.
 
-The hook's `afterInitialize` path is the preferred location for installing the
-committed launch positions because it binds position creation to the canonical
-pool initialization. A wrong sender, PoolKey, price, range, inventory amount,
-or repeated initialization must revert the complete transaction.
+The hook's `afterInitialize` path authenticates the initializer, PoolKey,
+opening price, and committed launch configuration. It then synchronously opens
+a PoolManager unlock and installs all eight positions from the hook's
+`unlockCallback`, where the resulting STATICS delta is settled. Position
+creation does not call `modifyLiquidity` directly from `afterInitialize`,
+because PoolManager liquidity modification requires an unlocked manager. If the
+unlock, any position, or settlement fails, the complete pool initialization
+reverts.
+
+A wrong sender, PoolKey, price, range, salt, inventory amount, token order, or
+repeated initialization must revert the complete transaction. Release testing
+must measure this as a cold standalone transaction and prove the complete
+atomic path consumes no more than the 16,000,000-gas transaction target. The
+launch must not be split into publicly tradable partially initialized states to
+work around a failed gas bound.
 
 Launch positions are hook-owned direct PoolManager positions rather than
 withdrawable user PositionManager NFTs. No controller, treasury, or later
@@ -442,7 +523,7 @@ The launch positions and fee-funded full-range position use distinct salts,
 records, and accounting:
 
 ```text
-launch positions
+eight launch positions
     source: 810,045,000-STATICS public allocation
     purpose: initial distribution and permanent market principal
 
@@ -465,7 +546,7 @@ This custody serves only valid redemption.
 
 ### Launch-market principal
 
-This is the three launch positions' original 810,045,000 STATICS and the WETH
+This is the eight launch positions' original 810,045,000 STATICS and the WETH
 those positions accumulate through swaps. It is permanent market liquidity,
 not revenue.
 
@@ -517,7 +598,7 @@ The following values or guarantees are immutable:
 - PoolManager and WETH used by the canonical market;
 - canonical PoolKey after initialization;
 - the combined hook-fee ceiling;
-- permanence of all three launch positions; and
+- permanence of all eight launch positions; and
 - permanence of fee-funded STATICS/WETH liquidity.
 
 The opening price, tick spacing, and exact region endpoints must be fixed before
@@ -538,12 +619,14 @@ Implementation and release validation must prove at minimum:
 7. Redemption pays exactly `P` or reverts atomically.
 8. No administrative path can consume or withdraw Genesis backing.
 9. The launch transaction requires exactly 810,045,000 STATICS and zero WETH.
-10. Discovery, main, and tail positions receive their exact committed inventory,
-    subject only to explicitly accounted rounding dust.
-11. The three launch allocations sum to exactly 810,045,000 STATICS and 4,500
-    paired units.
-12. A wrong initializer, PoolKey, hook, opening price, tick, token order, or
-    inventory amount reverts atomically.
+10. D1-D3 each receive exactly 8,100,450 STATICS, E1-E3 each receive exactly
+    40,502,250 STATICS, M1 receives exactly 648,036,000 STATICS, and T1 receives
+    exactly 16,200,900 STATICS, subject only to explicitly accounted rounding
+    dust.
+11. The eight launch positions sum to exactly 810,045,000 STATICS and 4,500
+    paired units while preserving the 3%/95%/2% regional allocation.
+12. A wrong initializer, PoolKey, hook, opening price, range, salt, token order,
+    or inventory amount reverts atomically.
 13. The canonical pool cannot be initialized twice or initialized early by an
     unauthorized caller.
 14. Launch-position liquidity never decreases.
@@ -569,6 +652,8 @@ Implementation and release validation must prove at minimum:
 26. Direct token or NFT donations can only overcollateralize custody and cannot
     create withdrawable revenue or unearned claims.
 27. Activation burns cannot debit or reduce Genesis backing.
+28. The complete cold standalone initialization, eight-position installation,
+    and settlement transaction does not exceed the 16,000,000-gas target.
 
 Stateful invariant tests must exercise arbitrary sequences of public issuance,
 inventory purchase, NFT transfer, redemption, direct donation, exact-input
@@ -576,10 +661,11 @@ swaps, exact-output swaps, treasury claims, compounding, controller transfer,
 and later burn integration.
 
 Real V4 integration tests must prove atomic launch from zero WETH, the exact
-three-region inventory placement, purchases through region transitions, both
-swap directions after WETH enters the pool, bilateral fee collection, 25%/75%
-allocation, pull-based treasury claims, repeated compounding, and conservation
-of every market asset.
+eight-position inventory placement, purchases through every rung transition,
+both swap directions after WETH enters the pool, bilateral fee collection,
+25%/75% allocation, pull-based treasury claims, repeated compounding, and
+conservation of every market asset. A separate cold standalone gas regression
+must measure the complete launch transaction against the 16,000,000-gas target.
 
 ## Alternatives considered
 
@@ -596,6 +682,23 @@ Rejected. It is simple, but constant liquidity front-loads the cheapest
 inventory. The earlier version of this ADR used this model. Doppler Multicurve's
 analysis and the resulting inventory model support a small discovery tranche,
 a broad main market, and a small tail instead.
+
+### Three adjacent positions with 3%/95%/2% inventory
+
+Rejected. The aggregate regional weights remain useful, but putting all 4,275
+main-market Genesis units into one $1 million-to-$100 million position makes the
+main allocation excessively available near its lower boundary. In the modeled
+reference case, 25%, 50%, and 75% of public inventory clear at approximately
+$1.60 million, $2.94 million, and $7.12 million FDV. The eight-position ladder
+moves those points to approximately $11.31 million, $18.95 million, and
+$38.03 million without changing the aggregate regional allocation.
+
+### Sixteen-position fine ladder
+
+Rejected. Five discovery rungs and nine early-main rungs produce only a small
+improvement over three rungs in each section. The eight-position structure
+retains nearly the same price distribution with half the position creation,
+storage, initialization gas, and audit surface.
 
 ### Adopt Doppler/Airlock directly
 
@@ -633,8 +736,7 @@ auto-compounding liquidity and 75% treasury revenue.
 - Using the canonical pool's spot price as a manipulation-resistant protocol
   oracle.
 - Copying Bankr's fee rates, anti-snipe decay, creator vesting, or token supply.
-- Finalizing the opening price, region endpoints, fee rates, tick spacing, or
-  controller addresses in this ADR.
+- Finalizing initial hook fee rates or controller addresses in this ADR.
 - Finalizing PositionNFT reward-weight implementation in the standalone release.
 
 ## Consequences
@@ -644,9 +746,10 @@ auto-compounding liquidity and 75% treasury revenue.
 - Every public conversion of STATICS into Genesis backing reduces liquid supply
   by exactly `P` and increases circulating NFT supply by one.
 - Every redemption reverses that transition exactly.
-- A small discovery tranche limits cheap early inventory relative to a single
-  wide position.
-- The broad main range provides the durable market without graduation.
+- Three discovery rungs and three early-main rungs limit cheap early inventory
+  relative to one wide or three broadly adjacent positions.
+- The standard main range provides the durable market without graduation after
+  the early ladder reaches approximately $10 million reference FDV.
 - The extreme tail makes complete inventory exhaustion economically remote
   without pretending V4 ranges are mathematically infinite.
 - Every trade builds permanent liquidity while creating claimable treasury
@@ -658,11 +761,11 @@ auto-compounding liquidity and 75% treasury revenue.
 
 ## Follow-up decisions
 
-The implementation specification must settle:
+The implementation specification and deployment manifest must settle:
 
-- the opening human price and token-order-correct `sqrtPriceX96`;
-- tick spacing and exact discovery, main, and extreme-tail endpoints;
-- the main region's intended economically relevant upper FDV;
+- whether deployment ratifies the accepted reference tick table unchanged or
+  uniformly re-derives it from a newly approved WETH/USD reference;
+- the token-order-correct opening `sqrtPriceX96`, ranges, and unique salts;
 - initial input/output hook fee rates within the 200-basis-point ceiling;
 - whether an anti-snipe mechanism is unnecessary or should be specified
   separately;
