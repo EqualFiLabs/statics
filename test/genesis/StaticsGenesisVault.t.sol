@@ -160,6 +160,31 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             vault.buyGenesis(1, buyer);
         }
 
+        function testDirectGenesisDonationCreatesPersistentBackingSurplus() public {
+            uint256 tokenId = 1_056;
+            _fundAndApproveBuyer(PRICE);
+
+            vm.startPrank(buyer);
+            vault.buyGenesis(tokenId, buyer);
+            genesis.safeTransferFrom(buyer, address(vault), tokenId);
+            vm.stopPrank();
+
+            assertEq(vault.requiredBacking(), FOUNDER_BACKING);
+            assertEq(vault.tokenBacking(), FOUNDER_BACKING + PRICE);
+            assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING + PRICE);
+
+            _fundAndApproveBuyer(PRICE);
+            vm.startPrank(buyer);
+            vault.buyGenesis(tokenId, buyer);
+            genesis.approve(address(vault), tokenId);
+            vault.redeemGenesis(tokenId, buyer);
+            vm.stopPrank();
+
+            assertEq(vault.requiredBacking(), FOUNDER_BACKING);
+            assertEq(vault.tokenBacking(), FOUNDER_BACKING + PRICE);
+            assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING + PRICE);
+        }
+
         function testPurchasePauseDoesNotBlockRedemption() public {
             _fundAndApproveBuyer(PRICE);
             vm.prank(buyer);

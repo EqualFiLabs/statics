@@ -62,6 +62,14 @@ contract GenesisVaultHandler is IERC721Receiver {
         genesis.transferFrom(address(this), address(0xBEEF), tokenId);
     }
 
+    function donateGenesis(uint256 seed) external {
+        uint256 length = acquiredIds.length;
+        if (length == 0) return;
+        uint256 tokenId = acquiredIds[seed % length];
+        if (genesis.ownerOf(tokenId) != address(this)) return;
+        genesis.safeTransferFrom(address(this), address(vault), tokenId);
+    }
+
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
@@ -88,8 +96,8 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         targetContract(address(handler));
     }
 
-    function invariantBackingLedgerEqualsCirculatingClaims() public view {
-        assertEq(vault.tokenBacking(), vault.requiredBacking());
+    function invariantBackingLedgerCoversCirculatingClaims() public view {
+        assertGe(vault.tokenBacking(), vault.requiredBacking());
         assertGe(statics.balanceOf(address(vault)), vault.tokenBacking());
     }
 
