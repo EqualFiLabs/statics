@@ -269,10 +269,11 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 The standalone Genesis entry point is
 `script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It deploys the exact
 999,955,550-STATICS supply, 5,555-token Genesis collection, backing vault,
-renderer, transferable controller, and CREATE2-mined v4 hook. It allocates the
-555 founder NFTs and their backing, 500 vault inventory NFTs, 90,005,000 liquid
-founder STATICS, and 810,045,000 STATICS of public market inventory. The script
-leaves the canonical pool inert; governance must review the deployment and call
+renderer, transferable controller, and CREATE2-mined v4 hook. It allocates 555
+fully backed founder NFTs to treasury, all 5,000 remaining NFTs to vault
+inventory, 90,005,000 liquid founder STATICS, and 810,045,000 STATICS of public
+market inventory. The script leaves the canonical pool inert; governance must
+review the deployment and call
 `initializeCanonicalPool()` once to atomically install all six launch ranges.
 It does not deploy or require the Statics Diamonds.
 

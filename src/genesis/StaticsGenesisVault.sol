@@ -33,15 +33,12 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     error NotFinalized();
     error InvalidGenesisCollection();
     error PurchasesPaused();
-    error GenesisMintingComplete(uint256 maximumSupply);
-    error GenesisMintingIncomplete(uint256 mintedSupply, uint256 maximumSupply);
     error VaultInventoryEmpty();
     error GenesisNotInVault(uint256 tokenId);
     error NotGenesisOwner(uint256 tokenId, address caller, address owner);
     error InsufficientBacking(uint256 available, uint256 required);
     error BackingInvariant(uint256 available, uint256 required);
     error CustodyInsolvent(uint256 available, uint256 required);
-    error MintedTokenIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedNFT(address collection);
 
     constructor(IERC20 statics_, address bootstrapper_, address governance, address founderTreasury_)
@@ -71,8 +68,9 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         if (collection == address(0) || collection.code.length == 0) revert InvalidGenesisCollection();
         IStaticsGenesis genesis_ = IStaticsGenesis(collection);
         if (
-            genesis_.vault() != address(this) || genesis_.mintedSupply() != 1_055
-                || genesis_.balanceOf(address(this)) != 500 || genesis_.balanceOf(founderTreasury) != 555
+            genesis_.vault() != address(this) || genesis_.mintedSupply() != genesis_.COLLECTION_SIZE()
+                || genesis_.balanceOf(address(this)) != genesis_.VAULT_GENESIS_COUNT()
+                || genesis_.balanceOf(founderTreasury) != genesis_.TREASURY_GENESIS_COUNT()
         ) revert InvalidGenesisCollection();
         uint256 custody = statics.balanceOf(address(this));
         if (custody < FOUNDER_BACKING) revert CustodyInsolvent(custody, FOUNDER_BACKING);
@@ -86,28 +84,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisCollectionFinalized(collection, FOUNDER_BACKING);
     }
 
-    function buyNewGenesis(address receiver)
-        external
-        override
-        nonReentrant
-        whenFinalized
-        whenPurchasesOpen
-        returns (uint256 tokenId)
-    {
-        _validateReceiver(receiver);
-        uint256 minted = genesis.mintedSupply();
-        uint256 maximum = genesis.COLLECTION_SIZE();
-        if (minted == maximum) revert GenesisMintingComplete(maximum);
-
-        statics.pullExact(msg.sender, GENESIS_PRICE);
-        tokenBacking += GENESIS_PRICE;
-        tokenId = genesis.mint(receiver);
-        if (tokenId != minted + 1) revert MintedTokenIdMismatch(minted + 1, tokenId);
-        _enforceSolvency();
-        emit GenesisPurchased(msg.sender, receiver, tokenId, GENESIS_PRICE);
-    }
-
-    function buyInventoryGenesis(uint256 tokenId, address receiver)
+    function buyGenesis(uint256 tokenId, address receiver)
         external
         override
         nonReentrant
@@ -115,9 +92,6 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         whenPurchasesOpen
     {
         _validateReceiver(receiver);
-        uint256 minted = genesis.mintedSupply();
-        uint256 maximum = genesis.COLLECTION_SIZE();
-        if (minted != maximum) revert GenesisMintingIncomplete(minted, maximum);
         if (genesis.balanceOf(address(this)) == 0) revert VaultInventoryEmpty();
         if (!_isVaultInventory(tokenId)) revert GenesisNotInVault(tokenId);
 

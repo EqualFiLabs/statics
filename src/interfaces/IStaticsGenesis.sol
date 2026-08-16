@@ -8,12 +8,11 @@ interface IStaticsGenesis is IERC721 {
 
     function COLLECTION_SIZE() external view returns (uint256);
     function TREASURY_GENESIS_COUNT() external view returns (uint256);
-    function INITIAL_VAULT_INVENTORY() external view returns (uint256);
+    function VAULT_GENESIS_COUNT() external view returns (uint256);
     function mintedSupply() external view returns (uint256);
     function vault() external view returns (address);
     function protocol() external view returns (address);
     function launchFinalized() external view returns (bool);
-    function mint(address receiver) external returns (uint256 tokenId);
     function finalizeLaunch() external;
     function bindProtocol(address protocol_) external;
     function refreshMetadata(uint256 genesisId) external;

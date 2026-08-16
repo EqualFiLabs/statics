@@ -23,8 +23,8 @@ redemption backing and market liquidity are not operating revenue.
 
 Genesis NFTs and STATICS are two convertible forms of the same fixed genesis
 supply. A circulating Genesis NFT is a claim on a fixed amount of STATICS held
-by the Genesis Vault. An unminted or vault-owned Genesis slot leaves its paired
-STATICS in liquid-token form.
+by the Genesis Vault. A vault-owned Genesis NFT leaves its paired STATICS in
+liquid-token form.
 
 The full Statics Diamond, PositionNFTs, baskets, Statics Dollar, lending, and
 global reward indexes are outside the deployment boundary of this release.
@@ -145,16 +145,15 @@ The paired units are divided as follows:
 | --- | ---: | ---: |
 | Treasury NFT founder allocation | 555 NFTs held by treasury | 99,905,550 held as Genesis Vault backing |
 | Treasury token founder allocation | 500 NFTs held as vault inventory | 90,005,000 liquid STATICS held by treasury |
-| Public allocation | 4,500 NFTs reserved for lazy mint | 810,045,000 STATICS held by the permanent launch market |
+| Public allocation | 4,500 NFTs held as vault inventory | 810,045,000 STATICS held by the permanent launch market |
 | **Total** | **5,555 NFTs** | **999,955,550 STATICS** |
 
 At genesis, the collection has:
 
 ```text
-minted supply:           1,055
+minted supply:           5,555
 treasury-owned NFTs:       555
-vault inventory NFTs:      500
-unminted public NFTs:     4,500
+vault inventory NFTs:    5,000
 circulating NFTs:          555
 ```
 
@@ -165,7 +164,7 @@ The 555 treasury NFTs are fully backed at deployment:
 ```
 
 The vault's logical backing ledger is initialized to exactly that amount. The
-500 vault-owned NFTs are inventory, not circulating redemption liabilities,
+5,000 vault-owned NFTs are inventory, not circulating redemption liabilities,
 and do not increase required backing while held by the vault.
 
 The treasury's 90,005,000 STATICS is a founder allocation equivalent to 500
@@ -192,7 +191,7 @@ Each paired unit exists in one of two forms:
 ```text
 Token form
     180,010 liquid STATICS
-    + one Genesis slot that is unminted or held by the vault
+    + one Genesis NFT held by the vault
 
 NFT form
     one circulating Genesis NFT
@@ -203,18 +202,21 @@ Vault purchase converts token form into NFT form. Redemption converts NFT form
 back into token form. Neither operation creates revenue or changes aggregate
 economic value.
 
-## Public issuance and vault inventory
+## Vault purchases and inventory
 
-While unminted public supply remains, a successful public vault purchase will:
+A successful public vault purchase will:
 
 1. collect exactly `P` STATICS;
 2. increase logical Genesis backing by exactly `P`; and
-3. lazy-mint the next public Genesis NFT to the selected receiver.
+3. transfer the selected vault-owned Genesis NFT to the receiver.
 
-The 4,500 public NFTs are lazy-minted before the vault recycles its 500 genesis
-inventory NFTs. Once all 5,555 token IDs have been minted, a later purchase may
-select a vault-owned inventory NFT, deposit `P`, and receive that NFT. Normal
-issuance and inventory-sale flows preserve exact backing equality.
+All 5,555 token IDs exist from deployment. Token IDs 1 through 555 begin in the
+treasury, while token IDs 556 through 5,555 begin in the vault. The 500 founder
+inventory units and 4,500 public allocation units remain distinct economic
+allocation records, but every vault-owned Genesis NFT has identical purchase
+and redemption mechanics and the contract does not impose a sale order. A
+redeemed NFT returns to the same immediately purchasable inventory. Every
+purchase and redemption preserves exact backing equality.
 
 No Genesis NFT is sold directly for ETH or WETH.
 
@@ -230,7 +232,7 @@ Redemption performs one atomic transition:
 3. logical backing decreases by exactly `P`; and
 4. exactly `P` STATICS leaves the vault.
 
-Redemption remains available even if new issuance is paused. Treasury,
+Redemption remains available even if new purchases are paused. Treasury,
 governance, controllers, and future protocol modules may not withdraw, borrow,
 burn, stake, lend, route, or otherwise use Genesis backing.
 
@@ -250,8 +252,8 @@ reducing existing redemption liabilities.
 
 Burns preserve the `P`-STATICS claim for every circulating NFT because its
 backing is already isolated. They reduce future token-form conversion capacity:
-after sufficient burns, some unminted or vault-owned Genesis slots may be unable
-to circulate simultaneously unless another NFT is first redeemed.
+after sufficient burns, some vault-owned Genesis NFTs may be unable to
+circulate simultaneously unless another NFT is first redeemed.
 
 This is an intentional deflationary consequence. The collection has a maximum
 supply of 5,555, but activation burns may make simultaneous circulation of the
@@ -649,11 +651,11 @@ bounds.
 Implementation and release validation must prove at minimum:
 
 1. `totalSupply` begins at exactly 999,955,550 STATICS and never increases.
-2. Genesis minted supply never exceeds 5,555.
+2. Genesis minted supply equals 5,555 from construction and cannot increase.
 3. Genesis backing is at least `circulatingGenesis * P` after every transition.
 4. Normal purchase and redemption preserve backing equality.
 5. The 555 treasury NFTs are fully backed at deployment.
-6. The 500 vault-owned NFTs create no liability until they leave inventory.
+6. The 5,000 vault-owned NFTs create no liability until they leave inventory.
 7. Redemption pays exactly `P` or reverts atomically.
 8. No administrative path can consume or withdraw Genesis backing.
 9. The launch positions plus explicit rounding dust account for exactly
@@ -697,8 +699,8 @@ Implementation and release validation must prove at minimum:
 28. The complete cold standalone initialization, six-position installation,
     and settlement transaction does not exceed the 16,000,000-gas target.
 
-Stateful invariant tests must exercise arbitrary sequences of public issuance,
-inventory purchase, NFT transfer, redemption, direct donation, exact-input
+Stateful invariant tests must exercise arbitrary sequences of inventory
+purchase, NFT transfer, redemption, direct donation, exact-input
 swaps, exact-output swaps, treasury claims, compounding, controller transfer,
 and later burn integration.
 

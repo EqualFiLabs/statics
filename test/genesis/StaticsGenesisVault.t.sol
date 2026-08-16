@@ -86,34 +86,33 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(statics.balanceOf(founderTreasury), FOUNDER_LIQUID);
             assertEq(statics.balanceOf(address(this)), LAUNCH_INVENTORY);
 
-            assertEq(genesis.mintedSupply(), 1_055);
+            assertEq(genesis.mintedSupply(), 5_555);
             assertEq(genesis.balanceOf(founderTreasury), 555);
-            assertEq(genesis.balanceOf(address(vault)), 500);
+            assertEq(genesis.balanceOf(address(vault)), 5_000);
             assertEq(genesis.ownerOf(1), founderTreasury);
             assertEq(genesis.ownerOf(555), founderTreasury);
             assertEq(genesis.ownerOf(556), address(vault));
-            assertEq(genesis.ownerOf(1_055), address(vault));
+            assertEq(genesis.ownerOf(5_555), address(vault));
             assertTrue(genesis.launchFinalized());
 
             GenesisVaultAccounting memory accounting = vault.vaultAccounting();
             assertEq(accounting.vaultPrice, PRICE);
             assertEq(accounting.maximumSupply, 5_555);
-            assertEq(accounting.mintedSupply, 1_055);
-            assertEq(accounting.vaultInventory, 500);
+            assertEq(accounting.mintedSupply, 5_555);
+            assertEq(accounting.vaultInventory, 5_000);
             assertEq(accounting.circulatingGenesis, 555);
             assertEq(accounting.tokenBacking, FOUNDER_BACKING);
             assertEq(accounting.requiredBacking, FOUNDER_BACKING);
             assertEq(accounting.tokenCustody, FOUNDER_BACKING);
         }
 
-        function testBuyNewGenesisAddsOneExactBackingUnit() public {
+        function testBuyGenesisAddsOneExactBackingUnit() public {
             _fundAndApproveBuyer(PRICE);
 
             vm.prank(buyer);
-            uint256 tokenId = vault.buyNewGenesis(buyer);
+            vault.buyGenesis(1_056, buyer);
 
-            assertEq(tokenId, 1_056);
-            assertEq(genesis.ownerOf(tokenId), buyer);
+            assertEq(genesis.ownerOf(1_056), buyer);
             assertEq(vault.circulatingGenesis(), 556);
             assertEq(vault.tokenBacking(), FOUNDER_BACKING + PRICE);
             assertEq(vault.requiredBacking(), FOUNDER_BACKING + PRICE);
@@ -123,7 +122,8 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         function testRedeemReturnsExactBackingAndCreatesVaultInventory() public {
             _fundAndApproveBuyer(PRICE);
             vm.startPrank(buyer);
-            uint256 tokenId = vault.buyNewGenesis(buyer);
+            uint256 tokenId = 1_056;
+            vault.buyGenesis(tokenId, buyer);
             genesis.approve(address(vault), tokenId);
             vault.redeemGenesis(tokenId, buyer);
             vm.stopPrank();
@@ -135,40 +135,43 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(vault.requiredBacking(), FOUNDER_BACKING);
         }
 
-        function testCompleteLazyMintThenPurchaseVaultInventory() public {
-            uint256 publicMintCost = 4_500 * PRICE;
-            statics.transfer(buyer, publicMintCost);
-            vm.prank(founderTreasury);
-            statics.transfer(buyer, PRICE);
-            vm.prank(buyer);
-            statics.approve(address(vault), publicMintCost + PRICE);
+        function testPurchaseAnyVaultInventoryAndRepurchaseRedeemedToken() public {
+            _fundAndApproveBuyer(2 * PRICE);
 
             vm.startPrank(buyer);
-            for (uint256 i; i < 4_500; ++i) {
-                vault.buyNewGenesis(buyer);
-            }
-            vault.buyInventoryGenesis(556, buyer);
+            vault.buyGenesis(5_555, buyer);
+            genesis.approve(address(vault), 5_555);
+            vault.redeemGenesis(5_555, buyer);
+            statics.approve(address(vault), PRICE);
+            vault.buyGenesis(5_555, buyer);
             vm.stopPrank();
 
-            assertEq(genesis.mintedSupply(), 5_555);
             assertEq(genesis.ownerOf(5_555), buyer);
-            assertEq(genesis.ownerOf(556), buyer);
-            assertEq(vault.vaultInventory(), 499);
+            assertEq(vault.vaultInventory(), 4_999);
             assertEq(vault.tokenBacking(), vault.requiredBacking());
             assertEq(statics.balanceOf(address(vault)), vault.requiredBacking());
+        }
+
+        function testCannotPurchaseGenesisOutsideVaultInventory() public {
+            _fundAndApproveBuyer(PRICE);
+
+            vm.prank(buyer);
+            vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.GenesisNotInVault.selector, 1));
+            vault.buyGenesis(1, buyer);
         }
 
         function testPurchasePauseDoesNotBlockRedemption() public {
             _fundAndApproveBuyer(PRICE);
             vm.prank(buyer);
-            uint256 tokenId = vault.buyNewGenesis(buyer);
+            uint256 tokenId = 1_056;
+            vault.buyGenesis(tokenId, buyer);
 
             vm.prank(governance);
             vault.setPurchasesPaused(true);
 
             vm.prank(buyer);
             vm.expectRevert(StaticsGenesisVault.PurchasesPaused.selector);
-            vault.buyNewGenesis(buyer);
+            vault.buyGenesis(1_057, buyer);
 
             vm.startPrank(buyer);
             genesis.approve(address(vault), tokenId);
@@ -225,16 +228,17 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         }
 
         function testCannotFinalizeWithoutExactFounderDistribution() public {
-            StaticsGenesisVault emptyVault = new StaticsGenesisVault(
-                statics, address(this), governance, founderTreasury
-            );
+            StaticsGenesisVault emptyVault =
+                new StaticsGenesisVault(statics, address(this), governance, founderTreasury);
             StaticsAvatarSVG avatar = new StaticsAvatarSVG();
             StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
             StaticsGenesis emptyGenesis = new StaticsGenesis(
                 founderTreasury, address(emptyVault), renderer, address(this)
             );
 
-            vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CustodyInsolvent.selector, 0, FOUNDER_BACKING));
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesisVault.CustodyInsolvent.selector, 0, FOUNDER_BACKING)
+            );
             emptyVault.finalizeGenesisCollection(address(emptyGenesis));
         }
 

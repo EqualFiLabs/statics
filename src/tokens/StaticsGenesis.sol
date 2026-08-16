@@ -14,12 +14,12 @@ import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol
 contract StaticsGenesis is ERC721Consecutive, IERC4906, IStaticsGenesis, Ownable2Step {
     uint256 public constant override COLLECTION_SIZE = 5_555;
     uint256 public constant override TREASURY_GENESIS_COUNT = 555;
-    uint256 public constant override INITIAL_VAULT_INVENTORY = 500;
+    uint256 public constant override VAULT_GENESIS_COUNT = 5_000;
+    uint256 public constant override mintedSupply = COLLECTION_SIZE;
     bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
     address public immutable override vault;
     IStaticsGenesisRenderer public immutable renderer;
-    uint256 public override mintedSupply;
     address public override protocol;
     bool public override launchFinalized;
     bool private callbackEntered;
@@ -34,7 +34,6 @@ contract StaticsGenesis is ERC721Consecutive, IERC4906, IStaticsGenesis, Ownable
     error LaunchNotFinalized();
     error LaunchAlreadyFinalized();
     error TransfersDisabled();
-    error CollectionExhausted();
     error ReentrantTransferCallback();
 
     constructor(address treasury, address vault_, IStaticsGenesisRenderer renderer_, address protocolBinder)
@@ -48,17 +47,7 @@ contract StaticsGenesis is ERC721Consecutive, IERC4906, IStaticsGenesis, Ownable
         vault = vault_;
         renderer = renderer_;
         _mintConsecutive(treasury, uint96(TREASURY_GENESIS_COUNT));
-        _mintConsecutive(vault_, uint96(INITIAL_VAULT_INVENTORY));
-        mintedSupply = TREASURY_GENESIS_COUNT + INITIAL_VAULT_INVENTORY;
-    }
-
-    function mint(address receiver) external override returns (uint256 tokenId) {
-        if (msg.sender != vault) revert UnauthorizedVault(msg.sender);
-        if (!launchFinalized) revert LaunchNotFinalized();
-        tokenId = mintedSupply + 1;
-        if (tokenId > COLLECTION_SIZE) revert CollectionExhausted();
-        mintedSupply = tokenId;
-        _safeMint(receiver, tokenId);
+        _mintConsecutive(vault_, uint96(VAULT_GENESIS_COUNT));
     }
 
     function finalizeLaunch() external override {
