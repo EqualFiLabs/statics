@@ -1091,7 +1091,9 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Global staking and rewards | `IStaticsGlobalRewards` |
 | Basket lending | `IStaticsLending` |
 | Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
-| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; metadata administration through `IStaticsPositionMetadata` |
+| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; renderer-free onchain financial-account metadata |
+| Genesis NFT and vault | `IStaticsGenesis` and `IStaticsGenesisVault` |
+| Standalone Genesis market | `IStaticsV4Hook` and `IStaticsHookController` |
 | Basket governance | `IStaticsGovernance` |
 | Custody views | `IStaticsCustody` |
 | Canonical liquidity | `IStaticsBasketLiquidity` |
