@@ -107,6 +107,16 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         }
     }
 
+    contract PrevalidatingTransferValidator is ITransferValidator {
+        function validateTransfer(address caller, address, address, uint256) external view override {
+            require(caller != address(this), "REVALIDATED_TRANSFER");
+        }
+
+        function transferAsValidator(StaticsGenesis genesis, address from, address to, uint256 tokenId) external {
+            genesis.transferFrom(from, to, tokenId);
+        }
+    }
+
     contract RevertingNativeReceiver {
         receive() external payable {
             revert("NATIVE_REJECTED");
@@ -413,6 +423,16 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 abi.encodeWithSelector(StaticsGenesis.InvalidTransferValidator.selector, validatorEOA)
             );
             genesis.setTransferValidator(validatorEOA);
+        }
+
+        function testValidatorOriginatedTransferUsesPrevalidatedPath() public {
+            PrevalidatingTransferValidator validator = new PrevalidatingTransferValidator();
+            genesis.setTransferValidator(address(validator));
+            vm.prank(founderTreasury);
+            genesis.approve(address(validator), 1);
+
+            validator.transferAsValidator(genesis, founderTreasury, buyer, 1);
+            assertEq(genesis.ownerOf(1), buyer);
         }
 
         function testLinkedGenesisReportsLockedAndMustUnlinkBeforeTransfer() public {
