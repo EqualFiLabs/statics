@@ -10,6 +10,7 @@ import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
+import {LibPositionSVG} from "../metadata/LibPositionSVG.sol";
 import {LibPosition} from "./LibPosition.sol";
 
 contract PositionNFTFacet is
@@ -97,10 +98,14 @@ contract PositionNFTFacet is
 
     function tokenURI(uint256 positionId) public view override returns (string memory) {
         _requireOwned(positionId);
+        string memory image =
+            string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(LibPositionSVG.render(positionId))));
         bytes memory json = abi.encodePacked(
             '{"name":"Statics Position #',
             positionId.toString(),
-            '","description":"A transferable financial account containing its Statics protocol assets and liabilities."}'
+            '","description":"A transferable financial account containing its Statics protocol assets and liabilities.","image":"',
+            image,
+            '"}'
         );
         return string.concat("data:application/json;base64,", Base64.encode(json));
     }

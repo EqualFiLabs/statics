@@ -101,6 +101,8 @@ contract RejectNativeValue {
 }
 
 contract PositionNFTTest is Test {
+    string internal constant JSON_PREFIX = "data:application/json;base64,";
+    string internal constant SVG_PREFIX = "data:image/svg+xml;base64,";
     bytes32 internal constant DOLLAR = keccak256("dollar");
     bytes32 internal constant BASKET = keccak256("basket");
 
@@ -282,6 +284,28 @@ contract PositionNFTTest is Test {
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IPositionOwnerIndex).interfaceId));
+    }
+
+    function test_PositionMetadataContainsBrandedOnchainImage() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+
+        string memory uri = metadata.tokenURI(positionId);
+        assertTrue(_startsWith(uri, JSON_PREFIX));
+        string memory json = string(_decodeBase64(_afterPrefix(uri, JSON_PREFIX)));
+        assertEq(vm.parseJsonString(json, ".name"), "Statics Position #1");
+        assertEq(
+            vm.parseJsonString(json, ".description"),
+            "A transferable financial account containing its Statics protocol assets and liabilities."
+        );
+
+        string memory image = vm.parseJsonString(json, ".image");
+        assertTrue(_startsWith(image, SVG_PREFIX));
+        string memory svg = string(_decodeBase64(_afterPrefix(image, SVG_PREFIX)));
+        assertTrue(_contains(svg, "<title>Statics Position #1</title>"));
+        assertTrue(_contains(svg, '<path fill="#82ca17" d="M183 186h40v40h-40z"/>'));
+        assertTrue(_contains(svg, ">POSITION #1</text>"));
+        assertLt(bytes(uri).length, 4_000);
     }
 
     function test_OwnerIndexPaginatesCurrentPositions() public {
@@ -551,5 +575,70 @@ contract PositionNFTTest is Test {
         values = new uint256[](2);
         values[0] = first;
         values[1] = second;
+    }
+
+    function _startsWith(string memory value, string memory prefix) private pure returns (bool) {
+        bytes memory valueBytes = bytes(value);
+        bytes memory prefixBytes = bytes(prefix);
+        if (valueBytes.length < prefixBytes.length) return false;
+        for (uint256 i; i < prefixBytes.length; ++i) {
+            if (valueBytes[i] != prefixBytes[i]) return false;
+        }
+        return true;
+    }
+
+    function _contains(string memory value, string memory needle) private pure returns (bool) {
+        bytes memory haystack = bytes(value);
+        bytes memory sought = bytes(needle);
+        if (sought.length > haystack.length) return false;
+        for (uint256 i; i <= haystack.length - sought.length; ++i) {
+            bool match_ = true;
+            for (uint256 j; j < sought.length; ++j) {
+                if (haystack[i + j] != sought[j]) {
+                    match_ = false;
+                    break;
+                }
+            }
+            if (match_) return true;
+        }
+        return false;
+    }
+
+    function _afterPrefix(string memory value, string memory prefix) private pure returns (string memory) {
+        bytes memory input = bytes(value);
+        uint256 prefixLength = bytes(prefix).length;
+        bytes memory output = new bytes(input.length - prefixLength);
+        for (uint256 i; i < output.length; ++i) {
+            output[i] = input[i + prefixLength];
+        }
+        return string(output);
+    }
+
+    function _decodeBase64(string memory value) private pure returns (bytes memory decoded) {
+        bytes memory input = bytes(value);
+        require(input.length % 4 == 0, "invalid base64 length");
+        uint256 padding = input.length == 0 ? 0 : (input[input.length - 1] == "=" ? 1 : 0);
+        if (input.length > 1 && input[input.length - 2] == "=") ++padding;
+        decoded = new bytes((input.length / 4) * 3 - padding);
+
+        uint256 cursor;
+        for (uint256 i; i < input.length; i += 4) {
+            uint256 chunk = (uint256(_base64Value(input[i])) << 18) | (uint256(_base64Value(input[i + 1])) << 12)
+                | (uint256(_base64Value(input[i + 2])) << 6) | uint256(_base64Value(input[i + 3]));
+            if (cursor < decoded.length) decoded[cursor++] = bytes1(uint8(chunk >> 16));
+            if (cursor < decoded.length) decoded[cursor++] = bytes1(uint8(chunk >> 8));
+            if (cursor < decoded.length) decoded[cursor++] = bytes1(uint8(chunk));
+        }
+    }
+
+    function _base64Value(bytes1 character) private pure returns (uint8) {
+        uint8 value = uint8(character);
+        if (value >= 65 && value <= 90) return value - 65;
+        if (value >= 97 && value <= 122) return value - 71;
+        if (value >= 48 && value <= 57) return value + 4;
+        if (character == "+") return 62;
+        if (character == "/") return 63;
+        if (character == "=") return 0;
+        revert("invalid base64 character");
     }
 }
