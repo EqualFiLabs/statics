@@ -35,6 +35,22 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
     }
 }
 
+    contract RevertingTierGenesisProtocol is IStaticsGenesisProtocol {
+        address public immutable override genesisCollection;
+
+        constructor(address collection) {
+            genesisCollection = collection;
+        }
+
+        function genesisTier(uint256) external pure override returns (uint8) {
+            revert("TIER_UNAVAILABLE");
+        }
+
+        function onGenesisTransfer(uint256, address, address) external view override {
+            require(msg.sender == genesisCollection, "ONLY_GENESIS");
+        }
+    }
+
     contract StaticsGenesisVaultTest is Test {
         uint256 private constant PRICE = 180_010 ether;
         uint256 private constant FOUNDER_BACKING = 99_905_550 ether;
@@ -188,6 +204,16 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertTrue(bytes(unactivated).length > 100);
             assertTrue(bytes(activated).length > 100);
             assertNotEq(keccak256(bytes(unactivated)), keccak256(bytes(activated)));
+        }
+
+        function testGenesisMetadataRemainsAvailableWhenTierReadReverts() public {
+            string memory unbound = genesis.tokenURI(1);
+            RevertingTierGenesisProtocol protocol = new RevertingTierGenesisProtocol(address(genesis));
+            genesis.bindProtocol(address(protocol));
+
+            string memory unavailableTier = genesis.tokenURI(1);
+            assertTrue(bytes(unavailableTier).length > 100);
+            assertEq(keccak256(bytes(unavailableTier)), keccak256(bytes(unbound)));
         }
 
         function testProtocolBindingIsOneTimeAndCollectionValidated() public {

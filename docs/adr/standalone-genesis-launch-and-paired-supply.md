@@ -505,6 +505,10 @@ treasury         = collectedFee - lockedLiquidity
 Assigning the arithmetic remainder to treasury ensures the two allocations
 always equal the exact fee collected.
 
+Every pool configuration must therefore retain a nonzero treasury recipient,
+even when its explicit treasury share is zero. In that configuration the
+treasury receives only the deterministic arithmetic remainder.
+
 The resulting initial per-pool configuration is:
 
 | Allocation | Share |
@@ -524,6 +528,11 @@ affect another asset's liability.
 
 Recipient changes affect future accrual only. Previously accrued credit remains
 owned by the recipient credited at accrual time.
+
+External liquidity starts disabled. Enabling it is a one-way transition that
+requires a nonzero liquidity-provider share and recipient. Every later fee
+configuration must preserve a nonzero liquidity-provider reward route while
+external liquidity remains enabled.
 
 `partnerRecipient == address(0)` means disabled and requires a zero partner
 share. The initial STATICS/WETH pool has no partner or index-creator allocation.
@@ -605,6 +614,10 @@ The later controller may tune future STATICS/WETH allocations from the initial
 25%/75% split to the full protocol's governed seven-way allocation. It cannot
 redirect historical treasury liabilities or unlock previously compounded
 liquidity.
+
+Genesis metadata treats an unavailable or reverting future activation-tier
+read as tier zero so collection metadata remains available. This display-only
+fallback does not change the activation ledger.
 
 Genesis ownership remains optional for full-protocol access. The redemption
 claim is intrinsic to Genesis and independent of future PositionNFT utility.
@@ -800,8 +813,7 @@ The implementation specification and deployment manifest must settle:
 - initial input/output hook fee rates within the 200-basis-point ceiling;
 - whether an anti-snipe mechanism is unnecessary or should be specified
   separately;
-- whether third-party liquidity is permissionless, restricted, or disabled for
-  the canonical pool;
+- the operational policy for the one-way activation of third-party liquidity;
 - launch controller, treasury, and later control-acceptance addresses;
 - exact V4 rounding-dust treatment;
 - metadata behavior before and after later activation integration; and

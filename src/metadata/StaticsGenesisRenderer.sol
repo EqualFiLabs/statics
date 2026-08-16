@@ -25,7 +25,12 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         view
         returns (string memory uri)
     {
-        uint8 tier = protocol == address(0) ? 0 : IStaticsGenesisProtocol(protocol).genesisTier(tokenId);
+        uint8 tier;
+        if (protocol != address(0)) {
+            try IStaticsGenesisProtocol(protocol).genesisTier(tokenId) returns (uint8 reportedTier) {
+                tier = reportedTier;
+            } catch {}
+        }
         bytes32 seed = LibAvatarTraits.seed(block.chainid, collection, tokenId);
         LibAvatarTraits.Traits memory traits_ = LibAvatarTraits.derive(seed);
         string memory image =

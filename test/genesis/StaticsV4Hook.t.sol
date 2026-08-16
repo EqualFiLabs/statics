@@ -164,6 +164,30 @@ contract StaticsV4HookTest is Test, Deployers {
         );
     }
 
+    function testTreasuryRecipientCapturesRemainderWithZeroExplicitShare() public {
+        address partner = makeAddr("partner");
+        IStaticsV4Hook.FeeConfiguration memory fees = _initialFees();
+        fees.polShareBps = 5_000;
+        fees.partnerShareBps = 5_000;
+        fees.treasuryShareBps = 0;
+        IStaticsV4Hook.RevenueRecipients memory recipients;
+        recipients.partner = partner;
+
+        vm.expectRevert(abi.encodeWithSelector(StaticsV4Hook.InvalidRevenueRecipient.selector, RevenueChannel.Treasury));
+        controllerContract.configurePool(poolId, fees, recipients);
+
+        recipients.treasury = treasury;
+        controllerContract.configurePool(poolId, fees, recipients);
+        controllerContract.initializeCanonicalPool();
+
+        bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
+        _swapInput(wethToStaticsZeroForOne, 101);
+
+        Currency wethCurrency = Currency.wrap(address(wethToken));
+        assertEq(controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Partner, partner), 0);
+        assertEq(controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, treasury), 1);
+    }
+
     function testControllerHandoffPreservesClaimsAndPermanentLiquidity() public {
         controllerContract.initializeCanonicalPool();
         bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
@@ -264,6 +288,19 @@ contract StaticsV4HookTest is Test, Deployers {
         assertTrue(configuration.externalLiquidityEnabled);
         assertEq(configuration.fees.liquidityProviderShareBps, 1_000);
         assertEq(configuration.recipients.liquidityProvider, lpRewards);
+
+        IStaticsV4Hook.RevenueRecipients memory treasuryOnlyRecipients;
+        treasuryOnlyRecipients.treasury = treasury;
+        vm.expectRevert(StaticsV4Hook.ExternalLiquidityRequiresLpRewards.selector);
+        controllerContract.configurePool(poolId, _initialFees(), treasuryOnlyRecipients);
+
+        fees.liquidityProviderShareBps = 500;
+        fees.treasuryShareBps = 7_500;
+        controllerContract.configurePool(poolId, fees, recipients);
+        configuration = hook.poolConfiguration(poolId);
+        assertTrue(configuration.externalLiquidityEnabled);
+        assertEq(configuration.fees.liquidityProviderShareBps, 500);
+        assertEq(configuration.recipients.liquidityProvider, lpRewards);
     }
 
     function testCannotLaunchWithInsufficientInventory() public {
@@ -340,6 +377,48 @@ contract StaticsV4HookTest is Test, Deployers {
         vm.prank(initializer);
         manager.initialize(additionalKey, expectedPrice);
         assertTrue(hook.poolConfiguration(additionalId).initialized);
+    }
+
+    function testAdditionalPoolRegistrationRejectsUninitializableKeys() public {
+        MockERC20 tokenA = new MockERC20("Pool A", "pA", 18);
+        MockERC20 tokenB = new MockERC20("Pool B", "pB", 18);
+        (Currency currency0, Currency currency1) = address(tokenA) < address(tokenB)
+            ? (Currency.wrap(address(tokenA)), Currency.wrap(address(tokenB)))
+            : (Currency.wrap(address(tokenB)), Currency.wrap(address(tokenA)));
+        IStaticsV4Hook.RevenueRecipients memory recipients;
+        recipients.treasury = treasury;
+        address initializer = makeAddr("poolInitializer");
+        uint160 expectedPrice = TickMath.getSqrtPriceAtTick(0);
+
+        PoolKey memory invalidKey = PoolKey({
+            currency0: currency0, currency1: currency0, fee: 0, tickSpacing: 60, hooks: IHooks(address(hook))
+        });
+        vm.expectRevert(StaticsV4Hook.InvalidPoolKey.selector);
+        controllerContract.registerPool(invalidKey, expectedPrice, initializer, _initialFees(), recipients);
+
+        invalidKey.currency0 = currency1;
+        invalidKey.currency1 = currency0;
+        vm.expectRevert(StaticsV4Hook.InvalidPoolKey.selector);
+        controllerContract.registerPool(invalidKey, expectedPrice, initializer, _initialFees(), recipients);
+
+        invalidKey.currency0 = currency0;
+        invalidKey.currency1 = currency1;
+        invalidKey.tickSpacing = 0;
+        vm.expectRevert(StaticsV4Hook.InvalidPoolKey.selector);
+        controllerContract.registerPool(invalidKey, expectedPrice, initializer, _initialFees(), recipients);
+
+        invalidKey.tickSpacing = TickMath.MAX_TICK_SPACING + 1;
+        vm.expectRevert(StaticsV4Hook.InvalidPoolKey.selector);
+        controllerContract.registerPool(invalidKey, expectedPrice, initializer, _initialFees(), recipients);
+
+        invalidKey.tickSpacing = 60;
+        vm.expectRevert(StaticsV4Hook.InvalidPoolKey.selector);
+        controllerContract.registerPool(
+            invalidKey, TickMath.MIN_SQRT_PRICE - 1, initializer, _initialFees(), recipients
+        );
+
+        vm.expectRevert(StaticsV4Hook.InvalidPoolKey.selector);
+        controllerContract.registerPool(invalidKey, TickMath.MAX_SQRT_PRICE, initializer, _initialFees(), recipients);
     }
 
     function testInitialConfigurationIsTwentyFiveSeventyFive() public view {
