@@ -144,7 +144,8 @@ contract DeployStaticsGenesis is Script {
         StaticsHookController(deployment.hookController).bindHook(address(hook));
         IERC20(deployment.statics).safeTransfer(address(hook), PUBLIC_LAUNCH_INVENTORY);
         uint256 remaining = IERC20(deployment.statics).balanceOf(assetHolder);
-        if (remaining != 0) revert AllocationMismatch(remaining);
+        uint256 expectedRemaining = config.treasury == assetHolder ? FOUNDER_LIQUID : 0;
+        if (remaining != expectedRemaining) revert AllocationMismatch(remaining);
         deployment.v4Hook = address(hook);
         return deployment;
     }

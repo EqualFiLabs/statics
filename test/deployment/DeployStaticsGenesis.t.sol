@@ -104,4 +104,31 @@ contract DeployStaticsGenesisTest is Test {
         vm.expectRevert(DeployStaticsGenesis.ZeroAddress.selector);
         deployer.deploy(config);
     }
+
+    function testAllowsAssetHolderToReceiveFounderTreasuryAllocation() public {
+        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
+        GenesisPoolManagerFixture manager = new GenesisPoolManagerFixture();
+        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+
+        StaticsGenesisDeployment memory deployment = deployer.deploy(
+            StaticsGenesisDeploymentConfig({
+                governance: address(deployer),
+                treasury: address(deployer),
+                weth: address(weth),
+                poolManager: address(manager),
+                inputFeeBps: 50,
+                outputFeeBps: 50
+            })
+        );
+
+        StaticsToken statics = StaticsToken(deployment.statics);
+        StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
+        StaticsV4Hook hook = StaticsV4Hook(deployment.v4Hook);
+
+        assertEq(statics.balanceOf(address(deployer)), 90_005_000 ether);
+        assertEq(statics.balanceOf(deployment.genesisVault), 99_905_550 ether);
+        assertEq(statics.balanceOf(deployment.v4Hook), 810_045_000 ether);
+        assertEq(genesis.balanceOf(address(deployer)), 555);
+        assertEq(hook.poolConfiguration(hook.canonicalPoolId()).recipients.treasury, address(deployer));
+    }
 }
