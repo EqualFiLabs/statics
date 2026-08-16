@@ -252,6 +252,19 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(vault.totalNativeFeeLiability(), fee);
         }
 
+        function testNativeFeeRecipientCannotBeVaultOrGenesisCollection() public {
+            vm.startPrank(governance);
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesisVault.InvalidReceiver.selector, address(vault))
+            );
+            vault.setNativeFeeRecipient(address(vault));
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesisVault.InvalidReceiver.selector, address(genesis))
+            );
+            vault.setNativeFeeRecipient(address(genesis));
+            vm.stopPrank();
+        }
+
         function testRevertingFeeReceiverCannotBlockPurchaseOrLoseClaim() public {
             RevertingNativeReceiver recipient = new RevertingNativeReceiver();
             vm.prank(governance);
@@ -295,6 +308,13 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             vm.prank(governance);
             vault.setNativeAcquisitionFee(0);
             assertEq(vault.nativeAcquisitionFee(), 0);
+        }
+
+        function testVaultOwnershipCannotBeRenounced() public {
+            vm.prank(governance);
+            vm.expectRevert(StaticsGenesisVault.OwnershipRenunciationDisabled.selector);
+            vault.renounceOwnership();
+            assertEq(vault.owner(), governance);
         }
 
         function testRedeemReturnsExactBackingAndCreatesVaultInventory() public {

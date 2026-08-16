@@ -282,6 +282,15 @@ transfer collection ownership. Renunciation is disabled; governance may move
 ownership only through the two-step transfer path to another multisig or
 timelock.
 
+The standalone hook controller and Genesis Vault follow the same rule. Their
+two-step ownership may move to the future Diamond or timelock, but it cannot be
+renounced because doing so could permanently strand launch initialization or
+freeze required configuration.
+
+The vault also rejects itself and the Genesis collection as native-fee
+recipients. Neither contract can initiate a pull claim, so accepting either
+address would permanently strand fees credited while that recipient was active.
+
 The immutable collection supports standard ERC-721 transfers plus:
 
 - ERC-2981 collection-wide royalties, initially 5% with an immutable 10% cap;
