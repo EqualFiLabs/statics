@@ -214,7 +214,7 @@ contract StaticsGenesis is
             if (locked(genesisId)) revert GenesisLocked(genesisId);
             if (auth != address(0)) _checkAuthorized(previousOwner, auth, genesisId);
             address validator = transferValidator;
-            if (validator != address(0)) {
+            if (validator != address(0) && msg.sender != validator) {
                 ITransferValidator(validator).validateTransfer(_msgSender(), previousOwner, to, genesisId);
             }
             address protocol_ = protocol;
