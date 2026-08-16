@@ -525,6 +525,9 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             (receiver, amount) = genesis.royaltyInfo(1, 1 ether);
             assertEq(receiver, updatedReceiver);
             assertEq(amount, 0.1 ether);
+            (receiver, amount) = genesis.royaltyInfo(1, type(uint256).max);
+            assertEq(receiver, updatedReceiver);
+            assertEq(amount, type(uint256).max / 10);
 
             vm.expectRevert(
                 abi.encodeWithSelector(StaticsGenesis.RoyaltyExceedsMaximum.selector, uint96(1_001), uint96(1_000))

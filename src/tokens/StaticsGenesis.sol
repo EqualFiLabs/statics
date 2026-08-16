@@ -5,6 +5,7 @@ import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Consecutive} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Consecutive.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
@@ -120,6 +121,18 @@ contract StaticsGenesis is
         }
         _setDefaultRoyalty(receiver, royaltyBps);
         emit DefaultRoyaltyUpdated(receiver, royaltyBps);
+    }
+
+    function royaltyInfo(uint256 tokenId, uint256 salePrice)
+        public
+        view
+        override
+        returns (address receiver, uint256 royaltyAmount)
+    {
+        uint256 denominator = _feeDenominator();
+        uint256 royaltyBps;
+        (receiver, royaltyBps) = super.royaltyInfo(tokenId, denominator);
+        royaltyAmount = Math.mulDiv(salePrice, royaltyBps, denominator);
     }
 
     function setContractURI(string calldata contractURI_) external onlyOwner {
