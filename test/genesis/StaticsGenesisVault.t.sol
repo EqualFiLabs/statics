@@ -107,8 +107,19 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         }
     }
 
+    contract RevertingNativeReceiver {
+        receive() external payable {
+            revert("NATIVE_REJECTED");
+        }
+
+        function claimTo(StaticsGenesisVault vault, address payable receiver) external {
+            vault.claimNativeAcquisitionFees(receiver);
+        }
+    }
+
     contract StaticsGenesisVaultTest is Test {
         uint256 private constant PRICE = 180_010 ether;
+        uint256 private constant NATIVE_FEE = 0.003 ether;
         uint256 private constant FOUNDER_BACKING = 99_905_550 ether;
         uint256 private constant FOUNDER_LIQUID = 90_005_000 ether;
         uint256 private constant LAUNCH_INVENTORY = 810_045_000 ether;
@@ -173,7 +184,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             _fundAndApproveBuyer(PRICE);
 
             vm.prank(buyer);
-            vault.buyGenesis(1_056, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(1_056, buyer);
 
             assertEq(genesis.ownerOf(1_056), buyer);
             assertEq(vault.circulatingGenesis(), 556);
@@ -182,11 +193,105 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING + PRICE);
         }
 
+        function testGenesisPurchaseRequiresExactConfiguredNativeFee() public {
+            (uint256 staticsPrice, uint256 nativeFee) = vault.quoteGenesisPurchase();
+            assertEq(staticsPrice, PRICE);
+            assertEq(nativeFee, 0.003 ether);
+            _fundAndApproveBuyer(PRICE);
+
+            vm.prank(buyer);
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesisVault.IncorrectNativeFee.selector, 0, nativeFee)
+            );
+            vault.buyGenesis(1_056, buyer);
+
+            vm.prank(buyer);
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesisVault.IncorrectNativeFee.selector, nativeFee + 1, nativeFee)
+            );
+            vault.buyGenesis{value: nativeFee + 1}(1_056, buyer);
+
+            vm.prank(buyer);
+            vault.buyGenesis{value: nativeFee}(1_056, buyer);
+            assertEq(vault.claimableNativeFees(founderTreasury), nativeFee);
+            assertEq(vault.totalNativeFeeLiability(), nativeFee);
+            assertEq(address(vault).balance, nativeFee);
+        }
+
+        function testNativeFeeCreditsRemainWithRecipientAtPurchaseTime() public {
+            uint256 fee = vault.nativeAcquisitionFee();
+            address nextRecipient = makeAddr("nextNativeFeeRecipient");
+            _fundAndApproveBuyer(2 * PRICE);
+
+            vm.prank(buyer);
+            vault.buyGenesis{value: fee}(1_056, buyer);
+            vm.prank(governance);
+            vault.setNativeFeeRecipient(nextRecipient);
+            vm.prank(buyer);
+            vault.buyGenesis{value: fee}(1_057, buyer);
+
+            assertEq(vault.claimableNativeFees(founderTreasury), fee);
+            assertEq(vault.claimableNativeFees(nextRecipient), fee);
+            assertEq(vault.totalNativeFeeLiability(), 2 * fee);
+
+            address payable payout = payable(makeAddr("nativeFeePayout"));
+            vm.prank(founderTreasury);
+            assertEq(vault.claimNativeAcquisitionFees(payout), fee);
+            assertEq(payout.balance, fee);
+            assertEq(vault.claimableNativeFees(founderTreasury), 0);
+            assertEq(vault.totalNativeFeeLiability(), fee);
+        }
+
+        function testRevertingFeeReceiverCannotBlockPurchaseOrLoseClaim() public {
+            RevertingNativeReceiver recipient = new RevertingNativeReceiver();
+            vm.prank(governance);
+            vault.setNativeFeeRecipient(address(recipient));
+            uint256 fee = vault.nativeAcquisitionFee();
+            _fundAndApproveBuyer(PRICE);
+
+            vm.prank(buyer);
+            vault.buyGenesis{value: fee}(1_056, buyer);
+            assertEq(genesis.ownerOf(1_056), buyer);
+            assertEq(vault.claimableNativeFees(address(recipient)), fee);
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    StaticsGenesisVault.NativeFeeTransferFailed.selector, address(recipient), fee
+                )
+            );
+            recipient.claimTo(vault, payable(address(recipient)));
+            assertEq(vault.claimableNativeFees(address(recipient)), fee);
+            assertEq(vault.totalNativeFeeLiability(), fee);
+
+            address payable payout = payable(makeAddr("recoveredPayout"));
+            recipient.claimTo(vault, payout);
+            assertEq(payout.balance, fee);
+            assertEq(vault.totalNativeFeeLiability(), 0);
+        }
+
+        function testNativeAcquisitionFeeIsGovernedWithinImmutableCap() public {
+            vm.prank(governance);
+            vault.setNativeAcquisitionFee(0.01 ether);
+            assertEq(vault.nativeAcquisitionFee(), 0.01 ether);
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    StaticsGenesisVault.NativeFeeExceedsMaximum.selector, 0.01 ether + 1, 0.01 ether
+                )
+            );
+            vm.prank(governance);
+            vault.setNativeAcquisitionFee(0.01 ether + 1);
+
+            vm.prank(governance);
+            vault.setNativeAcquisitionFee(0);
+            assertEq(vault.nativeAcquisitionFee(), 0);
+        }
+
         function testRedeemReturnsExactBackingAndCreatesVaultInventory() public {
             _fundAndApproveBuyer(PRICE);
             vm.startPrank(buyer);
             uint256 tokenId = 1_056;
-            vault.buyGenesis(tokenId, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
             genesis.approve(address(vault), tokenId);
             vault.redeemGenesis(tokenId, buyer);
             vm.stopPrank();
@@ -202,11 +307,11 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             _fundAndApproveBuyer(2 * PRICE);
 
             vm.startPrank(buyer);
-            vault.buyGenesis(5_555, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(5_555, buyer);
             genesis.approve(address(vault), 5_555);
             vault.redeemGenesis(5_555, buyer);
             statics.approve(address(vault), PRICE);
-            vault.buyGenesis(5_555, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(5_555, buyer);
             vm.stopPrank();
 
             assertEq(genesis.ownerOf(5_555), buyer);
@@ -220,7 +325,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
             vm.prank(buyer);
             vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.GenesisNotInVault.selector, 1));
-            vault.buyGenesis(1, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(1, buyer);
         }
 
         function testDirectGenesisDonationCreatesPersistentBackingSurplus() public {
@@ -228,7 +333,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             _fundAndApproveBuyer(PRICE);
 
             vm.startPrank(buyer);
-            vault.buyGenesis(tokenId, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
             genesis.safeTransferFrom(buyer, address(vault), tokenId);
             vm.stopPrank();
 
@@ -238,7 +343,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
             _fundAndApproveBuyer(PRICE);
             vm.startPrank(buyer);
-            vault.buyGenesis(tokenId, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
             genesis.approve(address(vault), tokenId);
             vault.redeemGenesis(tokenId, buyer);
             vm.stopPrank();
@@ -252,14 +357,14 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             _fundAndApproveBuyer(PRICE);
             vm.prank(buyer);
             uint256 tokenId = 1_056;
-            vault.buyGenesis(tokenId, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
 
             vm.prank(governance);
             vault.setPurchasesPaused(true);
 
             vm.prank(buyer);
             vm.expectRevert(StaticsGenesisVault.PurchasesPaused.selector);
-            vault.buyGenesis(1_057, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(1_057, buyer);
 
             vm.startPrank(buyer);
             genesis.approve(address(vault), tokenId);
@@ -339,7 +444,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             uint256 tokenId = 1_056;
             _fundAndApproveBuyer(PRICE);
             vm.prank(buyer);
-            vault.buyGenesis(tokenId, buyer);
+            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
 
             MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
             genesis.bindProtocol(address(protocol));
@@ -465,6 +570,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
         function _fundAndApproveBuyer(uint256 amount) private {
             statics.transfer(buyer, amount);
+            vm.deal(buyer, buyer.balance + 1 ether);
             vm.prank(buyer);
             statics.approve(address(vault), amount);
         }

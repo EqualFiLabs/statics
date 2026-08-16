@@ -16,12 +16,18 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
 
     uint256 public constant GENESIS_PRICE = 180_010 ether;
     uint256 public constant FOUNDER_BACKING = 99_905_550 ether;
+    uint256 public constant DEFAULT_NATIVE_ACQUISITION_FEE = 0.003 ether;
+    uint256 public constant MAX_NATIVE_ACQUISITION_FEE = 0.01 ether;
 
     IERC20 public immutable statics;
     address public immutable founderTreasury;
     address public bootstrapper;
     IStaticsGenesis public genesis;
     uint256 public tokenBacking;
+    uint256 public override nativeAcquisitionFee;
+    address public override nativeFeeRecipient;
+    mapping(address recipient => uint256 amount) public override claimableNativeFees;
+    uint256 public override totalNativeFeeLiability;
     bool public purchasesPaused;
     bool public finalized;
 
@@ -39,6 +45,11 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     error InsufficientBacking(uint256 available, uint256 required);
     error BackingInvariant(uint256 available, uint256 required);
     error CustodyInsolvent(uint256 available, uint256 required);
+    error IncorrectNativeFee(uint256 paid, uint256 required);
+    error NativeFeeExceedsMaximum(uint256 fee, uint256 maximumFee);
+    error NativeFeeCustodyInsolvent(uint256 available, uint256 required);
+    error NoNativeFeesToClaim(address recipient);
+    error NativeFeeTransferFailed(address receiver, uint256 amount);
     error UnsupportedNFT(address collection);
 
     constructor(IERC20 statics_, address bootstrapper_, address governance, address founderTreasury_)
@@ -50,6 +61,8 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         statics = statics_;
         bootstrapper = bootstrapper_;
         founderTreasury = founderTreasury_;
+        nativeAcquisitionFee = DEFAULT_NATIVE_ACQUISITION_FEE;
+        nativeFeeRecipient = founderTreasury_;
     }
 
     modifier whenFinalized() {
@@ -86,6 +99,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
 
     function buyGenesis(uint256 tokenId, address receiver)
         external
+        payable
         override
         nonReentrant
         whenFinalized
@@ -94,12 +108,16 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         _validateReceiver(receiver);
         if (genesis.balanceOf(address(this)) == 0) revert VaultInventoryEmpty();
         if (!_isVaultInventory(tokenId)) revert GenesisNotInVault(tokenId);
+        uint256 fee = nativeAcquisitionFee;
+        if (msg.value != fee) revert IncorrectNativeFee(msg.value, fee);
 
+        claimableNativeFees[nativeFeeRecipient] += fee;
+        totalNativeFeeLiability += fee;
         statics.pullExact(msg.sender, GENESIS_PRICE);
         tokenBacking += GENESIS_PRICE;
         genesis.safeTransferFrom(address(this), receiver, tokenId);
         _enforceSolvency();
-        emit GenesisPurchased(msg.sender, receiver, tokenId, GENESIS_PRICE);
+        emit GenesisPurchased(msg.sender, receiver, tokenId, GENESIS_PRICE, fee);
     }
 
     function redeemGenesis(uint256 tokenId, address receiver) external override nonReentrant whenFinalized {
@@ -118,6 +136,43 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     function setPurchasesPaused(bool paused) external override onlyOwner {
         purchasesPaused = paused;
         emit PurchasesPausedSet(paused);
+    }
+
+    function setNativeAcquisitionFee(uint256 newFee) external override onlyOwner {
+        if (newFee > MAX_NATIVE_ACQUISITION_FEE) {
+            revert NativeFeeExceedsMaximum(newFee, MAX_NATIVE_ACQUISITION_FEE);
+        }
+        uint256 previousFee = nativeAcquisitionFee;
+        nativeAcquisitionFee = newFee;
+        emit NativeAcquisitionFeeSet(previousFee, newFee);
+    }
+
+    function setNativeFeeRecipient(address newRecipient) external override onlyOwner {
+        if (newRecipient == address(0)) revert InvalidReceiver(newRecipient);
+        address previousRecipient = nativeFeeRecipient;
+        nativeFeeRecipient = newRecipient;
+        emit NativeFeeRecipientSet(previousRecipient, newRecipient);
+    }
+
+    function claimNativeAcquisitionFees(address payable receiver)
+        external
+        override
+        nonReentrant
+        returns (uint256 amount)
+    {
+        if (receiver == address(0)) revert InvalidReceiver(receiver);
+        amount = claimableNativeFees[msg.sender];
+        if (amount == 0) revert NoNativeFeesToClaim(msg.sender);
+        delete claimableNativeFees[msg.sender];
+        totalNativeFeeLiability -= amount;
+        (bool success,) = receiver.call{value: amount}("");
+        if (!success) revert NativeFeeTransferFailed(receiver, amount);
+        _enforceSolvency();
+        emit NativeAcquisitionFeesClaimed(msg.sender, receiver, amount);
+    }
+
+    function quoteGenesisPurchase() external view override returns (uint256 staticsPrice, uint256 nativeFee) {
+        return (GENESIS_PRICE, nativeAcquisitionFee);
     }
 
     function vaultPrice() external pure override returns (uint256) {
@@ -182,5 +237,8 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         if (backing < required) revert BackingInvariant(backing, required);
         uint256 custody = statics.balanceOf(address(this));
         if (custody < backing) revert CustodyInsolvent(custody, backing);
+        uint256 nativeCustody = address(this).balance;
+        uint256 nativeLiability = totalNativeFeeLiability;
+        if (nativeCustody < nativeLiability) revert NativeFeeCustodyInsolvent(nativeCustody, nativeLiability);
     }
 }

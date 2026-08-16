@@ -13,16 +13,33 @@ struct GenesisVaultAccounting {
 }
 
 interface IStaticsGenesisVault {
-    event GenesisPurchased(address indexed payer, address indexed receiver, uint256 indexed tokenId, uint256 price);
+    event GenesisPurchased(
+        address indexed payer,
+        address indexed receiver,
+        uint256 indexed tokenId,
+        uint256 staticsPrice,
+        uint256 nativeFee
+    );
     event GenesisRedeemed(address indexed owner, address indexed receiver, uint256 indexed tokenId, uint256 price);
     event GenesisCollectionFinalized(address indexed collection, uint256 founderBacking);
     event PurchasesPausedSet(bool paused);
+    event NativeAcquisitionFeeSet(uint256 previousFee, uint256 newFee);
+    event NativeFeeRecipientSet(address indexed previousRecipient, address indexed newRecipient);
+    event NativeAcquisitionFeesClaimed(address indexed recipient, address indexed receiver, uint256 amount);
 
-    function buyGenesis(uint256 tokenId, address receiver) external;
+    function buyGenesis(uint256 tokenId, address receiver) external payable;
     function redeemGenesis(uint256 tokenId, address receiver) external;
     function finalizeGenesisCollection(address collection) external;
     function setPurchasesPaused(bool paused) external;
+    function setNativeAcquisitionFee(uint256 newFee) external;
+    function setNativeFeeRecipient(address newRecipient) external;
+    function claimNativeAcquisitionFees(address payable receiver) external returns (uint256 amount);
+    function quoteGenesisPurchase() external view returns (uint256 staticsPrice, uint256 nativeFee);
     function vaultPrice() external view returns (uint256);
+    function nativeAcquisitionFee() external view returns (uint256);
+    function nativeFeeRecipient() external view returns (address);
+    function claimableNativeFees(address recipient) external view returns (uint256);
+    function totalNativeFeeLiability() external view returns (uint256);
     function circulatingGenesis() external view returns (uint256);
     function vaultInventory() external view returns (uint256);
     function requiredBacking() external view returns (uint256);
