@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
@@ -36,6 +37,8 @@ struct StaticsGenesisDeployment {
 
 /// @notice Fresh-deployment-only launcher. It leaves the canonical pool inert for a separate governance launch call.
 contract DeployStaticsGenesis is Script {
+    using SafeERC20 for IERC20;
+
     uint256 private constant FOUNDER_BACKING = 99_905_550 ether;
     uint256 private constant FOUNDER_LIQUID = 90_005_000 ether;
     uint256 private constant PUBLIC_LAUNCH_INVENTORY = 810_045_000 ether;
@@ -106,8 +109,8 @@ contract DeployStaticsGenesis is Script {
         StaticsGenesis genesis = new StaticsGenesis(config.treasury, address(vault), renderer, config.governance);
         StaticsHookController controller = new StaticsHookController(config.governance, hookBinder);
 
-        statics.transfer(address(vault), FOUNDER_BACKING);
-        statics.transfer(config.treasury, FOUNDER_LIQUID);
+        IERC20(address(statics)).safeTransfer(address(vault), FOUNDER_BACKING);
+        IERC20(address(statics)).safeTransfer(config.treasury, FOUNDER_LIQUID);
         vault.finalizeGenesisCollection(address(genesis));
 
         deployment = StaticsGenesisDeployment({
@@ -139,7 +142,7 @@ contract DeployStaticsGenesis is Script {
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsHookController(deployment.hookController).bindHook(address(hook));
-        IERC20(deployment.statics).transfer(address(hook), PUBLIC_LAUNCH_INVENTORY);
+        IERC20(deployment.statics).safeTransfer(address(hook), PUBLIC_LAUNCH_INVENTORY);
         uint256 remaining = IERC20(deployment.statics).balanceOf(assetHolder);
         if (remaining != 0) revert AllocationMismatch(remaining);
         deployment.v4Hook = address(hook);
