@@ -223,6 +223,12 @@ contract StaticsV4HookTest is Test, Deployers {
         controllerContract.configurePool(poolId, _initialFees(), recipients);
     }
 
+    function testControllerOwnershipCannotBeRenounced() public {
+        vm.expectRevert(StaticsHookController.OwnershipRenunciationDisabled.selector);
+        controllerContract.renounceOwnership();
+        assertEq(controllerContract.owner(), address(this));
+    }
+
     function testExactInputAndExactOutputWorkInBothDirections() public {
         controllerContract.initializeCanonicalPool();
         bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);

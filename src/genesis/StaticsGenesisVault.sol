@@ -51,6 +51,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     error NoNativeFeesToClaim(address recipient);
     error NativeFeeTransferFailed(address receiver, uint256 amount);
     error UnsupportedNFT(address collection);
+    error OwnershipRenunciationDisabled();
 
     constructor(IERC20 statics_, address bootstrapper_, address governance, address founderTreasury_)
         Ownable(governance)
@@ -63,6 +64,10 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         founderTreasury = founderTreasury_;
         nativeAcquisitionFee = DEFAULT_NATIVE_ACQUISITION_FEE;
         nativeFeeRecipient = founderTreasury_;
+    }
+
+    function renounceOwnership() public pure override {
+        revert OwnershipRenunciationDisabled();
     }
 
     modifier whenFinalized() {
@@ -148,7 +153,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     }
 
     function setNativeFeeRecipient(address newRecipient) external override onlyOwner {
-        if (newRecipient == address(0)) revert InvalidReceiver(newRecipient);
+        _validateReceiver(newRecipient);
         address previousRecipient = nativeFeeRecipient;
         nativeFeeRecipient = newRecipient;
         emit NativeFeeRecipientSet(previousRecipient, newRecipient);

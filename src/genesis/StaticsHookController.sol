@@ -31,10 +31,15 @@ contract StaticsHookController is IStaticsHookController, IUnlockCallback, Ownab
     error RevenueInsolvent(Currency currency, uint256 available, uint256 required);
     error InvalidUnlockCaller(address caller);
     error IncompatibleClaimTransfer(Currency currency, uint256 expected, uint256 actual);
+    error OwnershipRenunciationDisabled();
 
     constructor(address initialOwner, address hookBinder_) Ownable(initialOwner) {
         if (hookBinder_ == address(0)) revert InvalidHookBinder();
         hookBinder = hookBinder_;
+    }
+
+    function renounceOwnership() public pure override {
+        revert OwnershipRenunciationDisabled();
     }
 
     function bindHook(address hook_) external override {
