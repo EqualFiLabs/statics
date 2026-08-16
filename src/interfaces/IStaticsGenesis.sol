@@ -16,10 +16,12 @@ interface IStaticsGenesis is IERC721 {
     function finalizeLaunch() external;
     function bindProtocol(address protocol_) external;
     function refreshMetadata(uint256 genesisId) external;
+    function refreshLockStatus(uint256 genesisId) external;
 }
 
 interface IStaticsGenesisProtocol {
     function genesisCollection() external view returns (address);
     function genesisTier(uint256 genesisId) external view returns (uint8);
+    function linkedPosition(uint256 genesisId) external view returns (uint256 positionId);
     function onGenesisTransfer(uint256 genesisId, address from, address to) external;
 }
