@@ -41,6 +41,26 @@ The two hook rates may total at most 200 basis points. The deployment:
 6. permanently binds the hook to its controller while leaving the canonical
    pool uninitialized.
 
+Before simulation or broadcast, execute the required pinned mainnet and
+testnet V4 compatibility proof:
+
+```bash
+ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+REQUIRE_ROBINHOOD_FORK=true \
+REQUIRE_ROBINHOOD_TESTNET_FORK=true \
+  forge test \
+  --match-path test/genesis/fork/RobinhoodStandaloneGenesisFork.t.sol \
+  -vv
+```
+
+The command must report ten passes and zero failures or skips. It deploys the
+standalone contracts onto each pinned fork, uses the recorded Robinhood V4
+PoolManager, PositionManager, Quoter, StateView, Universal Router, Permit2, and
+selected WETH, and proves launch initialization, bilateral trading, revenue
+claims, permanent-liquidity compounding, the external-LP activation boundary,
+and deterministic treasury remainder routing.
+
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
 

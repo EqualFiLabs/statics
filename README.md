@@ -218,7 +218,30 @@ The default profile uses 1,000 fuzz runs and 256 invariant runs at depth 50. The
 
 ### Fork evidence
 
-Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`. A missing RPC causes environment-gated tests to skip unless the matching `REQUIRE_*` flag is enabled.
+Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`; testnet fork tests read
+`ROBINHOOD_TESTNET` or `ROBINHOOD_TESTNET_RPC_URL`. A missing RPC causes
+environment-gated tests to skip unless the matching `REQUIRE_*` flag is
+enabled.
+
+The standalone Genesis release requires the dual-chain pinned proof before
+deployment:
+
+```shell
+ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+REQUIRE_ROBINHOOD_FORK=true \
+REQUIRE_ROBINHOOD_TESTNET_FORK=true \
+  forge test \
+  --match-path test/genesis/fork/RobinhoodStandaloneGenesisFork.t.sol \
+  -vv
+```
+
+This proof deploys the complete standalone stack against each chain's recorded
+PoolManager, initializes all six launch positions, executes exact-input and
+exact-output swaps in both directions through the deployed Quoter, Universal
+Router, and Permit2, claims treasury revenue, compounds permanent liquidity,
+adds an external PositionManager LP NFT after activation, and exercises the
+zero-explicit-treasury-share remainder route. Required mode admits no skips.
 
 Run the focused deployed-router proof with:
 
