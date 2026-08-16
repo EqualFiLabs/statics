@@ -73,6 +73,13 @@ interface IStaticsV4Hook {
     function canonicalPoolKey() external view returns (PoolKey memory);
     function canonicalPoolId() external view returns (PoolId);
     function poolConfiguration(PoolId poolId) external view returns (PoolConfigurationView memory configuration);
+    function registerPool(
+        PoolKey calldata key,
+        uint160 expectedSqrtPriceX96,
+        address initializer,
+        FeeConfiguration calldata fees,
+        RevenueRecipients calldata recipients
+    ) external returns (PoolId poolId);
     function setPoolConfiguration(PoolId poolId, FeeConfiguration calldata fees, RevenueRecipients calldata recipients)
         external;
     function activateExternalLiquidity(

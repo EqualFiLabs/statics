@@ -83,8 +83,7 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
     error InvalidPoolKey();
     error InvalidPoolPrice(uint160 expected, uint160 actual);
     error UnauthorizedPoolInitialization(address sender);
-    error InvalidLaunchInventory(uint256 expected, uint256 actual);
-    error NonzeroLaunchWeth(uint256 actual);
+    error InsufficientLaunchInventory(uint256 expected, uint256 actual);
     error LaunchInstallationFailed();
     error InvalidLaunchBand(uint8 band);
     error InvalidLaunchLiquidity(uint8 band);
@@ -218,7 +217,7 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
         address initializer,
         FeeConfiguration calldata fees,
         RevenueRecipients calldata recipients
-    ) external onlyController returns (PoolId poolId) {
+    ) external override onlyController returns (PoolId poolId) {
         if (
             key.currency0.isAddressZero() || key.currency1.isAddressZero() || key.fee != 0
                 || address(key.hooks) != address(this) || expectedSqrtPriceX96 == 0 || initializer == address(0)
@@ -280,7 +279,7 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
     {
         PoolId poolId = key.toId();
         _initialized(poolId);
-        bytes memory result = poolManager.unlock(abi.encode(UNLOCK_COMPOUND, key));
+        bytes memory result = poolManager.unlock(abi.encode(UNLOCK_COMPOUND, abi.encode(key)));
         liquidityAdded = abi.decode(result, (uint128));
     }
 
@@ -341,11 +340,9 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
                 revert UnauthorizedPoolInitialization(sender);
             }
             uint256 inventory = IERC20(statics).balanceOf(address(this));
-            if (inventory != PUBLIC_LAUNCH_INVENTORY) {
-                revert InvalidLaunchInventory(PUBLIC_LAUNCH_INVENTORY, inventory);
+            if (inventory < PUBLIC_LAUNCH_INVENTORY) {
+                revert InsufficientLaunchInventory(PUBLIC_LAUNCH_INVENTORY, inventory);
             }
-            uint256 wethBalance = IERC20(weth).balanceOf(address(this));
-            if (wethBalance != 0) revert NonzeroLaunchWeth(wethBalance);
             launchInstallationCallbackActive = true;
             poolManager.unlock(abi.encode(UNLOCK_INSTALL_LAUNCH, bytes("")));
             launchInstallationCallbackActive = false;

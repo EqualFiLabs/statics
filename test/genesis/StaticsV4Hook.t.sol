@@ -44,7 +44,7 @@ contract StaticsV4HookTest is Test, Deployers {
         staticsToken.mint(address(this), 999_955_550 ether);
         wethToken = new MockERC20("Wrapped Ether", "WETH", 18);
         wethToken.mint(address(this), 100_000 ether);
-        controllerContract = new StaticsHookController(address(this));
+        controllerContract = new StaticsHookController(address(this), address(this));
         hook = _deployHook();
         controllerContract.bindHook(address(hook));
         staticsToken.transfer(address(hook), hook.PUBLIC_LAUNCH_INVENTORY());
@@ -121,6 +121,29 @@ contract StaticsV4HookTest is Test, Deployers {
         assertEq(staticsToken.balanceOf(receiver), staticsClaim);
     }
 
+    function testRecipientChangePreservesHistoricalClaims() public {
+        controllerContract.initializeCanonicalPool();
+        bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
+        _swapInput(wethToStaticsZeroForOne, 100 ether);
+
+        Currency wethCurrency = Currency.wrap(address(wethToken));
+        uint256 historicalClaim =
+            controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, treasury);
+        assertGt(historicalClaim, 0);
+
+        address nextTreasury = makeAddr("nextTreasury");
+        IStaticsV4Hook.RevenueRecipients memory recipients;
+        recipients.treasury = nextTreasury;
+        controllerContract.configurePool(poolId, _initialFees(), recipients);
+        _swapInput(wethToStaticsZeroForOne, 100 ether);
+
+        assertEq(
+            controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, treasury),
+            historicalClaim
+        );
+        assertGt(controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, nextTreasury), 0);
+    }
+
     function testExactInputAndExactOutputWorkInBothDirections() public {
         controllerContract.initializeCanonicalPool();
         bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
@@ -159,10 +182,80 @@ contract StaticsV4HookTest is Test, Deployers {
         assertEq(configuration.recipients.liquidityProvider, lpRewards);
     }
 
-    function testCannotLaunchWithWrongInventory() public {
-        staticsToken.transfer(address(hook), 1);
+    function testCannotLaunchWithInsufficientInventory() public {
+        StaticsHookController insufficientController = new StaticsHookController(address(this), address(this));
+        StaticsV4Hook insufficientHook =
+            _deployHookFor(insufficientController, address(staticsToken), address(wethToken), treasury);
+        insufficientController.bindHook(address(insufficientHook));
+        staticsToken.mint(address(this), hook.PUBLIC_LAUNCH_INVENTORY());
+        staticsToken.transfer(address(insufficientHook), hook.PUBLIC_LAUNCH_INVENTORY() - 1);
+
         vm.expectRevert();
+        insufficientController.initializeCanonicalPool();
+    }
+
+    function testDonationsCannotBlockOrExpandLaunchPrincipal() public {
+        staticsToken.transfer(address(hook), 1 ether);
+        wethToken.transfer(address(hook), 1 ether);
         controllerContract.initializeCanonicalPool();
+
+        uint256 settled;
+        for (uint8 band = 1; band <= 6; ++band) {
+            settled += hook.launchBandStatics(band);
+        }
+        assertEq(settled + hook.launchRoundingDust(), hook.PUBLIC_LAUNCH_INVENTORY());
+        assertEq(staticsToken.balanceOf(address(hook)), hook.launchRoundingDust() + 1 ether);
+        assertEq(wethToken.balanceOf(address(hook)), 1 ether);
+    }
+
+    function testCanonicalPoolRejectsUnauthorizedInitializer() public {
+        IStaticsV4Hook.PoolConfigurationView memory configuration = hook.poolConfiguration(poolId);
+        vm.expectRevert();
+        manager.initialize(poolKey, configuration.expectedSqrtPriceX96);
+
+        controllerContract.initializeCanonicalPool();
+        assertTrue(hook.poolConfiguration(poolId).initialized);
+    }
+
+    function testOnlyAuthorizedBinderCanBindHook() public {
+        StaticsHookController unboundController = new StaticsHookController(address(this), address(this));
+        StaticsV4Hook unboundHook =
+            _deployHookFor(unboundController, address(staticsToken), address(wethToken), treasury);
+
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(StaticsHookController.InvalidHookBinder.selector);
+        unboundController.bindHook(address(unboundHook));
+        unboundController.bindHook(address(unboundHook));
+
+        vm.expectRevert(StaticsHookController.InvalidHookBinder.selector);
+        unboundController.bindHook(address(unboundHook));
+    }
+
+    function testControllerRegistersAndAuthenticatesAdditionalPools() public {
+        MockERC20 tokenA = new MockERC20("Pool A", "pA", 18);
+        MockERC20 tokenB = new MockERC20("Pool B", "pB", 18);
+        (Currency currency0, Currency currency1) = address(tokenA) < address(tokenB)
+            ? (Currency.wrap(address(tokenA)), Currency.wrap(address(tokenB)))
+            : (Currency.wrap(address(tokenB)), Currency.wrap(address(tokenA)));
+        PoolKey memory additionalKey = PoolKey({
+            currency0: currency0, currency1: currency1, fee: 0, tickSpacing: 60, hooks: IHooks(address(hook))
+        });
+        address initializer = makeAddr("poolInitializer");
+        IStaticsV4Hook.RevenueRecipients memory recipients;
+        recipients.treasury = treasury;
+        uint160 expectedPrice = TickMath.getSqrtPriceAtTick(0);
+
+        PoolId additionalId =
+            controllerContract.registerPool(additionalKey, expectedPrice, initializer, _initialFees(), recipients);
+        assertEq(PoolId.unwrap(additionalId), PoolId.unwrap(additionalKey.toId()));
+
+        vm.prank(makeAddr("wrongInitializer"));
+        vm.expectRevert();
+        manager.initialize(additionalKey, expectedPrice);
+
+        vm.prank(initializer);
+        manager.initialize(additionalKey, expectedPrice);
+        assertTrue(hook.poolConfiguration(additionalId).initialized);
     }
 
     function testInitialConfigurationIsTwentyFiveSeventyFive() public view {
@@ -182,7 +275,7 @@ contract StaticsV4HookTest is Test, Deployers {
             address(tokenA) < address(tokenB) ? (tokenA, tokenB) : (tokenB, tokenA);
         mirrorStatics.mint(address(this), 999_955_550 ether);
 
-        StaticsHookController mirrorController = new StaticsHookController(address(this));
+        StaticsHookController mirrorController = new StaticsHookController(address(this), address(this));
         StaticsV4Hook mirrorHook =
             _deployHookFor(mirrorController, address(mirrorStatics), address(mirrorWeth), treasury);
         mirrorController.bindHook(address(mirrorHook));
