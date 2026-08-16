@@ -199,16 +199,25 @@ NFT form
 ```
 
 Vault purchase converts token form into NFT form. Redemption converts NFT form
-back into token form. Neither operation creates revenue or changes aggregate
-economic value.
+back into token form. The paired conversion itself creates no revenue and does
+not change aggregate paired economic value. A separate flat native acquisition
+fee pays for the vault service and never enters the paired accounting.
 
 ## Vault purchases and inventory
 
 A successful public vault purchase will:
 
 1. collect exactly `P` STATICS;
-2. increase logical Genesis backing by exactly `P`; and
-3. transfer the selected vault-owned Genesis NFT to the receiver.
+2. collect the exact configured native acquisition fee;
+3. increase logical Genesis backing by exactly `P`;
+4. credit the native fee to the current treasury recipient; and
+5. transfer the selected vault-owned Genesis NFT to the receiver.
+
+The native acquisition fee begins at `0.003 ETH`. Governance may set it from
+zero through an immutable `0.01 ETH` ceiling. Fee changes affect only later
+acquisitions. Revenue is credited to a pull-based per-recipient ledger at
+acquisition time so a reverting treasury cannot block purchases and changing
+the recipient cannot redirect historical credit.
 
 All 5,555 token IDs exist from deployment. Token IDs 1 through 555 begin in the
 treasury, while token IDs 556 through 5,555 begin in the vault. The 500 founder
@@ -218,7 +227,9 @@ and redemption mechanics and the contract does not impose a sale order. A
 redeemed NFT returns to the same immediately purchasable inventory. Every
 purchase and redemption preserves exact backing equality.
 
-No Genesis NFT is sold directly for ETH or WETH.
+The native fee is non-refundable service revenue rather than NFT backing or a
+second redemption price. Direct ERC-721 transfers and third-party marketplace
+sales do not pay it. Redemption never charges a native fee.
 
 ## Fixed redemption and mechanical floor
 
@@ -262,6 +273,44 @@ entire maximum economically impossible.
 Transfer-related activation reset, PositionNFT linking, and reward-weight
 transitions belong to later full-protocol integration. Those mechanics may not
 weaken or complicate the fixed redemption claim.
+
+## Collection ownership and marketplace compatibility
+
+`StaticsGenesis` retains persistent two-step ownership after the later Statics
+protocol is bound. Protocol binding is one-time, but it does not renounce or
+transfer collection ownership. Renunciation is disabled; governance may move
+ownership only through the two-step transfer path to another multisig or
+timelock.
+
+The immutable collection supports standard ERC-721 transfers plus:
+
+- ERC-2981 collection-wide royalties, initially 5% with an immutable 10% cap;
+- ERC-7572 collection metadata through an owner-updatable `contractURI()`;
+- ERC-4906 metadata refresh signals for activation and URL changes;
+- current and legacy ERC-721C creator-token discovery interfaces; and
+- ERC-5192 token-level lock discovery for future PositionNFT links.
+
+The royalty receiver begins as the Statics treasury. Governance may change or
+disable the collection-wide royalty within the cap. Per-token royalty overrides
+are not supported.
+
+The ERC-721C transfer validator begins at `address(0)`, which explicitly means
+unrestricted transfers. Governance may later select a deployed validator or
+return to zero. The Genesis Vault receives no hard-coded validator bypass; it
+must be allowlisted under a selected policy before enforcement is enabled.
+
+Before protocol binding, every existing Genesis reports ERC-5192 `locked` as
+false. After binding, the protocol's one-to-one Genesis-to-Position registry is
+the source of truth: a linked Genesis reports locked and cannot transfer or
+redeem until unlinked. Link and unlink transitions cause the collection to emit
+the standard `Locked` and `Unlocked` events. A bound protocol that cannot answer
+the link query is treated as locked, matching the fail-closed transfer callback.
+
+True ownership transfers execute in this order: reject a linked token, validate
+ordinary ERC-721 authority, apply an optional ERC-721C validator, invoke the
+bound protocol's activation-reset callback, and finally update ownership. The
+protocol callback remains fail-closed because activation reset and the unlink
+requirement are accounting invariants rather than best-effort metadata.
 
 ## Canonical V4 inventory curve
 
@@ -570,7 +619,7 @@ fee-funded full-range position
 
 ## Economic boundaries
 
-The release maintains four non-interchangeable economic buckets.
+The release maintains five non-interchangeable economic buckets.
 
 ### Genesis backing
 
@@ -595,6 +644,12 @@ liquidity created from them. It is market liquidity, not revenue.
 
 This is the 75% fee allocation credited to treasury as pull-based STATICS and
 WETH liabilities. It is the standalone release's operating revenue stream.
+
+### Genesis acquisition-fee revenue
+
+This is the flat native fee credited to the configured recipient when a vault
+acquisition succeeds. It is pull-based operating revenue, not STATICS backing,
+launch principal, or hook-fee revenue.
 
 No asset amount may be counted in more than one bucket.
 
@@ -638,6 +693,8 @@ The following values or guarantees are immutable:
 - PoolManager and WETH used by the canonical market;
 - canonical PoolKey after initialization;
 - the combined hook-fee ceiling;
+- the `0.01 ETH` Genesis acquisition-fee ceiling;
+- the 10% ERC-2981 royalty ceiling;
 - permanence of all six launch positions; and
 - permanence of fee-funded STATICS/WETH liquidity.
 
@@ -698,11 +755,27 @@ Implementation and release validation must prove at minimum:
 27. Activation burns cannot debit or reduce Genesis backing.
 28. The complete cold standalone initialization, six-position installation,
     and settlement transaction does not exceed the 16,000,000-gas target.
+29. A vault purchase accepts exactly the configured native fee or reverts
+    atomically; redemption accepts and charges no native fee.
+30. Every successful acquisition credits exactly that native fee to the
+    recipient configured at acquisition time, and later recipient changes do
+    not redirect historical claims.
+31. Native-fee liabilities never exceed vault native-asset custody, including
+    after claims, recipient changes, reverting recipients, and forced native
+    donations.
+32. Protocol binding preserves collection ownership, ownership cannot be
+    renounced, and royalties never exceed the immutable 10% cap.
+33. A zero transfer validator permits normal ERC-721 transfers; a configured
+    validator is applied to every ownership transfer without a vault bypass.
+34. A linked Genesis NFT cannot transfer or redeem, link-state query failure is
+    fail-closed after protocol binding, and link/unlink transitions emit the
+    corresponding ERC-5192 signal.
 
 Stateful invariant tests must exercise arbitrary sequences of inventory
-purchase, NFT transfer, redemption, direct donation, exact-input
-swaps, exact-output swaps, treasury claims, compounding, controller transfer,
-and later burn integration.
+purchase with exact and incorrect native fees, fee-recipient rotation, native
+fee claims, forced native donation, validator changes, NFT transfer, link-state
+changes, redemption, direct donation, exact-input swaps, exact-output swaps,
+treasury claims, compounding, controller transfer, and later burn integration.
 
 Real V4 integration tests must prove atomic launch from zero WETH, the exact
 six-position inventory placement, purchases through every band transition,
@@ -817,7 +890,7 @@ The implementation specification and deployment manifest must settle:
 - the operational policy for the one-way activation of third-party liquidity;
 - launch controller, treasury, and later control-acceptance addresses;
 - exact V4 rounding-dust treatment;
-- metadata behavior before and after later activation integration; and
+- production collection metadata URI and token external-link base; and
 - the narrow future interface through which the Diamond coordinates Genesis
   tier, link, and reward-weight transitions.
 
