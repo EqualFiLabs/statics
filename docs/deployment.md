@@ -32,8 +32,8 @@ WETH and Uniswap v4 PoolManager and reads:
 The two hook rates may total at most 200 basis points. The deployment:
 
 1. mints exactly 999,955,550 STATICS;
-2. creates 555 fully backed treasury Genesis NFTs and 500 unbacked
-   vault-inventory NFTs, leaving 4,500 IDs for lazy minting;
+2. creates the complete 5,555-NFT collection, sending 555 fully backed Genesis
+   NFTs to treasury and all 5,000 remaining NFTs to vault inventory;
 3. places 99,905,550 STATICS in the vault as the exact founder-NFT backing;
 4. transfers 90,005,000 liquid founder STATICS to treasury;
 5. transfers 810,045,000 STATICS to the mined hook for the six-position public

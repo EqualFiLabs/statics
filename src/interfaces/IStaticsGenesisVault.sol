@@ -18,8 +18,7 @@ interface IStaticsGenesisVault {
     event GenesisCollectionFinalized(address indexed collection, uint256 founderBacking);
     event PurchasesPausedSet(bool paused);
 
-    function buyNewGenesis(address receiver) external returns (uint256 tokenId);
-    function buyInventoryGenesis(uint256 tokenId, address receiver) external;
+    function buyGenesis(uint256 tokenId, address receiver) external;
     function redeemGenesis(uint256 tokenId, address receiver) external;
     function finalizeGenesisCollection(address collection) external;
     function setPurchasesPaused(bool paused) external;

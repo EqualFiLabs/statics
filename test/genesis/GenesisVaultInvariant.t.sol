@@ -25,12 +25,6 @@ contract GenesisVaultHandler is IERC721Receiver {
         statics.approve(address(vault_), type(uint256).max);
     }
 
-    function buyNew() external {
-        if (genesis.mintedSupply() == genesis.COLLECTION_SIZE() || statics.balanceOf(address(this)) < PRICE) return;
-        uint256 tokenId = vault.buyNewGenesis(address(this));
-        acquiredIds.push(tokenId);
-    }
-
     function redeem(uint256 seed) external {
         uint256 length = acquiredIds.length;
         if (length == 0) return;
@@ -40,11 +34,11 @@ contract GenesisVaultHandler is IERC721Receiver {
         vault.redeemGenesis(tokenId, address(this));
     }
 
-    function buyInventory(uint256 seed) external {
-        if (genesis.mintedSupply() != genesis.COLLECTION_SIZE() || statics.balanceOf(address(this)) < PRICE) return;
+    function buyGenesis(uint256 seed) external {
+        if (statics.balanceOf(address(this)) < PRICE) return;
         uint256 tokenId = (seed % genesis.COLLECTION_SIZE()) + 1;
         if (!vault.isVaultInventory(tokenId)) return;
-        vault.buyInventoryGenesis(tokenId, address(this));
+        vault.buyGenesis(tokenId, address(this));
         acquiredIds.push(tokenId);
     }
 
@@ -101,7 +95,7 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
 
     function invariantGenesisAccountingIsBoundedAndConserved() public view {
         uint256 minted = genesis.mintedSupply();
-        assertLe(minted, genesis.COLLECTION_SIZE());
+        assertEq(minted, genesis.COLLECTION_SIZE());
         assertEq(vault.circulatingGenesis() + vault.vaultInventory(), minted);
         assertEq(vault.requiredBacking(), vault.circulatingGenesis() * vault.GENESIS_PRICE());
     }

@@ -46,6 +46,12 @@ Use compiled ABIs from these sources:
 | Dollar Core | `src/dollar/core/interfaces/IStaticsDollarCore.sol` | Direct issuance, recombination, health, and recovery |
 | Statics Dollar | `src/dollar/interfaces/IStaticsDollar.sol` | ERC-20 transfers, allowances, and EIP-2612 permit |
 
+All 5,555 Genesis NFTs exist from deployment. Integrators purchase a selected
+vault-owned token with `buyGenesis(tokenId, receiver)` and return an owned token
+for its fixed STATICS backing with `redeemGenesis(tokenId, receiver)`. A token
+returned through redemption becomes ordinary vault inventory and may be
+purchased again.
+
 Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes

@@ -31,6 +31,7 @@ import {StaticsHookController} from "../../../src/genesis/StaticsHookController.
 import {RevenueChannel} from "../../../src/interfaces/IStaticsHookController.sol";
 import {IStaticsV4Hook} from "../../../src/interfaces/IStaticsV4Hook.sol";
 import {StaticsV4Hook} from "../../../src/liquidity/StaticsV4Hook.sol";
+import {StaticsGenesis} from "../../../src/tokens/StaticsGenesis.sol";
 import {StaticsToken} from "../../../src/tokens/StaticsToken.sol";
 
 interface IRobinhoodGenesisUniversalRouter {
@@ -307,7 +308,11 @@ abstract contract RobinhoodStandaloneGenesisForkTest is Test, LiquidityOperation
 
         vm.deal(address(this), 100 ether);
         IWETH9(robinhood.weth).deposit{value: 100 ether}();
+        StaticsGenesis genesis = StaticsGenesis(genesisDeployment.genesis);
         assertEq(statics.totalSupply(), 999_955_550 ether);
+        assertEq(genesis.mintedSupply(), 5_555);
+        assertEq(genesis.balanceOf(address(this)), 555);
+        assertEq(genesis.balanceOf(genesisDeployment.genesisVault), 5_000);
         assertEq(statics.balanceOf(genesisDeployment.v4Hook), 810_045_000 ether);
         assertEq(controller.owner(), address(this));
         assertEq(controller.hook(), genesisDeployment.v4Hook);

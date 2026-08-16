@@ -51,8 +51,8 @@ contract DeployStaticsGenesisTest is Test {
         assertEq(statics.balanceOf(address(deployer)), 0);
 
         assertEq(genesis.balanceOf(treasury), 555);
-        assertEq(genesis.balanceOf(deployment.genesisVault), 500);
-        assertEq(genesis.mintedSupply(), 1_055);
+        assertEq(genesis.balanceOf(deployment.genesisVault), 5_000);
+        assertEq(genesis.mintedSupply(), 5_555);
         assertEq(vault.tokenBacking(), 99_905_550 ether);
         assertEq(vault.requiredBacking(), 99_905_550 ether);
 
