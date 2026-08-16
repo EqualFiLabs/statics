@@ -222,7 +222,10 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
     ) external override onlyController returns (PoolId poolId) {
         if (
             key.currency0.isAddressZero() || key.currency1.isAddressZero() || key.fee != 0
-                || address(key.hooks) != address(this) || expectedSqrtPriceX96 == 0 || initializer == address(0)
+                || Currency.unwrap(key.currency0) >= Currency.unwrap(key.currency1)
+                || key.tickSpacing < TickMath.MIN_TICK_SPACING || key.tickSpacing > TickMath.MAX_TICK_SPACING
+                || address(key.hooks) != address(this) || expectedSqrtPriceX96 < TickMath.MIN_SQRT_PRICE
+                || expectedSqrtPriceX96 >= TickMath.MAX_SQRT_PRICE || initializer == address(0)
         ) revert InvalidPoolKey();
         poolId = key.toId();
         if (configurations[poolId].registered) revert PoolAlreadyRegistered(poolId);
@@ -246,8 +249,10 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
         onlyController
     {
         StoredPoolConfiguration storage configuration = _registered(poolId);
-        if (!configuration.externalLiquidityEnabled && fees.liquidityProviderShareBps != 0) {
-            revert ExternalLiquidityRequiresLpRewards();
+        if (configuration.externalLiquidityEnabled) {
+            if (fees.liquidityProviderShareBps == 0) revert ExternalLiquidityRequiresLpRewards();
+        } else {
+            if (fees.liquidityProviderShareBps != 0) revert ExternalLiquidityRequiresLpRewards();
         }
         _validateConfiguration(fees, recipients);
         configuration.fees = fees;
@@ -656,7 +661,7 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
         _requireRecipient(fees.staticsStakerShareBps, recipients.staticsStaker, RevenueChannel.StaticsStaker);
         _requireRecipient(fees.partnerShareBps, recipients.partner, RevenueChannel.Partner);
         _requireRecipient(fees.creatorShareBps, recipients.creator, RevenueChannel.Creator);
-        _requireRecipient(fees.treasuryShareBps, recipients.treasury, RevenueChannel.Treasury);
+        if (recipients.treasury == address(0)) revert InvalidRevenueRecipient(RevenueChannel.Treasury);
     }
 
     function _requireRecipient(uint16 share, address recipient, RevenueChannel channel) private pure {
