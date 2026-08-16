@@ -56,6 +56,12 @@ permanent-liquidity inventory, and locked liquidity. The installed manager is
 used for typed user PositionManager NFT creation; canonical permanent liquidity
 is hook-owned and has no protocol PositionManager token ID.
 
+The standalone Genesis market rejects partial V4 fills because its
+specified-leg hook fee is reserved before pool execution. Quote a price limit
+that can consume the complete fee-adjusted specified amount, or split a large
+order into smaller swaps. A partial fill reverts atomically and accrues no fee
+liability.
+
 ## Basket creation and discovery
 
 Read `creationFee()` immediately before `createBasket`. A zero value means

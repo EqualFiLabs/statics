@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {Test} from "forge-std/Test.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -22,6 +23,7 @@ import {StaticsV4Hook} from "../../src/liquidity/StaticsV4Hook.sol";
 
 contract StaticsV4HookTest is Test, Deployers {
     using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
 
     uint16 private constant INPUT_FEE_BPS = 50;
     uint16 private constant OUTPUT_FEE_BPS = 50;
@@ -144,6 +146,59 @@ contract StaticsV4HookTest is Test, Deployers {
         assertGt(controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, nextTreasury), 0);
     }
 
+    function testRevertingTreasuryCannotBlockSwaps() public {
+        RevertingRecipient revertingTreasury = new RevertingRecipient();
+        IStaticsV4Hook.RevenueRecipients memory recipients;
+        recipients.treasury = address(revertingTreasury);
+        controllerContract.configurePool(poolId, _initialFees(), recipients);
+        controllerContract.initializeCanonicalPool();
+
+        bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
+        _swapInput(wethToStaticsZeroForOne, 100 ether);
+
+        assertGt(
+            controllerContract.claimableRevenue(
+                poolId, Currency.wrap(address(wethToken)), RevenueChannel.Treasury, address(revertingTreasury)
+            ),
+            0
+        );
+    }
+
+    function testControllerHandoffPreservesClaimsAndPermanentLiquidity() public {
+        controllerContract.initializeCanonicalPool();
+        bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
+        _swapInput(wethToStaticsZeroForOne, 100 ether);
+
+        Currency wethCurrency = Currency.wrap(address(wethToken));
+        Currency staticsCurrency = Currency.wrap(address(staticsToken));
+        uint256 wethClaim = controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, treasury);
+        uint256 staticsClaim =
+            controllerContract.claimableRevenue(poolId, staticsCurrency, RevenueChannel.Treasury, treasury);
+        uint128 liquidity = hook.lockedPermanentLiquidity(poolId);
+
+        address nextOwner = makeAddr("nextOwner");
+        controllerContract.transferOwnership(nextOwner);
+        vm.prank(nextOwner);
+        controllerContract.acceptOwnership();
+
+        assertEq(controllerContract.owner(), nextOwner);
+        assertEq(
+            controllerContract.claimableRevenue(poolId, wethCurrency, RevenueChannel.Treasury, treasury), wethClaim
+        );
+        assertEq(
+            controllerContract.claimableRevenue(poolId, staticsCurrency, RevenueChannel.Treasury, treasury),
+            staticsClaim
+        );
+        assertEq(hook.lockedPermanentLiquidity(poolId), liquidity);
+
+        IStaticsV4Hook.RevenueRecipients memory recipients;
+        recipients.treasury = treasury;
+        vm.expectRevert();
+        controllerContract.configurePool(poolId, _initialFees(), recipients);
+        vm.prank(nextOwner);
+        controllerContract.configurePool(poolId, _initialFees(), recipients);
+    }
+
     function testExactInputAndExactOutputWorkInBothDirections() public {
         controllerContract.initializeCanonicalPool();
         bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
@@ -156,6 +211,35 @@ contract StaticsV4HookTest is Test, Deployers {
         uint256 staticsToSell = purchased / 100;
         _swapInput(!wethToStaticsZeroForOne, staticsToSell);
         _swapSpecified(!wethToStaticsZeroForOne, int256(0.01 ether));
+    }
+
+    function testPurchaseTraversesEveryLaunchBandTransition() public {
+        controllerContract.initializeCanonicalPool();
+        wethToken.mint(address(this), 10_000_000 ether);
+        bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
+
+        _swapSpecified(wethToStaticsZeroForOne, int256(700_000_000 ether));
+
+        (, int24 currentTick,,) = manager.getSlot0(poolId);
+        (int24 bandSixLower, int24 bandSixUpper) = hook.launchBandTicks(6);
+        assertGe(currentTick, bandSixLower);
+        assertLt(currentTick, bandSixUpper);
+    }
+
+    function testPartialSwapAtPriceLimitRevertsBeforeChargingFees() public {
+        controllerContract.initializeCanonicalPool();
+        bool wethToStaticsZeroForOne = Currency.unwrap(poolKey.currency0) == address(wethToken);
+        (, int24 openingTick,,) = manager.getSlot0(poolId);
+        uint160 tightLimit = TickMath.getSqrtPriceAtTick(
+            wethToStaticsZeroForOne ? openingTick - poolKey.tickSpacing : openingTick + poolKey.tickSpacing
+        );
+        SwapParams memory params = SwapParams({
+            zeroForOne: wethToStaticsZeroForOne, amountSpecified: -int256(100 ether), sqrtPriceLimitX96: tightLimit
+        });
+
+        vm.expectRevert();
+        swapRouter.swap(poolKey, params, PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}), "");
+        assertEq(controllerContract.totalRevenueLiability(Currency.wrap(address(wethToken))), 0);
     }
 
     function testExternalLiquidityActivationIsAtomicWithLpRewardRoute() public {
@@ -340,5 +424,15 @@ contract StaticsV4HookTest is Test, Deployers {
             manager, address(controller_), statics_, weth_, treasury_, INPUT_FEE_BPS, OUTPUT_FEE_BPS
         );
         assertEq(address(deployed), expected);
+    }
+}
+
+contract RevertingRecipient {
+    fallback() external payable {
+        revert();
+    }
+
+    receive() external payable {
+        revert();
     }
 }

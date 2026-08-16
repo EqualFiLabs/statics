@@ -97,6 +97,8 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
     error InvalidUnlockCaller(address caller);
     error InvalidUnlockAction(uint8 action);
     error ReentrantHookCall();
+    error HookFeeConsumesSwap(uint256 amountSpecified, uint256 fee);
+    error PartialSwapUnsupported(uint256 expectedSpecified, uint256 actualSpecified);
     error UnexpectedLiquidityModification(address sender);
     error PendingLiquidityInsolvent(Currency currency, uint256 required, uint256 available);
     error PermanentLiquidityExceedsPending(Currency currency, uint256 required, uint256 available);
@@ -404,6 +406,7 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
         uint256 realized = _absolute(params.amountSpecified);
         uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
         if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
+        if (exactInput && charged >= realized) revert HookFeeConsumesSwap(realized, charged);
 
         Currency specified = params.zeroForOne == exactInput ? key.currency0 : key.currency1;
         _allocateAndRoute(poolId, specified, realized, charged, true);
@@ -419,6 +422,14 @@ contract StaticsV4Hook is BaseHook, IStaticsV4Hook, IUnlockCallback {
         FeeConfiguration memory fees = configurations[poolId].fees;
         bool exactInput = params.amountSpecified < 0;
         bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
+        int128 specifiedDelta = specifiedCurrencyIs0 ? delta.amount0() : delta.amount1();
+        uint256 requestedSpecified = _absolute(params.amountSpecified);
+        uint16 specifiedFeeBps = exactInput ? fees.inputFeeBps : fees.outputFeeBps;
+        uint256 specifiedFee = Math.mulDiv(requestedSpecified, specifiedFeeBps, BPS, Math.Rounding.Ceil);
+        uint256 expectedSpecified = exactInput ? requestedSpecified - specifiedFee : requestedSpecified + specifiedFee;
+        uint256 actualSpecified = _absolute(int256(specifiedDelta));
+        if (actualSpecified != expectedSpecified) revert PartialSwapUnsupported(expectedSpecified, actualSpecified);
+
         Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
         int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
         uint16 feeBps = exactInput ? fees.outputFeeBps : fees.inputFeeBps;

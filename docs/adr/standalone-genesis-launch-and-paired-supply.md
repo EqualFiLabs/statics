@@ -479,6 +479,13 @@ Equivalent direction-correct handling applies to exact-output swaps. The
 implementation must preserve the existing Statics distinction between specified
 and unspecified currency rather than assume token0 is always the input.
 
+The bilateral specified-leg fee is reserved before V4 executes the pool swap.
+The hook therefore requires the pool to consume the complete fee-adjusted
+specified amount and reverts the whole transaction if a price limit would
+produce a partial fill. This prevents a caller from being charged a
+specified-leg fee on volume the pool did not execute. Integrators must quote a
+fully fillable amount and price limit or split the order into smaller swaps.
+
 The exact input and output fee rates remain deployment parameters. Their sum may
 not exceed the immutable 200-basis-point ceiling inherited from the current
 hook design. This ADR does not adopt Bankr's fee rates or anti-snipe fee decay;
