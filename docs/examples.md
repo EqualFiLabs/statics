@@ -255,7 +255,6 @@ claims, outstanding loan obligations, STATICS stake, Dollar legs, and LP NFTs
 voluntarily held by the Diamond. Externally held v4 LP NFTs do not transfer with
 the PositionNFT.
 
-The onchain avatar remains visually stable because its seed depends on chain
-ID, the Statics Diamond, and token ID—not its owner or financial state. Bob must
-inspect `positionState` and the module-specific views before accepting the NFT;
-the avatar is identity, not a solvency or achievement badge.
+The PositionNFT metadata identifies the account but does not visualize its
+contents. Bob must inspect `positionState` and the module-specific views before
+accepting the NFT; metadata is not a solvency or achievement statement.

@@ -13,6 +13,66 @@ not a production deployment. Running any new broadcast remains a state-changing
 external action and requires explicit authorization for the network,
 broadcaster, and expected costs.
 
+## Standalone Genesis release
+
+`script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis` is the canonical
+launcher for the pre-Diamond Genesis release. It requires an existing verified
+WETH and Uniswap v4 PoolManager and reads:
+
+| Variable | Meaning |
+| --- | --- |
+| `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
+| `STATICS_GENESIS_GOVERNANCE` | Initial owner of the permanent two-step hook controller and one-time Genesis protocol binder |
+| `STATICS_GENESIS_TREASURY` | Recipient of 555 Genesis NFTs, 90,005,000 liquid STATICS, and the initial 75% treasury fee allocation |
+| `WETH_ADDRESS` | Verified WETH paired with STATICS |
+| `POOL_MANAGER_ADDRESS` | Verified Uniswap v4 PoolManager |
+| `STATICS_GENESIS_INPUT_FEE_BPS` | Specified-leg hook rate |
+| `STATICS_GENESIS_OUTPUT_FEE_BPS` | Realized-output-leg hook rate |
+
+The two hook rates may total at most 200 basis points. The deployment:
+
+1. mints exactly 999,955,550 STATICS;
+2. creates 555 fully backed treasury Genesis NFTs and 500 unbacked
+   vault-inventory NFTs, leaving 4,500 IDs for lazy minting;
+3. places 99,905,550 STATICS in the vault as the exact founder-NFT backing;
+4. transfers 90,005,000 liquid founder STATICS to treasury;
+5. transfers 810,045,000 STATICS to the mined hook for the six-position public
+   inventory curve; and
+6. permanently binds the hook to its controller while leaving the canonical
+   pool uninitialized.
+
+Simulate first, inspect every address and allocation, then broadcast only with
+explicit deployment authorization:
+
+```bash
+forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+  --rpc-url "$RPC_URL" \
+  -vv
+
+forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+  --rpc-url "$RPC_URL" \
+  --broadcast \
+  --verify \
+  --verifier blockscout \
+  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
+  -vv
+```
+
+The broadcast does not start trading. After every contract is verified and the
+recorded addresses, hook permission bits, controller binding, allocations, and
+canonical configuration match the reviewed output, governance separately calls
+`StaticsHookController.initializeCanonicalPool()`. That transaction initializes
+the zero-WETH pool and atomically installs all six permanent hook-owned launch
+ranges. It must be simulated as a cold standalone transaction and remain below
+the 16,000,000-gas target.
+
+Unsolicited STATICS or WETH transfers to the hook cannot expand the six launch
+positions or block initialization. They remain unaccounted, immovable surplus;
+only the committed 810,045,000 STATICS is launch principal. Record at minimum
+the token, Genesis NFT, vault, renderer, avatar helper, controller, hook,
+PoolManager, WETH, canonical PoolKey/PoolId, fee rates, initial 25%/75% split,
+and the initialization transaction.
+
 ## Required configuration
 
 Copy `.env.example` and select every production parameter explicitly. The
@@ -69,15 +129,12 @@ treasury. The Diamond does not accrue a native fee balance and there is no
 separate treasury claim. Existing Positions in the fresh deployment remain
 reusable without paying again.
 
-Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the protocol with
-`script/DeployStaticsToken.s.sol:DeployStaticsToken`. Set
-`STATICS_TOKEN_RECIPIENT` and `STATICS_TOKEN_INITIAL_SUPPLY`, then use the
-resulting address as `STAKING_TOKEN`. This deployment token is for testnet: it
-uses the `STATICS` symbol, supports ERC-2612 permit, makes the initial recipient
-its OpenZeppelin owner, and lets that owner mint without a configured cap.
-Transfer ownership if a different testnet operator should control emissions.
-Do not use this uncapped owner-mintable implementation as the finalized
-mainnet staking token.
+Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the full protocol with
+`script/DeployStaticsToken.s.sol:DeployStaticsToken`, or reuse the token created
+by the standalone Genesis release. The narrow deployer reads only
+`STATICS_TOKEN_RECIPIENT`. The token mints the exact 999,955,550 supply once,
+supports ERC-2612 permit and holder burns, and has no owner or mint function.
+Use the resulting address as `STAKING_TOKEN`.
 
 The current Robinhood testnet deployment configuration has no verified
 canonical addresses for the two Chainlink AggregatorV3 dependencies required
@@ -230,7 +287,8 @@ forge script script/DeployStatics.s.sol:DeployStatics \
   -vv
 ```
 
-For Robinhood testnet, first deploy and verify the owner-mintable staking token:
+For Robinhood testnet, first deploy and verify the fixed-supply staking token
+when the standalone Genesis token is not already the intended dependency:
 
 ```bash
 forge script script/DeployStaticsToken.s.sol:DeployStaticsToken \
@@ -410,7 +468,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           23 facets, 209 selectors
+StaticsDiamond:           23 facets, 207 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -435,11 +493,10 @@ Against the deployed addresses, verify:
    offchain runtime hashes recorded for release provenance match deployed code,
    but the Diamonds do not enforce those hashes during dispatch;
 7. ERC-165 reports the expected custody, global rewards, Dollar gateway,
-   ERC-721, Position metadata, receiver, basket-liquidity, and
+   ERC-721 metadata, receiver, basket-liquidity, and
    borrow-to-liquidity interfaces;
-8. `positionRenderer()` equals the recorded renderer, both the renderer and its
-   immutable `avatarSVG()` helper have deployed code, and a minted PositionNFT
-   returns decodable Base64 JSON containing a self-contained Base64 SVG;
+8. a minted PositionNFT returns decodable Base64 JSON describing the
+   transferable financial account without an image or mutable renderer;
 9. `liquidityIntegration` and `liquidityManager` match the reviewed batch;
    hook and manager immutable getters match the Diamond and Robinhood manifest,
    hook address bits equal `0x10ec`, and its input/output fee and revenue split
@@ -449,10 +506,10 @@ Against the deployed addresses, verify:
    expected hook, recorded PoolId, corresponding manager key hash, and nonzero
    launch liquidity; its hook-owned pending and locked permanent liquidity
    agree with launch and hook events;
-10. every pool allocation view matches the reviewed global default or its
+11. every pool allocation view matches the reviewed global default or its
     timelocked override, and clearing a rehearsal override restores the current
     global allocation without changing fee rates or existing POL; and
-11. verified source publication uses this canonical repository and compiler
+12. verified source publication uses this canonical repository and compiler
    configuration (`solc 0.8.33`, Cancun, optimizer 200, via IR, no bytecode
    metadata hash).
 

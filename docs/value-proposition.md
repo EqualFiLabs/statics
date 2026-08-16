@@ -28,6 +28,11 @@ arbitrage graph rather than creating only one disconnected pair.
 
 ## The complete system
 
+- The standalone Genesis release creates the fixed STATICS supply, a 5,555-NFT
+  collection with a mechanical 180,010-STATICS redemption floor, and a
+  permanent STATICS/WETH market before the full protocol is ready. Trading
+  fees fund treasury operations and permanent liquidity rather than requiring
+  treasury token sales.
 - Projects launch isolated, fixed-composition baskets containing
   creator-selected assets, such as a launch token and USDG. A predictable
   creation fee gives Statics a listing-like front-door revenue model, except
@@ -70,9 +75,9 @@ arbitrage graph rather than creating only one disconnected pair.
   be converted into a common payout asset.
 - PositionNFTs are transferable protocol accounts. One position can control
   STATICS stake, basket collateral, reward claims, independent loans, Statics
-  Dollar legs, and voluntarily custodied canonical LP NFTs. Its deterministic
-  onchain avatar provides stable visual identity without presenting balances,
-  achievements, yield, debt, or health as cosmetic traits.
+  Dollar legs, and voluntarily custodied canonical LP NFTs. Position metadata
+  remains deliberately plain so artwork is associated with the scarce Genesis
+  collection rather than scalable financial accounts.
 
 ## Participant value
 

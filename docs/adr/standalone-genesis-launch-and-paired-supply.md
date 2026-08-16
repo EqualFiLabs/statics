@@ -269,8 +269,9 @@ The canonical launch market is:
 STATICS / WETH
 ```
 
-The pool is initialized at a committed opening `sqrtPriceX96` with no WETH and
-exactly 810,045,000 STATICS distributed across six adjacent launch positions.
+The pool is initialized at a committed opening `sqrtPriceX96` without consuming
+WETH and accounts for exactly 810,045,000 STATICS across six adjacent launch
+positions plus explicit V4 rounding dust.
 Native Uniswap v4 concentrated-liquidity math remains the sole swap-pricing
 mechanism. The hook does not implement a parallel bonding-curve equation
 through custom accounting.
@@ -389,8 +390,9 @@ atomically:
 
 1. bind the expected PoolManager, WETH, STATICS, hook, PoolKey, fee setting,
    tick spacing, opening `sqrtPriceX96`, and authorized initializer;
-2. verify the hook holds exactly the 810,045,000-STATICS public inventory
-   assigned for launch;
+2. verify the hook holds at least the 810,045,000-STATICS public inventory
+   assigned for launch, while treating any unsolicited excess as immovable
+   surplus rather than market principal;
 3. initialize the canonical pool at the committed price;
 4. create B1-B6 with their committed ranges and unique salts;
 5. settle exactly 24,301,350, 56,703,150, 162,009,000, 202,511,250,
@@ -398,7 +400,7 @@ atomically:
    to explicitly accounted V4 rounding dust;
 6. verify that the six positions consume exactly 810,045,000 STATICS before
    accounted rounding dust;
-7. verify that no WETH was required; and
+7. verify that no WETH was consumed or required; and
 8. permanently close the launch-initialization authority.
 
 The hook's `afterInitialize` path authenticates the initializer, PoolKey,
@@ -410,7 +412,7 @@ because PoolManager liquidity modification requires an unlocked manager. If the
 unlock, any position, or settlement fails, the complete pool initialization
 reverts.
 
-A wrong sender, PoolKey, price, range, salt, inventory amount, token order, or
+A wrong sender, PoolKey, price, range, salt, insufficient inventory, token order, or
 repeated initialization must revert the complete transaction. Release testing
 must measure this as a cold standalone transaction and prove the complete
 atomic path consumes no more than the 16,000,000-gas transaction target. The
@@ -634,14 +636,19 @@ Implementation and release validation must prove at minimum:
 6. The 500 vault-owned NFTs create no liability until they leave inventory.
 7. Redemption pays exactly `P` or reverts atomically.
 8. No administrative path can consume or withdraw Genesis backing.
-9. The launch transaction requires exactly 810,045,000 STATICS and zero WETH.
+9. The launch positions plus explicit rounding dust account for exactly
+   810,045,000 STATICS and consume zero WETH;
+   unsolicited token donations remain outside launch-principal accounting and
+   cannot block initialization.
 10. B1-B6 receive exactly 24,301,350, 56,703,150, 162,009,000, 202,511,250,
     243,013,500, and 121,506,750 STATICS respectively, subject only to explicitly
     accounted rounding dust.
-11. The six launch positions sum to exactly 810,045,000 STATICS and 4,500 paired
-    units while preserving the 3%/7%/20%/25%/30%/15% band allocation.
+11. The six launch-position targets sum to exactly 810,045,000 STATICS and
+    4,500 paired units while preserving the 3%/7%/20%/25%/30%/15% band
+    allocation; actual settlement plus recorded rounding dust equals that
+    target.
 12. A wrong initializer, PoolKey, hook, opening price, range, salt, token order,
-    or inventory amount reverts atomically.
+    or insufficient inventory amount reverts atomically.
 13. The canonical pool cannot be initialized twice or initialized early by an
     unauthorized caller.
 14. Launch-position liquidity never decreases.

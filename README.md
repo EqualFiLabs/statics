@@ -1,6 +1,10 @@
 # Statics
 
-Onchain multi-asset protocol targeting Robinhood Chain, implemented as two coordinated EIP-2535 Diamonds. Statics combines fixed-bundle basket tokens, a senior/junior Statics Dollar system, a shared PositionNFT, global multi-asset rewards, proportional self-backed lending, constituent flash loans, and canonical Uniswap v4 liquidity with bilateral hook fees and permanent protocol-owned liquidity.
+Statics begins with a standalone fixed-supply token, fully backed Genesis NFT
+vault, and permanent Uniswap v4 inventory market. The later multi-asset
+protocol uses two coordinated EIP-2535 Diamonds for baskets, Statics Dollar,
+PositionNFT accounts, global rewards, lending, flash loans, and canonical v4
+liquidity.
 
 For a plain-language introduction, see the [value proposition](./docs/value-proposition.md)
 and [worked examples](./docs/examples.md). The repository also publishes an
@@ -37,6 +41,8 @@ for the canonical machine-readable integration-beta state.
 
 | Capability | Summary |
 |---|---|
+| **Standalone Genesis** | 5,555 Genesis NFTs are mechanically paired with 180,010 STATICS each; the vault preserves exact redemption backing and the launch does not depend on either Diamond. |
+| **Permanent STATICS/WETH market** | Six hook-owned v4 ranges distribute the public allocation without paired WETH, while bilateral fees route 25% to permanent full-range liquidity and 75% to treasury. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
@@ -101,6 +107,8 @@ statics/
 │   │   ├── interfaces/              # Dollar integration interfaces and types
 │   │   └── testnet/                 # Explicit public-testnet oracle fixtures
 │   ├── liquidity/                   # v4 hook, liquidity manager, and pool accounting
+│   ├── genesis/                     # Genesis vault and standalone hook controller
+│   ├── metadata/                    # Genesis onchain SVG renderer
 │   ├── periphery/                   # Typed flash-arbitrage receiver
 │   ├── governance/                  # Statics timelock
 │   ├── tokens/                      # Basket and Statics staking tokens
@@ -185,6 +193,10 @@ forge test --match-path test/dollar/unit/StaticsDollarGateway.t.sol -vv
 # Canonical hook fee accounting
 forge test --match-path test/liquidity/StaticsSwapFeeHook.t.sol -vv
 
+# Standalone Genesis vault and permanent v4 market
+forge test --match-path test/genesis/StaticsGenesisVault.t.sol -vv
+forge test --match-path test/genesis/StaticsV4Hook.t.sol -vv
+
 # Shared PositionNFT behavior
 forge test --match-path test/position/PositionNFT.t.sol -vv
 
@@ -194,6 +206,7 @@ npm test --prefix sdk
 
 Test organization:
 
+- `test/genesis/` — standalone backing, issuance, metadata, v4 launch, fee, and invariant coverage.
 - `test/basket/`, `test/rewards/`, `test/position/` — focused module and real-flow coverage.
 - `test/dollar/unit/` and `test/dollar/integration/` — Core/periphery state machines and launch-level flows.
 - `test/liquidity/` — canonical pools, hook accounting, POL, lending composition, and flash behavior.
@@ -230,13 +243,33 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 
 ## Deploy
 
+The standalone Genesis entry point is
+`script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It deploys the exact
+999,955,550-STATICS supply, 5,555-token Genesis collection, backing vault,
+renderer, transferable controller, and CREATE2-mined v4 hook. It allocates the
+555 founder NFTs and their backing, 500 vault inventory NFTs, 90,005,000 liquid
+founder STATICS, and 810,045,000 STATICS of public market inventory. The script
+leaves the canonical pool inert; governance must review the deployment and call
+`initializeCanonicalPool()` once to atomically install all six launch ranges.
+It does not deploy or require the Statics Diamonds.
+
+```shell
+forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+  --rpc-url "$RPC_URL" \
+  --broadcast \
+  -vv
+```
+
+See the [deployment guide](./docs/deployment.md#standalone-genesis-release) for
+configuration and verification requirements.
+
 The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           23 facets, 209 selectors
+StaticsDiamond:           23 facets, 207 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -267,7 +300,7 @@ machine-readable state in
 
 The release sequence is intentionally explicit:
 
-1. Deploy and verify the owner-mintable testnet Statics staking token.
+1. Deploy and verify the fixed-supply Statics staking token, or use the token from the standalone Genesis release.
 2. Deploy and verify the testnet ETH/USD, sequencer-uptime, and USDG oracle fixtures.
 3. Set the confirmed staking-token and oracle addresses in the ignored release environment.
 4. Simulate, inspect, then broadcast and verify the canonical Statics launcher.
@@ -327,7 +360,10 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
-Every valid PositionNFT has deterministic, fully onchain Base64 JSON and SVG metadata. The visual seed is the stable `(chain ID, StaticsDiamond, position ID)` identity, so transfers and position activity do not change the avatar. The Diamond owner may replace or clear the collection-wide renderer; the renderer contains no balances, achievements, risk claims, or other live protocol state.
+Every valid PositionNFT has simple, fully onchain Base64 JSON identifying it as
+a transferable financial account. Generated SVG identity belongs to the
+scarce Genesis collection, where metadata can also reflect the NFT's future
+activation tier.
 
 ### Global rewards
 
