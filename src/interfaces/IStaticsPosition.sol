@@ -29,11 +29,3 @@ interface IStaticsPositionFees {
 
     function positionCreationFee() external view returns (uint256);
 }
-
-interface IStaticsPositionMetadata {
-    event PositionRendererSet(address indexed previousRenderer, address indexed newRenderer);
-
-    function setPositionRenderer(address newRenderer) external;
-
-    function positionRenderer() external view returns (address);
-}
