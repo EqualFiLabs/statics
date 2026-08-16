@@ -1,49 +1,95 @@
-# ADR: Standalone Genesis launch and paired STATICS supply
+# ADR: Standalone Genesis launch with a permanent V4 multicurve market
 
 - Status: Accepted direction; implementation pending
 - Date: 2026-08-15
-- Scope: standalone STATICS launch, Genesis NFT issuance and backing,
-  single-sided Uniswap v4 distribution, hook fee revenue, and later Statics
-  Diamond integration
+- Scope: standalone STATICS and Genesis issuance, fixed Genesis backing,
+  one-sided Uniswap v4 multicurve distribution, bilateral hook fees, permanent
+  fee-funded liquidity, and later Statics Diamond integration
 - Supersedes: the unmerged Genesis-tokenomics direction on
-  `feat/genesis-tokenomics`
+  `feat/genesis-tokenomics` and this ADR's earlier single-position launch design
 
 ## Context
 
 Statics needs a launchable Genesis product before the complete Statics Diamond
 is ready. The release must establish the STATICS token, the 5,555-token Genesis
 collection, a fully backed fixed-price conversion between the two, and a
-canonical Uniswap v4 market that can survive the later launch of the full
-protocol. The launch market and the long-lived canonical market are the same
-pool.
+canonical Uniswap v4 market that survives the later launch of the full
+protocol.
 
-The launch must not require EqualFi Labs to sell a discretionary treasury token
-allocation to fund development. Users acquire STATICS from a market. EqualFi
-Labs earns operating revenue from explicit trading fees. Genesis redemption
-backing and market liquidity are not operating revenue.
+EqualFi Labs must not need to sell a discretionary treasury allocation of
+STATICS to fund development. Users acquire STATICS from the canonical market.
+EqualFi Labs earns operating revenue from explicit trading fees. Genesis
+redemption backing and market liquidity are not operating revenue.
 
-Genesis NFTs and STATICS are not independent allocations. They are two
-convertible forms of the same fixed genesis supply. A circulating Genesis NFT
-is a claim on a fixed amount of STATICS held by the Genesis Vault. An unminted
-or vault-owned Genesis slot leaves its corresponding STATICS in liquid token
-form.
+Genesis NFTs and STATICS are two convertible forms of the same fixed genesis
+supply. A circulating Genesis NFT is a claim on a fixed amount of STATICS held
+by the Genesis Vault. An unminted or vault-owned Genesis slot leaves its paired
+STATICS in liquid-token form.
 
 The full Statics Diamond, PositionNFTs, baskets, Statics Dollar, lending, and
 global reward indexes are outside the deployment boundary of this release.
+The launch contracts must nevertheless preserve a clean control and fee-routing
+path for later Diamond integration.
 
-## Decision
+## Decision summary
 
-Statics will launch a standalone contract set consisting of:
+Statics will launch through the canonical STATICS/WETH Uniswap v4 pool from the
+first trade. There is no separate bonding-curve contract, graduation event, or
+market migration.
+
+The 810,045,000-STATICS public allocation will be placed into three permanent,
+one-sided concentrated-liquidity regions:
+
+| Launch region | Share | STATICS | Genesis-equivalent units | Purpose |
+| --- | ---: | ---: | ---: | --- |
+| Discovery | 3% | 24,301,350 | 135 | Limit cheap early inventory while establishing price |
+| Main market | 95% | 769,542,750 | 4,275 | Provide the long-lived broad market |
+| Extreme tail | 2% | 16,200,900 | 90 | Preserve continuity at extraordinary valuations |
+| **Total** | **100%** | **810,045,000** | **4,500** | |
+
+The launch uses a standalone refactor of the existing Statics swap-fee hook,
+including its bilateral input/output fee accounting and bounded per-pool split
+configuration. The initial STATICS/WETH allocation of every collected hook fee
+is:
+
+```text
+Permanent auto-compounding liquidity: 25%
+Statics treasury:                     75%
+All other allocations:                 0%
+```
+
+The three launch regions are immutable market principal. The 25% fee allocation
+creates separate, fee-funded, full-range permanent liquidity. These two forms
+of liquidity must never share an accounting bucket.
+
+## Contract topology
+
+The standalone release consists of:
 
 1. `StaticsToken`;
 2. `StaticsGenesis`;
 3. `StaticsGenesisVault`;
-4. `StaticsV4Hook`; and
-5. an authorized one-time pool and launch-position initialization path.
+4. `StaticsV4Hook`;
+5. `StaticsHookController`; and
+6. a one-time authorized launch path coordinated through the hook and
+   controller.
 
-None of these contracts will require the Statics Diamond to exist. The full
-protocol must later adopt the deployed token, Genesis collection, hook, and
-STATICS/WETH pool rather than replace them.
+None of these contracts requires the Statics Diamond to exist.
+
+`StaticsV4Hook` reuses the existing Statics hook's fee collection, split,
+exact-transfer, pool-registration, and permanent-liquidity machinery. It does
+not reuse the existing immutable `staticsDiamond` dependency unchanged.
+
+`StaticsHookController` is the hook's permanent integration endpoint. It
+provides two-step transferable control, records pull-based revenue liabilities,
+and exposes the bounded configuration operations accepted by the hook. Its
+initial controller is the Statics launch multisig or treasury governance. The
+full Statics Diamond or its timelock may later accept control without changing
+the hook, PoolKey, launch positions, or historical fee claims.
+
+The implementation may combine the one-time launch coordinator with the
+controller if doing so reduces code and authority without weakening atomic
+initialization or custody separation.
 
 ## Exact paired supply
 
@@ -68,23 +114,23 @@ STATICS_GENESIS_SUPPLY
     = 999,955,550 STATICS
 ```
 
-There is no arithmetic remainder and no additional token allocation outside
-these 5,555 paired units. `StaticsToken` has no post-deployment mint authority.
+There is no arithmetic remainder and no additional allocation outside these
+5,555 paired units. `StaticsToken` has no post-deployment mint authority.
 Future burns may reduce `totalSupply`, but nothing may increase it above the
 genesis supply.
 
 ## Genesis allocations
 
-The launch divides the paired units as follows:
+The paired units are divided as follows:
 
 | Economic allocation | Genesis state | STATICS state |
 | --- | ---: | ---: |
 | Treasury NFT founder allocation | 555 NFTs held by treasury | 99,905,550 held as Genesis Vault backing |
 | Treasury token founder allocation | 500 NFTs held as vault inventory | 90,005,000 liquid STATICS held by treasury |
-| Public allocation | 4,500 NFTs reserved for lazy mint | 810,045,000 STATICS distributed through the launch market |
+| Public allocation | 4,500 NFTs reserved for lazy mint | 810,045,000 STATICS held by the permanent launch market |
 | **Total** | **5,555 NFTs** | **999,955,550 STATICS** |
 
-At genesis, the collection therefore has:
+At genesis, the collection has:
 
 ```text
 minted supply:           1,055
@@ -100,12 +146,12 @@ The 555 treasury NFTs are fully backed at deployment:
 555 * 180,010 = 99,905,550 STATICS
 ```
 
-The vault's logical backing ledger must be initialized to exactly that amount.
-The 500 vault-owned NFTs are inventory, not circulating redemption liabilities,
-and therefore do not increase required backing while they remain in the vault.
+The vault's logical backing ledger is initialized to exactly that amount. The
+500 vault-owned NFTs are inventory, not circulating redemption liabilities,
+and do not increase required backing while held by the vault.
 
-The treasury's 90,005,000 STATICS is a genesis founder allocation equivalent to
-500 paired units in liquid-token form. It is not hook revenue, sale proceeds,
+The treasury's 90,005,000 STATICS is a founder allocation equivalent to 500
+paired units in liquid-token form. It is not hook revenue, sale proceeds,
 Genesis backing, or market liquidity.
 
 ## Token-form and NFT-form conservation
@@ -147,10 +193,10 @@ While unminted public supply remains, a successful public vault purchase will:
 2. increase logical Genesis backing by exactly `P`; and
 3. lazy-mint the next public Genesis NFT to the selected receiver.
 
-The 4,500 public NFTs will be lazy-minted before the vault recycles its 500
-genesis inventory NFTs. Once all 5,555 token IDs have been minted, a later
-purchase may select a vault-owned inventory NFT, deposit `P`, and receive that
-NFT. Normal issuance and inventory-sale flows preserve exact backing equality.
+The 4,500 public NFTs are lazy-minted before the vault recycles its 500 genesis
+inventory NFTs. Once all 5,555 token IDs have been minted, a later purchase may
+select a vault-owned inventory NFT, deposit `P`, and receive that NFT. Normal
+issuance and inventory-sale flows preserve exact backing equality.
 
 No Genesis NFT is sold directly for ETH or WETH.
 
@@ -166,7 +212,7 @@ Redemption performs one atomic transition:
 3. logical backing decreases by exactly `P`; and
 4. exactly `P` STATICS leaves the vault.
 
-Redemption must remain available even if new issuance is paused. Treasury,
+Redemption remains available even if new issuance is paused. Treasury,
 governance, controllers, and future protocol modules may not withdraw, borrow,
 burn, stake, lend, route, or otherwise use Genesis backing.
 
@@ -176,7 +222,7 @@ STATICS less gas, marketplace costs, and execution slippage. It is not a fixed
 ETH, WETH, or fiat-denominated floor.
 
 Later tier, boost, trait, or protocol utility may support a premium over this
-base claim but must not increase or decrease the redemption amount.
+base claim but must not change the redemption amount.
 
 ## Activation burns
 
@@ -184,7 +230,7 @@ Future Genesis activation may burn liquid STATICS, but it may never consume
 Genesis Vault backing. Activation therefore reduces `totalSupply` without
 reducing existing redemption liabilities.
 
-Burns preserve the `P`-STATICS floor for every circulating NFT because its
+Burns preserve the `P`-STATICS claim for every circulating NFT because its
 backing is already isolated. They reduce future token-form conversion capacity:
 after sufficient burns, some unminted or vault-owned Genesis slots may be unable
 to circulate simultaneously unless another NFT is first redeemed.
@@ -194,115 +240,220 @@ supply of 5,555, but activation burns may make simultaneous circulation of the
 entire maximum economically impossible.
 
 Transfer-related activation reset, PositionNFT linking, and reward-weight
-transitions belong to the later full-protocol integration. Those mechanics may
-not weaken or complicate the fixed redemption claim.
+transitions belong to later full-protocol integration. Those mechanics may not
+weaken or complicate the fixed redemption claim.
 
-## One-sided Uniswap v4 launch market
+## Canonical V4 multicurve market
 
-The initial public market receives exactly:
-
-```text
-4,500 * 180,010 = 810,045,000 STATICS
-```
-
-The public inventory is deposited directly into the canonical market:
+The canonical launch market is:
 
 ```text
 STATICS / WETH
 ```
 
-The pool is initialized at a configured opening price with a protocol-owned,
-single-sided concentrated-liquidity position containing the complete
-810,045,000-STATICS public allocation and no WETH. The position range and
-liquidity define the launch price path through native Uniswap v4 concentrated-
-liquidity math. Statics will not reimplement swap pricing through hook custom
+The pool is initialized at a committed opening `sqrtPriceX96` with no WETH and
+exactly 810,045,000 STATICS distributed across the three launch regions. Native
+Uniswap v4 concentrated-liquidity math remains the sole swap-pricing mechanism.
+The hook does not implement a parallel bonding-curve equation through custom
 accounting.
 
-The pool supports WETH-to-STATICS purchases immediately. A purchase moves WETH
-into the position and STATICS out to the buyer. STATICS-to-WETH sales become
-possible only to the extent the position has accumulated WETH through prior
-purchases or later explicit liquidity additions. Treasury, vault-redeemed, and
-other externally sourced STATICS therefore trade under the same ordinary pool
-rules without creating an unfunded WETH liability.
+The three-region shape is informed by Doppler Multicurve and current Bankr
+launches. Doppler demonstrates that one wide constant-liquidity position makes
+more inventory available at the cheapest prices and that layered concentrated
+positions can shape inventory distribution across price regions. Statics adopts
+that market-structure lesson without adopting Doppler's Airlock, token factory,
+migration, governance, fee contracts, or Diamond assumptions.
+
+An observed Bankr/Doppler Base launch on 2026-08-15 used three adjacent
+single-position regions weighted 3%/95%/2%. Statics adopts those simple inventory
+weights as a starting market structure because they map exactly to 135/4,275/90
+Genesis-equivalent units. Bankr's tick endpoints, token supply, starting price,
+fee schedule, vesting, and control model are not Statics parameters.
+
+The launch regions have distinct roles:
+
+- **Discovery:** a deliberately small tranche near the opening price limits
+  early inventory capture and establishes an observable market.
+- **Main market:** the overwhelming majority of public inventory spans the
+  economically relevant long-lived price domain.
+- **Extreme tail:** a small final tranche extends toward the maximum practical
+  tick so there is no ordinary graduation or range-handoff event.
+
+The exact ticks, opening price, and market-cap endpoints remain implementation
+parameters to be modeled before deployment. Their allocation weights are fixed
+by this decision at 3%/95%/2%. Tick derivation must account for token ordering,
+token decimals, tick spacing, and rounding.
 
 The launch requires no treasury WETH contribution and no third-party liquidity.
-The initial STATICS inventory is market principal, not a token sale by treasury
-and not operating revenue. WETH received by the position remains market
-liquidity. Only explicitly charged hook fees become operating revenue.
+WETH-to-STATICS purchases are possible immediately. STATICS-to-WETH sales are
+possible only to the extent the positions have accumulated WETH through prior
+purchases or fee-funded permanent liquidity has supplied it. The system never
+creates an unfunded WETH redemption promise.
 
-There is no separate bonding-curve contract, reserve vault, graduation
-threshold, graduation transaction, or migration to another market. The
-canonical PoolId, hook, price history, and liquidity position exist from the
-first trade and remain the market later adopted by the full Statics protocol.
+There is no guaranteed raise, sellout, terminal price, or time to sell. If the
+extreme tail is ever exhausted, the complete public inventory has been purchased
+through an extraordinary price path. Exhaustion does not trigger migration or
+mint additional supply.
 
-The launch position is permanent protocol-owned liquidity. Neither treasury nor
-the controller may remove it or claim its principal. Any future in-pool
-repositioning, range extension, or exceptional decommission path requires a
-separate explicit governance decision that preserves market-asset accounting;
-it is not implicit authority of the launch controller.
+The canonical PoolId, hook, launch positions, price history, and liquidity
+remain in place when the full Statics protocol launches.
 
-The pool uses zero native Uniswap v4 LP fees and the standalone Statics hook.
-Additional user or protocol liquidity may be supported under the hook's defined
-pool policy, but the market must never depend on that additional liquidity to
-open or continue accounting for the launch position.
+## Atomic launch initialization
 
-As users acquire STATICS and deposit it into the Genesis Vault, the V4 position
-naturally shifts from STATICS toward WETH. Genesis redemptions return STATICS to
-liquid circulation. This market behavior is part of the paired design rather
-than a backing shortfall.
+The hook and controller will commit the expected launch configuration before
+the pool is publicly tradable. The authorized launch transaction must
+atomically:
 
-The pool initialization path must atomically bind the expected PoolKey,
-authorized initializer, hook, opening `sqrtPriceX96`, launch range, launch
-liquidity, and exact STATICS inventory before public trading. A third party must
-not be able to initialize the predictable canonical pool at another price or
-modify the launch position.
+1. bind the expected PoolManager, WETH, STATICS, hook, PoolKey, fee setting,
+   tick spacing, opening `sqrtPriceX96`, and authorized initializer;
+2. verify the hook holds exactly the 810,045,000-STATICS public inventory
+   assigned for launch;
+3. initialize the canonical pool at the committed price;
+4. create the discovery, main, and extreme-tail positions with unique salts;
+5. settle exactly 24,301,350, 769,542,750, and 16,200,900 STATICS into those
+   positions, subject only to explicitly accounted V4 rounding dust;
+6. verify that no WETH was required; and
+7. permanently close the launch-initialization authority.
 
-## Standalone Statics v4 hook
+The hook's `afterInitialize` path is the preferred location for installing the
+committed launch positions because it binds position creation to the canonical
+pool initialization. A wrong sender, PoolKey, price, range, inventory amount,
+or repeated initialization must revert the complete transaction.
 
-The hook will not contain an immutable dependency on the Statics Diamond. It
-will use a two-step transferable controller:
+Launch positions are hook-owned direct PoolManager positions rather than
+withdrawable user PositionManager NFTs. No controller, treasury, or later
+Diamond function may decrease their liquidity.
+
+## Reuse of the Statics hook
+
+The new hook is a standalone refactor, not a new fee model. It carries forward
+the reviewed behavior of the existing `StaticsSwapFeeHook` and the expanded
+seven-way split developed on the superseded Genesis-tokenomics branch:
+
+- zero native Uniswap v4 LP fee;
+- explicit specified-leg and realized-unspecified-leg hook fees;
+- exact-input and exact-output support;
+- immutable combined fee ceiling;
+- bounded global defaults and per-pool overrides;
+- exact debit, receipt, settlement, and allowance checks;
+- pool registration and canonical initialization protection;
+- fee allocation with rounding remainder assigned deterministically;
+- pull-based creator and partner liabilities;
+- permissionless processing where the processor cannot redirect proceeds; and
+- fee-funded permanent-liquidity accounting.
+
+The current hook's immutable `staticsDiamond` authority and direct Diamond
+reward-interface calls are not reusable in the standalone release. They are
+replaced by `StaticsHookController` and pull-based liabilities. A reverting
+treasury, partner, creator, reward module, or token receiver must not block a
+swap.
+
+The complete per-pool allocation vocabulary remains available for later use:
 
 ```text
-launch controller: Statics launch multisig or treasury governance
-
-later controller: Statics Diamond or Statics timelock
+permanent auto-compounding liquidity
+liquidity providers
+basket-token stakers
+STATICS stakers
+partner
+index creator
+Statics treasury
 ```
 
-Controller transfer changes future configuration authority only. It does not
-move accrued claims, change historical allocation, alter PoolIds, or release
-permanent liquidity.
+Only permanent liquidity and treasury are nonzero for the initial STATICS/WETH
+configuration.
 
-The hook will support an explicit per-pool configuration registry so the same
-deployed hook can later serve STATICS/WETH, Basket/WETH, Basket/constituent, and
-approved partner pools. Configuration will be bounded and will not iterate an
-unbounded recipient list during swaps.
+## Bilateral fee behavior
 
-The initial STATICS/WETH fee allocation is:
+The pool uses zero native Uniswap v4 LP fees. The hook charges independently on
+both economic legs:
 
 ```text
-Treasury: 100%
-POL:        0%
-Rewards:    0%
-Partner:    0%
+specified/input leg
+    fee = configured input rate applied to specified input
+
+realized/output leg
+    fee = configured output rate applied to realized output
 ```
 
-This is allocation of the collected hook fee, not a 100% swap fee. Exact input
-and output fee rates remain launch parameters subject to an immutable combined
-fee ceiling.
+Equivalent direction-correct handling applies to exact-output swaps. The
+implementation must preserve the existing Statics distinction between specified
+and unspecified currency rather than assume token0 is always the input.
 
-Fee revenue will accrue as pull-based per-recipient, per-asset liabilities so a
-reverting recipient cannot block swaps. Configuration changes affect future
-fees only. Previously accrued credit remains owned by the recipient credited at
-accrual time.
+The exact input and output fee rates remain deployment parameters. Their sum may
+not exceed the immutable 200-basis-point ceiling inherited from the current
+hook design. This ADR does not adopt Bankr's fee rates or anti-snipe fee decay;
+Bankr is a reference for multicurve launch structure and fee-funded locked
+liquidity, not a parameter authority for Statics.
 
-`partnerRecipient == address(0)` explicitly means partner allocation is
-disabled and requires `partnerShareBps == 0`. The hook retains a bounded partner
-channel for later partner markets without assigning partner revenue to the
-initial Statics-owned pool.
+## Initial fee allocation
+
+Every fee amount collected on either leg is allocated at accrual time:
+
+```text
+lockedLiquidity = floor(collectedFee * 2,500 / 10,000)
+treasury         = collectedFee - lockedLiquidity
+```
+
+Assigning the arithmetic remainder to treasury ensures the two allocations
+always equal the exact fee collected.
+
+The resulting initial per-pool configuration is:
+
+| Allocation | Share |
+| --- | ---: |
+| Permanent auto-compounding liquidity | 25% |
+| Statics treasury | 75% |
+| Liquidity providers | 0% |
+| Basket-token stakers | 0% |
+| STATICS stakers | 0% |
+| Partner | 0% |
+| Index creator | 0% |
+
+Treasury revenue accrues as a pull-based per-recipient, per-asset liability.
+The treasury therefore receives STATICS-denominated revenue from STATICS fee
+legs and WETH-denominated revenue from WETH fee legs. Claiming one asset cannot
+affect another asset's liability.
+
+Recipient changes affect future accrual only. Previously accrued credit remains
+owned by the recipient credited at accrual time.
+
+`partnerRecipient == address(0)` means disabled and requires a zero partner
+share. The initial STATICS/WETH pool has no partner or index-creator allocation.
+
+## Fee-funded permanent liquidity
+
+The hook retains 25% of every bilateral fee leg in a pool-local pending-liquidity
+ledger. After each swap, it attempts to convert the available STATICS and WETH
+into full-range V4 liquidity owned by the hook.
+
+The hook may consume only the amounts recorded in that pool's pending ledger.
+If one currency cannot yet be paired, the unmatched amount remains pending and
+is retried after later swaps or through a permissionless compound function.
+Callers receive no ownership, principal, or fee claim for triggering
+compounding.
+
+Fee-funded liquidity is permanent for the canonical STATICS/WETH pool. It may
+not be removed, reassigned to treasury, counted as operating revenue, or used as
+Genesis backing. The implementation must not carry forward a generic
+decommission-and-release path that can release this pool's permanent liquidity.
+
+The launch positions and fee-funded full-range position use distinct salts,
+records, and accounting:
+
+```text
+launch positions
+    source: 810,045,000-STATICS public allocation
+    purpose: initial distribution and permanent market principal
+
+fee-funded full-range position
+    source: 25% of bilateral trading fees
+    purpose: deepen permanent two-sided market liquidity over time
+```
 
 ## Economic boundaries
 
-The release maintains three non-interchangeable economic buckets.
+The release maintains four non-interchangeable economic buckets.
 
 ### Genesis backing
 
@@ -312,34 +463,43 @@ circulating Genesis NFTs * P
 
 This custody serves only valid redemption.
 
-### Market liquidity
+### Launch-market principal
 
-This includes the launch position's STATICS inventory, the WETH accumulated by
-that position through swaps, and any later protocol-owned liquidity explicitly
-added to the market. These assets create and maintain the market and are not
-operating revenue.
+This is the three launch positions' original 810,045,000 STATICS and the WETH
+those positions accumulate through swaps. It is permanent market liquidity,
+not revenue.
 
-### Trading-fee revenue
+### Fee-funded permanent liquidity
 
-This consists only of V4 hook trading fees. It is the initial operating revenue
-stream for continued Statics development.
+This is the 25% fee allocation, pending pairing balances, and the full-range
+liquidity created from them. It is market liquidity, not revenue.
+
+### Treasury fee revenue
+
+This is the 75% fee allocation credited to treasury as pull-based STATICS and
+WETH liabilities. It is the standalone release's operating revenue stream.
 
 No asset amount may be counted in more than one bucket.
 
 ## Later Statics Diamond integration
 
-The full protocol will integrate with the launch contracts by:
+The full protocol will integrate by:
 
 - recognizing the existing fixed-supply STATICS token;
 - recognizing the existing Genesis collection and vault claim;
-- preserving the existing STATICS/WETH PoolId and liquidity;
-- accepting hook control through the hook's two-step transfer path;
-- configuring later fee allocations and rewards through bounded hook controls;
+- preserving the existing STATICS/WETH PoolId and all permanent liquidity;
+- accepting control through the controller's two-step transfer path;
+- configuring later fee allocations and reward routes within immutable bounds;
   and
 - adding PositionNFT linking, activation, staking-weight, baskets, lending,
   Statics Dollar, and reward-index behavior without migrating Genesis backing.
 
-Genesis ownership will remain optional for full-protocol access. The redemption
+The later controller may tune future STATICS/WETH allocations from the initial
+25%/75% split to the full protocol's governed seven-way allocation. It cannot
+redirect historical treasury liabilities or unlock previously compounded
+liquidity.
+
+Genesis ownership remains optional for full-protocol access. The redemption
 claim is intrinsic to Genesis and independent of future PositionNFT utility.
 
 ## Immutability and configuration boundary
@@ -350,17 +510,20 @@ The following values or guarantees are immutable:
 - Genesis maximum supply;
 - `P`;
 - the 555/500/4,500 genesis allocation counts;
+- the 3%/95%/2% public-market inventory allocation;
 - the STATICS token used for backing;
 - prohibition on withdrawing Genesis backing;
 - independence of redemption value from activation tier;
-- PoolManager and WETH used by the canonical launch market;
-- the combined hook-fee safety ceiling; and
-- the permanent-liquidity policy of the launch STATICS/WETH pool.
+- PoolManager and WETH used by the canonical market;
+- canonical PoolKey after initialization;
+- the combined hook-fee ceiling;
+- permanence of all three launch positions; and
+- permanence of fee-funded STATICS/WETH liquidity.
 
-The canonical PoolKey, opening price, launch range, launch liquidity, and
-inventory amount must be fixed before public trading opens. Governance may
-configure future per-pool hook fee rates, allocations, recipients, and approved
-pool integrations only within immutable bounds.
+The opening price, tick spacing, and exact region endpoints must be fixed before
+public trading opens. Governance may configure future per-pool hook fee rates,
+allocations, recipients, and approved pool integrations only within immutable
+bounds.
 
 ## Security invariants
 
@@ -374,48 +537,103 @@ Implementation and release validation must prove at minimum:
 6. The 500 vault-owned NFTs create no liability until they leave inventory.
 7. Redemption pays exactly `P` or reverts atomically.
 8. No administrative path can consume or withdraw Genesis backing.
-9. PoolManager, position, and hook custody cover every recorded market asset and
-   fee liability.
-10. No WETH or STATICS amount is recorded in two economic buckets.
-11. The launch position begins with exactly 810,045,000 STATICS and requires no
-    WETH contribution.
-12. The market cannot pay out more WETH principal than the position has
-    accumulated through prior swaps or later explicit liquidity additions.
-13. Price and inventory movement follow native V4 concentrated-liquidity math
+9. The launch transaction requires exactly 810,045,000 STATICS and zero WETH.
+10. Discovery, main, and tail positions receive their exact committed inventory,
+    subject only to explicitly accounted rounding dust.
+11. The three launch allocations sum to exactly 810,045,000 STATICS and 4,500
+    paired units.
+12. A wrong initializer, PoolKey, hook, opening price, tick, token order, or
+    inventory amount reverts atomically.
+13. The canonical pool cannot be initialized twice or initialized early by an
+    unauthorized caller.
+14. Launch-position liquidity never decreases.
+15. Fee-funded permanent liquidity never decreases.
+16. Launch principal, fee-funded liquidity, treasury liabilities, and Genesis
+    backing remain separately solvent and are never double-counted.
+17. Price and inventory movement follow native V4 concentrated-liquidity math
     under all valid swap sequences and rounding boundaries.
-14. The canonical pool is initialized once at the committed PoolId, opening
-    price, and launch range.
-15. Unauthorized pool initialization and liquidity modification revert.
-16. Hook allocations sum to every fee collected on both swap legs.
-17. Recipient changes cannot redirect historical fee claims.
-18. Permanent STATICS/WETH launch liquidity never decreases.
-19. Direct token or NFT donations can only overcollateralize custody and cannot
+18. The pool cannot pay more WETH principal than its positions and pending
+    ledgers actually hold.
+19. Every specified-leg and realized-output-leg fee is backed by an exact token
+    debit and receipt.
+20. The 25% liquidity allocation plus 75% treasury allocation equals every fee
+    collected, including rounding remainder.
+21. Pending compounding balances plus treasury liabilities never exceed hook and
+    controller custody for either asset.
+22. Unmatched compounding balances remain recoverably pending without blocking
+    swaps.
+23. Permissionless compounding and processing cannot redirect proceeds or earn
+    unauthorized claims.
+24. A reverting treasury or future recipient cannot block swaps.
+25. Controller transfer cannot alter historical claims or permanent liquidity.
+26. Direct token or NFT donations can only overcollateralize custody and cannot
     create withdrawable revenue or unearned claims.
-20. Activation burns cannot debit or reduce Genesis backing.
+27. Activation burns cannot debit or reduce Genesis backing.
 
 Stateful invariant tests must exercise arbitrary sequences of public issuance,
 inventory purchase, NFT transfer, redemption, direct donation, exact-input
-swaps, exact-output swaps, hook-fee claims, and later burn integration. Real V4
-integration tests must prove launch from zero WETH, inventory distribution,
-both swap directions after WETH enters the position, fee routing, and market-
-asset conservation.
+swaps, exact-output swaps, treasury claims, compounding, controller transfer,
+and later burn integration.
+
+Real V4 integration tests must prove atomic launch from zero WETH, the exact
+three-region inventory placement, purchases through region transitions, both
+swap directions after WETH enters the pool, bilateral fee collection, 25%/75%
+allocation, pull-based treasury claims, repeated compounding, and conservation
+of every market asset.
+
+## Alternatives considered
+
+### Separate constant-product bonding curve followed by graduation
+
+Rejected. Livo's `ConstantProductBondingCurve` demonstrates a conventional
+standalone curve, but Statics does not need a separate reserve contract,
+graduation threshold, migration transaction, or second market. The canonical V4
+pool can hold the sale inventory and perform price discovery directly.
+
+### One wide concentrated-liquidity launch position
+
+Rejected. It is simple, but constant liquidity front-loads the cheapest
+inventory. The earlier version of this ADR used this model. Doppler Multicurve's
+analysis and the resulting inventory model support a small discovery tranche,
+a broad main market, and a small tail instead.
+
+### Adopt Doppler/Airlock directly
+
+Rejected. Doppler is a valuable market-structure and implementation reference,
+but Statics already has bilateral fee collection, split accounting, permanent
+liquidity, pool registration, and future protocol-specific allocation channels.
+Adopting Airlock would add token-factory, migration, beneficiary, and governance
+machinery that Statics does not require.
+
+### Graduate into a conventional pool at a chosen FDV
+
+Rejected. The broad main region already supplies ordinary concentrated-liquidity
+pricing after discovery. The extreme tail avoids an operational handoff. The
+same PoolId remains canonical from launch onward.
+
+### Route 100% of initial fees to treasury
+
+Rejected. Trading fees should simultaneously fund operations and build a
+permanent two-sided liquidity floor. The accepted initial allocation is 25%
+auto-compounding liquidity and 75% treasury revenue.
 
 ## Non-goals
 
 - Deploying the complete Statics Diamond in the Genesis release.
 - Ongoing STATICS emissions or discretionary minting.
 - Selling Genesis NFTs directly for ETH or WETH.
-- Deploying a separate bonding curve, auction, graduation mechanism, or market
-  migration path.
+- Deploying a separate bonding curve, graduation mechanism, or market migration.
 - Requiring treasury WETH or third-party liquidity to open the market.
-- Guaranteeing a fixed WETH raise, sold supply, terminal price, or time to sell
-  through the launch range.
-- Treating Genesis backing or V4 market liquidity as treasury revenue.
-- Giving treasury or governance a Genesis-backing withdrawal path.
+- Guaranteeing a fixed WETH raise, sold supply, terminal price, or sale time.
+- Treating Genesis backing, launch principal, or compounded liquidity as
+  treasury revenue.
+- Giving treasury or governance a Genesis-backing or permanent-liquidity
+  withdrawal path.
 - Promising an ETH, WETH, or fiat-denominated NFT floor.
 - Using the canonical pool's spot price as a manipulation-resistant protocol
   oracle.
-- Finalizing the opening price, launch range, fee rates, tick spacing, or
+- Copying Bankr's fee rates, anti-snipe decay, creator vesting, or token supply.
+- Finalizing the opening price, region endpoints, fee rates, tick spacing, or
   controller addresses in this ADR.
 - Finalizing PositionNFT reward-weight implementation in the standalone release.
 
@@ -426,14 +644,15 @@ asset conservation.
 - Every public conversion of STATICS into Genesis backing reduces liquid supply
   by exactly `P` and increases circulating NFT supply by one.
 - Every redemption reverses that transition exactly.
-- Maximum NFT backing can approach the complete token supply; liquid market
-  depth is therefore endogenous to Genesis issuance and redemption.
-- V4 liquidity supplies token-form public inventory from the first trade and can
-  shift toward WETH as Genesis demand absorbs STATICS.
-- Future activation burns preserve existing NFT floors while reducing future
-  conversion capacity and increasing scarcity.
-- Operating revenue is observable market-fee revenue rather than an accounting
-  label applied to founder allocation, backing, or reserves.
+- A small discovery tranche limits cheap early inventory relative to a single
+  wide position.
+- The broad main range provides the durable market without graduation.
+- The extreme tail makes complete inventory exhaustion economically remote
+  without pretending V4 ranges are mathematically infinite.
+- Every trade builds permanent liquidity while creating claimable treasury
+  revenue in the assets actually charged.
+- Operating revenue is observable hook-fee revenue rather than an accounting
+  label applied to founder allocation, backing, or market reserves.
 - The full Statics protocol can launch later without replacing the Genesis
   collection, token, vault, hook, or canonical STATICS/WETH market.
 
@@ -441,16 +660,32 @@ asset conservation.
 
 The implementation specification must settle:
 
-- the opening human price and its token-order-correct `sqrtPriceX96` value;
-- tick spacing, one-sided launch-range endpoints, and the exact liquidity value
-  that deposits 810,045,000 STATICS;
-- behavior when price reaches either end of the launch range, including whether
-  any later range extension or repositioning can ever be authorized;
-- initial V4 input/output hook fee rates and combined ceiling;
+- the opening human price and token-order-correct `sqrtPriceX96`;
+- tick spacing and exact discovery, main, and extreme-tail endpoints;
+- the main region's intended economically relevant upper FDV;
+- initial input/output hook fee rates within the 200-basis-point ceiling;
+- whether an anti-snipe mechanism is unnecessary or should be specified
+  separately;
 - whether third-party liquidity is permissionless, restricted, or disabled for
-  the canonical launch pool;
-- deployment controller, treasury, and later control-acceptance process;
-- precise treatment of V4 rounding dust;
+  the canonical pool;
+- launch controller, treasury, and later control-acceptance addresses;
+- exact V4 rounding-dust treatment;
 - metadata behavior before and after later activation integration; and
 - the narrow future interface through which the Diamond coordinates Genesis
   tier, link, and reward-weight transitions.
+
+## References
+
+- [Current Statics swap-fee hook](../../src/liquidity/StaticsSwapFeeHook.sol)
+- [Statics Genesis-tokenomics PR #27](https://github.com/EqualFiLabs/statics/pull/27)
+- [Doppler Multicurve paper](https://www.doppler.lol/multicurve.pdf)
+- [Doppler `Multicurve.sol`](https://github.com/whetstoneresearch/doppler/blob/main/src/libraries/Multicurve.sol)
+- [Doppler `NoOpMigrator.sol`](https://github.com/whetstoneresearch/doppler/blob/main/src/migrators/NoOpMigrator.sol)
+- [Doppler SDK multicurve examples](https://github.com/whetstoneresearch/doppler-sdk)
+- [Bankr token-launch documentation](https://docs.bankr.bot/token-launching/overview/)
+- [Bankr fee structure](https://docs.bankr.bot/token-launching/fee-splitting/)
+- [Observed Bankr/Doppler Base launch transaction](https://base.blockscout.com/tx/0x283159aae571ce4f403ea04fc25c2f3d80004ae256157a6d502245719dc0ded3)
+- [Crotto fixed-backing NFT vault](https://github.com/EqualFiLabs/crotto/blob/master/src/diamond/facets/NFTVaultFacet.sol)
+- [Crotto canonical V4 fee hook](https://github.com/EqualFiLabs/crotto/blob/master/src/liquidity/CrottoSwapFeeHook.sol)
+- [Livo constant-product bonding curve](https://github.com/LivoLaunchpad/livo-contracts/blob/main/src/bondingCurves/ConstantProductBondingCurve.sol)
+- [Uniswap v4 core repository](https://github.com/Uniswap/v4-core)
