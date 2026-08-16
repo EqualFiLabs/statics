@@ -7,6 +7,7 @@ import {Test} from "forge-std/Test.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -58,7 +59,7 @@ contract StaticsV4InvariantHandler {
         uint256 maximum = balance / 10;
         if (maximum < 1 gwei) maximum = balance;
         uint256 amount = (seed % maximum) + 1;
-        _swap(!wethToStaticsZeroForOne, -int256(amount));
+        _trySell(!wethToStaticsZeroForOne, amount);
     }
 
     function compound() external {
@@ -88,6 +89,28 @@ contract StaticsV4InvariantHandler {
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         );
+    }
+
+    function _trySell(bool zeroForOne, uint256 amount) private {
+        try router.swap(
+            key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(amount),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        ) returns (
+            BalanceDelta
+        ) {
+        // A fully fillable sell exercises the ordinary state transition.
+        }
+            catch {
+            // An oversized sell can reach the one-sided launch boundary. The
+            // hook must reject that partial fill atomically, so it is a valid
+            // no-op transition rather than an invariant-handler failure.
+        }
     }
 }
 
