@@ -8,12 +8,23 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Consecutive} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Consecutive.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
+import {ICreatorToken, ICreatorTokenLegacy, ITransferValidator} from "../interfaces/ICreatorToken.sol";
+import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 
 /// @notice Fixed 5,555-token collection paired one-for-one with 180,010 STATICS claims.
-contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStaticsGenesis, Ownable2Step {
+contract StaticsGenesis is
+    ERC721Consecutive,
+    ERC2981,
+    IERC4906,
+    IERC5192,
+    IERC7572,
+    ICreatorToken,
+    IStaticsGenesis,
+    Ownable2Step
+{
     uint256 public constant override COLLECTION_SIZE = 5_555;
     uint256 public constant override TREASURY_GENESIS_COUNT = 555;
     uint256 public constant override VAULT_GENESIS_COUNT = 5_000;
@@ -28,6 +39,8 @@ contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStat
     bool public override launchFinalized;
     string public override contractURI;
     string public externalURLBase;
+    address private transferValidator;
+    mapping(uint256 genesisId => bool reportedLocked) private reportedLockStatus;
     bool private callbackEntered;
 
     error InvalidTreasury();
@@ -44,6 +57,8 @@ contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStat
     error InvalidMetadataURI();
     error RoyaltyExceedsMaximum(uint96 royaltyBps, uint96 maximumRoyaltyBps);
     error OwnershipRenunciationDisabled();
+    error InvalidTransferValidator(address validator);
+    error GenesisLocked(uint256 genesisId);
 
     event DefaultRoyaltyUpdated(address indexed receiver, uint96 royaltyBps);
     event ExternalURLBaseUpdated(string externalURLBase);
@@ -87,6 +102,10 @@ contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStat
             revert InvalidProtocol();
         }
         if (collection != address(this)) revert InvalidProtocol();
+        try IStaticsGenesisProtocol(protocol_).linkedPosition(1) returns (uint256) {}
+        catch {
+            revert InvalidProtocol();
+        }
         protocol = protocol_;
         emit ProtocolBound(protocol_);
         emit BatchMetadataUpdate(1, COLLECTION_SIZE);
@@ -120,6 +139,47 @@ contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStat
         revert OwnershipRenunciationDisabled();
     }
 
+    function setTransferValidator(address validator) external override onlyOwner {
+        if (validator != address(0) && validator.code.length == 0) revert InvalidTransferValidator(validator);
+        address previousValidator = transferValidator;
+        transferValidator = validator;
+        emit TransferValidatorUpdated(previousValidator, validator);
+    }
+
+    function getTransferValidator() public view override returns (address validator) {
+        return transferValidator;
+    }
+
+    function getTransferValidationFunction()
+        external
+        pure
+        override
+        returns (bytes4 functionSignature, bool isViewFunction)
+    {
+        functionSignature = ITransferValidator.validateTransfer.selector;
+        isViewFunction = true;
+    }
+
+    function locked(uint256 genesisId) public view override returns (bool) {
+        _requireOwned(genesisId);
+        address protocol_ = protocol;
+        if (protocol_ == address(0)) return false;
+        try IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId) returns (uint256 positionId) {
+            return positionId != 0;
+        } catch {
+            return true;
+        }
+    }
+
+    function refreshLockStatus(uint256 genesisId) external override {
+        if (msg.sender != protocol) revert UnauthorizedProtocol(msg.sender);
+        bool currentStatus = locked(genesisId);
+        if (reportedLockStatus[genesisId] == currentStatus) return;
+        reportedLockStatus[genesisId] = currentStatus;
+        if (currentStatus) emit Locked(genesisId);
+        else emit Unlocked(genesisId);
+    }
+
     function refreshMetadata(uint256 genesisId) external override {
         if (msg.sender != protocol) revert UnauthorizedProtocol(msg.sender);
         _requireOwned(genesisId);
@@ -133,7 +193,9 @@ contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStat
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981, IERC165) returns (bool) {
         return interfaceId == ERC4906_INTERFACE_ID || interfaceId == type(IStaticsGenesis).interfaceId
-            || interfaceId == type(IERC7572).interfaceId || super.supportsInterface(interfaceId);
+            || interfaceId == type(IERC5192).interfaceId || interfaceId == type(IERC7572).interfaceId
+            || interfaceId == type(ICreatorToken).interfaceId || interfaceId == type(ICreatorTokenLegacy).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     function _firstConsecutiveId() internal pure override returns (uint96) {
@@ -149,7 +211,12 @@ contract StaticsGenesis is ERC721Consecutive, ERC2981, IERC4906, IERC7572, IStat
         bool ownerChangingTransfer = previousOwner != address(0) && to != address(0) && previousOwner != to;
         if (ownerChangingTransfer) {
             if (!launchFinalized) revert TransfersDisabled();
+            if (locked(genesisId)) revert GenesisLocked(genesisId);
             if (auth != address(0)) _checkAuthorized(previousOwner, auth, genesisId);
+            address validator = transferValidator;
+            if (validator != address(0)) {
+                ITransferValidator(validator).validateTransfer(_msgSender(), previousOwner, to, genesisId);
+            }
             address protocol_ = protocol;
             if (protocol_ != address(0)) {
                 if (callbackEntered) revert ReentrantTransferCallback();

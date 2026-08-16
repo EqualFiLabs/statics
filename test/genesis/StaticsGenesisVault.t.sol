@@ -3,9 +3,11 @@ pragma solidity 0.8.33;
 
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Test} from "forge-std/Test.sol";
+import {ICreatorToken, ICreatorTokenLegacy, ITransferValidator} from "../../src/interfaces/ICreatorToken.sol";
+import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IERC7572} from "../../src/interfaces/IERC7572.sol";
 import {GenesisVaultAccounting} from "../../src/interfaces/IStaticsGenesisVault.sol";
-import {IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
+import {IStaticsGenesis, IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
@@ -15,6 +17,7 @@ import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
 contract MockGenesisProtocol is IStaticsGenesisProtocol {
     address public immutable override genesisCollection;
     mapping(uint256 genesisId => uint8 tier) public override genesisTier;
+    mapping(uint256 genesisId => uint256 positionId) public override linkedPosition;
     uint256 public lastTransferredId;
     address public lastFrom;
     address public lastTo;
@@ -25,6 +28,16 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
     function setTier(uint256 genesisId, uint8 tier) external {
         genesisTier[genesisId] = tier;
+    }
+
+    function link(uint256 genesisId, uint256 positionId) external {
+        linkedPosition[genesisId] = positionId;
+        IStaticsGenesis(genesisCollection).refreshLockStatus(genesisId);
+    }
+
+    function unlink(uint256 genesisId) external {
+        delete linkedPosition[genesisId];
+        IStaticsGenesis(genesisCollection).refreshLockStatus(genesisId);
     }
 
     function onGenesisTransfer(uint256 genesisId, address from, address to) external override {
@@ -47,8 +60,50 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             revert("TIER_UNAVAILABLE");
         }
 
+        function linkedPosition(uint256) external pure override returns (uint256) {
+            return 0;
+        }
+
         function onGenesisTransfer(uint256, address, address) external view override {
             require(msg.sender == genesisCollection, "ONLY_GENESIS");
+        }
+    }
+
+    contract RevertingLinkGenesisProtocol is IStaticsGenesisProtocol {
+        address public immutable override genesisCollection;
+        bool public revertLinkRead;
+
+        constructor(address collection) {
+            genesisCollection = collection;
+        }
+
+        function genesisTier(uint256) external pure override returns (uint8) {
+            return 0;
+        }
+
+        function setRevertLinkRead(bool shouldRevert) external {
+            revertLinkRead = shouldRevert;
+        }
+
+        function linkedPosition(uint256) external view override returns (uint256) {
+            require(!revertLinkRead, "LINK_UNAVAILABLE");
+            return 0;
+        }
+
+        function onGenesisTransfer(uint256, address, address) external view override {
+            require(msg.sender == genesisCollection, "ONLY_GENESIS");
+        }
+    }
+
+    contract MockTransferValidator is ITransferValidator {
+        bool public immutable allowed;
+
+        constructor(bool allowed_) {
+            allowed = allowed_;
+        }
+
+        function validateTransfer(address, address, address, uint256) external view override {
+            require(allowed, "TRANSFER_BLOCKED");
         }
     }
 
@@ -228,6 +283,85 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             assertEq(protocol.lastFrom(), founderTreasury);
             assertEq(protocol.lastTo(), receiver);
             assertEq(genesis.owner(), address(this));
+        }
+
+        function testZeroValidatorIsUnrestrictedAndConfiguredValidatorApplies() public {
+            assertEq(genesis.getTransferValidator(), address(0));
+            assertTrue(genesis.supportsInterface(type(ICreatorToken).interfaceId));
+            assertTrue(genesis.supportsInterface(type(ICreatorTokenLegacy).interfaceId));
+
+            MockTransferValidator blockingValidator = new MockTransferValidator(false);
+            genesis.setTransferValidator(address(blockingValidator));
+            vm.prank(founderTreasury);
+            vm.expectRevert("TRANSFER_BLOCKED");
+            genesis.transferFrom(founderTreasury, buyer, 1);
+
+            genesis.setTransferValidator(address(0));
+            vm.prank(founderTreasury);
+            genesis.transferFrom(founderTreasury, buyer, 1);
+            assertEq(genesis.ownerOf(1), buyer);
+        }
+
+        function testTransferValidatorMustBeZeroOrAContract() public {
+            address validatorEOA = makeAddr("validatorEOA");
+            vm.expectRevert(
+                abi.encodeWithSelector(StaticsGenesis.InvalidTransferValidator.selector, validatorEOA)
+            );
+            genesis.setTransferValidator(validatorEOA);
+        }
+
+        function testLinkedGenesisReportsLockedAndMustUnlinkBeforeTransfer() public {
+            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
+            genesis.bindProtocol(address(protocol));
+            assertTrue(genesis.supportsInterface(type(IERC5192).interfaceId));
+            assertFalse(genesis.locked(1));
+
+            vm.expectEmit(false, false, false, true, address(genesis));
+            emit IERC5192.Locked(1);
+            protocol.link(1, 42);
+            assertTrue(genesis.locked(1));
+
+            vm.prank(founderTreasury);
+            vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
+            genesis.transferFrom(founderTreasury, buyer, 1);
+
+            vm.expectEmit(false, false, false, true, address(genesis));
+            emit IERC5192.Unlocked(1);
+            protocol.unlink(1);
+            assertFalse(genesis.locked(1));
+
+            vm.prank(founderTreasury);
+            genesis.transferFrom(founderTreasury, buyer, 1);
+            assertEq(genesis.ownerOf(1), buyer);
+        }
+
+        function testLinkedGenesisMustUnlinkBeforeVaultRedemption() public {
+            uint256 tokenId = 1_056;
+            _fundAndApproveBuyer(PRICE);
+            vm.prank(buyer);
+            vault.buyGenesis(tokenId, buyer);
+
+            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
+            genesis.bindProtocol(address(protocol));
+            protocol.link(tokenId, 42);
+
+            vm.startPrank(buyer);
+            genesis.approve(address(vault), tokenId);
+            vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, tokenId));
+            vault.redeemGenesis(tokenId, buyer);
+            vm.stopPrank();
+            assertEq(genesis.ownerOf(tokenId), buyer);
+        }
+
+        function testBoundProtocolLinkReadFailureLocksTransfer() public {
+            RevertingLinkGenesisProtocol protocol = new RevertingLinkGenesisProtocol(address(genesis));
+            genesis.bindProtocol(address(protocol));
+            protocol.setRevertLinkRead(true);
+            assertTrue(genesis.locked(1));
+
+            vm.prank(founderTreasury);
+            vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
+            genesis.transferFrom(founderTreasury, buyer, 1);
         }
 
         function testGenesisMetadataReflectsBoundProtocolTier() public {
