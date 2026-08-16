@@ -128,7 +128,9 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             statics.approve(address(vault), publicMintCost + PRICE);
 
             vm.startPrank(buyer);
-            for (uint256 i; i < 4_500; ++i) vault.buyNewGenesis(buyer);
+            for (uint256 i; i < 4_500; ++i) {
+                vault.buyNewGenesis(buyer);
+            }
             vault.buyInventoryGenesis(556, buyer);
             vm.stopPrank();
 
