@@ -4,199 +4,341 @@ pragma solidity 0.8.33;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {GenesisActivationRegistry} from "../src/genesis/GenesisActivationRegistry.sol";
+import {GenesisLaunchDistributor} from "../src/genesis/GenesisLaunchDistributor.sol";
+import {StaticsFeeReceiver} from "../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
-import {StaticsHookController} from "../src/genesis/StaticsHookController.sol";
-import {StaticsV4Hook} from "../src/liquidity/StaticsV4Hook.sol";
+import {StaticsLaunchAllocationEscrow} from "../src/genesis/StaticsLaunchAllocationEscrow.sol";
+import {
+    DopplerLaunchTypes,
+    IDopplerAirlock,
+    IDopplerHookInitializerView
+} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
+import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../src/tokens/StaticsGenesis.sol";
-import {StaticsToken} from "../src/tokens/StaticsToken.sol";
 
 struct StaticsGenesisDeploymentConfig {
     address governance;
     address treasury;
-    address weth;
-    address poolManager;
-    uint16 inputFeeBps;
-    uint16 outputFeeBps;
+    address numeraire;
+    address integrator;
+    StaticsDopplerLaunchConfig.Modules modules;
+    bytes32 salt;
+    uint24 startFee;
+    uint24 endFee;
+    uint32 feeDecayDuration;
+    uint16 genesisRewardShareBps;
+    string tokenURI;
     string contractURI;
     string externalURLBase;
 }
 
 struct StaticsGenesisDeployment {
     address statics;
+    address dopplerPoolInitializer;
+    address rehype;
+    bytes32 poolId;
+    address feeReceiver;
+    address allocationEscrow;
+    address activationRegistry;
     address genesis;
     address genesisVault;
+    address genesisDistributor;
     address genesisRenderer;
     address avatarSVG;
-    address hookController;
-    address v4Hook;
 }
 
-/// @notice Fresh-deployment-only launcher. It leaves the canonical pool inert for a separate governance launch call.
+/// @notice Fresh-deployment-only launcher for the standalone Doppler Genesis system.
 contract DeployStaticsGenesis is Script {
-    using SafeERC20 for IERC20;
+    using PoolIdLibrary for PoolKey;
 
-    uint256 private constant FOUNDER_BACKING = 99_905_550 ether;
-    uint256 private constant FOUNDER_LIQUID = 90_005_000 ether;
-    uint256 private constant PUBLIC_LAUNCH_INVENTORY = 810_045_000 ether;
-    address private constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-    uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-        | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_SWAP_FLAG
-        | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
+    uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
+    uint256 public constant DOPPLER_INVENTORY = 800_000_000 ether;
+    uint256 public constant TREASURY_ALLOCATION = 200_000_000 ether;
+    uint256 public constant BENEFICIARY_SHARE = 0.75 ether;
+    uint256 public constant AUTO_LIQUIDITY_SHARE = 0.25 ether;
+    uint8 public constant ROUTE_TO_BENEFICIARY_FEES = 1;
+    int24 public constant TICK_SPACING = 100;
+    int24 public constant FAR_TICK = -83_100;
+    address public constant GOVERNANCE_DEAD = address(0xdead);
+    address public constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
 
     error ZeroAddress();
-    error InvalidFeeRate(uint256 combinedFeeBps);
+    error InvalidModule(address module);
     error InvalidMetadataURI();
-    error HookAddressMismatch(address expected, address actual);
-    error AllocationMismatch(uint256 remaining);
+    error InvalidFeeSchedule(uint24 startFee, uint24 endFee, uint32 duration);
+    error InvalidRewardShare(uint16 shareBps);
+    error RehypeNotEnabled(address rehype);
+    error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
+    error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
 
     function run() external returns (StaticsGenesisDeployment memory deployment) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
-        uint256 inputFeeBps = vm.envUint("STATICS_GENESIS_INPUT_FEE_BPS");
-        uint256 outputFeeBps = vm.envUint("STATICS_GENESIS_OUTPUT_FEE_BPS");
-        uint256 combinedFeeBps = inputFeeBps + outputFeeBps;
-        if (combinedFeeBps > 200) revert InvalidFeeRate(combinedFeeBps);
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
             governance: vm.envAddress("STATICS_GENESIS_GOVERNANCE"),
             treasury: vm.envAddress("STATICS_GENESIS_TREASURY"),
-            weth: vm.envAddress("WETH_ADDRESS"),
-            poolManager: vm.envAddress("POOL_MANAGER_ADDRESS"),
-            inputFeeBps: uint16(inputFeeBps),
-            outputFeeBps: uint16(outputFeeBps),
+            numeraire: vm.envAddress("WETH_ADDRESS"),
+            integrator: vm.envOr("STATICS_DOPPLER_INTEGRATOR", address(0)),
+            modules: StaticsDopplerLaunchConfig.modules(block.chainid),
+            salt: vm.envBytes32("STATICS_DOPPLER_SALT"),
+            startFee: uint24(vm.envUint("STATICS_DOPPLER_START_FEE")),
+            endFee: uint24(vm.envUint("STATICS_DOPPLER_END_FEE")),
+            feeDecayDuration: uint32(vm.envUint("STATICS_DOPPLER_FEE_DECAY_SECONDS")),
+            genesisRewardShareBps: uint16(vm.envUint("STATICS_GENESIS_REWARD_SHARE_BPS")),
+            tokenURI: vm.envString("STATICS_TOKEN_URI"),
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
             externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
         });
-        _validate(config);
 
         vm.startBroadcast(privateKey);
-        deployment = _deployBootstrap(config, deployer, deployer);
-        vm.stopBroadcast();
-
-        bytes memory constructorArgs = _hookConstructorArgs(deployment, config);
-        (address expectedHook, bytes32 salt) = HookMiner.find(
-            FOUNDRY_CREATE2_DEPLOYER, REQUIRED_HOOK_FLAGS, type(StaticsV4Hook).creationCode, constructorArgs
-        );
-
-        vm.startBroadcast(privateKey);
-        deployment = _deployMarket(deployment, config, salt, expectedHook, deployer);
+        deployment = deploy(config, deployer);
         vm.stopBroadcast();
         _log(deployment);
     }
 
-    function deploy(StaticsGenesisDeploymentConfig memory config)
+    function deploy(StaticsGenesisDeploymentConfig memory config, address initialOwner)
         public
         returns (StaticsGenesisDeployment memory deployment)
     {
-        _validate(config);
-        deployment = _deployBootstrap(config, address(this), address(this));
-        bytes memory constructorArgs = _hookConstructorArgs(deployment, config);
-        (address expectedHook, bytes32 salt) =
-            HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsV4Hook).creationCode, constructorArgs);
-        deployment = _deployMarket(deployment, config, salt, expectedHook, address(this));
-    }
+        _validate(config, initialOwner);
 
-    function _deployBootstrap(
-        StaticsGenesisDeploymentConfig memory config,
-        address initialTokenHolder,
-        address hookBinder
-    ) private returns (StaticsGenesisDeployment memory deployment) {
-        StaticsToken statics = new StaticsToken(initialTokenHolder);
+        StaticsFeeReceiver receiver = new StaticsFeeReceiver(config.modules.rehype, config.numeraire, initialOwner);
+        StaticsLaunchAllocationEscrow allocationEscrow =
+            new StaticsLaunchAllocationEscrow(config.treasury, initialOwner);
+        (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, allocationEscrow);
+        receiver.bindMarket(statics, poolId);
+
+        GenesisActivationRegistry registry = new GenesisActivationRegistry(IERC20(statics), initialOwner, initialOwner);
         StaticsGenesisVault vault =
-            new StaticsGenesisVault(IERC20(address(statics)), initialTokenHolder, config.governance, config.treasury);
+            new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.treasury);
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
         StaticsGenesis genesis = new StaticsGenesis(
-            config.treasury,
             address(vault),
+            address(registry),
             renderer,
-            config.governance,
+            initialOwner,
+            config.treasury,
             config.contractURI,
             config.externalURLBase
         );
-        StaticsHookController controller = new StaticsHookController(config.governance, hookBinder);
-
-        IERC20(address(statics)).safeTransfer(address(vault), FOUNDER_BACKING);
-        IERC20(address(statics)).safeTransfer(config.treasury, FOUNDER_LIQUID);
+        registry.bindGenesisCollection(address(genesis));
         vault.finalizeGenesisCollection(address(genesis));
+        allocationEscrow.release(IERC20(statics), address(vault));
+        if (IERC20(statics).balanceOf(config.treasury) != TREASURY_ALLOCATION) {
+            revert AllocationMismatch(IERC20(statics).totalSupply(), IERC20(statics).balanceOf(config.treasury));
+        }
+
+        GenesisLaunchDistributor distributor = new GenesisLaunchDistributor(
+            receiver, genesis, registry, config.treasury, initialOwner, config.genesisRewardShareBps
+        );
+        receiver.proposeDistributor(address(distributor));
+        distributor.acceptFeeReceiverRole();
+        registry.proposeConsumer(address(distributor));
+        distributor.acceptActivationConsumer();
+
+        receiver.transferOwnership(config.governance);
+        registry.transferOwnership(config.governance);
+        vault.transferOwnership(config.governance);
+        genesis.transferOwnership(config.governance);
+        distributor.transferOwnership(config.governance);
 
         deployment = StaticsGenesisDeployment({
-            statics: address(statics),
+            statics: statics,
+            dopplerPoolInitializer: config.modules.poolInitializer,
+            rehype: config.modules.rehype,
+            poolId: poolId,
+            feeReceiver: address(receiver),
+            allocationEscrow: address(allocationEscrow),
+            activationRegistry: address(registry),
             genesis: address(genesis),
             genesisVault: address(vault),
+            genesisDistributor: address(distributor),
             genesisRenderer: address(renderer),
-            avatarSVG: address(avatar),
-            hookController: address(controller),
-            v4Hook: address(0)
+            avatarSVG: address(avatar)
         });
     }
 
-    function _deployMarket(
-        StaticsGenesisDeployment memory deployment,
+    /// @notice Nonproduction four-curve fixture. Production ranges require a separate ratification.
+    function defaultCurves() public pure returns (DopplerLaunchTypes.Curve[] memory curves) {
+        curves = new DopplerLaunchTypes.Curve[](4);
+        curves[0] =
+            DopplerLaunchTypes.Curve({tickLower: -887_200, tickUpper: -142_200, numPositions: 11, shares: 0.5 ether});
+        curves[1] =
+            DopplerLaunchTypes.Curve({tickLower: -222_200, tickUpper: -116_300, numPositions: 11, shares: 0.25 ether});
+        curves[2] =
+            DopplerLaunchTypes.Curve({tickLower: -176_200, tickUpper: -84_100, numPositions: 11, shares: 0.24 ether});
+        curves[3] =
+            DopplerLaunchTypes.Curve({tickLower: -84_100, tickUpper: -83_000, numPositions: 11, shares: 0.01 ether});
+    }
+
+    function _createDopplerMarket(
         StaticsGenesisDeploymentConfig memory config,
-        bytes32 salt,
-        address expectedHook,
-        address assetHolder
-    ) private returns (StaticsGenesisDeployment memory) {
-        StaticsV4Hook hook = new StaticsV4Hook{salt: salt}(
-            IPoolManager(config.poolManager),
-            deployment.hookController,
-            deployment.statics,
-            config.weth,
-            config.treasury,
-            config.inputFeeBps,
-            config.outputFeeBps
-        );
-        if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
-        StaticsHookController(deployment.hookController).bindHook(address(hook));
-        IERC20(deployment.statics).safeTransfer(address(hook), PUBLIC_LAUNCH_INVENTORY);
-        uint256 remaining = IERC20(deployment.statics).balanceOf(assetHolder);
-        uint256 expectedRemaining = config.treasury == assetHolder ? FOUNDER_LIQUID : 0;
-        if (remaining != expectedRemaining) revert AllocationMismatch(remaining);
-        deployment.v4Hook = address(hook);
-        return deployment;
-    }
-
-    function _hookConstructorArgs(
-        StaticsGenesisDeployment memory deployment,
-        StaticsGenesisDeploymentConfig memory config
-    ) private pure returns (bytes memory) {
-        return abi.encode(
-            IPoolManager(config.poolManager),
-            deployment.hookController,
-            deployment.statics,
-            config.weth,
-            config.treasury,
-            config.inputFeeBps,
-            config.outputFeeBps
-        );
-    }
-
-    function _validate(StaticsGenesisDeploymentConfig memory config) private view {
+        StaticsFeeReceiver receiver,
+        StaticsLaunchAllocationEscrow allocationEscrow
+    ) private returns (address statics, bytes32 poolId) {
+        IDopplerAirlock airlock = IDopplerAirlock(config.modules.airlock);
         if (
-            config.governance == address(0) || config.treasury == address(0) || config.weth == address(0)
-                || config.poolManager == address(0) || config.weth.code.length == 0
-                || config.poolManager.code.length == 0
+            IDopplerHookInitializerView(config.modules.poolInitializer).isDopplerHookEnabled(config.modules.rehype) & 1
+                == 0
+        ) {
+            revert RehypeNotEnabled(config.modules.rehype);
+        }
+
+        DopplerLaunchTypes.BeneficiaryData[] memory poolBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](1);
+        poolBeneficiaries[0] =
+            DopplerLaunchTypes.BeneficiaryData({beneficiary: airlock.owner(), shares: uint96(DopplerLaunchTypes.WAD)});
+        DopplerLaunchTypes.BeneficiaryData[] memory feeBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](1);
+        feeBeneficiaries[0] = DopplerLaunchTypes.BeneficiaryData({
+            beneficiary: address(receiver), shares: uint96(DopplerLaunchTypes.WAD)
+        });
+
+        DopplerLaunchTypes.FeeDistributionInfo memory distribution = DopplerLaunchTypes.FeeDistributionInfo({
+            assetFeesToAssetBuybackWad: 0,
+            assetFeesToNumeraireBuybackWad: 0,
+            assetFeesToBeneficiaryWad: BENEFICIARY_SHARE,
+            assetFeesToLpWad: AUTO_LIQUIDITY_SHARE,
+            numeraireFeesToAssetBuybackWad: 0,
+            numeraireFeesToNumeraireBuybackWad: 0,
+            numeraireFeesToBeneficiaryWad: BENEFICIARY_SHARE,
+            numeraireFeesToLpWad: AUTO_LIQUIDITY_SHARE
+        });
+        bytes memory rehypeData = abi.encode(
+            DopplerLaunchTypes.RehypeInitData({
+                numeraire: config.numeraire,
+                buybackDst: address(receiver),
+                startFee: config.startFee,
+                endFee: config.endFee,
+                durationSeconds: config.feeDecayDuration,
+                startingTime: 0,
+                feeRoutingMode: ROUTE_TO_BENEFICIARY_FEES,
+                feeDistributionInfo: distribution,
+                feeBeneficiaries: feeBeneficiaries
+            })
+        );
+        bytes memory poolData = abi.encode(
+            DopplerLaunchTypes.PoolInitializerData({
+                fee: 0,
+                tickSpacing: TICK_SPACING,
+                farTick: FAR_TICK,
+                curves: defaultCurves(),
+                beneficiaries: poolBeneficiaries,
+                dopplerHook: config.modules.rehype,
+                onInitializationDopplerHookCalldata: rehypeData,
+                graduationDopplerHookCalldata: bytes("")
+            })
+        );
+
+        DopplerLaunchTypes.CreateParams memory params = DopplerLaunchTypes.CreateParams({
+            initialSupply: STATICS_SUPPLY,
+            numTokensToSell: DOPPLER_INVENTORY,
+            numeraire: config.numeraire,
+            tokenFactory: config.modules.tokenFactory,
+            tokenFactoryData: _tokenFactoryData(config.tokenURI),
+            governanceFactory: config.modules.governanceFactory,
+            governanceFactoryData: abi.encode(address(allocationEscrow)),
+            poolInitializer: config.modules.poolInitializer,
+            poolInitializerData: poolData,
+            liquidityMigrator: config.modules.noOpMigrator,
+            liquidityMigratorData: bytes(""),
+            integrator: config.integrator,
+            salt: config.salt
+        });
+
+        address pool;
+        address governance;
+        address timelock;
+        address migrationPool;
+        (statics, pool, governance, timelock, migrationPool) = airlock.create(params);
+        if (
+            pool != statics || governance != GOVERNANCE_DEAD || timelock != address(allocationEscrow)
+                || migrationPool != MIGRATION_DEAD
+        ) {
+            revert UnexpectedDopplerResult(pool, governance, timelock, migrationPool);
+        }
+        uint256 totalSupply = IERC20(statics).totalSupply();
+        uint256 escrowBalance = IERC20(statics).balanceOf(address(allocationEscrow));
+        if (totalSupply != STATICS_SUPPLY || escrowBalance < TREASURY_ALLOCATION) {
+            revert AllocationMismatch(totalSupply, escrowBalance);
+        }
+        poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer);
+    }
+
+    function _tokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
+        return abi.encode(
+            "Statics",
+            "STATICS",
+            new DopplerLaunchTypes.VestingSchedule[](0),
+            new address[](0),
+            new uint256[](0),
+            new uint256[](0),
+            tokenURI,
+            uint256(0),
+            uint48(0),
+            address(0),
+            new address[](0)
+        );
+    }
+
+    function _poolId(address statics, address numeraire, address initializer) private pure returns (bytes32) {
+        (address currency0, address currency1) = statics < numeraire ? (statics, numeraire) : (numeraire, statics);
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(currency0),
+            currency1: Currency.wrap(currency1),
+            fee: DopplerLaunchTypes.DYNAMIC_FEE_FLAG,
+            tickSpacing: TICK_SPACING,
+            hooks: IHooks(initializer)
+        });
+        return PoolId.unwrap(key.toId());
+    }
+
+    function _validate(StaticsGenesisDeploymentConfig memory config, address initialOwner) private view {
+        if (
+            initialOwner == address(0) || config.governance == address(0) || config.treasury == address(0)
+                || config.numeraire == address(0)
         ) revert ZeroAddress();
-        if (bytes(config.contractURI).length == 0 || bytes(config.externalURLBase).length == 0) {
+        _requireContract(config.numeraire);
+        _requireContract(config.modules.airlock);
+        _requireContract(config.modules.tokenFactory);
+        _requireContract(config.modules.governanceFactory);
+        _requireContract(config.modules.poolInitializer);
+        _requireContract(config.modules.noOpMigrator);
+        _requireContract(config.modules.rehype);
+        if (
+            bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
+                || bytes(config.externalURLBase).length == 0
+        ) {
             revert InvalidMetadataURI();
         }
-        uint256 combinedFee = uint256(config.inputFeeBps) + config.outputFeeBps;
-        if (combinedFee > 200) revert InvalidFeeRate(combinedFee);
+        if (config.startFee < config.endFee || (config.startFee > config.endFee && config.feeDecayDuration == 0)) {
+            revert InvalidFeeSchedule(config.startFee, config.endFee, config.feeDecayDuration);
+        }
+        if (config.genesisRewardShareBps > 10_000) revert InvalidRewardShare(config.genesisRewardShareBps);
+    }
+
+    function _requireContract(address target) private view {
+        if (target.code.length == 0) revert InvalidModule(target);
     }
 
     function _log(StaticsGenesisDeployment memory deployment) private pure {
         console2.log("STATICS_TOKEN_ADDRESS", deployment.statics);
+        console2.log("STATICS_DOPPLER_POOL_INITIALIZER_ADDRESS", deployment.dopplerPoolInitializer);
+        console2.log("STATICS_REHYPE_ADDRESS", deployment.rehype);
+        console2.logBytes32(deployment.poolId);
+        console2.log("STATICS_FEE_RECEIVER_ADDRESS", deployment.feeReceiver);
+        console2.log("STATICS_LAUNCH_ALLOCATION_ESCROW_ADDRESS", deployment.allocationEscrow);
+        console2.log("STATICS_GENESIS_ACTIVATION_REGISTRY_ADDRESS", deployment.activationRegistry);
         console2.log("STATICS_GENESIS_NFT_ADDRESS", deployment.genesis);
         console2.log("STATICS_GENESIS_VAULT_ADDRESS", deployment.genesisVault);
+        console2.log("STATICS_GENESIS_DISTRIBUTOR_ADDRESS", deployment.genesisDistributor);
         console2.log("STATICS_GENESIS_RENDERER_ADDRESS", deployment.genesisRenderer);
         console2.log("STATICS_GENESIS_AVATAR_SVG_ADDRESS", deployment.avatarSVG);
-        console2.log("STATICS_HOOK_CONTROLLER_ADDRESS", deployment.hookController);
-        console2.log("STATICS_V4_HOOK_ADDRESS", deployment.v4Hook);
     }
 }

@@ -1,154 +1,212 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Test} from "forge-std/Test.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {
     DeployStaticsGenesis,
     StaticsGenesisDeployment,
     StaticsGenesisDeploymentConfig
 } from "../../script/DeployStaticsGenesis.s.sol";
-import {IStaticsV4Hook} from "../../src/interfaces/IStaticsV4Hook.sol";
+import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
+import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistributor.sol";
+import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
+import {DopplerLaunchTypes, IDopplerAirlock} from "../../src/genesis/doppler/DopplerLaunchTypes.sol";
+import {StaticsDopplerLaunchConfig} from "../../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
-import {StaticsHookController} from "../../src/genesis/StaticsHookController.sol";
-import {StaticsV4Hook} from "../../src/liquidity/StaticsV4Hook.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
-import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 
-contract GenesisPoolManagerFixture {}
+contract DeploymentModule {}
 
-contract DeployStaticsGenesisTest is Test {
-    function testDeploysCompleteInertGenesisStackWithExactAllocations() public {
-        address governance = makeAddr("governance");
-        address treasury = makeAddr("treasury");
-        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
-        GenesisPoolManagerFixture manager = new GenesisPoolManagerFixture();
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
-
-        StaticsGenesisDeployment memory deployment = deployer.deploy(
-            StaticsGenesisDeploymentConfig({
-                governance: governance,
-                treasury: treasury,
-                weth: address(weth),
-                poolManager: address(manager),
-                inputFeeBps: 50,
-                outputFeeBps: 50,
-                contractURI: "ipfs://statics-genesis/contract.json",
-                externalURLBase: "https://statics.finance/genesis/"
-            })
-        );
-
-        StaticsToken statics = StaticsToken(deployment.statics);
-        StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
-        StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
-        StaticsHookController controller = StaticsHookController(deployment.hookController);
-        StaticsV4Hook hook = StaticsV4Hook(deployment.v4Hook);
-
-        assertEq(statics.totalSupply(), 999_955_550 ether);
-        assertEq(statics.balanceOf(deployment.genesisVault), 99_905_550 ether);
-        assertEq(statics.balanceOf(treasury), 90_005_000 ether);
-        assertEq(statics.balanceOf(deployment.v4Hook), 810_045_000 ether);
-        assertEq(statics.balanceOf(address(deployer)), 0);
-
-        assertEq(genesis.balanceOf(treasury), 555);
-        assertEq(genesis.balanceOf(deployment.genesisVault), 5_000);
-        assertEq(genesis.mintedSupply(), 5_555);
-        assertEq(genesis.owner(), governance);
-        assertEq(genesis.contractURI(), "ipfs://statics-genesis/contract.json");
-        assertEq(genesis.externalURLBase(), "https://statics.finance/genesis/");
-        assertEq(genesis.getTransferValidator(), address(0));
-        (address royaltyReceiver, uint256 royaltyAmount) = genesis.royaltyInfo(1, 1 ether);
-        assertEq(royaltyReceiver, treasury);
-        assertEq(royaltyAmount, 0.05 ether);
-        assertEq(vault.tokenBacking(), 99_905_550 ether);
-        assertEq(vault.requiredBacking(), 99_905_550 ether);
-        assertEq(vault.nativeAcquisitionFee(), 0.003 ether);
-        assertEq(vault.nativeFeeRecipient(), treasury);
-
-        assertEq(controller.owner(), governance);
-        assertEq(controller.hook(), deployment.v4Hook);
-        assertEq(controller.hookBinder(), address(0));
-        assertEq(hook.controller(), deployment.hookController);
-        assertEq(hook.statics(), deployment.statics);
-        assertEq(hook.weth(), address(weth));
-        assertFalse(hook.launchInventoryInstalled());
-
-        PoolId poolId = hook.canonicalPoolId();
-        IStaticsV4Hook.PoolConfigurationView memory configuration = hook.poolConfiguration(poolId);
-        assertTrue(configuration.registered);
-        assertFalse(configuration.initialized);
-        assertFalse(configuration.externalLiquidityEnabled);
-        assertEq(configuration.initializer, deployment.hookController);
-        assertEq(configuration.fees.inputFeeBps, 50);
-        assertEq(configuration.fees.outputFeeBps, 50);
-        assertEq(configuration.fees.polShareBps, 2_500);
-        assertEq(configuration.fees.treasuryShareBps, 7_500);
-        assertEq(configuration.recipients.treasury, treasury);
-
-        uint160 requiredFlags = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-            | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.BEFORE_SWAP_FLAG
-            | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
-        assertEq(uint160(deployment.v4Hook) & Hooks.ALL_HOOK_MASK, requiredFlags);
-    }
-
-    function testRejectsInvalidDeploymentConfiguration() public {
-        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
-        GenesisPoolManagerFixture manager = new GenesisPoolManagerFixture();
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
-        StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
-            governance: makeAddr("governance"),
-            treasury: makeAddr("treasury"),
-            weth: address(weth),
-            poolManager: address(manager),
-            inputFeeBps: 150,
-            outputFeeBps: 51,
-            contractURI: "ipfs://statics-genesis/contract.json",
-            externalURLBase: "https://statics.finance/genesis/"
-        });
-
-        vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFeeRate.selector, 201));
-        deployer.deploy(config);
-
-        config.inputFeeBps = 50;
-        config.outputFeeBps = 50;
-        config.poolManager = address(0);
-        vm.expectRevert(DeployStaticsGenesis.ZeroAddress.selector);
-        deployer.deploy(config);
-
-        config.poolManager = address(manager);
-        config.contractURI = "";
-        vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
-        deployer.deploy(config);
-    }
-
-    function testAllowsAssetHolderToReceiveFounderTreasuryAllocation() public {
-        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
-        GenesisPoolManagerFixture manager = new GenesisPoolManagerFixture();
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
-
-        StaticsGenesisDeployment memory deployment = deployer.deploy(
-            StaticsGenesisDeploymentConfig({
-                governance: address(deployer),
-                treasury: address(deployer),
-                weth: address(weth),
-                poolManager: address(manager),
-                inputFeeBps: 50,
-                outputFeeBps: 50,
-                contractURI: "ipfs://statics-genesis/contract.json",
-                externalURLBase: "https://statics.finance/genesis/"
-            })
-        );
-
-        StaticsToken statics = StaticsToken(deployment.statics);
-        StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
-        StaticsV4Hook hook = StaticsV4Hook(deployment.v4Hook);
-
-        assertEq(statics.balanceOf(address(deployer)), 90_005_000 ether);
-        assertEq(statics.balanceOf(deployment.genesisVault), 99_905_550 ether);
-        assertEq(statics.balanceOf(deployment.v4Hook), 810_045_000 ether);
-        assertEq(genesis.balanceOf(address(deployer)), 555);
-        assertEq(hook.poolConfiguration(hook.canonicalPoolId()).recipients.treasury, address(deployer));
+contract MockDeploymentInitializer {
+    function isDopplerHookEnabled(address) external pure returns (uint256) {
+        return 1;
     }
 }
+
+contract MockDeploymentRehype {
+    address public asset;
+    address public numeraire;
+    address public buybackDst;
+    address public beneficiary;
+    uint256 public beneficiaryShares;
+    DopplerLaunchTypes.FeeDistributionInfo public distribution;
+
+    function initialize(address asset_, DopplerLaunchTypes.RehypeInitData memory data) external {
+        asset = asset_;
+        numeraire = data.numeraire;
+        buybackDst = data.buybackDst;
+        beneficiary = data.feeBeneficiaries[0].beneficiary;
+        beneficiaryShares = data.feeBeneficiaries[0].shares;
+        distribution = data.feeDistributionInfo;
+    }
+
+    function getPoolInfo(bytes32) external view returns (address, address, address) {
+        return (asset, numeraire, buybackDst);
+    }
+
+    function getShares(bytes32, address account) external view returns (uint256) {
+        return account == beneficiary ? beneficiaryShares : 0;
+    }
+
+    function collectFees(address) external pure {}
+
+    function setFeeDistribution(
+        bytes32,
+        uint256 a0,
+        uint256 a1,
+        uint256 a2,
+        uint256 a3,
+        uint256 n0,
+        uint256 n1,
+        uint256 n2,
+        uint256 n3
+    ) external {
+        distribution = DopplerLaunchTypes.FeeDistributionInfo(a0, a1, a2, a3, n0, n1, n2, n3);
+    }
+}
+
+contract MockDeploymentAirlock is IDopplerAirlock {
+    address private constant GOVERNANCE_DEAD = address(0xdead);
+    address private constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
+    address public immutable override owner;
+    MockDeploymentRehype public immutable rehype;
+    uint256 public lastNumTokensToSell;
+
+    constructor(address owner_, MockDeploymentRehype rehype_) {
+        owner = owner_;
+        rehype = rehype_;
+    }
+
+    function create(DopplerLaunchTypes.CreateParams calldata params)
+        external
+        returns (address asset, address pool, address governance, address timelock, address migrationPool)
+    {
+        MockDopplerToken token = new MockDopplerToken(address(this));
+        require(params.initialSupply == token.totalSupply(), "SUPPLY");
+        require(params.numTokensToSell == 800_000_000 ether, "INVENTORY");
+        lastNumTokensToSell = params.numTokensToSell;
+        DopplerLaunchTypes.PoolInitializerData memory poolData =
+            abi.decode(params.poolInitializerData, (DopplerLaunchTypes.PoolInitializerData));
+        DopplerLaunchTypes.RehypeInitData memory rehypeData =
+            abi.decode(poolData.onInitializationDopplerHookCalldata, (DopplerLaunchTypes.RehypeInitData));
+        rehype.initialize(address(token), rehypeData);
+
+        address treasury = abi.decode(params.governanceFactoryData, (address));
+        token.transfer(params.poolInitializer, params.numTokensToSell - 20 ether);
+        token.transfer(treasury, token.balanceOf(address(this)));
+        return (address(token), address(token), GOVERNANCE_DEAD, treasury, MIGRATION_DEAD);
+    }
+}
+
+    contract DeployStaticsGenesisTest is Test {
+        DeployStaticsGenesis private deployer;
+        MockDopplerToken private weth;
+        MockDeploymentRehype private rehype;
+        MockDeploymentInitializer private initializer;
+        MockDeploymentAirlock private airlock;
+        address private governance;
+        address private treasury;
+
+        function setUp() public {
+            governance = makeAddr("governance");
+            treasury = makeAddr("treasury");
+            deployer = new DeployStaticsGenesis();
+            weth = new MockDopplerToken(address(this));
+            rehype = new MockDeploymentRehype();
+            initializer = new MockDeploymentInitializer();
+            airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), rehype);
+        }
+
+        function testDeploysDopplerGenesisStackWithExactAllocations() public {
+            StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
+            IERC20 statics = IERC20(deployment.statics);
+            StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
+            StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
+            StaticsFeeReceiver receiver = StaticsFeeReceiver(deployment.feeReceiver);
+            GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
+            GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
+
+            assertEq(statics.totalSupply(), 1_000_000_000 ether);
+            assertEq(statics.balanceOf(treasury), 200_000_000 ether);
+            assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
+            assertEq(statics.balanceOf(address(initializer)), 799_999_980 ether);
+            assertEq(genesis.balanceOf(address(vault)), 5_555);
+            assertEq(vault.requiredBacking(), 0);
+            assertEq(vault.tokenBacking(), 0);
+            assertEq(statics.balanceOf(address(vault)), 20 ether);
+            assertEq(statics.balanceOf(deployment.allocationEscrow), 0);
+            assertEq(receiver.statics(), deployment.statics);
+            assertEq(receiver.poolId(), deployment.poolId);
+            assertEq(receiver.activeDistributor(), address(distributor));
+            assertEq(registry.activeConsumer(), address(distributor));
+            assertEq(receiver.pendingOwner(), governance);
+            assertEq(registry.pendingOwner(), governance);
+            assertEq(vault.pendingOwner(), governance);
+            assertEq(genesis.pendingOwner(), governance);
+            assertEq(distributor.pendingOwner(), governance);
+
+            (,, uint256 assetBeneficiary, uint256 assetLp,,, uint256 numeraireBeneficiary, uint256 numeraireLp) =
+                rehype.distribution();
+            assertEq(assetBeneficiary, 0.75 ether);
+            assertEq(assetLp, 0.25 ether);
+            assertEq(numeraireBeneficiary, 0.75 ether);
+            assertEq(numeraireLp, 0.25 ether);
+        }
+
+        function testFourCurveFixtureUsesExactPlaceholderWeights() public view {
+            DopplerLaunchTypes.Curve[] memory curves = deployer.defaultCurves();
+            assertEq(curves.length, 4);
+            assertEq(curves[0].shares, 0.5 ether);
+            assertEq(curves[1].shares, 0.25 ether);
+            assertEq(curves[2].shares, 0.24 ether);
+            assertEq(curves[3].shares, 0.01 ether);
+            assertEq(curves[0].numPositions, 11);
+            assertEq(curves[3].tickLower, -84_100);
+            assertEq(curves[3].tickUpper, -83_000);
+        }
+
+        function testRejectsInvalidFeeScheduleAndMetadata() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            config.startFee = 5_000;
+            config.endFee = 10_000;
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesis.InvalidFeeSchedule.selector, 5_000, 10_000, 3 days)
+            );
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.contractURI = "";
+            vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
+            deployer.deploy(config, address(deployer));
+        }
+
+        function _config() private returns (StaticsGenesisDeploymentConfig memory config) {
+            DeploymentModule tokenFactory = new DeploymentModule();
+            DeploymentModule governanceFactory = new DeploymentModule();
+            DeploymentModule noOpMigrator = new DeploymentModule();
+            config = StaticsGenesisDeploymentConfig({
+                governance: governance,
+                treasury: treasury,
+                numeraire: address(weth),
+                integrator: address(0),
+                modules: StaticsDopplerLaunchConfig.Modules({
+                    airlock: address(airlock),
+                    tokenFactory: address(tokenFactory),
+                    governanceFactory: address(governanceFactory),
+                    poolInitializer: address(initializer),
+                    noOpMigrator: address(noOpMigrator),
+                    rehype: address(rehype)
+                }),
+                salt: keccak256("STATICS_DOPPLER_TEST"),
+                startFee: 30_000,
+                endFee: 5_000,
+                feeDecayDuration: 3 days,
+                genesisRewardShareBps: 5_000,
+                tokenURI: "ipfs://statics/token.json",
+                contractURI: "ipfs://statics-genesis/contract.json",
+                externalURLBase: "https://statics.finance/genesis/"
+            });
+        }
+    }
