@@ -1,7 +1,7 @@
 # Statics
 
-Statics begins with a standalone fixed-supply token, fully backed Genesis NFT
-vault, and permanent Uniswap v4 inventory market. The later multi-asset
+Statics begins with a standalone Doppler fixed-supply token, fully backed
+Genesis NFT vault, and permanent Uniswap v4 Multicurve market. The later multi-asset
 protocol uses two coordinated EIP-2535 Diamonds for baskets, Statics Dollar,
 PositionNFT accounts, global rewards, lending, flash loans, and canonical v4
 liquidity.
@@ -41,8 +41,8 @@ for the canonical machine-readable integration-beta state.
 
 | Capability | Summary |
 |---|---|
-| **Standalone Genesis** | 5,555 marketplace-compatible Genesis NFTs are mechanically paired with 180,010 STATICS each; acquisitions add a flat native treasury fee while redemption backing remains exact and Diamond-independent. |
-| **Permanent STATICS/WETH market** | Six hook-owned v4 ranges distribute the public allocation without paired WETH, while bilateral fees route 25% to permanent full-range liquidity and 75% to treasury. |
+| **Standalone Genesis** | All 5,555 marketplace-compatible Genesis NFTs start in vault inventory and are mechanically paired with 180,018 STATICS each; acquisitions add a flat native treasury fee while redemption backing remains exact and Diamond-independent. |
+| **Permanent STATICS/WETH market** | Doppler Multicurve distributes the 800-million public allocation; Rehype routes its post-owner fee share 25% to auto-liquidity and 75% to permanent Statics fee ingress. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
@@ -107,7 +107,7 @@ statics/
 │   │   ├── interfaces/              # Dollar integration interfaces and types
 │   │   └── testnet/                 # Explicit public-testnet oracle fixtures
 │   ├── liquidity/                   # v4 hook, liquidity manager, and pool accounting
-│   ├── genesis/                     # Genesis vault and standalone hook controller
+│   ├── genesis/                     # Genesis vault, activation, Doppler ingress, and launch rewards
 │   ├── metadata/                    # Genesis artwork and PositionNFT logo metadata
 │   ├── periphery/                   # Typed flash-arbitrage receiver
 │   ├── governance/                  # Statics timelock
@@ -193,9 +193,10 @@ forge test --match-path test/dollar/unit/StaticsDollarGateway.t.sol -vv
 # Canonical hook fee accounting
 forge test --match-path test/liquidity/StaticsSwapFeeHook.t.sol -vv
 
-# Standalone Genesis vault and permanent v4 market
+# Standalone Genesis vault and Doppler launch rewards
 forge test --match-path test/genesis/StaticsGenesisVault.t.sol -vv
-forge test --match-path test/genesis/StaticsV4Hook.t.sol -vv
+forge test --match-path test/genesis/GenesisLaunchRewards.t.sol -vv
+forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
 
 # Shared PositionNFT behavior
 forge test --match-path test/position/PositionNFT.t.sol -vv
@@ -223,25 +224,22 @@ Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`; testnet fork tests read
 environment-gated tests to skip unless the matching `REQUIRE_*` flag is
 enabled.
 
-The standalone Genesis release requires the dual-chain pinned proof before
-deployment:
+The standalone Genesis release has current-network integration proofs for the
+official Robinhood and Base Sepolia Doppler modules:
 
 ```shell
 ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
-ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
-REQUIRE_ROBINHOOD_FORK=true \
-REQUIRE_ROBINHOOD_TESTNET_FORK=true \
+BASE_SEPOLIA_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
   forge test \
-  --match-path test/genesis/fork/RobinhoodStandaloneGenesisFork.t.sol \
+  --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol \
   -vv
 ```
 
-This proof deploys the complete standalone stack against each chain's recorded
-PoolManager, initializes all six launch positions, executes exact-input and
-exact-output swaps in both directions through the deployed Quoter, Universal
-Router, and Permit2, claims treasury revenue, compounds permanent liquidity,
-adds an external PositionManager LP NFT after activation, and exercises the
-zero-explicit-treasury-share remainder route. Required mode admits no skips.
+This proof calls the official Airlock creation path, validates all configured
+modules and Rehype enablement, creates the four-curve pool, and checks the
+token allocation, fee ingress, activation consumer, vault, and launch reward
+wiring. A missing RPC skips its corresponding network; an executed pass is
+separate evidence from the default skipped path.
 
 Run the focused deployed-router proof with:
 
@@ -268,14 +266,12 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 
 The standalone Genesis entry point is
 `script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It deploys the exact
-999,955,550-STATICS supply, 5,555-token Genesis collection, backing vault,
-renderer, transferable controller, and CREATE2-mined v4 hook. It allocates 555
-fully backed founder NFTs to treasury, all 5,000 remaining NFTs to vault
-inventory, 90,005,000 liquid founder STATICS, and 810,045,000 STATICS of public
-market inventory. The script leaves the canonical pool inert; governance must
-review the deployment and call
-`initializeCanonicalPool()` once to atomically install all six launch ranges.
-It does not deploy or require the Statics Diamonds.
+one-billion-STATICS Doppler token, four-curve 800-million market allocation,
+exact 200-million treasury allocation, fully minted 5,555-token vault
+inventory, permanent activation registry and fee receiver, and temporary
+Genesis launch distributor. The four curves and fee schedule are explicitly
+nonproduction fixtures pending economic ratification. It does not deploy or
+require the Statics Diamonds.
 
 ```shell
 forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
@@ -338,7 +334,7 @@ Focused deployment proofs:
 ```shell
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
-forge test --match-path test/deployment/DeployStaticsToken.t.sol -vv
+forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
 forge test --match-path test/deployment/LaunchGenesisBasket.t.sol -vv
 ```
 

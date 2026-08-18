@@ -16,61 +16,60 @@ broadcaster, and expected costs.
 ## Standalone Genesis release
 
 `script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis` is the canonical
-launcher for the pre-Diamond Genesis release. It requires an existing verified
-WETH and Uniswap v4 PoolManager and reads:
+launcher for the pre-Diamond Genesis release. It calls official Doppler modules
+selected by chain ID and reads:
 
 | Variable | Meaning |
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
-| `STATICS_GENESIS_GOVERNANCE` | Initial two-step owner of the hook controller, Genesis vault, and persistent Genesis collection administration |
-| `STATICS_GENESIS_TREASURY` | Recipient of 555 Genesis NFTs, 90,005,000 liquid STATICS, initial hook revenue, Genesis acquisition fees, and 5% royalties |
+| `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor |
+| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis acquisition-fee recipient, and royalty receiver |
 | `WETH_ADDRESS` | Verified WETH paired with STATICS |
-| `POOL_MANAGER_ADDRESS` | Verified Uniswap v4 PoolManager |
-| `STATICS_GENESIS_INPUT_FEE_BPS` | Specified-leg hook rate |
-| `STATICS_GENESIS_OUTPUT_FEE_BPS` | Realized-output-leg hook rate |
+| `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
+| `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
+| `STATICS_DOPPLER_START_FEE` | Rehype starting fee in millionths |
+| `STATICS_DOPPLER_END_FEE` | Rehype terminal fee in millionths |
+| `STATICS_DOPPLER_FEE_DECAY_SECONDS` | Rehype linear fee-decay duration |
+| `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
+| `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Token-page base URL; the Genesis token ID is appended directly |
 
-The two hook rates may total at most 200 basis points. The deployment:
+The deployment:
 
-1. mints exactly 999,955,550 STATICS;
-2. creates the complete 5,555-NFT collection, sending 555 fully backed Genesis
-   NFTs to treasury and all 5,000 remaining NFTs to vault inventory;
-3. places 99,905,550 STATICS in the vault as the exact founder-NFT backing;
-4. configures a 5% discoverable collection royalty, a zero transfer validator,
-   and a `0.003 ETH` vault acquisition fee, all within immutable caps;
-5. transfers 90,005,000 liquid founder STATICS to treasury;
-6. transfers 810,045,000 STATICS to the mined hook for the six-position public
-   inventory curve; and
-7. permanently binds the hook to its controller while leaving the canonical
-   pool uninitialized.
+1. deploys a permanent fee receiver and one-use allocation escrow;
+2. creates exactly 1,000,000,000 STATICS through `DopplerERC20V1`;
+3. passes exactly 800,000,000 STATICS to the four-curve Multicurve initializer;
+4. transfers exactly 200,000,000 STATICS to treasury and sends any returned
+   Multicurve rounding dust to the vault as non-liability surplus;
+5. mints all 5,555 Genesis NFTs to the vault with no initial backing liability;
+6. deploys and binds the permanent activation registry and temporary launch
+   distributor; and
+7. proposes the configured governance address as the two-step owner of every
+   administered standalone contract.
 
-The metadata strings must be finalized and tested before deployment. Collection
-ownership remains with governance after the future protocol bind and cannot be
-renounced. Vault purchases require the current native acquisition fee in
-addition to exactly 180,010 STATICS; redemption returns exactly 180,010 STATICS
-and charges no native fee. Acquisition revenue is credited to a pull ledger, so
-the treasury claims it separately and cannot block purchases by reverting.
+Vault purchases require the current native acquisition fee plus exactly
+180,018 STATICS; redemption returns exactly 180,018 STATICS and charges no
+native fee. Acquisition revenue is pull-based. Activation burns liquid STATICS
+and can never debit vault backing.
 
-Before simulation or broadcast, execute the required pinned mainnet and
-testnet V4 compatibility proof:
+Before simulation or broadcast, execute the official-module integration proof:
 
 ```bash
 ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
-ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
-REQUIRE_ROBINHOOD_FORK=true \
-REQUIRE_ROBINHOOD_TESTNET_FORK=true \
+BASE_SEPOLIA_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
   forge test \
-  --match-path test/genesis/fork/RobinhoodStandaloneGenesisFork.t.sol \
+  --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol \
   -vv
 ```
 
-The command must report ten passes and zero failures or skips. It deploys the
-standalone contracts onto each pinned fork, uses the recorded Robinhood V4
-PoolManager, PositionManager, Quoter, StateView, Universal Router, Permit2, and
-selected WETH, and proves launch initialization, bilateral trading, revenue
-claims, permanent-liquidity compounding, the external-LP activation boundary,
-and deterministic treasury remainder routing.
+An executed network path validates module code, Rehype enablement, official
+Airlock creation, supply allocation, pool initialization, and standalone
+wiring. The latest Rehype must be enabled by the selected Doppler initializer;
+deployed code alone is insufficient. The newest Robinhood Rehype was not yet
+enabled when this implementation was validated, so Robinhood production launch
+is blocked until that preflight passes. Base Sepolia provides the current live
+integration proof.
 
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
@@ -89,20 +88,12 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
   -vv
 ```
 
-The broadcast does not start trading. After every contract is verified and the
-recorded addresses, hook permission bits, controller binding, allocations, and
-canonical configuration match the reviewed output, governance separately calls
-`StaticsHookController.initializeCanonicalPool()`. That transaction initializes
-the zero-WETH pool and atomically installs all six permanent hook-owned launch
-ranges. It must be simulated as a cold standalone transaction and remain below
-the 16,000,000-gas target.
-
-Unsolicited STATICS or WETH transfers to the hook cannot expand the six launch
-positions or block initialization. They remain unaccounted, immovable surplus;
-only the committed 810,045,000 STATICS is launch principal. Record at minimum
-the token, Genesis NFT, vault, renderer, avatar helper, controller, hook,
-PoolManager, WETH, canonical PoolKey/PoolId, fee rates, initial 25%/75% split,
-and the initialization transaction.
+Airlock creates the live pool in the deployment transaction; there is no later
+graduation or custom Statics initialization. Record the token, PoolKey/PoolId,
+all Doppler modules and source revisions, fee receiver, allocation escrow,
+activation registry, collection, vault, distributor, metadata contracts, fee
+schedule, four curves, and every pending ownership acceptance. The four-curve
+fixture and fee values are not approved production economics.
 
 ## Required configuration
 
@@ -160,12 +151,9 @@ treasury. The Diamond does not accrue a native fee balance and there is no
 separate treasury claim. Existing Positions in the fresh deployment remain
 reusable without paying again.
 
-Deploy `src/tokens/StaticsToken.sol:StaticsToken` before the full protocol with
-`script/DeployStaticsToken.s.sol:DeployStaticsToken`, or reuse the token created
-by the standalone Genesis release. The narrow deployer reads only
-`STATICS_TOKEN_RECIPIENT`. The token mints the exact 999,955,550 supply once,
-supports ERC-2612 permit and holder burns, and has no owner or mint function.
-Use the resulting address as `STAKING_TOKEN`.
+Use the `DopplerERC20V1` token created by the standalone Genesis release as
+`STAKING_TOKEN`. The repository intentionally has no parallel production
+STATICS token implementation or token-only launcher.
 
 The current Robinhood testnet deployment configuration has no verified
 canonical addresses for the two Chainlink AggregatorV3 dependencies required
@@ -287,7 +275,7 @@ Run the focused deployment proof before any rehearsal:
 ```bash
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
-forge test --match-path test/deployment/DeployStaticsToken.t.sol -vv
+forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
 forge test --match-path test/deployment/LaunchGenesisBasket.t.sol -vv
 ```
 
@@ -315,20 +303,6 @@ without `--broadcast`, inspect the trace and gas, then run:
 forge script script/DeployStatics.s.sol:DeployStatics \
   --rpc-url "$RPC_URL" \
   --broadcast \
-  -vv
-```
-
-For Robinhood testnet, first deploy and verify the fixed-supply staking token
-when the standalone Genesis token is not already the intended dependency:
-
-```bash
-forge script script/DeployStaticsToken.s.sol:DeployStaticsToken \
-  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
-  --chain-id 46630 \
-  --broadcast \
-  --verify \
-  --verifier blockscout \
-  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
   -vv
 ```
 

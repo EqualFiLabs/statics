@@ -4,10 +4,11 @@
 
 Most applications need:
 
-- `StaticsToken`, `StaticsGenesis`, and `StaticsGenesisVault` for the
-  standalone token/NFT conversion lifecycle;
-- `StaticsV4Hook` and `StaticsHookController` for the permanent STATICS/WETH
-  market, fee configuration, pull claims, and later controller handoff;
+- the Doppler-created STATICS token, `StaticsGenesis`, and
+  `StaticsGenesisVault` for the standalone token/NFT conversion lifecycle;
+- `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
+  `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
+  temporary Genesis rewards;
 - `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
   and ordinary Statics Dollar gateway address;
 - `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
@@ -28,7 +29,8 @@ Use compiled ABIs from these sources:
 | --- | --- | --- |
 | Genesis NFT | `src/interfaces/IStaticsGenesis.sol`, `IERC5192.sol`, and `ICreatorToken.sol` | Ownership, metadata, link locks, optional transfer validation, future protocol binding, and transfer-tier reset callback |
 | Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote and pay acquisition fees, buy, redeem, claim native revenue, inspect inventory, and verify backing |
-| Genesis v4 market | `src/interfaces/IStaticsV4Hook.sol` and `IStaticsHookController.sol` | Pool configuration, compounding, and pull-based revenue |
+| Genesis activation | `src/interfaces/IGenesisActivationRegistry.sol` | Permanent tiers, burn costs, multipliers, transfer reset, and consumer handoff |
+| Genesis launch fees | `src/interfaces/IStaticsFeeReceiver.sol` and `IGenesisLaunchDistributor.sol` | Authenticated Doppler harvests, reward indexes, claims, and distributor handoff |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
@@ -48,7 +50,7 @@ Use compiled ABIs from these sources:
 
 All 5,555 Genesis NFTs exist from deployment. Integrators call
 `quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
-token, approve the returned 180,010-STATICS price, and send the returned native
+token, approve the returned 180,018-STATICS price, and send the returned native
 fee with payable `buyGenesis(tokenId, receiver)`. Incorrect native payment
 reverts atomically. `redeemGenesis(tokenId, receiver)` returns the fixed STATICS
 backing without a native fee. A redeemed token becomes ordinary vault inventory
@@ -76,11 +78,10 @@ permanent-liquidity inventory, and locked liquidity. The installed manager is
 used for typed user PositionManager NFT creation; canonical permanent liquidity
 is hook-owned and has no protocol PositionManager token ID.
 
-The standalone Genesis market rejects partial V4 fills because its
-specified-leg hook fee is reserved before pool execution. Quote a price limit
-that can consume the complete fee-adjusted specified amount, or split a large
-order into smaller swaps. A partial fill reverts atomically and accrues no fee
-liability.
+The standalone STATICS/WETH market is the Doppler pool recorded by the launch
+manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
+swaps. Registered Genesis rewards are indexed only after authenticated Rehype
+harvests; raw receiver balances are not protocol revenue.
 
 ## Basket creation and discovery
 

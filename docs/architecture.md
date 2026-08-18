@@ -6,13 +6,14 @@ The standalone Genesis release establishes the permanent token, collection,
 backing, and market before either Diamond exists:
 
 ```text
-StaticsToken (999,955,550 fixed supply)
-├── StaticsGenesisVault <──> StaticsGenesis (5,555 NFTs)
-│   └── fixed 180,010-STATICS redemption backing per circulating NFT
-└── StaticsV4Hook + StaticsHookController
-    ├── six permanent STATICS-only launch ranges
-    ├── bilateral swap fees
-    └── 25% permanent full-range liquidity / 75% pull-based treasury revenue
+DopplerERC20V1 (1,000,000,000 fixed STATICS)
+├── Doppler Multicurve STATICS/WETH market (800,000,000 inventory)
+│   └── Rehype: mandatory owner share + 25% auto-liquidity + 75% fee ingress
+├── Treasury (exactly 200,000,000 STATICS)
+└── StaticsGenesisVault <──> StaticsGenesis (5,555 NFTs)
+    ├── fixed 180,018-STATICS redemption backing per circulating NFT
+    ├── GenesisActivationRegistry (permanent tiers and transfer reset)
+    └── StaticsFeeReceiver -> GenesisLaunchDistributor (launch era)
 ```
 
 The later full protocol exposes one ordinary user address while preserving a
@@ -57,7 +58,9 @@ StaticsGenesisRenderer
 Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
 neither liquidity contract nor the metadata renderer is a second general
-protocol entrypoint.
+protocol entrypoint. The later Diamond reads the permanent activation registry
+and accepts future revenue from the same fee receiver; historical launch claims
+remain in the launch distributor.
 
 The fresh-deployment launcher installs 23 facets and 207 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
