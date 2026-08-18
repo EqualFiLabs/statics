@@ -6,28 +6,21 @@ import {Test} from "forge-std/Test.sol";
 import {ICreatorToken, ICreatorTokenLegacy, ITransferValidator} from "../../src/interfaces/ICreatorToken.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IERC7572} from "../../src/interfaces/IERC7572.sol";
-import {GenesisVaultAccounting} from "../../src/interfaces/IStaticsGenesisVault.sol";
-import {IStaticsGenesis, IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
+import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
+import {IStaticsGenesis, IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
+import {GenesisVaultAccounting} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
-import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
+import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 
 contract MockGenesisProtocol is IStaticsGenesisProtocol {
     address public immutable override genesisCollection;
-    mapping(uint256 genesisId => uint8 tier) public override genesisTier;
     mapping(uint256 genesisId => uint256 positionId) public override linkedPosition;
-    uint256 public lastTransferredId;
-    address public lastFrom;
-    address public lastTo;
 
     constructor(address collection) {
         genesisCollection = collection;
-    }
-
-    function setTier(uint256 genesisId, uint8 tier) external {
-        genesisTier[genesisId] = tier;
     }
 
     function link(uint256 genesisId, uint256 positionId) external {
@@ -39,35 +32,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         delete linkedPosition[genesisId];
         IStaticsGenesis(genesisCollection).refreshLockStatus(genesisId);
     }
-
-    function onGenesisTransfer(uint256 genesisId, address from, address to) external override {
-        require(msg.sender == genesisCollection, "ONLY_GENESIS");
-        genesisTier[genesisId] = 0;
-        lastTransferredId = genesisId;
-        lastFrom = from;
-        lastTo = to;
-    }
 }
-
-    contract RevertingTierGenesisProtocol is IStaticsGenesisProtocol {
-        address public immutable override genesisCollection;
-
-        constructor(address collection) {
-            genesisCollection = collection;
-        }
-
-        function genesisTier(uint256) external pure override returns (uint8) {
-            revert("TIER_UNAVAILABLE");
-        }
-
-        function linkedPosition(uint256) external pure override returns (uint256) {
-            return 0;
-        }
-
-        function onGenesisTransfer(uint256, address, address) external view override {
-            require(msg.sender == genesisCollection, "ONLY_GENESIS");
-        }
-    }
 
     contract RevertingLinkGenesisProtocol is IStaticsGenesisProtocol {
         address public immutable override genesisCollection;
@@ -75,10 +40,6 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
         constructor(address collection) {
             genesisCollection = collection;
-        }
-
-        function genesisTier(uint256) external pure override returns (uint8) {
-            return 0;
         }
 
         function setRevertLinkRead(bool shouldRevert) external {
@@ -89,532 +50,392 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             require(!revertLinkRead, "LINK_UNAVAILABLE");
             return 0;
         }
-
-        function onGenesisTransfer(uint256, address, address) external view override {
-            require(msg.sender == genesisCollection, "ONLY_GENESIS");
-        }
     }
 
-    contract MockTransferValidator is ITransferValidator {
-        bool public immutable allowed;
+        contract MockTransferValidator is ITransferValidator {
+            bool public immutable allowed;
 
-        constructor(bool allowed_) {
-            allowed = allowed_;
+            constructor(bool allowed_) {
+                allowed = allowed_;
+            }
+
+            function validateTransfer(address, address, address, uint256) external view override {
+                require(allowed, "TRANSFER_BLOCKED");
+            }
         }
 
-        function validateTransfer(address, address, address, uint256) external view override {
-            require(allowed, "TRANSFER_BLOCKED");
-        }
-    }
+        contract PrevalidatingTransferValidator is ITransferValidator {
+            function validateTransfer(address caller, address, address, uint256) external view override {
+                require(caller != address(this), "REVALIDATED_TRANSFER");
+            }
 
-    contract PrevalidatingTransferValidator is ITransferValidator {
-        function validateTransfer(address caller, address, address, uint256) external view override {
-            require(caller != address(this), "REVALIDATED_TRANSFER");
-        }
-
-        function transferAsValidator(StaticsGenesis genesis, address from, address to, uint256 tokenId) external {
-            genesis.transferFrom(from, to, tokenId);
-        }
-    }
-
-    contract RevertingNativeReceiver {
-        receive() external payable {
-            revert("NATIVE_REJECTED");
+            function transferAsValidator(StaticsGenesis genesis, address from, address to, uint256 tokenId) external {
+                genesis.transferFrom(from, to, tokenId);
+            }
         }
 
-        function claimTo(StaticsGenesisVault vault, address payable receiver) external {
-            vault.claimNativeAcquisitionFees(receiver);
-        }
-    }
+        contract RevertingNativeReceiver {
+            receive() external payable {
+                revert("NATIVE_REJECTED");
+            }
 
-    contract StaticsGenesisVaultTest is Test {
-        uint256 private constant PRICE = 180_010 ether;
-        uint256 private constant NATIVE_FEE = 0.003 ether;
-        uint256 private constant FOUNDER_BACKING = 99_905_550 ether;
-        uint256 private constant FOUNDER_LIQUID = 90_005_000 ether;
-        uint256 private constant LAUNCH_INVENTORY = 810_045_000 ether;
-
-        address private founderTreasury;
-        address private governance;
-        address private buyer;
-        StaticsToken private statics;
-        StaticsGenesis private genesis;
-        StaticsGenesisVault private vault;
-
-        function setUp() public {
-            founderTreasury = makeAddr("founderTreasury");
-            governance = makeAddr("governance");
-            buyer = makeAddr("buyer");
-
-            statics = new StaticsToken(address(this));
-            vault = new StaticsGenesisVault(statics, address(this), governance, founderTreasury);
-            StaticsAvatarSVG avatar = new StaticsAvatarSVG();
-            StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
-            genesis = new StaticsGenesis(
-                founderTreasury,
-                address(vault),
-                renderer,
-                address(this),
-                "ipfs://statics-genesis/contract.json",
-                "https://statics.finance/genesis/"
-            );
-
-            statics.transfer(address(vault), FOUNDER_BACKING);
-            statics.transfer(founderTreasury, FOUNDER_LIQUID);
-            vault.finalizeGenesisCollection(address(genesis));
+            function claimTo(StaticsGenesisVault vault, address payable receiver) external {
+                vault.claimNativeAcquisitionFees(receiver);
+            }
         }
 
-        function testGenesisDistributionAndSupplyAllocationAreExact() public view {
-            assertEq(statics.totalSupply(), 999_955_550 ether);
-            assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING);
-            assertEq(statics.balanceOf(founderTreasury), FOUNDER_LIQUID);
-            assertEq(statics.balanceOf(address(this)), LAUNCH_INVENTORY);
+        contract StaticsGenesisVaultTest is Test {
+            uint256 private constant PRICE = 180_018 ether;
+            uint256 private constant NATIVE_FEE = 0.003 ether;
+            uint256 private constant TREASURY_ALLOCATION = 200_000_000 ether;
+            uint256 private constant DOPPLER_INVENTORY = 800_000_000 ether;
 
-            assertEq(genesis.mintedSupply(), 5_555);
-            assertEq(genesis.balanceOf(founderTreasury), 555);
-            assertEq(genesis.balanceOf(address(vault)), 5_000);
-            assertEq(genesis.ownerOf(1), founderTreasury);
-            assertEq(genesis.ownerOf(555), founderTreasury);
-            assertEq(genesis.ownerOf(556), address(vault));
-            assertEq(genesis.ownerOf(5_555), address(vault));
-            assertTrue(genesis.launchFinalized());
+            address private treasury;
+            address private governance;
+            address private buyer;
+            MockDopplerToken private statics;
+            GenesisActivationRegistry private activationRegistry;
+            StaticsGenesis private genesis;
+            StaticsGenesisVault private vault;
 
-            GenesisVaultAccounting memory accounting = vault.vaultAccounting();
-            assertEq(accounting.vaultPrice, PRICE);
-            assertEq(accounting.maximumSupply, 5_555);
-            assertEq(accounting.mintedSupply, 5_555);
-            assertEq(accounting.vaultInventory, 5_000);
-            assertEq(accounting.circulatingGenesis, 555);
-            assertEq(accounting.tokenBacking, FOUNDER_BACKING);
-            assertEq(accounting.requiredBacking, FOUNDER_BACKING);
-            assertEq(accounting.tokenCustody, FOUNDER_BACKING);
+            function setUp() public {
+                treasury = makeAddr("treasury");
+                governance = makeAddr("governance");
+                buyer = makeAddr("buyer");
+
+                statics = new MockDopplerToken(address(this));
+                activationRegistry = new GenesisActivationRegistry(statics, address(this), governance);
+                vault = new StaticsGenesisVault(statics, address(this), governance, treasury);
+                StaticsAvatarSVG avatar = new StaticsAvatarSVG();
+                StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
+                genesis = new StaticsGenesis(
+                    address(vault),
+                    address(activationRegistry),
+                    renderer,
+                    governance,
+                    treasury,
+                    "ipfs://statics-genesis/contract.json",
+                    "https://statics.finance/genesis/"
+                );
+                activationRegistry.bindGenesisCollection(address(genesis));
+                vault.finalizeGenesisCollection(address(genesis));
+                statics.transfer(treasury, TREASURY_ALLOCATION);
+            }
+
+            function testFullCollectionStartsAsUnbackedVaultInventory() public view {
+                assertEq(statics.totalSupply(), 1_000_000_000 ether);
+                assertEq(statics.balanceOf(treasury), TREASURY_ALLOCATION);
+                assertEq(statics.balanceOf(address(this)), DOPPLER_INVENTORY);
+                assertEq(statics.balanceOf(address(vault)), 0);
+                assertEq(genesis.mintedSupply(), 5_555);
+                assertEq(genesis.balanceOf(address(vault)), 5_555);
+                assertEq(genesis.ownerOf(1), address(vault));
+                assertEq(genesis.ownerOf(5_555), address(vault));
+                assertEq(vault.circulatingGenesis(), 0);
+                assertEq(vault.requiredBacking(), 0);
+                assertEq(vault.tokenBacking(), 0);
+                assertEq(5_555 * PRICE, 999_999_990 ether);
+                assertEq(statics.totalSupply() - 5_555 * PRICE, 10 ether);
+            }
+
+            function testBuyAndRedeemMoveOneExactBackingUnit() public {
+                _fundAndApproveBuyer(PRICE);
+                vm.prank(buyer);
+                vault.buyGenesis{value: NATIVE_FEE}(1, buyer);
+
+                assertEq(genesis.ownerOf(1), buyer);
+                assertEq(vault.circulatingGenesis(), 1);
+                assertEq(vault.tokenBacking(), PRICE);
+                assertEq(vault.requiredBacking(), PRICE);
+                assertEq(statics.balanceOf(address(vault)), PRICE);
+
+                vm.startPrank(buyer);
+                genesis.approve(address(vault), 1);
+                vault.redeemGenesis(1, buyer);
+                vm.stopPrank();
+
+                assertEq(genesis.ownerOf(1), address(vault));
+                assertEq(statics.balanceOf(buyer), PRICE);
+                assertEq(vault.tokenBacking(), 0);
+                assertEq(vault.requiredBacking(), 0);
+            }
+
+            function testFuzzBuyRedeemPreservesBacking(uint256 rawTokenId) public {
+                uint256 tokenId = bound(rawTokenId, 1, 5_555);
+                _fundAndApproveBuyer(PRICE);
+                vm.prank(buyer);
+                vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
+                assertEq(vault.tokenBacking(), PRICE);
+                assertEq(vault.requiredBacking(), PRICE);
+
+                vm.startPrank(buyer);
+                genesis.approve(address(vault), tokenId);
+                vault.redeemGenesis(tokenId, buyer);
+                vm.stopPrank();
+                assertEq(vault.tokenBacking(), 0);
+                assertEq(vault.requiredBacking(), 0);
+                assertEq(statics.balanceOf(address(vault)), 0);
+            }
+
+            function testDirectGenesisDonationCreatesBackingSurplus() public {
+                _fundAndApproveBuyer(PRICE);
+                vm.prank(buyer);
+                vault.buyGenesis{value: NATIVE_FEE}(1, buyer);
+                vm.prank(buyer);
+                genesis.safeTransferFrom(buyer, address(vault), 1);
+                assertEq(vault.requiredBacking(), 0);
+                assertEq(vault.tokenBacking(), PRICE);
+                assertEq(statics.balanceOf(address(vault)), PRICE);
+
+                address nextBuyer = makeAddr("nextBuyer");
+                statics.transfer(nextBuyer, PRICE);
+                vm.deal(nextBuyer, 1 ether);
+                vm.startPrank(nextBuyer);
+                statics.approve(address(vault), PRICE);
+                vault.buyGenesis{value: NATIVE_FEE}(1, nextBuyer);
+                genesis.approve(address(vault), 1);
+                vault.redeemGenesis(1, nextBuyer);
+                vm.stopPrank();
+                assertEq(vault.requiredBacking(), 0);
+                assertEq(vault.tokenBacking(), PRICE);
+                assertEq(statics.balanceOf(address(vault)), PRICE);
+            }
+
+            function testActivationCanCrossMultipleTiersAndBurnsCumulativeCost() public {
+                _buyFor(buyer, 1);
+                uint256 burnCost = 10_000 ether + 20_000 ether + 30_000 ether;
+                statics.transfer(buyer, burnCost);
+                uint256 supplyBefore = statics.totalSupply();
+                vm.startPrank(buyer);
+                statics.approve(address(activationRegistry), burnCost);
+                assertEq(activationRegistry.activate(1, 3), burnCost);
+                vm.stopPrank();
+
+                assertEq(activationRegistry.tierOf(1), 3);
+                assertEq(activationRegistry.multiplierBps(1), 12_000);
+                assertEq(statics.totalSupply(), supplyBefore - burnCost);
+                assertEq(statics.balanceOf(address(vault)), PRICE);
+                assertEq(vault.requiredBacking(), PRICE);
+            }
+
+            function testOwnerChangingTransferResetsActivationButSelfTransferDoesNot() public {
+                _buyFor(buyer, 1);
+                _activateBuyer(1, 2);
+                vm.prank(buyer);
+                genesis.transferFrom(buyer, buyer, 1);
+                assertEq(activationRegistry.tierOf(1), 2);
+
+                address nextOwner = makeAddr("nextOwner");
+                vm.prank(buyer);
+                genesis.transferFrom(buyer, nextOwner, 1);
+                assertEq(genesis.ownerOf(1), nextOwner);
+                assertEq(activationRegistry.tierOf(1), 0);
+                assertEq(activationRegistry.multiplierBps(1), 10_000);
+            }
+
+            function testTierCostsAreBoundedAndOnlyAffectFutureActivation() public {
+                _buyFor(buyer, 1);
+                _activateBuyer(1, 1);
+                vm.prank(governance);
+                activationRegistry.setTierCost(2, 5_000 ether);
+                assertEq(activationRegistry.tierOf(1), 1);
+                assertEq(activationRegistry.tierCost(2), 5_000 ether);
+
+                vm.prank(governance);
+                vm.expectRevert();
+                activationRegistry.setTierCost(2, 999 ether);
+            }
+
+            function testNativeFeeIsPullBasedAndRecipientRotationPreservesLiability() public {
+                _fundAndApproveBuyer(2 * PRICE);
+                vm.prank(buyer);
+                vault.buyGenesis{value: NATIVE_FEE}(1, buyer);
+                address nextRecipient = makeAddr("nextRecipient");
+                vm.prank(governance);
+                vault.setNativeFeeRecipient(nextRecipient);
+                vm.prank(buyer);
+                vault.buyGenesis{value: NATIVE_FEE}(2, buyer);
+
+                assertEq(vault.claimableNativeFees(treasury), NATIVE_FEE);
+                assertEq(vault.claimableNativeFees(nextRecipient), NATIVE_FEE);
+                assertEq(vault.totalNativeFeeLiability(), 2 * NATIVE_FEE);
+            }
+
+            function testRevertingNativeRecipientCannotBlockPurchase() public {
+                RevertingNativeReceiver recipient = new RevertingNativeReceiver();
+                vm.prank(governance);
+                vault.setNativeFeeRecipient(address(recipient));
+                _fundAndApproveBuyer(PRICE);
+                vm.prank(buyer);
+                vault.buyGenesis{value: NATIVE_FEE}(1, buyer);
+                assertEq(genesis.ownerOf(1), buyer);
+                assertEq(vault.claimableNativeFees(address(recipient)), NATIVE_FEE);
+
+                vm.expectRevert();
+                recipient.claimTo(vault, payable(address(recipient)));
+                address payable safeReceiver = payable(makeAddr("safeReceiver"));
+                recipient.claimTo(vault, safeReceiver);
+                assertEq(safeReceiver.balance, NATIVE_FEE);
+            }
+
+            function testMarketplaceInterfacesAndRoyaltyAreDiscoverable() public view {
+                assertTrue(genesis.supportsInterface(type(IERC2981).interfaceId));
+                assertTrue(genesis.supportsInterface(type(IERC7572).interfaceId));
+                assertTrue(genesis.supportsInterface(type(IERC5192).interfaceId));
+                assertTrue(genesis.supportsInterface(type(ICreatorToken).interfaceId));
+                assertTrue(genesis.supportsInterface(type(ICreatorTokenLegacy).interfaceId));
+                assertTrue(genesis.supportsInterface(0x49064906));
+                (address receiver, uint256 royalty) = genesis.royaltyInfo(1, 100 ether);
+                assertEq(receiver, treasury);
+                assertEq(royalty, 5 ether);
+                assertEq(genesis.getTransferValidator(), address(0));
+                assertFalse(genesis.locked(1));
+            }
+
+            function testTransferValidatorCanBeEnabledWithoutBypassingAuthorization() public {
+                _buyFor(buyer, 1);
+                PrevalidatingTransferValidator validator = new PrevalidatingTransferValidator();
+                vm.prank(governance);
+                genesis.setTransferValidator(address(validator));
+                address nextOwner = makeAddr("nextOwner");
+
+                vm.expectRevert();
+                validator.transferAsValidator(genesis, buyer, nextOwner, 1);
+                vm.prank(buyer);
+                genesis.setApprovalForAll(address(validator), true);
+                validator.transferAsValidator(genesis, buyer, nextOwner, 1);
+                assertEq(genesis.ownerOf(1), nextOwner);
+            }
+
+            function testLinkedGenesisIsLockedUntilUnlinked() public {
+                _buyFor(buyer, 1);
+                MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
+                vm.prank(governance);
+                genesis.bindProtocol(address(protocol));
+                protocol.link(1, 77);
+                assertTrue(genesis.locked(1));
+                vm.prank(buyer);
+                vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
+                genesis.transferFrom(buyer, makeAddr("nextOwner"), 1);
+                protocol.unlink(1);
+                vm.prank(buyer);
+                genesis.transferFrom(buyer, makeAddr("nextOwner"), 1);
+            }
+
+            function testLinkReadFailureLocksFailClosed() public {
+                _buyFor(buyer, 1);
+                RevertingLinkGenesisProtocol protocol = new RevertingLinkGenesisProtocol(address(genesis));
+                vm.prank(governance);
+                genesis.bindProtocol(address(protocol));
+                protocol.setRevertLinkRead(true);
+                assertTrue(genesis.locked(1));
+            }
+
+            function testMetadataReadsPermanentActivationRegistry() public {
+                _buyFor(buyer, 1);
+                _activateBuyer(1, 1);
+                string memory decoded = _decodeDataURI(genesis.tokenURI(1));
+                assertTrue(
+                    _contains(
+                        decoded, '"description":"A fixed-supply Statics Genesis NFT redeemable for 180,018 STATICS."'
+                    )
+                );
+                assertTrue(_contains(decoded, '"trait_type":"Activation Tier","value":1'));
+                assertTrue(_contains(decoded, '"external_url":"https://statics.finance/genesis/1"'));
+            }
+
+            function testVaultAccountingReportsCurrentState() public {
+                _buyFor(buyer, 1);
+                GenesisVaultAccounting memory accounting = vault.vaultAccounting();
+                assertEq(accounting.maximumSupply, 5_555);
+                assertEq(accounting.mintedSupply, 5_555);
+                assertEq(accounting.vaultInventory, 5_554);
+                assertEq(accounting.circulatingGenesis, 1);
+                assertEq(accounting.tokenBacking, PRICE);
+                assertEq(accounting.requiredBacking, PRICE);
+                assertEq(accounting.tokenCustody, PRICE);
+            }
+
+            function _buyFor(address owner, uint256 tokenId) private {
+                statics.transfer(owner, PRICE);
+                vm.deal(owner, 1 ether);
+                vm.startPrank(owner);
+                statics.approve(address(vault), PRICE);
+                vault.buyGenesis{value: NATIVE_FEE}(tokenId, owner);
+                vm.stopPrank();
+            }
+
+            function _activateBuyer(uint256 tokenId, uint8 tier) private {
+                uint256 cost;
+                for (uint8 current = 1; current <= tier; ++current) {
+                    cost += activationRegistry.tierCost(current);
+                }
+                statics.transfer(buyer, cost);
+                vm.startPrank(buyer);
+                statics.approve(address(activationRegistry), cost);
+                activationRegistry.activate(tokenId, tier);
+                vm.stopPrank();
+            }
+
+            function _fundAndApproveBuyer(uint256 amount) private {
+                statics.transfer(buyer, amount);
+                vm.deal(buyer, 100 ether);
+                vm.prank(buyer);
+                statics.approve(address(vault), amount);
+            }
+
+            function _decodeDataURI(string memory uri) private pure returns (string memory) {
+                bytes memory raw = bytes(uri);
+                bytes memory prefix = bytes("data:application/json;base64,");
+                bytes memory encoded = new bytes(raw.length - prefix.length);
+                for (uint256 i; i < encoded.length; ++i) {
+                    encoded[i] = raw[i + prefix.length];
+                }
+                return string(_decodeBase64(string(encoded)));
+            }
+
+            function _decodeBase64(string memory data) private pure returns (bytes memory result) {
+                bytes memory input = bytes(data);
+                if (input.length == 0) return bytes("");
+                string memory table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                bytes memory tableBytes = bytes(table);
+                uint256 decodedLength = (input.length / 4) * 3;
+                if (input[input.length - 1] == bytes1("=")) --decodedLength;
+                if (input[input.length - 2] == bytes1("=")) --decodedLength;
+                result = new bytes(decodedLength);
+                uint256 outputIndex;
+                for (uint256 i; i < input.length; i += 4) {
+                    uint256 accumulator = (_base64Index(tableBytes, input[i]) << 18)
+                        | (_base64Index(tableBytes, input[i + 1]) << 12) | (_base64Index(tableBytes, input[i + 2]) << 6)
+                        | _base64Index(tableBytes, input[i + 3]);
+                    if (outputIndex < decodedLength) result[outputIndex++] = bytes1(uint8(accumulator >> 16));
+                    if (outputIndex < decodedLength) result[outputIndex++] = bytes1(uint8(accumulator >> 8));
+                    if (outputIndex < decodedLength) result[outputIndex++] = bytes1(uint8(accumulator));
+                }
+            }
+
+            function _base64Index(bytes memory table, bytes1 value) private pure returns (uint256) {
+                if (value == bytes1("=")) return 0;
+                for (uint256 i; i < table.length; ++i) {
+                    if (table[i] == value) return i;
+                }
+                revert("INVALID_BASE64");
+            }
+
+            function _contains(string memory haystack, string memory needle) private pure returns (bool) {
+                bytes memory haystackBytes = bytes(haystack);
+                bytes memory needleBytes = bytes(needle);
+                if (needleBytes.length > haystackBytes.length) return false;
+                for (uint256 i; i <= haystackBytes.length - needleBytes.length; ++i) {
+                    bool match_ = true;
+                    for (uint256 j; j < needleBytes.length; ++j) {
+                        if (haystackBytes[i + j] != needleBytes[j]) {
+                            match_ = false;
+                            break;
+                        }
+                    }
+                    if (match_) return true;
+                }
+                return false;
+            }
         }
-
-        function testBuyGenesisAddsOneExactBackingUnit() public {
-            _fundAndApproveBuyer(PRICE);
-
-            vm.prank(buyer);
-            vault.buyGenesis{value: NATIVE_FEE}(1_056, buyer);
-
-            assertEq(genesis.ownerOf(1_056), buyer);
-            assertEq(vault.circulatingGenesis(), 556);
-            assertEq(vault.tokenBacking(), FOUNDER_BACKING + PRICE);
-            assertEq(vault.requiredBacking(), FOUNDER_BACKING + PRICE);
-            assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING + PRICE);
-        }
-
-        function testGenesisPurchaseRequiresExactConfiguredNativeFee() public {
-            (uint256 staticsPrice, uint256 nativeFee) = vault.quoteGenesisPurchase();
-            assertEq(staticsPrice, PRICE);
-            assertEq(nativeFee, 0.003 ether);
-            _fundAndApproveBuyer(PRICE);
-
-            vm.prank(buyer);
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesisVault.IncorrectNativeFee.selector, 0, nativeFee)
-            );
-            vault.buyGenesis(1_056, buyer);
-
-            vm.prank(buyer);
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesisVault.IncorrectNativeFee.selector, nativeFee + 1, nativeFee)
-            );
-            vault.buyGenesis{value: nativeFee + 1}(1_056, buyer);
-
-            vm.prank(buyer);
-            vault.buyGenesis{value: nativeFee}(1_056, buyer);
-            assertEq(vault.claimableNativeFees(founderTreasury), nativeFee);
-            assertEq(vault.totalNativeFeeLiability(), nativeFee);
-            assertEq(address(vault).balance, nativeFee);
-        }
-
-        function testNativeFeeCreditsRemainWithRecipientAtPurchaseTime() public {
-            uint256 fee = vault.nativeAcquisitionFee();
-            address nextRecipient = makeAddr("nextNativeFeeRecipient");
-            _fundAndApproveBuyer(2 * PRICE);
-
-            vm.prank(buyer);
-            vault.buyGenesis{value: fee}(1_056, buyer);
-            vm.prank(governance);
-            vault.setNativeFeeRecipient(nextRecipient);
-            vm.prank(buyer);
-            vault.buyGenesis{value: fee}(1_057, buyer);
-
-            assertEq(vault.claimableNativeFees(founderTreasury), fee);
-            assertEq(vault.claimableNativeFees(nextRecipient), fee);
-            assertEq(vault.totalNativeFeeLiability(), 2 * fee);
-
-            address payable payout = payable(makeAddr("nativeFeePayout"));
-            vm.prank(founderTreasury);
-            assertEq(vault.claimNativeAcquisitionFees(payout), fee);
-            assertEq(payout.balance, fee);
-            assertEq(vault.claimableNativeFees(founderTreasury), 0);
-            assertEq(vault.totalNativeFeeLiability(), fee);
-        }
-
-        function testNativeFeeRecipientCannotBeVaultOrGenesisCollection() public {
-            vm.startPrank(governance);
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesisVault.InvalidReceiver.selector, address(vault))
-            );
-            vault.setNativeFeeRecipient(address(vault));
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesisVault.InvalidReceiver.selector, address(genesis))
-            );
-            vault.setNativeFeeRecipient(address(genesis));
-            vm.stopPrank();
-        }
-
-        function testRevertingFeeReceiverCannotBlockPurchaseOrLoseClaim() public {
-            RevertingNativeReceiver recipient = new RevertingNativeReceiver();
-            vm.prank(governance);
-            vault.setNativeFeeRecipient(address(recipient));
-            uint256 fee = vault.nativeAcquisitionFee();
-            _fundAndApproveBuyer(PRICE);
-
-            vm.prank(buyer);
-            vault.buyGenesis{value: fee}(1_056, buyer);
-            assertEq(genesis.ownerOf(1_056), buyer);
-            assertEq(vault.claimableNativeFees(address(recipient)), fee);
-
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    StaticsGenesisVault.NativeFeeTransferFailed.selector, address(recipient), fee
-                )
-            );
-            recipient.claimTo(vault, payable(address(recipient)));
-            assertEq(vault.claimableNativeFees(address(recipient)), fee);
-            assertEq(vault.totalNativeFeeLiability(), fee);
-
-            address payable payout = payable(makeAddr("recoveredPayout"));
-            recipient.claimTo(vault, payout);
-            assertEq(payout.balance, fee);
-            assertEq(vault.totalNativeFeeLiability(), 0);
-        }
-
-        function testNativeAcquisitionFeeIsGovernedWithinImmutableCap() public {
-            vm.prank(governance);
-            vault.setNativeAcquisitionFee(0.01 ether);
-            assertEq(vault.nativeAcquisitionFee(), 0.01 ether);
-
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    StaticsGenesisVault.NativeFeeExceedsMaximum.selector, 0.01 ether + 1, 0.01 ether
-                )
-            );
-            vm.prank(governance);
-            vault.setNativeAcquisitionFee(0.01 ether + 1);
-
-            vm.prank(governance);
-            vault.setNativeAcquisitionFee(0);
-            assertEq(vault.nativeAcquisitionFee(), 0);
-        }
-
-        function testVaultOwnershipCannotBeRenounced() public {
-            vm.prank(governance);
-            vm.expectRevert(StaticsGenesisVault.OwnershipRenunciationDisabled.selector);
-            vault.renounceOwnership();
-            assertEq(vault.owner(), governance);
-        }
-
-        function testRedeemReturnsExactBackingAndCreatesVaultInventory() public {
-            _fundAndApproveBuyer(PRICE);
-            vm.startPrank(buyer);
-            uint256 tokenId = 1_056;
-            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
-            genesis.approve(address(vault), tokenId);
-            vault.redeemGenesis(tokenId, buyer);
-            vm.stopPrank();
-
-            assertEq(genesis.ownerOf(tokenId), address(vault));
-            assertEq(statics.balanceOf(buyer), PRICE);
-            assertEq(vault.circulatingGenesis(), 555);
-            assertEq(vault.tokenBacking(), FOUNDER_BACKING);
-            assertEq(vault.requiredBacking(), FOUNDER_BACKING);
-        }
-
-        function testPurchaseAnyVaultInventoryAndRepurchaseRedeemedToken() public {
-            _fundAndApproveBuyer(2 * PRICE);
-
-            vm.startPrank(buyer);
-            vault.buyGenesis{value: NATIVE_FEE}(5_555, buyer);
-            genesis.approve(address(vault), 5_555);
-            vault.redeemGenesis(5_555, buyer);
-            statics.approve(address(vault), PRICE);
-            vault.buyGenesis{value: NATIVE_FEE}(5_555, buyer);
-            vm.stopPrank();
-
-            assertEq(genesis.ownerOf(5_555), buyer);
-            assertEq(vault.vaultInventory(), 4_999);
-            assertEq(vault.tokenBacking(), vault.requiredBacking());
-            assertEq(statics.balanceOf(address(vault)), vault.requiredBacking());
-        }
-
-        function testCannotPurchaseGenesisOutsideVaultInventory() public {
-            _fundAndApproveBuyer(PRICE);
-
-            vm.prank(buyer);
-            vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.GenesisNotInVault.selector, 1));
-            vault.buyGenesis{value: NATIVE_FEE}(1, buyer);
-        }
-
-        function testDirectGenesisDonationCreatesPersistentBackingSurplus() public {
-            uint256 tokenId = 1_056;
-            _fundAndApproveBuyer(PRICE);
-
-            vm.startPrank(buyer);
-            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
-            genesis.safeTransferFrom(buyer, address(vault), tokenId);
-            vm.stopPrank();
-
-            assertEq(vault.requiredBacking(), FOUNDER_BACKING);
-            assertEq(vault.tokenBacking(), FOUNDER_BACKING + PRICE);
-            assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING + PRICE);
-
-            _fundAndApproveBuyer(PRICE);
-            vm.startPrank(buyer);
-            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
-            genesis.approve(address(vault), tokenId);
-            vault.redeemGenesis(tokenId, buyer);
-            vm.stopPrank();
-
-            assertEq(vault.requiredBacking(), FOUNDER_BACKING);
-            assertEq(vault.tokenBacking(), FOUNDER_BACKING + PRICE);
-            assertEq(statics.balanceOf(address(vault)), FOUNDER_BACKING + PRICE);
-        }
-
-        function testPurchasePauseDoesNotBlockRedemption() public {
-            _fundAndApproveBuyer(PRICE);
-            vm.prank(buyer);
-            uint256 tokenId = 1_056;
-            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
-
-            vm.prank(governance);
-            vault.setPurchasesPaused(true);
-
-            vm.prank(buyer);
-            vm.expectRevert(StaticsGenesisVault.PurchasesPaused.selector);
-            vault.buyGenesis{value: NATIVE_FEE}(1_057, buyer);
-
-            vm.startPrank(buyer);
-            genesis.approve(address(vault), tokenId);
-            vault.redeemGenesis(tokenId, buyer);
-            vm.stopPrank();
-            assertEq(genesis.ownerOf(tokenId), address(vault));
-        }
-
-        function testTransferInvokesBoundProtocolAndResetsTier() public {
-            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-            protocol.setTier(1, 4);
-
-            address receiver = makeAddr("receiver");
-            vm.prank(founderTreasury);
-            genesis.transferFrom(founderTreasury, receiver, 1);
-
-            assertEq(genesis.ownerOf(1), receiver);
-            assertEq(protocol.genesisTier(1), 0);
-            assertEq(protocol.lastTransferredId(), 1);
-            assertEq(protocol.lastFrom(), founderTreasury);
-            assertEq(protocol.lastTo(), receiver);
-            assertEq(genesis.owner(), address(this));
-        }
-
-        function testZeroValidatorIsUnrestrictedAndConfiguredValidatorApplies() public {
-            assertEq(genesis.getTransferValidator(), address(0));
-            assertTrue(genesis.supportsInterface(type(ICreatorToken).interfaceId));
-            assertTrue(genesis.supportsInterface(type(ICreatorTokenLegacy).interfaceId));
-
-            MockTransferValidator blockingValidator = new MockTransferValidator(false);
-            genesis.setTransferValidator(address(blockingValidator));
-            vm.prank(founderTreasury);
-            vm.expectRevert("TRANSFER_BLOCKED");
-            genesis.transferFrom(founderTreasury, buyer, 1);
-
-            genesis.setTransferValidator(address(0));
-            vm.prank(founderTreasury);
-            genesis.transferFrom(founderTreasury, buyer, 1);
-            assertEq(genesis.ownerOf(1), buyer);
-        }
-
-        function testTransferValidatorMustBeZeroOrAContract() public {
-            address validatorEOA = makeAddr("validatorEOA");
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesis.InvalidTransferValidator.selector, validatorEOA)
-            );
-            genesis.setTransferValidator(validatorEOA);
-        }
-
-        function testValidatorOriginatedTransferUsesPrevalidatedPath() public {
-            PrevalidatingTransferValidator validator = new PrevalidatingTransferValidator();
-            genesis.setTransferValidator(address(validator));
-            vm.prank(founderTreasury);
-            genesis.approve(address(validator), 1);
-
-            validator.transferAsValidator(genesis, founderTreasury, buyer, 1);
-            assertEq(genesis.ownerOf(1), buyer);
-        }
-
-        function testLinkedGenesisReportsLockedAndMustUnlinkBeforeTransfer() public {
-            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-            assertTrue(genesis.supportsInterface(type(IERC5192).interfaceId));
-            assertFalse(genesis.locked(1));
-
-            vm.expectEmit(false, false, false, true, address(genesis));
-            emit IERC5192.Locked(1);
-            protocol.link(1, 42);
-            assertTrue(genesis.locked(1));
-
-            vm.prank(founderTreasury);
-            vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
-            genesis.transferFrom(founderTreasury, buyer, 1);
-
-            vm.expectEmit(false, false, false, true, address(genesis));
-            emit IERC5192.Unlocked(1);
-            protocol.unlink(1);
-            assertFalse(genesis.locked(1));
-
-            vm.prank(founderTreasury);
-            genesis.transferFrom(founderTreasury, buyer, 1);
-            assertEq(genesis.ownerOf(1), buyer);
-        }
-
-        function testLinkedGenesisMustUnlinkBeforeVaultRedemption() public {
-            uint256 tokenId = 1_056;
-            _fundAndApproveBuyer(PRICE);
-            vm.prank(buyer);
-            vault.buyGenesis{value: NATIVE_FEE}(tokenId, buyer);
-
-            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-            protocol.link(tokenId, 42);
-
-            vm.startPrank(buyer);
-            genesis.approve(address(vault), tokenId);
-            vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, tokenId));
-            vault.redeemGenesis(tokenId, buyer);
-            vm.stopPrank();
-            assertEq(genesis.ownerOf(tokenId), buyer);
-        }
-
-        function testBoundProtocolLinkReadFailureLocksTransfer() public {
-            RevertingLinkGenesisProtocol protocol = new RevertingLinkGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-            protocol.setRevertLinkRead(true);
-            assertTrue(genesis.locked(1));
-
-            vm.prank(founderTreasury);
-            vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
-            genesis.transferFrom(founderTreasury, buyer, 1);
-        }
-
-        function testGenesisMetadataReflectsBoundProtocolTier() public {
-            string memory unactivated = genesis.tokenURI(1);
-            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-            protocol.setTier(1, 4);
-
-            string memory activated = genesis.tokenURI(1);
-            assertTrue(bytes(unactivated).length > 100);
-            assertTrue(bytes(activated).length > 100);
-            assertNotEq(keccak256(bytes(unactivated)), keccak256(bytes(activated)));
-        }
-
-        function testGenesisMetadataRemainsAvailableWhenTierReadReverts() public {
-            string memory unbound = genesis.tokenURI(1);
-            RevertingTierGenesisProtocol protocol = new RevertingTierGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-
-            string memory unavailableTier = genesis.tokenURI(1);
-            assertTrue(bytes(unavailableTier).length > 100);
-            assertEq(keccak256(bytes(unavailableTier)), keccak256(bytes(unbound)));
-        }
-
-        function testGenesisPublishesMarketplaceMetadataAndCappedRoyalty() public {
-            assertEq(genesis.contractURI(), "ipfs://statics-genesis/contract.json");
-            assertTrue(genesis.supportsInterface(type(IERC7572).interfaceId));
-            assertTrue(genesis.supportsInterface(type(IERC2981).interfaceId));
-
-            (address receiver, uint256 amount) = genesis.royaltyInfo(1, 1 ether);
-            assertEq(receiver, founderTreasury);
-            assertEq(amount, 0.05 ether);
-
-            address updatedReceiver = makeAddr("updatedRoyaltyReceiver");
-            genesis.setDefaultRoyalty(updatedReceiver, 1_000);
-            (receiver, amount) = genesis.royaltyInfo(1, 1 ether);
-            assertEq(receiver, updatedReceiver);
-            assertEq(amount, 0.1 ether);
-            (receiver, amount) = genesis.royaltyInfo(1, type(uint256).max);
-            assertEq(receiver, updatedReceiver);
-            assertEq(amount, type(uint256).max / 10);
-
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesis.RoyaltyExceedsMaximum.selector, uint96(1_001), uint96(1_000))
-            );
-            genesis.setDefaultRoyalty(updatedReceiver, 1_001);
-        }
-
-        function testMetadataURLsRemainOwnerConfigurable() public {
-            string memory originalTokenURI = genesis.tokenURI(1);
-            genesis.setContractURI("ipfs://updated/contract.json");
-            genesis.setExternalURLBase("https://app.statics.finance/genesis/");
-
-            assertEq(genesis.contractURI(), "ipfs://updated/contract.json");
-            assertEq(genesis.externalURLBase(), "https://app.statics.finance/genesis/");
-            assertNotEq(keccak256(bytes(originalTokenURI)), keccak256(bytes(genesis.tokenURI(1))));
-        }
-
-        function testProtocolBindingPreservesTwoStepCollectionOwnership() public {
-            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-            assertEq(genesis.owner(), address(this));
-
-            address nextOwner = makeAddr("nextOwner");
-            genesis.transferOwnership(nextOwner);
-            assertEq(genesis.owner(), address(this));
-            assertEq(genesis.pendingOwner(), nextOwner);
-            vm.prank(nextOwner);
-            genesis.acceptOwnership();
-            assertEq(genesis.owner(), nextOwner);
-
-            vm.prank(nextOwner);
-            vm.expectRevert(StaticsGenesis.OwnershipRenunciationDisabled.selector);
-            genesis.renounceOwnership();
-        }
-
-        function testProtocolBindingIsOneTimeAndCollectionValidated() public {
-            MockGenesisProtocol protocol = new MockGenesisProtocol(address(genesis));
-            genesis.bindProtocol(address(protocol));
-
-            vm.expectRevert(StaticsGenesis.ProtocolAlreadyBound.selector);
-            genesis.bindProtocol(address(protocol));
-        }
-
-        function testCannotFinalizeWithoutExactFounderDistribution() public {
-            StaticsGenesisVault emptyVault =
-                new StaticsGenesisVault(statics, address(this), governance, founderTreasury);
-            StaticsAvatarSVG avatar = new StaticsAvatarSVG();
-            StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
-            StaticsGenesis emptyGenesis = new StaticsGenesis(
-                founderTreasury,
-                address(emptyVault),
-                renderer,
-                address(this),
-                "ipfs://statics-genesis/contract.json",
-                "https://statics.finance/genesis/"
-            );
-
-            vm.expectRevert(
-                abi.encodeWithSelector(StaticsGenesisVault.CustodyInsolvent.selector, 0, FOUNDER_BACKING)
-            );
-            emptyVault.finalizeGenesisCollection(address(emptyGenesis));
-        }
-
-        function _fundAndApproveBuyer(uint256 amount) private {
-            statics.transfer(buyer, amount);
-            vm.deal(buyer, buyer.balance + 1 ether);
-            vm.prank(buyer);
-            statics.approve(address(vault), amount);
-        }
-    }

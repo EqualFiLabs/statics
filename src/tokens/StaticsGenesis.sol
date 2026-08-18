@@ -10,12 +10,13 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Consecutive} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Consecutive.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 import {ICreatorToken, ICreatorTokenLegacy, ITransferValidator} from "../interfaces/ICreatorToken.sol";
+import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 
-/// @notice Fixed 5,555-token collection paired one-for-one with 180,010 STATICS claims.
+/// @notice Fixed 5,555-token collection paired one-for-one with 180,018 STATICS claims.
 contract StaticsGenesis is
     ERC721Consecutive,
     ERC2981,
@@ -27,14 +28,13 @@ contract StaticsGenesis is
     Ownable2Step
 {
     uint256 public constant override COLLECTION_SIZE = 5_555;
-    uint256 public constant override TREASURY_GENESIS_COUNT = 555;
-    uint256 public constant override VAULT_GENESIS_COUNT = 5_000;
     uint256 public constant override mintedSupply = COLLECTION_SIZE;
     uint96 public constant DEFAULT_ROYALTY_BPS = 500;
     uint96 public constant MAX_ROYALTY_BPS = 1_000;
     bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
     address public immutable override vault;
+    address public immutable override activationRegistry;
     IStaticsGenesisRenderer public immutable renderer;
     address public override protocol;
     bool public override launchFinalized;
@@ -42,10 +42,9 @@ contract StaticsGenesis is
     string public externalURLBase;
     address private transferValidator;
     mapping(uint256 genesisId => bool reportedLocked) private reportedLockStatus;
-    bool private callbackEntered;
 
-    error InvalidTreasury();
     error InvalidVault();
+    error InvalidActivationRegistry();
     error InvalidRenderer();
     error InvalidProtocol();
     error ProtocolAlreadyBound();
@@ -54,7 +53,6 @@ contract StaticsGenesis is
     error LaunchNotFinalized();
     error LaunchAlreadyFinalized();
     error TransfersDisabled();
-    error ReentrantTransferCallback();
     error InvalidMetadataURI();
     error RoyaltyExceedsMaximum(uint96 royaltyBps, uint96 maximumRoyaltyBps);
     error OwnershipRenunciationDisabled();
@@ -65,25 +63,31 @@ contract StaticsGenesis is
     event ExternalURLBaseUpdated(string externalURLBase);
 
     constructor(
-        address treasury,
         address vault_,
+        address activationRegistry_,
         IStaticsGenesisRenderer renderer_,
         address protocolBinder,
+        address royaltyReceiver,
         string memory contractURI_,
         string memory externalURLBase_
     ) ERC721("Statics Genesis", "STATICS-GENESIS") Ownable(protocolBinder) {
-        if (treasury == address(0)) revert InvalidTreasury();
         if (vault_ == address(0)) revert InvalidVault();
+        if (activationRegistry_ == address(0) || activationRegistry_.code.length == 0) {
+            revert InvalidActivationRegistry();
+        }
         if (address(renderer_) == address(0)) revert InvalidRenderer();
         if (protocolBinder == address(0)) revert InvalidProtocol();
+        if (royaltyReceiver == address(0)) revert InvalidProtocol();
         if (bytes(contractURI_).length == 0 || bytes(externalURLBase_).length == 0) revert InvalidMetadataURI();
         vault = vault_;
+        activationRegistry = activationRegistry_;
         renderer = renderer_;
         contractURI = contractURI_;
         externalURLBase = externalURLBase_;
-        _setDefaultRoyalty(treasury, DEFAULT_ROYALTY_BPS);
-        _mintConsecutive(treasury, uint96(TREASURY_GENESIS_COUNT));
-        _mintConsecutive(vault_, uint96(VAULT_GENESIS_COUNT));
+        _setDefaultRoyalty(royaltyReceiver, DEFAULT_ROYALTY_BPS);
+        // Keep each ERC-2309 batch within OpenZeppelin's marketplace-friendly 5,000-token cap.
+        _mintConsecutive(vault_, 5_000);
+        _mintConsecutive(vault_, uint96(COLLECTION_SIZE - 5_000));
     }
 
     function finalizeLaunch() external override {
@@ -194,14 +198,14 @@ contract StaticsGenesis is
     }
 
     function refreshMetadata(uint256 genesisId) external override {
-        if (msg.sender != protocol) revert UnauthorizedProtocol(msg.sender);
+        if (msg.sender != protocol && msg.sender != activationRegistry) revert UnauthorizedProtocol(msg.sender);
         _requireOwned(genesisId);
         emit MetadataUpdate(genesisId);
     }
 
     function tokenURI(uint256 genesisId) public view override returns (string memory) {
         _requireOwned(genesisId);
-        return renderer.renderTokenURI(address(this), genesisId, protocol, externalURLBase);
+        return renderer.renderTokenURI(address(this), genesisId, activationRegistry, externalURLBase);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981, IERC165) returns (bool) {
@@ -230,16 +234,10 @@ contract StaticsGenesis is
             if (validator != address(0) && msg.sender != validator) {
                 ITransferValidator(validator).validateTransfer(_msgSender(), previousOwner, to, genesisId);
             }
-            address protocol_ = protocol;
-            if (protocol_ != address(0)) {
-                if (callbackEntered) revert ReentrantTransferCallback();
-                callbackEntered = true;
-                IStaticsGenesisProtocol(protocol_).onGenesisTransfer(genesisId, previousOwner, to);
-                callbackEntered = false;
-                previousOwner = super._update(to, genesisId, address(0));
-                emit MetadataUpdate(genesisId);
-                return previousOwner;
-            }
+            IGenesisActivationRegistry(activationRegistry).onGenesisTransfer(genesisId, previousOwner, to);
+            previousOwner = super._update(to, genesisId, address(0));
+            emit MetadataUpdate(genesisId);
+            return previousOwner;
         }
         return super._update(to, genesisId, auth);
     }

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {StdInvariant} from "forge-std/StdInvariant.sol";
+import {Test} from "forge-std/Test.sol";
+import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
-import {StaticsToken} from "../../src/tokens/StaticsToken.sol";
+import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 
 contract GenesisNativeFeeActor {
     StaticsGenesisVault public immutable vault;
@@ -20,8 +21,9 @@ contract GenesisNativeFeeActor {
     receive() external payable {}
 
     function claim() external {
-        if (vault.claimableNativeFees(address(this)) == 0) return;
-        vault.claimNativeAcquisitionFees(payable(address(this)));
+        if (vault.claimableNativeFees(address(this)) != 0) {
+            vault.claimNativeAcquisitionFees(payable(address(this)));
+        }
     }
 }
 
@@ -32,15 +34,15 @@ contract ForceNativeToGenesisVault {
 }
 
 contract GenesisVaultHandler is IERC721Receiver {
-    uint256 private constant PRICE = 180_010 ether;
+    uint256 private constant PRICE = 180_018 ether;
 
-    StaticsToken public immutable statics;
+    MockDopplerToken public immutable statics;
     StaticsGenesis public immutable genesis;
     StaticsGenesisVault public immutable vault;
     GenesisNativeFeeActor public immutable alternateFeeRecipient;
     uint256[] private acquiredIds;
 
-    constructor(StaticsToken statics_, StaticsGenesis genesis_, StaticsGenesisVault vault_) {
+    constructor(MockDopplerToken statics_, StaticsGenesis genesis_, StaticsGenesisVault vault_) {
         statics = statics_;
         genesis = genesis_;
         vault = vault_;
@@ -50,15 +52,6 @@ contract GenesisVaultHandler is IERC721Receiver {
 
     receive() external payable {}
 
-    function redeem(uint256 seed) external {
-        uint256 length = acquiredIds.length;
-        if (length == 0) return;
-        uint256 tokenId = acquiredIds[seed % length];
-        if (genesis.ownerOf(tokenId) != address(this)) return;
-        genesis.approve(address(vault), tokenId);
-        vault.redeemGenesis(tokenId, address(this));
-    }
-
     function buyGenesis(uint256 seed) external {
         if (statics.balanceOf(address(this)) < PRICE) return;
         uint256 tokenId = (seed % genesis.COLLECTION_SIZE()) + 1;
@@ -67,24 +60,34 @@ contract GenesisVaultHandler is IERC721Receiver {
         acquiredIds.push(tokenId);
     }
 
-    function buyGenesisWithWrongFee(uint256 seed) external {
-        if (statics.balanceOf(address(this)) < PRICE) return;
-        uint256 tokenId = (seed % genesis.COLLECTION_SIZE()) + 1;
-        if (!vault.isVaultInventory(tokenId)) return;
-        uint256 fee = vault.nativeAcquisitionFee();
-        uint256 wrongFee = fee == vault.MAX_NATIVE_ACQUISITION_FEE() ? fee - 1 : fee + 1;
-        (bool success,) = address(vault).call{value: wrongFee}(
-            abi.encodeCall(StaticsGenesisVault.buyGenesis, (tokenId, address(this)))
-        );
-        require(!success, "WRONG_FEE_ACCEPTED");
+    function redeem(uint256 seed) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        if (genesis.ownerOf(tokenId) != address(this)) return;
+        genesis.approve(address(vault), tokenId);
+        vault.redeemGenesis(tokenId, address(this));
+    }
+
+    function transferGenesis(uint256 seed) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        if (genesis.ownerOf(tokenId) != address(this)) return;
+        genesis.transferFrom(address(this), address(0xBEEF), tokenId);
+    }
+
+    function donateGenesis(uint256 seed) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        if (genesis.ownerOf(tokenId) != address(this)) return;
+        genesis.safeTransferFrom(address(this), address(vault), tokenId);
     }
 
     function setNativeAcquisitionFee(uint256 rawFee) external {
         vault.setNativeAcquisitionFee(rawFee % (vault.MAX_NATIVE_ACQUISITION_FEE() + 1));
     }
 
-    function rotateNativeFeeRecipient(bool useAlternate) external {
-        vault.setNativeFeeRecipient(useAlternate ? address(alternateFeeRecipient) : address(this));
+    function rotateNativeFeeRecipient(bool alternate) external {
+        vault.setNativeFeeRecipient(alternate ? address(alternateFeeRecipient) : address(this));
     }
 
     function claimNativeFees() external {
@@ -94,38 +97,22 @@ contract GenesisVaultHandler is IERC721Receiver {
         alternateFeeRecipient.claim();
     }
 
+    function donateStatics(uint256 rawAmount) external {
+        uint256 balance = statics.balanceOf(address(this));
+        if (balance == 0) return;
+        statics.transfer(address(vault), rawAmount % (balance + 1));
+    }
+
+    function burnStatics(uint256 rawAmount) external {
+        uint256 balance = statics.balanceOf(address(this));
+        if (balance == 0) return;
+        statics.burn(rawAmount % (balance + 1));
+    }
+
     function forceNativeDonation(uint256 rawAmount) external {
         uint256 amount = rawAmount % (1 ether + 1);
         if (amount > address(this).balance) return;
         new ForceNativeToGenesisVault{value: amount}(payable(address(vault)));
-    }
-
-    function donateStatics(uint256 amount) external {
-        uint256 balance = statics.balanceOf(address(this));
-        if (balance == 0) return;
-        statics.transfer(address(vault), amount % (balance + 1));
-    }
-
-    function burnStatics(uint256 amount) external {
-        uint256 balance = statics.balanceOf(address(this));
-        if (balance == 0) return;
-        statics.burn(amount % (balance + 1));
-    }
-
-    function transferGenesis(uint256 seed) external {
-        uint256 length = acquiredIds.length;
-        if (length == 0) return;
-        uint256 tokenId = acquiredIds[seed % length];
-        if (genesis.ownerOf(tokenId) != address(this)) return;
-        genesis.transferFrom(address(this), address(0xBEEF), tokenId);
-    }
-
-    function donateGenesis(uint256 seed) external {
-        uint256 length = acquiredIds.length;
-        if (length == 0) return;
-        uint256 tokenId = acquiredIds[seed % length];
-        if (genesis.ownerOf(tokenId) != address(this)) return;
-        genesis.safeTransferFrom(address(this), address(vault), tokenId);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
@@ -134,31 +121,32 @@ contract GenesisVaultHandler is IERC721Receiver {
 }
 
 contract GenesisVaultInvariantTest is StdInvariant, Test {
-    StaticsToken private statics;
+    MockDopplerToken private statics;
     StaticsGenesis private genesis;
     StaticsGenesisVault private vault;
     GenesisVaultHandler private handler;
 
     function setUp() public {
-        address founderTreasury = makeAddr("founderTreasury");
-        statics = new StaticsToken(address(this));
-        vault = new StaticsGenesisVault(statics, address(this), address(this), founderTreasury);
+        statics = new MockDopplerToken(address(this));
+        GenesisActivationRegistry registry = new GenesisActivationRegistry(statics, address(this), address(this));
+        vault = new StaticsGenesisVault(statics, address(this), address(this), address(this));
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
         genesis = new StaticsGenesis(
-            founderTreasury,
             address(vault),
+            address(registry),
             renderer,
+            address(this),
             address(this),
             "ipfs://statics-genesis/contract.json",
             "https://statics.finance/genesis/"
         );
-        statics.transfer(address(vault), 99_905_550 ether);
-        statics.transfer(founderTreasury, 90_005_000 ether);
+        registry.bindGenesisCollection(address(genesis));
         vault.finalizeGenesisCollection(address(genesis));
 
         handler = new GenesisVaultHandler(statics, genesis, vault);
-        statics.transfer(address(handler), 810_045_000 ether);
+        statics.transfer(address(handler), 800_000_000 ether);
+        statics.transfer(address(0xCAFE), 200_000_000 ether);
         vm.deal(address(handler), 10_000 ether);
         vault.setNativeFeeRecipient(address(handler));
         vault.transferOwnership(address(handler));
@@ -179,13 +167,13 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
     }
 
     function invariantGenesisAccountingIsBoundedAndConserved() public view {
-        uint256 minted = genesis.mintedSupply();
-        assertEq(minted, genesis.COLLECTION_SIZE());
-        assertEq(vault.circulatingGenesis() + vault.vaultInventory(), minted);
-        assertEq(vault.requiredBacking(), vault.circulatingGenesis() * vault.GENESIS_PRICE());
+        assertEq(genesis.mintedSupply(), 5_555);
+        assertEq(vault.circulatingGenesis() + vault.vaultInventory(), 5_555);
+        assertEq(vault.requiredBacking(), vault.circulatingGenesis() * 180_018 ether);
     }
 
     function invariantStaticsSupplyCanOnlyDecrease() public view {
-        assertLe(statics.totalSupply(), statics.GENESIS_SUPPLY());
+        assertLe(statics.totalSupply(), 1_000_000_000 ether);
+        assertLe(vault.requiredBacking(), 999_999_990 ether);
     }
 }

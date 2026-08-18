@@ -7,10 +7,9 @@ interface IStaticsGenesis is IERC721 {
     event ProtocolBound(address indexed protocol);
 
     function COLLECTION_SIZE() external view returns (uint256);
-    function TREASURY_GENESIS_COUNT() external view returns (uint256);
-    function VAULT_GENESIS_COUNT() external view returns (uint256);
     function mintedSupply() external view returns (uint256);
     function vault() external view returns (address);
+    function activationRegistry() external view returns (address);
     function protocol() external view returns (address);
     function launchFinalized() external view returns (bool);
     function finalizeLaunch() external;
@@ -21,7 +20,5 @@ interface IStaticsGenesis is IERC721 {
 
 interface IStaticsGenesisProtocol {
     function genesisCollection() external view returns (address);
-    function genesisTier(uint256 genesisId) external view returns (uint8);
     function linkedPosition(uint256 genesisId) external view returns (uint256 positionId);
-    function onGenesisTransfer(uint256 genesisId, address from, address to) external;
 }

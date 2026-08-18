@@ -21,7 +21,7 @@ interface IStaticsGenesisVault {
         uint256 nativeFee
     );
     event GenesisRedeemed(address indexed owner, address indexed receiver, uint256 indexed tokenId, uint256 price);
-    event GenesisCollectionFinalized(address indexed collection, uint256 founderBacking);
+    event GenesisCollectionFinalized(address indexed collection);
     event PurchasesPausedSet(bool paused);
     event NativeAcquisitionFeeSet(uint256 previousFee, uint256 newFee);
     event NativeFeeRecipientSet(address indexed previousRecipient, address indexed newRecipient);

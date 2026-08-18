@@ -14,13 +14,11 @@ import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2Step, ReentrancyGuard {
     using LibExactAssetTransfer for IERC20;
 
-    uint256 public constant GENESIS_PRICE = 180_010 ether;
-    uint256 public constant FOUNDER_BACKING = 99_905_550 ether;
+    uint256 public constant GENESIS_PRICE = 180_018 ether;
     uint256 public constant DEFAULT_NATIVE_ACQUISITION_FEE = 0.003 ether;
     uint256 public constant MAX_NATIVE_ACQUISITION_FEE = 0.01 ether;
 
     IERC20 public immutable statics;
-    address public immutable founderTreasury;
     address public bootstrapper;
     IStaticsGenesis public genesis;
     uint256 public tokenBacking;
@@ -53,17 +51,16 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     error UnsupportedNFT(address collection);
     error OwnershipRenunciationDisabled();
 
-    constructor(IERC20 statics_, address bootstrapper_, address governance, address founderTreasury_)
+    constructor(IERC20 statics_, address bootstrapper_, address governance, address nativeFeeRecipient_)
         Ownable(governance)
     {
         if (address(statics_) == address(0)) revert InvalidStaticsToken();
         if (bootstrapper_ == address(0)) revert InvalidBootstrapper();
-        if (founderTreasury_ == address(0)) revert InvalidReceiver(founderTreasury_);
+        if (nativeFeeRecipient_ == address(0)) revert InvalidReceiver(nativeFeeRecipient_);
         statics = statics_;
         bootstrapper = bootstrapper_;
-        founderTreasury = founderTreasury_;
         nativeAcquisitionFee = DEFAULT_NATIVE_ACQUISITION_FEE;
-        nativeFeeRecipient = founderTreasury_;
+        nativeFeeRecipient = nativeFeeRecipient_;
     }
 
     function renounceOwnership() public pure override {
@@ -87,19 +84,15 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         IStaticsGenesis genesis_ = IStaticsGenesis(collection);
         if (
             genesis_.vault() != address(this) || genesis_.mintedSupply() != genesis_.COLLECTION_SIZE()
-                || genesis_.balanceOf(address(this)) != genesis_.VAULT_GENESIS_COUNT()
-                || genesis_.balanceOf(founderTreasury) != genesis_.TREASURY_GENESIS_COUNT()
+                || genesis_.balanceOf(address(this)) != genesis_.COLLECTION_SIZE()
         ) revert InvalidGenesisCollection();
-        uint256 custody = statics.balanceOf(address(this));
-        if (custody < FOUNDER_BACKING) revert CustodyInsolvent(custody, FOUNDER_BACKING);
 
         genesis = genesis_;
-        tokenBacking = FOUNDER_BACKING;
         finalized = true;
         delete bootstrapper;
         genesis_.finalizeLaunch();
         _enforceSolvency();
-        emit GenesisCollectionFinalized(collection, FOUNDER_BACKING);
+        emit GenesisCollectionFinalized(collection);
     }
 
     function buyGenesis(uint256 tokenId, address receiver)

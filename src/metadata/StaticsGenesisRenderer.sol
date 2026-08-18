@@ -3,7 +3,7 @@ pragma solidity 0.8.33;
 
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
+import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 import {LibAvatarTraits} from "./LibAvatarTraits.sol";
 import {StaticsAvatarSVG} from "./StaticsAvatarSVG.sol";
@@ -20,14 +20,15 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         avatarSVG = avatarSVG_;
     }
 
-    function renderTokenURI(address collection, uint256 tokenId, address protocol, string calldata externalURLBase)
-        external
-        view
-        returns (string memory uri)
-    {
+    function renderTokenURI(
+        address collection,
+        uint256 tokenId,
+        address activationRegistry,
+        string calldata externalURLBase
+    ) external view returns (string memory uri) {
         uint8 tier;
-        if (protocol != address(0)) {
-            try IStaticsGenesisProtocol(protocol).genesisTier(tokenId) returns (uint8 reportedTier) {
+        if (activationRegistry != address(0)) {
+            try IGenesisActivationRegistry(activationRegistry).tierOf(tokenId) returns (uint8 reportedTier) {
                 tier = reportedTier;
             } catch {}
         }
@@ -38,7 +39,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         bytes memory json = abi.encodePacked(
             '{"name":"Statics Genesis #',
             tokenId.toString(),
-            '","description":"A fixed-supply Statics Genesis NFT redeemable for 180,010 STATICS.","image":"',
+            '","description":"A fixed-supply Statics Genesis NFT redeemable for 180,018 STATICS.","image":"',
             image,
             '","external_url":"',
             externalURLBase,

@@ -2,8 +2,10 @@
 pragma solidity 0.8.33;
 
 interface IStaticsGenesisRenderer {
-    function renderTokenURI(address collection, uint256 tokenId, address protocol, string calldata externalURLBase)
-        external
-        view
-        returns (string memory uri);
+    function renderTokenURI(
+        address collection,
+        uint256 tokenId,
+        address activationRegistry,
+        string calldata externalURLBase
+    ) external view returns (string memory uri);
 }
