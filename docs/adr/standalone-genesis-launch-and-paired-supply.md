@@ -1,6 +1,7 @@
 # ADR: Standalone Genesis launch with a permanent V4 inventory curve
 
-- Status: Accepted direction; implementation pending
+- Status: Partially superseded by
+  `doppler-genesis-launch-and-staged-rewards.md`
 - Date: 2026-08-15
 - Scope: standalone STATICS and Genesis issuance, fixed Genesis backing,
   six-band one-sided Uniswap v4 distribution, bilateral hook fees,
