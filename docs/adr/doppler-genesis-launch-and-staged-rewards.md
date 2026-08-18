@@ -6,9 +6,7 @@
   inventory, permanent activation state, permanent Doppler fee ingress,
   standalone Genesis rewards, transfer-reset activation, and later handoff to
   the full Statics reward system
-- Supersedes: the STATICS/WETH launch-market, custom standalone hook, launch
-  inventory, supply allocation, public issuance, and deferred-activation
-  portions of `standalone-genesis-launch-and-paired-supply.md`
+- Supersedes: `standalone-genesis-launch-and-paired-supply.md`
 - Preserves: the fixed Genesis maximum supply, Genesis Vault custody and
   backing model, fixed redemption claim, marketplace compatibility, native
   acquisition fee, and separation from the later Statics Diamond except where
@@ -23,9 +21,10 @@ an explicit path into the later PositionNFT reward system.
 
 The previous architecture built and operated a custom STATICS/WETH Uniswap v4
 hook. Doppler already supplies a purpose-built v4 Multicurve launch market,
-Rehype fee collection, token deployment, governance handoff, and a no-migration
-path. Reimplementing those launch-market responsibilities in Statics would add
-code and integration risk without adding basket-specific behavior.
+standard LP-fee beneficiary accounting, token deployment, governance handoff,
+and a no-migration path. Reimplementing those launch-market responsibilities
+in Statics would add code and integration risk without adding basket-specific
+behavior.
 
 Statics will therefore use Doppler for the protocol-token market. The Statics
 v4 hook remains part of the full protocol for BasketToken markets, where
@@ -50,18 +49,14 @@ The standalone release has the following economic topology:
 
 Doppler STATICS/WETH market
         |
-        v
-      Rehype
-        |
-        +-- mandatory Airlock owner share
-        +-- fee-funded full-range liquidity
-        +-- StaticsFeeReceiver
+        +-- 5% of launch-position fees -> Doppler/Airlock owner
+        +-- 95% of launch-position fees -> StaticsFeeReceiver
                   |
                   v
         GenesisLaunchDistributor
                   |
-                  v
-          registered Genesis NFTs
+                  +-- registered Genesis NFT rewards
+                  +-- Statics treasury
 
 
 StaticsGenesis <-> GenesisActivationRegistry
@@ -105,10 +100,12 @@ vesting schedule are explicitly outside this implementation and require a
 later decision. The launch code must not claim that the unvested deployment is
 production-ready.
 
-The Doppler Airlock creation path must use the launch governance factory that
-routes token supply not sold by the initializer to the configured treasury.
-The no-op governance factory is unsuitable because it routes excess supply to
-a dead address.
+The Doppler Airlock creation path uses the launch governance factory and a
+one-use allocation escrow as its timelock recipient. The escrow transfers
+exactly 200,000,000 STATICS to treasury. Multicurve rounding dust returned by
+the initializer is sent to the Genesis Vault as non-liability surplus rather
+than increasing the treasury allocation. The no-op governance factory is
+unsuitable because it routes excess supply to a dead address.
 
 ## Genesis inventory and fixed claim
 
@@ -230,10 +227,17 @@ The launch uses:
 - Doppler Airlock;
 - `DopplerERC20V1` through its whitelisted token factory;
 - the stock Doppler Multicurve hook initializer;
-- Rehype as the Doppler post-owner fee module;
 - the launch governance factory, configured with the Statics treasury;
 - the no-op migrator so the market remains in its original pool; and
 - no atomic developer buy.
+
+Deployment must prove that every configured standard Doppler module has code,
+that the Airlock creates the intended static-fee pool, and that the pool records
+exactly the mandatory 5% Doppler/Airlock-owner beneficiary share and 95%
+`StaticsFeeReceiver` beneficiary share. The integration proof must execute on
+both Robinhood and Base Sepolia rather than inferring compatibility from code
+presence alone. It must perform an actual swap and prove that the standard
+initializer releases the receiver share into Genesis and treasury accounting.
 
 The production deployment manifest must record the exact chain, upstream
 contract addresses, source versions, token order, salt, pool key, fee schedule,
@@ -260,12 +264,19 @@ The fixture records the upstream SDK source revision and the fully resolved
 configuration. Tests must not silently change if a future SDK release changes
 its defaults.
 
+The canonical Robinhood deployment entry point remains compile-time locked
+while the approved configuration hash is zero. A follow-up economic-parameter
+decision must pin the exact curves, static fee, and Genesis reward share before
+that lock can be removed. The initializer may return at most 100 STATICS of
+rounding residual; a larger return reverts rather than silently shrinking the
+public market allocation.
+
 The previous six-band FDV ladder is rejected. Its dollar ranges and inventory
 shares are not accepted economics and must not remain in deployment code as
 production defaults.
 
 Production curve count, ticks, position counts, weights, WETH reference price,
-and Rehype fee schedule require a separate launch-parameter ratification before
+and static pool fee require a separate launch-parameter ratification before
 production deployment.
 
 ### External liquidity
@@ -273,36 +284,33 @@ production deployment.
 The stock Doppler pool remains permissionless. External LPs may add liquidity
 from launch.
 
-The native Uniswap v4 LP fee is zero, so outside LPs do not receive native pool
-fees under the launch configuration. This release does not introduce a custom
-outside-LP reward gate or a Statics wrapper around Doppler liquidity.
+The pool uses a standard static Uniswap v4 LP fee. External LP positions earn
+fees attributable to their own liquidity under ordinary v4 accounting; they do
+not participate in the beneficiary split of fees earned by Doppler's launch
+positions. This release does not introduce a custom outside-LP reward gate or a
+Statics wrapper around Doppler liquidity.
 
-## Rehype fee routing
+## Standard Doppler fee routing
 
-Rehype captures the configured launch trading fee and applies its mandatory 5%
-Airlock-owner share first. The remaining 95% is configured as:
-
-```text
-fee-funded full-range liquidity: 25%
-StaticsFeeReceiver:              75%
-```
-
-Expressed as shares of the gross collected Rehype fee:
+The stock Doppler Multicurve initializer owns the launch liquidity positions
+and accounts for the LP fees those positions earn. Its beneficiary shares are
+configured exactly as:
 
 ```text
-Airlock owner:        5.00%
-full-range liquidity: 23.75%
-StaticsFeeReceiver:  71.25%
+Doppler/Airlock owner:  5%
+StaticsFeeReceiver:    95%
 ```
 
-These percentages allocate the collected fee; they are not the swap fee rate.
-The Rehype starting fee, ending fee, and decay duration remain launch
-parameters.
+These percentages allocate fees earned by the Doppler launch positions; they
+are not the pool's swap fee rate and do not seize fees earned by unrelated
+external LP positions. There is no post-swap fee poster, dynamic fee decay, or
+fee-funded auto-liquidity layer. The pool's static fee is a separately ratified
+launch parameter.
 
-The `StaticsFeeReceiver` is configured as Rehype's beneficiary and fee-routing
-controller. It may update only the intended Statics-controlled post-owner split
-within Rehype's supported bounds. It may not become a general arbitrary-call
-executor or redirect Doppler's mandatory owner share.
+The `StaticsFeeReceiver` is a beneficiary, not a fee-routing controller. The
+temporary `GenesisLaunchDistributor` splits the receiver's collected assets
+between registered Genesis rewards and treasury according to its governed
+reward-share parameter.
 
 ## Permanent `StaticsFeeReceiver`
 
@@ -311,7 +319,7 @@ replaceable reward implementation.
 
 The receiver must:
 
-1. authenticate the configured Doppler/Rehype collection path;
+1. authenticate the configured standard Doppler initializer and bound pool;
 2. calculate harvested revenue using atomic balance deltas;
 3. maintain cumulative harvested accounting per asset;
 4. attribute harvested amounts to the distributor active at collection time;
@@ -362,9 +370,10 @@ The registry exposes a narrow consumer callback before any weight change:
 
 ```solidity
 interface IGenesisActivationConsumer {
-    function onGenesisWeightChange(
+    function onGenesisTransition(
         uint256 genesisId,
-        address rewardOwner,
+        address previousOwner,
+        address nextOwner,
         uint16 previousMultiplierBps,
         uint16 newMultiplierBps
     ) external;
@@ -419,7 +428,7 @@ Each reward asset uses a monotonic RAY index and carried division remainder:
 ```text
 RAY = 1e27
 
-scaled = received * RAY + previousRemainder
+scaled = attributed * RAY + previousRemainder
 indexIncrease = scaled / totalWeight
 newRemainder = scaled % totalWeight
 ```
@@ -438,6 +447,14 @@ During the launch phase, pre-transfer accrued rewards crystallize into a
 pull-based claim for the previous owner. A reverting reward token or recipient
 cannot block NFT transfers because settlement writes liabilities and performs
 no reward-token transfer.
+
+The receiver maintains a monotonic per-distributor attribution total. If a
+permissionless caller has harvested fees into the receiver but the launch
+distributor has not pulled the tokens yet, an owner-changing transfer advances
+the reward indexes from that attribution cursor before settling the old owner.
+The later pull supplies custody without indexing the same revenue twice. Fees
+that remain unharvested inside Doppler have not crossed the receiver attribution
+boundary and enter the index only after a future harvest.
 
 ## Handoff to full Statics
 
@@ -502,27 +519,29 @@ Implementation and testing must prove at minimum:
 11. Vault backing cannot fund activation, fees, liquidity, rewards, or recovery.
 12. Doppler's configured inventory totals exactly 800 million STATICS.
 13. The four-curve fixture resolves exactly to 50%/25%/24%/1% and 44 positions.
-14. External LP adds remain possible under stock Doppler behavior.
-15. Rehype routing applies the mandatory owner share and the configured 25/75
-    split of the remaining fee.
-16. Receiver accounting uses authenticated collection deltas rather than raw
+14. The Robinhood broadcast path cannot run while the production launch hash
+    remains unratified, and Multicurve residual may not exceed 100 STATICS.
+15. External LP adds remain possible under stock Doppler behavior.
+16. Standard Doppler beneficiary accounting applies exactly 5% to its
+    Airlock owner and 95% to `StaticsFeeReceiver` for launch-position fees.
+17. Receiver accounting uses authenticated collection deltas rather than raw
     balances.
-17. Distributor rotation cannot reassign previously attributed revenue.
-18. Activation burns exact liquid STATICS and cannot consume vault backing.
-19. Activation never retroactively changes a completed reward interval.
-20. Every owner-changing Genesis transfer resets activation to Tier 0.
-21. Self-transfers do not reset activation.
-22. A linked Genesis cannot transfer and reports ERC-5192 locked state.
-23. Registration and reward accrual are O(1) in Genesis collection size.
-24. Registration cannot capture historical rewards.
-25. Vault-held NFTs have zero launch reward weight.
-26. Pre-transfer launch rewards crystallize to the previous owner while the
+18. Distributor rotation cannot reassign previously attributed revenue.
+19. Activation burns exact liquid STATICS and cannot consume vault backing.
+20. Activation never retroactively changes a completed reward interval.
+21. Every owner-changing Genesis transfer resets activation to Tier 0.
+22. Self-transfers do not reset activation.
+23. A linked Genesis cannot transfer and reports ERC-5192 locked state.
+24. Registration and reward accrual are O(1) in Genesis collection size.
+25. Registration cannot capture historical rewards.
+26. Vault-held NFTs have zero launch reward weight.
+27. Pre-transfer launch rewards crystallize to the previous owner while the
     launch consumer is active.
-27. Historical owner claims survive receiver and consumer rotation.
-28. At handoff, uncrystallized launch rewards follow the NFT without a global
+28. Historical owner claims survive receiver and consumer rotation.
+29. At handoff, uncrystallized launch rewards follow the NFT without a global
     batch.
-29. Full Statics reads activation from the registry without reactivation.
-30. The launch distributor cannot receive new protocol revenue after handoff.
+30. Full Statics reads activation from the registry without reactivation.
+31. The launch distributor cannot receive new protocol revenue after handoff.
 
 ## Consequences
 
@@ -542,9 +561,10 @@ balance imports.
 
 ### Negative
 
-Doppler and Rehype become external dependencies of the STATICS/WETH market and
-fee path. Their exact deployed versions and configuration are part of the
-protocol trust boundary.
+Doppler's Airlock, token factory, governance factory, standard Multicurve
+initializer, and no-op migrator become external dependencies of the
+STATICS/WETH market and fee path. Their exact deployed versions and
+configuration are part of the protocol trust boundary.
 
 The standalone release has several coordinating contracts and explicit
 governance ceremonies. Incorrect receiver or consumer rotation can interrupt
@@ -597,10 +617,17 @@ Rejected. Activation is deliberately reset on every owner-changing transfer.
 Rejected. It creates a collection-wide liveness boundary. The final index lets
 uncrystallized claims follow each NFT and settle lazily.
 
+### Add a post-swap fee poster or launch auto-liquidity split
+
+Rejected. The stock Multicurve initializer already creates and retains the
+launch liquidity while its standard beneficiary accounting routes 95% of the
+fees earned by that liquidity to Statics. A dynamic fee poster, fee decay, and
+a second 25% auto-liquidity allocation are not part of this architecture.
+
 ### Disable external Doppler liquidity
 
-Rejected. Stock Doppler liquidity remains permissionless. The zero native LP
-fee means outside LPs do not receive native pool fees under this launch setup.
+Rejected. Stock Doppler liquidity remains permissionless. External LPs use
+ordinary v4 positions and earn the fees attributable to their own liquidity.
 
 ## Decisions required before production
 
@@ -608,7 +635,7 @@ The following values remain intentionally unresolved:
 
 - production Multicurve ticks, position counts, and curve weights;
 - the reference WETH/USD assumption used when modeling ticks;
-- Rehype starting fee, ending fee, and decay duration;
+- static Uniswap v4 LP fee;
 - Genesis share of receiver revenue;
 - any residual receiver revenue destination;
 - final activation burn costs within the accepted bounds;
@@ -622,15 +649,15 @@ No production deployment should proceed until these parameters are ratified.
 
 ## References
 
-- [Doppler contracts](https://github.com/whetstoneresearch/doppler)
+- [Doppler contracts at pinned revision](https://github.com/whetstoneresearch/doppler/tree/86a5200456b148c156d2eb81a893747dd601c3ca)
 - [Doppler SDK](https://github.com/whetstoneresearch/doppler-sdk)
 - [Doppler Multicurve paper](https://www.doppler.lol/multicurve.pdf)
-- [Doppler `DopplerERC20V1`](https://github.com/whetstoneresearch/doppler/blob/main/src/tokens/DopplerERC20V1.sol)
-- [Doppler `DopplerHookInitializer`](https://github.com/whetstoneresearch/doppler/blob/main/src/initializers/DopplerHookInitializer.sol)
-- [Doppler `Rehype`](https://github.com/whetstoneresearch/doppler/blob/main/src/posters/Rehype.sol)
-- [Doppler `LaunchpadGovernanceFactory`](https://github.com/whetstoneresearch/doppler/blob/main/src/governance/LaunchpadGovernanceFactory.sol)
-- [Doppler `NoOpMigrator`](https://github.com/whetstoneresearch/doppler/blob/main/src/migrators/NoOpMigrator.sol)
-- [Doppler deployment registry](https://github.com/whetstoneresearch/doppler/blob/main/deployments/addresses.json)
+- [Doppler `DopplerERC20V1`](https://github.com/whetstoneresearch/doppler/blob/86a5200456b148c156d2eb81a893747dd601c3ca/src/tokens/DopplerERC20V1.sol)
+- [Doppler `DopplerHookInitializer`](https://github.com/whetstoneresearch/doppler/blob/86a5200456b148c156d2eb81a893747dd601c3ca/src/initializers/DopplerHookInitializer.sol)
+- [Doppler `FeesManager`](https://github.com/whetstoneresearch/doppler/blob/86a5200456b148c156d2eb81a893747dd601c3ca/src/base/FeesManager.sol)
+- [Doppler `LaunchpadGovernanceFactory`](https://github.com/whetstoneresearch/doppler/blob/86a5200456b148c156d2eb81a893747dd601c3ca/src/governance/LaunchpadGovernanceFactory.sol)
+- [Doppler `NoOpMigrator`](https://github.com/whetstoneresearch/doppler/blob/86a5200456b148c156d2eb81a893747dd601c3ca/src/migrators/NoOpMigrator.sol)
+- [Doppler deployment registry](https://github.com/whetstoneresearch/doppler/blob/86a5200456b148c156d2eb81a893747dd601c3ca/Deployments.json)
 - [OpenSea contract metadata standard](https://docs.opensea.io/docs/contract-level-metadata)
 - [ERC-2981](https://eips.ethereum.org/EIPS/eip-2981)
 - [ERC-4906](https://eips.ethereum.org/EIPS/eip-4906)
