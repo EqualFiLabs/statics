@@ -8,12 +8,12 @@ backing, and market before either Diamond exists:
 ```text
 DopplerERC20V1 (1,000,000,000 fixed STATICS)
 ├── Doppler Multicurve STATICS/WETH market (800,000,000 inventory)
-│   └── Rehype: mandatory owner share + 25% auto-liquidity + 75% fee ingress
+│   └── launch-position LP fees: 5% Doppler/Airlock owner + 95% Statics fee ingress
 ├── Treasury (exactly 200,000,000 STATICS)
 └── StaticsGenesisVault <──> StaticsGenesis (5,555 NFTs)
     ├── fixed 180,018-STATICS redemption backing per circulating NFT
     ├── GenesisActivationRegistry (permanent tiers and transfer reset)
-    └── StaticsFeeReceiver -> GenesisLaunchDistributor (launch era)
+    └── StaticsFeeReceiver -> GenesisLaunchDistributor (launch era reward/treasury split)
 ```
 
 The later full protocol exposes one ordinary user address while preserving a

@@ -13,17 +13,17 @@ import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 
-contract InvariantRehype {
+contract InvariantDopplerFeeSource {
     address public asset;
     address public numeraire;
-    address public buybackDst;
+    address public beneficiary;
     uint256 public staticsPending;
     uint256 public numerairePending;
 
-    function configure(address asset_, address numeraire_, address buybackDst_) external {
+    function configure(address asset_, address numeraire_, address beneficiary_) external {
         asset = asset_;
         numeraire = numeraire_;
-        buybackDst = buybackDst_;
+        beneficiary = beneficiary_;
     }
 
     function queue(uint256 staticsAmount, uint256 numeraireAmount) external {
@@ -31,25 +31,29 @@ contract InvariantRehype {
         numerairePending += numeraireAmount;
     }
 
-    function collectFees(address) external {
+    function collectFees(bytes32) external returns (uint128 fees0, uint128 fees1) {
         uint256 assetAmount = staticsPending;
         uint256 pairedAmount = numerairePending;
         staticsPending = 0;
         numerairePending = 0;
-        if (assetAmount != 0) MockDopplerToken(asset).transfer(buybackDst, assetAmount);
-        if (pairedAmount != 0) MockDopplerToken(numeraire).transfer(buybackDst, pairedAmount);
+        if (assetAmount != 0) MockDopplerToken(asset).transfer(msg.sender, assetAmount);
+        if (pairedAmount != 0) MockDopplerToken(numeraire).transfer(msg.sender, pairedAmount);
+        fees0 = uint128(assetAmount);
+        fees1 = uint128(pairedAmount);
     }
 
-    function getPoolInfo(bytes32) external view returns (address, address, address) {
-        return (asset, numeraire, buybackDst);
+    function getShares(bytes32, address account) external view returns (uint256) {
+        return account == beneficiary ? 0.95 ether : 0;
     }
 
-    function getShares(bytes32, address beneficiary) external view returns (uint256) {
-        return beneficiary == buybackDst ? 1 ether : 0;
+    function getPoolKey(bytes32)
+        external
+        view
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)
+    {
+        (currency0, currency1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        return (currency0, currency1, 30_000, 100, address(this));
     }
-
-    function setFeeDistribution(bytes32, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)
-        external {}
 }
 
 contract GenesisLaunchRewardsHandler is Test {
@@ -57,7 +61,7 @@ contract GenesisLaunchRewardsHandler is Test {
 
     MockDopplerToken public immutable statics;
     MockDopplerToken public immutable weth;
-    InvariantRehype public immutable rehype;
+    InvariantDopplerFeeSource public immutable feeSource;
     StaticsFeeReceiver public immutable receiver;
     GenesisActivationRegistry public immutable registry;
     GenesisLaunchDistributor public immutable distributor;
@@ -67,7 +71,7 @@ contract GenesisLaunchRewardsHandler is Test {
     constructor(
         MockDopplerToken statics_,
         MockDopplerToken weth_,
-        InvariantRehype rehype_,
+        InvariantDopplerFeeSource feeSource_,
         StaticsFeeReceiver receiver_,
         GenesisActivationRegistry registry_,
         GenesisLaunchDistributor distributor_,
@@ -76,7 +80,7 @@ contract GenesisLaunchRewardsHandler is Test {
     ) {
         statics = statics_;
         weth = weth_;
-        rehype = rehype_;
+        feeSource = feeSource_;
         receiver = receiver_;
         registry = registry_;
         distributor = distributor_;
@@ -87,10 +91,19 @@ contract GenesisLaunchRewardsHandler is Test {
     function accrue(uint96 staticsSeed, uint96 wethSeed) external {
         uint256 staticsAmount = bound(uint256(staticsSeed), 0, 100_000 ether);
         uint256 wethAmount = bound(uint256(wethSeed), 0, 100 ether);
-        if (staticsAmount != 0) statics.transfer(address(rehype), staticsAmount);
-        if (wethAmount != 0) weth.transfer(address(rehype), wethAmount);
-        rehype.queue(staticsAmount, wethAmount);
+        if (staticsAmount != 0) statics.transfer(address(feeSource), staticsAmount);
+        if (wethAmount != 0) weth.transfer(address(feeSource), wethAmount);
+        feeSource.queue(staticsAmount, wethAmount);
         distributor.accrue();
+    }
+
+    function harvestOnly(uint96 staticsSeed, uint96 wethSeed) external {
+        uint256 staticsAmount = bound(uint256(staticsSeed), 0, 100_000 ether);
+        uint256 wethAmount = bound(uint256(wethSeed), 0, 100 ether);
+        if (staticsAmount != 0) statics.transfer(address(feeSource), staticsAmount);
+        if (wethAmount != 0) weth.transfer(address(feeSource), wethAmount);
+        feeSource.queue(staticsAmount, wethAmount);
+        receiver.harvest();
     }
 
     function activate(uint256 tokenSeed, uint8 tierSeed) external {
@@ -157,10 +170,10 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         address[3] memory actors = [makeAddr("alice"), makeAddr("bob"), makeAddr("carol")];
         statics = new MockDopplerToken(address(this));
         weth = new MockDopplerToken(address(this));
-        InvariantRehype rehype = new InvariantRehype();
-        receiver = new StaticsFeeReceiver(address(rehype), address(weth), address(this));
+        InvariantDopplerFeeSource feeSource = new InvariantDopplerFeeSource();
+        receiver = new StaticsFeeReceiver(address(feeSource), address(weth), address(this));
         bytes32 poolId = keccak256("GENESIS_INVARIANT");
-        rehype.configure(address(statics), address(weth), address(receiver));
+        feeSource.configure(address(statics), address(weth), address(receiver));
         receiver.bindMarket(address(statics), poolId);
         registry = new GenesisActivationRegistry(statics, address(this), address(this));
         StaticsGenesisVault vault = new StaticsGenesisVault(statics, address(this), address(this), treasury);
@@ -193,7 +206,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         }
 
         GenesisLaunchRewardsHandler handler =
-            new GenesisLaunchRewardsHandler(statics, weth, rehype, receiver, registry, distributor, genesis, actors);
+            new GenesisLaunchRewardsHandler(statics, weth, feeSource, receiver, registry, distributor, genesis, actors);
         statics.transfer(address(handler), 100_000_000 ether);
         weth.transfer(address(handler), 100_000_000 ether);
         targetContract(address(handler));
@@ -221,7 +234,8 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         IGenesisLaunchDistributor.RewardBookView memory book = distributor.rewardBook(asset);
         uint256 accounted = distributor.accountedCustody(asset);
         assertGe(IERC20Like(asset).balanceOf(address(distributor)), accounted);
-        assertGe(accounted, book.totalClaimable + book.treasuryClaimable);
+        uint256 deferred = receiver.distributorClaimable(address(distributor), asset);
+        assertGe(accounted + deferred, book.totalClaimable + book.treasuryClaimable);
     }
 }
 

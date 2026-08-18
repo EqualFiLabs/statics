@@ -2,6 +2,10 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Test} from "forge-std/Test.sol";
 import {
     DeployStaticsGenesis,
@@ -20,63 +24,64 @@ import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 contract DeploymentModule {}
 
 contract MockDeploymentInitializer {
-    function isDopplerHookEnabled(address) external pure returns (uint256) {
-        return 1;
-    }
-}
+    using PoolIdLibrary for PoolKey;
 
-contract MockDeploymentRehype {
-    address public asset;
-    address public numeraire;
-    address public buybackDst;
-    address public beneficiary;
-    uint256 public beneficiaryShares;
-    DopplerLaunchTypes.FeeDistributionInfo public distribution;
+    PoolKey private poolKey;
+    mapping(bytes32 poolId => mapping(address beneficiary => uint256 shares)) public getShares;
 
-    function initialize(address asset_, DopplerLaunchTypes.RehypeInitData memory data) external {
-        asset = asset_;
-        numeraire = data.numeraire;
-        buybackDst = data.buybackDst;
-        beneficiary = data.feeBeneficiaries[0].beneficiary;
-        beneficiaryShares = data.feeBeneficiaries[0].shares;
-        distribution = data.feeDistributionInfo;
-    }
-
-    function getPoolInfo(bytes32) external view returns (address, address, address) {
-        return (asset, numeraire, buybackDst);
-    }
-
-    function getShares(bytes32, address account) external view returns (uint256) {
-        return account == beneficiary ? beneficiaryShares : 0;
-    }
-
-    function collectFees(address) external pure {}
-
-    function setFeeDistribution(
-        bytes32,
-        uint256 a0,
-        uint256 a1,
-        uint256 a2,
-        uint256 a3,
-        uint256 n0,
-        uint256 n1,
-        uint256 n2,
-        uint256 n3
+    function configure(
+        address asset,
+        address numeraire,
+        uint24 fee,
+        int24 tickSpacing,
+        DopplerLaunchTypes.BeneficiaryData[] memory beneficiaries
     ) external {
-        distribution = DopplerLaunchTypes.FeeDistributionInfo(a0, a1, a2, a3, n0, n1, n2, n3);
+        (address currency0, address currency1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        poolKey = PoolKey({
+            currency0: Currency.wrap(currency0),
+            currency1: Currency.wrap(currency1),
+            hooks: IHooks(address(this)),
+            fee: fee,
+            tickSpacing: tickSpacing
+        });
+        bytes32 poolId = PoolId.unwrap(poolKey.toId());
+        for (uint256 i; i < beneficiaries.length; ++i) {
+            getShares[poolId][beneficiaries[i].beneficiary] = beneficiaries[i].shares;
+        }
     }
+
+    function getPoolKey(bytes32)
+        external
+        view
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)
+    {
+        return (
+            Currency.unwrap(poolKey.currency0),
+            Currency.unwrap(poolKey.currency1),
+            poolKey.fee,
+            poolKey.tickSpacing,
+            address(poolKey.hooks)
+        );
+    }
+
+    function collectFees(bytes32) external pure returns (uint128, uint128) {}
 }
 
 contract MockDeploymentAirlock is IDopplerAirlock {
     address private constant GOVERNANCE_DEAD = address(0xdead);
     address private constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
     address public immutable override owner;
-    MockDeploymentRehype public immutable rehype;
+    MockDeploymentInitializer public immutable initializer;
     uint256 public lastNumTokensToSell;
+    uint256 public residual = 1 ether;
 
-    constructor(address owner_, MockDeploymentRehype rehype_) {
+    constructor(address owner_, MockDeploymentInitializer initializer_) {
         owner = owner_;
-        rehype = rehype_;
+        initializer = initializer_;
+    }
+
+    function setResidual(uint256 residual_) external {
+        residual = residual_;
     }
 
     function create(DopplerLaunchTypes.CreateParams calldata params)
@@ -89,12 +94,16 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         lastNumTokensToSell = params.numTokensToSell;
         DopplerLaunchTypes.PoolInitializerData memory poolData =
             abi.decode(params.poolInitializerData, (DopplerLaunchTypes.PoolInitializerData));
-        DopplerLaunchTypes.RehypeInitData memory rehypeData =
-            abi.decode(poolData.onInitializationDopplerHookCalldata, (DopplerLaunchTypes.RehypeInitData));
-        rehype.initialize(address(token), rehypeData);
+        require(poolData.dopplerHook == address(0), "HOOK");
+        require(poolData.onInitializationDopplerHookCalldata.length == 0, "HOOK_DATA");
+        require(poolData.beneficiaries.length == 2, "BENEFICIARIES");
+        require(poolData.beneficiaries[0].beneficiary < poolData.beneficiaries[1].beneficiary, "ORDER");
+        initializer.configure(
+            address(token), params.numeraire, poolData.fee, poolData.tickSpacing, poolData.beneficiaries
+        );
 
         address treasury = abi.decode(params.governanceFactoryData, (address));
-        token.transfer(params.poolInitializer, params.numTokensToSell - 20 ether);
+        token.transfer(params.poolInitializer, params.numTokensToSell - residual);
         token.transfer(treasury, token.balanceOf(address(this)));
         return (address(token), address(token), GOVERNANCE_DEAD, treasury, MIGRATION_DEAD);
     }
@@ -103,7 +112,6 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     contract DeployStaticsGenesisTest is Test {
         DeployStaticsGenesis private deployer;
         MockDopplerToken private weth;
-        MockDeploymentRehype private rehype;
         MockDeploymentInitializer private initializer;
         MockDeploymentAirlock private airlock;
         address private governance;
@@ -114,9 +122,8 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             treasury = makeAddr("treasury");
             deployer = new DeployStaticsGenesis();
             weth = new MockDopplerToken(address(this));
-            rehype = new MockDeploymentRehype();
             initializer = new MockDeploymentInitializer();
-            airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), rehype);
+            airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), initializer);
         }
 
         function testDeploysDopplerGenesisStackWithExactAllocations() public {
@@ -131,14 +138,18 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 200_000_000 ether);
             assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
-            assertEq(statics.balanceOf(address(initializer)), 799_999_980 ether);
+            assertEq(statics.balanceOf(address(initializer)), 799_999_999 ether);
             assertEq(genesis.balanceOf(address(vault)), 5_555);
             assertEq(vault.requiredBacking(), 0);
             assertEq(vault.tokenBacking(), 0);
-            assertEq(statics.balanceOf(address(vault)), 20 ether);
+            assertEq(statics.balanceOf(address(vault)), 1 ether);
             assertEq(statics.balanceOf(deployment.allocationEscrow), 0);
             assertEq(receiver.statics(), deployment.statics);
             assertEq(receiver.poolId(), deployment.poolId);
+            assertEq(receiver.poolInitializer(), address(initializer));
+            assertEq(initializer.getShares(deployment.poolId, address(receiver)), 0.95 ether);
+            assertEq(initializer.getShares(deployment.poolId, airlock.owner()), 0.05 ether);
+            assertEq(statics.balanceOf(deployment.genesisVault), 1 ether);
             assertEq(receiver.activeDistributor(), address(distributor));
             assertEq(registry.activeConsumer(), address(distributor));
             assertEq(receiver.pendingOwner(), governance);
@@ -147,12 +158,23 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(genesis.pendingOwner(), governance);
             assertEq(distributor.pendingOwner(), governance);
 
-            (,, uint256 assetBeneficiary, uint256 assetLp,,, uint256 numeraireBeneficiary, uint256 numeraireLp) =
-                rehype.distribution();
-            assertEq(assetBeneficiary, 0.75 ether);
-            assertEq(assetLp, 0.25 ether);
-            assertEq(numeraireBeneficiary, 0.75 ether);
-            assertEq(numeraireLp, 0.25 ether);
+            vm.startPrank(governance);
+            receiver.acceptOwnership();
+            registry.acceptOwnership();
+            vault.acceptOwnership();
+            genesis.acceptOwnership();
+            distributor.acceptOwnership();
+            vm.stopPrank();
+            assertEq(receiver.owner(), governance);
+            assertEq(registry.owner(), governance);
+            assertEq(vault.owner(), governance);
+            assertEq(genesis.owner(), governance);
+            assertEq(distributor.owner(), governance);
+            assertEq(receiver.pendingOwner(), address(0));
+            assertEq(registry.pendingOwner(), address(0));
+            assertEq(vault.pendingOwner(), address(0));
+            assertEq(genesis.pendingOwner(), address(0));
+            assertEq(distributor.pendingOwner(), address(0));
         }
 
         function testFourCurveFixtureUsesExactPlaceholderWeights() public view {
@@ -165,15 +187,28 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[0].numPositions, 11);
             assertEq(curves[3].tickLower, -84_100);
             assertEq(curves[3].tickUpper, -83_000);
+            assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
+            assertTrue(deployer.launchConfigHash(30_000, 5_000) != bytes32(0));
         }
 
-        function testRejectsInvalidFeeScheduleAndMetadata() public {
+        function testRejectsExcessiveMulticurveResidual() public {
+            airlock.setResidual(101 ether);
             StaticsGenesisDeploymentConfig memory config = _config();
-            config.startFee = 5_000;
-            config.endFee = 10_000;
             vm.expectRevert(
-                abi.encodeWithSelector(DeployStaticsGenesis.InvalidFeeSchedule.selector, 5_000, 10_000, 3 days)
+                abi.encodeWithSelector(DeployStaticsGenesis.ExcessiveMulticurveResidual.selector, 101 ether, 100 ether)
             );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsInvalidFeeAndMetadata() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            config.fee = 0;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 0));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.fee = 100_001;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 100_001));
             deployer.deploy(config, address(deployer));
 
             config = _config();
@@ -196,13 +231,10 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                     tokenFactory: address(tokenFactory),
                     governanceFactory: address(governanceFactory),
                     poolInitializer: address(initializer),
-                    noOpMigrator: address(noOpMigrator),
-                    rehype: address(rehype)
+                    noOpMigrator: address(noOpMigrator)
                 }),
                 salt: keccak256("STATICS_DOPPLER_TEST"),
-                startFee: 30_000,
-                endFee: 5_000,
-                feeDecayDuration: 3 days,
+                fee: 30_000,
                 genesisRewardShareBps: 5_000,
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",

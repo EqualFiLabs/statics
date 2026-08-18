@@ -13,11 +13,7 @@ import {GenesisLaunchDistributor} from "../src/genesis/GenesisLaunchDistributor.
 import {StaticsFeeReceiver} from "../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
 import {StaticsLaunchAllocationEscrow} from "../src/genesis/StaticsLaunchAllocationEscrow.sol";
-import {
-    DopplerLaunchTypes,
-    IDopplerAirlock,
-    IDopplerHookInitializerView
-} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
+import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
@@ -30,9 +26,7 @@ struct StaticsGenesisDeploymentConfig {
     address integrator;
     StaticsDopplerLaunchConfig.Modules modules;
     bytes32 salt;
-    uint24 startFee;
-    uint24 endFee;
-    uint32 feeDecayDuration;
+    uint24 fee;
     uint16 genesisRewardShareBps;
     string tokenURI;
     string contractURI;
@@ -42,7 +36,6 @@ struct StaticsGenesisDeploymentConfig {
 struct StaticsGenesisDeployment {
     address statics;
     address dopplerPoolInitializer;
-    address rehype;
     bytes32 poolId;
     address feeReceiver;
     address allocationEscrow;
@@ -61,9 +54,12 @@ contract DeployStaticsGenesis is Script {
     uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
     uint256 public constant DOPPLER_INVENTORY = 800_000_000 ether;
     uint256 public constant TREASURY_ALLOCATION = 200_000_000 ether;
-    uint256 public constant BENEFICIARY_SHARE = 0.75 ether;
-    uint256 public constant AUTO_LIQUIDITY_SHARE = 0.25 ether;
-    uint8 public constant ROUTE_TO_BENEFICIARY_FEES = 1;
+    uint96 public constant DOPPLER_OWNER_SHARE = 0.05 ether;
+    uint96 public constant STATICS_FEE_SHARE = 0.95 ether;
+    uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
+    uint256 public constant MAX_MULTICURVE_RESIDUAL = 100 ether;
+    /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
+    bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
     int24 public constant FAR_TICK = -83_100;
     address public constant GOVERNANCE_DEAD = address(0xdead);
@@ -72,15 +68,20 @@ contract DeployStaticsGenesis is Script {
     error ZeroAddress();
     error InvalidModule(address module);
     error InvalidMetadataURI();
-    error InvalidFeeSchedule(uint24 startFee, uint24 endFee, uint32 duration);
-    error InvalidRewardShare(uint16 shareBps);
-    error RehypeNotEnabled(address rehype);
+    error InvalidFee(uint256 fee);
+    error InvalidRewardShare(uint256 shareBps);
+    error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
     error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
+    error ExcessiveMulticurveResidual(uint256 residual, uint256 maximum);
 
     function run() external returns (StaticsGenesisDeployment memory deployment) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
+        uint256 fee = vm.envUint("STATICS_DOPPLER_FEE");
+        uint256 rewardShare = vm.envUint("STATICS_GENESIS_REWARD_SHARE_BPS");
+        if (fee > type(uint24).max) revert InvalidFee(fee);
+        if (rewardShare > type(uint16).max) revert InvalidRewardShare(rewardShare);
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
             governance: vm.envAddress("STATICS_GENESIS_GOVERNANCE"),
             treasury: vm.envAddress("STATICS_GENESIS_TREASURY"),
@@ -88,14 +89,21 @@ contract DeployStaticsGenesis is Script {
             integrator: vm.envOr("STATICS_DOPPLER_INTEGRATOR", address(0)),
             modules: StaticsDopplerLaunchConfig.modules(block.chainid),
             salt: vm.envBytes32("STATICS_DOPPLER_SALT"),
-            startFee: uint24(vm.envUint("STATICS_DOPPLER_START_FEE")),
-            endFee: uint24(vm.envUint("STATICS_DOPPLER_END_FEE")),
-            feeDecayDuration: uint32(vm.envUint("STATICS_DOPPLER_FEE_DECAY_SECONDS")),
-            genesisRewardShareBps: uint16(vm.envUint("STATICS_GENESIS_REWARD_SHARE_BPS")),
+            fee: uint24(fee),
+            genesisRewardShareBps: uint16(rewardShare),
             tokenURI: vm.envString("STATICS_TOKEN_URI"),
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
             externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
         });
+        if (block.chainid == 4_663) {
+            bytes32 currentHash = launchConfigHash(config.fee, config.genesisRewardShareBps);
+            if (
+                APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH == bytes32(0)
+                    || currentHash != APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH
+            ) {
+                revert ProductionLaunchConfigurationNotRatified(currentHash, APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH);
+            }
+        }
 
         vm.startBroadcast(privateKey);
         deployment = deploy(config, deployer);
@@ -109,7 +117,8 @@ contract DeployStaticsGenesis is Script {
     {
         _validate(config, initialOwner);
 
-        StaticsFeeReceiver receiver = new StaticsFeeReceiver(config.modules.rehype, config.numeraire, initialOwner);
+        StaticsFeeReceiver receiver =
+            new StaticsFeeReceiver(config.modules.poolInitializer, config.numeraire, initialOwner);
         StaticsLaunchAllocationEscrow allocationEscrow =
             new StaticsLaunchAllocationEscrow(config.treasury, initialOwner);
         (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, allocationEscrow);
@@ -153,7 +162,6 @@ contract DeployStaticsGenesis is Script {
         deployment = StaticsGenesisDeployment({
             statics: statics,
             dopplerPoolInitializer: config.modules.poolInitializer,
-            rehype: config.modules.rehype,
             poolId: poolId,
             feeReceiver: address(receiver),
             allocationEscrow: address(allocationEscrow),
@@ -179,59 +187,51 @@ contract DeployStaticsGenesis is Script {
             DopplerLaunchTypes.Curve({tickLower: -84_100, tickUpper: -83_000, numPositions: 11, shares: 0.01 ether});
     }
 
+    function launchConfigHash(uint24 fee, uint16 genesisRewardShareBps) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                STATICS_SUPPLY,
+                DOPPLER_INVENTORY,
+                TREASURY_ALLOCATION,
+                DOPPLER_OWNER_SHARE,
+                STATICS_FEE_SHARE,
+                fee,
+                genesisRewardShareBps,
+                TICK_SPACING,
+                FAR_TICK,
+                defaultCurves()
+            )
+        );
+    }
+
     function _createDopplerMarket(
         StaticsGenesisDeploymentConfig memory config,
         StaticsFeeReceiver receiver,
         StaticsLaunchAllocationEscrow allocationEscrow
     ) private returns (address statics, bytes32 poolId) {
         IDopplerAirlock airlock = IDopplerAirlock(config.modules.airlock);
-        if (
-            IDopplerHookInitializerView(config.modules.poolInitializer).isDopplerHookEnabled(config.modules.rehype) & 1
-                == 0
-        ) {
-            revert RehypeNotEnabled(config.modules.rehype);
+        DopplerLaunchTypes.BeneficiaryData[] memory poolBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](2);
+        address dopplerOwner = airlock.owner();
+        DopplerLaunchTypes.BeneficiaryData memory ownerBeneficiary =
+            DopplerLaunchTypes.BeneficiaryData({beneficiary: dopplerOwner, shares: DOPPLER_OWNER_SHARE});
+        DopplerLaunchTypes.BeneficiaryData memory staticsBeneficiary =
+            DopplerLaunchTypes.BeneficiaryData({beneficiary: address(receiver), shares: STATICS_FEE_SHARE});
+        if (dopplerOwner < address(receiver)) {
+            poolBeneficiaries[0] = ownerBeneficiary;
+            poolBeneficiaries[1] = staticsBeneficiary;
+        } else {
+            poolBeneficiaries[0] = staticsBeneficiary;
+            poolBeneficiaries[1] = ownerBeneficiary;
         }
-
-        DopplerLaunchTypes.BeneficiaryData[] memory poolBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](1);
-        poolBeneficiaries[0] =
-            DopplerLaunchTypes.BeneficiaryData({beneficiary: airlock.owner(), shares: uint96(DopplerLaunchTypes.WAD)});
-        DopplerLaunchTypes.BeneficiaryData[] memory feeBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](1);
-        feeBeneficiaries[0] = DopplerLaunchTypes.BeneficiaryData({
-            beneficiary: address(receiver), shares: uint96(DopplerLaunchTypes.WAD)
-        });
-
-        DopplerLaunchTypes.FeeDistributionInfo memory distribution = DopplerLaunchTypes.FeeDistributionInfo({
-            assetFeesToAssetBuybackWad: 0,
-            assetFeesToNumeraireBuybackWad: 0,
-            assetFeesToBeneficiaryWad: BENEFICIARY_SHARE,
-            assetFeesToLpWad: AUTO_LIQUIDITY_SHARE,
-            numeraireFeesToAssetBuybackWad: 0,
-            numeraireFeesToNumeraireBuybackWad: 0,
-            numeraireFeesToBeneficiaryWad: BENEFICIARY_SHARE,
-            numeraireFeesToLpWad: AUTO_LIQUIDITY_SHARE
-        });
-        bytes memory rehypeData = abi.encode(
-            DopplerLaunchTypes.RehypeInitData({
-                numeraire: config.numeraire,
-                buybackDst: address(receiver),
-                startFee: config.startFee,
-                endFee: config.endFee,
-                durationSeconds: config.feeDecayDuration,
-                startingTime: 0,
-                feeRoutingMode: ROUTE_TO_BENEFICIARY_FEES,
-                feeDistributionInfo: distribution,
-                feeBeneficiaries: feeBeneficiaries
-            })
-        );
         bytes memory poolData = abi.encode(
             DopplerLaunchTypes.PoolInitializerData({
-                fee: 0,
+                fee: config.fee,
                 tickSpacing: TICK_SPACING,
                 farTick: FAR_TICK,
                 curves: defaultCurves(),
                 beneficiaries: poolBeneficiaries,
-                dopplerHook: config.modules.rehype,
-                onInitializationDopplerHookCalldata: rehypeData,
+                dopplerHook: address(0),
+                onInitializationDopplerHookCalldata: bytes(""),
                 graduationDopplerHookCalldata: bytes("")
             })
         );
@@ -268,7 +268,11 @@ contract DeployStaticsGenesis is Script {
         if (totalSupply != STATICS_SUPPLY || escrowBalance < TREASURY_ALLOCATION) {
             revert AllocationMismatch(totalSupply, escrowBalance);
         }
-        poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer);
+        uint256 residual = escrowBalance - TREASURY_ALLOCATION;
+        if (residual > MAX_MULTICURVE_RESIDUAL) {
+            revert ExcessiveMulticurveResidual(residual, MAX_MULTICURVE_RESIDUAL);
+        }
+        poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer, config.fee);
     }
 
     function _tokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
@@ -287,12 +291,16 @@ contract DeployStaticsGenesis is Script {
         );
     }
 
-    function _poolId(address statics, address numeraire, address initializer) private pure returns (bytes32) {
+    function _poolId(address statics, address numeraire, address initializer, uint24 fee)
+        private
+        pure
+        returns (bytes32)
+    {
         (address currency0, address currency1) = statics < numeraire ? (statics, numeraire) : (numeraire, statics);
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(currency0),
             currency1: Currency.wrap(currency1),
-            fee: DopplerLaunchTypes.DYNAMIC_FEE_FLAG,
+            fee: fee,
             tickSpacing: TICK_SPACING,
             hooks: IHooks(initializer)
         });
@@ -310,16 +318,13 @@ contract DeployStaticsGenesis is Script {
         _requireContract(config.modules.governanceFactory);
         _requireContract(config.modules.poolInitializer);
         _requireContract(config.modules.noOpMigrator);
-        _requireContract(config.modules.rehype);
         if (
             bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
                 || bytes(config.externalURLBase).length == 0
         ) {
             revert InvalidMetadataURI();
         }
-        if (config.startFee < config.endFee || (config.startFee > config.endFee && config.feeDecayDuration == 0)) {
-            revert InvalidFeeSchedule(config.startFee, config.endFee, config.feeDecayDuration);
-        }
+        if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);
         if (config.genesisRewardShareBps > 10_000) revert InvalidRewardShare(config.genesisRewardShareBps);
     }
 
@@ -330,7 +335,6 @@ contract DeployStaticsGenesis is Script {
     function _log(StaticsGenesisDeployment memory deployment) private pure {
         console2.log("STATICS_TOKEN_ADDRESS", deployment.statics);
         console2.log("STATICS_DOPPLER_POOL_INITIALIZER_ADDRESS", deployment.dopplerPoolInitializer);
-        console2.log("STATICS_REHYPE_ADDRESS", deployment.rehype);
         console2.logBytes32(deployment.poolId);
         console2.log("STATICS_FEE_RECEIVER_ADDRESS", deployment.feeReceiver);
         console2.log("STATICS_LAUNCH_ALLOCATION_ESCROW_ADDRESS", deployment.allocationEscrow);

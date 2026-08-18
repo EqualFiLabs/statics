@@ -9,15 +9,16 @@ interface IStaticsFeeReceiver {
     event DistributorFeesClaimed(
         address indexed distributor, address indexed asset, address indexed receiver, uint256 amount
     );
-    event FeeDistributionUpdated(uint256 beneficiaryWad, uint256 liquidityWad);
     event SurplusRecovered(address indexed asset, address indexed receiver, uint256 amount);
 
     function statics() external view returns (address);
     function numeraire() external view returns (address);
+    function poolInitializer() external view returns (address);
     function poolId() external view returns (bytes32);
     function activeDistributor() external view returns (address);
     function pendingDistributor() external view returns (address);
     function cumulativeHarvested(address asset) external view returns (uint256);
+    function cumulativeDistributorAttributed(address distributor, address asset) external view returns (uint256);
     function distributorClaimable(address distributor, address asset) external view returns (uint256);
     function totalDistributorLiability(address asset) external view returns (uint256);
     function bindMarket(address statics_, bytes32 poolId_) external;
@@ -25,6 +26,5 @@ interface IStaticsFeeReceiver {
     function proposeDistributor(address distributor) external;
     function acceptDistributor() external;
     function claimDistributorFees(address asset, address receiver) external returns (uint256 amount);
-    function setFeeDistribution(uint256 beneficiaryWad, uint256 liquidityWad) external;
     function recoverSurplus(address asset, address receiver, uint256 amount) external;
 }

@@ -27,9 +27,7 @@ selected by chain ID and reads:
 | `WETH_ADDRESS` | Verified WETH paired with STATICS |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
 | `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
-| `STATICS_DOPPLER_START_FEE` | Rehype starting fee in millionths |
-| `STATICS_DOPPLER_END_FEE` | Rehype terminal fee in millionths |
-| `STATICS_DOPPLER_FEE_DECAY_SECONDS` | Rehype linear fee-decay duration |
+| `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
 | `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
 | `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
@@ -58,18 +56,27 @@ Before simulation or broadcast, execute the official-module integration proof:
 ```bash
 ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
 BASE_SEPOLIA_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
+REQUIRE_DOPPLER_FORK_PROOF=true \
   forge test \
   --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol \
   -vv
 ```
 
-An executed network path validates module code, Rehype enablement, official
-Airlock creation, supply allocation, pool initialization, and standalone
-wiring. The latest Rehype must be enabled by the selected Doppler initializer;
-deployed code alone is insufficient. The newest Robinhood Rehype was not yet
-enabled when this implementation was validated, so Robinhood production launch
-is blocked until that preflight passes. Base Sepolia provides the current live
-integration proof.
+An executed network path validates module code, official Airlock creation,
+supply allocation, pool initialization, the mandatory 5% Doppler/Airlock-owner
+share of launch-position LP fees, the exact 95% Statics receiver share, and
+standalone wiring. It then executes a real v4 swap, harvests fees through the
+standard initializer, and proves both Genesis and treasury accrual. Both
+Robinhood and Base Sepolia provide this live integration proof against their
+official standard Multicurve initializers.
+
+The canonical `run()` path is deliberately locked on Robinhood while
+`APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
+curves, static fee, and Genesis reward share requires a reviewed follow-up
+commit that pins their exact hash. The lower-level `deploy()` function remains
+available to unit and fork tests. Deployment also rejects more than 100 STATICS
+of Multicurve rounding residual so an upstream or configuration error cannot
+silently shrink the 800-million-token public inventory.
 
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
@@ -92,8 +99,12 @@ Airlock creates the live pool in the deployment transaction; there is no later
 graduation or custom Statics initialization. Record the token, PoolKey/PoolId,
 all Doppler modules and source revisions, fee receiver, allocation escrow,
 activation registry, collection, vault, distributor, metadata contracts, fee
-schedule, four curves, and every pending ownership acceptance. The four-curve
-fixture and fee values are not approved production economics.
+schedule, and four curves. Before declaring deployment complete, the configured
+governance must submit one batch containing `acceptOwnership()` to the fee
+receiver, activation registry, vault, Genesis collection, and launch
+distributor. Verify `owner() == governance` and `pendingOwner() == address(0)`
+on all five contracts; until then the broadcaster remains the active owner.
+The four-curve fixture and fee values are not approved production economics.
 
 ## Required configuration
 

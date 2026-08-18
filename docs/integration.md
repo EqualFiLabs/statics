@@ -67,6 +67,10 @@ transfers. If governance later configures a validator, marketplaces must satisfy
 that policy; the vault has no bypass. After the full protocol is bound,
 `locked(tokenId)` reflects its Genesis-to-Position registry. A locked Genesis
 must be unlinked before either an ordinary transfer or vault redemption.
+The collection uses ERC-2309 consecutive construction for all 5,555 vault-held
+tokens and therefore does not emit 5,555 individual initial `Unlocked` events;
+integrators should read `locked(tokenId)`. Later link-state changes emit the
+standard ERC-5192 `Locked` or `Unlocked` event.
 
 Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
@@ -80,8 +84,9 @@ is hook-owned and has no protocol PositionManager token ID.
 
 The standalone STATICS/WETH market is the Doppler pool recorded by the launch
 manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
-swaps. Registered Genesis rewards are indexed only after authenticated Rehype
-harvests; raw receiver balances are not protocol revenue.
+swaps. Registered Genesis rewards are indexed only after the permanent receiver
+collects its authenticated 95% beneficiary share from the standard Doppler
+initializer; raw receiver balances are not protocol revenue.
 
 ## Basket creation and discovery
 

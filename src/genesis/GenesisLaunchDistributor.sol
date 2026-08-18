@@ -59,6 +59,7 @@ contract GenesisLaunchDistributor is
     mapping(address owner => mapping(address asset => uint256 amount)) public ownerClaimable;
     mapping(address owner => mapping(address asset => uint256 remainderRay)) public ownerClaimRemainderRay;
     mapping(address asset => uint256 amount) public accountedCustody;
+    mapping(address asset => uint256 amount) public indexedReceiverAttribution;
 
     error InvalidContract(address target);
     error InvalidTreasury();
@@ -111,10 +112,12 @@ contract GenesisLaunchDistributor is
     }
 
     function acceptFeeReceiverRole() external override onlyOwner {
+        if (finalized) revert LaunchRewardsAlreadyFinalized();
         feeReceiver.acceptDistributor();
     }
 
     function acceptActivationConsumer() external override onlyOwner {
+        if (finalized) revert LaunchRewardsAlreadyFinalized();
         activationRegistry.acceptConsumer();
     }
 
@@ -152,7 +155,14 @@ contract GenesisLaunchDistributor is
 
         // Activation changes weight and checkpoints newly harvestable fees first. Owner-changing
         // transfers deliberately perform storage-only settlement so a reward-token failure cannot brick ERC-721 transfers.
-        if (!finalized && previousOwner == nextOwner) _accrue();
+        if (!finalized) {
+            if (previousOwner == nextOwner) {
+                _accrue();
+            } else {
+                _checkpointAttributed(statics);
+                _checkpointAttributed(numeraire);
+            }
+        }
         _settle(genesisId, statics);
         _settle(genesisId, numeraire);
         if (previousOwner != nextOwner) {
@@ -203,6 +213,7 @@ contract GenesisLaunchDistributor is
     {
         _validateAsset(asset);
         _validateReceiver(receiver);
+        if (!finalized) _pullAttributed(asset);
         amount = ownerClaimable[msg.sender][asset];
         if (amount == 0) revert NoRewards();
         delete ownerClaimable[msg.sender][asset];
@@ -294,6 +305,7 @@ contract GenesisLaunchDistributor is
     }
 
     function _pullAttributed(address asset) private returns (uint256 amount) {
+        _checkpointAttributed(asset);
         amount = feeReceiver.distributorClaimable(address(this), asset);
         if (amount == 0) return 0;
         IERC20 token = IERC20(asset);
@@ -303,6 +315,17 @@ contract GenesisLaunchDistributor is
         uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
         if (reported != amount || received != amount) revert InconsistentFeeTransfer(asset, amount, received);
         accountedCustody[asset] += amount;
+    }
+
+    /// @dev Indexes receiver-attributed revenue without moving reward tokens. Genesis transfers
+    ///      use this storage-only path so a reward token cannot brick ERC-721 transfers while
+    ///      already-attributed fees still settle to the previous owner.
+    function _checkpointAttributed(address asset) private returns (uint256 amount) {
+        uint256 cumulative = feeReceiver.cumulativeDistributorAttributed(address(this), asset);
+        uint256 checkpoint = indexedReceiverAttribution[asset];
+        amount = cumulative - checkpoint;
+        if (amount == 0) return 0;
+        indexedReceiverAttribution[asset] = cumulative;
         _allocate(asset, amount);
     }
 

@@ -37,67 +37,44 @@ contract MockRewardToken is ERC20 {
     }
 }
 
-contract MockRehype {
-    struct PoolInfo {
-        address asset;
-        address numeraire;
-        address buybackDst;
-    }
-
-    mapping(bytes32 poolId => PoolInfo info) public getPoolInfo;
+contract MockDopplerFeeSource {
+    address public asset;
+    address public numeraire;
     mapping(bytes32 poolId => mapping(address beneficiary => uint256 shares)) public getShares;
-    mapping(address asset => uint256 amount) public pending0;
-    mapping(address asset => uint256 amount) public pending1;
-    mapping(bytes32 poolId => uint256 beneficiaryWad) public configuredBeneficiaryWad;
-    mapping(bytes32 poolId => uint256 liquidityWad) public configuredLiquidityWad;
+    uint256 public pending0;
+    uint256 public pending1;
 
-    function configure(bytes32 poolId, address asset, address numeraire, address receiver) external {
-        getPoolInfo[poolId] = PoolInfo(asset, numeraire, receiver);
-        getShares[poolId][receiver] = 1 ether;
+    function configure(bytes32 poolId, address asset_, address numeraire_, address receiver) external {
+        asset = asset_;
+        numeraire = numeraire_;
+        getShares[poolId][receiver] = 0.95 ether;
     }
 
-    function queue(address asset, uint256 amount0, uint256 amount1) external {
-        PoolInfo memory info = _infoForAsset(asset);
-        if (amount0 != 0) IERC20(info.asset).transferFrom(msg.sender, address(this), amount0);
-        if (amount1 != 0) IERC20(info.numeraire).transferFrom(msg.sender, address(this), amount1);
-        pending0[asset] += amount0;
-        pending1[asset] += amount1;
+    function queue(address statics, address weth, uint256 staticsAmount, uint256 wethAmount) external {
+        if (staticsAmount != 0) IERC20(statics).transferFrom(msg.sender, address(this), staticsAmount);
+        if (wethAmount != 0) IERC20(weth).transferFrom(msg.sender, address(this), wethAmount);
+        pending0 += staticsAmount;
+        pending1 += wethAmount;
     }
 
-    function collectFees(address asset) external {
-        PoolInfo memory info = _infoForAsset(asset);
-        uint256 amount0 = pending0[asset];
-        uint256 amount1 = pending1[asset];
-        delete pending0[asset];
-        delete pending1[asset];
-        if (amount0 != 0) IERC20(info.asset).transfer(msg.sender, amount0);
-        if (amount1 != 0) IERC20(info.numeraire).transfer(msg.sender, amount1);
+    function collectFees(bytes32) external returns (uint128 fees0, uint128 fees1) {
+        uint256 staticsAmount = pending0;
+        uint256 wethAmount = pending1;
+        delete pending0;
+        delete pending1;
+        if (staticsAmount != 0) IERC20(asset).transfer(msg.sender, staticsAmount);
+        if (wethAmount != 0) IERC20(numeraire).transfer(msg.sender, wethAmount);
+        fees0 = uint128(staticsAmount);
+        fees1 = uint128(wethAmount);
     }
 
-    function setFeeDistribution(
-        bytes32 poolId,
-        uint256 assetBuyback,
-        uint256 numeraireBuyback,
-        uint256 assetBeneficiary,
-        uint256 assetLp,
-        uint256 reverseAssetBuyback,
-        uint256 reverseNumeraireBuyback,
-        uint256 numeraireBeneficiary,
-        uint256 numeraireLp
-    ) external {
-        require(msg.sender == getPoolInfo[poolId].buybackDst, "NOT_CONTROLLER");
-        require(assetBuyback == 0 && numeraireBuyback == 0, "BUYBACK_ENABLED");
-        require(reverseAssetBuyback == 0 && reverseNumeraireBuyback == 0, "BUYBACK_ENABLED");
-        require(assetBeneficiary == numeraireBeneficiary && assetLp == numeraireLp, "ASYMMETRIC");
-        require(assetBeneficiary + assetLp == 1 ether, "INVALID_TOTAL");
-        configuredBeneficiaryWad[poolId] = assetBeneficiary;
-        configuredLiquidityWad[poolId] = assetLp;
-    }
-
-    function _infoForAsset(address asset) private view returns (PoolInfo memory info) {
-        // The tests use one deterministic pool id.
-        info = getPoolInfo[keccak256("STATICS_WETH")];
-        require(info.asset == asset, "UNKNOWN_ASSET");
+    function getPoolKey(bytes32)
+        external
+        view
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)
+    {
+        (currency0, currency1) = asset < numeraire ? (asset, numeraire) : (numeraire, asset);
+        return (currency0, currency1, 30_000, 100, address(this));
     }
 }
 
@@ -135,7 +112,7 @@ contract GenesisLaunchRewardsTest is Test {
     address private carol;
     MockDopplerToken private statics;
     MockRewardToken private weth;
-    MockRehype private rehype;
+    MockDopplerFeeSource private feeSource;
     StaticsFeeReceiver private feeReceiver;
     GenesisActivationRegistry private activationRegistry;
     GenesisLaunchDistributor private distributor;
@@ -154,9 +131,9 @@ contract GenesisLaunchRewardsTest is Test {
 
         statics = new MockDopplerToken(address(this));
         weth = new MockRewardToken();
-        rehype = new MockRehype();
-        feeReceiver = new StaticsFeeReceiver(address(rehype), address(weth), governance);
-        rehype.configure(POOL_ID, address(statics), address(weth), address(feeReceiver));
+        feeSource = new MockDopplerFeeSource();
+        feeReceiver = new StaticsFeeReceiver(address(feeSource), address(weth), governance);
+        feeSource.configure(POOL_ID, address(statics), address(weth), address(feeReceiver));
         vm.prank(governance);
         feeReceiver.bindMarket(address(statics), POOL_ID);
 
@@ -186,9 +163,9 @@ contract GenesisLaunchRewardsTest is Test {
         vm.prank(governance);
         distributor.acceptActivationConsumer();
 
-        statics.approve(address(rehype), type(uint256).max);
+        statics.approve(address(feeSource), type(uint256).max);
         weth.mint(address(this), 1_000_000 ether);
-        weth.approve(address(rehype), type(uint256).max);
+        weth.approve(address(feeSource), type(uint256).max);
     }
 
     function testDirectDonationsDoNotIncreaseHarvestedRevenue() public {
@@ -201,15 +178,9 @@ contract GenesisLaunchRewardsTest is Test {
         assertEq(distributor.accountedCustody(address(statics)), 100 ether);
     }
 
-    function testFeeDistributionControllerAppliesSymmetricPostOwnerSplit() public {
-        vm.prank(governance);
-        feeReceiver.setFeeDistribution(0.75 ether, 0.25 ether);
-        assertEq(rehype.configuredBeneficiaryWad(POOL_ID), 0.75 ether);
-        assertEq(rehype.configuredLiquidityWad(POOL_ID), 0.25 ether);
-
-        vm.prank(governance);
-        vm.expectRevert();
-        feeReceiver.setFeeDistribution(0.74 ether, 0.25 ether);
+    function testMarketBindingRequiresExactNinetyFivePercentBeneficiaryShare() public view {
+        assertEq(feeReceiver.poolInitializer(), address(feeSource));
+        assertEq(feeSource.getShares(POOL_ID, address(feeReceiver)), 0.95 ether);
     }
 
     function testTwoGenesisWeightsUseRemainderIndexAcrossActivation() public {
@@ -249,6 +220,27 @@ contract GenesisLaunchRewardsTest is Test {
         assertEq(distributor.claimGenesis(1, address(statics), carol), 1_000 ether);
         vm.prank(alice);
         assertEq(distributor.claimOwnerRewards(address(statics), alice), 1_000 ether);
+    }
+
+    function testHarvestThenTransferCheckpointsAttributedFeesToPreviousOwner() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(bob, 2);
+        _queue(2_000 ether, 0);
+
+        feeReceiver.harvest();
+        assertEq(feeReceiver.cumulativeDistributorAttributed(address(distributor), address(statics)), 2_000 ether);
+        assertEq(feeReceiver.distributorClaimable(address(distributor), address(statics)), 2_000 ether);
+        assertEq(statics.balanceOf(address(distributor)), 0);
+
+        vm.prank(alice);
+        genesis.transferFrom(alice, carol, 1);
+        assertEq(distributor.ownerClaimable(alice, address(statics)), 1_000 ether);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 0);
+        assertEq(statics.balanceOf(address(distributor)), 0, "transfer moved reward tokens");
+
+        vm.prank(alice);
+        assertEq(distributor.claimOwnerRewards(address(statics), alice), 1_000 ether);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 0, "new owner inherited attributed fees");
     }
 
     function testTransferDoesNotCallRevertingRewardToken() public {
@@ -305,6 +297,18 @@ contract GenesisLaunchRewardsTest is Test {
         activationRegistry.proposeConsumer(address(nextConsumer));
         nextConsumer.accept(activationRegistry);
 
+        vm.prank(governance);
+        feeReceiver.proposeDistributor(address(distributor));
+        vm.prank(governance);
+        vm.expectRevert(GenesisLaunchDistributor.LaunchRewardsAlreadyFinalized.selector);
+        distributor.acceptFeeReceiverRole();
+
+        vm.prank(governance);
+        activationRegistry.proposeConsumer(address(distributor));
+        vm.prank(governance);
+        vm.expectRevert(GenesisLaunchDistributor.LaunchRewardsAlreadyFinalized.selector);
+        distributor.acceptActivationConsumer();
+
         vm.prank(alice);
         genesis.transferFrom(alice, carol, 1);
         vm.prank(carol);
@@ -351,6 +355,6 @@ contract GenesisLaunchRewardsTest is Test {
     }
 
     function _queue(uint256 staticsAmount, uint256 wethAmount) private {
-        rehype.queue(address(statics), staticsAmount, wethAmount);
+        feeSource.queue(address(statics), address(weth), staticsAmount, wethAmount);
     }
 }

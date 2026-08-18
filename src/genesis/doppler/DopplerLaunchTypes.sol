@@ -3,9 +3,6 @@ pragma solidity 0.8.33;
 
 /// @dev ABI-compatible subset of the Doppler contracts pinned by the Genesis launch ADR.
 library DopplerLaunchTypes {
-    uint256 internal constant WAD = 1 ether;
-    uint24 internal constant DYNAMIC_FEE_FLAG = 0x800000;
-
     struct Curve {
         int24 tickLower;
         int24 tickUpper;
@@ -21,29 +18,6 @@ library DopplerLaunchTypes {
     struct VestingSchedule {
         uint64 cliff;
         uint64 duration;
-    }
-
-    struct FeeDistributionInfo {
-        uint256 assetFeesToAssetBuybackWad;
-        uint256 assetFeesToNumeraireBuybackWad;
-        uint256 assetFeesToBeneficiaryWad;
-        uint256 assetFeesToLpWad;
-        uint256 numeraireFeesToAssetBuybackWad;
-        uint256 numeraireFeesToNumeraireBuybackWad;
-        uint256 numeraireFeesToBeneficiaryWad;
-        uint256 numeraireFeesToLpWad;
-    }
-
-    struct RehypeInitData {
-        address numeraire;
-        address buybackDst;
-        uint24 startFee;
-        uint24 endFee;
-        uint32 durationSeconds;
-        uint32 startingTime;
-        uint8 feeRoutingMode;
-        FeeDistributionInfo feeDistributionInfo;
-        BeneficiaryData[] feeBeneficiaries;
     }
 
     struct PoolInitializerData {
@@ -80,8 +54,4 @@ interface IDopplerAirlock {
     function create(DopplerLaunchTypes.CreateParams calldata createData)
         external
         returns (address asset, address pool, address governance, address timelock, address migrationPool);
-}
-
-interface IDopplerHookInitializerView {
-    function isDopplerHookEnabled(address dopplerHook) external view returns (uint256 flags);
 }

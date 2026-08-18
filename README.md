@@ -42,7 +42,7 @@ for the canonical machine-readable integration-beta state.
 | Capability | Summary |
 |---|---|
 | **Standalone Genesis** | All 5,555 marketplace-compatible Genesis NFTs start in vault inventory and are mechanically paired with 180,018 STATICS each; acquisitions add a flat native treasury fee while redemption backing remains exact and Diamond-independent. |
-| **Permanent STATICS/WETH market** | Doppler Multicurve distributes the 800-million public allocation; Rehype routes its post-owner fee share 25% to auto-liquidity and 75% to permanent Statics fee ingress. |
+| **Permanent STATICS/WETH market** | Doppler Multicurve distributes the 800-million public allocation; fees earned by its launch positions route 5% to the Doppler/Airlock owner and 95% to permanent Statics fee ingress. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
@@ -230,16 +230,20 @@ official Robinhood and Base Sepolia Doppler modules:
 ```shell
 ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
 BASE_SEPOLIA_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
+REQUIRE_DOPPLER_FORK_PROOF=true \
   forge test \
   --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol \
   -vv
 ```
 
 This proof calls the official Airlock creation path, validates all configured
-modules and Rehype enablement, creates the four-curve pool, and checks the
-token allocation, fee ingress, activation consumer, vault, and launch reward
-wiring. A missing RPC skips its corresponding network; an executed pass is
-separate evidence from the default skipped path.
+modules, creates the four-curve pool, proves the exact 5%/95% beneficiary
+shares, executes a v4 swap, harvests the resulting launch-position fees, and
+checks the token allocation, fee ingress, activation consumer, vault, Genesis
+reward, and treasury-revenue wiring. A missing RPC skips its corresponding
+network; an executed pass is separate evidence from the default skipped path.
+The required-proof flag turns either missing RPC into a failure for release
+verification.
 
 Run the focused deployed-router proof with:
 
@@ -272,6 +276,10 @@ inventory, permanent activation registry and fee receiver, and temporary
 Genesis launch distributor. The four curves and fee schedule are explicitly
 nonproduction fixtures pending economic ratification. It does not deploy or
 require the Statics Diamonds.
+
+The Robinhood `run()` path is compile-time locked until a follow-up decision
+pins the approved launch-configuration hash. Multicurve residual above 100
+STATICS also reverts instead of silently reducing public market inventory.
 
 ```shell
 forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \

@@ -8,30 +8,21 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
-interface IRehypeFeeSource {
-    function collectFees(address asset) external;
-    function getPoolInfo(bytes32 poolId) external view returns (address asset, address numeraire, address buybackDst);
+interface IDopplerFeeSource {
+    function collectFees(bytes32 poolId) external returns (uint128 fees0, uint128 fees1);
     function getShares(bytes32 poolId, address beneficiary) external view returns (uint256 shares);
-    function setFeeDistribution(
-        bytes32 poolId,
-        uint256 assetFeesToAssetBuybackWad,
-        uint256 assetFeesToNumeraireBuybackWad,
-        uint256 assetFeesToBeneficiaryWad,
-        uint256 assetFeesToLpWad,
-        uint256 numeraireFeesToAssetBuybackWad,
-        uint256 numeraireFeesToNumeraireBuybackWad,
-        uint256 numeraireFeesToBeneficiaryWad,
-        uint256 numeraireFeesToLpWad
-    ) external;
+    function getPoolKey(bytes32 poolId)
+        external
+        view
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks);
 }
 
-/// @notice Permanent donation-resistant ingress for the Statics share of Doppler Rehype fees.
+/// @notice Permanent donation-resistant ingress for Statics' 95% share of standard Doppler Multicurve fees.
 contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuard {
     using LibExactAssetTransfer for IERC20;
 
-    uint256 public constant WAD = 1 ether;
-
-    IRehypeFeeSource public immutable rehype;
+    IDopplerFeeSource public immutable feeSource;
+    address public immutable override poolInitializer;
     address public immutable override numeraire;
     address public override statics;
     bytes32 public override poolId;
@@ -39,10 +30,13 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     address public override pendingDistributor;
 
     mapping(address asset => uint256 amount) public override cumulativeHarvested;
+    mapping(address distributor => mapping(address asset => uint256 amount))
+        public
+        override cumulativeDistributorAttributed;
     mapping(address distributor => mapping(address asset => uint256 amount)) public override distributorClaimable;
     mapping(address asset => uint256 amount) public override totalDistributorLiability;
 
-    error InvalidRehype();
+    error InvalidPoolInitializer();
     error InvalidNumeraire();
     error InvalidMarket();
     error MarketAlreadyBound();
@@ -51,16 +45,18 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     error UnauthorizedPendingDistributor(address caller);
     error DistributorNotActive();
     error InvalidReceiver(address receiver);
-    error InvalidFeeDistribution(uint256 beneficiaryWad, uint256 liquidityWad);
     error BalanceDecreased(address asset, uint256 beforeBalance, uint256 afterBalance);
     error NoDistributorFees(address distributor, address asset);
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
 
-    constructor(address rehype_, address numeraire_, address governance) Ownable(governance) {
-        if (rehype_ == address(0) || rehype_.code.length == 0) revert InvalidRehype();
+    constructor(address poolInitializer_, address numeraire_, address governance) Ownable(governance) {
+        if (poolInitializer_ == address(0) || poolInitializer_.code.length == 0) {
+            revert InvalidPoolInitializer();
+        }
         if (numeraire_ == address(0) || numeraire_.code.length == 0) revert InvalidNumeraire();
-        rehype = IRehypeFeeSource(rehype_);
+        feeSource = IDopplerFeeSource(poolInitializer_);
+        poolInitializer = poolInitializer_;
         numeraire = numeraire_;
     }
 
@@ -71,11 +67,12 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     function bindMarket(address statics_, bytes32 poolId_) external override onlyOwner {
         if (statics != address(0)) revert MarketAlreadyBound();
         if (statics_ == address(0) || statics_.code.length == 0 || statics_ == numeraire) revert InvalidMarket();
-        (address reportedAsset, address reportedNumeraire, address buybackDst) = rehype.getPoolInfo(poolId_);
-        if (
-            reportedAsset != statics_ || reportedNumeraire != numeraire || buybackDst != address(this)
-                || rehype.getShares(poolId_, address(this)) != WAD
-        ) revert InvalidMarket();
+        (address currency0, address currency1,,, address hooks) = feeSource.getPoolKey(poolId_);
+        bool pairMatches =
+            (currency0 == statics_ && currency1 == numeraire) || (currency0 == numeraire && currency1 == statics_);
+        if (!pairMatches || hooks != poolInitializer || feeSource.getShares(poolId_, address(this)) != 0.95 ether) {
+            revert InvalidMarket();
+        }
         statics = statics_;
         poolId = poolId_;
         emit MarketBound(statics_, numeraire, poolId_);
@@ -128,16 +125,6 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         emit DistributorFeesClaimed(msg.sender, asset, receiver, amount);
     }
 
-    function setFeeDistribution(uint256 beneficiaryWad, uint256 liquidityWad) external override onlyOwner {
-        if (beneficiaryWad + liquidityWad != WAD) {
-            revert InvalidFeeDistribution(beneficiaryWad, liquidityWad);
-        }
-        bytes32 marketPoolId = poolId;
-        if (statics == address(0)) revert MarketNotBound();
-        rehype.setFeeDistribution(marketPoolId, 0, 0, beneficiaryWad, liquidityWad, 0, 0, beneficiaryWad, liquidityWad);
-        emit FeeDistributionUpdated(beneficiaryWad, liquidityWad);
-    }
-
     function recoverSurplus(address asset, address receiver, uint256 amount) external override onlyOwner nonReentrant {
         if (receiver == address(0) || receiver == address(this)) revert InvalidReceiver(receiver);
         uint256 balance = IERC20(asset).balanceOf(address(this));
@@ -155,7 +142,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         IERC20 numeraireToken = IERC20(numeraire);
         uint256 staticsBefore = staticsToken.balanceOf(address(this));
         uint256 numeraireBefore = numeraireToken.balanceOf(address(this));
-        rehype.collectFees(asset);
+        feeSource.collectFees(poolId);
         uint256 staticsAfter = staticsToken.balanceOf(address(this));
         uint256 numeraireAfter = numeraireToken.balanceOf(address(this));
         if (staticsAfter < staticsBefore) revert BalanceDecreased(asset, staticsBefore, staticsAfter);
@@ -169,6 +156,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     function _attribute(address distributor, address asset, uint256 amount) private {
         if (amount == 0) return;
         cumulativeHarvested[asset] += amount;
+        cumulativeDistributorAttributed[distributor][asset] += amount;
         distributorClaimable[distributor][asset] += amount;
         totalDistributorLiability[asset] += amount;
         emit FeesHarvested(distributor, asset, amount, cumulativeHarvested[asset]);
