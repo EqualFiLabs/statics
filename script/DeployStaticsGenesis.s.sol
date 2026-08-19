@@ -332,7 +332,7 @@ contract DeployStaticsGenesis is Script {
         if (target.code.length == 0) revert InvalidModule(target);
     }
 
-    function _log(StaticsGenesisDeployment memory deployment) private pure {
+    function _log(StaticsGenesisDeployment memory deployment) internal pure {
         console2.log("STATICS_TOKEN_ADDRESS", deployment.statics);
         console2.log("STATICS_DOPPLER_POOL_INITIALIZER_ADDRESS", deployment.dopplerPoolInitializer);
         console2.logBytes32(deployment.poolId);

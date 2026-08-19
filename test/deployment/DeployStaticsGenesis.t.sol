@@ -12,6 +12,7 @@ import {
     StaticsGenesisDeployment,
     StaticsGenesisDeploymentConfig
 } from "../../script/DeployStaticsGenesis.s.sol";
+import {DeployStaticsGenesisLocalFork} from "../../script/DeployStaticsGenesisLocalFork.s.sol";
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
@@ -215,6 +216,14 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.contractURI = "";
             vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
             deployer.deploy(config, address(deployer));
+        }
+
+        function testLocalForkEntrypointRejectsWrongChainBeforeReadingSecrets() public {
+            DeployStaticsGenesisLocalFork localForkDeployer = new DeployStaticsGenesisLocalFork();
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesisLocalFork.InvalidLocalForkChain.selector, block.chainid)
+            );
+            localForkDeployer.runLocalFork();
         }
 
         function _config() private returns (StaticsGenesisDeploymentConfig memory config) {
