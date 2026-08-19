@@ -335,6 +335,7 @@ contract DeployStaticsGenesis is Script {
     function _log(StaticsGenesisDeployment memory deployment) internal pure {
         console2.log("STATICS_TOKEN_ADDRESS", deployment.statics);
         console2.log("STATICS_DOPPLER_POOL_INITIALIZER_ADDRESS", deployment.dopplerPoolInitializer);
+        console2.log("STATICS_DOPPLER_POOL_ID");
         console2.logBytes32(deployment.poolId);
         console2.log("STATICS_FEE_RECEIVER_ADDRESS", deployment.feeReceiver);
         console2.log("STATICS_LAUNCH_ALLOCATION_ESCROW_ADDRESS", deployment.allocationEscrow);
