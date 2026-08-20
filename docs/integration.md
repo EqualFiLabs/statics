@@ -4,6 +4,11 @@
 
 Most applications need:
 
+- the Doppler-created STATICS token, `StaticsGenesis`, and
+  `StaticsGenesisVault` for the standalone token/NFT conversion lifecycle;
+- `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
+  `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
+  temporary Genesis rewards;
 - `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
   and ordinary Statics Dollar gateway address;
 - `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
@@ -11,8 +16,6 @@ Most applications need:
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
 - one `StaticsBasketToken` address per discovered basket;
-- the current PositionNFT renderer only when an application wants to inspect
-  renderer provenance beyond the standard `tokenURI`; and
 - the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
   canonical Uniswap v4 pools.
 
@@ -24,6 +27,10 @@ Use compiled ABIs from these sources:
 
 | Surface | Canonical source | Main use |
 | --- | --- | --- |
+| Genesis NFT | `src/interfaces/IStaticsGenesis.sol`, `IERC5192.sol`, and `ICreatorToken.sol` | Ownership, metadata, link locks, optional transfer validation, future protocol binding, and transfer-tier reset callback |
+| Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote and pay acquisition fees, buy, redeem, claim native revenue, inspect inventory, and verify backing |
+| Genesis activation | `src/interfaces/IGenesisActivationRegistry.sol` | Permanent tiers, burn costs, multipliers, transfer reset, and consumer handoff |
+| Genesis launch fees | `src/interfaces/IStaticsFeeReceiver.sol` and `IGenesisLaunchDistributor.sol` | Authenticated Doppler harvests, reward indexes, claims, and distributor handoff |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
@@ -33,13 +40,37 @@ Use compiled ABIs from these sources:
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute constituent-vector flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
-| PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect, render, and close positions |
+| PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect metadata, and close positions |
 | Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
 | Dollar Risk liquidity | `src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol` | Stake consumable Risk Shares, inspect liquidity, withdraw unconsumed shares, and claim fill proceeds |
 | Dollar Core | `src/dollar/core/interfaces/IStaticsDollarCore.sol` | Direct issuance, recombination, health, and recovery |
 | Statics Dollar | `src/dollar/interfaces/IStaticsDollar.sol` | ERC-20 transfers, allowances, and EIP-2612 permit |
+
+All 5,555 Genesis NFTs exist from deployment. Integrators call
+`quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
+token, approve the returned 180,018-STATICS price, and send the returned native
+fee with payable `buyGenesis(tokenId, receiver)`. Incorrect native payment
+reverts atomically. `redeemGenesis(tokenId, receiver)` returns the fixed STATICS
+backing without a native fee. A redeemed token becomes ordinary vault inventory
+and may be purchased again.
+
+Native acquisition fees accrue to the recipient configured when each purchase
+settles. Recipient changes affect only later purchases. Each credited recipient
+pulls historical revenue with `claimNativeAcquisitionFees(receiver)`; clients
+must not treat the vault's full native balance as withdrawable revenue because
+forced surplus is not part of the liability ledger.
+
+`getTransferValidator() == address(0)` means ordinary unrestricted ERC-721
+transfers. If governance later configures a validator, marketplaces must satisfy
+that policy; the vault has no bypass. After the full protocol is bound,
+`locked(tokenId)` reflects its Genesis-to-Position registry. A locked Genesis
+must be unlinked before either an ordinary transfer or vault redemption.
+The collection uses ERC-2309 consecutive construction for all 5,555 vault-held
+tokens and therefore does not emit 5,555 individual initial `Unlocked` events;
+integrators should read `locked(tokenId)`. Later link-state changes emit the
+standard ERC-5192 `Locked` or `Unlocked` event.
 
 Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
@@ -50,6 +81,12 @@ remain authoritative.
 permanent-liquidity inventory, and locked liquidity. The installed manager is
 used for typed user PositionManager NFT creation; canonical permanent liquidity
 is hook-owned and has no protocol PositionManager token ID.
+
+The standalone STATICS/WETH market is the Doppler pool recorded by the launch
+manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
+swaps. Registered Genesis rewards are indexed only after the permanent receiver
+collects its authenticated 95% beneficiary share from the standard Doppler
+initializer; raw receiver balances are not protocol revenue.
 
 ## Basket creation and discovery
 
@@ -175,13 +212,11 @@ Structural membership is available through `isLegActive`; events
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
 
-`tokenURI(positionId)` returns fully onchain Base64 JSON whose `image` is a
-Base64 SVG. The avatar is derived only from the chain ID, Diamond address, and
-position ID, so ownership changes and protocol activity do not change it.
-Applications should treat its eight visual attributes as cosmetic identity,
-not as statements about balances, achievements, yield, debt, or health. The
-Diamond owner may replace or clear the collection-wide renderer, so clients
-that cache metadata may need an explicit refresh after governance changes it.
+`tokenURI(positionId)` returns fully onchain Base64 JSON with a Base64 SVG
+showing the Statics logo and `POSITION #<positionId>`. The stable image contains
+no balance, achievement, yield, debt, health, risk, ownership, or live position
+state. Generative onchain SVG identity remains reserved for
+`StaticsGenesis.tokenURI`.
 
 ## Basket lending and looping
 

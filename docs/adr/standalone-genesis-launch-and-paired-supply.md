@@ -1,6 +1,7 @@
 # ADR: Standalone Genesis launch with a permanent V4 inventory curve
 
-- Status: Accepted direction; implementation pending
+- Status: Superseded by
+  `doppler-genesis-launch-and-staged-rewards.md`
 - Date: 2026-08-15
 - Scope: standalone STATICS and Genesis issuance, fixed Genesis backing,
   six-band one-sided Uniswap v4 distribution, bilateral hook fees,
@@ -23,8 +24,8 @@ redemption backing and market liquidity are not operating revenue.
 
 Genesis NFTs and STATICS are two convertible forms of the same fixed genesis
 supply. A circulating Genesis NFT is a claim on a fixed amount of STATICS held
-by the Genesis Vault. An unminted or vault-owned Genesis slot leaves its paired
-STATICS in liquid-token form.
+by the Genesis Vault. A vault-owned Genesis NFT leaves its paired STATICS in
+liquid-token form.
 
 The full Statics Diamond, PositionNFTs, baskets, Statics Dollar, lending, and
 global reward indexes are outside the deployment boundary of this release.
@@ -145,16 +146,15 @@ The paired units are divided as follows:
 | --- | ---: | ---: |
 | Treasury NFT founder allocation | 555 NFTs held by treasury | 99,905,550 held as Genesis Vault backing |
 | Treasury token founder allocation | 500 NFTs held as vault inventory | 90,005,000 liquid STATICS held by treasury |
-| Public allocation | 4,500 NFTs reserved for lazy mint | 810,045,000 STATICS held by the permanent launch market |
+| Public allocation | 4,500 NFTs held as vault inventory | 810,045,000 STATICS held by the permanent launch market |
 | **Total** | **5,555 NFTs** | **999,955,550 STATICS** |
 
 At genesis, the collection has:
 
 ```text
-minted supply:           1,055
+minted supply:           5,555
 treasury-owned NFTs:       555
-vault inventory NFTs:      500
-unminted public NFTs:     4,500
+vault inventory NFTs:    5,000
 circulating NFTs:          555
 ```
 
@@ -165,7 +165,7 @@ The 555 treasury NFTs are fully backed at deployment:
 ```
 
 The vault's logical backing ledger is initialized to exactly that amount. The
-500 vault-owned NFTs are inventory, not circulating redemption liabilities,
+5,000 vault-owned NFTs are inventory, not circulating redemption liabilities,
 and do not increase required backing while held by the vault.
 
 The treasury's 90,005,000 STATICS is a founder allocation equivalent to 500
@@ -192,7 +192,7 @@ Each paired unit exists in one of two forms:
 ```text
 Token form
     180,010 liquid STATICS
-    + one Genesis slot that is unminted or held by the vault
+    + one Genesis NFT held by the vault
 
 NFT form
     one circulating Genesis NFT
@@ -200,23 +200,37 @@ NFT form
 ```
 
 Vault purchase converts token form into NFT form. Redemption converts NFT form
-back into token form. Neither operation creates revenue or changes aggregate
-economic value.
+back into token form. The paired conversion itself creates no revenue and does
+not change aggregate paired economic value. A separate flat native acquisition
+fee pays for the vault service and never enters the paired accounting.
 
-## Public issuance and vault inventory
+## Vault purchases and inventory
 
-While unminted public supply remains, a successful public vault purchase will:
+A successful public vault purchase will:
 
 1. collect exactly `P` STATICS;
-2. increase logical Genesis backing by exactly `P`; and
-3. lazy-mint the next public Genesis NFT to the selected receiver.
+2. collect the exact configured native acquisition fee;
+3. increase logical Genesis backing by exactly `P`;
+4. credit the native fee to the current treasury recipient; and
+5. transfer the selected vault-owned Genesis NFT to the receiver.
 
-The 4,500 public NFTs are lazy-minted before the vault recycles its 500 genesis
-inventory NFTs. Once all 5,555 token IDs have been minted, a later purchase may
-select a vault-owned inventory NFT, deposit `P`, and receive that NFT. Normal
-issuance and inventory-sale flows preserve exact backing equality.
+The native acquisition fee begins at `0.003 ETH`. Governance may set it from
+zero through an immutable `0.01 ETH` ceiling. Fee changes affect only later
+acquisitions. Revenue is credited to a pull-based per-recipient ledger at
+acquisition time so a reverting treasury cannot block purchases and changing
+the recipient cannot redirect historical credit.
 
-No Genesis NFT is sold directly for ETH or WETH.
+All 5,555 token IDs exist from deployment. Token IDs 1 through 555 begin in the
+treasury, while token IDs 556 through 5,555 begin in the vault. The 500 founder
+inventory units and 4,500 public allocation units remain distinct economic
+allocation records, but every vault-owned Genesis NFT has identical purchase
+and redemption mechanics and the contract does not impose a sale order. A
+redeemed NFT returns to the same immediately purchasable inventory. Every
+purchase and redemption preserves exact backing equality.
+
+The native fee is non-refundable service revenue rather than NFT backing or a
+second redemption price. Direct ERC-721 transfers and third-party marketplace
+sales do not pay it. Redemption never charges a native fee.
 
 ## Fixed redemption and mechanical floor
 
@@ -230,7 +244,7 @@ Redemption performs one atomic transition:
 3. logical backing decreases by exactly `P`; and
 4. exactly `P` STATICS leaves the vault.
 
-Redemption remains available even if new issuance is paused. Treasury,
+Redemption remains available even if new purchases are paused. Treasury,
 governance, controllers, and future protocol modules may not withdraw, borrow,
 burn, stake, lend, route, or otherwise use Genesis backing.
 
@@ -250,8 +264,8 @@ reducing existing redemption liabilities.
 
 Burns preserve the `P`-STATICS claim for every circulating NFT because its
 backing is already isolated. They reduce future token-form conversion capacity:
-after sufficient burns, some unminted or vault-owned Genesis slots may be unable
-to circulate simultaneously unless another NFT is first redeemed.
+after sufficient burns, some vault-owned Genesis NFTs may be unable to
+circulate simultaneously unless another NFT is first redeemed.
 
 This is an intentional deflationary consequence. The collection has a maximum
 supply of 5,555, but activation burns may make simultaneous circulation of the
@@ -261,6 +275,53 @@ Transfer-related activation reset, PositionNFT linking, and reward-weight
 transitions belong to later full-protocol integration. Those mechanics may not
 weaken or complicate the fixed redemption claim.
 
+## Collection ownership and marketplace compatibility
+
+`StaticsGenesis` retains persistent two-step ownership after the later Statics
+protocol is bound. Protocol binding is one-time, but it does not renounce or
+transfer collection ownership. Renunciation is disabled; governance may move
+ownership only through the two-step transfer path to another multisig or
+timelock.
+
+The standalone hook controller and Genesis Vault follow the same rule. Their
+two-step ownership may move to the future Diamond or timelock, but it cannot be
+renounced because doing so could permanently strand launch initialization or
+freeze required configuration.
+
+The vault also rejects itself and the Genesis collection as native-fee
+recipients. Neither contract can initiate a pull claim, so accepting either
+address would permanently strand fees credited while that recipient was active.
+
+The immutable collection supports standard ERC-721 transfers plus:
+
+- ERC-2981 collection-wide royalties, initially 5% with an immutable 10% cap;
+- ERC-7572 collection metadata through an owner-updatable `contractURI()`;
+- ERC-4906 metadata refresh signals for activation and URL changes;
+- current and legacy ERC-721C creator-token discovery interfaces; and
+- ERC-5192 token-level lock discovery for future PositionNFT links.
+
+The royalty receiver begins as the Statics treasury. Governance may change or
+disable the collection-wide royalty within the cap. Per-token royalty overrides
+are not supported.
+
+The ERC-721C transfer validator begins at `address(0)`, which explicitly means
+unrestricted transfers. Governance may later select a deployed validator or
+return to zero. The Genesis Vault receives no hard-coded validator bypass; it
+must be allowlisted under a selected policy before enforcement is enabled.
+
+Before protocol binding, every existing Genesis reports ERC-5192 `locked` as
+false. After binding, the protocol's one-to-one Genesis-to-Position registry is
+the source of truth: a linked Genesis reports locked and cannot transfer or
+redeem until unlinked. Link and unlink transitions cause the collection to emit
+the standard `Locked` and `Unlocked` events. A bound protocol that cannot answer
+the link query is treated as locked, matching the fail-closed transfer callback.
+
+True ownership transfers execute in this order: reject a linked token, validate
+ordinary ERC-721 authority, apply an optional ERC-721C validator, invoke the
+bound protocol's activation-reset callback, and finally update ownership. The
+protocol callback remains fail-closed because activation reset and the unlink
+requirement are accounting invariants rather than best-effort metadata.
+
 ## Canonical V4 inventory curve
 
 The canonical launch market is:
@@ -269,8 +330,9 @@ The canonical launch market is:
 STATICS / WETH
 ```
 
-The pool is initialized at a committed opening `sqrtPriceX96` with no WETH and
-exactly 810,045,000 STATICS distributed across six adjacent launch positions.
+The pool is initialized at a committed opening `sqrtPriceX96` without consuming
+WETH and accounts for exactly 810,045,000 STATICS across six adjacent launch
+positions plus explicit V4 rounding dust.
 Native Uniswap v4 concentrated-liquidity math remains the sole swap-pricing
 mechanism. The hook does not implement a parallel bonding-curve equation
 through custom accounting.
@@ -389,8 +451,9 @@ atomically:
 
 1. bind the expected PoolManager, WETH, STATICS, hook, PoolKey, fee setting,
    tick spacing, opening `sqrtPriceX96`, and authorized initializer;
-2. verify the hook holds exactly the 810,045,000-STATICS public inventory
-   assigned for launch;
+2. verify the hook holds at least the 810,045,000-STATICS public inventory
+   assigned for launch, while treating any unsolicited excess as immovable
+   surplus rather than market principal;
 3. initialize the canonical pool at the committed price;
 4. create B1-B6 with their committed ranges and unique salts;
 5. settle exactly 24,301,350, 56,703,150, 162,009,000, 202,511,250,
@@ -398,7 +461,7 @@ atomically:
    to explicitly accounted V4 rounding dust;
 6. verify that the six positions consume exactly 810,045,000 STATICS before
    accounted rounding dust;
-7. verify that no WETH was required; and
+7. verify that no WETH was consumed or required; and
 8. permanently close the launch-initialization authority.
 
 The hook's `afterInitialize` path authenticates the initializer, PoolKey,
@@ -410,7 +473,7 @@ because PoolManager liquidity modification requires an unlocked manager. If the
 unlock, any position, or settlement fails, the complete pool initialization
 reverts.
 
-A wrong sender, PoolKey, price, range, salt, inventory amount, token order, or
+A wrong sender, PoolKey, price, range, salt, insufficient inventory, token order, or
 repeated initialization must revert the complete transaction. Release testing
 must measure this as a cold standalone transaction and prove the complete
 atomic path consumes no more than the 16,000,000-gas transaction target. The
@@ -477,6 +540,13 @@ Equivalent direction-correct handling applies to exact-output swaps. The
 implementation must preserve the existing Statics distinction between specified
 and unspecified currency rather than assume token0 is always the input.
 
+The bilateral specified-leg fee is reserved before V4 executes the pool swap.
+The hook therefore requires the pool to consume the complete fee-adjusted
+specified amount and reverts the whole transaction if a price limit would
+produce a partial fill. This prevents a caller from being charged a
+specified-leg fee on volume the pool did not execute. Integrators must quote a
+fully fillable amount and price limit or split the order into smaller swaps.
+
 The exact input and output fee rates remain deployment parameters. Their sum may
 not exceed the immutable 200-basis-point ceiling inherited from the current
 hook design. This ADR does not adopt Bankr's fee rates or anti-snipe fee decay;
@@ -494,6 +564,10 @@ treasury         = collectedFee - lockedLiquidity
 
 Assigning the arithmetic remainder to treasury ensures the two allocations
 always equal the exact fee collected.
+
+Every pool configuration must therefore retain a nonzero treasury recipient,
+even when its explicit treasury share is zero. In that configuration the
+treasury receives only the deterministic arithmetic remainder.
 
 The resulting initial per-pool configuration is:
 
@@ -514,6 +588,11 @@ affect another asset's liability.
 
 Recipient changes affect future accrual only. Previously accrued credit remains
 owned by the recipient credited at accrual time.
+
+External liquidity starts disabled. Enabling it is a one-way transition that
+requires a nonzero liquidity-provider share and recipient. Every later fee
+configuration must preserve a nonzero liquidity-provider reward route while
+external liquidity remains enabled.
 
 `partnerRecipient == address(0)` means disabled and requires a zero partner
 share. The initial STATICS/WETH pool has no partner or index-creator allocation.
@@ -550,7 +629,7 @@ fee-funded full-range position
 
 ## Economic boundaries
 
-The release maintains four non-interchangeable economic buckets.
+The release maintains five non-interchangeable economic buckets.
 
 ### Genesis backing
 
@@ -576,6 +655,12 @@ liquidity created from them. It is market liquidity, not revenue.
 This is the 75% fee allocation credited to treasury as pull-based STATICS and
 WETH liabilities. It is the standalone release's operating revenue stream.
 
+### Genesis acquisition-fee revenue
+
+This is the flat native fee credited to the configured recipient when a vault
+acquisition succeeds. It is pull-based operating revenue, not STATICS backing,
+launch principal, or hook-fee revenue.
+
 No asset amount may be counted in more than one bucket.
 
 ## Later Statics Diamond integration
@@ -596,6 +681,10 @@ The later controller may tune future STATICS/WETH allocations from the initial
 redirect historical treasury liabilities or unlock previously compounded
 liquidity.
 
+Genesis metadata treats an unavailable or reverting future activation-tier
+read as tier zero so collection metadata remains available. This display-only
+fallback does not change the activation ledger.
+
 Genesis ownership remains optional for full-protocol access. The redemption
 claim is intrinsic to Genesis and independent of future PositionNFT utility.
 
@@ -614,6 +703,8 @@ The following values or guarantees are immutable:
 - PoolManager and WETH used by the canonical market;
 - canonical PoolKey after initialization;
 - the combined hook-fee ceiling;
+- the `0.01 ETH` Genesis acquisition-fee ceiling;
+- the 10% ERC-2981 royalty ceiling;
 - permanence of all six launch positions; and
 - permanence of fee-funded STATICS/WETH liquidity.
 
@@ -627,21 +718,26 @@ bounds.
 Implementation and release validation must prove at minimum:
 
 1. `totalSupply` begins at exactly 999,955,550 STATICS and never increases.
-2. Genesis minted supply never exceeds 5,555.
+2. Genesis minted supply equals 5,555 from construction and cannot increase.
 3. Genesis backing is at least `circulatingGenesis * P` after every transition.
 4. Normal purchase and redemption preserve backing equality.
 5. The 555 treasury NFTs are fully backed at deployment.
-6. The 500 vault-owned NFTs create no liability until they leave inventory.
+6. The 5,000 vault-owned NFTs create no liability until they leave inventory.
 7. Redemption pays exactly `P` or reverts atomically.
 8. No administrative path can consume or withdraw Genesis backing.
-9. The launch transaction requires exactly 810,045,000 STATICS and zero WETH.
+9. The launch positions plus explicit rounding dust account for exactly
+   810,045,000 STATICS and consume zero WETH;
+   unsolicited token donations remain outside launch-principal accounting and
+   cannot block initialization.
 10. B1-B6 receive exactly 24,301,350, 56,703,150, 162,009,000, 202,511,250,
     243,013,500, and 121,506,750 STATICS respectively, subject only to explicitly
     accounted rounding dust.
-11. The six launch positions sum to exactly 810,045,000 STATICS and 4,500 paired
-    units while preserving the 3%/7%/20%/25%/30%/15% band allocation.
+11. The six launch-position targets sum to exactly 810,045,000 STATICS and
+    4,500 paired units while preserving the 3%/7%/20%/25%/30%/15% band
+    allocation; actual settlement plus recorded rounding dust equals that
+    target.
 12. A wrong initializer, PoolKey, hook, opening price, range, salt, token order,
-    or inventory amount reverts atomically.
+    or insufficient inventory amount reverts atomically.
 13. The canonical pool cannot be initialized twice or initialized early by an
     unauthorized caller.
 14. Launch-position liquidity never decreases.
@@ -669,11 +765,27 @@ Implementation and release validation must prove at minimum:
 27. Activation burns cannot debit or reduce Genesis backing.
 28. The complete cold standalone initialization, six-position installation,
     and settlement transaction does not exceed the 16,000,000-gas target.
+29. A vault purchase accepts exactly the configured native fee or reverts
+    atomically; redemption accepts and charges no native fee.
+30. Every successful acquisition credits exactly that native fee to the
+    recipient configured at acquisition time, and later recipient changes do
+    not redirect historical claims.
+31. Native-fee liabilities never exceed vault native-asset custody, including
+    after claims, recipient changes, reverting recipients, and forced native
+    donations.
+32. Protocol binding preserves collection ownership, ownership cannot be
+    renounced, and royalties never exceed the immutable 10% cap.
+33. A zero transfer validator permits normal ERC-721 transfers; a configured
+    validator is applied to every ownership transfer without a vault bypass.
+34. A linked Genesis NFT cannot transfer or redeem, link-state query failure is
+    fail-closed after protocol binding, and link/unlink transitions emit the
+    corresponding ERC-5192 signal.
 
-Stateful invariant tests must exercise arbitrary sequences of public issuance,
-inventory purchase, NFT transfer, redemption, direct donation, exact-input
-swaps, exact-output swaps, treasury claims, compounding, controller transfer,
-and later burn integration.
+Stateful invariant tests must exercise arbitrary sequences of inventory
+purchase with exact and incorrect native fees, fee-recipient rotation, native
+fee claims, forced native donation, validator changes, NFT transfer, link-state
+changes, redemption, direct donation, exact-input swaps, exact-output swaps,
+treasury claims, compounding, controller transfer, and later burn integration.
 
 Real V4 integration tests must prove atomic launch from zero WETH, the exact
 six-position inventory placement, purchases through every band transition,
@@ -785,11 +897,10 @@ The implementation specification and deployment manifest must settle:
 - initial input/output hook fee rates within the 200-basis-point ceiling;
 - whether an anti-snipe mechanism is unnecessary or should be specified
   separately;
-- whether third-party liquidity is permissionless, restricted, or disabled for
-  the canonical pool;
+- the operational policy for the one-way activation of third-party liquidity;
 - launch controller, treasury, and later control-acceptance addresses;
 - exact V4 rounding-dust treatment;
-- metadata behavior before and after later activation integration; and
+- production collection metadata URI and token external-link base; and
 - the narrow future interface through which the Diamond coordinates Genesis
   tier, link, and reward-weight transitions.
 

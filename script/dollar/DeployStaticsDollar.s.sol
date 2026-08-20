@@ -59,8 +59,6 @@ struct StaticsDollarStackDeployment {
     address oracle;
     address diamond;
     address positionNFT;
-    address positionRenderer;
-    address avatarSVG;
     address poolManager;
     address positionManager;
     address permit2;
@@ -101,8 +99,6 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
         console2.log("WETH_ADDRESS", deployment.weth);
         console2.log("STATICS_DOLLAR_ORACLE_ADDRESS", deployment.oracle);
         console2.log("STATICS_DOLLAR_POSITION_NFT_ADDRESS", deployment.positionNFT);
-        console2.log("STATICS_POSITION_RENDERER_ADDRESS", deployment.positionRenderer);
-        console2.log("STATICS_AVATAR_SVG_ADDRESS", deployment.avatarSVG);
         if (deployment.usdg != address(0)) {
             console2.log("STATICS_DOLLAR_USDG_ADDRESS", deployment.usdg);
             console2.log("STATICS_DOLLAR_USDG_ORACLE_ADDRESS", deployment.usdgOracle);
@@ -260,8 +256,6 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
         deployment.oracle = oracle;
         deployment.diamond = coreDeployment.diamond;
         deployment.positionNFT = coreDeployment.positionNFT;
-        deployment.positionRenderer = coreDeployment.positionRenderer;
-        deployment.avatarSVG = coreDeployment.avatarSVG;
         deployment.gateway = deployment.diamond;
     }
 

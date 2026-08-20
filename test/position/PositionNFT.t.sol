@@ -6,7 +6,6 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IModularPositionNFT} from "src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "src/interfaces/IPositionOwnerIndex.sol";
@@ -18,17 +17,10 @@ import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {BasketAdminFacet} from "src/facets/BasketAdminFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
-import {
-    IStaticsPosition,
-    IStaticsPositionFees,
-    IStaticsPositionMetadata,
-    IStaticsPositionModule
-} from "src/interfaces/IStaticsPosition.sol";
+import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {PositionNFTFacet} from "src/position/PositionNFTFacet.sol";
 import {StaticsSelectors} from "src/libraries/StaticsSelectors.sol";
-import {StaticsAvatarSVG} from "src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "src/metadata/StaticsPositionRenderer.sol";
 
 contract PositionModuleHarnessFacet {
     function createWithLeg(address receiver, bytes32 moduleId, bytes32 localId)
@@ -109,6 +101,8 @@ contract RejectNativeValue {
 }
 
 contract PositionNFTTest is Test {
+    string internal constant JSON_PREFIX = "data:application/json;base64,";
+    string internal constant SVG_PREFIX = "data:image/svg+xml;base64,";
     bytes32 internal constant DOLLAR = keccak256("dollar");
     bytes32 internal constant BASKET = keccak256("basket");
 
@@ -121,7 +115,6 @@ contract PositionNFTTest is Test {
     IERC721Metadata internal metadata;
     IStaticsPosition internal positions;
     IStaticsPositionFees internal positionFees;
-    IStaticsPositionMetadata internal positionMetadata;
     IPositionOwnerIndex internal ownerIndex;
     PositionModuleHarnessFacet internal moduleHarness;
     BasketAdminFacet internal basketAdmin;
@@ -152,14 +145,12 @@ contract PositionNFTTest is Test {
 
         StaticsProtocolInit init = new StaticsProtocolInit();
         PositionReceiver stakingToken = new PositionReceiver(address(0));
-        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             address(this),
             cut,
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.initialize,
-                (makeAddr("guardian"), treasury, address(stakingToken), 0, 0, address(renderer))
+                StaticsProtocolInit.initialize, (makeAddr("guardian"), treasury, address(stakingToken), 0, 0)
             ),
             address(0)
         );
@@ -167,7 +158,6 @@ contract PositionNFTTest is Test {
         metadata = IERC721Metadata(address(diamond));
         positions = IStaticsPosition(address(diamond));
         positionFees = IStaticsPositionFees(address(diamond));
-        positionMetadata = IStaticsPositionMetadata(address(diamond));
         ownerIndex = IPositionOwnerIndex(address(diamond));
         moduleHarness = PositionModuleHarnessFacet(address(diamond));
         basketAdmin = BasketAdminFacet(address(diamond));
@@ -283,7 +273,6 @@ contract PositionNFTTest is Test {
         assertEq(metadata.name(), "Statics Position");
         assertEq(metadata.symbol(), "STXPOS");
         assertGt(bytes(metadata.tokenURI(positionId)).length, 0);
-        assertGt(positionMetadata.positionRenderer().code.length, 0);
         IModularPositionNFT.PositionState memory state = positions.positionState(positionId);
         assertTrue(state.exists);
         assertEq(state.stateNonce, 1);
@@ -294,9 +283,29 @@ contract PositionNFTTest is Test {
         assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
-        assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionMetadata).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IPositionOwnerIndex).interfaceId));
-        assertTrue(IERC165(address(diamond)).supportsInterface(bytes4(0x49064906)));
+    }
+
+    function test_PositionMetadataContainsBrandedOnchainImage() public {
+        vm.prank(alice);
+        uint256 positionId = positions.createPosition(alice);
+
+        string memory uri = metadata.tokenURI(positionId);
+        assertTrue(_startsWith(uri, JSON_PREFIX));
+        string memory json = string(_decodeBase64(_afterPrefix(uri, JSON_PREFIX)));
+        assertEq(vm.parseJsonString(json, ".name"), "Statics Position #1");
+        assertEq(
+            vm.parseJsonString(json, ".description"),
+            "A transferable financial account containing its Statics protocol assets and liabilities."
+        );
+
+        string memory image = vm.parseJsonString(json, ".image");
+        assertTrue(_startsWith(image, SVG_PREFIX));
+        string memory svg = string(_decodeBase64(_afterPrefix(image, SVG_PREFIX)));
+        assertTrue(_contains(svg, "<title>Statics Position #1</title>"));
+        assertTrue(_contains(svg, '<path fill="#82ca17" d="M183 186h40v40h-40z"/>'));
+        assertTrue(_contains(svg, ">POSITION #1</text>"));
+        assertLt(bytes(uri).length, 4_000);
     }
 
     function test_OwnerIndexPaginatesCurrentPositions() public {
@@ -349,7 +358,7 @@ contract PositionNFTTest is Test {
         ownerIndex.positionsOfOwner(alice, 0, 101);
     }
 
-    function test_PermissionlessSyncSeedsPreUpgradePositionAndRefreshesMetadata() public {
+    function test_PermissionlessSyncSeedsPreUpgradePosition() public {
         vm.prank(alice);
         uint256 positionId = positions.createPosition(alice);
         vm.prank(alice);
@@ -362,8 +371,6 @@ contract PositionNFTTest is Test {
 
         vm.expectEmit(true, true, false, true, address(diamond));
         emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, alice);
-        vm.expectEmit(true, false, false, true, address(diamond));
-        emit IERC4906.MetadataUpdate(positionId);
         vm.prank(carol);
         ownerIndex.syncPositionOwnerIndex(positionId);
 
@@ -386,36 +393,6 @@ contract PositionNFTTest is Test {
         assertEq(ownerIndex.positionCount(bob), 1);
         (uint256[] memory indexedPositions,) = ownerIndex.positionsOfOwner(bob, 0, 100);
         assertEq(indexedPositions, _ids(positionId));
-    }
-
-    function test_RendererChangeRefreshesEveryAllocatedPositionMetadata() public {
-        positions.createPosition(alice);
-        positions.createPosition(bob);
-
-        vm.expectEmit(false, false, false, true, address(diamond));
-        emit IERC4906.BatchMetadataUpdate(1, 2);
-        positionMetadata.setPositionRenderer(makeAddr("replacement renderer"));
-    }
-
-    function test_OwnerCanReplaceOrClearPositionRenderer() public {
-        address previousRenderer = positionMetadata.positionRenderer();
-        address replacement = makeAddr("replacement renderer");
-
-        vm.expectEmit(true, true, false, true, address(diamond));
-        emit IStaticsPositionMetadata.PositionRendererSet(previousRenderer, replacement);
-        positionMetadata.setPositionRenderer(replacement);
-        assertEq(positionMetadata.positionRenderer(), replacement);
-
-        positionMetadata.setPositionRenderer(address(0));
-        vm.prank(alice);
-        uint256 positionId = positions.createPosition(alice);
-        assertEq(metadata.tokenURI(positionId), "");
-    }
-
-    function test_NonOwnerCannotSetPositionRenderer() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        positionMetadata.setPositionRenderer(alice);
     }
 
     function test_SafeMintReceiverCanReadMetadataDuringCallback() public {
@@ -598,5 +575,70 @@ contract PositionNFTTest is Test {
         values = new uint256[](2);
         values[0] = first;
         values[1] = second;
+    }
+
+    function _startsWith(string memory value, string memory prefix) private pure returns (bool) {
+        bytes memory valueBytes = bytes(value);
+        bytes memory prefixBytes = bytes(prefix);
+        if (valueBytes.length < prefixBytes.length) return false;
+        for (uint256 i; i < prefixBytes.length; ++i) {
+            if (valueBytes[i] != prefixBytes[i]) return false;
+        }
+        return true;
+    }
+
+    function _contains(string memory value, string memory needle) private pure returns (bool) {
+        bytes memory haystack = bytes(value);
+        bytes memory sought = bytes(needle);
+        if (sought.length > haystack.length) return false;
+        for (uint256 i; i <= haystack.length - sought.length; ++i) {
+            bool match_ = true;
+            for (uint256 j; j < sought.length; ++j) {
+                if (haystack[i + j] != sought[j]) {
+                    match_ = false;
+                    break;
+                }
+            }
+            if (match_) return true;
+        }
+        return false;
+    }
+
+    function _afterPrefix(string memory value, string memory prefix) private pure returns (string memory) {
+        bytes memory input = bytes(value);
+        uint256 prefixLength = bytes(prefix).length;
+        bytes memory output = new bytes(input.length - prefixLength);
+        for (uint256 i; i < output.length; ++i) {
+            output[i] = input[i + prefixLength];
+        }
+        return string(output);
+    }
+
+    function _decodeBase64(string memory value) private pure returns (bytes memory decoded) {
+        bytes memory input = bytes(value);
+        require(input.length % 4 == 0, "invalid base64 length");
+        uint256 padding = input.length == 0 ? 0 : (input[input.length - 1] == "=" ? 1 : 0);
+        if (input.length > 1 && input[input.length - 2] == "=") ++padding;
+        decoded = new bytes((input.length / 4) * 3 - padding);
+
+        uint256 cursor;
+        for (uint256 i; i < input.length; i += 4) {
+            uint256 chunk = (uint256(_base64Value(input[i])) << 18) | (uint256(_base64Value(input[i + 1])) << 12)
+                | (uint256(_base64Value(input[i + 2])) << 6) | uint256(_base64Value(input[i + 3]));
+            if (cursor < decoded.length) decoded[cursor++] = bytes1(uint8(chunk >> 16));
+            if (cursor < decoded.length) decoded[cursor++] = bytes1(uint8(chunk >> 8));
+            if (cursor < decoded.length) decoded[cursor++] = bytes1(uint8(chunk));
+        }
+    }
+
+    function _base64Value(bytes1 character) private pure returns (uint8) {
+        uint8 value = uint8(character);
+        if (value >= 65 && value <= 90) return value - 65;
+        if (value >= 97 && value <= 122) return value - 71;
+        if (value >= 48 && value <= 57) return value + 4;
+        if (character == "+") return 62;
+        if (character == "/") return 63;
+        if (character == "=") return 0;
+        revert("invalid base64 character");
     }
 }
