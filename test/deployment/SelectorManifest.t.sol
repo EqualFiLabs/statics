@@ -16,17 +16,16 @@ import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPo
 import {
     IStaticsPosition,
     IStaticsPositionFees,
-    IStaticsPositionMetadata,
     IStaticsPositionModule
 } from "../../src/interfaces/IStaticsPosition.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
-    function testPositionSelectorManifestIncludesFeesAndMetadata() public pure {
+    function testPositionSelectorManifestIncludesFeesAndOwnerIndex() public pure {
         assertEq(type(IModularPositionNFT).interfaceId, bytes4(0x212b8e93));
         assertEq(type(IPositionOwnerIndex).interfaceId, bytes4(0x7ef5913d));
         bytes4[] memory selectors = StaticsSelectors.position();
-        assertEq(selectors.length, 28);
+        assertEq(selectors.length, 26);
         assertEq(selectors[12], IStaticsPosition.createPosition.selector);
         assertEq(selectors[17], IModularPositionNFT.positionState.selector);
         assertEq(selectors[18], IModularPositionNFT.isLegActive.selector);
@@ -34,11 +33,9 @@ contract SelectorManifestTest is Test {
         assertEq(selectors[20], IStaticsPositionModule.createPositionForModule.selector);
         assertEq(selectors[21], IStaticsPositionFees.setPositionCreationFee.selector);
         assertEq(selectors[22], IStaticsPositionFees.positionCreationFee.selector);
-        assertEq(selectors[23], IStaticsPositionMetadata.setPositionRenderer.selector);
-        assertEq(selectors[24], IStaticsPositionMetadata.positionRenderer.selector);
-        assertEq(selectors[25], IPositionOwnerIndex.positionCount.selector);
-        assertEq(selectors[26], IPositionOwnerIndex.positionsOfOwner.selector);
-        assertEq(selectors[27], IPositionOwnerIndex.syncPositionOwnerIndex.selector);
+        assertEq(selectors[23], IPositionOwnerIndex.positionCount.selector);
+        assertEq(selectors[24], IPositionOwnerIndex.positionsOfOwner.selector);
+        assertEq(selectors[25], IPositionOwnerIndex.syncPositionOwnerIndex.selector);
         for (uint256 i; i < selectors.length; ++i) {
             for (uint256 j; j < i; ++j) {
                 assertNotEq(selectors[i], selectors[j]);

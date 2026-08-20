@@ -43,8 +43,6 @@ import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.so
 import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
@@ -76,15 +74,11 @@ contract StaticsTestDeployer {
         cut[19] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
         cut[20] = _cut(address(new ProtocolPoolFacet()), StaticsSelectors.protocolPools());
         StaticsProtocolInit init = new StaticsProtocolInit();
-        StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             owner,
             address(0),
             address(init),
-            abi.encodeCall(
-                StaticsProtocolInit.genesisInitialize,
-                (cut, guardian, treasury, stakingToken, 1 ether, 0, address(renderer))
-            )
+            abi.encodeCall(StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0))
         );
     }
 

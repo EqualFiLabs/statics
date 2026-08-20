@@ -24,12 +24,7 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
-import {
-    IStaticsPosition,
-    IStaticsPositionFees,
-    IStaticsPositionMetadata,
-    IStaticsPositionModule
-} from "../interfaces/IStaticsPosition.sol";
+import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
 
 library StaticsSelectors {
@@ -67,7 +62,7 @@ library StaticsSelectors {
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](28);
+        selectors = new bytes4[](26);
         selectors[0] = IERC721.balanceOf.selector;
         selectors[1] = IERC721.ownerOf.selector;
         selectors[2] = IERC721.approve.selector;
@@ -91,11 +86,9 @@ library StaticsSelectors {
         selectors[20] = IStaticsPositionModule.createPositionForModule.selector;
         selectors[21] = IStaticsPositionFees.setPositionCreationFee.selector;
         selectors[22] = IStaticsPositionFees.positionCreationFee.selector;
-        selectors[23] = IStaticsPositionMetadata.setPositionRenderer.selector;
-        selectors[24] = IStaticsPositionMetadata.positionRenderer.selector;
-        selectors[25] = IPositionOwnerIndex.positionCount.selector;
-        selectors[26] = IPositionOwnerIndex.positionsOfOwner.selector;
-        selectors[27] = IPositionOwnerIndex.syncPositionOwnerIndex.selector;
+        selectors[23] = IPositionOwnerIndex.positionCount.selector;
+        selectors[24] = IPositionOwnerIndex.positionsOfOwner.selector;
+        selectors[25] = IPositionOwnerIndex.syncPositionOwnerIndex.selector;
     }
 
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {

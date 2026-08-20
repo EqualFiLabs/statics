@@ -98,7 +98,7 @@ This document describes the current implementation model, not an audit,
 immutable release record, or production qualification. The source-controlled
 Robinhood Chain testnet manifest records a public test deployment, governed
 upgrades, verified sources, fixtures, and a genesis basket. It is useful
-integration evidence, but its mock collateral, owner-mintable staking token,
+integration evidence, but its mock collateral,
 faucet, two-minute timelock, and test parameters are deliberately not
 production defaults. Production value requires independent contract and
 governance review, target-chain rehearsal, verified contract publication,
@@ -177,7 +177,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **26 facets / 209 selectors** on `StaticsDiamond`; and
+- **23 facets / 207 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -217,6 +217,7 @@ account and never increases BasketToken redemption backing.
 
 | Object | Standard | Owner or holder | Purpose |
 | --- | --- | --- | --- |
+| Genesis NFT | ERC-721 | Users or Genesis Vault inventory | Scarce onchain identity and fixed claim on 180,018 vault-backed STATICS |
 | BasketToken | ERC-20 Permit | Users, positions, or external venues | Transferable claim on a fixed constituent bundle |
 | PositionNFT | ERC-721 | User-selected owner | Owns staking, basket collateral, loans, and Dollar legs |
 | Staking token | Configured ERC-20; testnet `STATICS` also supports Permit | Reserved by `StaticsDiamond` per position | Stake weight; each reward asset uses only opted-in eligible stake as its denominator |
@@ -228,10 +229,12 @@ The current canonical pools have zero native LP fee, so user v4 positions do
 not earn ordinary native LP fees. Their swaps still pay the Statics hook's
 configured input and output fees.
 
-`StaticsToken` is an uncapped, owner-mintable ERC-20 Permit fixture used as
-`STATICS` on the public testnet. Its owner authority is intentional for testnet
-distribution and emissions experiments. It is not the selected production
-staking-token policy.
+The standalone release creates exactly 1,000,000,000 STATICS through
+`DopplerERC20V1`, with no discretionary post-deployment mint authority. It
+allocates 200,000,000 STATICS to treasury and 800,000,000 STATICS to the
+Doppler public inventory market. All 5,555 Genesis NFTs begin in Genesis Vault
+inventory and enter circulation only when a buyer supplies the fixed
+180,018-STATICS backing amount.
 
 ## Shared PositionNFT
 
@@ -270,22 +273,11 @@ Adding legs, collateral, stake, liquidity, or debt to an existing Position does
 not pay the fee again. Closing a Position and opening another creates a new NFT
 and pays the then-current fee.
 
-Each valid PositionNFT exposes fully onchain metadata through `tokenURI`. Its
-immutable visual seed is
-`keccak256(abi.encodePacked(bytes32("STATICS_AVATAR_V1"), block.chainid,
-address(StaticsDiamond), positionId))`, so transfers, approvals, balances,
-claims, Legs, and obligations do not alter the avatar. The returned Base64 JSON
-contains a Base64 SVG and eight cosmetic visual attributes: Field, Boundary,
-Shell, Interface, Mantle, Telemetry, Sigil, and Signal. It contains no live
-status, achievement, yield, debt, health, or rarity semantics.
-
-The Diamond stores one collection-wide renderer address. The owner may replace
-or clear it with `setPositionRenderer`; clearing it makes valid positions return
-an empty URI, and replacement may refresh every avatar. The stateless renderer
-holds one immutable `StaticsAvatarSVG` helper so both contracts remain below
-EIP-170 without placing artwork in Diamond facets or protocol storage. Fresh
-deployments record both addresses. The renderer is not a separate user action
-surface.
+Each valid PositionNFT exposes Base64 JSON through `tokenURI`. It names the
+token, describes it as a transferable financial account, and embeds a stable
+logo-and-ID SVG assembled internally without a mutable renderer. It includes no
+live status, achievement, yield, debt, health, or rarity semantics. Generative
+and tier-aware onchain SVG identity belongs to the scarce Genesis collection.
 
 `closePosition` succeeds only after all balances, claims, collateral, loans,
 Dollar legs, custodied LP NFTs, and LP claims are empty. Externally held
@@ -1101,7 +1093,9 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Global staking and rewards | `IStaticsGlobalRewards` |
 | Basket lending | `IStaticsLending` |
 | Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
-| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; metadata administration through `IStaticsPositionMetadata` |
+| PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; onchain financial-account metadata with an internal logo-and-ID SVG and no mutable renderer |
+| Genesis NFT and vault | `IStaticsGenesis` and `IStaticsGenesisVault` |
+| Standalone Genesis market | `IStaticsV4Hook` and `IStaticsHookController` |
 | Basket governance | `IStaticsGovernance` |
 | Custody views | `IStaticsCustody` |
 | Canonical liquidity | `IStaticsBasketLiquidity` |
@@ -1118,15 +1112,16 @@ Integrators should quote immediately before submission, provide explicit
 maximum inputs and minimum outputs, scope approvals to the typed next action,
 and reconcile indexed events against current views after reorgs.
 
-`IStaticsBasketLaunchModule` is an internal composition boundary between
-`BasketCreationFacet` and `BasketLiquidityFacet`. Its selectors reject every caller
+`IStaticsBasketLaunchModule` is an internal composition boundary between the
+basket facets (`BasketCreationFacet`, `BasketMintFacet`, `BasketRedemptionFacet`,
+`BasketViewFacet`) and `BasketLiquidityFacet`. Its selectors reject every caller
 except the Diamond itself and should not be exposed as user launch actions.
 
 ## Deployment Model
 
 `script/DeployStatics.s.sol:DeployStatics` is the canonical full-stack
 launcher. It deploys the timelock, Dollar oracle adapter, Core facets and
-Diamond, Dollar tokens, 26 unified facets and `StaticsDiamond`, and the
+Diamond, Dollar tokens, 23 unified facets and `StaticsDiamond`, and the
 immutable v4 hook and manager. A separate timelock ceremony installs the hook
 and manager into the Diamond. Basket creation is valid only after that
 installation because every basket must launch all of its canonical pools and
@@ -1194,9 +1189,8 @@ release revision.
 - Permissionless Risk incentive funding is restricted to the series collateral,
   Statics Dollar, and configured staking token, but funders still bear series,
   profile, consumption, rollover, and retirement timing risk.
-- The public testnet's owner-mintable STATICS token, mock USDG and oracles,
-  faucet, and two-minute timelock are fixtures and must not be treated as
-  production trust assumptions.
+- The public testnet's mock USDG and oracles, faucet, and two-minute timelock
+  are fixtures and must not be treated as production trust assumptions.
 - Basket-loan recovery and Dollar expired-risk recovery have distinct
   caller-incentive formulas; other basket and liquidity maintenance has no
   guaranteed caller or protocol bounty.
@@ -1494,10 +1488,10 @@ remainder. Clearing the override restores the latest global rates and shares.
 60. Basket launch helpers accept calls only from the Diamond itself; every user or owner launch enters through `createBasket`.
 61. Dollar Risk incentives accept only the series collateral, Statics Dollar, or configured staking token and reserve measured receipts within the funded series.
 62. Partial Risk-liquidity consumption releases each funded reserve pro rata against pre-fill effective liquidity, while a complete fill drains its rounding remainder.
-63. PositionNFT avatars depend only on chain ID, Diamond address, and position ID; transfers and protocol state changes do not alter their visual identity.
-64. PositionNFT metadata is fully onchain and contains no live financial or achievement claims.
+63. Genesis SVG metadata is fully onchain and keeps redemption backing separate from activation-tier presentation.
+64. PositionNFT metadata is fully onchain, includes a stable logo-and-ID SVG assembled internally without a mutable renderer, and contains no live financial or achievement claims.
 65. Unused Risk incentives roll into an eligible active successor series or enter global non-swap rewards after permanent profile retirement.
-66. The public chain-46630 faucet, mock USDG and oracles, owner-mintable STATICS token, and two-minute timelock are testnet fixtures rather than production defaults.
+66. The public chain-46630 faucet, mock USDG and oracles, and two-minute timelock are testnet fixtures rather than production defaults.
 67. Native PoolManager donations to protocol pools always revert; POL inventory enters only through protocol seeding and swap-fee allocation.
 
 ## Appendix C: Terminology

@@ -2,19 +2,15 @@
 pragma solidity 0.8.33;
 
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
-import {
-    IStaticsPosition,
-    IStaticsPositionFees,
-    IStaticsPositionMetadata,
-    IStaticsPositionModule
-} from "../interfaces/IStaticsPosition.sol";
-import {IStaticsPositionRenderer} from "../interfaces/IStaticsPositionRenderer.sol";
+import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
+import {LibPositionSVG} from "../metadata/LibPositionSVG.sol";
 import {LibPosition} from "./LibPosition.sol";
 
 contract PositionNFTFacet is
@@ -22,9 +18,9 @@ contract PositionNFTFacet is
     IModularPositionNFT,
     IStaticsPosition,
     IStaticsPositionFees,
-    IStaticsPositionMetadata,
     IStaticsPositionModule
 {
+    using Strings for uint256;
     uint256 internal constant MAX_POSITION_PAGE_SIZE = 100;
 
     event PositionCreated(uint256 indexed positionId, address indexed owner);
@@ -70,21 +66,6 @@ contract PositionNFTFacet is
         return LibPosition.positionStorage().creationFeeAmount;
     }
 
-    function setPositionRenderer(address newRenderer) external {
-        LibDiamond.enforceIsContractOwner();
-        LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
-        address previousRenderer = ps.renderer;
-        ps.renderer = newRenderer;
-        emit PositionRendererSet(previousRenderer, newRenderer);
-        if (ps.nextPositionId > 1) {
-            emit IERC4906.BatchMetadataUpdate(1, ps.nextPositionId - 1);
-        }
-    }
-
-    function positionRenderer() external view returns (address) {
-        return LibPosition.positionStorage().renderer;
-    }
-
     function positionCount(address owner) external view returns (uint256) {
         return LibPosition.positionStorage().ownedPositions[owner].length;
     }
@@ -113,14 +94,20 @@ contract PositionNFTFacet is
         address owner = ownerOf(positionId);
         LibPosition.syncOwnerIndex(positionId, owner);
         emit IPositionOwnerIndex.PositionOwnerIndexSynced(positionId, owner);
-        emit IERC4906.MetadataUpdate(positionId);
     }
 
     function tokenURI(uint256 positionId) public view override returns (string memory) {
         _requireOwned(positionId);
-        address renderer = LibPosition.positionStorage().renderer;
-        if (renderer == address(0)) return "";
-        return IStaticsPositionRenderer(renderer).renderTokenURI(address(this), positionId);
+        string memory image =
+            string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(LibPositionSVG.render(positionId))));
+        bytes memory json = abi.encodePacked(
+            '{"name":"Statics Position #',
+            positionId.toString(),
+            '","description":"A transferable financial account containing its Statics protocol assets and liabilities.","image":"',
+            image,
+            '"}'
+        );
+        return string.concat("data:application/json;base64,", Base64.encode(json));
     }
 
     function closePosition(uint256 positionId) external {

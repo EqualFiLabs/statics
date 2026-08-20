@@ -46,7 +46,7 @@ relevant skill described there, then apply it to the change.
 
   ```sh
   forge coverage --report lcov \
-    --no-match-test "testCanonicalLauncherCreatesOnlyDeployableContracts|test_RendererRuntimeLeavesDeploymentHeadroom"
+    --no-match-test "testCanonicalLauncherCreatesOnlyDeployableContracts"
   ```
 
 ### Test Fidelity Guardrails

@@ -3,31 +3,51 @@ pragma solidity 0.8.33;
 
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {IStaticsPositionRenderer} from "../interfaces/IStaticsPositionRenderer.sol";
+import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
+import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 import {LibAvatarTraits} from "./LibAvatarTraits.sol";
 import {StaticsAvatarSVG} from "./StaticsAvatarSVG.sol";
 
-contract StaticsPositionRenderer is IStaticsPositionRenderer {
+contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
     using Strings for uint256;
 
     StaticsAvatarSVG public immutable avatarSVG;
 
+    error InvalidAvatarRenderer();
+
     constructor(StaticsAvatarSVG avatarSVG_) {
+        if (address(avatarSVG_) == address(0)) revert InvalidAvatarRenderer();
         avatarSVG = avatarSVG_;
     }
 
-    function renderTokenURI(address collection, uint256 tokenId) external view returns (string memory uri) {
+    function renderTokenURI(
+        address collection,
+        uint256 tokenId,
+        address activationRegistry,
+        string calldata externalURLBase
+    ) external view returns (string memory uri) {
+        uint8 tier;
+        if (activationRegistry != address(0)) {
+            try IGenesisActivationRegistry(activationRegistry).tierOf(tokenId) returns (uint8 reportedTier) {
+                tier = reportedTier;
+            } catch {}
+        }
         bytes32 seed = LibAvatarTraits.seed(block.chainid, collection, tokenId);
         LibAvatarTraits.Traits memory traits_ = LibAvatarTraits.derive(seed);
         string memory image =
-            string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(avatarSVG.renderSVG(seed, traits_))));
+            string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(avatarSVG.renderSVG(seed, traits_, tier))));
         bytes memory json = abi.encodePacked(
-            '{"name":"Statics Position #',
+            '{"name":"Statics Genesis #',
             tokenId.toString(),
-            '","description":"A transferable position in the Statics Protocol.","image":"',
+            '","description":"A fixed-supply Statics Genesis NFT redeemable for 180,018 STATICS.","image":"',
             image,
+            '","external_url":"',
+            externalURLBase,
+            tokenId.toString(),
             '","attributes":[',
             _attributes(traits_),
+            ",",
+            _numericAttribute("Activation Tier", tier),
             "]}"
         );
         uri = string.concat("data:application/json;base64,", Base64.encode(json));
@@ -55,5 +75,9 @@ contract StaticsPositionRenderer is IStaticsPositionRenderer {
 
     function _attribute(string memory traitType, string memory value) private pure returns (string memory) {
         return string.concat('{"trait_type":"', traitType, '","value":"', value, '"}');
+    }
+
+    function _numericAttribute(string memory traitType, uint256 value) private pure returns (string memory) {
+        return string.concat('{"trait_type":"', traitType, '","value":', value.toString(), "}");
     }
 }

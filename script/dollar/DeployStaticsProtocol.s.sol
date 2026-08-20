@@ -32,8 +32,6 @@ import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.so
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
-import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
-import {StaticsPositionRenderer} from "../../src/metadata/StaticsPositionRenderer.sol";
 
 abstract contract DeployStaticsProtocol {
     struct ProtocolParts {
@@ -61,8 +59,6 @@ abstract contract DeployStaticsProtocol {
         address vault;
         address gateway;
         address init;
-        address avatarSVG;
-        address positionRenderer;
         address protocolPools;
     }
 
@@ -79,7 +75,7 @@ abstract contract DeployStaticsProtocol {
 
     function _deployStaticsProtocol(ProtocolDeploymentConfig memory config)
         internal
-        returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG)
+        returns (address diamond, address positionNFT)
     {
         ProtocolParts memory parts = _deployProtocolParts();
         IDiamondCut.FacetCut[] memory cut =
@@ -98,13 +94,12 @@ abstract contract DeployStaticsProtocol {
             stakingToken: config.stakingToken,
             creationFeeAmount: config.creationFeeAmount,
             positionCreationFeeAmount: config.positionCreationFeeAmount,
-            positionRenderer: parts.positionRenderer,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(
             config.finalOwner, config.weth, parts.init, abi.encodeCall(StaticsProtocolInit.genesis, (cut, args))
         );
-        return (address(deployedDiamond), address(deployedDiamond), parts.positionRenderer, parts.avatarSVG);
+        return (address(deployedDiamond), address(deployedDiamond));
     }
 
     function _deployProtocolParts() internal returns (ProtocolParts memory parts) {
@@ -132,8 +127,6 @@ abstract contract DeployStaticsProtocol {
         parts.vault = address(new PairingVaultFacet());
         parts.gateway = address(new StaticsDollarGatewayFacet());
         parts.init = address(new StaticsProtocolInit());
-        parts.avatarSVG = address(new StaticsAvatarSVG());
-        parts.positionRenderer = address(new StaticsPositionRenderer(StaticsAvatarSVG(parts.avatarSVG)));
         parts.protocolPools = address(new ProtocolPoolFacet());
     }
 

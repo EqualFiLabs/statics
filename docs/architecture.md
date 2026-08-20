@@ -2,8 +2,23 @@
 
 ## Contract topology
 
-Statics intentionally exposes one ordinary user address while preserving a
-separate Statics Dollar solvency backend.
+The standalone Genesis release establishes the permanent token, collection,
+backing, and market before either Diamond exists:
+
+```text
+DopplerERC20V1 (1,000,000,000 fixed STATICS)
+├── Doppler Multicurve STATICS/WETH market (800,000,000 inventory)
+│   └── launch-position LP fees: 5% Doppler/Airlock owner + 95% Statics fee ingress
+├── Treasury (exactly 200,000,000 STATICS)
+└── StaticsGenesisVault <──> StaticsGenesis (5,555 NFTs)
+    ├── fixed 180,018-STATICS redemption backing per circulating NFT
+    ├── GenesisActivationRegistry (permanent tiers and transfer reset)
+    └── StaticsFeeReceiver -> GenesisLaunchDistributor (launch era reward/treasury split)
+```
+
+The later full protocol exposes one ordinary user address while preserving a
+separate Statics Dollar solvency backend. It can accept control of the existing
+standalone controller without replacing the Genesis market.
 
 ```text
 StaticsTimelock
@@ -35,17 +50,19 @@ StaticsLiquidityManager
 ├── registered PoolKey validation and token settlement
 └── typed user-position minting with NFTs delivered directly to users
 
-StaticsPositionRenderer
-├── deterministic Base64 JSON metadata from chain, Diamond, and position ID
-└── immutable StaticsAvatarSVG assembly helper
+StaticsGenesisRenderer
+├── deterministic Base64 JSON and SVG for the scarce Genesis collection
+└── immutable StaticsAvatarSVG assembly helper with activation-tier input
 ```
 
 Users continue to call `StaticsDiamond`. Uniswap v4 calls the hook encoded in
 the canonical pool key, while only the Diamond can call the liquidity manager;
-neither liquidity contract nor either metadata contract is a second general
-protocol entrypoint.
+neither liquidity contract nor the metadata renderer is a second general
+protocol entrypoint. The later Diamond reads the permanent activation registry
+and accepts future revenue from the same fee receiver; historical launch claims
+remain in the launch distributor.
 
-The fresh-deployment launcher installs 26 facets and 209 selectors on
+The fresh-deployment launcher installs 23 facets and 207 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -55,12 +72,6 @@ code, and assert those fresh-launch totals. Runtime hashes are recorded in
 release and rehearsal manifests rather than asserted by the fresh-deployment
 manifest test. Later governed upgrades can change the deployed selector set;
 the current deployment manifest records that live release state.
-
-The basket user surface is partitioned across `BasketCreationFacet`,
-`BasketMintFacet`, `BasketRedemptionFacet`, and `BasketViewFacet`. The split does
-not create separate custody or accounting domains: every facet executes through
-the Diamond, shares the same namespaced basket storage, and the three
-value-moving facets use the shared persistent reentrancy-guard slot.
 
 ## One address without one economic book
 
@@ -73,7 +84,6 @@ That shared ownership does not merge economics. The following storage books are
 separately namespaced:
 
 - PositionNFT ownership and active-leg state;
-- one collection-wide PositionNFT renderer address;
 - global and module-local physical reservations;
 - Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;
