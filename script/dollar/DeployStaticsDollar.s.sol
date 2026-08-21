@@ -139,20 +139,23 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             config.sequencerGracePeriod
         );
         return _deployStack(
-            config.owner,
-            config.profileGuardian,
-            config.treasury,
-            config.stakingToken,
-            config.creationFeeAmount,
-            config.positionCreationFeeAmount,
-            config.weth,
+            CoreBootstrapConfig({
+                owner: config.owner,
+                profileGuardian: config.profileGuardian,
+                treasury: config.treasury,
+                stakingToken: config.stakingToken,
+                creationFeeAmount: config.creationFeeAmount,
+                positionCreationFeeAmount: config.positionCreationFeeAmount,
+                initialOracle: address(oracle),
+                requiredSequencerUptimeFeed: config.sequencerUptimeFeed,
+                minimumSequencerGracePeriod: config.sequencerGracePeriod,
+                weth: config.weth,
+                collateralRatioBps: config.collateralRatioBps,
+                priceBandBps: config.priceBandBps,
+                debtCeiling: config.debtCeiling,
+                riskUri: config.riskUri
+            }),
             address(oracle),
-            config.sequencerUptimeFeed,
-            config.sequencerGracePeriod,
-            config.collateralRatioBps,
-            config.priceBandBps,
-            config.debtCeiling,
-            config.riskUri,
             deploymentCreator
         );
     }
@@ -200,63 +203,37 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             config.oracle = address(new MockETHUSDOracle(price, staleness));
         }
         return _deployStack(
-            config.owner,
-            config.profileGuardian,
-            config.treasury,
-            config.stakingToken,
-            config.creationFeeAmount,
-            config.positionCreationFeeAmount,
-            config.weth,
+            CoreBootstrapConfig({
+                owner: config.owner,
+                profileGuardian: config.profileGuardian,
+                treasury: config.treasury,
+                stakingToken: config.stakingToken,
+                creationFeeAmount: config.creationFeeAmount,
+                positionCreationFeeAmount: config.positionCreationFeeAmount,
+                initialOracle: config.oracle,
+                requiredSequencerUptimeFeed: address(0),
+                minimumSequencerGracePeriod: 0,
+                weth: config.weth,
+                collateralRatioBps: config.collateralRatioBps,
+                priceBandBps: config.priceBandBps,
+                debtCeiling: config.debtCeiling,
+                riskUri: config.riskUri
+            }),
             config.oracle,
-            address(0),
-            0,
-            config.collateralRatioBps,
-            config.priceBandBps,
-            config.debtCeiling,
-            config.riskUri,
             deploymentCreator
         );
     }
 
-    function _deployStack(
-        address owner,
-        address profileGuardian,
-        address treasury,
-        address stakingToken,
-        uint256 creationFeeAmount,
-        uint256 positionCreationFeeAmount,
-        address weth,
-        address oracle,
-        address sequencerUptimeFeed,
-        uint256 sequencerGracePeriod,
-        uint256 collateralRatioBps,
-        uint256 priceBandBps,
-        uint256 debtCeiling,
-        string memory riskUri,
-        address deploymentCreator
-    ) private returns (StaticsDollarStackDeployment memory deployment) {
-        CoreBootstrapConfig memory config = CoreBootstrapConfig({
-            owner: owner,
-            profileGuardian: profileGuardian,
-            treasury: treasury,
-            stakingToken: stakingToken,
-            creationFeeAmount: creationFeeAmount,
-            positionCreationFeeAmount: positionCreationFeeAmount,
-            initialOracle: oracle,
-            requiredSequencerUptimeFeed: sequencerUptimeFeed,
-            minimumSequencerGracePeriod: sequencerGracePeriod,
-            weth: weth,
-            collateralRatioBps: collateralRatioBps,
-            priceBandBps: priceBandBps,
-            debtCeiling: debtCeiling,
-            riskUri: riskUri
-        });
+    function _deployStack(CoreBootstrapConfig memory config, address oracle, address deploymentCreator)
+        private
+        returns (StaticsDollarStackDeployment memory deployment)
+    {
         CoreBootstrapDeployment memory coreDeployment = deploy(config, deploymentCreator);
         deployment.core = coreDeployment.core;
         deployment.pool = coreDeployment.core;
         deployment.staticsDollar = coreDeployment.staticsDollar;
         deployment.staticsDollarRisk = coreDeployment.staticsDollarRisk;
-        deployment.weth = weth;
+        deployment.weth = config.weth;
         deployment.oracle = oracle;
         deployment.diamond = coreDeployment.diamond;
         deployment.positionNFT = coreDeployment.positionNFT;

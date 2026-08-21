@@ -78,29 +78,75 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
     ) external nonReentrant returns (address[] memory assets, uint256[] memory profits) {
         if (block.timestamp > deadline) revert DeadlineExpired(deadline, block.timestamp);
 
+        uint256[] memory startingBalances;
+        uint256[] memory topUps;
+        (assets, startingBalances, topUps) = _prepareArbitrage(basketId, shares, pools, basketAmountsIn, minimumProfits);
+        _executeFlashRoute(basketId, shares, pools, basketAmountsIn);
+
+        profits = _collectProfits(assets, minimumProfits, startingBalances, topUps);
+        emit MintAndSellArbitrageExecuted(msg.sender, basketId, shares, assets, profits);
+    }
+
+    /// @dev Encodes and executes the flash-loan leg carrying the mint-and-sell route.
+    function _executeFlashRoute(
+        uint256 basketId,
+        uint256 shares,
+        PoolKey[] calldata pools,
+        uint256[] calldata basketAmountsIn
+    ) private {
+        CallbackRoute memory route = CallbackRoute({
+            basketId: basketId, shares: shares, pools: pools, basketAmountsIn: basketAmountsIn
+        });
+        IStaticsFlashLoan(staticsDiamond).flashLoan(basketId, shares, address(this), abi.encode(route));
+    }
+
+    /// @dev Quotes the flash vector, validates the caller's route arrays, and
+    /// pulls any per-asset top-ups beyond the flash-loaned amounts.
+    function _prepareArbitrage(
+        uint256 basketId,
+        uint256 shares,
+        PoolKey[] calldata pools,
+        uint256[] calldata basketAmountsIn,
+        uint256[] calldata minimumProfits
+    ) private returns (address[] memory assets, uint256[] memory startingBalances, uint256[] memory topUps) {
         uint256[] memory flashAmounts;
         (assets, flashAmounts,) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId, shares);
         uint256 length = assets.length;
         if (pools.length != length || basketAmountsIn.length != length || minimumProfits.length != length) {
             revert InvalidRoute();
         }
+        uint256[] memory maximums = IStaticsBasket(staticsDiamond).quoteMint(basketId, shares);
+        if (maximums.length != length || flashAmounts.length != length) revert InvalidRoute();
+        (startingBalances, topUps) = _pullTopUps(assets, maximums, flashAmounts);
+    }
 
-        uint256[] memory mintMaximums = IStaticsBasket(staticsDiamond).quoteMint(basketId, shares);
-        if (mintMaximums.length != length || flashAmounts.length != length) revert InvalidRoute();
-        uint256[] memory startingBalances = new uint256[](length);
-        uint256[] memory topUps = new uint256[](length);
+    /// @dev Snapshots starting balances and pulls any shortfall between the mint
+    /// maximum and the flash-loaned amount for each asset.
+    function _pullTopUps(address[] memory assets, uint256[] memory maximums, uint256[] memory flashAmounts)
+        private
+        returns (uint256[] memory startingBalances, uint256[] memory topUps)
+    {
+        uint256 length = assets.length;
+        startingBalances = new uint256[](length);
+        topUps = new uint256[](length);
         for (uint256 i; i < length; ++i) {
             IERC20 asset = IERC20(assets[i]);
             startingBalances[i] = asset.balanceOf(address(this));
-            uint256 topUp = mintMaximums[i] > flashAmounts[i] ? mintMaximums[i] - flashAmounts[i] : 0;
+            uint256 topUp = maximums[i] > flashAmounts[i] ? maximums[i] - flashAmounts[i] : 0;
             topUps[i] = topUp;
             if (topUp != 0) _pullExact(asset, msg.sender, topUp);
         }
+    }
 
-        CallbackRoute memory route =
-            CallbackRoute({basketId: basketId, shares: shares, pools: pools, basketAmountsIn: basketAmountsIn});
-        IStaticsFlashLoan(staticsDiamond).flashLoan(basketId, shares, address(this), abi.encode(route));
-
+    /// @dev Clears approvals, enforces per-asset profit minimums, and pays the
+    /// executor the full ending balance above its starting snapshot.
+    function _collectProfits(
+        address[] memory assets,
+        uint256[] calldata minimumProfits,
+        uint256[] memory startingBalances,
+        uint256[] memory topUps
+    ) private returns (uint256[] memory profits) {
+        uint256 length = assets.length;
         profits = new uint256[](length);
         for (uint256 i; i < length; ++i) {
             IERC20 asset = IERC20(assets[i]);
@@ -114,7 +160,6 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
             profits[i] = payout - topUps[i];
             _pushExact(asset, msg.sender, payout);
         }
-        emit MintAndSellArbitrageExecuted(msg.sender, basketId, shares, assets, profits);
     }
 
     function onStaticsFlashLoan(
@@ -134,12 +179,39 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
                 || amounts.length != length || fees.length != length
         ) revert InvalidRoute();
 
+        _mintAndSellRoute(basketId, assets, route);
+        _approveRepayments(assets, amounts, fees);
+        return CALLBACK_SUCCESS;
+    }
+
+    /// @dev Mints the BasketToken vector, sells every constituent across its
+    /// canonical pool, and proves the basket-token balance is restored.
+    function _mintAndSellRoute(uint256 basketId, address[] calldata assets, CallbackRoute memory route)
+        private
+        returns (address basketToken)
+    {
         IStaticsBasket basket = IStaticsBasket(staticsDiamond);
-        address basketToken = basket.basket(basketId).token;
+        basketToken = basket.basket(basketId).token;
         uint256 basketBalanceBefore = IERC20(basketToken).balanceOf(address(this));
+        _mintRouteBasket(basket, basketId, assets, route);
+        _sellRouteBasket(basketId, basketToken, assets, route);
+        uint256 basketBalanceAfter = IERC20(basketToken).balanceOf(address(this));
+        if (basketBalanceAfter != basketBalanceBefore) {
+            revert BasketBalanceNotRestored(basketToken, basketBalanceBefore, basketBalanceAfter);
+        }
+    }
+
+    /// @dev Approves the full mint maximums, mints, enforces the caller's total
+    /// basket input bound, and clears every approval.
+    function _mintRouteBasket(
+        IStaticsBasket basket,
+        uint256 basketId,
+        address[] calldata assets,
+        CallbackRoute memory route
+    ) private {
+        uint256 length = assets.length;
         uint256[] memory maximums = basket.quoteMint(basketId, route.shares);
         if (maximums.length != length) revert InvalidRoute();
-
         uint256 totalBasketAmountIn;
         for (uint256 i; i < length; ++i) {
             IERC20(assets[i]).forceApprove(staticsDiamond, maximums[i]);
@@ -150,24 +222,34 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         for (uint256 i; i < length; ++i) {
             IERC20(assets[i]).forceApprove(staticsDiamond, 0);
         }
+    }
 
+    /// @dev Sells each minted constituent through its validated canonical pool.
+    function _sellRouteBasket(
+        uint256 basketId,
+        address basketToken,
+        address[] calldata assets,
+        CallbackRoute memory route
+    ) private {
+        uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
             _validatePool(basketId, route.pools[i], basketToken, assets[i]);
             uint256 amountIn = route.basketAmountsIn[i];
             if (amountIn != 0) _swapExactInput(route.pools[i], basketToken, assets[i], amountIn);
         }
-        uint256 basketBalanceAfter = IERC20(basketToken).balanceOf(address(this));
-        if (basketBalanceAfter != basketBalanceBefore) {
-            revert BasketBalanceNotRestored(basketToken, basketBalanceBefore, basketBalanceAfter);
-        }
+    }
 
+    /// @dev Verifies repayment balances and approves the flash-loan repayment.
+    function _approveRepayments(address[] calldata assets, uint256[] calldata amounts, uint256[] calldata fees)
+        private
+    {
+        uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
             uint256 repayment = amounts[i] + fees[i];
             uint256 available = IERC20(assets[i]).balanceOf(address(this));
             if (available < repayment) revert InsufficientRepayment(assets[i], repayment, available);
             IERC20(assets[i]).forceApprove(staticsDiamond, repayment);
         }
-        return CALLBACK_SUCCESS;
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
