@@ -1,0 +1,123 @@
+name: Security
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  local-security:
+    name: Security / local
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize contract dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            lib/openzeppelin-contracts \
+            lib/openzeppelin-contracts-upgradeable \
+            lib/v4-periphery
+          git -C lib/v4-periphery submodule sync
+          git -C lib/v4-periphery submodule update --init --depth=1 \
+            lib/v4-core \
+            lib/permit2
+          git -C lib/v4-periphery/lib/v4-core submodule sync
+          git -C lib/v4-periphery/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.7.1
+      - name: Build
+        run: forge build
+      - name: Normalize V4 deployment artifacts
+        shell: bash
+        run: |
+          normalize_artifact() {
+            local source="$1"
+            local contract="$2"
+            shift 2
+            local target="out/${source}/${contract}.json"
+            local profile candidate
+
+            if [[ -f "$target" ]]; then
+              echo "Using existing ${target}"
+              return 0
+            fi
+
+            for profile in "$@"; do
+              candidate="out/${source}/${contract}.${profile}.json"
+              if [[ -f "$candidate" ]]; then
+                echo "Using ${candidate} for ${target}"
+                cp "$candidate" "$target"
+                return 0
+              fi
+            done
+
+            echo "No usable artifact found for ${contract}"
+            find "out/${source}" -maxdepth 1 -type f -name "${contract}*.json" -print || true
+            exit 1
+          }
+
+          normalize_artifact "PoolManager.sol" "PoolManager" "default" "uniswap-position-manager"
+          normalize_artifact "Permit2.sol" "Permit2" "default" "uniswap-position-manager"
+          normalize_artifact "PositionManager.sol" "PositionManager" "uniswap-position-manager" "default"
+      - name: Run security profile
+        env:
+          FOUNDRY_PROFILE: security
+        run: forge test -vv
+
+  doppler-fork:
+    name: Security / Doppler fork
+    runs-on: ubuntu-latest
+    env:
+      ROBINHOOD_MAINNET: ${{ secrets.ROBINHOOD_MAINNET }}
+      BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+      REQUIRE_DOPPLER_FORK_PROOF: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize contract dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            lib/openzeppelin-contracts \
+            lib/openzeppelin-contracts-upgradeable \
+            lib/v4-periphery
+          git -C lib/v4-periphery submodule sync
+          git -C lib/v4-periphery submodule update --init --depth=1 \
+            lib/v4-core \
+            lib/permit2
+          git -C lib/v4-periphery/lib/v4-core submodule sync
+          git -C lib/v4-periphery/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Require configured fork RPCs
+        shell: bash
+        run: |
+          test -n "$ROBINHOOD_MAINNET"
+          test -n "$BASE_SEPOLIA_RPC_URL"
+      - name: Run Doppler fork proof
+        run: forge test --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol -vv
