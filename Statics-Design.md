@@ -177,7 +177,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **23 facets / 209 selectors** on `StaticsDiamond`; and
+- **26 facets / 209 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -1119,14 +1119,14 @@ maximum inputs and minimum outputs, scope approvals to the typed next action,
 and reconcile indexed events against current views after reorgs.
 
 `IStaticsBasketLaunchModule` is an internal composition boundary between
-`BasketFacet` and `BasketLiquidityFacet`. Its selectors reject every caller
+`BasketCreationFacet` and `BasketLiquidityFacet`. Its selectors reject every caller
 except the Diamond itself and should not be exposed as user launch actions.
 
 ## Deployment Model
 
 `script/DeployStatics.s.sol:DeployStatics` is the canonical full-stack
 launcher. It deploys the timelock, Dollar oracle adapter, Core facets and
-Diamond, Dollar tokens, 23 unified facets and `StaticsDiamond`, and the
+Diamond, Dollar tokens, 26 unified facets and `StaticsDiamond`, and the
 immutable v4 hook and manager. A separate timelock ceremony installs the hook
 and manager into the Diamond. Basket creation is valid only after that
 installation because every basket must launch all of its canonical pools and

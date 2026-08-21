@@ -8,6 +8,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
+import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
@@ -123,7 +124,8 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 23, 209);
+        _assertManifest(diamond, 26, 209);
+        _assertBasketRoutes(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
@@ -183,6 +185,34 @@ contract DeployStaticsTest is Test {
         assertEq(StaticsLiquidityManager(manager).poolManager(), deployment.poolManager);
         assertEq(StaticsLiquidityManager(manager).positionManager(), deployment.positionManager);
         assertEq(StaticsLiquidityManager(manager).permit2(), deployment.permit2);
+    }
+
+    function _assertBasketRoutes(address diamond) private view {
+        IDiamondLoupe loupe = IDiamondLoupe(diamond);
+        address creation = loupe.facetAddress(IStaticsBasket.createBasket.selector);
+        address minting = loupe.facetAddress(IStaticsBasket.mint.selector);
+        address redemption = loupe.facetAddress(IStaticsBasket.redeem.selector);
+        address views = loupe.facetAddress(IStaticsBasket.basket.selector);
+
+        assertTrue(creation != address(0));
+        assertTrue(minting != address(0));
+        assertTrue(redemption != address(0));
+        assertTrue(views != address(0));
+        assertTrue(creation != minting && creation != redemption && creation != views);
+        assertTrue(minting != redemption && minting != views && redemption != views);
+
+        assertEq(loupe.facetAddress(IStaticsBasket.quoteMint.selector), minting);
+        assertEq(loupe.facetAddress(IStaticsBasketCollateral.createAndMintBasketCollateral.selector), minting);
+        assertEq(loupe.facetAddress(IStaticsBasketCollateral.mintBasketCollateral.selector), minting);
+
+        assertEq(loupe.facetAddress(IStaticsBasket.quoteRedeem.selector), redemption);
+        assertEq(loupe.facetAddress(IStaticsBasketCollateral.redeemBasketCollateral.selector), redemption);
+
+        assertEq(loupe.facetAddress(IStaticsBasket.basketStatus.selector), views);
+        assertEq(loupe.facetAddress(IStaticsBasket.basketCount.selector), views);
+        assertEq(loupe.facetAddress(IStaticsBasket.basketIdOf.selector), views);
+        assertEq(loupe.facetAddress(IStaticsBasket.vaultBalance.selector), views);
+        assertEq(loupe.facetAddress(IStaticsBasket.feeSharesFor.selector), views);
     }
 
     function _v4Config() private returns (DeployStatics.V4Config memory config) {

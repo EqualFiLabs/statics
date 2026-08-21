@@ -13,7 +13,7 @@ import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
-import {BasketFacet} from "../../src/facets/BasketFacet.sol";
+import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {MockFlashBorrower} from "../mocks/MockFlashBorrower.sol";
@@ -607,7 +607,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.ltvBps = 9_501;
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.LtvExceedsMaximum.selector, 9_501));
+        vm.expectRevert(abi.encodeWithSelector(BasketCreationFacet.LtvExceedsMaximum.selector, 9_501));
         baskets.createBasket{value: 1 ether}(
             params,
             _defaultPoolLaunchParams(params.assets.length),

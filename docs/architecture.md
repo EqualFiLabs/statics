@@ -45,7 +45,7 @@ the canonical pool key, while only the Diamond can call the liquidity manager;
 neither liquidity contract nor either metadata contract is a second general
 protocol entrypoint.
 
-The fresh-deployment launcher installs 23 facets and 209 selectors on
+The fresh-deployment launcher installs 26 facets and 209 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -55,6 +55,12 @@ code, and assert those fresh-launch totals. Runtime hashes are recorded in
 release and rehearsal manifests rather than asserted by the fresh-deployment
 manifest test. Later governed upgrades can change the deployed selector set;
 the current deployment manifest records that live release state.
+
+The basket user surface is partitioned across `BasketCreationFacet`,
+`BasketMintFacet`, `BasketRedemptionFacet`, and `BasketViewFacet`. The split does
+not create separate custody or accounting domains: every facet executes through
+the Diamond, shares the same namespaced basket storage, and the three
+value-moving facets use the shared persistent reentrancy-guard slot.
 
 ## One address without one economic book
 
