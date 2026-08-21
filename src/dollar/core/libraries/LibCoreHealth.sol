@@ -22,6 +22,16 @@ library LibCoreHealth {
         uint256 recoveryAvailableAt
     );
 
+    /// @dev Scratch values shared across the solvency computation phases so no
+    /// single frame keeps every intermediate live.
+    struct SolvencyScratch {
+        uint256 priceWad;
+        uint256 actualBalance;
+        uint256 custodySupportingCollateral;
+        uint256 custodySupportingWad;
+        bool normalized;
+    }
+
     function profileSolvency(
         LibCoreStorage.CS storage cs,
         uint256 profileId,
@@ -41,47 +51,77 @@ library LibCoreHealth {
         if (!balanceAvailable) return solvency;
         solvency.oracleAvailable = true;
 
-        uint256 recordedSupportingCollateral = profile.accountedCollateral + profile.insuranceReserve;
-        uint256 custodySupportingCollateral =
-            actualBalance < recordedSupportingCollateral ? actualBalance : recordedSupportingCollateral;
-        (bool normalized, uint256 custodySupportingWad) = toWad(custodySupportingCollateral, profile.decimals);
-        if (!normalized) {
-            solvency.oracleAvailable = false;
-            return solvency;
-        }
-        solvency.collateralValueWad = valueWad(custodySupportingWad, priceWad);
+        SolvencyScratch memory scratch = SolvencyScratch({
+            priceWad: priceWad,
+            actualBalance: actualBalance,
+            custodySupportingCollateral: 0,
+            custodySupportingWad: 0,
+            normalized: false
+        });
 
-        uint256 aggregateDeficit = solvency.seniorLiabilitiesWad > solvency.collateralValueWad
-            ? solvency.seniorLiabilitiesWad - solvency.collateralValueWad
-            : 0;
-        (uint256 indexedSeriesDeficit,,,) = cs.solvencyIndex[profileId].deficitAt(priceWad);
-        uint256 custodyInsuranceCollateral = custodySupportingCollateral > profile.accountedCollateral
-            ? custodySupportingCollateral - profile.accountedCollateral
-            : 0;
-        (normalized, custodySupportingWad) = toWad(custodyInsuranceCollateral, profile.decimals);
-        if (!normalized) {
-            solvency.oracleAvailable = false;
-            solvency.collateralValueWad = 0;
-            return solvency;
-        }
-        uint256 insuranceValueWad = valueWad(custodySupportingWad, priceWad);
-        uint256 seriesDeficitAfterInsurance =
-            indexedSeriesDeficit > insuranceValueWad ? indexedSeriesDeficit - insuranceValueWad : 0;
-
-        uint256 missingAccountedCollateral =
-            actualBalance < profile.accountedCollateral ? profile.accountedCollateral - actualBalance : 0;
-        (normalized, custodySupportingWad) = toWad(missingAccountedCollateral, profile.decimals);
-        if (!normalized) {
-            solvency.oracleAvailable = false;
-            solvency.collateralValueWad = 0;
-            return solvency;
-        }
-        uint256 missingAccountedValueWad = valueWad(custodySupportingWad, priceWad);
-        uint256 isolatedCustodyDeficit = saturatingAdd(seriesDeficitAfterInsurance, missingAccountedValueWad);
+        uint256 aggregateDeficit = _valueSupportingCollateral(solvency, profile, scratch);
+        if (!solvency.oracleAvailable) return solvency;
+        uint256 isolatedCustodyDeficit = _isolatedCustodyDeficit(cs, profileId, solvency, profile, scratch);
+        if (!solvency.oracleAvailable) return solvency;
 
         solvency.seniorDeficitWad =
             aggregateDeficit > isolatedCustodyDeficit ? aggregateDeficit : isolatedCustodyDeficit;
         solvency.healthy = solvency.seniorDeficitWad == 0;
+    }
+
+    function _valueSupportingCollateral(
+        IStaticsDollarCoreTypes.ProfileSolvency memory solvency,
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile,
+        SolvencyScratch memory scratch
+    ) private view returns (uint256 aggregateDeficit) {
+        uint256 recordedSupportingCollateral =
+            profile.accountedCollateral + profile.insuranceReserve;
+        scratch.custodySupportingCollateral =
+            scratch.actualBalance < recordedSupportingCollateral ? scratch.actualBalance : recordedSupportingCollateral;
+        (scratch.normalized, scratch.custodySupportingWad) =
+            toWad(scratch.custodySupportingCollateral, profile.decimals);
+        if (!scratch.normalized) {
+            solvency.oracleAvailable = false;
+            return 0;
+        }
+        solvency.collateralValueWad = valueWad(scratch.custodySupportingWad, scratch.priceWad);
+        return solvency.seniorLiabilitiesWad > solvency.collateralValueWad
+            ? solvency.seniorLiabilitiesWad - solvency.collateralValueWad
+            : 0;
+    }
+
+    function _isolatedCustodyDeficit(
+        LibCoreStorage.CS storage cs,
+        uint256 profileId,
+        IStaticsDollarCoreTypes.ProfileSolvency memory solvency,
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile,
+        SolvencyScratch memory scratch
+    ) private view returns (uint256 isolatedDeficit) {
+        (uint256 indexedSeriesDeficit,,,) = cs.solvencyIndex[profileId].deficitAt(scratch.priceWad);
+        uint256 custodyInsuranceCollateral = scratch.custodySupportingCollateral > profile.accountedCollateral
+            ? scratch.custodySupportingCollateral - profile.accountedCollateral
+            : 0;
+        (scratch.normalized, scratch.custodySupportingWad) = toWad(custodyInsuranceCollateral, profile.decimals);
+        if (!scratch.normalized) {
+            solvency.oracleAvailable = false;
+            solvency.collateralValueWad = 0;
+            return 0;
+        }
+        uint256 insuranceValueWad = valueWad(scratch.custodySupportingWad, scratch.priceWad);
+        uint256 seriesDeficitAfterInsurance =
+            indexedSeriesDeficit > insuranceValueWad ? indexedSeriesDeficit - insuranceValueWad : 0;
+
+        uint256 missingAccountedCollateral = scratch.actualBalance < profile.accountedCollateral
+            ? profile.accountedCollateral - scratch.actualBalance
+            : 0;
+        (scratch.normalized, scratch.custodySupportingWad) = toWad(missingAccountedCollateral, profile.decimals);
+        if (!scratch.normalized) {
+            solvency.oracleAvailable = false;
+            solvency.collateralValueWad = 0;
+            return 0;
+        }
+        uint256 missingAccountedValueWad = valueWad(scratch.custodySupportingWad, scratch.priceWad);
+        return saturatingAdd(seriesDeficitAfterInsurance, missingAccountedValueWad);
     }
 
     function currentGlobalHealth(LibCoreStorage.CS storage cs)

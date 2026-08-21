@@ -17,6 +17,25 @@ contract CoreRecoveryFacet is ReentrancyGuard {
         bool impairedRunoff;
     }
 
+    struct ExpiredRecoveryContext {
+        uint256 seriesId;
+        uint256 shares;
+        address holder;
+        bool issuesSuccessor;
+        uint256 keeperCollateralOut;
+        uint256 gross;
+        uint256 successorCollateral;
+        uint256 transferredCollateral;
+        CollateralExitCheckpoint exitCheckpoint;
+    }
+
+    struct ReturnedClaimContext {
+        uint256 seriesId;
+        address receiver;
+        bool issuesSuccessor;
+        CollateralExitCheckpoint exitCheckpoint;
+    }
+
     event ReturnedRiskClaimed(
         address indexed holder,
         address indexed receiver,
@@ -97,19 +116,47 @@ contract CoreRecoveryFacet is ReentrancyGuard {
         if (preview.collateralOut < minimumCollateralOut) {
             revert SlippageExceeded(preview.collateralOut, minimumCollateralOut);
         }
+        ReturnedClaimContext memory ctx = _prepareReturnedClaim(cs, seriesId, receiver, preview);
+        _recordReturnedClaim(cs, ctx, preview);
+        _settleReturnedClaim(cs, ctx, preview);
+        return (preview.successorPairs, preview.collateralIn, preview.collateralOut);
+    }
+
+    /// @dev Exit checkpoint (when collateral exits) and the successor-issuance gate.
+    function _prepareReturnedClaim(
+        LibCoreStorage.CS storage cs,
+        uint256 seriesId,
+        address receiver,
+        IStaticsDollarCoreTypes.RecoveryClaimPreview memory preview
+    ) private returns (ReturnedClaimContext memory ctx) {
         IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[seriesId];
-        CollateralExitCheckpoint memory exitCheckpoint;
+        ctx = ReturnedClaimContext({
+            seriesId: seriesId,
+            receiver: receiver,
+            issuesSuccessor: preview.successorPairs != 0,
+            exitCheckpoint: CollateralExitCheckpoint(0, false)
+        });
         if (preview.collateralOut != 0) {
-            exitCheckpoint = _checkpointCollateralExit(cs, oldSeries.profileId);
+            ctx.exitCheckpoint = _checkpointCollateralExit(cs, oldSeries.profileId);
         }
-        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
-        IStaticsDollarCoreTypes.SeriesRecoveryState storage recovery = cs.seriesRecovery[seriesId];
-        bool issuesSuccessor = preview.successorPairs != 0;
-        if (issuesSuccessor) {
+        if (ctx.issuesSuccessor) {
             _enforceIssuanceAvailable(cs, oldSeries.profileId, preview.successorSeriesId, preview.successorPairs);
         }
+    }
 
-        delete cs.returnedRiskShares[seriesId][msg.sender];
+    /// @dev Returned-share deletion, recovery bookkeeping, collateral-in pull,
+    /// successor accounting with its health checkpoint, and the collateral-out
+    /// exit accounting with the projected-exit guard.
+    function _recordReturnedClaim(
+        LibCoreStorage.CS storage cs,
+        ReturnedClaimContext memory ctx,
+        IStaticsDollarCoreTypes.RecoveryClaimPreview memory preview
+    ) private {
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[ctx.seriesId];
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
+        IStaticsDollarCoreTypes.SeriesRecoveryState storage recovery = cs.seriesRecovery[ctx.seriesId];
+
+        delete cs.returnedRiskShares[ctx.seriesId][msg.sender];
         recovery.returnedSharesClaimed += preview.oldShares;
         recovery.juniorRecoveryShares -= preview.oldShares;
         recovery.juniorRecoveryCollateral -= preview.juniorCollateral;
@@ -119,7 +166,7 @@ contract CoreRecoveryFacet is ReentrancyGuard {
             profile.accountedCollateral += preview.collateralIn;
             cs.accountedCollateralByToken[oldSeries.collateralToken] += preview.collateralIn;
         }
-        if (issuesSuccessor) {
+        if (ctx.issuesSuccessor) {
             IStaticsDollarCoreTypes.RiskSeries storage successor = cs.riskSeries[preview.successorSeriesId];
             uint256 successorCollateral = preview.juniorCollateral + preview.collateralIn - preview.collateralOut;
             successor.accountedCollateral += successorCollateral;
@@ -133,26 +180,35 @@ contract CoreRecoveryFacet is ReentrancyGuard {
         if (preview.collateralOut != 0) {
             profile.accountedCollateral -= preview.collateralOut;
             cs.accountedCollateralByToken[oldSeries.collateralToken] -= preview.collateralOut;
-            _enforceProjectedCollateralExit(cs, oldSeries.profileId, exitCheckpoint);
+            _enforceProjectedCollateralExit(cs, oldSeries.profileId, ctx.exitCheckpoint);
         }
-        if (issuesSuccessor) {
-            IStaticsDollar(cs.staticsDollar).mint(receiver, preview.successorPairs);
+    }
+
+    /// @dev Successor minting, collateral payout, custody enforcement, terminal
+    /// close, and the claim event.
+    function _settleReturnedClaim(
+        LibCoreStorage.CS storage cs,
+        ReturnedClaimContext memory ctx,
+        IStaticsDollarCoreTypes.RecoveryClaimPreview memory preview
+    ) private {
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[ctx.seriesId];
+        if (ctx.issuesSuccessor) {
+            IStaticsDollar(cs.staticsDollar).mint(ctx.receiver, preview.successorPairs);
             IStaticsDollarRiskShares(cs.staticsDollarRisk)
-                .mint(receiver, preview.successorSeriesId, preview.successorPairs);
+                .mint(ctx.receiver, preview.successorSeriesId, preview.successorPairs);
         }
-        LibCoreAccounting.pushExact(oldSeries.collateralToken, receiver, preview.collateralOut);
+        LibCoreAccounting.pushExact(oldSeries.collateralToken, ctx.receiver, preview.collateralOut);
         LibCoreAccounting.enforceCustody(cs, oldSeries.collateralToken);
-        if (LibCoreRecovery.closeIfEmpty(cs, seriesId)) emit SeriesClosed(oldSeries.profileId, seriesId);
+        if (LibCoreRecovery.closeIfEmpty(cs, ctx.seriesId)) emit SeriesClosed(oldSeries.profileId, ctx.seriesId);
         emit ReturnedRiskClaimed(
             msg.sender,
-            receiver,
-            seriesId,
+            ctx.receiver,
+            ctx.seriesId,
             preview.oldShares,
             preview.successorPairs,
             preview.collateralIn,
             preview.collateralOut
         );
-        return (preview.successorPairs, preview.collateralIn, preview.collateralOut);
     }
 
     function redeemRecoverySenior(
@@ -217,65 +273,121 @@ contract CoreRecoveryFacet is ReentrancyGuard {
         }
         IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview =
             _previewExpiredRiskRecovery(cs, holder, seriesId, shares, mode);
-        keeperCollateralOut = preview.seniorCollateralOut + preview.keeperBounty;
-        if (keeperCollateralOut < minimumKeeperOut) {
-            revert SlippageExceeded(keeperCollateralOut, minimumKeeperOut);
+        uint256 keeperOut = preview.seniorCollateralOut + preview.keeperBounty;
+        if (keeperOut < minimumKeeperOut) {
+            revert SlippageExceeded(keeperOut, minimumKeeperOut);
         }
+
+        ExpiredRecoveryContext memory ctx = _prepareExpiredRecovery(cs, holder, seriesId, shares, keeperOut, preview);
+        _burnExpiredRisk(cs, ctx);
+        _openSuccessorSeries(cs, ctx, preview);
+        _closeExpiredCollateral(cs, ctx, preview);
+        _settleExpiredRecovery(cs, ctx, preview);
+        return (shares, ctx.keeperCollateralOut, preview.holderPairs);
+    }
+
+    /// @dev Exit checkpoint, successor-issuance gate, and derived recovery amounts.
+    function _prepareExpiredRecovery(
+        LibCoreStorage.CS storage cs,
+        address holder,
+        uint256 seriesId,
+        uint256 shares,
+        uint256 keeperOut,
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview
+    ) private returns (ExpiredRecoveryContext memory ctx) {
         IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[seriesId];
-        CollateralExitCheckpoint memory exitCheckpoint = _checkpointCollateralExit(cs, oldSeries.profileId);
-        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
-        bool issuesSuccessor = preview.holderPairs != 0;
-        if (issuesSuccessor) {
+        ctx = ExpiredRecoveryContext({
+            seriesId: seriesId,
+            shares: shares,
+            holder: holder,
+            issuesSuccessor: preview.holderPairs != 0,
+            keeperCollateralOut: keeperOut,
+            gross: preview.seniorCollateralOut + preview.juniorCollateral,
+            successorCollateral: preview.holderCollateral - preview.holderCollateralDust,
+            transferredCollateral: keeperOut + preview.holderCollateralDust,
+            exitCheckpoint: CollateralExitCheckpoint(0, false)
+        });
+        ctx.exitCheckpoint = _checkpointCollateralExit(cs, oldSeries.profileId);
+        if (ctx.issuesSuccessor) {
             _enforceIssuanceAvailable(cs, oldSeries.profileId, preview.successorSeriesId, preview.holderPairs);
         }
-        LibCoreStorage.ExpiredRecoveryBook storage book = cs.expiredRecoveryBook[seriesId];
-        uint256 gross = preview.seniorCollateralOut + preview.juniorCollateral;
-        uint256 successorCollateral = preview.holderCollateral - preview.holderCollateralDust;
+    }
 
-        LibCoreRecovery.consumeExpiredBook(book, shares, gross);
-        oldSeries.seniorOutstanding -= shares;
-        oldSeries.riskSharesOutstanding -= shares;
-        oldSeries.accountedCollateral -= gross;
-        profile.seniorOutstanding -= shares;
-        cs.totalSeniorOutstanding -= shares;
-        IStaticsDollar(cs.staticsDollar).burn(msg.sender, shares);
-        IStaticsDollarRiskShares(cs.staticsDollarRisk).burn(holder, seriesId, shares);
+    /// @dev Expired-book consumption, old-series accounting, and the paired burns.
+    function _burnExpiredRisk(LibCoreStorage.CS storage cs, ExpiredRecoveryContext memory ctx) private {
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[ctx.seriesId];
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
+        LibCoreRecovery.consumeExpiredBook(cs.expiredRecoveryBook[ctx.seriesId], ctx.shares, ctx.gross);
+        oldSeries.seniorOutstanding -= ctx.shares;
+        oldSeries.riskSharesOutstanding -= ctx.shares;
+        oldSeries.accountedCollateral -= ctx.gross;
+        profile.seniorOutstanding -= ctx.shares;
+        cs.totalSeniorOutstanding -= ctx.shares;
+        IStaticsDollar(cs.staticsDollar).burn(msg.sender, ctx.shares);
+        IStaticsDollarRiskShares(cs.staticsDollarRisk).burn(ctx.holder, ctx.seriesId, ctx.shares);
+    }
 
-        if (issuesSuccessor) {
-            IStaticsDollarCoreTypes.RiskSeries storage successor = cs.riskSeries[preview.successorSeriesId];
-            successor.seniorOutstanding += preview.holderPairs;
-            successor.riskSharesOutstanding += preview.holderPairs;
-            successor.accountedCollateral += successorCollateral;
-            profile.seniorOutstanding += preview.holderPairs;
-            cs.totalSeniorOutstanding += preview.holderPairs;
-            LibCoreAccounting.updateSeriesIndex(cs, preview.successorSeriesId);
+    /// @dev Successor-series accounting when the claim issues successor pairs.
+    function _openSuccessorSeries(
+        LibCoreStorage.CS storage cs,
+        ExpiredRecoveryContext memory ctx,
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview
+    ) private {
+        if (!ctx.issuesSuccessor) return;
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[ctx.seriesId];
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
+        IStaticsDollarCoreTypes.RiskSeries storage successor = cs.riskSeries[preview.successorSeriesId];
+        successor.seniorOutstanding += preview.holderPairs;
+        successor.riskSharesOutstanding += preview.holderPairs;
+        successor.accountedCollateral += ctx.successorCollateral;
+        profile.seniorOutstanding += preview.holderPairs;
+        cs.totalSeniorOutstanding += preview.holderPairs;
+        LibCoreAccounting.updateSeriesIndex(cs, preview.successorSeriesId);
+    }
+
+    /// @dev Old-series collateral exit accounting plus the health projections.
+    function _closeExpiredCollateral(
+        LibCoreStorage.CS storage cs,
+        ExpiredRecoveryContext memory ctx,
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview
+    ) private {
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[ctx.seriesId];
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
+        profile.accountedCollateral -= ctx.transferredCollateral;
+        cs.accountedCollateralByToken[oldSeries.collateralToken] -= ctx.transferredCollateral;
+        LibCoreAccounting.updateSeriesIndex(cs, ctx.seriesId);
+        if (ctx.issuesSuccessor) LibCoreAccounting.enforceHealthy(cs, oldSeries.profileId, profile);
+        _enforceProjectedCollateralExit(cs, oldSeries.profileId, ctx.exitCheckpoint);
+    }
+
+    /// @dev Successor minting, keeper and holder payouts, custody enforcement,
+    /// terminal close, and the recovery event.
+    function _settleExpiredRecovery(
+        LibCoreStorage.CS storage cs,
+        ExpiredRecoveryContext memory ctx,
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview
+    ) private {
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries = cs.riskSeries[ctx.seriesId];
+        if (ctx.issuesSuccessor) {
+            IStaticsDollar(cs.staticsDollar).mint(ctx.holder, preview.holderPairs);
+            IStaticsDollarRiskShares(cs.staticsDollarRisk)
+                .mint(ctx.holder, preview.successorSeriesId, preview.holderPairs);
         }
-        uint256 transferred = keeperCollateralOut + preview.holderCollateralDust;
-        profile.accountedCollateral -= transferred;
-        cs.accountedCollateralByToken[oldSeries.collateralToken] -= transferred;
-        LibCoreAccounting.updateSeriesIndex(cs, seriesId);
-        if (issuesSuccessor) LibCoreAccounting.enforceHealthy(cs, oldSeries.profileId, profile);
-        _enforceProjectedCollateralExit(cs, oldSeries.profileId, exitCheckpoint);
-        if (issuesSuccessor) {
-            IStaticsDollar(cs.staticsDollar).mint(holder, preview.holderPairs);
-            IStaticsDollarRiskShares(cs.staticsDollarRisk).mint(holder, preview.successorSeriesId, preview.holderPairs);
-        }
-        LibCoreAccounting.pushExact(oldSeries.collateralToken, msg.sender, keeperCollateralOut);
-        LibCoreAccounting.pushExact(oldSeries.collateralToken, holder, preview.holderCollateralDust);
+        LibCoreAccounting.pushExact(oldSeries.collateralToken, msg.sender, ctx.keeperCollateralOut);
+        LibCoreAccounting.pushExact(oldSeries.collateralToken, ctx.holder, preview.holderCollateralDust);
         LibCoreAccounting.enforceCustody(cs, oldSeries.collateralToken);
-        if (LibCoreRecovery.closeIfEmpty(cs, seriesId)) emit SeriesClosed(oldSeries.profileId, seriesId);
+        if (LibCoreRecovery.closeIfEmpty(cs, ctx.seriesId)) emit SeriesClosed(oldSeries.profileId, ctx.seriesId);
         emit ExpiredRiskRecovered(
             msg.sender,
-            holder,
-            seriesId,
-            shares,
-            shares,
+            ctx.holder,
+            ctx.seriesId,
+            ctx.shares,
+            ctx.shares,
             preview.seniorCollateralOut,
             preview.keeperBounty,
             preview.holderPairs,
             preview.holderCollateralDust
         );
-        return (shares, keeperCollateralOut, preview.holderPairs);
     }
 
     function _previewReturnedRiskClaim(
@@ -347,41 +459,62 @@ contract CoreRecoveryFacet is ReentrancyGuard {
             shares > IStaticsDollarRiskShares(cs.staticsDollarRisk).balanceOf(holder, seriesId)
                 || shares > oldSeries.seniorOutstanding || shares > book.remainingShares
         ) revert EmptyPool();
+        preview.oldSeriesId = seriesId;
+        preview.sharesBurned = shares;
+        preview.staticsDollarBurned = shares;
+        _fillExpiredSlice(preview, book, shares);
+        _fillNavPairs(cs, mode, oldSeries, preview);
+    }
+
+    /// @dev Expired-book split into senior, junior, bounty, and holder amounts.
+    function _fillExpiredSlice(
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview,
+        LibCoreStorage.ExpiredRecoveryBook storage book,
+        uint256 shares
+    ) private view {
         (uint256 gross, uint256 senior, uint256 bounty) = LibCoreRecovery.expiredBookSlice(book, shares);
-        uint256 junior = gross - senior;
-        uint256 holderCollateral = junior - bounty;
+        preview.seniorCollateralOut = senior;
+        preview.juniorCollateral = gross - senior;
+        preview.keeperBounty = bounty;
+        preview.holderCollateral = gross - senior - bounty;
+    }
+
+    /// @dev Successor valuation for NAV claims; collateral-only claims leave zeros.
+    function _fillNavPairs(
+        LibCoreStorage.CS storage cs,
+        IStaticsDollarCoreTypes.RecoveryClaimMode mode,
+        IStaticsDollarCoreTypes.RiskSeries storage oldSeries,
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview
+    ) private view {
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
-        uint256 successorSeriesId = profile.activeSeriesId;
-        uint256 holderPairs;
-        uint256 used;
-        if (mode == IStaticsDollarCoreTypes.RecoveryClaimMode.NAV) {
-            IStaticsDollarCoreTypes.RiskSeries storage successor = cs.riskSeries[successorSeriesId];
-            if (successor.status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
-                revert SeriesNotActive(successorSeriesId);
-            }
-            holderPairs =
-                LibCoreRecovery.sharesForCollateral(holderCollateral, profile.decimals, successor.collateralPerPairWad);
-            used = LibCoreRecovery.collateralForShares(holderPairs, profile.decimals, successor.collateralPerPairWad);
-            while (used > holderCollateral && holderPairs != 0) {
-                unchecked {
-                    --holderPairs;
-                }
-                used =
-                    LibCoreRecovery.collateralForShares(holderPairs, profile.decimals, successor.collateralPerPairWad);
-            }
+        preview.successorSeriesId = profile.activeSeriesId;
+        if (mode != IStaticsDollarCoreTypes.RecoveryClaimMode.NAV) return;
+        IStaticsDollarCoreTypes.RiskSeries storage successor = cs.riskSeries[preview.successorSeriesId];
+        if (successor.status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
+            revert SeriesNotActive(preview.successorSeriesId);
         }
-        return IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview({
-            oldSeriesId: seriesId,
-            successorSeriesId: successorSeriesId,
-            sharesBurned: shares,
-            staticsDollarBurned: shares,
-            seniorCollateralOut: senior,
-            juniorCollateral: junior,
-            keeperBounty: bounty,
-            holderCollateral: holderCollateral,
-            holderPairs: holderPairs,
-            holderCollateralDust: holderCollateral - used
-        });
+        (uint256 holderPairs, uint256 used) = _navHolderPairs(profile, successor, preview.holderCollateral);
+        preview.holderPairs = holderPairs;
+        preview.holderCollateralDust = preview.holderCollateral - used;
+    }
+
+    /// @dev Largest whole successor pair count whose collateral requirement fits
+    /// the holder's junior recovery collateral, plus the collateral it consumes.
+    function _navHolderPairs(
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile,
+        IStaticsDollarCoreTypes.RiskSeries storage successor,
+        uint256 holderCollateral
+    ) private view returns (uint256 holderPairs, uint256 used) {
+        holderPairs = LibCoreRecovery.sharesForCollateral(
+            holderCollateral, profile.decimals, successor.collateralPerPairWad
+        );
+        used = LibCoreRecovery.collateralForShares(holderPairs, profile.decimals, successor.collateralPerPairWad);
+        while (used > holderCollateral && holderPairs != 0) {
+            unchecked {
+                --holderPairs;
+            }
+            used = LibCoreRecovery.collateralForShares(holderPairs, profile.decimals, successor.collateralPerPairWad);
+        }
     }
 
     function _enforceIssuanceAvailable(
