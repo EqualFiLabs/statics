@@ -109,6 +109,11 @@ jobs:
             local target="out/${source}/${contract}.json"
             local profile candidate
 
+            if [[ -f "$target" ]]; then
+              echo "Using existing ${target}"
+              return 0
+            fi
+
             for profile in "$@"; do
               candidate="out/${source}/${contract}.${profile}.json"
               if [[ -f "$candidate" ]]; then
@@ -118,7 +123,7 @@ jobs:
               fi
             done
 
-            echo "No expected profiled artifact found for ${contract}"
+            echo "No usable artifact found for ${contract}"
             find "out/${source}" -maxdepth 1 -type f -name "${contract}*.json" -print || true
             exit 1
           }
