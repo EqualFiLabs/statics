@@ -43,6 +43,8 @@ import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 contract DeployStaticsTest is Test {
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
 
+    /// @dev Excluded from coverage runs: instrumentation inflates runtime bytecode,
+    /// so the EIP-170 ceiling only holds against a normal build.
     function testCanonicalLauncherCreatesOnlyDeployableContracts() public {
         DeployStatics deployer = new DeployStatics();
         DeployStatics.Config memory config = DeployStatics.Config({

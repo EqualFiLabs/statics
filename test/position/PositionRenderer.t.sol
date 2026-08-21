@@ -186,6 +186,8 @@ contract PositionRendererTest is Test {
         assertLt(conservativeUriLength, 12_000);
     }
 
+    /// @dev Excluded from coverage runs: instrumentation inflates runtime bytecode,
+    /// so the headroom ceiling only holds against a normal build.
     function test_RendererRuntimeLeavesDeploymentHeadroom() public view {
         assertLt(address(renderer).code.length, 23_500);
         assertLt(address(renderer.avatarSVG()).code.length, 23_500);

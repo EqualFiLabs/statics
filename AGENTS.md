@@ -34,6 +34,21 @@ relevant skill described there, then apply it to the change.
   `forge test --match-path path/to/test/File.t.sol`.
 - All code changes must include tests proving the behavior.
 
+### Compiler Profiles
+
+- The default profile compiles without IR (`via_ir` is intentionally absent).
+  Do not reintroduce global IR; add codegen-resilient patterns instead.
+- Scoped IR exceptions exist only for third-party contracts that fail legacy
+  codegen (PositionManager, nested permit2) — see `compilation_restrictions`
+  in `foundry.toml`. Each entry must keep its justification comment.
+- Coverage runs disable the optimizer, so bytecode-size assertions cannot hold
+  under instrumentation. Exclude them explicitly:
+
+  ```sh
+  forge coverage --report lcov \
+    --no-match-test "testCanonicalLauncherCreatesOnlyDeployableContracts|test_RendererRuntimeLeavesDeploymentHeadroom"
+  ```
+
 ### Test Fidelity Guardrails
 
 Keep the test pyramid balanced:
