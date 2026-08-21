@@ -27,6 +27,9 @@ additional_compiler_profiles = [
 
 compilation_restrictions = [
     { paths = "lib/v4-periphery/src/PositionManager.sol", version = "0.8.26", via_ir = true, optimizer_runs = 30000 },
+    # Nested third-party permit2 contracts fail legacy codegen; interfaces stay no-IR so
+    # Statics-owned importers keep the default (no_ir) profile.
+    { paths = "lib/v4-periphery/lib/permit2/src/{Permit2,SignatureTransfer,AllowanceTransfer,EIP712}.sol", via_ir = true },
 ]
 
 [fmt]
@@ -40,6 +43,11 @@ runs = 1000
 runs = 256
 depth = 50
 fail_on_revert = false
+
+[profile.no_ir]
+via_ir = false
+optimizer = true
+optimizer_runs = 200
 
 [profile.security.fuzz]
 runs = 256
