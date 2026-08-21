@@ -105,26 +105,26 @@ jobs:
           normalize_artifact() {
             local source="$1"
             local contract="$2"
+            shift 2
             local target="out/${source}/${contract}.json"
-            mapfile -t matches < <(find out -type f -path "*/${source}/${contract}.json" -print)
+            local profile candidate
 
-            if (( ${#matches[@]} != 1 )); then
-              echo "Expected exactly one ${contract} artifact, found ${#matches[@]}"
-              printf '%s\n' "${matches[@]}"
-              find out -type f \( -name "${contract}.json" -o -path "*/${source}/*" \) -print
-              exit 1
-            fi
+            for profile in "$@"; do
+              candidate="out/${source}/${contract}.${profile}.json"
+              if [[ -f "$candidate" ]]; then
+                echo "Using ${candidate} for ${target}"
+                cp "$candidate" "$target"
+                return 0
+              fi
+            done
 
-            if [[ "${matches[0]}" != "$target" ]]; then
-              mkdir -p "out/${source}"
-              cp "${matches[0]}" "$target"
-            fi
-
-            test -f "$target"
+            echo "No expected profiled artifact found for ${contract}"
+            find "out/${source}" -maxdepth 1 -type f -name "${contract}*.json" -print || true
+            exit 1
           }
 
-          normalize_artifact "PoolManager.sol" "PoolManager"
-          normalize_artifact "Permit2.sol" "Permit2"
-          normalize_artifact "PositionManager.sol" "PositionManager"
+          normalize_artifact "PoolManager.sol" "PoolManager" "default" "uniswap-position-manager"
+          normalize_artifact "Permit2.sol" "Permit2" "default" "uniswap-position-manager"
+          normalize_artifact "PositionManager.sol" "PositionManager" "uniswap-position-manager" "default"
       - name: Test
         run: forge test -vv
