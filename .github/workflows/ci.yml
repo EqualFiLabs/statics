@@ -99,16 +99,32 @@ jobs:
           version: stable
       - name: Build
         run: forge build
-      - name: Build V4 test deployment artifacts
+      - name: Normalize V4 deployment artifacts
         shell: bash
         run: |
-          forge build \
-            lib/v4-periphery/lib/v4-core/src/PoolManager.sol \
-            lib/v4-periphery/lib/permit2/src/Permit2.sol \
-            lib/v4-periphery/src/PositionManager.sol
+          normalize_artifact() {
+            local source="$1"
+            local contract="$2"
+            local target="out/${source}/${contract}.json"
+            mapfile -t matches < <(find out -type f -path "*/${source}/${contract}.json" -print)
 
-          test -f out/PoolManager.sol/PoolManager.json
-          test -f out/Permit2.sol/Permit2.json
-          test -f out/PositionManager.sol/PositionManager.json
+            if (( ${#matches[@]} != 1 )); then
+              echo "Expected exactly one ${contract} artifact, found ${#matches[@]}"
+              printf '%s\n' "${matches[@]}"
+              find out -type f \( -name "${contract}.json" -o -path "*/${source}/*" \) -print
+              exit 1
+            fi
+
+            if [[ "${matches[0]}" != "$target" ]]; then
+              mkdir -p "out/${source}"
+              cp "${matches[0]}" "$target"
+            fi
+
+            test -f "$target"
+          }
+
+          normalize_artifact "PoolManager.sol" "PoolManager"
+          normalize_artifact "Permit2.sol" "Permit2"
+          normalize_artifact "PositionManager.sol" "PositionManager"
       - name: Test
         run: forge test -vv
