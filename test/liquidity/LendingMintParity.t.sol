@@ -80,6 +80,7 @@ contract LendingMintParityTest is StaticsTestBase {
         returns (uint256 basketId, address[] memory assets, uint256[] memory mintQuote, uint256 positionId)
     {
         uint256[] memory bundleAmounts = new uint256[](count);
+        assets = new address[](count);
         for (uint256 i; i < count; ++i) {
             assets[i] = address(new MockERC20("Constituent", "C", 18));
             bundleAmounts[i] = (i + 1) * 0.1 ether;
