@@ -42,10 +42,21 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
+      - name: Build V4 test deployment artifacts
+        shell: bash
+        run: |
+          forge build \
+            lib/v4-periphery/lib/v4-core/src/PoolManager.sol \
+            lib/v4-periphery/lib/permit2/src/Permit2.sol \
+            lib/v4-periphery/src/PositionManager.sol
+
+          test -f out/PoolManager.sol/PoolManager.json
+          test -f out/Permit2.sol/Permit2.json
+          test -f out/PositionManager.sol/PositionManager.json
       - name: Run security profile
         env:
           FOUNDRY_PROFILE: security
-        run: forge test -q
+        run: forge test -vv
 
   doppler-fork:
     name: Security / Doppler fork

@@ -99,5 +99,16 @@ jobs:
           version: stable
       - name: Build
         run: forge build
+      - name: Build V4 test deployment artifacts
+        shell: bash
+        run: |
+          forge build \
+            lib/v4-periphery/lib/v4-core/src/PoolManager.sol \
+            lib/v4-periphery/lib/permit2/src/Permit2.sol \
+            lib/v4-periphery/src/PositionManager.sol
+
+          test -f out/PoolManager.sol/PoolManager.json
+          test -f out/Permit2.sol/Permit2.json
+          test -f out/PositionManager.sol/PositionManager.json
       - name: Test
         run: forge test -vv
