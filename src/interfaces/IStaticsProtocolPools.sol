@@ -33,6 +33,15 @@ interface IStaticsProtocolPools {
         uint128 permanentLiquidity;
     }
 
+    struct GovernancePoolQuote {
+        PoolKey key;
+        PoolId poolId;
+        uint160 sqrtPriceX96;
+        uint128 liquidity;
+        uint256 amountA;
+        uint256 amountB;
+    }
+
     event GovernancePoolCreated(
         PoolId indexed poolId,
         address indexed tokenA,
@@ -56,14 +65,7 @@ interface IStaticsProtocolPools {
     function quoteGovernancePool(CreateGovernancePoolParams calldata params)
         external
         view
-        returns (
-            PoolKey memory key,
-            PoolId poolId,
-            uint160 sqrtPriceX96,
-            uint128 liquidity,
-            uint256 amountA,
-            uint256 amountB
-        );
+        returns (GovernancePoolQuote memory quote);
     function createGovernancePool(CreateGovernancePoolParams calldata params)
         external
         returns (PoolId poolId, uint128 liquidity, uint256 amountA, uint256 amountB);

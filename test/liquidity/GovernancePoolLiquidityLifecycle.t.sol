@@ -138,7 +138,9 @@ contract GovernancePoolLiquidityLifecycleTest is BorrowLiquidityTestBase {
         tokenA.approve(address(diamond), type(uint256).max);
         tokenB.approve(address(diamond), type(uint256).max);
         vm.stopPrank();
-        (key, poolId,,,,) = protocolPools.quoteGovernancePool(params);
+        IStaticsProtocolPools.GovernancePoolQuote memory quote = protocolPools.quoteGovernancePool(params);
+        key = quote.key;
+        poolId = quote.poolId;
         protocolPools.createGovernancePool(params);
     }
 

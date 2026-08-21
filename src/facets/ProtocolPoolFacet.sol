@@ -56,14 +56,7 @@ contract ProtocolPoolFacet is IStaticsProtocolPools, ReentrancyGuard {
     function quoteGovernancePool(CreateGovernancePoolParams calldata params)
         external
         view
-        returns (
-            PoolKey memory key,
-            PoolId poolId,
-            uint160 sqrtPriceX96,
-            uint128 liquidity,
-            uint256 amountA,
-            uint256 amountB
-        )
+        returns (GovernancePoolQuote memory quote)
     {
         return _quote(params);
     }
@@ -78,51 +71,71 @@ contract ProtocolPoolFacet is IStaticsProtocolPools, ReentrancyGuard {
         if (params.deadline < block.timestamp) revert DeadlineExpired(params.deadline);
         if (params.payer == address(0)) revert InvalidPayer();
 
-        PoolKey memory key;
-        uint160 sqrtPriceX96;
-        (key, poolId, sqrtPriceX96, liquidity, amountA, amountB) = _quote(params);
+        GovernancePoolQuote memory quote = _quote(params);
+        poolId = quote.poolId;
+        liquidity = quote.liquidity;
+        amountA = quote.amountA;
+        amountB = quote.amountB;
         LibProtocolPools.enforceUnregistered(poolId);
 
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
-        if (hook.poolRegistration(poolId).registered) revert PoolAlreadyRegisteredInHook(poolId);
-        (uint160 initializedPrice,,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
-        if (initializedPrice != 0) revert PoolAlreadyInitialized(poolId);
-
-        uint256 payerABefore = IERC20(params.tokenA).balanceOf(params.payer);
-        uint256 payerBBefore = IERC20(params.tokenB).balanceOf(params.payer);
-        _pullExact(params.tokenA, params.payer, amountA);
-        _pullExact(params.tokenB, params.payer, amountB);
-
-        LibProtocolPools.GovernancePool storage stored = LibProtocolPools.protocolPoolStorage().governancePools[poolId];
-        stored.key = key;
-        stored.registered = true;
-
-        hook.registerPool(key);
-        int24 tick = IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
-        IERC20(Currency.unwrap(key.currency0)).forceApprove(ls.hook, _amount0(params, amountA, amountB));
-        IERC20(Currency.unwrap(key.currency1)).forceApprove(ls.hook, _amount1(params, amountA, amountB));
-        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](1);
-        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: key, liquidity: liquidity});
-        hook.seedPermanentLiquidity(seeds);
-        IERC20(Currency.unwrap(key.currency0)).forceApprove(ls.hook, 0);
-        IERC20(Currency.unwrap(key.currency1)).forceApprove(ls.hook, 0);
-
-        _enforcePayerDebit(params.tokenA, params.payer, payerABefore, amountA, params.amountAMax);
-        _enforcePayerDebit(params.tokenB, params.payer, payerBBefore, amountB, params.amountBMax);
+        int24 tick = _seedGovernancePool(params, quote);
         emit GovernancePoolCreated(
             poolId,
             params.tokenA,
             params.tokenB,
             params.payer,
-            Currency.unwrap(key.currency0),
-            Currency.unwrap(key.currency1),
-            sqrtPriceX96,
+            Currency.unwrap(quote.key.currency0),
+            Currency.unwrap(quote.key.currency1),
+            quote.sqrtPriceX96,
             tick,
             liquidity,
             amountA,
             amountB
         );
+    }
+
+    function _seedGovernancePool(CreateGovernancePoolParams calldata params, GovernancePoolQuote memory quote)
+        private
+        returns (int24 tick)
+    {
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        if (hook.poolRegistration(quote.poolId).registered) revert PoolAlreadyRegisteredInHook(quote.poolId);
+        (uint160 initializedPrice,,,) = IPoolManager(ls.poolManager).getSlot0(quote.poolId);
+        if (initializedPrice != 0) revert PoolAlreadyInitialized(quote.poolId);
+
+        uint256 payerABefore = IERC20(params.tokenA).balanceOf(params.payer);
+        uint256 payerBBefore = IERC20(params.tokenB).balanceOf(params.payer);
+        _pullExact(params.tokenA, params.payer, quote.amountA);
+        _pullExact(params.tokenB, params.payer, quote.amountB);
+
+        LibProtocolPools.GovernancePool storage stored =
+            LibProtocolPools.protocolPoolStorage().governancePools[quote.poolId];
+        stored.key = quote.key;
+        stored.registered = true;
+
+        hook.registerPool(quote.key);
+        tick = IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
+        _seedHookLiquidity(ls, params, quote);
+        _enforcePayerDebit(params.tokenA, params.payer, payerABefore, quote.amountA, params.amountAMax);
+        _enforcePayerDebit(params.tokenB, params.payer, payerBBefore, quote.amountB, params.amountBMax);
+    }
+
+    function _seedHookLiquidity(
+        LibBasketLiquidity.LiquidityStorage storage ls,
+        CreateGovernancePoolParams calldata params,
+        GovernancePoolQuote memory quote
+    ) private {
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IERC20(Currency.unwrap(quote.key.currency0))
+            .forceApprove(ls.hook, _amount0(params, quote.amountA, quote.amountB));
+        IERC20(Currency.unwrap(quote.key.currency1))
+            .forceApprove(ls.hook, _amount1(params, quote.amountA, quote.amountB));
+        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](1);
+        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: quote.key, liquidity: quote.liquidity});
+        hook.seedPermanentLiquidity(seeds);
+        IERC20(Currency.unwrap(quote.key.currency0)).forceApprove(ls.hook, 0);
+        IERC20(Currency.unwrap(quote.key.currency1)).forceApprove(ls.hook, 0);
     }
 
     function setProtocolPoolFeeConfiguration(
@@ -238,49 +251,42 @@ contract ProtocolPoolFacet is IStaticsProtocolPools, ReentrancyGuard {
     function _quote(CreateGovernancePoolParams calldata params)
         private
         view
-        returns (
-            PoolKey memory key,
-            PoolId poolId,
-            uint160 sqrtPriceX96,
-            uint128 liquidity,
-            uint256 amountA,
-            uint256 amountB
-        )
+        returns (GovernancePoolQuote memory quote)
     {
         LibBasketLiquidity.LiquidityStorage storage ls = _liquidityStorage();
         _validateToken(params.tokenA);
         _validateToken(params.tokenB);
         if (params.tokenA == params.tokenB) revert IdenticalTokens(params.tokenA);
-        sqrtPriceX96 = _sortedSqrtPrice(params.tokenA, params.tokenB, params.sqrtPriceBPerAX96);
-        (Currency currency0, Currency currency1) = params.tokenA < params.tokenB
-            ? (Currency.wrap(params.tokenA), Currency.wrap(params.tokenB))
-            : (Currency.wrap(params.tokenB), Currency.wrap(params.tokenA));
-        key = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
+        quote.sqrtPriceX96 = _sortedSqrtPrice(params.tokenA, params.tokenB, params.sqrtPriceBPerAX96);
+        quote.key = PoolKey({
+            currency0: params.tokenA < params.tokenB ? Currency.wrap(params.tokenA) : Currency.wrap(params.tokenB),
+            currency1: params.tokenA < params.tokenB ? Currency.wrap(params.tokenB) : Currency.wrap(params.tokenA),
             fee: PROTOCOL_LP_FEE,
             tickSpacing: PROTOCOL_TICK_SPACING,
             hooks: IHooks(ls.hook)
         });
-        poolId = key.toId();
+        quote.poolId = quote.key.toId();
 
         uint160 sqrtLower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(PROTOCOL_TICK_SPACING));
         uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(PROTOCOL_TICK_SPACING));
         uint256 max0 = params.tokenA < params.tokenB ? params.amountAMax : params.amountBMax;
         uint256 max1 = params.tokenA < params.tokenB ? params.amountBMax : params.amountAMax;
-        liquidity = LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, max0, max1);
-        if (liquidity == 0 || liquidity < params.minLiquidity) {
-            revert InsufficientSeedLiquidity(liquidity, params.minLiquidity);
+        quote.liquidity = LiquidityAmounts.getLiquidityForAmounts(quote.sqrtPriceX96, sqrtLower, sqrtUpper, max0, max1);
+        if (quote.liquidity == 0 || quote.liquidity < params.minLiquidity) {
+            revert InsufficientSeedLiquidity(quote.liquidity, params.minLiquidity);
         }
         (uint256 amount0, uint256 amount1) = LibBasketLiquidityMath.rangeAmounts(
-            sqrtPriceX96,
+            quote.sqrtPriceX96,
             TickMath.minUsableTick(PROTOCOL_TICK_SPACING),
             TickMath.maxUsableTick(PROTOCOL_TICK_SPACING),
-            liquidity
+            quote.liquidity
         );
-        (amountA, amountB) = params.tokenA < params.tokenB ? (amount0, amount1) : (amount1, amount0);
-        if (amountA == 0 || amountB == 0 || amountA > params.amountAMax || amountB > params.amountBMax) {
-            revert InvalidSeedAmounts(amountA, amountB);
+        (quote.amountA, quote.amountB) = params.tokenA < params.tokenB ? (amount0, amount1) : (amount1, amount0);
+        if (
+            quote.amountA == 0 || quote.amountB == 0 || quote.amountA > params.amountAMax
+                || quote.amountB > params.amountBMax
+        ) {
+            revert InvalidSeedAmounts(quote.amountA, quote.amountB);
         }
     }
 

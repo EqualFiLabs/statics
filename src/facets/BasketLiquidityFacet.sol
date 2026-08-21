@@ -59,6 +59,15 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     error InsufficientLaunchAssetReceived(address asset, uint256 required, uint256 received);
     error LaunchDebitExceedsMaximum(address asset, uint256 actualDebit, uint256 maximum);
 
+    struct TreasuryAccrual {
+        uint256 basketId;
+        address sourcePoolAsset;
+        uint256 shares;
+        uint256 supply;
+        bytes32 basketAccount;
+        bytes32 feeAccount;
+    }
+
     function installCanonicalPoolIntegration(address poolManager, address hook) external {
         LibDiamond.enforceIsContractOwner();
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
@@ -475,19 +484,34 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         uint256 spent = LibCustody.finishUnreservedDebit(configured.token, balanceBefore, shares);
         if (spent != shares) revert ReleasedAmountMismatch(configured.token, shares, spent);
 
-        bytes32 basketAccount = LibCustody.basketAccount(basketId);
-        bytes32 feeAccount = LibCustody.feeAccount();
+        TreasuryAccrual memory accrual = TreasuryAccrual({
+            basketId: basketId,
+            sourcePoolAsset: sourcePoolAsset,
+            shares: shares,
+            supply: supply,
+            basketAccount: LibCustody.basketAccount(basketId),
+            feeAccount: LibCustody.feeAccount()
+        });
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
-            address rewardAsset = configured.assets[i];
-            uint256 amount = LibBasket.backingReduction(configured.bundleAmounts[i], supply, shares);
-            uint256 available = bs.vaultBalances[basketId][rewardAsset];
-            if (amount > available) revert InsufficientVaultBalance(rewardAsset, amount, available);
-            bs.vaultBalances[basketId][rewardAsset] = available - amount;
-            LibCustody.moveReservation(basketAccount, feeAccount, rewardAsset, amount);
-            LibGlobalRewards.accrueReservedTreasuryFee(rewardAsset, amount);
-            emit PermanentLiquidityTreasuryAccrued(basketId, sourcePoolAsset, rewardAsset, amount);
+            _accrueTreasuryAsset(bs, configured, accrual, i);
         }
+    }
+
+    function _accrueTreasuryAsset(
+        LibBasket.BasketStorage storage bs,
+        LibBasket.Basket storage configured,
+        TreasuryAccrual memory accrual,
+        uint256 index
+    ) private {
+        address rewardAsset = configured.assets[index];
+        uint256 amount = LibBasket.backingReduction(configured.bundleAmounts[index], accrual.supply, accrual.shares);
+        uint256 available = bs.vaultBalances[accrual.basketId][rewardAsset];
+        if (amount > available) revert InsufficientVaultBalance(rewardAsset, amount, available);
+        bs.vaultBalances[accrual.basketId][rewardAsset] = available - amount;
+        LibCustody.moveReservation(accrual.basketAccount, accrual.feeAccount, rewardAsset, amount);
+        LibGlobalRewards.accrueReservedTreasuryFee(rewardAsset, amount);
+        emit PermanentLiquidityTreasuryAccrued(accrual.basketId, accrual.sourcePoolAsset, rewardAsset, amount);
     }
 
     function _configuredPool(uint256 basketId, address asset)

@@ -289,9 +289,13 @@ contract RobinhoodGovernedProtocolPoolsUpgradeForkTest is Test {
             uint256 amountB
         )
     {
-        PoolId typedPoolId;
-        (key, typedPoolId, sqrtPriceX96, liquidity, amountA, amountB) =
+        IStaticsProtocolPools.GovernancePoolQuote memory quote =
             IStaticsProtocolPools(diamond).quoteGovernancePool(params);
-        poolId = PoolId.unwrap(typedPoolId);
+        key = quote.key;
+        poolId = PoolId.unwrap(quote.poolId);
+        sqrtPriceX96 = quote.sqrtPriceX96;
+        liquidity = quote.liquidity;
+        amountA = quote.amountA;
+        amountB = quote.amountB;
     }
 }
