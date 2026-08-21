@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Solidity / format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+      - name: Initialize contract dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            lib/openzeppelin-contracts \
+            lib/openzeppelin-contracts-upgradeable \
+            lib/v4-periphery
+          git -C lib/v4-periphery submodule sync
+          git -C lib/v4-periphery submodule update --init --depth=1 \
+            lib/v4-core \
+            lib/permit2
+          git -C lib/v4-periphery/lib/v4-core submodule sync
+          git -C lib/v4-periphery/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Check formatting of changed Solidity files
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            base="HEAD^"
+          fi
+
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.sol')
+          if (( ${#files[@]} == 0 )); then
+            echo "No changed Solidity files to format-check."
+            exit 0
+          fi
+
+          printf 'Checking %s\n' "${files[@]}"
+          forge fmt --check "${files[@]}"
+      - name: Check diff whitespace
+        run: git diff --check
+
+  solidity:
+    name: Solidity / test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize contract dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            lib/openzeppelin-contracts \
+            lib/openzeppelin-contracts-upgradeable \
+            lib/v4-periphery
+          git -C lib/v4-periphery submodule sync
+          git -C lib/v4-periphery submodule update --init --depth=1 \
+            lib/v4-core \
+            lib/permit2
+          git -C lib/v4-periphery/lib/v4-core submodule sync
+          git -C lib/v4-periphery/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: Build
+        run: forge build
+      - name: Test
+        run: forge test -vv
