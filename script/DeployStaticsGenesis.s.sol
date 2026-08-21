@@ -15,6 +15,7 @@ import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
 import {StaticsLaunchAllocationEscrow} from "../src/genesis/StaticsLaunchAllocationEscrow.sol";
 import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
+import {LibStaticsTokenMetadata} from "../src/metadata/LibStaticsTokenMetadata.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../src/tokens/StaticsGenesis.sol";
@@ -28,6 +29,7 @@ struct StaticsGenesisDeploymentConfig {
     bytes32 salt;
     uint24 fee;
     uint16 genesisRewardShareBps;
+    /// @dev Retained for lower-level config compatibility. Doppler launch calldata always uses canonical metadata.
     string tokenURI;
     string contractURI;
     string externalURLBase;
@@ -91,7 +93,7 @@ contract DeployStaticsGenesis is Script {
             salt: vm.envBytes32("STATICS_DOPPLER_SALT"),
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
-            tokenURI: vm.envString("STATICS_TOKEN_URI"),
+            tokenURI: staticsTokenURI(),
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
             externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
         });
@@ -174,6 +176,11 @@ contract DeployStaticsGenesis is Script {
         });
     }
 
+    /// @notice Canonical fully onchain URI used for every STATICS Doppler launch path.
+    function staticsTokenURI() public pure returns (string memory) {
+        return LibStaticsTokenMetadata.tokenURI();
+    }
+
     /// @notice Nonproduction four-curve fixture. Production ranges require a separate ratification.
     function defaultCurves() public pure returns (DopplerLaunchTypes.Curve[] memory curves) {
         curves = new DopplerLaunchTypes.Curve[](4);
@@ -199,6 +206,7 @@ contract DeployStaticsGenesis is Script {
                 genesisRewardShareBps,
                 TICK_SPACING,
                 FAR_TICK,
+                keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
                 defaultCurves()
             )
         );
@@ -241,7 +249,7 @@ contract DeployStaticsGenesis is Script {
             numTokensToSell: DOPPLER_INVENTORY,
             numeraire: config.numeraire,
             tokenFactory: config.modules.tokenFactory,
-            tokenFactoryData: _tokenFactoryData(config.tokenURI),
+            tokenFactoryData: _tokenFactoryData(),
             governanceFactory: config.modules.governanceFactory,
             governanceFactoryData: abi.encode(address(allocationEscrow)),
             poolInitializer: config.modules.poolInitializer,
@@ -275,7 +283,7 @@ contract DeployStaticsGenesis is Script {
         poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer, config.fee);
     }
 
-    function _tokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
+    function _tokenFactoryData() private pure returns (bytes memory) {
         return abi.encode(
             "Statics",
             "STATICS",
@@ -283,7 +291,7 @@ contract DeployStaticsGenesis is Script {
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            tokenURI,
+            LibStaticsTokenMetadata.tokenURI(),
             uint256(0),
             uint48(0),
             address(0),
@@ -318,10 +326,7 @@ contract DeployStaticsGenesis is Script {
         _requireContract(config.modules.governanceFactory);
         _requireContract(config.modules.poolInitializer);
         _requireContract(config.modules.noOpMigrator);
-        if (
-            bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
-                || bytes(config.externalURLBase).length == 0
-        ) {
+        if (bytes(config.contractURI).length == 0 || bytes(config.externalURLBase).length == 0) {
             revert InvalidMetadataURI();
         }
         if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);

@@ -26,7 +26,7 @@ additional_compiler_profiles = [
 ]
 
 compilation_restrictions = [
-    { paths = "lib/v4-periphery/src/PositionManager.sol", version = "0.8.26", via_ir = true, optimizer_runs = 30000 },
+    { paths = "lib/v4-periphery/src/PositionManager.sol", version = "=0.8.26", via_ir = true, optimizer_runs = 30000 },
 ]
 
 [fmt]

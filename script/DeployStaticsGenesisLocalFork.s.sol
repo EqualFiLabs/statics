@@ -41,7 +41,7 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
             salt: vm.envOr("STATICS_DOPPLER_SALT", keccak256(abi.encode("STATICS_LOCAL_FORK", deployer, block.number))),
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
-            tokenURI: vm.envOr("STATICS_TOKEN_URI", string("ipfs://statics-local/token.json")),
+            tokenURI: staticsTokenURI(),
             contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", string("ipfs://statics-local/genesis-contract.json")),
             externalURLBase: vm.envOr("STATICS_GENESIS_EXTERNAL_URL_BASE", string("http://127.0.0.1:3000/app/genesis/"))
         });
