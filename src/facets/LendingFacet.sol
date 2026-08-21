@@ -27,12 +27,26 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
     error InsufficientTransferReceived(address asset, uint256 required, uint256 received);
     error InvalidExtensionInputLength(uint256 provided, uint256 required);
 
+    struct RecoveryContext {
+        uint256 loanId;
+        uint256 basketId;
+        bytes32 custodyAccount;
+    }
+
     function borrow(uint256 positionId, uint256 basketId, uint256 sharesIn, address receiver)
         external
         nonReentrant
         returns (uint256 loanId, uint256[] memory principals)
     {
-        return LibLoanOrigination.originate(positionId, basketId, sharesIn, msg.sender, receiver, receiver);
+        LibLoanOrigination.OriginationRequest memory request = LibLoanOrigination.OriginationRequest({
+            positionId: positionId,
+            basketId: basketId,
+            sharesIn: sharesIn,
+            operator: msg.sender,
+            eventReceiver: receiver,
+            principalReceiver: receiver
+        });
+        return LibLoanOrigination.originate(request);
     }
 
     function repay(uint256 loanId) external nonReentrant {
@@ -114,34 +128,46 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
         LibBasketRewards.releaseAfterRecovery(
             current.positionId, current.basketId, configured, current.collateralShares, quoted.burnShares
         );
-        bytes32 custodyAccount = LibCustody.basketAccount(current.basketId);
+        RecoveryContext memory context =
+            RecoveryContext(loanId, current.basketId, LibCustody.basketAccount(current.basketId));
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
-            address asset = configured.assets[i];
-            uint256 principal = ls.principals[loanId][asset];
-            ls.outstandingPrincipal[current.basketId][asset] -= principal;
-            delete ls.principals[loanId][asset];
-            uint256 callerAmount = quoted.callerAmounts[i];
-            uint256 protocolAmount = quoted.protocolAmounts[i];
-            uint256 reclassified = callerAmount + protocolAmount;
-            uint256 available = bs.vaultBalances[current.basketId][asset];
-            if (reclassified > available) revert InsufficientVaultBalance(asset, reclassified, available);
-            bs.vaultBalances[current.basketId][asset] = available - reclassified;
-            uint256 callerReceived;
-            if (callerAmount != 0) {
-                (, callerReceived) =
-                    LibCustody.pushReserved(custodyAccount, asset, msg.sender, callerAmount, callerAmount);
-            }
-            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, protocolAmount);
-            emit RecoveryPenaltyDistributed(loanId, asset, callerAmount, callerReceived, protocolAmount);
+            _recoverAsset(ls, bs, configured, quoted, context, i);
         }
         delete ls.loans[loanId];
         LibPositionPortfolio.removeLoan(current.positionId, loanId);
-        LibCustody.release(custodyAccount, configured.token, quoted.burnShares);
+        LibCustody.release(context.custodyAccount, configured.token, quoted.burnShares);
         StaticsBasketToken(configured.token).burn(address(this), quoted.burnShares);
         LibBasketRewards.deactivateIfEmpty(current.positionId, current.basketId);
         LibPosition.decrementObligation(current.positionId);
         emit LoanRecovered(loanId, current.positionId, msg.sender, quoted.burnShares, quoted.unlockedShares);
+    }
+
+    function _recoverAsset(
+        LibLending.LendingStorage storage ls,
+        LibBasket.BasketStorage storage bs,
+        LibBasket.Basket storage configured,
+        RecoveryQuote memory quoted,
+        RecoveryContext memory context,
+        uint256 index
+    ) private {
+        address asset = configured.assets[index];
+        uint256 principal = ls.principals[context.loanId][asset];
+        ls.outstandingPrincipal[context.basketId][asset] -= principal;
+        delete ls.principals[context.loanId][asset];
+        uint256 callerAmount = quoted.callerAmounts[index];
+        uint256 protocolAmount = quoted.protocolAmounts[index];
+        uint256 reclassified = callerAmount + protocolAmount;
+        uint256 available = bs.vaultBalances[context.basketId][asset];
+        if (reclassified > available) revert InsufficientVaultBalance(asset, reclassified, available);
+        bs.vaultBalances[context.basketId][asset] = available - reclassified;
+        uint256 callerReceived;
+        if (callerAmount != 0) {
+            (, callerReceived) =
+                LibCustody.pushReserved(context.custodyAccount, asset, msg.sender, callerAmount, callerAmount);
+        }
+        LibGlobalRewards.accrueNonSwapFee(context.custodyAccount, asset, protocolAmount);
+        emit RecoveryPenaltyDistributed(context.loanId, asset, callerAmount, callerReceived, protocolAmount);
     }
 
     function quoteBorrow(uint256 basketId, uint256 sharesIn) external view returns (BorrowQuote memory result) {

@@ -32,28 +32,30 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
     error InsufficientRepayment(address asset, uint256 required, uint256 received);
     error IncompatibleFlashAsset(address asset, uint256 expected, uint256 spent, uint256 received);
 
+    struct FlashContext {
+        uint256 basketId;
+        bytes32 custodyAccount;
+        address receiver;
+    }
+
     function flashLoan(uint256 basketId, uint256 shares, address receiver, bytes calldata data) external nonReentrant {
         _enforceNotPaused();
         if (receiver == address(0) || receiver.code.length == 0) revert InvalidReceiver();
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
-        LibBasket.Basket storage configured = _getBasket(bs, basketId);
-        LibBasket.enforceActive(configured, basketId);
-        (address[] memory assets, uint256[] memory amounts, uint256[] memory fees) = _quote(configured, shares);
-        bytes32 custodyAccount = LibCustody.basketAccount(basketId);
+        address[] memory assets;
+        uint256[] memory amounts;
+        uint256[] memory fees;
+        {
+            LibBasket.Basket storage configured = _getBasket(bs, basketId);
+            LibBasket.enforceActive(configured, basketId);
+            (assets, amounts, fees) = _quote(configured, shares);
+        }
+        FlashContext memory ctx = FlashContext(basketId, LibCustody.basketAccount(basketId), receiver);
 
         uint256 length = assets.length;
         _enterPersistentGuard();
         for (uint256 i; i < length; ++i) {
-            uint256 available = bs.vaultBalances[basketId][assets[i]];
-            if (amounts[i] > available) revert InsufficientVaultBalance(assets[i], amounts[i], available);
-            bs.vaultBalances[basketId][assets[i]] = available - amounts[i];
-            if (amounts[i] != 0) {
-                (uint256 spent, uint256 received) =
-                    LibCustody.pushReserved(custodyAccount, assets[i], receiver, amounts[i], amounts[i]);
-                if (spent != amounts[i] || received != amounts[i]) {
-                    revert IncompatibleFlashAsset(assets[i], amounts[i], spent, received);
-                }
-            }
+            _lendAsset(bs, ctx, assets, amounts, i);
         }
         _exitPersistentGuard();
 
@@ -63,16 +65,50 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
 
         _enterPersistentGuard();
         for (uint256 i; i < length; ++i) {
-            uint256 repayment = amounts[i] + fees[i];
-            uint256 received =
-                repayment == 0 ? 0 : LibCustody.pullAndReserve(custodyAccount, assets[i], receiver, repayment);
-            if (received < amounts[i]) revert InsufficientRepayment(assets[i], amounts[i], received);
-            fees[i] = received - amounts[i];
-            bs.vaultBalances[basketId][assets[i]] += amounts[i];
-            LibGlobalRewards.accrueNonSwapFee(custodyAccount, assets[i], fees[i]);
+            _collectRepayment(bs, ctx, assets, amounts, fees, i);
         }
         _exitPersistentGuard();
         emit BasketFlashLoan(basketId, msg.sender, receiver, shares, amounts, fees);
+    }
+
+    function _lendAsset(
+        LibBasket.BasketStorage storage bs,
+        FlashContext memory ctx,
+        address[] memory assets,
+        uint256[] memory amounts,
+        uint256 index
+    ) private {
+        address asset = assets[index];
+        uint256 amount = amounts[index];
+        uint256 available = bs.vaultBalances[ctx.basketId][asset];
+        if (amount > available) revert InsufficientVaultBalance(asset, amount, available);
+        bs.vaultBalances[ctx.basketId][asset] = available - amount;
+        if (amount != 0) {
+            (uint256 spent, uint256 received) =
+                LibCustody.pushReserved(ctx.custodyAccount, asset, ctx.receiver, amount, amount);
+            if (spent != amount || received != amount) {
+                revert IncompatibleFlashAsset(asset, amount, spent, received);
+            }
+        }
+    }
+
+    function _collectRepayment(
+        LibBasket.BasketStorage storage bs,
+        FlashContext memory ctx,
+        address[] memory assets,
+        uint256[] memory amounts,
+        uint256[] memory fees,
+        uint256 index
+    ) private {
+        address asset = assets[index];
+        uint256 amount = amounts[index];
+        uint256 repayment = amount + fees[index];
+        uint256 received =
+            repayment == 0 ? 0 : LibCustody.pullAndReserve(ctx.custodyAccount, asset, ctx.receiver, repayment);
+        if (received < amount) revert InsufficientRepayment(asset, amount, received);
+        fees[index] = received - amount;
+        bs.vaultBalances[ctx.basketId][asset] += amount;
+        LibGlobalRewards.accrueNonSwapFee(ctx.custodyAccount, asset, fees[index]);
     }
 
     function quoteFlashLoan(uint256 basketId, uint256 shares)

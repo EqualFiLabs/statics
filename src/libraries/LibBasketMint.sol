@@ -15,8 +15,16 @@ library LibBasketMint {
     error InvalidShares();
     error InvalidAmountsLength();
     error MaximumInputExceeded(address asset, uint256 required, uint256 maximum);
-    error ActionPaused(uint256 action);
     error InsufficientTransferReceived(address asset, uint256 required, uint256 received);
+    error ActionPaused(uint256 action);
+
+    struct MintSettlement {
+        uint256 basketId;
+        uint256 shares;
+        uint256 supply;
+        address payer;
+        bytes32 custodyAccount;
+    }
 
     function mintFromPayer(
         uint256 basketId,
@@ -37,21 +45,34 @@ library LibBasketMint {
         if (maxAmountsIn.length != length) revert InvalidAmountsLength();
         uint256 supply = IERC20(configured.token).totalSupply();
         amountsIn = quote(configured, shares, supply);
-        bytes32 custodyAccount = LibCustody.basketAccount(basketId);
+        MintSettlement memory settlement =
+            MintSettlement(basketId, shares, supply, payer, LibCustody.basketAccount(basketId));
 
         for (uint256 i; i < length; ++i) {
-            address asset = configured.assets[i];
-            uint256 required = amountsIn[i];
-            if (required > maxAmountsIn[i]) revert MaximumInputExceeded(asset, required, maxAmountsIn[i]);
-            uint256 baseIn = LibBasket.backingIncrease(configured.bundleAmounts[i], supply, shares);
-            uint256 received = LibCustody.pullAndReserve(custodyAccount, asset, payer, required);
-            if (received < baseIn) revert InsufficientTransferReceived(asset, baseIn, received);
-            amountsIn[i] = received;
-            bs.vaultBalances[basketId][asset] += baseIn;
-            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, received - baseIn);
+            _pullAsset(bs, configured, settlement, maxAmountsIn, amountsIn, i);
         }
         StaticsBasketToken(configured.token).mint(receiver, shares);
         emit IStaticsBasket.BasketMinted(basketId, payer, receiver, shares);
+    }
+
+    function _pullAsset(
+        LibBasket.BasketStorage storage bs,
+        LibBasket.Basket storage configured,
+        MintSettlement memory settlement,
+        uint256[] memory maxAmountsIn,
+        uint256[] memory amountsIn,
+        uint256 index
+    ) private {
+        address asset = configured.assets[index];
+        uint256 required = amountsIn[index];
+        if (required > maxAmountsIn[index]) revert MaximumInputExceeded(asset, required, maxAmountsIn[index]);
+        uint256 baseIn =
+            LibBasket.backingIncrease(configured.bundleAmounts[index], settlement.supply, settlement.shares);
+        uint256 received = LibCustody.pullAndReserve(settlement.custodyAccount, asset, settlement.payer, required);
+        if (received < baseIn) revert InsufficientTransferReceived(asset, baseIn, received);
+        amountsIn[index] = received;
+        bs.vaultBalances[settlement.basketId][asset] += baseIn;
+        LibGlobalRewards.accrueNonSwapFee(settlement.custodyAccount, asset, received - baseIn);
     }
 
     function mintFromRetainedPrincipal(uint256 basketId, uint256 shares, address payer, address receiver)

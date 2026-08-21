@@ -41,6 +41,14 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
     error InvalidPoolLaunchParameters();
     error LaunchDeadlineExpired(uint256 deadline, uint256 timestamp);
 
+    struct RedeemSettlement {
+        uint256 basketId;
+        uint256 shares;
+        uint256 supply;
+        address receiver;
+        bytes32 custodyAccount;
+    }
+
     function createBasket(
         CreateBasketParams calldata params,
         PoolLaunchParams[] calldata pools,
@@ -56,9 +64,11 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         if (pools.length != assetCount || maxAmountsIn.length != assetCount) {
             revert InvalidPoolLaunchParameters();
         }
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
-        if (!ls.managerInstalled) revert LiquidityManagerNotInstalled();
+        {
+            LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+            if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
+            if (!ls.managerInstalled) revert LiquidityManagerNotInstalled();
+        }
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         _collectCreationFee(bs);
 
@@ -66,21 +76,31 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         bs.basketCount = basketId + 1;
         token = address(new StaticsBasketToken(params.name, params.symbol, address(this), basketId));
 
-        LibBasket.Basket storage created = bs.baskets[basketId];
-        created.token = token;
-        created.creator = msg.sender;
-        created.assets = params.assets;
-        created.bundleAmounts = params.bundleAmounts;
-        _copyFeeTiers(created.mintFeeTiers, params.mintFeeTiers);
-        _copyFeeTiers(created.redemptionFeeTiers, params.redemptionFeeTiers);
-        created.flashFeeBps = params.flashFeeBps;
-        created.originationFeeBps = params.originationFeeBps;
-        created.extensionFeeBps = params.extensionFeeBps;
-        created.ltvBps = params.ltvBps;
-        created.recoveryPenaltyBps = params.recoveryPenaltyBps;
-        created.loanDuration = params.loanDuration;
+        {
+            LibBasket.Basket storage created = bs.baskets[basketId];
+            created.token = token;
+            created.creator = msg.sender;
+            created.assets = params.assets;
+            created.bundleAmounts = params.bundleAmounts;
+            _copyFeeTiers(created.mintFeeTiers, params.mintFeeTiers);
+            _copyFeeTiers(created.redemptionFeeTiers, params.redemptionFeeTiers);
+            created.flashFeeBps = params.flashFeeBps;
+            created.originationFeeBps = params.originationFeeBps;
+            created.extensionFeeBps = params.extensionFeeBps;
+            created.ltvBps = params.ltvBps;
+            created.recoveryPenaltyBps = params.recoveryPenaltyBps;
+            created.loanDuration = params.loanDuration;
+        }
         bs.basketIds[token] = basketId + 1;
 
+        _emitBasketCreated(basketId, token, params);
+
+        uint256 basketShares =
+            IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
+        emit BasketLaunched(basketId, token, msg.sender, basketShares, assetCount);
+    }
+
+    function _emitBasketCreated(uint256 basketId, address token, CreateBasketParams calldata params) private {
         emit BasketCreated(basketId, token, msg.sender, params.name, params.symbol);
         emit BasketConfigured(
             basketId,
@@ -95,10 +115,6 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         );
         _emitFeeTiers(basketId, true, params.mintFeeTiers);
         _emitFeeTiers(basketId, false, params.redemptionFeeTiers);
-
-        uint256 basketShares =
-            IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
-        emit BasketLaunched(basketId, token, msg.sender, basketShares, assetCount);
     }
 
     function mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
@@ -163,7 +179,7 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         amountsOut = _quoteRedeem(bs, configured, basketId, shares, supply);
 
         StaticsBasketToken(configured.token).burn(msg.sender, shares);
-        _redeemUnderlying(bs, configured, basketId, shares, supply, receiver, minAmountsOut, amountsOut);
+        _settleRedemption(bs, configured, basketId, shares, supply, receiver, minAmountsOut, amountsOut);
         emit BasketRedeemed(basketId, msg.sender, receiver, shares);
     }
 
@@ -187,13 +203,13 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         LibBasketRewards.decreasePosition(positionId, basketId, configured, shares);
         LibCustody.release(LibCustody.basketAccount(basketId), configured.token, shares);
         StaticsBasketToken(configured.token).burn(address(this), shares);
-        _redeemUnderlying(bs, configured, basketId, shares, supply, receiver, minAmountsOut, amountsOut);
+        _settleRedemption(bs, configured, basketId, shares, supply, receiver, minAmountsOut, amountsOut);
         LibBasketRewards.deactivateIfEmpty(positionId, basketId);
         emit BasketRedeemed(basketId, address(this), receiver, shares);
         emit IStaticsBasketCollateral.BasketCollateralRedeemed(positionId, basketId, receiver, shares);
     }
 
-    function _redeemUnderlying(
+    function _settleRedemption(
         LibBasket.BasketStorage storage bs,
         LibBasket.Basket storage configured,
         uint256 basketId,
@@ -203,22 +219,41 @@ contract BasketFacet is IStaticsBasket, ReentrancyGuard {
         uint256[] calldata minAmountsOut,
         uint256[] memory amountsOut
     ) private {
+        RedeemSettlement memory settlement = RedeemSettlement({
+            basketId: basketId,
+            shares: shares,
+            supply: supply,
+            receiver: receiver,
+            custodyAccount: LibCustody.basketAccount(basketId)
+        });
         uint256 length = configured.assets.length;
-        bytes32 custodyAccount = LibCustody.basketAccount(basketId);
         for (uint256 i; i < length; ++i) {
-            address asset = configured.assets[i];
-            uint256 baseOut = LibBasket.backingReduction(configured.bundleAmounts[i], supply, shares);
-            uint256 payout = amountsOut[i];
-            uint256 available = bs.vaultBalances[basketId][asset];
-            if (baseOut > available) revert InsufficientVaultBalance(asset, baseOut, available);
-            bs.vaultBalances[basketId][asset] = available - baseOut;
-            LibGlobalRewards.accrueNonSwapFee(custodyAccount, asset, baseOut - payout);
-            uint256 received;
-            if (payout != 0) {
-                (, received) = LibCustody.pushReserved(custodyAccount, asset, receiver, payout, payout);
-            }
-            if (received < minAmountsOut[i]) revert MinimumOutputNotMet(asset, received, minAmountsOut[i]);
+            _redeemAsset(bs, configured, settlement, i, minAmountsOut, amountsOut);
         }
+    }
+
+    function _redeemAsset(
+        LibBasket.BasketStorage storage bs,
+        LibBasket.Basket storage configured,
+        RedeemSettlement memory settlement,
+        uint256 index,
+        uint256[] calldata minAmountsOut,
+        uint256[] memory amountsOut
+    ) private {
+        address asset = configured.assets[index];
+        uint256 baseOut =
+            LibBasket.backingReduction(configured.bundleAmounts[index], settlement.supply, settlement.shares);
+        uint256 payout = amountsOut[index];
+        uint256 available = bs.vaultBalances[settlement.basketId][asset];
+        if (baseOut > available) revert InsufficientVaultBalance(asset, baseOut, available);
+        bs.vaultBalances[settlement.basketId][asset] = available - baseOut;
+        LibGlobalRewards.accrueNonSwapFee(settlement.custodyAccount, asset, baseOut - payout);
+        uint256 received;
+        if (payout != 0) {
+            (, received) =
+                LibCustody.pushReserved(settlement.custodyAccount, asset, settlement.receiver, payout, payout);
+        }
+        if (received < minAmountsOut[index]) revert MinimumOutputNotMet(asset, received, minAmountsOut[index]);
     }
 
     function quoteMint(uint256 basketId, uint256 shares) external view returns (uint256[] memory amountsIn) {
