@@ -162,14 +162,23 @@ contract FlashArbitrageReceiver is IStaticsFlashBorrower {
         if (totalBasketAmountIn != route.shares) revert InvalidRoute();
         basket.mint(basketId, route.shares, address(this), maximums);
 
-        for (uint256 i; i < length; ++i) {
+        _sellMintedBasket(basketId, basketToken, assets, route);
+        _enforceProfitsAndApproveRepayment(assets, amounts, fees, route.startingBalances, route.minimumProfits);
+    }
+
+    function _sellMintedBasket(
+        uint256 basketId,
+        address basketToken,
+        address[] calldata assets,
+        MintAndSellRoute memory route
+    ) private {
+        for (uint256 i; i < assets.length; ++i) {
             _validatePool(basketId, route.pools[i], basketToken, assets[i]);
             uint256 amountIn = route.basketAmountsIn[i];
             IERC20(basketToken).forceApprove(address(router), amountIn);
             _swapExactInput(route.pools[i], basketToken, amountIn);
             IERC20(basketToken).forceApprove(address(router), 0);
         }
-        _enforceProfitsAndApproveRepayment(assets, amounts, fees, route.startingBalances, route.minimumProfits);
     }
 
     function _buyAndRedeem(
@@ -184,20 +193,31 @@ contract FlashArbitrageReceiver is IStaticsFlashBorrower {
         }
         IStaticsBasket basket = IStaticsBasket(protocol);
         address basketToken = basket.basket(basketId).token;
-        _validatePool(basketId, route.pool, basketToken, assets[0]);
-        uint256 basketBalanceBefore = IERC20(basketToken).balanceOf(address(this));
-        IERC20(assets[0]).forceApprove(address(router), route.underlyingAmountIn);
-        _swapExactInput(route.pool, assets[0], route.underlyingAmountIn);
-        IERC20(assets[0]).forceApprove(address(router), 0);
-        uint256 acquired = IERC20(basketToken).balanceOf(address(this)) - basketBalanceBefore;
+        uint256 acquired = _buyBasketTokens(basketId, basketToken, assets[0], route);
         uint256[] memory minimums = basket.quoteRedeem(basketId, acquired);
         basket.redeem(basketId, acquired, address(this), minimums);
+        _repayAndCheckProfit(assets[0], amounts[0] + fees[0], route);
+    }
 
-        uint256 available = IERC20(assets[0]).balanceOf(address(this));
-        uint256 repayment = amounts[0] + fees[0];
+    function _buyBasketTokens(
+        uint256 basketId,
+        address basketToken,
+        address underlying,
+        BuyAndRedeemRoute memory route
+    ) private returns (uint256 acquired) {
+        _validatePool(basketId, route.pool, basketToken, underlying);
+        uint256 basketBalanceBefore = IERC20(basketToken).balanceOf(address(this));
+        IERC20(underlying).forceApprove(address(router), route.underlyingAmountIn);
+        _swapExactInput(route.pool, underlying, route.underlyingAmountIn);
+        IERC20(underlying).forceApprove(address(router), 0);
+        acquired = IERC20(basketToken).balanceOf(address(this)) - basketBalanceBefore;
+    }
+
+    function _repayAndCheckProfit(address underlying, uint256 repayment, BuyAndRedeemRoute memory route) private {
+        uint256 available = IERC20(underlying).balanceOf(address(this));
         uint256 required = route.startingBalance + repayment + route.minimumProfit;
-        if (available < required) revert MinimumProfitNotMet(assets[0], required, available);
-        IERC20(assets[0]).forceApprove(protocol, repayment);
+        if (available < required) revert MinimumProfitNotMet(underlying, required, available);
+        IERC20(underlying).forceApprove(protocol, repayment);
     }
 
     function _swapExactInput(PoolKey memory pool, address input, uint256 amountIn) private {

@@ -210,7 +210,14 @@ contract CoreBootstrapTest is Test {
         CorePartsHarness harness = new CorePartsHarness();
         MockETHUSDOracle oracle = new MockETHUSDOracle(2_500e18, 1 hours);
         CanonicalWETH9 collateral = new CanonicalWETH9();
+        _rejectEoaCounterfeit(harness, oracle, collateral);
+        _rejectCounterfeitTokenKind(harness, oracle, collateral);
+        _rejectMisboundTokenPool(harness, oracle, collateral);
+    }
 
+    function _rejectEoaCounterfeit(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)
+        private
+    {
         DeployCoreBootstrap.CoreParts memory eoaParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory eoaGenesis = harness.buildGenesis(eoaParts);
         address predictedEoaCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
@@ -219,7 +226,11 @@ contract CoreBootstrapTest is Test {
             _initArgs(makeAddr("eoaToken"), address(eoaRisk), address(oracle), address(collateral));
         vm.expectRevert(abi.encodeWithSelector(LibCore.ContractExpected.selector, eoaArgs.staticsDollar));
         new StaticsDollarCoreDiamond(owner, eoaParts.init, abi.encodeCall(CoreInit.genesis, (eoaGenesis, eoaArgs)));
+    }
 
+    function _rejectCounterfeitTokenKind(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)
+        private
+    {
         DeployCoreBootstrap.CoreParts memory counterfeitParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory counterfeitGenesis = harness.buildGenesis(counterfeitParts);
         address predictedCounterfeitCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
@@ -231,7 +242,11 @@ contract CoreBootstrapTest is Test {
         new StaticsDollarCoreDiamond(
             owner, counterfeitParts.init, abi.encodeCall(CoreInit.genesis, (counterfeitGenesis, counterfeitArgs))
         );
+    }
 
+    function _rejectMisboundTokenPool(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)
+        private
+    {
         DeployCoreBootstrap.CoreParts memory misboundParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory misboundGenesis = harness.buildGenesis(misboundParts);
         address predictedMisboundCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);

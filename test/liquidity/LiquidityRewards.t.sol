@@ -144,50 +144,80 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
     function testPoolOverrideRoutesBothFeeLegsToEligibleCanonicalLiquidity() public {
         uint256 tokenId = _mintFullRangePositionToAlice(5 ether);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, basketAssets[0]);
+        _stakeAndActivatePosition(tokenId);
+        _overrideCanonicalFees(basketId, basketAssets[0], 10_000, 0, 0);
+        PoolLegSnapshot memory before = _snapshotPoolLegs(pool);
 
+        uint256 amountIn = 0.001 ether;
+        (BalanceDelta delta, bool zeroForOne) = _swapConstituentIntoPool(amountIn);
+        PoolLegSnapshot memory after_ = _snapshotPoolLegs(pool);
+
+        uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
+        uint256 inputFee = Math.mulDiv(amountIn, 40, 10_000, Math.Rounding.Ceil);
+        uint256 outputFee = Math.mulDiv(netOutput, 60, 10_000 - 60, Math.Rounding.Ceil);
+
+        assertEq(after_.indexed0 - before.indexed0, zeroForOne ? inputFee : outputFee);
+        assertEq(after_.indexed1 - before.indexed1, zeroForOne ? outputFee : inputFee);
+        assertEq(after_.locked, before.locked);
+        assertEq(after_.pending0, before.pending0);
+        assertEq(after_.pending1, before.pending1);
+        vm.prank(alice);
+        (, uint256 pending0,, uint256 pending1) = liquidityRewards.pendingLiquidityRewards(basketPositionId, tokenId);
+        assertGt(pending0, 0);
+        assertGt(pending1, 0);
+    }
+
+    struct PoolLegSnapshot {
+        uint256 indexed0;
+        uint256 indexed1;
+        uint128 locked;
+        uint256 pending0;
+        uint256 pending1;
+    }
+
+    function _stakeAndActivatePosition(uint256 tokenId) private {
         vm.startPrank(alice);
         IERC721(address(positionManagerContract)).approve(address(diamond), tokenId);
         liquidityRewards.stakeLiquidityPosition(basketPositionId, tokenId);
         vm.stopPrank();
         vm.roll(block.number + 1);
         liquidityRewards.activateLiquidityPosition(tokenId);
+    }
 
+    function _overrideCanonicalFees(
+        uint256 overriddenBasketId,
+        address asset,
+        uint16 lpShareBps,
+        uint16 basketStakerShareBps,
+        uint16 treasuryShareBps
+    ) private {
         basketLiquidity.setCanonicalPoolFeeConfiguration(
-            basketId,
-            basketAssets[0],
+            overriddenBasketId,
+            asset,
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: 40,
                 outputFeeBps: 60,
                 polShareBps: 0,
-                liquidityProviderShareBps: 10_000,
-                basketStakerShareBps: 0,
+                liquidityProviderShareBps: lpShareBps,
+                basketStakerShareBps: basketStakerShareBps,
                 staticsStakerShareBps: 0,
-                treasuryShareBps: 0
+                treasuryShareBps: treasuryShareBps
             })
         );
-        IStaticsLiquidityRewards.PoolLiquidityRewardView memory beforeRewards =
-            liquidityRewards.poolLiquidityRewards(pool.poolId);
-        uint128 lockedBefore = swapFeeHook.lockedLiquidity(pool.poolId);
-        uint256 pending0Before = swapFeeHook.pendingPermanentLiquidity(pool.poolId, Currency.wrap(pool.currency0));
-        uint256 pending1Before = swapFeeHook.pendingPermanentLiquidity(pool.poolId, Currency.wrap(pool.currency1));
+    }
 
-        uint256 amountIn = 0.001 ether;
-        (BalanceDelta delta, bool zeroForOne) = _swapConstituentIntoPool(amountIn);
-        uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
-        uint256 inputFee = Math.mulDiv(amountIn, 40, 10_000, Math.Rounding.Ceil);
-        uint256 outputFee = Math.mulDiv(netOutput, 60, 10_000 - 60, Math.Rounding.Ceil);
-        IStaticsLiquidityRewards.PoolLiquidityRewardView memory afterRewards =
+    function _snapshotPoolLegs(IStaticsBasketLiquidity.CanonicalPoolView memory pool)
+        private
+        view
+        returns (PoolLegSnapshot memory snapshot)
+    {
+        IStaticsLiquidityRewards.PoolLiquidityRewardView memory rewards =
             liquidityRewards.poolLiquidityRewards(pool.poolId);
-
-        assertEq(afterRewards.indexed0 - beforeRewards.indexed0, zeroForOne ? inputFee : outputFee);
-        assertEq(afterRewards.indexed1 - beforeRewards.indexed1, zeroForOne ? outputFee : inputFee);
-        assertEq(swapFeeHook.lockedLiquidity(pool.poolId), lockedBefore);
-        assertEq(swapFeeHook.pendingPermanentLiquidity(pool.poolId, Currency.wrap(pool.currency0)), pending0Before);
-        assertEq(swapFeeHook.pendingPermanentLiquidity(pool.poolId, Currency.wrap(pool.currency1)), pending1Before);
-        vm.prank(alice);
-        (, uint256 pending0,, uint256 pending1) = liquidityRewards.pendingLiquidityRewards(basketPositionId, tokenId);
-        assertGt(pending0, 0);
-        assertGt(pending1, 0);
+        snapshot.indexed0 = rewards.indexed0;
+        snapshot.indexed1 = rewards.indexed1;
+        snapshot.locked = swapFeeHook.lockedLiquidity(pool.poolId);
+        snapshot.pending0 = swapFeeHook.pendingPermanentLiquidity(pool.poolId, Currency.wrap(pool.currency0));
+        snapshot.pending1 = swapFeeHook.pendingPermanentLiquidity(pool.poolId, Currency.wrap(pool.currency1));
     }
 
     function testPoolOverrideRoutesBasketTokenAndConstituentFeesToBasketPosition() public {

@@ -165,6 +165,17 @@ contract UpgradePositionOwnerIndexTest is Test {
 contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
     uint256 private constant PRE_UPGRADE_FORK_BLOCK = 96_877_243;
 
+    struct OwnerIndexRehearsal {
+        address diamond;
+        address proposer;
+        uint256[] positionIds;
+        UpgradePositionOwnerIndex ceremony;
+        PositionNFTFacet replacement;
+        StaticsTimelock timelock;
+        address[] ownersBefore;
+        bytes32[] statesBefore;
+    }
+
     function testRehearsesUpgradeAgainstLiveRobinhoodState() public {
         string memory rpcUrl = vm.envOr("ROBINHOOD_TESTNET", string(""));
         if (bytes(rpcUrl).length == 0) {
@@ -173,46 +184,61 @@ contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
         }
         vm.createSelectFork(rpcUrl, PRE_UPGRADE_FORK_BLOCK);
 
-        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
-        address proposer = vm.envAddress("STATICS_TIMELOCK_PROPOSER");
-        uint256[] memory positionIds = vm.envUint("POSITION_OWNER_INDEX_IDS", ",");
-        assertGt(positionIds.length, 0, "position IDs required");
-        assertLe(positionIds.length, 100, "position ID page exceeds limit");
-        UpgradePositionOwnerIndex ceremony = new UpgradePositionOwnerIndex();
-        PositionNFTFacet replacement = new PositionNFTFacet();
-        StaticsTimelock timelock = StaticsTimelock(payable(IERC173(diamond).owner()));
+        OwnerIndexRehearsal memory rehearsal = _snapshotOwnerIndex();
+        _executeOwnerIndexUpgrade(rehearsal);
+        _assertOwnerIndexPreserved(rehearsal);
+    }
 
-        address[] memory ownersBefore = new address[](positionIds.length);
-        bytes32[] memory statesBefore = new bytes32[](positionIds.length);
-        for (uint256 i; i < positionIds.length; ++i) {
-            ownersBefore[i] = IERC721(diamond).ownerOf(positionIds[i]);
-            assertEq(ownersBefore[i], ownersBefore[0], "positions must share an owner");
-            statesBefore[i] = keccak256(abi.encode(IModularPositionNFT(diamond).positionState(positionIds[i])));
+    function _snapshotOwnerIndex() private returns (OwnerIndexRehearsal memory rehearsal) {
+        rehearsal.diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        rehearsal.proposer = vm.envAddress("STATICS_TIMELOCK_PROPOSER");
+        rehearsal.positionIds = vm.envUint("POSITION_OWNER_INDEX_IDS", ",");
+        assertGt(rehearsal.positionIds.length, 0, "position IDs required");
+        assertLe(rehearsal.positionIds.length, 100, "position ID page exceeds limit");
+        rehearsal.ceremony = new UpgradePositionOwnerIndex();
+        rehearsal.replacement = new PositionNFTFacet();
+        rehearsal.timelock = StaticsTimelock(payable(IERC173(rehearsal.diamond).owner()));
+
+        uint256 count = rehearsal.positionIds.length;
+        rehearsal.ownersBefore = new address[](count);
+        rehearsal.statesBefore = new bytes32[](count);
+        for (uint256 i; i < count; ++i) {
+            rehearsal.ownersBefore[i] = IERC721(rehearsal.diamond).ownerOf(rehearsal.positionIds[i]);
+            assertEq(rehearsal.ownersBefore[i], rehearsal.ownersBefore[0], "positions must share an owner");
+            rehearsal.statesBefore[i] =
+                keccak256(abi.encode(IModularPositionNFT(rehearsal.diamond).positionState(rehearsal.positionIds[i])));
         }
+    }
 
-        (address validatedTimelock,) = ceremony.validateBeforeUpgrade(diamond, address(replacement));
-        assertEq(validatedTimelock, address(timelock));
+    function _executeOwnerIndexUpgrade(OwnerIndexRehearsal memory rehearsal) private {
+        (address validatedTimelock,) = rehearsal.ceremony.validateBeforeUpgrade(rehearsal.diamond, address(rehearsal.replacement));
+        assertEq(validatedTimelock, address(rehearsal.timelock));
         bytes32 salt = keccak256("Robinhood Position owner index fork rehearsal");
-        bytes memory payload = ceremony.buildPayload(diamond, address(replacement));
-        uint256 delay = timelock.getMinDelay();
+        bytes memory payload = rehearsal.ceremony.buildPayload(rehearsal.diamond, address(rehearsal.replacement));
+        uint256 delay = rehearsal.timelock.getMinDelay();
 
-        vm.prank(proposer);
-        timelock.schedule(diamond, 0, payload, bytes32(0), salt, delay);
+        vm.prank(rehearsal.proposer);
+        rehearsal.timelock.schedule(rehearsal.diamond, 0, payload, bytes32(0), salt, delay);
         vm.warp(block.timestamp + delay);
-        timelock.execute(diamond, 0, payload, bytes32(0), salt);
-        ceremony.validateUpgraded(diamond, address(replacement));
+        rehearsal.timelock.execute(rehearsal.diamond, 0, payload, bytes32(0), salt);
+        rehearsal.ceremony.validateUpgraded(rehearsal.diamond, address(rehearsal.replacement));
+    }
 
-        for (uint256 i; i < positionIds.length; ++i) {
-            IPositionOwnerIndex(diamond).syncPositionOwnerIndex(positionIds[i]);
-            assertEq(IERC721(diamond).ownerOf(positionIds[i]), ownersBefore[i]);
-            assertEq(keccak256(abi.encode(IModularPositionNFT(diamond).positionState(positionIds[i]))), statesBefore[i]);
+    function _assertOwnerIndexPreserved(OwnerIndexRehearsal memory rehearsal) private {
+        for (uint256 i; i < rehearsal.positionIds.length; ++i) {
+            IPositionOwnerIndex(rehearsal.diamond).syncPositionOwnerIndex(rehearsal.positionIds[i]);
+            assertEq(IERC721(rehearsal.diamond).ownerOf(rehearsal.positionIds[i]), rehearsal.ownersBefore[i]);
+            assertEq(
+                keccak256(abi.encode(IModularPositionNFT(rehearsal.diamond).positionState(rehearsal.positionIds[i]))),
+                rehearsal.statesBefore[i]
+            );
         }
 
-        address owner = ownersBefore[0];
-        assertEq(IPositionOwnerIndex(diamond).positionCount(owner), positionIds.length);
+        address owner = rehearsal.ownersBefore[0];
+        assertEq(IPositionOwnerIndex(rehearsal.diamond).positionCount(owner), rehearsal.positionIds.length);
         (uint256[] memory indexedPositions, uint256 nextCursor) =
-            IPositionOwnerIndex(diamond).positionsOfOwner(owner, 0, positionIds.length);
-        assertEq(indexedPositions, positionIds);
-        assertEq(nextCursor, positionIds.length);
+            IPositionOwnerIndex(rehearsal.diamond).positionsOfOwner(owner, 0, rehearsal.positionIds.length);
+        assertEq(indexedPositions, rehearsal.positionIds);
+        assertEq(nextCursor, rehearsal.positionIds.length);
     }
 }

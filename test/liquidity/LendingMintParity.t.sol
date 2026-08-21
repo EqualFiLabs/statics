@@ -50,7 +50,35 @@ contract LendingMintParityTest is StaticsTestBase {
     }
 
     function _assertMintAndBorrowParity(uint256 count) private {
-        address[] memory assets = new address[](count);
+        (uint256 basketId, address[] memory assets, uint256[] memory mintQuote, uint256 positionId) =
+            _launchAndMintParityBasket(count);
+
+        IStaticsLending.BorrowQuote memory quoted = lending.quoteBorrow(basketId, 10 ether);
+        uint256[] memory balancesBefore = _balances(assets, bob);
+        vm.prank(alice);
+        (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 10 ether, bob);
+        IStaticsLending.LoanView memory loan = lending.loan(loanId);
+
+        assertEq(principals, quoted.principals);
+        assertEq(loan.feeShares, quoted.feeShares);
+        assertEq(loan.collateralShares, quoted.collateralShares);
+        assertEq(loan.debtShares, quoted.debtShares);
+        assertEq(loan.penaltyShares, quoted.penaltyShares);
+        assertEq(loan.principals, quoted.principals);
+        _assertParityPrincipalFlows(basketId, assets, bob, balancesBefore, quoted.principals);
+    }
+
+    struct ParityBasket {
+        uint256 basketId;
+        address[] assets;
+        uint256[] mintQuote;
+        uint256 positionId;
+    }
+
+    function _launchAndMintParityBasket(uint256 count)
+        private
+        returns (uint256 basketId, address[] memory assets, uint256[] memory mintQuote, uint256 positionId)
+    {
         uint256[] memory bundleAmounts = new uint256[](count);
         for (uint256 i; i < count; ++i) {
             assets[i] = address(new MockERC20("Constituent", "C", 18));
@@ -70,34 +98,31 @@ contract LendingMintParityTest is StaticsTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        (uint256 basketId,) = _launchBasket(params, alice, basketAdmin.creationFee());
+        (basketId,) = _launchBasket(params, alice, basketAdmin.creationFee());
 
-        uint256[] memory mintQuote = baskets.quoteMint(basketId, 20 ether);
+        mintQuote = baskets.quoteMint(basketId, 20 ether);
         vm.startPrank(alice);
         for (uint256 i; i < count; ++i) {
             MockERC20(assets[i]).mint(alice, mintQuote[i]);
             IERC20(assets[i]).approve(address(diamond), type(uint256).max);
         }
-        (uint256 positionId, uint256[] memory actualInputs) =
+        uint256[] memory actualInputs;
+        (positionId, actualInputs) =
             basketCollateral.createAndMintBasketCollateral(basketId, 20 ether, alice, mintQuote);
         vm.stopPrank();
         assertEq(actualInputs, mintQuote);
+    }
 
-        IStaticsLending.BorrowQuote memory quoted = lending.quoteBorrow(basketId, 10 ether);
-        uint256[] memory balancesBefore = _balances(assets, bob);
-        vm.prank(alice);
-        (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 10 ether, bob);
-        IStaticsLending.LoanView memory loan = lending.loan(loanId);
-
-        assertEq(principals, quoted.principals);
-        assertEq(loan.feeShares, quoted.feeShares);
-        assertEq(loan.collateralShares, quoted.collateralShares);
-        assertEq(loan.debtShares, quoted.debtShares);
-        assertEq(loan.penaltyShares, quoted.penaltyShares);
-        assertEq(loan.principals, quoted.principals);
-        for (uint256 i; i < count; ++i) {
-            assertEq(IERC20(assets[i]).balanceOf(bob) - balancesBefore[i], quoted.principals[i]);
-            assertEq(lending.outstandingPrincipal(basketId, assets[i]), quoted.principals[i]);
+    function _assertParityPrincipalFlows(
+        uint256 basketId,
+        address[] memory assets,
+        address recipient,
+        uint256[] memory balancesBefore,
+        uint256[] memory principals
+    ) private view {
+        for (uint256 i; i < assets.length; ++i) {
+            assertEq(IERC20(assets[i]).balanceOf(recipient) - balancesBefore[i], principals[i]);
+            assertEq(lending.outstandingPrincipal(basketId, assets[i]), principals[i]);
         }
     }
 

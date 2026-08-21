@@ -645,15 +645,47 @@ contract StaticsDollarGatewayTest is Test {
     function testAtomicPeggedMintAndRecombinePreservesSupplyAndMigratesSeniorLiability() public {
         _depositToAliceThroughGateway(1 ether);
         uint256 riskAmount = 100e18;
-        uint256 aliceDollarBalance = staticsDollar.balanceOf(alice);
-        vm.prank(alice);
-        staticsDollar.transfer(staticsDollarReceiver, aliceDollarBalance);
+        vm.startPrank(alice);
+        staticsDollar.transfer(staticsDollarReceiver, staticsDollar.balanceOf(alice));
+        vm.stopPrank();
         (uint256 peggedProfileId, MockUSDC usdc,) = _activatePeggedProfile();
+        IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote = _validateAtomicQuote(peggedProfileId, riskAmount);
+        _fundAtomicMigration(alice, usdc, quote.totalPeggedCollateralIn);
 
-        IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote =
-            gateway.quoteMintPeggedAndRecombine(peggedProfileId, WETH_PROFILE, SERIES_ONE, riskAmount);
-        IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview =
-            pool.previewPeggedMint(peggedProfileId, riskAmount);
+        AtomicSnapshot memory before = _snapshotAtomicState(peggedProfileId);
+        vm.prank(alice);
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut) =
+        gateway.mintPeggedAndRecombine(
+            peggedProfileId,
+            WETH_PROFILE,
+            SERIES_ONE,
+            riskAmount,
+            quote.totalPeggedCollateralIn,
+            quote.volatileCollateralOut,
+            receiver
+        );
+        assertEq(uint8(status), uint8(IStaticsDollarCoreTypes.ExitStatus.Available));
+        assertEq(peggedCollateralIn, quote.totalPeggedCollateralIn);
+        assertEq(volatileCollateralOut, quote.volatileCollateralOut);
+        _assertAtomicMigration(peggedProfileId, riskAmount, quote, usdc, before);
+    }
+
+    struct AtomicSnapshot {
+        uint256 supplyBefore;
+        uint256 totalSeniorBefore;
+        uint256 peggedSeniorBefore;
+        IStaticsDollarCoreTypes.RiskSeries seriesBefore;
+        uint256 riskBefore;
+        uint256 dollarReservationBefore;
+        uint256 wethReservationBefore;
+    }
+
+    function _validateAtomicQuote(uint256 peggedProfileId, uint256 riskAmount)
+        private
+        returns (IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote)
+    {
+        quote = gateway.quoteMintPeggedAndRecombine(peggedProfileId, WETH_PROFILE, SERIES_ONE, riskAmount);
+        IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview = pool.previewPeggedMint(peggedProfileId, riskAmount);
         IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview =
             pool.previewRecombine(SERIES_ONE, riskAmount);
         assertTrue(quote.eligible);
@@ -663,50 +695,50 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(quote.totalPeggedCollateralIn, mintPreview.totalCollateralIn);
         assertEq(quote.volatileCollateralOut, recombinationPreview.collateralOut);
         assertEq(quote.volatileRecombinationFee, recombinationPreview.feeAmount);
+    }
 
-        usdc.mint(alice, quote.totalPeggedCollateralIn);
-        vm.startPrank(alice);
-        usdc.approve(diamond, quote.totalPeggedCollateralIn);
+    function _fundAtomicMigration(address funder, MockUSDC usdc, uint256 totalCollateralIn) private {
+        usdc.mint(funder, totalCollateralIn);
+        vm.startPrank(funder);
+        usdc.approve(diamond, totalCollateralIn);
         staticsDollarRisk.setApprovalForAll(diamond, true);
         vm.stopPrank();
+    }
 
-        uint256 supplyBefore = staticsDollar.totalSupply();
-        uint256 totalSeniorBefore = pool.seniorLiabilities();
-        uint256 peggedSeniorBefore = pool.collateralProfile(peggedProfileId).seniorOutstanding;
-        IStaticsDollarCoreTypes.RiskSeries memory seriesBefore = pool.riskSeries(SERIES_ONE);
-        uint256 riskBefore = staticsDollarRisk.balanceOf(alice, SERIES_ONE);
-        uint256 dollarReservationBefore = custody.globalReservedByToken(address(staticsDollar));
-        uint256 wethReservationBefore = custody.globalReservedByToken(address(weth));
+    function _snapshotAtomicState(uint256 peggedProfileId) private view returns (AtomicSnapshot memory before) {
+        before.supplyBefore = staticsDollar.totalSupply();
+        before.totalSeniorBefore = pool.seniorLiabilities();
+        before.peggedSeniorBefore = pool.collateralProfile(peggedProfileId).seniorOutstanding;
+        before.seriesBefore = pool.riskSeries(SERIES_ONE);
+        before.riskBefore = staticsDollarRisk.balanceOf(alice, SERIES_ONE);
+        before.dollarReservationBefore = custody.globalReservedByToken(address(staticsDollar));
+        before.wethReservationBefore = custody.globalReservedByToken(address(weth));
+    }
 
-        vm.prank(alice);
-        (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut) = gateway.mintPeggedAndRecombine(
-            peggedProfileId,
-            WETH_PROFILE,
-            SERIES_ONE,
-            riskAmount,
-            quote.totalPeggedCollateralIn,
-            quote.volatileCollateralOut,
-            receiver
-        );
-
-        assertEq(uint8(status), uint8(IStaticsDollarCoreTypes.ExitStatus.Available));
-        assertEq(peggedCollateralIn, quote.totalPeggedCollateralIn);
-        assertEq(volatileCollateralOut, quote.volatileCollateralOut);
+    function _assertAtomicMigration(
+        uint256 peggedProfileId,
+        uint256 riskAmount,
+        IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote,
+        MockUSDC usdc,
+        AtomicSnapshot memory before
+    ) private view {
         assertEq(weth.balanceOf(receiver), quote.volatileCollateralOut);
-        assertEq(staticsDollar.totalSupply(), supplyBefore);
-        assertEq(pool.seniorLiabilities(), totalSeniorBefore);
-        assertEq(pool.collateralProfile(peggedProfileId).seniorOutstanding, peggedSeniorBefore + riskAmount);
-        assertEq(pool.riskSeries(SERIES_ONE).seniorOutstanding, seriesBefore.seniorOutstanding - riskAmount);
-        assertEq(pool.riskSeries(SERIES_ONE).riskSharesOutstanding, seriesBefore.riskSharesOutstanding - riskAmount);
-        assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ONE), riskBefore - riskAmount);
+        assertEq(staticsDollar.totalSupply(), before.supplyBefore);
+        assertEq(pool.seniorLiabilities(), before.totalSeniorBefore);
+        assertEq(pool.collateralProfile(peggedProfileId).seniorOutstanding, before.peggedSeniorBefore + riskAmount);
+        assertEq(pool.riskSeries(SERIES_ONE).seniorOutstanding, before.seriesBefore.seniorOutstanding - riskAmount);
+        assertEq(
+            pool.riskSeries(SERIES_ONE).riskSharesOutstanding, before.seriesBefore.riskSharesOutstanding - riskAmount
+        );
+        assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ONE), before.riskBefore - riskAmount);
         assertEq(staticsDollar.balanceOf(alice), 0);
         assertEq(staticsDollar.allowance(alice, diamond), 0);
         assertEq(usdc.balanceOf(address(pool)), quote.peggedCollateralPrincipal);
         assertEq(usdc.balanceOf(address(pool)) + usdc.balanceOf(diamond), quote.totalPeggedCollateralIn);
         assertEq(globalRewards.treasuryAccrued(address(usdc)), quote.peggedMintFee);
         assertEq(globalRewards.treasuryAccrued(address(weth)), quote.volatileRecombinationFee);
-        assertEq(custody.globalReservedByToken(address(staticsDollar)), dollarReservationBefore);
-        assertEq(custody.globalReservedByToken(address(weth)), wethReservationBefore + quote.volatileRecombinationFee);
+        assertEq(custody.globalReservedByToken(address(staticsDollar)), before.dollarReservationBefore);
+        assertEq(custody.globalReservedByToken(address(weth)), before.wethReservationBefore + quote.volatileRecombinationFee);
         assertEq(usdc.allowance(diamond, address(pool)), 0);
         _assertNoUnreservedGatewayResidue(SERIES_ONE);
     }
@@ -732,19 +764,7 @@ contract StaticsDollarGatewayTest is Test {
             peggedProfileId, WETH_PROFILE, SERIES_ONE, riskAmount, quote.totalPeggedCollateralIn, 0, receiver
         );
         assertEq(uint8(status), uint8(IStaticsDollarCoreTypes.ExitStatus.Available));
-        bytes32 atomicState = keccak256(
-            abi.encode(
-                staticsDollar.totalSupply(),
-                pool.collateralProfile(peggedProfileId),
-                pool.riskSeries(SERIES_ONE),
-                usdc.balanceOf(address(pool)),
-                usdc.balanceOf(diamond),
-                weth.balanceOf(address(pool)),
-                weth.balanceOf(receiver),
-                globalRewards.treasuryAccrued(address(usdc)),
-                globalRewards.treasuryAccrued(address(weth))
-            )
-        );
+        bytes32 atomicState = _comparableMigrationState(peggedProfileId, usdc);
 
         assertTrue(vm.revertToState(state));
         vm.startPrank(alice);
@@ -752,7 +772,14 @@ contract StaticsDollarGatewayTest is Test {
         staticsDollar.approve(diamond, riskAmount);
         (, uint256 separateOut) = gateway.recombineToWETH(SERIES_ONE, riskAmount, riskAmount, receiver, 0);
         vm.stopPrank();
-        bytes32 separateState = keccak256(
+        bytes32 separateState = _comparableMigrationState(peggedProfileId, usdc);
+
+        assertEq(atomicOut, separateOut);
+        assertEq(atomicState, separateState);
+    }
+
+    function _comparableMigrationState(uint256 peggedProfileId, MockUSDC usdc) private view returns (bytes32) {
+        return keccak256(
             abi.encode(
                 staticsDollar.totalSupply(),
                 pool.collateralProfile(peggedProfileId),
@@ -765,9 +792,6 @@ contract StaticsDollarGatewayTest is Test {
                 globalRewards.treasuryAccrued(address(weth))
             )
         );
-
-        assertEq(atomicOut, separateOut);
-        assertEq(atomicState, separateState);
     }
 
     function testAtomicRouteEnforcesDebtCeilingAndPegHealthBeforeCustody() public {

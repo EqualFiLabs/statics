@@ -94,41 +94,72 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(structural.unresolvedObligationCount, 0);
     }
 
+    struct ExtensionSnapshot {
+        uint256 structuralNonce;
+        address[] assets;
+        uint256[] quotedFees;
+        uint256 supplyBefore;
+        uint256 vaultBefore;
+        uint256 eligibleBefore;
+        uint256 principalBefore;
+        uint256 maturityBefore;
+    }
+
     function testExtensionChargesStoredUnderlyingPrincipalsAndPreservesBasketState() public {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
         uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 5 ether, alice);
-        uint256 structuralNonce = IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce;
-
-        (address[] memory assets, uint256[] memory quotedFees) = lending.quoteExtension(loanId);
-        assetA.mint(alice, quotedFees[0]);
-        assetB.mint(alice, quotedFees[1]);
-        uint256 supplyBefore = IERC20(token).totalSupply();
-        uint256 vaultBefore = baskets.vaultBalance(basketId, address(assetA));
-        uint256 eligibleBefore = basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares;
-        uint256 principalBefore = lending.loan(loanId).principals[0];
+        ExtensionSnapshot memory snap =
+            _prepareExtension(basketId, positionId, loanId, token);
 
         vm.startPrank(alice);
-        assetA.approve(address(diamond), quotedFees[0]);
-        assetB.approve(address(diamond), quotedFees[1]);
-        IStaticsLending.LoanView memory beforeLoan = lending.loan(loanId);
-        uint256[] memory received = lending.extend(loanId, quotedFees);
+        assetA.approve(address(diamond), snap.quotedFees[0]);
+        assetB.approve(address(diamond), snap.quotedFees[1]);
+        uint256[] memory received = lending.extend(loanId, snap.quotedFees);
         vm.stopPrank();
 
+        _assertExtensionOutcome(basketId, positionId, loanId, token, received, snap);
+    }
+
+    function _prepareExtension(uint256 basketId, uint256 positionId, uint256 loanId, address token)
+        private
+        returns (ExtensionSnapshot memory snap)
+    {
+        snap.structuralNonce = IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce;
+        (snap.assets, snap.quotedFees) = lending.quoteExtension(loanId);
+        assetA.mint(alice, snap.quotedFees[0]);
+        assetB.mint(alice, snap.quotedFees[1]);
+        snap.supplyBefore = IERC20(token).totalSupply();
+        snap.vaultBefore = baskets.vaultBalance(basketId, address(assetA));
+        snap.eligibleBefore = basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares;
+        snap.principalBefore = lending.loan(loanId).principals[0];
+        snap.maturityBefore = lending.loan(loanId).maturity;
+    }
+
+    function _assertExtensionOutcome(
+        uint256 basketId,
+        uint256 positionId,
+        uint256 loanId,
+        address token,
+        uint256[] memory received,
+        ExtensionSnapshot memory snap
+    ) private view {
         IStaticsLending.LoanView memory afterLoan = lending.loan(loanId);
-        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce, structuralNonce);
-        assertEq(assets[0], address(assetA));
-        assertEq(assets[1], address(assetB));
-        assertEq(quotedFees[0], 0.0235125 ether);
-        assertEq(quotedFees[1], 0.05878125 ether);
-        assertEq(received, quotedFees);
-        assertEq(afterLoan.maturity, beforeLoan.maturity + 30 days);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce, snap.structuralNonce);
+        assertEq(snap.assets[0], address(assetA));
+        assertEq(snap.assets[1], address(assetB));
+        assertEq(snap.quotedFees[0], 0.0235125 ether);
+        assertEq(snap.quotedFees[1], 0.05878125 ether);
+        assertEq(received, snap.quotedFees);
+        assertEq(afterLoan.maturity, snap.maturityBefore + 30 days);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.1235125 ether);
-        assertEq(IERC20(token).totalSupply(), supplyBefore);
-        assertEq(baskets.vaultBalance(basketId, address(assetA)), vaultBefore);
-        assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, eligibleBefore);
-        assertEq(lending.loan(loanId).principals[0], principalBefore);
+        assertEq(IERC20(token).totalSupply(), snap.supplyBefore);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), snap.vaultBefore);
+        assertEq(
+            basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, snap.eligibleBefore
+        );
+        assertEq(lending.loan(loanId).principals[0], snap.principalBefore);
     }
 
     function testExtensionCreditsMeasuredTaxedReceiptAsRevenue() public {
@@ -247,71 +278,95 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(custody.globalReservedByToken(address(assetA)), assetA.balanceOf(address(diamond)));
     }
 
+    struct LowLtvRecovery {
+        uint256 basketId;
+        address token;
+        uint256 launchSupply;
+        uint256 launchVault;
+        uint256 launchBasketReserved;
+        uint256 positionId;
+        uint256 loanId;
+        uint256 stakingPositionId;
+        address[] rewardAssets;
+    }
+
     function testRecoveryBurnsDebtPlusPenaltyAndUnlocksLowLtvRemainder() public {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.originationFeeBps = 0;
         params.ltvBps = 2_000;
         params.recoveryPenaltyBps = 500;
-        (uint256 basketId, address token) = _launchBasket(params, alice, 1 ether);
-        uint256 launchSupply = IERC20(token).totalSupply();
-        uint256 launchVault = baskets.vaultBalance(basketId, address(assetA));
-        uint256 launchBasketReserved =
-            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA));
-        uint256 positionId = _mintPositionShares(basketId, alice, 100 ether);
-        vm.prank(alice);
-        (uint256 loanId,) = lending.borrow(positionId, basketId, 100 ether, alice);
-        address[] memory rewardAssets = new address[](2);
-        rewardAssets[0] = address(assetA);
-        rewardAssets[1] = address(assetB);
-        stakingAsset.mint(alice, 100 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), 100 ether);
-        uint256 stakingPositionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
-        vm.stopPrank();
+        LowLtvRecovery memory scenario = _setupLowLtvRecovery(params);
 
-        IStaticsLending.BorrowQuote memory borrowQuote = lending.quoteBorrow(basketId, 100 ether);
+        IStaticsLending.BorrowQuote memory borrowQuote = lending.quoteBorrow(scenario.basketId, 100 ether);
         assertEq(borrowQuote.debtShares, 20 ether);
         assertEq(borrowQuote.penaltyShares, 1 ether);
-        IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(loanId);
-        (uint256[] memory indexedLoans,) = positionPortfolio.loanIdsOfPosition(positionId, 0, 100);
+        IStaticsLending.RecoveryQuote memory recoveryQuote = lending.quoteRecovery(scenario.loanId);
+        (uint256[] memory indexedLoans,) = positionPortfolio.loanIdsOfPosition(scenario.positionId, 0, 100);
         assertEq(indexedLoans.length, 1);
-        assertEq(indexedLoans[0], loanId);
+        assertEq(indexedLoans[0], scenario.loanId);
         assertEq(recoveryQuote.burnShares, 21 ether);
         assertEq(recoveryQuote.unlockedShares, 79 ether);
         assertEq(recoveryQuote.callerAmounts[0], 0.4 ether);
         assertEq(recoveryQuote.protocolAmounts[0], 1.6 ether);
 
         vm.warp(recoveryQuote.recoverableAt);
-        uint256 nonceBeforeFailedRecovery = IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce;
+        uint256 nonceBeforeFailedRecovery =
+            IModularPositionNFT(address(diamond)).positionState(scenario.positionId).stateNonce;
         vm.expectRevert(
-            abi.encodeWithSelector(LendingFacet.LoanNotRecoverable.selector, loanId, recoveryQuote.recoverableAt)
+            abi.encodeWithSelector(LendingFacet.LoanNotRecoverable.selector, scenario.loanId, recoveryQuote.recoverableAt)
         );
-        lending.recover(loanId);
-        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).stateNonce, nonceBeforeFailedRecovery);
+        lending.recover(scenario.loanId);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(scenario.positionId).stateNonce, nonceBeforeFailedRecovery);
         vm.warp(block.timestamp + 1);
         vm.prank(bob);
-        lending.recover(loanId);
+        lending.recover(scenario.loanId);
 
-        (uint256[] memory activeLoans,) = positionPortfolio.loanIdsOfPosition(positionId, 0, 100);
+        _assertLowLtvRecoveryOutcome(scenario);
+    }
+
+    function _setupLowLtvRecovery(IStaticsBasket.CreateBasketParams memory params)
+        private
+        returns (LowLtvRecovery memory scenario)
+    {
+        (scenario.basketId, scenario.token) = _launchBasket(params, alice, 1 ether);
+        scenario.launchSupply = IERC20(scenario.token).totalSupply();
+        scenario.launchVault = baskets.vaultBalance(scenario.basketId, address(assetA));
+        scenario.launchBasketReserved =
+            custody.reservedByAccount(custody.basketCustodyAccount(scenario.basketId), address(assetA));
+        scenario.positionId = _mintPositionShares(scenario.basketId, alice, 100 ether);
+        vm.prank(alice);
+        (scenario.loanId,) = lending.borrow(scenario.positionId, scenario.basketId, 100 ether, alice);
+        scenario.rewardAssets = new address[](2);
+        scenario.rewardAssets[0] = address(assetA);
+        scenario.rewardAssets[1] = address(assetB);
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        scenario.stakingPositionId = globalRewards.createAndStake(100 ether, alice, scenario.rewardAssets);
+        vm.stopPrank();
+    }
+
+    function _assertLowLtvRecoveryOutcome(LowLtvRecovery memory scenario) private {
+        (uint256[] memory activeLoans,) = positionPortfolio.loanIdsOfPosition(scenario.positionId, 0, 100);
         assertEq(activeLoans.length, 0);
 
         IStaticsBasketCollateral.BasketCollateralPosition memory position =
-            basketCollateral.basketCollateralPosition(positionId, basketId);
+            basketCollateral.basketCollateralPosition(scenario.positionId, scenario.basketId);
         assertEq(position.depositedShares, 79 ether);
         assertEq(position.lockedShares, 0);
-        assertEq(IERC20(token).totalSupply(), launchSupply + 79 ether);
-        assertEq(IERC20(token).balanceOf(address(diamond)), 79 ether);
+        assertEq(IERC20(scenario.token).totalSupply(), scenario.launchSupply + 79 ether);
+        assertEq(IERC20(scenario.token).balanceOf(address(diamond)), 79 ether);
         assertEq(assetA.balanceOf(bob), 0.4 ether);
         vm.prank(alice);
-        uint256[] memory pending = globalRewards.pendingRewards(stakingPositionId, rewardAssets);
+        uint256[] memory pending = globalRewards.pendingRewards(scenario.stakingPositionId, scenario.rewardAssets);
         assertEq(pending[0], 1.44 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.16 ether);
-        assertEq(lending.outstandingPrincipal(basketId, address(assetA)), 0);
-        assertEq(IModularPositionNFT(address(diamond)).positionState(positionId).unresolvedObligationCount, 0);
-        assertEq(baskets.vaultBalance(basketId, address(assetA)), launchVault + 158 ether);
+        assertEq(lending.outstandingPrincipal(scenario.basketId, address(assetA)), 0);
+        assertEq(IModularPositionNFT(address(diamond)).positionState(scenario.positionId).unresolvedObligationCount, 0);
+        assertEq(baskets.vaultBalance(scenario.basketId, address(assetA)), scenario.launchVault + 158 ether);
         assertEq(
-            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)),
-            launchBasketReserved + 158 ether
+            custody.reservedByAccount(custody.basketCustodyAccount(scenario.basketId), address(assetA)),
+            scenario.launchBasketReserved + 158 ether
         );
     }
 
@@ -608,6 +663,15 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(globalRewards.treasuryAccrued(assets[0]), fees[0]);
     }
 
+    struct TaxReceiptSnapshot {
+        uint256 launchSupply;
+        bytes32 basketAccount;
+        uint256 vaultBefore;
+        uint256 basketReservedBefore;
+        uint256 globalReservedBefore;
+        uint256 treasuryBefore;
+    }
+
     function testFlashRepaymentCreditsMeasuredDirectionalTaxReceipt() public {
         MockOutboundFeeERC20 taxed = new MockOutboundFeeERC20();
         taxed.setTaxedSender(makeAddr("inactive taxed sender"));
@@ -615,40 +679,58 @@ contract LendingAndFlashTest is StaticsTestBase {
         params.assets[0] = address(taxed);
         params.flashFeeBps = 200;
         (uint256 basketId, address token) = _launchBasket(params, alice, basketAdmin.creationFee());
-        uint256 launchSupply = IERC20(token).totalSupply();
+        TaxReceiptSnapshot memory snapshot;
+        snapshot.launchSupply = IERC20(token).totalSupply();
+        snapshot.basketAccount = custody.basketCustodyAccount(basketId);
 
-        uint256[] memory initialMaximums = baskets.quoteMint(basketId, 10 ether);
-        taxed.mint(alice, initialMaximums[0]);
-        assetB.mint(alice, initialMaximums[1]);
-        vm.startPrank(alice);
-        taxed.approve(address(diamond), initialMaximums[0]);
-        assetB.approve(address(diamond), initialMaximums[1]);
-        baskets.mint(basketId, 10 ether, alice, initialMaximums);
-        vm.stopPrank();
+        {
+            uint256[] memory initialMaximums = baskets.quoteMint(basketId, 10 ether);
+            taxed.mint(alice, initialMaximums[0]);
+            assetB.mint(alice, initialMaximums[1]);
+            vm.startPrank(alice);
+            taxed.approve(address(diamond), initialMaximums[0]);
+            assetB.approve(address(diamond), initialMaximums[1]);
+            baskets.mint(basketId, 10 ether, alice, initialMaximums);
+            vm.stopPrank();
+        }
 
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        (address[] memory assets, uint256[] memory amounts, uint256[] memory fees) =
-            flashLoans.quoteFlashLoan(basketId, 1 ether);
-        taxed.mint(address(receiver), fees[0]);
-        assetB.mint(address(receiver), fees[1]);
+        uint256[] memory amounts;
+        uint256[] memory fees;
+        {
+            address[] memory assets;
+            (assets, amounts, fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
+            taxed.mint(address(receiver), fees[0]);
+            assetB.mint(address(receiver), fees[1]);
+            assertEq(assets[0], address(taxed));
+        }
         taxed.setTaxedSender(address(receiver));
-        bytes32 basketAccount = custody.basketCustodyAccount(basketId);
-        uint256 vaultBefore = baskets.vaultBalance(basketId, address(taxed));
-        uint256 basketReservedBefore = custody.reservedByAccount(basketAccount, address(taxed));
-        uint256 globalReservedBefore = custody.globalReservedByToken(address(taxed));
-        uint256 treasuryBefore = globalRewards.treasuryAccrued(address(taxed));
-        uint256 expectedReceived = amounts[0] + fees[0] - ((amounts[0] + fees[0]) / 100);
-        uint256 expectedActualFee = expectedReceived - amounts[0];
+
+        snapshot.vaultBefore = baskets.vaultBalance(basketId, address(taxed));
+        snapshot.basketReservedBefore = custody.reservedByAccount(snapshot.basketAccount, address(taxed));
+        snapshot.globalReservedBefore = custody.globalReservedByToken(address(taxed));
+        snapshot.treasuryBefore = globalRewards.treasuryAccrued(address(taxed));
+        uint256 expectedActualFee =
+            (amounts[0] + fees[0]) - ((amounts[0] + fees[0]) / 100) - amounts[0];
 
         receiver.execute(basketId, 1 ether, bytes("directional repayment tax"));
 
-        assertEq(assets[0], address(taxed));
-        assertEq(baskets.vaultBalance(basketId, address(taxed)), vaultBefore);
-        assertEq(custody.reservedByAccount(basketAccount, address(taxed)), basketReservedBefore);
-        assertEq(globalRewards.treasuryAccrued(address(taxed)) - treasuryBefore, expectedActualFee);
-        assertEq(custody.globalReservedByToken(address(taxed)) - globalReservedBefore, expectedActualFee);
+        _assertDirectionalTaxReceipt(basketId, token, taxed, expectedActualFee, snapshot);
+    }
+
+    function _assertDirectionalTaxReceipt(
+        uint256 basketId,
+        address token,
+        MockOutboundFeeERC20 taxed,
+        uint256 expectedActualFee,
+        TaxReceiptSnapshot memory snapshot
+    ) private view {
+        assertEq(baskets.vaultBalance(basketId, address(taxed)), snapshot.vaultBefore);
+        assertEq(custody.reservedByAccount(snapshot.basketAccount, address(taxed)), snapshot.basketReservedBefore);
+        assertEq(globalRewards.treasuryAccrued(address(taxed)) - snapshot.treasuryBefore, expectedActualFee);
+        assertEq(custody.globalReservedByToken(address(taxed)) - snapshot.globalReservedBefore, expectedActualFee);
         assertGe(taxed.balanceOf(address(diamond)), custody.globalReservedByToken(address(taxed)));
-        assertEq(IERC20(token).totalSupply(), launchSupply + 10 ether);
+        assertEq(IERC20(token).totalSupply(), snapshot.launchSupply + 10 ether);
     }
 
     function testFlashLoanRevertsAtomicallyWhenReceiverDoesNotRepay() public {

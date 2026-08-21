@@ -165,6 +165,18 @@ contract UpgradeGovernedProtocolPoolsTest is Test {
 contract RobinhoodGovernedProtocolPoolsUpgradeForkTest is Test {
     uint256 private constant PRE_UPGRADE_FORK_BLOCK = 97_818_311;
 
+    struct UpgradeRehearsal {
+        address diamond;
+        address proposer;
+        StaticsTimelock timelock;
+        UpgradeGovernedProtocolPools ceremony;
+        UpgradeGovernedProtocolPools.UpgradeContracts contracts;
+        IStaticsBasket.BasketView basket;
+        bytes32[] canonicalStates;
+        uint128[] lockedLiquidity;
+        address hook;
+    }
+
     function testRehearsesUpgradeAndGovernancePoolLaunchAgainstRobinhoodState() public {
         string memory rpcUrl = vm.envOr("ROBINHOOD_TESTNET", string(""));
         if (bytes(rpcUrl).length == 0) {
@@ -173,49 +185,60 @@ contract RobinhoodGovernedProtocolPoolsUpgradeForkTest is Test {
         }
         vm.createSelectFork(rpcUrl, PRE_UPGRADE_FORK_BLOCK);
 
-        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
-        address proposer = vm.envAddress("STATICS_TIMELOCK_PROPOSER");
-        StaticsTimelock timelock = StaticsTimelock(payable(IERC173(diamond).owner()));
-        UpgradeGovernedProtocolPools ceremony = new UpgradeGovernedProtocolPools();
-        UpgradeGovernedProtocolPools.UpgradeContracts memory contracts_ = _replacementContracts(diamond);
+        UpgradeRehearsal memory rehearsal = _snapshotPreUpgradeState();
+        _executeUpgrade(rehearsal);
+        _assertCanonicalPoolsPreserved(rehearsal);
+        _launchMockGovernancePool(rehearsal.diamond, rehearsal.proposer, rehearsal.timelock);
+    }
 
-        IStaticsBasket.BasketView memory basket = IStaticsBasket(diamond).basket(0);
-        bytes32[] memory canonicalStates = new bytes32[](basket.assets.length);
-        uint128[] memory lockedLiquidity = new uint128[](basket.assets.length);
-        (, address hook,) = IStaticsBasketLiquidity(diamond).liquidityIntegration();
-        for (uint256 i; i < basket.assets.length; ++i) {
+    function _snapshotPreUpgradeState() private returns (UpgradeRehearsal memory rehearsal) {
+        rehearsal.diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        rehearsal.proposer = vm.envAddress("STATICS_TIMELOCK_PROPOSER");
+        rehearsal.timelock = StaticsTimelock(payable(IERC173(rehearsal.diamond).owner()));
+        rehearsal.ceremony = new UpgradeGovernedProtocolPools();
+        rehearsal.contracts = _replacementContracts(rehearsal.diamond);
+
+        rehearsal.basket = IStaticsBasket(rehearsal.diamond).basket(0);
+        uint256 assetCount = rehearsal.basket.assets.length;
+        rehearsal.canonicalStates = new bytes32[](assetCount);
+        rehearsal.lockedLiquidity = new uint128[](assetCount);
+        (, rehearsal.hook,) = IStaticsBasketLiquidity(rehearsal.diamond).liquidityIntegration();
+        for (uint256 i; i < assetCount; ++i) {
             IStaticsBasketLiquidity.CanonicalPoolView memory pool =
-                IStaticsBasketLiquidity(diamond).canonicalPool(0, basket.assets[i]);
-            canonicalStates[i] = keccak256(abi.encode(pool));
-            lockedLiquidity[i] = IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId);
+                IStaticsBasketLiquidity(rehearsal.diamond).canonicalPool(0, rehearsal.basket.assets[i]);
+            rehearsal.canonicalStates[i] = keccak256(abi.encode(pool));
+            rehearsal.lockedLiquidity[i] = IStaticsSwapFeeHook(rehearsal.hook).lockedLiquidity(pool.poolId);
         }
+    }
 
+    function _executeUpgrade(UpgradeRehearsal memory rehearsal) private {
         bytes32 salt = keccak256("Robinhood governed protocol pools fork rehearsal");
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
-            ceremony.buildBatch(diamond, contracts_);
-        bytes32 operationId = timelock.hashOperationBatch(targets, values, payloads, bytes32(0), salt);
-        uint256 delay = timelock.getMinDelay();
-        vm.prank(proposer);
-        timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
+            rehearsal.ceremony.buildBatch(rehearsal.diamond, rehearsal.contracts);
+        bytes32 operationId =
+            rehearsal.timelock.hashOperationBatch(targets, values, payloads, bytes32(0), salt);
+        uint256 delay = rehearsal.timelock.getMinDelay();
+        vm.prank(rehearsal.proposer);
+        rehearsal.timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
         vm.warp(block.timestamp + delay);
-        (address oldManager,) = IStaticsBasketLiquidity(diamond).liquidityManager();
-        timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
-        ceremony.validateUpgraded(diamond, contracts_, oldManager);
-        assertTrue(timelock.isOperationDone(operationId));
+        (address oldManager,) = IStaticsBasketLiquidity(rehearsal.diamond).liquidityManager();
+        rehearsal.timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
+        rehearsal.ceremony.validateUpgraded(rehearsal.diamond, rehearsal.contracts, oldManager);
+        assertTrue(rehearsal.timelock.isOperationDone(operationId));
+    }
 
-        for (uint256 i; i < basket.assets.length; ++i) {
+    function _assertCanonicalPoolsPreserved(UpgradeRehearsal memory rehearsal) private view {
+        for (uint256 i; i < rehearsal.basket.assets.length; ++i) {
             IStaticsBasketLiquidity.CanonicalPoolView memory pool =
-                IStaticsBasketLiquidity(diamond).canonicalPool(0, basket.assets[i]);
-            assertEq(keccak256(abi.encode(pool)), canonicalStates[i]);
-            assertEq(IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId), lockedLiquidity[i]);
+                IStaticsBasketLiquidity(rehearsal.diamond).canonicalPool(0, rehearsal.basket.assets[i]);
+            assertEq(keccak256(abi.encode(pool)), rehearsal.canonicalStates[i]);
+            assertEq(IStaticsSwapFeeHook(rehearsal.hook).lockedLiquidity(pool.poolId), rehearsal.lockedLiquidity[i]);
             IStaticsProtocolPools.ProtocolPoolView memory normalized =
-                IStaticsProtocolPools(diamond).protocolPool(pool.poolId);
+                IStaticsProtocolPools(rehearsal.diamond).protocolPool(pool.poolId);
             assertEq(uint256(normalized.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical));
             assertEq(normalized.basketId, 0);
-            assertEq(normalized.basketAsset, basket.assets[i]);
+            assertEq(normalized.basketAsset, rehearsal.basket.assets[i]);
         }
-
-        _launchMockGovernancePool(diamond, proposer, timelock);
     }
 
     function _replacementContracts(address diamond)
@@ -236,29 +259,48 @@ contract RobinhoodGovernedProtocolPoolsUpgradeForkTest is Test {
         });
     }
 
+    struct MockPoolLaunch {
+        MockERC20 tokenA;
+        MockERC20 tokenB;
+        uint256 maxA;
+        uint256 maxB;
+        uint256 amountA;
+        uint256 amountB;
+        uint128 quotedLiquidity;
+        bytes32 poolId;
+    }
+
     function _launchMockGovernancePool(address diamond, address proposer, StaticsTimelock timelock) private {
-        MockERC20 tokenA = new MockERC20("Governance Pool A", "GPA", 18);
-        MockERC20 tokenB = new MockERC20("Governance Pool B", "GPB", 18);
-        uint256 maxA = 10 ether;
-        uint256 maxB = 10 ether;
-        tokenA.mint(proposer, maxA);
-        tokenB.mint(proposer, maxB);
+        MockPoolLaunch memory launch = _scheduleMockPool(diamond, proposer, timelock);
+        _assertMockPool(diamond, proposer, launch);
+    }
+
+    function _scheduleMockPool(address diamond, address proposer, StaticsTimelock timelock)
+        private
+        returns (MockPoolLaunch memory launch)
+    {
+        launch.tokenA = new MockERC20("Governance Pool A", "GPA", 18);
+        launch.tokenB = new MockERC20("Governance Pool B", "GPB", 18);
+        launch.maxA = 10 ether;
+        launch.maxB = 10 ether;
+        launch.tokenA.mint(proposer, launch.maxA);
+        launch.tokenB.mint(proposer, launch.maxB);
         vm.startPrank(proposer);
-        tokenA.approve(diamond, maxA);
-        tokenB.approve(diamond, maxB);
+        launch.tokenA.approve(diamond, launch.maxA);
+        launch.tokenB.approve(diamond, launch.maxB);
         vm.stopPrank();
 
         IStaticsProtocolPools.CreateGovernancePoolParams memory params = IStaticsProtocolPools.CreateGovernancePoolParams({
-            tokenA: address(tokenA),
-            tokenB: address(tokenB),
+            tokenA: address(launch.tokenA),
+            tokenB: address(launch.tokenB),
             sqrtPriceBPerAX96: uint160(1 << 96),
-            amountAMax: maxA,
-            amountBMax: maxB,
+            amountAMax: launch.maxA,
+            amountBMax: launch.maxB,
             minLiquidity: 1,
             payer: proposer,
             deadline: block.timestamp + 1 days
         });
-        (, bytes32 expectedPoolId,, uint128 quotedLiquidity, uint256 amountA, uint256 amountB) = _quote(diamond, params);
+        (, launch.poolId,, launch.quotedLiquidity, launch.amountA, launch.amountB) = _quote(diamond, params);
         bytes memory payload = abi.encodeCall(IStaticsProtocolPools.createGovernancePool, (params));
         bytes32 salt = keccak256("Robinhood mock governance pool fork launch");
         uint256 delay = timelock.getMinDelay();
@@ -266,15 +308,17 @@ contract RobinhoodGovernedProtocolPoolsUpgradeForkTest is Test {
         timelock.schedule(diamond, 0, payload, bytes32(0), salt, delay);
         vm.warp(block.timestamp + delay);
         timelock.execute(diamond, 0, payload, bytes32(0), salt);
+    }
 
+    function _assertMockPool(address diamond, address proposer, MockPoolLaunch memory launch) private view {
         IStaticsProtocolPools.ProtocolPoolView memory pool =
-            IStaticsProtocolPools(diamond).protocolPool(PoolId.wrap(expectedPoolId));
+            IStaticsProtocolPools(diamond).protocolPool(PoolId.wrap(launch.poolId));
         assertEq(uint256(pool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.Governance));
-        assertEq(pool.permanentLiquidity, quotedLiquidity);
-        assertEq(tokenA.balanceOf(proposer), maxA - amountA);
-        assertEq(tokenB.balanceOf(proposer), maxB - amountB);
-        assertEq(tokenA.allowance(proposer, diamond), maxA - amountA);
-        assertEq(tokenB.allowance(proposer, diamond), maxB - amountB);
+        assertEq(pool.permanentLiquidity, launch.quotedLiquidity);
+        assertEq(launch.tokenA.balanceOf(proposer), launch.maxA - launch.amountA);
+        assertEq(launch.tokenB.balanceOf(proposer), launch.maxB - launch.amountB);
+        assertEq(launch.tokenA.allowance(proposer, diamond), launch.maxA - launch.amountA);
+        assertEq(launch.tokenB.allowance(proposer, diamond), launch.maxB - launch.amountB);
     }
 
     function _quote(address diamond, IStaticsProtocolPools.CreateGovernancePoolParams memory params)

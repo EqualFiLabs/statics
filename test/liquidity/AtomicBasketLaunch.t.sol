@@ -154,17 +154,20 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         }
     }
 
+    struct LaunchExpectation {
+        uint256 basketAmount;
+        uint256 pairedAssetAmount;
+        uint256 maximum;
+        uint256 debit;
+    }
+
     function testSenderExtraChargeCannotExceedCompleteLaunchMaximum() public {
         MockSenderExtraFeeERC20 taxed = new MockSenderExtraFeeERC20();
-        address[] memory assets = new address[](1);
-        assets[0] = address(taxed);
-        uint256[] memory bundleAmounts = new uint256[](1);
-        bundleAmounts[0] = 0.01 ether;
         IStaticsBasket.CreateBasketParams memory params = IStaticsBasket.CreateBasketParams({
             name: "Sender Extra Launch",
             symbol: "sEXTRA",
-            assets: assets,
-            bundleAmounts: bundleAmounts,
+            assets: _singleAddressArray(address(taxed)),
+            bundleAmounts: _singleUintArray(0.01 ether),
             mintFeeTiers: new IStaticsBasket.FeeTier[](0),
             redemptionFeeTiers: new IStaticsBasket.FeeTier[](0),
             flashFeeBps: 5,
@@ -174,37 +177,62 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
-        pools[0] = IStaticsBasket.PoolLaunchParams({
-            sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: 1 ether
-        });
+        IStaticsBasket.PoolLaunchParams[] memory pools = _singlePoolLaunch(1 ether);
+        LaunchExpectation memory expected = _expectedLaunchDebit(address(taxed), params.bundleAmounts[0]);
 
-        address predictedBasketToken = vm.computeCreateAddress(address(diamond), vm.getNonce(address(diamond)));
-        bool assetIsCurrency0 = address(taxed) < predictedBasketToken;
-        (, uint256 basketAmount, uint256 pairedAssetAmount) =
-            LibBasketLiquidityMath.fullRangeAmounts(DEFAULT_LAUNCH_SQRT_PRICE, assetIsCurrency0, 1 ether);
-        uint256 backingAmount = LibBasket.backingIncrease(bundleAmounts[0], 0, basketAmount);
-        uint256 maximum = pairedAssetAmount + backingAmount;
-        uint256 actualDebit = maximum + pairedAssetAmount / 100 + backingAmount / 100;
-        uint256[] memory maximums = new uint256[](1);
-        maximums[0] = maximum;
-
-        taxed.mint(alice, actualDebit);
+        taxed.mint(alice, expected.debit);
         taxed.setTaxedSender(alice);
         uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.startPrank(alice);
-        taxed.approve(address(diamond), maximum);
+        taxed.approve(address(diamond), expected.maximum);
         vm.expectRevert(
             abi.encodeWithSelector(
-                BasketLiquidityFacet.LaunchDebitExceedsMaximum.selector, address(taxed), actualDebit, maximum
+                BasketLiquidityFacet.LaunchDebitExceedsMaximum.selector,
+                address(taxed),
+                expected.debit,
+                expected.maximum
             )
         );
-        baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
+        baskets.createBasket{value: creationFeeAmount}(params, pools, _singleUintArray(expected.maximum), type(uint256).max);
         vm.stopPrank();
 
         assertEq(baskets.basketCount(), 0);
-        assertEq(taxed.balanceOf(alice), actualDebit);
+        assertEq(taxed.balanceOf(alice), expected.debit);
         assertEq(taxed.balanceOf(address(diamond)), 0);
+    }
+
+    function _singleAddressArray(address item) private pure returns (address[] memory items) {
+        items = new address[](1);
+        items[0] = item;
+    }
+
+    function _singleUintArray(uint256 item) private pure returns (uint256[] memory items) {
+        items = new uint256[](1);
+        items[0] = item;
+    }
+
+    function _singlePoolLaunch(uint256 pairedAssetAmount)
+        private
+        pure
+        returns (IStaticsBasket.PoolLaunchParams[] memory pools)
+    {
+        pools = new IStaticsBasket.PoolLaunchParams[](1);
+        pools[0] =
+            IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: pairedAssetAmount});
+    }
+
+    function _expectedLaunchDebit(address taxed, uint256 bundleAmount)
+        private
+        view
+        returns (LaunchExpectation memory expected)
+    {
+        address predictedBasketToken = vm.computeCreateAddress(address(diamond), vm.getNonce(address(diamond)));
+        bool assetIsCurrency0 = taxed < predictedBasketToken;
+        (, expected.basketAmount, expected.pairedAssetAmount) =
+            LibBasketLiquidityMath.fullRangeAmounts(DEFAULT_LAUNCH_SQRT_PRICE, assetIsCurrency0, 1 ether);
+        uint256 backingAmount = LibBasket.backingIncrease(bundleAmount, 0, expected.basketAmount);
+        expected.maximum = expected.pairedAssetAmount + backingAmount;
+        expected.debit = expected.maximum + expected.pairedAssetAmount / 100 + backingAmount / 100;
     }
 
     function testLaunchRejectsPricesOutsideFullRangeTickBounds() public {

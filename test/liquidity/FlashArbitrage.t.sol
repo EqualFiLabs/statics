@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -262,6 +262,21 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(address(assetA))), 0);
     }
 
+    struct UnprofitableBookSnapshot {
+        bytes32 account;
+        address basketToken;
+        uint256 vault;
+        uint256 accountReserved;
+        uint256 globalReserved;
+        uint256 treasury;
+        uint256 managerAsset;
+        uint256 managerBasket;
+        uint256 receiverAsset;
+        uint128 lockedLiquidity;
+        uint160 price;
+        int24 tick;
+    }
+
     function testUnprofitableRouteRevertsWithoutChangingAnyProtocolOrPoolBook() public {
         MultiAssetFixture memory fixture = _createMultiAssetFixture();
         FlashArbitrageReceiver receiver = _newReceiver();
@@ -270,38 +285,55 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256[] memory mintMaximums = baskets.quoteMint(fixture.basketId, 1 ether);
         assetA.mint(address(receiver), mintMaximums[0] - flashAmounts[0] + flashFees[0]);
         assetB.mint(address(receiver), mintMaximums[1] - flashAmounts[1] + flashFees[1]);
-        uint256[] memory basketAmountsIn = new uint256[](2);
-        basketAmountsIn[0] = 0.5 ether;
-        basketAmountsIn[1] = 0.5 ether;
-        uint256[] memory impossibleProfits = new uint256[](2);
-        impossibleProfits[0] = 1 ether;
-        impossibleProfits[1] = 1 ether;
 
-        bytes32 account = custody.basketCustodyAccount(fixture.basketId);
-        uint256 vaultBefore = baskets.vaultBalance(fixture.basketId, address(assetA));
-        uint256 accountBefore = custody.reservedByAccount(account, address(assetA));
-        uint256 globalBefore = custody.globalReservedByToken(address(assetA));
-        uint256 treasuryBefore = globalRewards.treasuryAccrued(address(assetA));
-        uint256 managerAssetBefore = assetA.balanceOf(address(poolManager));
-        uint256 managerBasketBefore = IERC20(fixture.basketToken).balanceOf(address(poolManager));
-        uint256 receiverAssetBefore = assetA.balanceOf(address(receiver));
-        uint128 lockedBefore = swapFeeHook.lockedLiquidity(fixture.pools[0].toId());
-        (uint160 priceBefore, int24 tickBefore,,) = poolManager.getSlot0(fixture.pools[0].toId());
-
+        UnprofitableBookSnapshot memory before = _snapshotUnprofitableBook(fixture, receiver);
         vm.expectPartialRevert(FlashArbitrageReceiver.MinimumProfitNotMet.selector);
-        receiver.executeMintAndSell(fixture.basketId, 1 ether, fixture.pools, basketAmountsIn, impossibleProfits);
+        receiver.executeMintAndSell(
+            fixture.basketId, 1 ether, fixture.pools, _halfAndHalf(1 ether), _impossibleProfits()
+        );
+        UnprofitableBookSnapshot memory after_ = _snapshotUnprofitableBook(fixture, receiver);
 
-        assertEq(baskets.vaultBalance(fixture.basketId, address(assetA)), vaultBefore);
-        assertEq(custody.reservedByAccount(account, address(assetA)), accountBefore);
-        assertEq(custody.globalReservedByToken(address(assetA)), globalBefore);
-        assertEq(globalRewards.treasuryAccrued(address(assetA)), treasuryBefore);
-        assertEq(assetA.balanceOf(address(poolManager)), managerAssetBefore);
-        assertEq(IERC20(fixture.basketToken).balanceOf(address(poolManager)), managerBasketBefore);
-        assertEq(assetA.balanceOf(address(receiver)), receiverAssetBefore);
-        assertEq(swapFeeHook.lockedLiquidity(fixture.pools[0].toId()), lockedBefore);
-        (uint160 priceAfter, int24 tickAfter,,) = poolManager.getSlot0(fixture.pools[0].toId());
-        assertEq(priceAfter, priceBefore);
-        assertEq(tickAfter, tickBefore);
+        assertEq(after_.vault, before.vault);
+        assertEq(after_.accountReserved, before.accountReserved);
+        assertEq(after_.globalReserved, before.globalReserved);
+        assertEq(after_.treasury, before.treasury);
+        assertEq(after_.managerAsset, before.managerAsset);
+        assertEq(after_.managerBasket, before.managerBasket);
+        assertEq(after_.receiverAsset, before.receiverAsset);
+        assertEq(after_.lockedLiquidity, before.lockedLiquidity);
+        assertEq(uint256(after_.price), uint256(before.price));
+        assertEq(int256(after_.tick), int256(before.tick));
+    }
+
+    function _snapshotUnprofitableBook(MultiAssetFixture memory fixture, FlashArbitrageReceiver receiver)
+        private
+        view
+        returns (UnprofitableBookSnapshot memory snapshot)
+    {
+        PoolId poolId = fixture.pools[0].toId();
+        snapshot.account = custody.basketCustodyAccount(fixture.basketId);
+        snapshot.basketToken = fixture.basketToken;
+        snapshot.vault = baskets.vaultBalance(fixture.basketId, address(assetA));
+        snapshot.accountReserved = custody.reservedByAccount(snapshot.account, address(assetA));
+        snapshot.globalReserved = custody.globalReservedByToken(address(assetA));
+        snapshot.treasury = globalRewards.treasuryAccrued(address(assetA));
+        snapshot.managerAsset = assetA.balanceOf(address(poolManager));
+        snapshot.managerBasket = IERC20(fixture.basketToken).balanceOf(address(poolManager));
+        snapshot.receiverAsset = assetA.balanceOf(address(receiver));
+        snapshot.lockedLiquidity = swapFeeHook.lockedLiquidity(poolId);
+        (snapshot.price, snapshot.tick,,) = poolManager.getSlot0(poolId);
+    }
+
+    function _halfAndHalf(uint256 amount) private pure returns (uint256[] memory amounts) {
+        amounts = new uint256[](2);
+        amounts[0] = amount / 2;
+        amounts[1] = amount - amounts[0];
+    }
+
+    function _impossibleProfits() private pure returns (uint256[] memory profits) {
+        profits = new uint256[](2);
+        profits[0] = 1 ether;
+        profits[1] = 1 ether;
     }
 
     function testReceiverRejectsNoncanonicalPoolKeyForConfiguredPair() public {
@@ -361,39 +393,71 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 feeShares = bound(rawFeeShares, 0, 0.02 ether);
         uint16 flashFeeBps = uint16(bound(rawFlashFeeBps, 0, 100));
         _setHookFees(rawInputFeeBps, rawOutputFeeBps);
+
+        OverpricedArbitrage memory plan = _prepareOverpricedArbitrage(shares, bundleAmount, feeShares, flashFeeBps);
+        vm.startPrank(alice);
+        _approveOverpricedTopUps(plan);
+        (, uint256[] memory profits) =
+            plan.receiver.executeMintAndSell(
+                plan.basketId,
+                shares,
+                plan.pools,
+                _splitBasketAmountsIn(shares),
+                _unitMinimumProfits(),
+                block.timestamp
+            );
+        vm.stopPrank();
+
+        assertGt(profits[0], 0);
+        assertGt(profits[1], 0);
+        assertEq(assetA.balanceOf(address(plan.receiver)), 0);
+        assertEq(assetB.balanceOf(address(plan.receiver)), 0);
+    }
+
+    struct OverpricedArbitrage {
+        uint256 basketId;
+        PoolKey[] pools;
+        uint256[] flashAmounts;
+        uint256[] mintMaximums;
+        StaticsFlashArbitrageReceiver receiver;
+    }
+
+    function _prepareOverpricedArbitrage(uint256 shares, uint256 bundleAmount, uint256 feeShares, uint16 flashFeeBps)
+        private
+        returns (OverpricedArbitrage memory plan)
+    {
         address[] memory assets = new address[](2);
         assets[0] = address(assetA);
         assets[1] = address(assetB);
         uint256[] memory bundleAmounts = new uint256[](2);
         bundleAmounts[0] = bundleAmount;
         bundleAmounts[1] = bundleAmount;
-        (uint256 basketId, address basketToken) =
-            _createBasketWithFees(assets, bundleAmounts, feeShares, feeShares, flashFeeBps);
-        _mintInitialSupply(basketId, basketToken, assets, 100 ether);
-        PoolKey[] memory pools = new PoolKey[](2);
-        pools[0] = _initializeAndSeed(basketId, basketToken, assets[0]);
-        pools[1] = _initializeAndSeed(basketId, basketToken, assets[1]);
-        StaticsFlashArbitrageReceiver receiver = new StaticsFlashArbitrageReceiver(address(diamond));
-        (, uint256[] memory flashAmounts,) = flashLoans.quoteFlashLoan(basketId, shares);
-        uint256[] memory mintMaximums = baskets.quoteMint(basketId, shares);
-        uint256[] memory basketAmountsIn = new uint256[](2);
+        address basketToken;
+        (plan.basketId, basketToken) = _createBasketWithFees(assets, bundleAmounts, feeShares, feeShares, flashFeeBps);
+        _mintInitialSupply(plan.basketId, basketToken, assets, 100 ether);
+        plan.pools = new PoolKey[](2);
+        plan.pools[0] = _initializeAndSeed(plan.basketId, basketToken, assets[0]);
+        plan.pools[1] = _initializeAndSeed(plan.basketId, basketToken, assets[1]);
+        plan.receiver = new StaticsFlashArbitrageReceiver(address(diamond));
+        (, plan.flashAmounts,) = flashLoans.quoteFlashLoan(plan.basketId, shares);
+        plan.mintMaximums = baskets.quoteMint(plan.basketId, shares);
+    }
+
+    function _splitBasketAmountsIn(uint256 shares) private pure returns (uint256[] memory basketAmountsIn) {
+        basketAmountsIn = new uint256[](2);
         basketAmountsIn[0] = shares / 2;
         basketAmountsIn[1] = shares - basketAmountsIn[0];
-        uint256[] memory minimumProfits = new uint256[](2);
+    }
+
+    function _unitMinimumProfits() private pure returns (uint256[] memory minimumProfits) {
+        minimumProfits = new uint256[](2);
         minimumProfits[0] = 1;
         minimumProfits[1] = 1;
+    }
 
-        vm.startPrank(alice);
-        assetA.approve(address(receiver), mintMaximums[0] - flashAmounts[0]);
-        assetB.approve(address(receiver), mintMaximums[1] - flashAmounts[1]);
-        (, uint256[] memory profits) =
-            receiver.executeMintAndSell(basketId, shares, pools, basketAmountsIn, minimumProfits, block.timestamp);
-        vm.stopPrank();
-
-        assertGt(profits[0], 0);
-        assertGt(profits[1], 0);
-        assertEq(assetA.balanceOf(address(receiver)), 0);
-        assertEq(assetB.balanceOf(address(receiver)), 0);
+    function _approveOverpricedTopUps(OverpricedArbitrage memory plan) private {
+        assetA.approve(address(plan.receiver), plan.mintMaximums[0] - plan.flashAmounts[0]);
+        assetB.approve(address(plan.receiver), plan.mintMaximums[1] - plan.flashAmounts[1]);
     }
 
     function _createMultiAssetFixture() private returns (MultiAssetFixture memory fixture) {

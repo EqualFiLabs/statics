@@ -351,10 +351,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         pools[0].pairedAssetAmount = 1;
         pools[1].pairedAssetAmount = 1;
         (uint256 basketId, address token) = _launchWith(params, pools, alice, 1 ether);
-        uint256 launchVault = baskets.vaultBalance(basketId, address(taxed));
-        uint256 launchBasketReserved = custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed));
-        uint256 launchReserved = custody.globalReservedByToken(address(taxed));
-        uint256 launchTreasury = globalRewards.treasuryAccrued(address(taxed));
+        TaxCreditSnapshot memory snapshot = _snapshotTaxCredits(basketId, address(taxed));
         vm.startPrank(alice);
         taxed.mint(alice, 10 ether);
         assetB.mint(alice, 10 ether);
@@ -364,17 +361,44 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.mint(basketId, 1 ether, alice, quote);
         vm.stopPrank();
 
-        uint256 received = quote[0] * 99 / 100;
-        uint256 backingIncrease = baskets.vaultBalance(basketId, address(taxed)) - launchVault;
+        _assertTaxCreditSettlement(basketId, address(taxed), token, quote[0] * 99 / 100, snapshot);
+    }
+
+    struct TaxCreditSnapshot {
+        uint256 launchVault;
+        uint256 launchBasketReserved;
+        uint256 launchReserved;
+        uint256 launchTreasury;
+    }
+
+    function _snapshotTaxCredits(uint256 basketId, address taxed)
+        private
+        view
+        returns (TaxCreditSnapshot memory snapshot)
+    {
+        snapshot.launchVault = baskets.vaultBalance(basketId, taxed);
+        snapshot.launchBasketReserved = custody.reservedByAccount(custody.basketCustodyAccount(basketId), taxed);
+        snapshot.launchReserved = custody.globalReservedByToken(taxed);
+        snapshot.launchTreasury = globalRewards.treasuryAccrued(taxed);
+    }
+
+    function _assertTaxCreditSettlement(
+        uint256 basketId,
+        address taxed,
+        address token,
+        uint256 received,
+        TaxCreditSnapshot memory snapshot
+    ) private view {
+        uint256 backingIncrease = baskets.vaultBalance(basketId, taxed) - snapshot.launchVault;
         assertEq(IERC20(token).balanceOf(alice), 1 ether);
         assertGt(backingIncrease, 0);
         uint256 feeReceived = received - backingIncrease;
-        assertEq(globalRewards.treasuryAccrued(address(taxed)) - launchTreasury, feeReceived);
+        assertEq(globalRewards.treasuryAccrued(taxed) - snapshot.launchTreasury, feeReceived);
         assertEq(
-            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed)) - launchBasketReserved,
+            custody.reservedByAccount(custody.basketCustodyAccount(basketId), taxed) - snapshot.launchBasketReserved,
             backingIncrease
         );
-        assertEq(custody.globalReservedByToken(address(taxed)) - launchReserved, received);
+        assertEq(custody.globalReservedByToken(taxed) - snapshot.launchReserved, received);
     }
 
     function testMinimumRedemptionUsesObservedReceiverDelta() public {
@@ -415,9 +439,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         params.assets[0] = address(taxed);
         (uint256 firstBasket, address firstToken) = _launch(params, alice, 1 ether);
         (uint256 secondBasket,) = _launch(params, alice, 1 ether);
-        uint256 firstSupplyBefore = IERC20(firstToken).totalSupply();
-        uint256 firstVaultBefore = baskets.vaultBalance(firstBasket, address(taxed));
-        uint256 secondVaultBefore = baskets.vaultBalance(secondBasket, address(taxed));
+        SenderTaxSnapshot memory snapshot = _snapshotSenderTax(firstBasket, secondBasket, address(taxed), firstToken);
         vm.startPrank(alice);
         taxed.mint(alice, 20 ether);
         assetB.mint(alice, 20 ether);
@@ -435,12 +457,38 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.redeem(firstBasket, 1 ether, alice, outputs);
         vm.stopPrank();
 
+        _assertSenderTaxIsolation(firstBasket, secondBasket, address(taxed), firstToken, snapshot);
+    }
+
+    struct SenderTaxSnapshot {
+        uint256 firstSupplyBefore;
+        uint256 firstVaultBefore;
+        uint256 secondVaultBefore;
+    }
+
+    function _snapshotSenderTax(uint256 firstBasket, uint256 secondBasket, address taxed, address firstToken)
+        private
+        view
+        returns (SenderTaxSnapshot memory snapshot)
+    {
+        snapshot.firstSupplyBefore = IERC20(firstToken).totalSupply();
+        snapshot.firstVaultBefore = baskets.vaultBalance(firstBasket, taxed);
+        snapshot.secondVaultBefore = baskets.vaultBalance(secondBasket, taxed);
+    }
+
+    function _assertSenderTaxIsolation(
+        uint256 firstBasket,
+        uint256 secondBasket,
+        address taxed,
+        address firstToken,
+        SenderTaxSnapshot memory snapshot
+    ) private view {
         bytes32 firstAccount = custody.basketCustodyAccount(firstBasket);
         bytes32 secondAccount = custody.basketCustodyAccount(secondBasket);
-        assertEq(IERC20(firstToken).totalSupply(), firstSupplyBefore + 1 ether);
-        assertEq(baskets.vaultBalance(firstBasket, address(taxed)), firstVaultBefore + 2 ether);
-        assertEq(custody.reservedByAccount(firstAccount, address(taxed)), firstVaultBefore + 2 ether);
-        assertEq(custody.reservedByAccount(secondAccount, address(taxed)), secondVaultBefore + 2 ether);
+        assertEq(IERC20(firstToken).totalSupply(), snapshot.firstSupplyBefore + 1 ether);
+        assertEq(baskets.vaultBalance(firstBasket, taxed), snapshot.firstVaultBefore + 2 ether);
+        assertEq(custody.reservedByAccount(firstAccount, taxed), snapshot.firstVaultBefore + 2 ether);
+        assertEq(custody.reservedByAccount(secondAccount, taxed), snapshot.secondVaultBefore + 2 ether);
     }
 
     function testProtocolRevenueCallbackCannotCrossIntoBasketFacet() public {

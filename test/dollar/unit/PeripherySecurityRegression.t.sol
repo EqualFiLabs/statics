@@ -219,8 +219,36 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(rewards.treasuryAccrued(address(statics)), 25 ether);
     }
 
+    struct SharedTokenStack {
+        StaticsDollarStackDeployment deployment;
+        CanonicalWETH9 token;
+        IStaticsDollarCore core;
+        StakingFacet staking;
+        PairingVaultFacet vault;
+        StaticsDollar dollar;
+        StaticsDollarRiskShares risk;
+        uint256 positionId;
+        uint256 aliceShares;
+    }
+
     function test_ClaimsAggregateWhenCollateralAndStaticsAreTheSameToken() public {
         CanonicalWETH9 sharedToken = new CanonicalWETH9();
+        SharedTokenStack memory stack = _deploySharedTokenStack(sharedToken);
+        uint256 aliceDollars = _stakeSharedIncentives(stack);
+        _redeemSharedStack(stack);
+        uint256 beforeClaim = sharedToken.balanceOf(bob);
+        vm.prank(alice);
+        (uint256 collateralClaimed, uint256 dollarClaimed, uint256 staticsClaimed) =
+            stack.staking.claimRiskProceeds(stack.positionId, SERIES_ID, bob);
+        assertEq(dollarClaimed, 0);
+        assertEq(sharedToken.balanceOf(bob) - beforeClaim, collateralClaimed + staticsClaimed);
+        assertEq(aliceDollars, stack.dollar.balanceOf(alice));
+    }
+
+    function _deploySharedTokenStack(CanonicalWETH9 sharedToken)
+        private
+        returns (SharedTokenStack memory stack)
+    {
         StaticsDollarLocalConfig memory config;
         config.owner = owner;
         config.profileGuardian = owner;
@@ -229,42 +257,38 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         config.deployMockOracle = true;
         config.mockOraclePriceWad = 2_500e18;
         config.riskUri = "ipfs://risk/{id}.json";
-        StaticsDollarStackDeployment memory sharedDeployment = new DeployStaticsDollar().deployLocal(config);
-        IStaticsDollarCore sharedCore = IStaticsDollarCore(sharedDeployment.core);
-        StakingFacet sharedStaking = StakingFacet(sharedDeployment.diamond);
-        PairingVaultFacet sharedVault = PairingVaultFacet(sharedDeployment.diamond);
-        StaticsDollar sharedDollar = StaticsDollar(sharedDeployment.staticsDollar);
-        StaticsDollarRiskShares sharedRisk = StaticsDollarRiskShares(sharedDeployment.staticsDollarRisk);
+        stack.deployment = new DeployStaticsDollar().deployLocal(config);
+        stack.token = sharedToken;
+        stack.core = IStaticsDollarCore(stack.deployment.core);
+        stack.staking = StakingFacet(stack.deployment.diamond);
+        stack.vault = PairingVaultFacet(stack.deployment.diamond);
+        stack.dollar = StaticsDollar(stack.deployment.staticsDollar);
+        stack.risk = StaticsDollarRiskShares(stack.deployment.staticsDollarRisk);
+    }
 
+    function _stakeSharedIncentives(SharedTokenStack memory stack) private returns (uint256 aliceDollars) {
         vm.deal(alice, 2 ether);
         vm.startPrank(alice);
-        sharedToken.deposit{value: 2 ether}();
-        sharedToken.approve(sharedDeployment.core, 1 ether);
-        (, uint256 aliceDollars, uint256 aliceShares) =
-            sharedCore.depositCollateral(PROFILE_ID, 1 ether, 0, 0, alice, alice);
-        sharedRisk.setApprovalForAll(sharedDeployment.diamond, true);
-        uint256 positionId = sharedStaking.createAndStakeRiskShares(SERIES_ID, aliceShares / 2, alice);
-        sharedToken.approve(sharedDeployment.diamond, 1 ether);
-        sharedStaking.fundRiskCollateralIncentives(SERIES_ID, 0.4 ether);
-        sharedStaking.fundRiskStaticsIncentives(SERIES_ID, 0.6 ether);
+        stack.token.deposit{value: 2 ether}();
+        stack.token.approve(stack.deployment.core, 1 ether);
+        (, aliceDollars, stack.aliceShares) = stack.core.depositCollateral(PROFILE_ID, 1 ether, 0, 0, alice, alice);
+        stack.risk.setApprovalForAll(stack.deployment.diamond, true);
+        stack.positionId = stack.staking.createAndStakeRiskShares(SERIES_ID, stack.aliceShares / 2, alice);
+        stack.token.approve(stack.deployment.diamond, 1 ether);
+        stack.staking.fundRiskCollateralIncentives(SERIES_ID, 0.4 ether);
+        stack.staking.fundRiskStaticsIncentives(SERIES_ID, 0.6 ether);
         vm.stopPrank();
+    }
 
+    function _redeemSharedStack(SharedTokenStack memory stack) private {
         vm.deal(redeemer, 1 ether);
         vm.startPrank(redeemer);
-        sharedToken.deposit{value: 1 ether}();
-        sharedToken.approve(sharedDeployment.core, 1 ether);
-        (, uint256 redeemerDollars,) = sharedCore.depositCollateral(PROFILE_ID, 1 ether, 0, 0, redeemer, redeemer);
-        sharedDollar.approve(sharedDeployment.diamond, redeemerDollars);
-        sharedVault.redeem(SERIES_ID, aliceShares / 2, aliceShares / 2, 0, block.timestamp, redeemer);
+        stack.token.deposit{value: 1 ether}();
+        stack.token.approve(stack.deployment.core, 1 ether);
+        (, uint256 redeemerDollars,) = stack.core.depositCollateral(PROFILE_ID, 1 ether, 0, 0, redeemer, redeemer);
+        stack.dollar.approve(stack.deployment.diamond, redeemerDollars);
+        stack.vault.redeem(SERIES_ID, stack.aliceShares / 2, stack.aliceShares / 2, 0, block.timestamp, redeemer);
         vm.stopPrank();
-
-        uint256 beforeClaim = sharedToken.balanceOf(bob);
-        vm.prank(alice);
-        (uint256 collateralClaimed, uint256 dollarClaimed, uint256 staticsClaimed) =
-            sharedStaking.claimRiskProceeds(positionId, SERIES_ID, bob);
-        assertEq(dollarClaimed, 0);
-        assertEq(sharedToken.balanceOf(bob) - beforeClaim, collateralClaimed + staticsClaimed);
-        assertEq(aliceDollars, sharedDollar.balanceOf(alice));
     }
 
     function test_RiskSharesAreImmediatelyConsumableAndUnconsumedSharesWithdraw() public {
@@ -327,20 +351,8 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         uint256 supplied = aliceShares / 2;
         uint256 fill = supplied / 2;
         uint256 positionId = _createAndStake(alice, supplied);
-        uint256 collateralFunding = 0.2 ether;
         uint256 dollarFunding = aliceDollars / 4;
-        uint256 staticsFunding = 40 ether;
-
-        vm.deal(alice, alice.balance + collateralFunding);
-        vm.startPrank(alice);
-        weth.deposit{value: collateralFunding}();
-        weth.approve(deployment.diamond, collateralFunding);
-        staticsDollar.approve(deployment.diamond, dollarFunding);
-        statics.approve(deployment.diamond, staticsFunding);
-        staking.fundRiskCollateralIncentives(SERIES_ID, collateralFunding);
-        staking.fundRiskDollarIncentives(SERIES_ID, dollarFunding);
-        staking.fundRiskStaticsIncentives(SERIES_ID, staticsFunding);
-        vm.stopPrank();
+        _fundAllRiskIncentives(alice, dollarFunding);
 
         PairingVaultFacet.RedeemPreview memory preview = vault.previewRedeem(SERIES_ID, fill);
         vm.startPrank(redeemer);
@@ -348,19 +360,52 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         vault.redeem(SERIES_ID, fill, fill, 0, block.timestamp, redeemer);
         vm.stopPrank();
 
-        uint256 releasedCollateral = Math.mulDiv(collateralFunding, fill, supplied);
-        uint256 releasedDollar = Math.mulDiv(dollarFunding, fill, supplied);
-        uint256 releasedStatics = Math.mulDiv(staticsFunding, fill, supplied);
+        _assertReleasedReserves(dollarFunding, supplied, fill);
+        _assertClaimableAccrued(positionId, preview.collateralToRiskSuppliers, dollarFunding, supplied, fill);
+        _claimAndAssertPayout(positionId);
+    }
+
+    uint256 internal constant INCENTIVE_COLLATERAL_FUNDING = 0.2 ether;
+    uint256 internal constant INCENTIVE_STATICS_FUNDING = 40 ether;
+
+    function _fundAllRiskIncentives(address funder, uint256 dollarFunding) private {
+        vm.deal(funder, funder.balance + INCENTIVE_COLLATERAL_FUNDING);
+        vm.startPrank(funder);
+        weth.deposit{value: INCENTIVE_COLLATERAL_FUNDING}();
+        weth.approve(deployment.diamond, INCENTIVE_COLLATERAL_FUNDING);
+        staticsDollar.approve(deployment.diamond, dollarFunding);
+        statics.approve(deployment.diamond, INCENTIVE_STATICS_FUNDING);
+        staking.fundRiskCollateralIncentives(SERIES_ID, INCENTIVE_COLLATERAL_FUNDING);
+        staking.fundRiskDollarIncentives(SERIES_ID, dollarFunding);
+        staking.fundRiskStaticsIncentives(SERIES_ID, INCENTIVE_STATICS_FUNDING);
+        vm.stopPrank();
+    }
+
+    function _assertReleasedReserves(uint256 dollarFunding, uint256 supplied, uint256 fill) private view {
         StakingFacet.RiskIncentiveView memory incentives = staking.riskIncentives(SERIES_ID);
-        assertEq(incentives.collateralReserve, collateralFunding - releasedCollateral);
-        assertEq(incentives.staticsDollarReserve, dollarFunding - releasedDollar);
-        assertEq(incentives.staticsReserve, staticsFunding - releasedStatics);
+        assertEq(incentives.collateralReserve, INCENTIVE_COLLATERAL_FUNDING - Math.mulDiv(INCENTIVE_COLLATERAL_FUNDING, fill, supplied));
+        assertEq(incentives.staticsDollarReserve, dollarFunding - Math.mulDiv(dollarFunding, fill, supplied));
+        assertEq(incentives.staticsReserve, INCENTIVE_STATICS_FUNDING - Math.mulDiv(INCENTIVE_STATICS_FUNDING, fill, supplied));
+    }
 
+    function _assertClaimableAccrued(
+        uint256 positionId,
+        uint256 supplierProceeds,
+        uint256 dollarFunding,
+        uint256 supplied,
+        uint256 fill
+    ) private view {
         StakingFacet.RiskLiquidityView memory position = staking.riskLiquidity(positionId, SERIES_ID);
-        assertApproxEqAbs(position.claimableCollateral, preview.collateralToRiskSuppliers + releasedCollateral, 2);
-        assertApproxEqAbs(position.claimableStaticsDollar, releasedDollar, 1);
-        assertApproxEqAbs(position.claimableStatics, releasedStatics, 1);
+        assertApproxEqAbs(
+            position.claimableCollateral,
+            supplierProceeds + Math.mulDiv(INCENTIVE_COLLATERAL_FUNDING, fill, supplied),
+            2
+        );
+        assertApproxEqAbs(position.claimableStaticsDollar, Math.mulDiv(dollarFunding, fill, supplied), 1);
+        assertApproxEqAbs(position.claimableStatics, Math.mulDiv(INCENTIVE_STATICS_FUNDING, fill, supplied), 1);
+    }
 
+    function _claimAndAssertPayout(uint256 positionId) private {
         uint256 collateralBefore = weth.balanceOf(bob);
         uint256 dollarBefore = staticsDollar.balanceOf(bob);
         uint256 staticsBefore = statics.balanceOf(bob);
