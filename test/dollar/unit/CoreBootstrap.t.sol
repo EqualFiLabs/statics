@@ -218,7 +218,7 @@ contract CoreBootstrapTest is Test {
         CoreInit.InitArgs memory eoaArgs =
             _initArgs(makeAddr("eoaToken"), address(eoaRisk), address(oracle), address(collateral));
         vm.expectRevert(abi.encodeWithSelector(LibCore.ContractExpected.selector, eoaArgs.staticsDollar));
-        new StaticsDollarCoreDiamond(owner, eoaGenesis, eoaParts.init, abi.encodeCall(CoreInit.init, (eoaArgs)));
+        new StaticsDollarCoreDiamond(owner, eoaParts.init, abi.encodeCall(CoreInit.genesis, (eoaGenesis, eoaArgs)));
 
         DeployCoreBootstrap.CoreParts memory counterfeitParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory counterfeitGenesis = harness.buildGenesis(counterfeitParts);
@@ -229,7 +229,7 @@ contract CoreBootstrapTest is Test {
             _initArgs(address(counterfeit), address(counterfeitRisk), address(oracle), address(collateral));
         vm.expectPartialRevert(CoreInit.InvalidTokenKind.selector);
         new StaticsDollarCoreDiamond(
-            owner, counterfeitGenesis, counterfeitParts.init, abi.encodeCall(CoreInit.init, (counterfeitArgs))
+            owner, counterfeitParts.init, abi.encodeCall(CoreInit.genesis, (counterfeitGenesis, counterfeitArgs))
         );
 
         DeployCoreBootstrap.CoreParts memory misboundParts = harness.deployParts();
@@ -241,7 +241,7 @@ contract CoreBootstrapTest is Test {
             _initArgs(address(misboundStaticsDollar), address(misboundRisk), address(oracle), address(collateral));
         vm.expectPartialRevert(CoreInit.InvalidTokenPool.selector);
         new StaticsDollarCoreDiamond(
-            owner, misboundGenesis, misboundParts.init, abi.encodeCall(CoreInit.init, (misboundArgs))
+            owner, misboundParts.init, abi.encodeCall(CoreInit.genesis, (misboundGenesis, misboundArgs))
         );
     }
 
@@ -265,7 +265,8 @@ contract CoreBootstrapTest is Test {
         staticsDollar = address(new StaticsDollar(predictedCore));
         staticsDollarRisk = address(new StaticsDollarRiskShares(predictedCore, ""));
         CoreInit.InitArgs memory args = _initArgs(staticsDollar, staticsDollarRisk, oracle, address(collateral));
-        core = address(new StaticsDollarCoreDiamond(owner, genesis, parts.init, abi.encodeCall(CoreInit.init, (args))));
+        core =
+            address(new StaticsDollarCoreDiamond(owner, parts.init, abi.encodeCall(CoreInit.genesis, (genesis, args))));
         assertEq(core, predictedCore);
     }
 

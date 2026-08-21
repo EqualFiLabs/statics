@@ -104,16 +104,18 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
         private
         returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG)
     {
-        return _deployStaticsProtocol(
-            core,
-            config.weth,
-            config.owner,
-            config.profileGuardian,
-            config.treasury,
-            config.stakingToken,
-            config.creationFeeAmount,
-            config.positionCreationFeeAmount
-        );
+        DeployStaticsProtocol.ProtocolDeploymentConfig memory protocolConfig =
+            DeployStaticsProtocol.ProtocolDeploymentConfig({
+                pool: core,
+                weth: config.weth,
+                finalOwner: config.owner,
+                guardian: config.profileGuardian,
+                treasury: config.treasury,
+                stakingToken: config.stakingToken,
+                creationFeeAmount: config.creationFeeAmount,
+                positionCreationFeeAmount: config.positionCreationFeeAmount
+            });
+        return _deployStaticsProtocol(protocolConfig);
     }
 
     function _deployCore(CoreBootstrapConfig memory config, address deploymentCreator)
@@ -126,10 +128,10 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
         staticsDollarRisk = address(new StaticsDollarRiskShares(predictedCore, config.riskUri));
         IDiamondCut.FacetCut[] memory genesis = _coreGenesis(parts);
         CoreInit.InitArgs memory args = _coreInitArgs(config, staticsDollar, staticsDollarRisk);
-        bytes memory initData = abi.encodeCall(CoreInit.init, (args));
+        bytes memory initData = abi.encodeCall(CoreInit.genesis, (genesis, args));
         address owner = config.owner;
         address init = parts.init;
-        StaticsDollarCoreDiamond core = new StaticsDollarCoreDiamond(owner, genesis, init, initData);
+        StaticsDollarCoreDiamond core = new StaticsDollarCoreDiamond(owner, init, initData);
         coreAddress = address(core);
         if (coreAddress != predictedCore) revert CorePredictionMismatch(predictedCore, coreAddress);
     }

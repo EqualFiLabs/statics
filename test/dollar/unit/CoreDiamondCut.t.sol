@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 
 import {DiamondKernel} from "src/diamond/DiamondKernel.sol";
+import {StaticsGenesisCut} from "src/diamond/StaticsGenesisCut.sol";
 import {DiamondCutFacet} from "src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
@@ -11,9 +12,7 @@ import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
 
 contract CoreKernelHarness is DiamondKernel {
-    constructor(address owner, IDiamondCut.FacetCut[] memory genesisCut)
-        DiamondKernel(owner, genesisCut, address(0), "")
-    {}
+    constructor(address owner, address init, bytes memory initData) DiamondKernel(owner, init, initData) {}
 }
 
 contract CoreKernelValueFacet {
@@ -67,7 +66,9 @@ contract CoreDiamondCutTest is Test {
         bytes4[] memory valueSelector = new bytes4[](1);
         valueSelector[0] = CoreKernelValueFacet.coreValue.selector;
         genesis[3] = IDiamondCut.FacetCut(address(valueFacet), IDiamondCut.FacetCutAction.Add, valueSelector);
-        core = new CoreKernelHarness(owner, genesis);
+        core = new CoreKernelHarness(
+            owner, address(new StaticsGenesisCut()), abi.encodeCall(StaticsGenesisCut.cut, (genesis))
+        );
         loupe = DiamondLoupeFacet(address(core));
         ownership = OwnershipFacet(address(core));
     }

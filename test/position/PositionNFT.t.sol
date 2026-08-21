@@ -155,13 +155,12 @@ contract PositionNFTTest is Test {
         StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             address(this),
-            cut,
+            address(0),
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.initialize,
-                (makeAddr("guardian"), treasury, address(stakingToken), 0, 0, address(renderer))
-            ),
-            address(0)
+                StaticsProtocolInit.genesisInitialize,
+                (cut, makeAddr("guardian"), treasury, address(stakingToken), 0, 0, address(renderer))
+            )
         );
         nft = IERC721(address(diamond));
         metadata = IERC721Metadata(address(diamond));

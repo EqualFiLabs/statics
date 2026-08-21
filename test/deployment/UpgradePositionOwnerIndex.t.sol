@@ -69,13 +69,12 @@ contract UpgradePositionOwnerIndexTest is Test {
         StaticsProtocolInit protocolInit = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             address(timelock),
-            initialCut,
+            address(0),
             address(protocolInit),
             abi.encodeCall(
-                StaticsProtocolInit.initialize,
-                (makeAddr("guardian"), makeAddr("treasury"), address(this), 0, 0, address(0))
-            ),
-            address(0)
+                StaticsProtocolInit.genesisInitialize,
+                (initialCut, makeAddr("guardian"), makeAddr("treasury"), address(this), 0, 0, address(0))
+            )
         );
 
         bytes4[] memory interfaceIds = new bytes4[](2);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {DiamondKernel} from "./DiamondKernel.sol";
 
 contract StaticsDiamond is DiamondKernel {
@@ -9,8 +8,8 @@ contract StaticsDiamond is DiamondKernel {
 
     error NativeSenderNotAllowed(address sender);
 
-    constructor(address owner, IDiamondCut.FacetCut[] memory cut, address init, bytes memory data, address nativeSender)
-        DiamondKernel(owner, cut, init, data)
+    constructor(address owner, address nativeSender, address init, bytes memory initData)
+        DiamondKernel(owner, init, initData)
     {
         NATIVE_SENDER = nativeSender;
     }

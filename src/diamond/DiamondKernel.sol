@@ -8,9 +8,12 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 abstract contract DiamondKernel {
     error FunctionNotFound(bytes4 selector);
 
-    constructor(address owner, IDiamondCut.FacetCut[] memory genesisCut, address init, bytes memory initData) {
+    /// @dev Genesis facets are applied by the init contract during this delegatecall so the
+    /// constructor signature stays free of nested dynamic arrays, which legacy Solidity
+    /// codegen cannot encode within the EVM stack limit.
+    constructor(address owner, address init, bytes memory initData) {
         LibDiamond.initializeOwnership(owner);
-        LibDiamond.diamondCut(genesisCut, init, initData);
+        LibDiamond.initializeCut(init, initData);
     }
 
     fallback() external payable {

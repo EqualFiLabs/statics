@@ -60,38 +60,43 @@ abstract contract DeployStaticsProtocol {
         address protocolPools;
     }
 
-    function _deployStaticsProtocol(
-        address pool,
-        address weth,
-        address finalOwner,
-        address guardian,
-        address treasury,
-        address stakingToken,
-        uint256 creationFeeAmount,
-        uint256 positionCreationFeeAmount
-    ) internal returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG) {
+    struct ProtocolDeploymentConfig {
+        address pool;
+        address weth;
+        address finalOwner;
+        address guardian;
+        address treasury;
+        address stakingToken;
+        uint256 creationFeeAmount;
+        uint256 positionCreationFeeAmount;
+    }
+
+    function _deployStaticsProtocol(ProtocolDeploymentConfig memory config)
+        internal
+        returns (address diamond, address positionNFT, address positionRenderer, address avatarSVG)
+    {
         ProtocolParts memory parts = _deployProtocolParts();
         IDiamondCut.FacetCut[] memory cut =
             _protocolCut(parts, address(new BasketLiquidityFacet()), address(new LiquidityRewardsFacet()));
         LibPeriphery.InitArgs memory dollarArgs = LibPeriphery.InitArgs({
-            pool: pool,
-            weth: weth,
+            pool: config.pool,
+            weth: config.weth,
             baseBps: 7_000,
             insuranceBps: 3_000,
             redemptionFeeBps: 50,
             redemptionSupplierShareBps: 8_000
         });
         StaticsProtocolInit.UnifiedInitArgs memory args = StaticsProtocolInit.UnifiedInitArgs({
-            guardian: guardian,
-            treasury: treasury,
-            stakingToken: stakingToken,
-            creationFeeAmount: creationFeeAmount,
-            positionCreationFeeAmount: positionCreationFeeAmount,
+            guardian: config.guardian,
+            treasury: config.treasury,
+            stakingToken: config.stakingToken,
+            creationFeeAmount: config.creationFeeAmount,
+            positionCreationFeeAmount: config.positionCreationFeeAmount,
             positionRenderer: parts.positionRenderer,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(
-            finalOwner, cut, parts.init, abi.encodeCall(StaticsProtocolInit.initializeUnified, (args)), weth
+            config.finalOwner, config.weth, parts.init, abi.encodeCall(StaticsProtocolInit.genesis, (cut, args))
         );
         return (address(deployedDiamond), address(deployedDiamond), parts.positionRenderer, parts.avatarSVG);
     }

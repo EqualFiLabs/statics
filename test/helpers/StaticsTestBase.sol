@@ -73,12 +73,12 @@ contract StaticsTestDeployer {
         StaticsPositionRenderer renderer = new StaticsPositionRenderer(new StaticsAvatarSVG());
         diamond = new StaticsDiamond(
             owner,
-            cut,
+            address(0),
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether, 0, address(renderer))
-            ),
-            address(0)
+                StaticsProtocolInit.genesisInitialize,
+                (cut, guardian, treasury, stakingToken, 1 ether, 0, address(renderer))
+            )
         );
     }
 
