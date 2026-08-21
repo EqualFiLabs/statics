@@ -120,5 +120,4 @@ contract FeeRouterFacet is ReentrancyGuard {
     function pendingInsurance(uint256 profileId) external view returns (uint256) {
         return LibPeriphery.s().pendingInsurance[profileId];
     }
-
 }

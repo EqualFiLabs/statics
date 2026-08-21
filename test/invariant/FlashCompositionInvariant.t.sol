@@ -419,7 +419,8 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
         (IStaticsBasket.PoolLaunchParams[] memory launchPools, uint256[] memory launchMaximums) =
             _fundDefaultLaunch(assets, alice);
         vm.prank(alice);
-        (basketId, basketToken) = baskets.createBasket{value: 1 ether}(params, launchPools, launchMaximums, type(uint256).max);
+        (basketId, basketToken) =
+            baskets.createBasket{value: 1 ether}(params, launchPools, launchMaximums, type(uint256).max);
         uint256[] memory maximums = baskets.quoteMint(basketId, 100 ether);
         assetA.mint(alice, maximums[0] + 100 ether);
         vm.startPrank(alice);

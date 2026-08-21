@@ -131,8 +131,7 @@ contract MultiProfileSecurityHandler is Test, IERC1155Receiver {
         if (available < 1e12) return;
         uint256 amount = bound(rawAmount, 1e12, available);
         try mintFacet.redeemPegged(USDC_PROFILE, amount, 0, address(this)) returns (
-            IStaticsDollarCoreTypes.ExitStatus status,
-            uint256 collateralOut
+            IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut
         ) {
             if (status == IStaticsDollarCoreTypes.ExitStatus.Available) {
                 assertGt(collateralOut, 0);

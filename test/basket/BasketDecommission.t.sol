@@ -150,9 +150,7 @@ contract BasketDecommissionTest is StaticsTestBase {
         vm.roll(block.number + 1);
         uint256[] memory redemption = baskets.quoteRedeem(basketId, recoveryQuote.unlockedShares);
         vm.prank(alice);
-        basketCollateral.redeemBasketCollateral(
-            positionId, basketId, recoveryQuote.unlockedShares, alice, redemption
-        );
+        basketCollateral.redeemBasketCollateral(positionId, basketId, recoveryQuote.unlockedShares, alice, redemption);
         assertEq(IERC20(token).totalSupply(), launchSupply);
     }
 

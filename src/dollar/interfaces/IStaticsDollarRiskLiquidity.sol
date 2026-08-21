@@ -43,10 +43,7 @@ interface IStaticsDollarRiskLiquidity {
         external
         returns (uint256 collateralAmount, uint256 staticsDollarAmount, uint256 staticsAmount);
 
-    function riskLiquidity(uint256 positionId, uint256 seriesId)
-        external
-        view
-        returns (RiskLiquidityView memory view_);
+    function riskLiquidity(uint256 positionId, uint256 seriesId) external view returns (RiskLiquidityView memory view_);
 
     function totalRiskLiquidity(uint256 seriesId) external view returns (uint256);
 }

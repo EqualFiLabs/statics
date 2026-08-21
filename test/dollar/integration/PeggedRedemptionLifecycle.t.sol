@@ -206,8 +206,7 @@ contract PeggedRedemptionLifecycleTest is Test {
         wethOracle.setUpdatedAt(block.timestamp);
         transition.cancelSeriesTransition(1);
 
-        (IStaticsDollarCoreTypes.ExitStatus status,,, uint256 firstAvailableAt) =
-            health.checkpointPeggedRedemption();
+        (IStaticsDollarCoreTypes.ExitStatus status,,, uint256 firstAvailableAt) = health.checkpointPeggedRedemption();
         assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Recovering));
         vm.warp(block.timestamp + 24 hours);
         usdcOracle.setInvalidPrice(true);

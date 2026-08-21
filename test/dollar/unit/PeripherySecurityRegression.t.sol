@@ -298,8 +298,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         IStaticsDollarCoreTypes.StableCollateralProfile memory profileBefore = core.collateralProfile(PROFILE_ID);
         vm.startPrank(redeemer);
         staticsDollar.approve(deployment.diamond, redeemerDollar);
-        (, uint256 filled,) =
-            vault.redeem(SERIES_ID, fill, fill, 0, block.timestamp, redeemer);
+        (, uint256 filled,) = vault.redeem(SERIES_ID, fill, fill, 0, block.timestamp, redeemer);
         vm.stopPrank();
 
         assertEq(filled, fill);
@@ -503,16 +502,10 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(staking.riskLiquidity(positionId, successorSeriesId).effectiveShares, successorPrincipal);
         assertEq(staking.totalRiskLiquidity(successorSeriesId), successorPrincipal);
         assertEq(staticsDollarRisk.balanceOf(deployment.diamond, successorSeriesId), successorPrincipal);
-        assertEq(
-            staking.riskLiquidity(positionId, SERIES_ID).claimableStaticsDollar,
-            successorPrincipal
-        );
+        assertEq(staking.riskLiquidity(positionId, SERIES_ID).claimableStaticsDollar, successorPrincipal);
     }
 
-    function _deposit(address account, uint256 collateralAmount)
-        internal
-        returns (uint256 dollars, uint256 shares)
-    {
+    function _deposit(address account, uint256 collateralAmount) internal returns (uint256 dollars, uint256 shares) {
         vm.deal(account, collateralAmount);
         vm.startPrank(account);
         weth.deposit{value: collateralAmount}();
