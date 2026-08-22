@@ -110,8 +110,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         uint256 positionId = _mintPositionShares(basketId, alice, 10 ether);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 5 ether, alice);
-        ExtensionSnapshot memory snap =
-            _prepareExtension(basketId, positionId, loanId, token);
+        ExtensionSnapshot memory snap = _prepareExtension(basketId, positionId, loanId, token);
 
         vm.startPrank(alice);
         assetA.approve(address(diamond), snap.quotedFees[0]);
@@ -156,9 +155,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.1235125 ether);
         assertEq(IERC20(token).totalSupply(), snap.supplyBefore);
         assertEq(baskets.vaultBalance(basketId, address(assetA)), snap.vaultBefore);
-        assertEq(
-            basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, snap.eligibleBefore
-        );
+        assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, snap.eligibleBefore);
         assertEq(lending.loan(loanId).principals[0], snap.principalBefore);
     }
 
@@ -313,10 +310,15 @@ contract LendingAndFlashTest is StaticsTestBase {
         uint256 nonceBeforeFailedRecovery =
             IModularPositionNFT(address(diamond)).positionState(scenario.positionId).stateNonce;
         vm.expectRevert(
-            abi.encodeWithSelector(LendingFacet.LoanNotRecoverable.selector, scenario.loanId, recoveryQuote.recoverableAt)
+            abi.encodeWithSelector(
+                LendingFacet.LoanNotRecoverable.selector, scenario.loanId, recoveryQuote.recoverableAt
+            )
         );
         lending.recover(scenario.loanId);
-        assertEq(IModularPositionNFT(address(diamond)).positionState(scenario.positionId).stateNonce, nonceBeforeFailedRecovery);
+        assertEq(
+            IModularPositionNFT(address(diamond)).positionState(scenario.positionId).stateNonce,
+            nonceBeforeFailedRecovery
+        );
         vm.warp(block.timestamp + 1);
         vm.prank(bob);
         lending.recover(scenario.loanId);
@@ -710,8 +712,7 @@ contract LendingAndFlashTest is StaticsTestBase {
         snapshot.basketReservedBefore = custody.reservedByAccount(snapshot.basketAccount, address(taxed));
         snapshot.globalReservedBefore = custody.globalReservedByToken(address(taxed));
         snapshot.treasuryBefore = globalRewards.treasuryAccrued(address(taxed));
-        uint256 expectedActualFee =
-            (amounts[0] + fees[0]) - ((amounts[0] + fees[0]) / 100) - amounts[0];
+        uint256 expectedActualFee = (amounts[0] + fees[0]) - ((amounts[0] + fees[0]) / 100) - amounts[0];
 
         receiver.execute(basketId, 1 ether, bytes("directional repayment tax"));
 

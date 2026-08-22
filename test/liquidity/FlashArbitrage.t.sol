@@ -397,14 +397,9 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         OverpricedArbitrage memory plan = _prepareOverpricedArbitrage(shares, bundleAmount, feeShares, flashFeeBps);
         vm.startPrank(alice);
         _approveOverpricedTopUps(plan);
-        (, uint256[] memory profits) =
-            plan.receiver.executeMintAndSell(
-                plan.basketId,
-                shares,
-                plan.pools,
-                _splitBasketAmountsIn(shares),
-                _unitMinimumProfits(),
-                block.timestamp
+        (, uint256[] memory profits) = plan.receiver
+            .executeMintAndSell(
+                plan.basketId, shares, plan.pools, _splitBasketAmountsIn(shares), _unitMinimumProfits(), block.timestamp
             );
         vm.stopPrank();
 

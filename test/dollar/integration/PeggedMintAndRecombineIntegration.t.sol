@@ -137,9 +137,7 @@ contract PeggedMintAndRecombineIntegrationTest is Test {
         assertEq(core.collateralProfile(setup.peggedProfileId).seniorOutstanding, setup.riskAmount);
         assertEq(setup.risk.balanceOf(alice, SERIES_ID), 1_566_666_666_666_666_666_666);
         assertEq(setup.weth.balanceOf(receiver), setup.quote.volatileCollateralOut);
-        assertEq(
-            setup.dollar.balanceOf(setup.deployment.diamond), custody.globalReservedByToken(address(setup.dollar))
-        );
+        assertEq(setup.dollar.balanceOf(setup.deployment.diamond), custody.globalReservedByToken(address(setup.dollar)));
         assertEq(setup.usdc.balanceOf(setup.deployment.diamond), custody.globalReservedByToken(address(setup.usdc)));
         assertEq(setup.usdc.allowance(setup.deployment.diamond, setup.deployment.core), 0);
     }

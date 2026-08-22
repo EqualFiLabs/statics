@@ -23,7 +23,8 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         uint256 basketId;
         address basketToken;
         uint256[] memory amounts;
-        (basketId, basketToken, amounts) = _seedDecimalFlashBasket(tokenA, tokenB, decimalsA, decimalsB, flashFeeBps, shares);
+        (basketId, basketToken, amounts) =
+            _seedDecimalFlashBasket(tokenA, tokenB, decimalsA, decimalsB, flashFeeBps, shares);
 
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
         vm.prank(alice);

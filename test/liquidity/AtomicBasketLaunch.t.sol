@@ -193,7 +193,9 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
                 expected.maximum
             )
         );
-        baskets.createBasket{value: creationFeeAmount}(params, pools, _singleUintArray(expected.maximum), type(uint256).max);
+        baskets.createBasket{value: creationFeeAmount}(
+            params, pools, _singleUintArray(expected.maximum), type(uint256).max
+        );
         vm.stopPrank();
 
         assertEq(baskets.basketCount(), 0);
@@ -217,8 +219,9 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         returns (IStaticsBasket.PoolLaunchParams[] memory pools)
     {
         pools = new IStaticsBasket.PoolLaunchParams[](1);
-        pools[0] =
-            IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: pairedAssetAmount});
+        pools[0] = IStaticsBasket.PoolLaunchParams({
+            sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: pairedAssetAmount
+        });
     }
 
     function _expectedLaunchDebit(address taxed, uint256 bundleAmount)

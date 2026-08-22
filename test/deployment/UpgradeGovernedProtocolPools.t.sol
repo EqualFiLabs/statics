@@ -215,8 +215,7 @@ contract RobinhoodGovernedProtocolPoolsUpgradeForkTest is Test {
         bytes32 salt = keccak256("Robinhood governed protocol pools fork rehearsal");
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             rehearsal.ceremony.buildBatch(rehearsal.diamond, rehearsal.contracts);
-        bytes32 operationId =
-            rehearsal.timelock.hashOperationBatch(targets, values, payloads, bytes32(0), salt);
+        bytes32 operationId = rehearsal.timelock.hashOperationBatch(targets, values, payloads, bytes32(0), salt);
         uint256 delay = rehearsal.timelock.getMinDelay();
         vm.prank(rehearsal.proposer);
         rehearsal.timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);

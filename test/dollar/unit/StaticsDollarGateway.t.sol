@@ -649,13 +649,13 @@ contract StaticsDollarGatewayTest is Test {
         staticsDollar.transfer(staticsDollarReceiver, staticsDollar.balanceOf(alice));
         vm.stopPrank();
         (uint256 peggedProfileId, MockUSDC usdc,) = _activatePeggedProfile();
-        IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote = _validateAtomicQuote(peggedProfileId, riskAmount);
+        IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote =
+            _validateAtomicQuote(peggedProfileId, riskAmount);
         _fundAtomicMigration(alice, usdc, quote.totalPeggedCollateralIn);
 
         AtomicSnapshot memory before = _snapshotAtomicState(peggedProfileId);
         vm.prank(alice);
-        (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut) =
-        gateway.mintPeggedAndRecombine(
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 peggedCollateralIn, uint256 volatileCollateralOut) = gateway.mintPeggedAndRecombine(
             peggedProfileId,
             WETH_PROFILE,
             SERIES_ONE,
@@ -685,7 +685,8 @@ contract StaticsDollarGatewayTest is Test {
         returns (IStaticsDollarGateway.PeggedMintAndRecombineQuote memory quote)
     {
         quote = gateway.quoteMintPeggedAndRecombine(peggedProfileId, WETH_PROFILE, SERIES_ONE, riskAmount);
-        IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview = pool.previewPeggedMint(peggedProfileId, riskAmount);
+        IStaticsDollarCoreTypes.PeggedMintPreview memory mintPreview =
+            pool.previewPeggedMint(peggedProfileId, riskAmount);
         IStaticsDollarCoreTypes.RedemptionPreview memory recombinationPreview =
             pool.previewRecombine(SERIES_ONE, riskAmount);
         assertTrue(quote.eligible);
@@ -738,7 +739,9 @@ contract StaticsDollarGatewayTest is Test {
         assertEq(globalRewards.treasuryAccrued(address(usdc)), quote.peggedMintFee);
         assertEq(globalRewards.treasuryAccrued(address(weth)), quote.volatileRecombinationFee);
         assertEq(custody.globalReservedByToken(address(staticsDollar)), before.dollarReservationBefore);
-        assertEq(custody.globalReservedByToken(address(weth)), before.wethReservationBefore + quote.volatileRecombinationFee);
+        assertEq(
+            custody.globalReservedByToken(address(weth)), before.wethReservationBefore + quote.volatileRecombinationFee
+        );
         assertEq(usdc.allowance(diamond, address(pool)), 0);
         _assertNoUnreservedGatewayResidue(SERIES_ONE);
     }

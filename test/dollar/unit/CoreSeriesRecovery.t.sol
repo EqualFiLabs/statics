@@ -471,7 +471,9 @@ contract CoreSeriesRecoveryTest is Test {
         vm.prank(alice);
         mintFacet.recombine(seriesId, split.first, split.first, 0, alice);
         vm.prank(keeper);
-        recoveryFacet.recoverExpiredRisk(split.bob, seriesId, split.second, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0);
+        recoveryFacet.recoverExpiredRisk(
+            split.bob, seriesId, split.second, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0
+        );
         vm.prank(split.carol);
         mintFacet.recombine(seriesId, split.third, split.third, 0, split.carol);
 

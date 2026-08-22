@@ -262,10 +262,7 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         (,, nonce) = permit2Contract.allowance(swapper, input, address(universalRouter));
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
             details: IAllowanceTransfer.PermitDetails({
-                token: input,
-                amount: amountIn,
-                expiration: uint48(block.timestamp + 20 minutes),
-                nonce: nonce
+                token: input, amount: amountIn, expiration: uint48(block.timestamp + 20 minutes), nonce: nonce
             }),
             spender: address(universalRouter),
             sigDeadline: block.timestamp + 20 minutes

@@ -245,10 +245,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(aliceDollars, stack.dollar.balanceOf(alice));
     }
 
-    function _deploySharedTokenStack(CanonicalWETH9 sharedToken)
-        private
-        returns (SharedTokenStack memory stack)
-    {
+    function _deploySharedTokenStack(CanonicalWETH9 sharedToken) private returns (SharedTokenStack memory stack) {
         StaticsDollarLocalConfig memory config;
         config.owner = owner;
         config.profileGuardian = owner;
@@ -383,9 +380,15 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
 
     function _assertReleasedReserves(uint256 dollarFunding, uint256 supplied, uint256 fill) private view {
         StakingFacet.RiskIncentiveView memory incentives = staking.riskIncentives(SERIES_ID);
-        assertEq(incentives.collateralReserve, INCENTIVE_COLLATERAL_FUNDING - Math.mulDiv(INCENTIVE_COLLATERAL_FUNDING, fill, supplied));
+        assertEq(
+            incentives.collateralReserve,
+            INCENTIVE_COLLATERAL_FUNDING - Math.mulDiv(INCENTIVE_COLLATERAL_FUNDING, fill, supplied)
+        );
         assertEq(incentives.staticsDollarReserve, dollarFunding - Math.mulDiv(dollarFunding, fill, supplied));
-        assertEq(incentives.staticsReserve, INCENTIVE_STATICS_FUNDING - Math.mulDiv(INCENTIVE_STATICS_FUNDING, fill, supplied));
+        assertEq(
+            incentives.staticsReserve,
+            INCENTIVE_STATICS_FUNDING - Math.mulDiv(INCENTIVE_STATICS_FUNDING, fill, supplied)
+        );
     }
 
     function _assertClaimableAccrued(

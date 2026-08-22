@@ -199,12 +199,10 @@ contract FlashArbitrageReceiver is IStaticsFlashBorrower {
         _repayAndCheckProfit(assets[0], amounts[0] + fees[0], route);
     }
 
-    function _buyBasketTokens(
-        uint256 basketId,
-        address basketToken,
-        address underlying,
-        BuyAndRedeemRoute memory route
-    ) private returns (uint256 acquired) {
+    function _buyBasketTokens(uint256 basketId, address basketToken, address underlying, BuyAndRedeemRoute memory route)
+        private
+        returns (uint256 acquired)
+    {
         _validatePool(basketId, route.pool, basketToken, underlying);
         uint256 basketBalanceBefore = IERC20(basketToken).balanceOf(address(this));
         IERC20(underlying).forceApprove(address(router), route.underlyingAmountIn);

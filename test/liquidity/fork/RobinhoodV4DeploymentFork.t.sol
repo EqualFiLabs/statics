@@ -189,8 +189,8 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
     }
 
     function _quoteAndVerifySlot0(LiveV4Flow memory flow) private {
-        (uint256 quoteOut,) =
-            IV4Quoter(deployment.quoter).quoteExactInputSingle(
+        (uint256 quoteOut,) = IV4Quoter(deployment.quoter)
+            .quoteExactInputSingle(
                 IV4Quoter.QuoteExactSingleParams({
                     poolKey: flow.key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
                 })

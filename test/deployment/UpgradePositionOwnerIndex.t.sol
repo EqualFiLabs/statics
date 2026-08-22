@@ -211,7 +211,8 @@ contract RobinhoodPositionOwnerIndexUpgradeForkTest is Test {
     }
 
     function _executeOwnerIndexUpgrade(OwnerIndexRehearsal memory rehearsal) private {
-        (address validatedTimelock,) = rehearsal.ceremony.validateBeforeUpgrade(rehearsal.diamond, address(rehearsal.replacement));
+        (address validatedTimelock,) =
+            rehearsal.ceremony.validateBeforeUpgrade(rehearsal.diamond, address(rehearsal.replacement));
         assertEq(validatedTimelock, address(rehearsal.timelock));
         bytes32 salt = keccak256("Robinhood Position owner index fork rehearsal");
         bytes memory payload = rehearsal.ceremony.buildPayload(rehearsal.diamond, address(rehearsal.replacement));

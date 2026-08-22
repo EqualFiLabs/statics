@@ -30,10 +30,7 @@ contract PositionPortfolioTest is StaticsTestBase {
         globalRewards.optInRewardAssets(positionId, rewardAssets);
     }
 
-    function _assertPortfolioEntries(uint256 positionId, uint256 basketId, address[] memory rewardAssets)
-        private
-        view
-    {
+    function _assertPortfolioEntries(uint256 positionId, uint256 basketId, address[] memory rewardAssets) private view {
         IStaticsPositionPortfolio.PositionPortfolioCounts memory counts =
             positionPortfolio.positionPortfolioCounts(positionId);
         assertEq(counts.basketCount, 1);
