@@ -1,12 +1,19 @@
 # ADR: Doppler Genesis launch with permanent activation and staged rewards
 
-- Status: Accepted direction; implementation pending
+- Status: Accepted direction; amended by
+  `genesis-reserve-backed-vault.md`
 - Date: 2026-08-18
 - Scope: Doppler Multicurve launch of STATICS/WETH, fully minted Genesis
   inventory, permanent activation state, permanent Doppler fee ingress,
   standalone Genesis rewards, transfer-reset activation, and later handoff to
   the full Statics reward system
 - Supersedes: `standalone-genesis-launch-and-paired-supply.md`
+- Amended by: `genesis-reserve-backed-vault.md`, which replaces the fixed
+  180,018-STATICS claim with 180,000 STATICS plus a post-epoch 1/5,555 native
+  ETH reserve share, routes the native acquisition fee and a configurable share
+  of harvested WETH into that permanent reserve, and forwards activation
+  payments to the treasury instead of burning STATICS. The 180,018-STATICS and
+  withdrawable-fee economics described below are retained as historical context.
 - Preserves: the fixed Genesis maximum supply, Genesis Vault custody and
   backing model, fixed redemption claim, marketplace compatibility, native
   acquisition fee, and separation from the later Statics Diamond except where

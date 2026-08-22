@@ -57,7 +57,7 @@ contract InvariantDopplerFeeSource {
 }
 
 contract GenesisLaunchRewardsHandler is Test {
-    uint256 private constant PRICE = 180_018 ether;
+    uint256 private constant PRICE = 180_000 ether;
 
     MockDopplerToken public immutable statics;
     MockDopplerToken public immutable weth;
@@ -156,7 +156,7 @@ contract GenesisLaunchRewardsHandler is Test {
 }
 
 contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
-    uint256 private constant PRICE = 180_018 ether;
+    uint256 private constant PRICE = 180_000 ether;
 
     MockDopplerToken private statics;
     MockDopplerToken private weth;
@@ -175,8 +175,9 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         bytes32 poolId = keccak256("GENESIS_INVARIANT");
         feeSource.configure(address(statics), address(weth), address(receiver));
         receiver.bindMarket(address(statics), poolId);
-        registry = new GenesisActivationRegistry(statics, address(this), address(this));
-        StaticsGenesisVault vault = new StaticsGenesisVault(statics, address(this), address(this), treasury);
+        registry = new GenesisActivationRegistry(statics, address(this), address(this), treasury);
+        StaticsGenesisVault vault =
+            new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 3650 days);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
@@ -200,7 +201,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             vm.deal(actors[i], 1 ether);
             vm.startPrank(actors[i]);
             statics.approve(address(vault), PRICE);
-            vault.buyGenesis{value: vault.nativeAcquisitionFee()}(i + 1, actors[i]);
+            vault.buyGenesis(i + 1, actors[i]);
             distributor.registerGenesis(i + 1);
             vm.stopPrank();
         }

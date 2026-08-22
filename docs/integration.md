@@ -28,9 +28,9 @@ Use compiled ABIs from these sources:
 | Surface | Canonical source | Main use |
 | --- | --- | --- |
 | Genesis NFT | `src/interfaces/IStaticsGenesis.sol`, `IERC5192.sol`, and `ICreatorToken.sol` | Ownership, metadata, link locks, optional transfer validation, future protocol binding, and transfer-tier reset callback |
-| Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote and pay acquisition fees, buy, redeem, claim native revenue, inspect inventory, and verify backing |
-| Genesis activation | `src/interfaces/IGenesisActivationRegistry.sol` | Permanent tiers, burn costs, multipliers, transfer reset, and consumer handoff |
-| Genesis launch fees | `src/interfaces/IStaticsFeeReceiver.sol` and `IGenesisLaunchDistributor.sol` | Authenticated Doppler harvests, reward indexes, claims, and distributor handoff |
+| Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote epoch/reserve pricing, buy, redeem, donate native reserve, inspect inventory, and verify dual backing |
+| Genesis activation | `src/interfaces/IGenesisActivationRegistry.sol` | Permanent tiers, treasury-paid activation costs, multipliers, transfer reset, and consumer handoff |
+| Genesis launch fees | `src/interfaces/IStaticsFeeReceiver.sol` and `IGenesisLaunchDistributor.sol` | Authenticated Doppler harvests, permanent WETH reserve funding, reward indexes, claims, and distributor handoff |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
@@ -50,17 +50,24 @@ Use compiled ABIs from these sources:
 
 All 5,555 Genesis NFTs exist from deployment. Integrators call
 `quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
-token, approve the returned 180,018-STATICS price, and send the returned native
-fee with payable `buyGenesis(tokenId, receiver)`. Incorrect native payment
-reverts atomically. `redeemGenesis(tokenId, receiver)` returns the fixed STATICS
-backing without a native fee. A redeemed token becomes ordinary vault inventory
+token, approve the returned 180,000-STATICS price, and send at least the
+returned `requiredNative` with payable `buyGenesis(tokenId, receiver)`. During
+the immutable Genesis Epoch `requiredNative` is zero; after the epoch it is the
+reserve buy-in `ceil(reserveETH / 5,554)` plus the native acquisition fee, both
+of which permanently enter the reserve. The native `value` is a maximum: any
+excess is refunded on-chain, and insufficient native reverts atomically.
+`quoteGenesisRedemption()` reports the fixed 180,000-STATICS payout and, after
+the epoch, the additional `floor(reserveETH / 5,555)` native reserve payout;
+`redeemGenesis(tokenId, receiver)` returns both. `donate()` permissionlessly and
+irreversibly capitalizes the reserve. A redeemed token becomes ordinary vault inventory
 and may be purchased again.
 
-Native acquisition fees accrue to the recipient configured when each purchase
-settles. Recipient changes affect only later purchases. Each credited recipient
-pulls historical revenue with `claimNativeAcquisitionFees(receiver)`; clients
-must not treat the vault's full native balance as withdrawable revenue because
-forced surplus is not part of the liability ledger.
+Native acquisition fees are not withdrawable revenue. After the Genesis Epoch,
+each fee and reserve buy-in increases accounted `reserveETH`; during the epoch the
+native fee is zero. Integrators must use `reserveETH`, not the vault's raw native
+balance, for reserve NAV because forced or accidental ETH does not enter protocol
+accounting. No governance, treasury, or recipient claim function can withdraw the
+accounted reserve.
 
 `getTransferValidator() == address(0)` means ordinary unrestricted ERC-721
 transfers. If governance later configures a validator, marketplaces must satisfy

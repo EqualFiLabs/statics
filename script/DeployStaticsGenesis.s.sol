@@ -29,6 +29,8 @@ struct StaticsGenesisDeploymentConfig {
     bytes32 salt;
     uint24 fee;
     uint16 genesisRewardShareBps;
+    uint16 reserveShareBps;
+    uint256 genesisEpochEnd;
     /// @dev Retained for lower-level config compatibility. Doppler launch calldata always uses canonical metadata.
     string tokenURI;
     string contractURI;
@@ -66,6 +68,9 @@ contract DeployStaticsGenesis is Script {
     uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
     uint256 public constant DOPPLER_INVENTORY = 800_000_000 ether;
     uint256 public constant TREASURY_ALLOCATION = 200_000_000 ether;
+    uint256 public constant GENESIS_BACKING = 180_000 ether;
+    uint256 public constant GENESIS_MAX_SUPPLY = 5_555;
+    uint256 public constant POST_EPOCH_NATIVE_ACQUISITION_FEE = 0.003 ether;
     uint96 public constant DOPPLER_OWNER_SHARE = 0.05 ether;
     uint96 public constant STATICS_FEE_SHARE = 0.95 ether;
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
@@ -82,6 +87,8 @@ contract DeployStaticsGenesis is Script {
     error InvalidMetadataURI();
     error InvalidFee(uint256 fee);
     error InvalidRewardShare(uint256 shareBps);
+    error InvalidReserveShare(uint256 shareBps);
+    error InvalidEpochEnd(uint256 epochEnd);
     error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
     error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
@@ -92,8 +99,12 @@ contract DeployStaticsGenesis is Script {
         address deployer = vm.addr(privateKey);
         uint256 fee = vm.envUint("STATICS_DOPPLER_FEE");
         uint256 rewardShare = vm.envUint("STATICS_GENESIS_REWARD_SHARE_BPS");
+        uint256 reserveShare = vm.envUint("STATICS_GENESIS_RESERVE_SHARE_BPS");
+        uint256 genesisEpochEnd = vm.envUint("STATICS_GENESIS_EPOCH_END");
         if (fee > type(uint24).max) revert InvalidFee(fee);
         if (rewardShare > type(uint16).max) revert InvalidRewardShare(rewardShare);
+        if (reserveShare > type(uint16).max) revert InvalidReserveShare(reserveShare);
+        if (genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(genesisEpochEnd);
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
             governance: vm.envAddress("STATICS_GENESIS_GOVERNANCE"),
             treasury: vm.envAddress("STATICS_GENESIS_TREASURY"),
@@ -103,12 +114,16 @@ contract DeployStaticsGenesis is Script {
             salt: vm.envBytes32("STATICS_DOPPLER_SALT"),
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
+            reserveShareBps: uint16(reserveShare),
+            genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
             externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
         });
         if (block.chainid == 4_663) {
-            bytes32 currentHash = launchConfigHash(config.fee, config.genesisRewardShareBps);
+            bytes32 currentHash = launchConfigHash(
+                config.fee, config.genesisRewardShareBps, config.reserveShareBps, config.genesisEpochEnd
+            );
             if (
                 APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH == bytes32(0)
                     || currentHash != APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH
@@ -141,6 +156,11 @@ contract DeployStaticsGenesis is Script {
         if (IERC20(statics).balanceOf(config.treasury) != TREASURY_ALLOCATION) {
             revert AllocationMismatch(IERC20(statics).totalSupply(), IERC20(statics).balanceOf(config.treasury));
         }
+
+        // Bind the reserve vault and configure the reserve share before the first distributor is
+        // accepted so nonzero reserveShareBps can never harvest around an unbound reserve vault.
+        receiver.bindReserveVault(address(collection.vault));
+        receiver.setReserveShareBps(config.reserveShareBps);
 
         GenesisLaunchDistributor distributor =
             _deployDistributor(receiver, collection.genesis, collection.registry, config, initialOwner);
@@ -183,8 +203,10 @@ contract DeployStaticsGenesis is Script {
         StaticsGenesisDeploymentConfig memory config,
         address initialOwner
     ) private returns (GenesisCollection memory collection) {
-        collection.registry = new GenesisActivationRegistry(IERC20(statics), initialOwner, initialOwner);
-        collection.vault = new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.treasury);
+        collection.registry = new GenesisActivationRegistry(
+            IERC20(statics), initialOwner, initialOwner, config.treasury
+        );
+        collection.vault = new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.genesisEpochEnd);
         collection.avatar = new StaticsAvatarSVG();
         collection.renderer = new StaticsGenesisRenderer(collection.avatar);
         collection.genesis = new StaticsGenesis(
@@ -228,22 +250,33 @@ contract DeployStaticsGenesis is Script {
             DopplerLaunchTypes.Curve({tickLower: -84_100, tickUpper: -83_000, numPositions: 11, shares: 0.01 ether});
     }
 
-    function launchConfigHash(uint24 fee, uint16 genesisRewardShareBps) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                STATICS_SUPPLY,
-                DOPPLER_INVENTORY,
-                TREASURY_ALLOCATION,
-                DOPPLER_OWNER_SHARE,
-                STATICS_FEE_SHARE,
-                fee,
-                genesisRewardShareBps,
-                TICK_SPACING,
-                FAR_TICK,
-                keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
-                defaultCurves()
-            )
+    function launchConfigHash(uint24 fee, uint16 genesisRewardShareBps, uint16 reserveShareBps, uint256 genesisEpochEnd)
+        public
+        pure
+        returns (bytes32)
+    {
+        // Split encoding across two tuples so legacy codegen keeps within stack limits.
+        bytes memory economics = abi.encode(
+            STATICS_SUPPLY,
+            DOPPLER_INVENTORY,
+            TREASURY_ALLOCATION,
+            GENESIS_BACKING,
+            GENESIS_MAX_SUPPLY,
+            POST_EPOCH_NATIVE_ACQUISITION_FEE,
+            DOPPLER_OWNER_SHARE,
+            STATICS_FEE_SHARE
         );
+        bytes memory launch = abi.encode(
+            fee,
+            genesisRewardShareBps,
+            reserveShareBps,
+            genesisEpochEnd,
+            TICK_SPACING,
+            FAR_TICK,
+            keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
+            defaultCurves()
+        );
+        return keccak256(abi.encode(economics, launch));
     }
 
     function _createDopplerMarket(
@@ -385,6 +418,8 @@ contract DeployStaticsGenesis is Script {
         }
         if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);
         if (config.genesisRewardShareBps > 10_000) revert InvalidRewardShare(config.genesisRewardShareBps);
+        if (config.reserveShareBps > 10_000) revert InvalidReserveShare(config.reserveShareBps);
+        if (config.genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(config.genesisEpochEnd);
     }
 
     function _requireContract(address target) private view {

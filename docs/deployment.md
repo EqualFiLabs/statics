@@ -23,12 +23,14 @@ selected by chain ID and reads:
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
 | `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor |
-| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis acquisition-fee recipient, and royalty receiver |
+| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis activation-payment recipient, and royalty receiver |
 | `WETH_ADDRESS` | Verified WETH paired with STATICS |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
 | `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
 | `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
 | `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
+| `STATICS_GENESIS_RESERVE_SHARE_BPS` | Share (0..10,000) of harvested WETH routed into the permanent Genesis native ETH reserve; the remainder is attributed to the active distributor |
+| `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for immutable `genesisEpochEnd`; it must be future at deployment and is included in the launch hash |
 | `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Token-page base URL; the Genesis token ID is appended directly |
@@ -41,15 +43,23 @@ The deployment:
 4. transfers exactly 200,000,000 STATICS to treasury and sends any returned
    Multicurve rounding dust to the vault as non-liability surplus;
 5. mints all 5,555 Genesis NFTs to the vault with no initial backing liability;
-6. deploys and binds the permanent activation registry and temporary launch
-   distributor; and
-7. proposes the configured governance address as the two-step owner of every
+6. deploys the vault with an immutable future `genesisEpochEnd`, binds the fee
+   receiver's permanent reserve vault, and sets `reserveShareBps` before the
+   launch distributor is accepted so a nonzero share can never route around an
+   unbound reserve vault;
+7. deploys and binds the permanent activation registry (with its immutable
+   treasury) and temporary launch distributor; and
+8. proposes the configured governance address as the two-step owner of every
    administered standalone contract.
 
-Vault purchases require the current native acquisition fee plus exactly
-180,018 STATICS; redemption returns exactly 180,018 STATICS and charges no
-native fee. Acquisition revenue is pull-based. Activation burns liquid STATICS
-and can never debit vault backing.
+Vault purchases require exactly 180,000 STATICS plus, after the immutable
+Genesis Epoch, a native reserve buy-in of `ceil(reserveETH / 5,554)` and the
+current native acquisition fee; during the epoch no native value is charged.
+Redemption returns exactly 180,000 STATICS and, after the epoch, an additional
+native reserve payout of `floor(reserveETH / 5,555)`. The buy-in and fee
+permanently enter the reserve, which has no withdrawal path. Activation forwards
+its exact STATICS cost to the treasury, never burns STATICS, and can never debit
+vault backing.
 
 Before simulation or broadcast, execute the official-module integration proof:
 

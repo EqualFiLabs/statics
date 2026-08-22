@@ -11,7 +11,8 @@ DopplerERC20V1 (1,000,000,000 fixed STATICS)
 │   └── launch-position LP fees: 5% Doppler/Airlock owner + 95% Statics fee ingress
 ├── Treasury (exactly 200,000,000 STATICS)
 └── StaticsGenesisVault <──> StaticsGenesis (5,555 NFTs)
-    ├── fixed 180,018-STATICS redemption backing per circulating NFT
+    ├── fixed 180,000-STATICS redemption backing per circulating NFT
+    │   plus a post-epoch 1/5,555 permanent native ETH reserve share
     ├── GenesisActivationRegistry (permanent tiers and transfer reset)
     └── StaticsFeeReceiver -> GenesisLaunchDistributor (launch era reward/treasury split)
 ```
