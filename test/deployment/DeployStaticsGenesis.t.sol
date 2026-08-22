@@ -132,7 +132,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             IERC20 statics = IERC20(deployment.statics);
             StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
             StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
-            StaticsFeeReceiver receiver = StaticsFeeReceiver(deployment.feeReceiver);
+            StaticsFeeReceiver receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
             GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
             GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
 
@@ -153,6 +153,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(statics.balanceOf(deployment.genesisVault), 1 ether);
             assertEq(receiver.activeDistributor(), address(distributor));
             assertEq(registry.activeConsumer(), address(distributor));
+            assertEq(receiver.reserveVault(), address(vault));
+            assertEq(receiver.reserveShareBps(), 5_000);
+            assertEq(registry.treasury(), treasury);
+            assertEq(vault.genesisEpochEnd(), block.timestamp + 7 days);
+            assertTrue(vault.epochActive());
+            assertEq(vault.reserveETH(), 0);
             assertEq(receiver.pendingOwner(), governance);
             assertEq(registry.pendingOwner(), governance);
             assertEq(vault.pendingOwner(), governance);
@@ -189,7 +195,16 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[3].tickLower, -84_100);
             assertEq(curves[3].tickUpper, -83_000);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
-            assertTrue(deployer.launchConfigHash(30_000, 5_000) != bytes32(0));
+            uint256 epochEnd = block.timestamp + 7 days;
+            assertTrue(deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd) != bytes32(0));
+            assertTrue(
+                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd)
+                    != deployer.launchConfigHash(30_000, 5_000, 4_000, epochEnd)
+            );
+            assertTrue(
+                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd)
+                    != deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd + 1)
+            );
         }
 
         function testRejectsExcessiveMulticurveResidual() public {
@@ -210,6 +225,11 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config = _config();
             config.fee = 100_001;
             vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 100_001));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.genesisEpochEnd = block.timestamp;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidEpochEnd.selector, block.timestamp));
             deployer.deploy(config, address(deployer));
 
             config = _config();
@@ -245,6 +265,8 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 salt: keccak256("STATICS_DOPPLER_TEST"),
                 fee: 30_000,
                 genesisRewardShareBps: 5_000,
+                reserveShareBps: 5_000,
+                genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",
                 externalURLBase: "https://statics.finance/genesis/"

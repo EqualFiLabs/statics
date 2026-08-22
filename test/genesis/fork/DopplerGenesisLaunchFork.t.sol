@@ -27,6 +27,7 @@ import {StaticsDopplerLaunchConfig} from "../../../src/genesis/doppler/StaticsDo
 import {StaticsGenesisVault} from "../../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsGenesis} from "../../../src/tokens/StaticsGenesis.sol";
 import {MockDopplerToken} from "../../mocks/MockDopplerToken.sol";
+import {MockWrappedNative} from "../../mocks/MockWrappedNative.sol";
 
 interface IDopplerFeeShares {
     function getShares(bytes32 poolId, address beneficiary) external view returns (uint256 shares);
@@ -97,17 +98,21 @@ contract DopplerGenesisLaunchForkTest is Test {
         StaticsGenesisDeployment memory deployment;
         GenesisLaunchDistributor distributor;
         StaticsFeeReceiver receiver;
+        StaticsGenesisVault vault;
+        address treasury = makeAddr("forkTreasury");
 
         {
             address governance = makeAddr("forkGovernance");
-            address treasury = makeAddr("forkTreasury");
             if (block.chainid == 4_663) {
                 string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
                 weth = IERC20(vm.parseJsonAddress(manifest, ".contracts.weth.address"));
                 vm.deal(address(this), 20 ether);
                 IWETH(address(weth)).deposit{value: 10 ether}();
             } else {
-                weth = IERC20(address(new MockDopplerToken(address(this))));
+                MockWrappedNative mockWeth = new MockWrappedNative();
+                vm.deal(address(this), 20 ether);
+                mockWeth.deposit{value: 10 ether}();
+                weth = IERC20(address(mockWeth));
             }
             DeployStaticsGenesis deployer = new DeployStaticsGenesis();
             StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
@@ -119,6 +124,8 @@ contract DopplerGenesisLaunchForkTest is Test {
                 salt: keccak256(abi.encode("STATICS_DOPPLER_FORK", block.chainid, block.number)),
                 fee: 30_000,
                 genesisRewardShareBps: 5_000,
+                reserveShareBps: 5_000,
+                genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",
                 externalURLBase: "https://statics.finance/genesis/"
@@ -127,8 +134,8 @@ contract DopplerGenesisLaunchForkTest is Test {
             deployment = deployer.deploy(config, address(deployer));
             IERC20 statics = IERC20(deployment.statics);
             StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
-            StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
-            receiver = StaticsFeeReceiver(deployment.feeReceiver);
+            vault = StaticsGenesisVault(deployment.genesisVault);
+            receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
             GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
             distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
 
@@ -139,6 +146,9 @@ contract DopplerGenesisLaunchForkTest is Test {
             assertEq(vault.requiredBacking(), 0);
             assertEq(receiver.statics(), deployment.statics);
             assertEq(receiver.poolInitializer(), modules.poolInitializer);
+            assertEq(receiver.reserveVault(), address(vault));
+            assertEq(receiver.reserveShareBps(), 5_000);
+            assertTrue(vault.epochActive());
             assertEq(
                 IDopplerFeeShares(modules.poolInitializer).getShares(deployment.poolId, address(receiver)), 0.95 ether
             );
@@ -146,40 +156,102 @@ contract DopplerGenesisLaunchForkTest is Test {
             assertEq(registry.activeConsumer(), address(distributor));
             assertEq(receiver.pendingOwner(), governance);
 
-            vm.deal(treasury, 1 ether);
+            // Genesis Epoch acquisition costs exactly 180,000 STATICS and requires zero native ETH.
             vm.startPrank(treasury);
             statics.approve(address(vault), vault.GENESIS_PRICE());
-            vault.buyGenesis{value: vault.nativeAcquisitionFee()}(1, treasury);
+            vault.buyGenesis(1, treasury);
             distributor.registerGenesis(1);
             vm.stopPrank();
             assertEq(genesis.ownerOf(1), treasury);
             assertEq(vault.requiredBacking(), vault.GENESIS_PRICE());
+            assertEq(vault.reserveETH(), 0);
         }
 
-        PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
-        PoolSwapTest router = new PoolSwapTest(IDopplerFeeShares(modules.poolInitializer).poolManager());
-        weth.approve(address(router), type(uint256).max);
-        bool zeroForOne = address(weth) < deployment.statics;
-        router.swap(
-            key,
-            SwapParams({
-                zeroForOne: zeroForOne,
-                amountSpecified: -int256(1 ether),
-                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
-            }),
-            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-            bytes("")
-        );
+        {
+            PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
+            PoolSwapTest router = new PoolSwapTest(IDopplerFeeShares(modules.poolInitializer).poolManager());
+            weth.approve(address(router), type(uint256).max);
+            bool zeroForOne = address(weth) < deployment.statics;
+            router.swap(
+                key,
+                SwapParams({
+                    zeroForOne: zeroForOne,
+                    amountSpecified: -int256(1 ether),
+                    sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+                }),
+                PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+                bytes("")
+            );
 
-        if (block.chainid == 4_663) {
-            _assertNativeRouterRoutes(key, deployment.statics, address(weth));
+            if (block.chainid == 4_663) {
+                _assertNativeRouterRoutes(key, deployment.statics, address(weth));
+            }
         }
 
-        (, uint256 wethFees) = distributor.accrue();
-        assertGt(wethFees, 0, "standard Doppler fee collection returned no WETH");
-        assertEq(receiver.cumulativeHarvested(address(weth)), wethFees);
+        _assertReserveHarvest(vault, receiver, distributor, weth);
+        _assertPostEpochReserveFlows(vault, IERC20(deployment.statics), StaticsGenesis(deployment.genesis));
+    }
+
+    function _assertReserveHarvest(
+        StaticsGenesisVault vault,
+        StaticsFeeReceiver receiver,
+        GenesisLaunchDistributor distributor,
+        IERC20 weth
+    ) private {
+        // Harvest routes gross WETH into the reserve (50%) and the distributor remainder (50%).
+        uint256 reserveBefore = vault.reserveETH();
+        (, uint256 distributorWeth) = distributor.accrue();
+        assertGt(distributorWeth, 0, "standard Doppler fee collection returned no distributor WETH");
+        uint256 reserveWeth = receiver.cumulativeReserveWeth();
+        assertGt(reserveWeth, 0, "reserve allocation received no WETH");
+        uint256 grossWeth = reserveWeth + distributorWeth;
+        assertEq(receiver.cumulativeReserveWeth() + receiver.cumulativeDistributorWeth(), grossWeth);
+        assertEq(receiver.cumulativeHarvested(address(weth)), grossWeth);
+        assertEq(vault.reserveETH() - reserveBefore, reserveWeth);
+        assertEq(address(vault).balance, vault.reserveETH());
         assertGt(distributor.pendingGenesis(1, address(weth)), 0, "registered Genesis earned no launch rewards");
         assertGt(distributor.rewardBook(address(weth)).treasuryClaimable, 0, "treasury earned no launch revenue");
+
+        // Reserve stays dormant during the epoch: redemption/acquisition ignore reserveETH.
+        assertTrue(vault.epochActive());
+        assertEq(vault.reserveBuyIn(), 0);
+        assertEq(vault.reserveRedemptionPayout(), 0);
+    }
+
+    /// @dev Proves epoch transition, exact floor redemption payout, and ceil post-epoch buy-in.
+    function _assertPostEpochReserveFlows(StaticsGenesisVault vault, IERC20 statics, StaticsGenesis genesis) private {
+        address treasury = makeAddr("forkTreasury");
+
+        // Advance past the immutable epoch end; the accumulated reserve becomes active with no keeper.
+        vm.warp(vault.genesisEpochEnd());
+        assertFalse(vault.epochActive());
+        uint256 activeReserve = vault.reserveETH();
+        assertGt(activeReserve, 0, "reserve did not accumulate during the epoch");
+        assertEq(vault.reserveRedemptionPayout(), activeReserve / vault.RESERVE_DENOMINATOR());
+        assertEq(
+            vault.reserveBuyIn(),
+            (activeReserve + vault.RESERVE_BUY_IN_DENOMINATOR() - 1) / vault.RESERVE_BUY_IN_DENOMINATOR()
+        );
+
+        // Post-epoch redemption returns 180,000 STATICS plus the exact reserve share.
+        uint256 expectedPayout = vault.reserveRedemptionPayout();
+        uint256 treasuryEthBefore = treasury.balance;
+        vm.startPrank(treasury);
+        genesis.approve(address(vault), 1);
+        vault.redeemGenesis(1, treasury);
+        vm.stopPrank();
+        assertEq(treasury.balance - treasuryEthBefore, expectedPayout);
+        assertEq(vault.reserveETH(), activeReserve - expectedPayout);
+
+        // Post-epoch acquisition requires the current reserve buy-in and the native fee.
+        uint256 required = vault.reserveBuyIn() + vault.nativeAcquisitionFee();
+        vm.deal(treasury, required);
+        vm.startPrank(treasury);
+        statics.approve(address(vault), vault.GENESIS_PRICE());
+        vault.buyGenesis{value: required}(1, treasury);
+        vm.stopPrank();
+        assertEq(genesis.ownerOf(1), treasury);
+        assertEq(vault.reserveETH(), activeReserve - expectedPayout + required);
     }
 
     function _assertNativeRouterRoutes(PoolKey memory key, address statics, address weth) private {

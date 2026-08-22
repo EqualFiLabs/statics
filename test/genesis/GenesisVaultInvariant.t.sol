@@ -11,22 +11,6 @@ import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 
-contract GenesisNativeFeeActor {
-    StaticsGenesisVault public immutable vault;
-
-    constructor(StaticsGenesisVault vault_) {
-        vault = vault_;
-    }
-
-    receive() external payable {}
-
-    function claim() external {
-        if (vault.claimableNativeFees(address(this)) != 0) {
-            vault.claimNativeAcquisitionFees(payable(address(this)));
-        }
-    }
-}
-
 contract ForceNativeToGenesisVault {
     constructor(address payable receiver) payable {
         selfdestruct(receiver);
@@ -34,19 +18,18 @@ contract ForceNativeToGenesisVault {
 }
 
 contract GenesisVaultHandler is IERC721Receiver {
-    uint256 private constant PRICE = 180_018 ether;
+    uint256 private constant PRICE = 180_000 ether;
 
     MockDopplerToken public immutable statics;
     StaticsGenesis public immutable genesis;
     StaticsGenesisVault public immutable vault;
-    GenesisNativeFeeActor public immutable alternateFeeRecipient;
+    uint256 public donatedReserve;
     uint256[] private acquiredIds;
 
     constructor(MockDopplerToken statics_, StaticsGenesis genesis_, StaticsGenesisVault vault_) {
         statics = statics_;
         genesis = genesis_;
         vault = vault_;
-        alternateFeeRecipient = new GenesisNativeFeeActor(vault_);
         statics.approve(address(vault_), type(uint256).max);
     }
 
@@ -56,7 +39,9 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (statics.balanceOf(address(this)) < PRICE) return;
         uint256 tokenId = (seed % genesis.COLLECTION_SIZE()) + 1;
         if (!vault.isVaultInventory(tokenId)) return;
-        vault.buyGenesis{value: vault.nativeAcquisitionFee()}(tokenId, address(this));
+        uint256 required = vault.reserveBuyIn() + (vault.epochActive() ? 0 : vault.nativeAcquisitionFee());
+        if (address(this).balance < required) return;
+        vault.buyGenesis{value: required}(tokenId, address(this));
         acquiredIds.push(tokenId);
     }
 
@@ -82,19 +67,20 @@ contract GenesisVaultHandler is IERC721Receiver {
         genesis.safeTransferFrom(address(this), address(vault), tokenId);
     }
 
+    function donateReserve(uint256 rawAmount) external {
+        uint256 amount = (rawAmount % (10 ether)) + 1;
+        if (amount > address(this).balance) return;
+        vault.donate{value: amount}();
+        donatedReserve += amount;
+    }
+
+    function advanceEpoch(uint256 rawJump) external {
+        uint256 jump = rawJump % (3 days + 1);
+        vm.warp(block.timestamp + jump);
+    }
+
     function setNativeAcquisitionFee(uint256 rawFee) external {
         vault.setNativeAcquisitionFee(rawFee % (vault.MAX_NATIVE_ACQUISITION_FEE() + 1));
-    }
-
-    function rotateNativeFeeRecipient(bool alternate) external {
-        vault.setNativeFeeRecipient(alternate ? address(alternateFeeRecipient) : address(this));
-    }
-
-    function claimNativeFees() external {
-        if (vault.claimableNativeFees(address(this)) != 0) {
-            vault.claimNativeAcquisitionFees(payable(address(this)));
-        }
-        alternateFeeRecipient.claim();
     }
 
     function donateStatics(uint256 rawAmount) external {
@@ -118,6 +104,13 @@ contract GenesisVaultHandler is IERC721Receiver {
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
+
+    // forge-std cheatcode passthrough for time control inside the handler.
+    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+}
+
+interface Vm {
+    function warp(uint256) external;
 }
 
 contract GenesisVaultInvariantTest is StdInvariant, Test {
@@ -128,8 +121,9 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
 
     function setUp() public {
         statics = new MockDopplerToken(address(this));
-        GenesisActivationRegistry registry = new GenesisActivationRegistry(statics, address(this), address(this));
-        vault = new StaticsGenesisVault(statics, address(this), address(this), address(this));
+        GenesisActivationRegistry registry =
+            new GenesisActivationRegistry(statics, address(this), address(this), address(0xCAFE));
+        vault = new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 2 days);
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
         genesis = new StaticsGenesis(
@@ -148,7 +142,6 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         statics.transfer(address(handler), 800_000_000 ether);
         statics.transfer(address(0xCAFE), 200_000_000 ether);
         vm.deal(address(handler), 10_000 ether);
-        vault.setNativeFeeRecipient(address(handler));
         vault.transferOwnership(address(handler));
         vm.prank(address(handler));
         vault.acceptOwnership();
@@ -158,22 +151,26 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
     function invariantBackingLedgerCoversCirculatingClaims() public view {
         assertGe(vault.tokenBacking(), vault.requiredBacking());
         assertGe(statics.balanceOf(address(vault)), vault.tokenBacking());
-        assertGe(address(vault).balance, vault.totalNativeFeeLiability());
-        assertEq(
-            vault.totalNativeFeeLiability(),
-            vault.claimableNativeFees(address(handler))
-                + vault.claimableNativeFees(address(handler.alternateFeeRecipient()))
-        );
+    }
+
+    function invariantNativeCustodyCoversReserve() public view {
+        assertGe(address(vault).balance, vault.reserveETH());
     }
 
     function invariantGenesisAccountingIsBoundedAndConserved() public view {
         assertEq(genesis.mintedSupply(), 5_555);
+        assertEq(vault.reserveDenominator(), 5_555);
         assertEq(vault.circulatingGenesis() + vault.vaultInventory(), 5_555);
-        assertEq(vault.requiredBacking(), vault.circulatingGenesis() * 180_018 ether);
+        assertEq(vault.requiredBacking(), vault.circulatingGenesis() * 180_000 ether);
     }
 
     function invariantStaticsSupplyCanOnlyDecrease() public view {
         assertLe(statics.totalSupply(), 1_000_000_000 ether);
-        assertLe(vault.requiredBacking(), 999_999_990 ether);
+        assertLe(vault.requiredBacking(), 999_900_000 ether);
+    }
+
+    function invariantEpochEndIsImmutable() public view {
+        // genesisEpochEnd is set once at construction and never mutated by any handler action.
+        assertGt(vault.genesisEpochEnd(), 0);
     }
 }

@@ -29,8 +29,12 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
         address deployer = vm.addr(privateKey);
         uint256 fee = vm.envOr("STATICS_DOPPLER_FEE", uint256(30_000));
         uint256 rewardShare = vm.envOr("STATICS_GENESIS_REWARD_SHARE_BPS", uint256(5_000));
+        uint256 reserveShare = vm.envOr("STATICS_GENESIS_RESERVE_SHARE_BPS", uint256(5_000));
+        uint256 genesisEpochEnd = vm.envOr("STATICS_GENESIS_EPOCH_END", block.timestamp + 7 days);
         if (fee > type(uint24).max) revert InvalidFee(fee);
         if (rewardShare > type(uint16).max) revert InvalidRewardShare(rewardShare);
+        if (reserveShare > type(uint16).max) revert InvalidReserveShare(reserveShare);
+        if (genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(genesisEpochEnd);
 
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
             governance: vm.envOr("STATICS_GENESIS_GOVERNANCE", deployer),
@@ -41,6 +45,8 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
             salt: vm.envOr("STATICS_DOPPLER_SALT", keccak256(abi.encode("STATICS_LOCAL_FORK", deployer, block.number))),
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
+            reserveShareBps: uint16(reserveShare),
+            genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
             contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", string("ipfs://statics-local/genesis-contract.json")),
             externalURLBase: vm.envOr("STATICS_GENESIS_EXTERNAL_URL_BASE", string("http://127.0.0.1:3000/app/genesis/"))

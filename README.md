@@ -41,7 +41,7 @@ for the canonical machine-readable integration-beta state.
 
 | Capability | Summary |
 |---|---|
-| **Standalone Genesis** | All 5,555 marketplace-compatible Genesis NFTs start in vault inventory and are mechanically paired with 180,018 STATICS each; acquisitions add a flat native treasury fee while redemption backing remains exact and Diamond-independent. |
+| **Standalone Genesis** | All 5,555 marketplace-compatible Genesis NFTs start in vault inventory and are mechanically paired with 180,000 STATICS each plus, after the immutable Genesis Epoch, a 1/5,555 share of a permanent native ETH reserve; STATICS backing stays exact and Diamond-independent while the reserve grows from protocol revenue and donations and can never be withdrawn. |
 | **Permanent STATICS/WETH market** | Doppler Multicurve distributes the 800-million public allocation; fees earned by its launch positions route 5% to the Doppler/Airlock owner and 95% to permanent Statics fee ingress. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
@@ -549,6 +549,8 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; zero disables permissionless creation (owner-only) and is not free public creation |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI for standalone Genesis |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Genesis token-page base URL before the appended token ID |
+| `STATICS_GENESIS_RESERVE_SHARE_BPS` | Governed share of harvested WETH routed into the permanent Genesis native reserve |
+| `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for the immutable Genesis Epoch end and launch hash |
 | `WETH_ADDRESS` | Verified WETH for the selected chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
 | `SEQUENCER_UPTIME_FEED` | Verified target-chain sequencer uptime feed |
@@ -563,7 +565,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |
-| `ROBINHOOD_MAINNET` | Archive-capable Robinhood RPC for required mainnet fork proof |
+| `ROBINHOOD_MAINNET` | Robinhood mainnet fork RPC; defaults to `https://rpc.mainnet.chain.robinhood.com` and may be overridden |
 | `ROBINHOOD_TESTNET_RPC_URL` | Robinhood testnet RPC for simulation and authorized broadcast |
 | `ROBINHOOD_TESTNET_VERIFIER_URL` | Blockscout verification endpoint |
 

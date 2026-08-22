@@ -1,6 +1,6 @@
 # ADR: Genesis reserve-backed vault, launch epoch, and fixed-supply STATICS policy
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-22
 - Scope: standalone Genesis Vault backing, Genesis launch epoch, native ETH reserve accounting, Genesis acquisition and redemption pricing, permanent Doppler WETH reserve funding, and STATICS activation monetary policy
 - Amends: `doppler-genesis-launch-and-staged-rewards.md`

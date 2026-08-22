@@ -217,7 +217,7 @@ account and never increases BasketToken redemption backing.
 
 | Object | Standard | Owner or holder | Purpose |
 | --- | --- | --- | --- |
-| Genesis NFT | ERC-721 | Users or Genesis Vault inventory | Scarce onchain identity and fixed claim on 180,018 vault-backed STATICS |
+| Genesis NFT | ERC-721 | Users or Genesis Vault inventory | Scarce onchain identity and fixed claim on 180,000 vault-backed STATICS plus a post-epoch 1/5,555 native ETH reserve share |
 | BasketToken | ERC-20 Permit | Users, positions, or external venues | Transferable claim on a fixed constituent bundle |
 | PositionNFT | ERC-721 | User-selected owner | Owns staking, basket collateral, loans, and Dollar legs |
 | Staking token | Configured ERC-20; testnet `STATICS` also supports Permit | Reserved by `StaticsDiamond` per position | Stake weight; each reward asset uses only opted-in eligible stake as its denominator |
@@ -234,7 +234,9 @@ The standalone release creates exactly 1,000,000,000 STATICS through
 allocates 200,000,000 STATICS to treasury and 800,000,000 STATICS to the
 Doppler public inventory market. All 5,555 Genesis NFTs begin in Genesis Vault
 inventory and enter circulation only when a buyer supplies the fixed
-180,018-STATICS backing amount.
+180,000-STATICS backing amount. During the immutable Genesis Epoch acquisition
+and redemption move STATICS only; after the epoch each Genesis additionally
+carries a 1/5,555 share of a permanent, never-withdrawable native ETH reserve.
 
 ## Shared PositionNFT
 

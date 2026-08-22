@@ -16,7 +16,8 @@ import {IERC7572} from "../interfaces/IERC7572.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 
-/// @notice Fixed 5,555-token collection paired one-for-one with 180,018 STATICS claims.
+/// @notice Fixed 5,555-token collection paired one-for-one with 180,000 STATICS claims plus a
+///         1/5,555 permanent native ETH reserve share.
 contract StaticsGenesis is
     ERC721Consecutive,
     ERC2981,
