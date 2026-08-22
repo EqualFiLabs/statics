@@ -45,8 +45,8 @@ relevant skill described there, then apply it to the change.
   under instrumentation. Exclude them explicitly:
 
   ```sh
-  forge coverage --report lcov \
-    --no-match-test "testCanonicalLauncherCreatesOnlyDeployableContracts"
+  forge coverage --report lcov --no-match-test \
+    "testCanonicalLauncherCreatesOnlyDeployableContracts|test_PositionFacetRetainsEip170Headroom"
   ```
 
 ### Test Fidelity Guardrails
