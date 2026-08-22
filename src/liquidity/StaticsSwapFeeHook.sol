@@ -49,6 +49,12 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         address receiver;
     }
 
+    struct CompoundPrepared {
+        uint128 liquidityAdded;
+        int128 delta0;
+        int128 delta1;
+    }
+
     struct StoredPoolFeeConfiguration {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
@@ -406,17 +412,20 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         returns (bytes4, int128)
     {
         PoolId poolId = key.toId();
-        bool exactInput = params.amountSpecified < 0;
-        bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
-        Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
-        int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
-        uint256 realized = _absolute(int256(unspecifiedDelta));
-        PoolFeeConfigurationView memory configuration = _effectiveFeeConfiguration(poolId);
-        uint16 feeBps = exactInput ? configuration.outputFeeBps : configuration.inputFeeBps;
-        uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
-        if (charged != 0) {
-            _takeExact(unspecified, charged);
-            _allocate(poolId, unspecified, realized, charged, false, configuration);
+        uint256 charged;
+        {
+            bool exactInput = params.amountSpecified < 0;
+            bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
+            Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
+            int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
+            uint256 realized = _absolute(int256(unspecifiedDelta));
+            PoolFeeConfigurationView memory configuration = _effectiveFeeConfiguration(poolId);
+            uint16 feeBps = exactInput ? configuration.outputFeeBps : configuration.inputFeeBps;
+            charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
+            if (charged != 0) {
+                _takeExact(unspecified, charged);
+                _allocate(poolId, unspecified, realized, charged, false, configuration);
+            }
         }
 
         _routeDistribution(poolId, key.currency0);
@@ -537,35 +546,46 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint256 available0 = polPending[poolId][key.currency0];
         uint256 available1 = polPending[poolId][key.currency1];
         if (available0 == 0 || available1 == 0) return 0;
+        CompoundPrepared memory prepared = _addPermanentLiquidity(key, poolId, available0, available1);
+        if (prepared.liquidityAdded == 0) return 0;
+        uint256 amount0 = _applyCompoundDelta(poolId, key.currency0, prepared.delta0, available0);
+        uint256 amount1 = _applyCompoundDelta(poolId, key.currency1, prepared.delta1, available1);
+        permanentLiquidity[poolId] += prepared.liquidityAdded;
+        emit PermanentLiquidityAdded(
+            poolId,
+            prepared.liquidityAdded,
+            amount0,
+            amount1,
+            polPending[poolId][key.currency0],
+            polPending[poolId][key.currency1]
+        );
+        return prepared.liquidityAdded;
+    }
+
+    function _addPermanentLiquidity(PoolKey calldata key, PoolId poolId, uint256 available0, uint256 available1)
+        private
+        returns (CompoundPrepared memory prepared)
+    {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
         int24 tickLower = TickMath.minUsableTick(key.tickSpacing);
         int24 tickUpper = TickMath.maxUsableTick(key.tickSpacing);
-        liquidityAdded = LiquidityAmounts.getLiquidityForAmounts(
+        prepared.liquidityAdded = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96,
             TickMath.getSqrtPriceAtTick(tickLower),
             TickMath.getSqrtPriceAtTick(tickUpper),
             available0,
             available1
         );
-        if (liquidityAdded == 0) return 0;
+        if (prepared.liquidityAdded == 0) return prepared;
         ModifyLiquidityParams memory params = ModifyLiquidityParams({
             tickLower: tickLower,
             tickUpper: tickUpper,
-            liquidityDelta: int256(uint256(liquidityAdded)),
+            liquidityDelta: int256(uint256(prepared.liquidityAdded)),
             salt: PERMANENT_LIQUIDITY_SALT
         });
         (BalanceDelta delta,) = poolManager.modifyLiquidity(key, params, "");
-        uint256 amount0 = _applyCompoundDelta(poolId, key.currency0, delta.amount0(), available0);
-        uint256 amount1 = _applyCompoundDelta(poolId, key.currency1, delta.amount1(), available1);
-        permanentLiquidity[poolId] += liquidityAdded;
-        emit PermanentLiquidityAdded(
-            poolId,
-            liquidityAdded,
-            amount0,
-            amount1,
-            polPending[poolId][key.currency0],
-            polPending[poolId][key.currency1]
-        );
+        prepared.delta0 = delta.amount0();
+        prepared.delta1 = delta.amount1();
     }
 
     function _applyCompoundDelta(PoolId poolId, Currency currency, int128 delta, uint256 available)

@@ -38,6 +38,33 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         uint256 deadline;
     }
 
+    struct BorrowLiquidityRequest {
+        uint256 positionId;
+        uint256 basketId;
+        uint256 sharesIn;
+        address nftRecipient;
+        address refundRecipient;
+        bool stakePositions;
+    }
+
+    struct PreparedBorrow {
+        PreparedPool[] pools;
+        uint256[] assetAmounts;
+        uint256 basketShares;
+    }
+
+    struct ProvisionContext {
+        address manager;
+        address basketToken;
+        uint256 basketId;
+        uint256 loanId;
+        uint256 positionId;
+        address nftRecipient;
+        address refundRecipient;
+        bool stakePositions;
+        bytes32 custodyAccount;
+    }
+
     error BasketNotFound(uint256 basketId);
     error InvalidRecipient();
     error InvalidPoolCount(uint256 provided, uint256 required);
@@ -58,7 +85,15 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         address lpRecipient
     ) external nonReentrant returns (uint256 loanId, uint256[] memory v4TokenIds) {
         if (lpRecipient == address(0)) revert InvalidRecipient();
-        return _borrowAndProvide(positionId, basketId, sharesIn, pools, lpRecipient, lpRecipient, false);
+        BorrowLiquidityRequest memory request = BorrowLiquidityRequest({
+            positionId: positionId,
+            basketId: basketId,
+            sharesIn: sharesIn,
+            nftRecipient: lpRecipient,
+            refundRecipient: lpRecipient,
+            stakePositions: false
+        });
+        return _borrowAndProvide(request, pools);
     }
 
     function borrowAndStakeLiquidity(
@@ -68,67 +103,116 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         LiquidityParams[] calldata pools
     ) external nonReentrant returns (uint256 loanId, uint256[] memory v4TokenIds) {
         address beneficiary = IERC721(address(this)).ownerOf(positionId);
-        return _borrowAndProvide(positionId, basketId, sharesIn, pools, address(this), beneficiary, true);
+        BorrowLiquidityRequest memory request = BorrowLiquidityRequest({
+            positionId: positionId,
+            basketId: basketId,
+            sharesIn: sharesIn,
+            nftRecipient: address(this),
+            refundRecipient: beneficiary,
+            stakePositions: true
+        });
+        return _borrowAndProvide(request, pools);
     }
 
-    function _borrowAndProvide(
-        uint256 positionId,
-        uint256 basketId,
-        uint256 sharesIn,
-        LiquidityParams[] calldata pools,
-        address nftRecipient,
-        address refundRecipient,
-        bool stakePositions
-    ) private returns (uint256 loanId, uint256[] memory v4TokenIds) {
+    function _borrowAndProvide(BorrowLiquidityRequest memory request, LiquidityParams[] calldata pools)
+        private
+        returns (uint256 loanId, uint256[] memory v4TokenIds)
+    {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_LIQUIDITY != 0) {
             revert ActionPaused(LibGovernance.PAUSE_LIQUIDITY);
         }
 
-        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
-        LibBasket.Basket storage configured = bs.baskets[basketId];
-        if (configured.token == address(0)) revert BasketNotFound(basketId);
-        uint256 assetCount = configured.assets.length;
-        if (pools.length != assetCount) revert InvalidPoolCount(pools.length, assetCount);
-        LibBasketLiquidity.LiquidityStorage storage liquidityStorage = LibBasketLiquidity.liquidityStorage();
-        if (!liquidityStorage.managerInstalled) revert LiquidityManagerNotInstalled();
+        LibBasket.Basket storage configured;
+        LibBasketLiquidity.LiquidityStorage storage ls;
+        {
+            LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+            configured = bs.baskets[request.basketId];
+            if (configured.token == address(0)) revert BasketNotFound(request.basketId);
+            uint256 assetCount = configured.assets.length;
+            if (pools.length != assetCount) revert InvalidPoolCount(pools.length, assetCount);
+            ls = LibBasketLiquidity.liquidityStorage();
+            if (!ls.managerInstalled) revert LiquidityManagerNotInstalled();
+        }
 
-        (PreparedPool[] memory prepared, uint256[] memory poolAssetAmounts, uint256 basketShares) =
-            _preparePools(liquidityStorage, configured, basketId, pools, stakePositions);
+        PreparedBorrow memory prepared = _preparePools(ls, configured, request.basketId, pools, request.stakePositions);
         uint256[] memory principals;
-        (loanId, principals) =
-            LibLoanOrigination.originate(positionId, basketId, sharesIn, msg.sender, refundRecipient, address(0));
+        uint256[] memory mintInputs;
+        {
+            LibLoanOrigination.OriginationRequest memory origination = LibLoanOrigination.OriginationRequest({
+                positionId: request.positionId,
+                basketId: request.basketId,
+                sharesIn: request.sharesIn,
+                operator: msg.sender,
+                eventReceiver: request.refundRecipient,
+                principalReceiver: address(0)
+            });
+            (loanId, principals) = LibLoanOrigination.originate(origination);
+            mintInputs = LibBasketMint.quote(configured, prepared.basketShares, IERC20(configured.token).totalSupply());
+            _verifyPrincipalCoverage(configured, principals, mintInputs, prepared.assetAmounts);
+        }
+        LibBasketMint.mintFromRetainedPrincipal(request.basketId, prepared.basketShares, msg.sender, address(this));
 
-        uint256[] memory mintInputs =
-            LibBasketMint.quote(configured, basketShares, IERC20(configured.token).totalSupply());
-        for (uint256 i; i < assetCount; ++i) {
+        v4TokenIds = _provideLiquidity(_provisionContext(ls, configured, loanId, request), prepared.pools);
+        _refundPrincipals(
+            configured, request.basketId, principals, mintInputs, prepared.assetAmounts, request.refundRecipient
+        );
+        if (request.stakePositions) {
+            emit BorrowedLiquidityStaked(
+                loanId,
+                request.positionId,
+                request.basketId,
+                msg.sender,
+                request.refundRecipient,
+                request.sharesIn,
+                prepared.basketShares,
+                v4TokenIds
+            );
+        } else {
+            emit BorrowedLiquidityProvided(
+                loanId,
+                request.positionId,
+                request.basketId,
+                msg.sender,
+                request.refundRecipient,
+                request.sharesIn,
+                prepared.basketShares,
+                v4TokenIds
+            );
+        }
+    }
+
+    function _verifyPrincipalCoverage(
+        LibBasket.Basket storage configured,
+        uint256[] memory principals,
+        uint256[] memory mintInputs,
+        uint256[] memory poolAssetAmounts
+    ) private view {
+        uint256 length = configured.assets.length;
+        for (uint256 i; i < length; ++i) {
             uint256 required = mintInputs[i] + poolAssetAmounts[i];
             if (required > principals[i]) {
                 revert InsufficientPrincipal(configured.assets[i], required, principals[i]);
             }
         }
-        LibBasketMint.mintFromRetainedPrincipal(basketId, basketShares, msg.sender, address(this));
+    }
 
-        v4TokenIds = _provideLiquidity(
-            liquidityStorage.manager,
-            configured.token,
-            basketId,
-            loanId,
-            positionId,
-            prepared,
-            nftRecipient,
-            refundRecipient,
-            stakePositions
-        );
-        _refundPrincipals(configured, basketId, principals, mintInputs, poolAssetAmounts, refundRecipient);
-        if (stakePositions) {
-            emit BorrowedLiquidityStaked(
-                loanId, positionId, basketId, msg.sender, refundRecipient, sharesIn, basketShares, v4TokenIds
-            );
-        } else {
-            emit BorrowedLiquidityProvided(
-                loanId, positionId, basketId, msg.sender, refundRecipient, sharesIn, basketShares, v4TokenIds
-            );
-        }
+    function _provisionContext(
+        LibBasketLiquidity.LiquidityStorage storage ls,
+        LibBasket.Basket storage configured,
+        uint256 loanId,
+        BorrowLiquidityRequest memory request
+    ) private view returns (ProvisionContext memory ctx) {
+        ctx = ProvisionContext({
+            manager: ls.manager,
+            basketToken: configured.token,
+            basketId: request.basketId,
+            loanId: loanId,
+            positionId: request.positionId,
+            nftRecipient: request.nftRecipient,
+            refundRecipient: request.refundRecipient,
+            stakePositions: request.stakePositions,
+            custodyAccount: LibCustody.basketAccount(request.basketId)
+        });
     }
 
     function _preparePools(
@@ -137,98 +221,106 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         uint256 basketId,
         LiquidityParams[] calldata pools,
         bool requireFullRange
-    ) private view returns (PreparedPool[] memory prepared, uint256[] memory poolAssetAmounts, uint256 basketShares) {
+    ) private view returns (PreparedBorrow memory result) {
         uint256 length = pools.length;
-        prepared = new PreparedPool[](length);
-        poolAssetAmounts = new uint256[](length);
+        result.pools = new PreparedPool[](length);
+        result.assetAmounts = new uint256[](length);
         bool[] memory seen = new bool[](length);
-        IPoolManager poolManager = IPoolManager(ls.poolManager);
 
         for (uint256 i; i < length; ++i) {
             LiquidityParams calldata supplied = pools[i];
             uint256 assetIndex = _assetIndex(configured, basketId, supplied.asset);
             if (seen[assetIndex]) revert DuplicatePoolAsset(supplied.asset);
             seen[assetIndex] = true;
-            LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][supplied.asset];
-            _validateRange(supplied, stored.key.tickSpacing, requireFullRange);
-            (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(stored.key.toId());
-            (uint256 amount0, uint256 amount1) = LibBasketLiquidityMath.rangeAmounts(
-                sqrtPriceX96, supplied.tickLower, supplied.tickUpper, uint128(supplied.liquidity)
-            );
-            address currency0 = Currency.unwrap(stored.key.currency0);
-            address currency1 = Currency.unwrap(stored.key.currency1);
-            if (amount0 > supplied.amount0Max) revert AmountCapExceeded(currency0, amount0, supplied.amount0Max);
-            if (amount1 > supplied.amount1Max) revert AmountCapExceeded(currency1, amount1, supplied.amount1Max);
-            bool basketIsCurrency0 = currency0 == configured.token;
-            uint256 basketAmount = basketIsCurrency0 ? amount0 : amount1;
-            uint256 assetAmount = basketIsCurrency0 ? amount1 : amount0;
-            if (basketAmount == 0 || assetAmount == 0) revert InvalidLiquidityParameters(supplied.asset);
-
-            prepared[i] = PreparedPool({
-                asset: supplied.asset,
-                key: stored.key,
-                tickLower: supplied.tickLower,
-                tickUpper: supplied.tickUpper,
-                liquidity: supplied.liquidity,
-                basketAmount: basketAmount,
-                assetAmount: assetAmount,
-                deadline: supplied.deadline
-            });
-            poolAssetAmounts[assetIndex] = assetAmount;
-            basketShares += basketAmount;
+            result.pools[i] = _preparePool(ls, configured, basketId, supplied, requireFullRange);
+            result.assetAmounts[assetIndex] = result.pools[i].assetAmount;
+            result.basketShares += result.pools[i].basketAmount;
         }
     }
 
-    function _provideLiquidity(
-        address managerAddress,
-        address basketToken,
+    function _preparePool(
+        LibBasketLiquidity.LiquidityStorage storage ls,
+        LibBasket.Basket storage configured,
         uint256 basketId,
-        uint256 loanId,
-        uint256 positionId,
-        PreparedPool[] memory prepared,
-        address nftRecipient,
-        address refundRecipient,
-        bool stakePositions
-    ) private returns (uint256[] memory tokenIds) {
-        IStaticsLiquidityManager manager = IStaticsLiquidityManager(managerAddress);
-        bytes32 custodyAccount = LibCustody.basketAccount(basketId);
+        LiquidityParams calldata supplied,
+        bool requireFullRange
+    ) private view returns (PreparedPool memory pool) {
+        LibBasketLiquidity.CanonicalPool storage stored = ls.canonicalPools[basketId][supplied.asset];
+        _validateRange(supplied, stored.key.tickSpacing, requireFullRange);
+        pool.asset = supplied.asset;
+        pool.key = stored.key;
+        pool.tickLower = supplied.tickLower;
+        pool.tickUpper = supplied.tickUpper;
+        pool.liquidity = supplied.liquidity;
+        pool.deadline = supplied.deadline;
+        {
+            (uint160 sqrtPriceX96,,,) = IPoolManager(ls.poolManager).getSlot0(stored.key.toId());
+            (uint256 amount0, uint256 amount1) = LibBasketLiquidityMath.rangeAmounts(
+                sqrtPriceX96, supplied.tickLower, supplied.tickUpper, uint128(supplied.liquidity)
+            );
+            if (amount0 > supplied.amount0Max) {
+                revert AmountCapExceeded(Currency.unwrap(stored.key.currency0), amount0, supplied.amount0Max);
+            }
+            if (amount1 > supplied.amount1Max) {
+                revert AmountCapExceeded(Currency.unwrap(stored.key.currency1), amount1, supplied.amount1Max);
+            }
+            bool basketIsCurrency0 = Currency.unwrap(stored.key.currency0) == configured.token;
+            pool.basketAmount = basketIsCurrency0 ? amount0 : amount1;
+            pool.assetAmount = basketIsCurrency0 ? amount1 : amount0;
+        }
+        if (pool.basketAmount == 0 || pool.assetAmount == 0) revert InvalidLiquidityParameters(supplied.asset);
+    }
+
+    function _provideLiquidity(ProvisionContext memory ctx, PreparedPool[] memory prepared)
+        private
+        returns (uint256[] memory tokenIds)
+    {
+        IStaticsLiquidityManager manager = IStaticsLiquidityManager(ctx.manager);
         uint256 length = prepared.length;
         tokenIds = new uint256[](length);
         for (uint256 i; i < length; ++i) {
-            PreparedPool memory plan = prepared[i];
-            (, uint256 basketReceived) =
-                LibCustody.pushUnreserved(basketToken, managerAddress, plan.basketAmount, plan.basketAmount);
-            (, uint256 assetReceived) =
-                LibCustody.pushReserved(custodyAccount, plan.asset, managerAddress, plan.assetAmount, plan.assetAmount);
-            bool basketIsCurrency0 = Currency.unwrap(plan.key.currency0) == basketToken;
-            IStaticsLiquidityManager.PositionRequest memory request = IStaticsLiquidityManager.PositionRequest({
-                poolKey: plan.key,
-                tickLower: plan.tickLower,
-                tickUpper: plan.tickUpper,
-                liquidity: plan.liquidity,
-                amount0Limit: basketIsCurrency0 ? basketReceived : assetReceived,
-                amount1Limit: basketIsCurrency0 ? assetReceived : basketReceived,
-                deadline: plan.deadline
-            });
-            (IStaticsLiquidityManager.PositionMovement memory movement, uint256 refund0, uint256 refund1) =
-                manager.mintUserPosition(request, nftRecipient, refundRecipient);
-            tokenIds[i] = movement.tokenId;
-            if (stakePositions) {
-                _initializeLiquidityReward(manager, positionId, basketId, plan, movement.tokenId);
-            }
-            emit BorrowedLiquidityPositionMinted(
-                loanId,
-                basketId,
-                plan.asset,
-                movement.tokenId,
-                nftRecipient,
-                plan.liquidity,
-                movement.spent0,
-                movement.spent1,
-                refund0,
-                refund1
-            );
+            tokenIds[i] = _mintLiquidityPosition(manager, ctx, prepared[i]);
         }
+    }
+
+    function _mintLiquidityPosition(
+        IStaticsLiquidityManager manager,
+        ProvisionContext memory ctx,
+        PreparedPool memory plan
+    ) private returns (uint256 tokenId) {
+        (, uint256 basketReceived) = LibCustody.pushUnreserved(
+            ctx.basketToken, ctx.manager, plan.basketAmount, plan.basketAmount
+        );
+        (, uint256 assetReceived) =
+            LibCustody.pushReserved(ctx.custodyAccount, plan.asset, ctx.manager, plan.assetAmount, plan.assetAmount);
+        bool basketIsCurrency0 = Currency.unwrap(plan.key.currency0) == ctx.basketToken;
+        IStaticsLiquidityManager.PositionRequest memory request = IStaticsLiquidityManager.PositionRequest({
+            poolKey: plan.key,
+            tickLower: plan.tickLower,
+            tickUpper: plan.tickUpper,
+            liquidity: plan.liquidity,
+            amount0Limit: basketIsCurrency0 ? basketReceived : assetReceived,
+            amount1Limit: basketIsCurrency0 ? assetReceived : basketReceived,
+            deadline: plan.deadline
+        });
+        (IStaticsLiquidityManager.PositionMovement memory movement, uint256 refund0, uint256 refund1) =
+            manager.mintUserPosition(request, ctx.nftRecipient, ctx.refundRecipient);
+        tokenId = movement.tokenId;
+        if (ctx.stakePositions) {
+            _initializeLiquidityReward(manager, ctx.positionId, ctx.basketId, plan, tokenId);
+        }
+        emit BorrowedLiquidityPositionMinted(
+            ctx.loanId,
+            ctx.basketId,
+            plan.asset,
+            movement.tokenId,
+            ctx.nftRecipient,
+            plan.liquidity,
+            movement.spent0,
+            movement.spent1,
+            refund0,
+            refund1
+        );
     }
 
     function _initializeLiquidityReward(

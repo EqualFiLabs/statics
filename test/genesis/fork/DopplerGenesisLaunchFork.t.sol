@@ -93,62 +93,70 @@ contract DopplerGenesisLaunchForkTest is Test {
         _assertCode(modules.poolInitializer);
         _assertCode(modules.noOpMigrator);
 
-        address governance = makeAddr("forkGovernance");
-        address treasury = makeAddr("forkTreasury");
         IERC20 weth;
-        if (block.chainid == 4_663) {
-            string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
-            weth = IERC20(vm.parseJsonAddress(manifest, ".contracts.weth.address"));
-            vm.deal(address(this), 20 ether);
-            IWETH(address(weth)).deposit{value: 10 ether}();
-        } else {
-            weth = IERC20(address(new MockDopplerToken(address(this))));
+        StaticsGenesisDeployment memory deployment;
+        GenesisLaunchDistributor distributor;
+        StaticsFeeReceiver receiver;
+
+        {
+            address governance = makeAddr("forkGovernance");
+            address treasury = makeAddr("forkTreasury");
+            if (block.chainid == 4_663) {
+                string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+                weth = IERC20(vm.parseJsonAddress(manifest, ".contracts.weth.address"));
+                vm.deal(address(this), 20 ether);
+                IWETH(address(weth)).deposit{value: 10 ether}();
+            } else {
+                weth = IERC20(address(new MockDopplerToken(address(this))));
+            }
+            DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+            StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
+                governance: governance,
+                treasury: treasury,
+                numeraire: address(weth),
+                integrator: address(0),
+                modules: modules,
+                salt: keccak256(abi.encode("STATICS_DOPPLER_FORK", block.chainid, block.number)),
+                fee: 30_000,
+                genesisRewardShareBps: 5_000,
+                tokenURI: "ipfs://statics/token.json",
+                contractURI: "ipfs://statics-genesis/contract.json",
+                externalURLBase: "https://statics.finance/genesis/"
+            });
+
+            deployment = deployer.deploy(config, address(deployer));
+            IERC20 statics = IERC20(deployment.statics);
+            StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
+            StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
+            receiver = StaticsFeeReceiver(deployment.feeReceiver);
+            GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
+            distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
+
+            assertEq(statics.totalSupply(), 1_000_000_000 ether);
+            assertEq(statics.balanceOf(treasury), 200_000_000 ether);
+            assertLe(statics.balanceOf(deployment.genesisVault), deployer.MAX_MULTICURVE_RESIDUAL());
+            assertEq(genesis.balanceOf(address(vault)), 5_555);
+            assertEq(vault.requiredBacking(), 0);
+            assertEq(receiver.statics(), deployment.statics);
+            assertEq(receiver.poolInitializer(), modules.poolInitializer);
+            assertEq(
+                IDopplerFeeShares(modules.poolInitializer).getShares(deployment.poolId, address(receiver)), 0.95 ether
+            );
+            assertEq(receiver.activeDistributor(), address(distributor));
+            assertEq(registry.activeConsumer(), address(distributor));
+            assertEq(receiver.pendingOwner(), governance);
+
+            vm.deal(treasury, 1 ether);
+            vm.startPrank(treasury);
+            statics.approve(address(vault), vault.GENESIS_PRICE());
+            vault.buyGenesis{value: vault.nativeAcquisitionFee()}(1, treasury);
+            distributor.registerGenesis(1);
+            vm.stopPrank();
+            assertEq(genesis.ownerOf(1), treasury);
+            assertEq(vault.requiredBacking(), vault.GENESIS_PRICE());
         }
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
-        StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
-            governance: governance,
-            treasury: treasury,
-            numeraire: address(weth),
-            integrator: address(0),
-            modules: modules,
-            salt: keccak256(abi.encode("STATICS_DOPPLER_FORK", block.chainid, block.number)),
-            fee: 30_000,
-            genesisRewardShareBps: 5_000,
-            tokenURI: "ipfs://statics/token.json",
-            contractURI: "ipfs://statics-genesis/contract.json",
-            externalURLBase: "https://statics.finance/genesis/"
-        });
 
-        StaticsGenesisDeployment memory deployment = deployer.deploy(config, address(deployer));
-        IERC20 statics = IERC20(deployment.statics);
-        StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
-        StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
-        StaticsFeeReceiver receiver = StaticsFeeReceiver(deployment.feeReceiver);
-        GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
-        GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
-
-        assertEq(statics.totalSupply(), 1_000_000_000 ether);
-        assertEq(statics.balanceOf(treasury), 200_000_000 ether);
-        assertLe(statics.balanceOf(deployment.genesisVault), deployer.MAX_MULTICURVE_RESIDUAL());
-        assertEq(genesis.balanceOf(address(vault)), 5_555);
-        assertEq(vault.requiredBacking(), 0);
-        assertEq(receiver.statics(), deployment.statics);
-        assertEq(receiver.poolInitializer(), modules.poolInitializer);
-        assertEq(IDopplerFeeShares(modules.poolInitializer).getShares(deployment.poolId, address(receiver)), 0.95 ether);
-        assertEq(receiver.activeDistributor(), address(distributor));
-        assertEq(registry.activeConsumer(), address(distributor));
-        assertEq(receiver.pendingOwner(), governance);
-
-        vm.deal(treasury, 1 ether);
-        vm.startPrank(treasury);
-        statics.approve(address(vault), vault.GENESIS_PRICE());
-        vault.buyGenesis{value: vault.nativeAcquisitionFee()}(1, treasury);
-        distributor.registerGenesis(1);
-        vm.stopPrank();
-        assertEq(genesis.ownerOf(1), treasury);
-        assertEq(vault.requiredBacking(), vault.GENESIS_PRICE());
-
-        PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, config.fee);
+        PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
         PoolSwapTest router = new PoolSwapTest(IDopplerFeeShares(modules.poolInitializer).poolManager());
         weth.approve(address(router), type(uint256).max);
         bool zeroForOne = address(weth) < deployment.statics;
@@ -177,12 +185,45 @@ contract DopplerGenesisLaunchForkTest is Test {
     function _assertNativeRouterRoutes(PoolKey memory key, address statics, address weth) private {
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
         address router = vm.parseJsonAddress(manifest, ".contracts.universalRouter.address");
-        address permit2Address = vm.parseJsonAddress(manifest, ".contracts.permit2.address");
-        IV4Quoter quoter = IV4Quoter(vm.parseJsonAddress(manifest, ".contracts.quoter.address"));
         _assertCode(router);
-        _assertCode(permit2Address);
-        _assertCode(address(quoter));
+        uint256 staticsReceived = _nativeBuy(key, statics, weth, router);
+        _nativeSell(key, statics, weth, router, staticsReceived);
+    }
 
+    function _forkQuoter() private view returns (IV4Quoter quoter) {
+        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+        quoter = IV4Quoter(vm.parseJsonAddress(manifest, ".contracts.quoter.address"));
+        _assertCode(address(quoter));
+    }
+
+    function _forkPermit2() private view returns (address permit2) {
+        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+        permit2 = vm.parseJsonAddress(manifest, ".contracts.permit2.address");
+        _assertCode(permit2);
+    }
+
+    function _exactInSingleCalldata(PoolKey memory key, bool zeroForOne, uint128 amountIn, uint128 minimumOut)
+        private
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(
+            RouterExactInputSingleParams({
+                poolKey: key,
+                zeroForOne: zeroForOne,
+                amountIn: amountIn,
+                amountOutMinimum: minimumOut,
+                minHopPriceX36: 0,
+                hookData: bytes("")
+            })
+        );
+    }
+
+    function _nativeBuy(PoolKey memory key, address statics, address weth, address router)
+        private
+        returns (uint256 staticsReceived)
+    {
+        IV4Quoter quoter = _forkQuoter();
         uint128 buyAmount = 0.01 ether;
         bool buyZeroForOne = weth < statics;
         (uint256 quotedBuy,) = quoter.quoteExactInputSingle(
@@ -194,19 +235,7 @@ contract DopplerGenesisLaunchForkTest is Test {
         uint256 staticsBefore = IERC20(statics).balanceOf(address(this));
 
         Plan memory buyPlan = Planner.init();
-        buyPlan.add(
-            Actions.SWAP_EXACT_IN_SINGLE,
-            abi.encode(
-                RouterExactInputSingleParams({
-                    poolKey: key,
-                    zeroForOne: buyZeroForOne,
-                    amountIn: buyAmount,
-                    amountOutMinimum: minimumBuy,
-                    minHopPriceX36: 0,
-                    hookData: bytes("")
-                })
-            )
-        );
+        buyPlan.add(Actions.SWAP_EXACT_IN_SINGLE, _exactInSingleCalldata(key, buyZeroForOne, buyAmount, minimumBuy));
         buyPlan.add(Actions.SETTLE, abi.encode(Currency.wrap(weth), buyAmount, false));
         buyPlan.add(Actions.TAKE_ALL, abi.encode(Currency.wrap(statics), minimumBuy));
         bytes[] memory buyInputs = new bytes[](2);
@@ -215,33 +244,34 @@ contract DopplerGenesisLaunchForkTest is Test {
         IUniversalRouter(router).execute{value: buyAmount}(
             abi.encodePacked(WRAP_ETH_COMMAND, V4_SWAP_COMMAND), buyInputs, block.timestamp + 1
         );
-        uint256 staticsReceived = IERC20(statics).balanceOf(address(this)) - staticsBefore;
+        staticsReceived = IERC20(statics).balanceOf(address(this)) - staticsBefore;
         assertGe(staticsReceived, minimumBuy, "native buy missed quoted minimum");
+    }
 
+    function _nativeSell(PoolKey memory key, address statics, address weth, address router, uint256 staticsReceived)
+        private
+    {
+        address permit2 = _forkPermit2();
         uint128 sellAmount = uint128(staticsReceived / 2);
-        IERC20(statics).approve(permit2Address, type(uint256).max);
-        IAllowanceTransfer(permit2Address).approve(statics, router, type(uint160).max, type(uint48).max);
-        (uint256 quotedSell,) = quoter.quoteExactInputSingle(
-            IV4Quoter.QuoteExactSingleParams({
-                poolKey: key, zeroForOne: !buyZeroForOne, exactAmount: sellAmount, hookData: bytes("")
-            })
-        );
-        uint128 minimumSell = uint128((quotedSell * 99) / 100);
+        IERC20(statics).approve(permit2, type(uint256).max);
+        IAllowanceTransfer(permit2).approve(statics, router, type(uint160).max, type(uint48).max);
+
+        uint128 minimumSell;
+        {
+            bool buyZeroForOne = weth < statics;
+            (uint256 quotedSell,) = _forkQuoter()
+                .quoteExactInputSingle(
+                    IV4Quoter.QuoteExactSingleParams({
+                    poolKey: key, zeroForOne: !buyZeroForOne, exactAmount: sellAmount, hookData: bytes("")
+                })
+                );
+            minimumSell = uint128((quotedSell * 99) / 100);
+        }
         uint256 ethBefore = address(this).balance;
 
         Plan memory sellPlan = Planner.init();
         sellPlan.add(
-            Actions.SWAP_EXACT_IN_SINGLE,
-            abi.encode(
-                RouterExactInputSingleParams({
-                    poolKey: key,
-                    zeroForOne: !buyZeroForOne,
-                    amountIn: sellAmount,
-                    amountOutMinimum: minimumSell,
-                    minHopPriceX36: 0,
-                    hookData: bytes("")
-                })
-            )
+            Actions.SWAP_EXACT_IN_SINGLE, _exactInSingleCalldata(key, !(weth < statics), sellAmount, minimumSell)
         );
         sellPlan.add(Actions.SETTLE_ALL, abi.encode(Currency.wrap(statics), sellAmount));
         sellPlan.add(Actions.TAKE, abi.encode(Currency.wrap(weth), ActionConstants.ADDRESS_THIS, 0));

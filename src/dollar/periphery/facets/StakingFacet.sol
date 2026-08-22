@@ -28,6 +28,13 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         uint256 collateralCredit;
     }
 
+    struct TransitionClaim {
+        uint256 newSeriesId;
+        uint256 newPrincipal;
+        uint256 collateralCredit;
+        uint256 oldPrincipal;
+    }
+
     event RiskLiquidityClosed(uint256 indexed positionId, uint256 indexed seriesId);
     event SeriesTransitionProcessed(
         uint256 indexed oldSeriesId,
@@ -263,67 +270,91 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         }
         _finalizeRiskIncentives(ps, oldSeriesId, series);
         if (migration.claimed) revert SeriesMigrationAlreadyProcessed(oldSeriesId);
-        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
-        IStaticsDollarCoreTypes.RiskSeries memory successor = core.riskSeries(profile.activeSeriesId);
-        IStaticsDollarCoreTypes.RecoveryClaimMode claimMode = profile.mode
-                == IStaticsDollarCoreTypes.ProfileMode.Retired
-            || successor.status != IStaticsDollarCoreTypes.SeriesStatus.Active
-            ? IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly
-            : IStaticsDollarCoreTypes.RecoveryClaimMode.NAV;
-
-        uint256 collateralCredit;
-        if (migration.returned) {
-            IStaticsDollarCoreTypes.RecoveryClaimPreview memory preview =
-                core.previewReturnedRiskClaim(address(this), oldSeriesId, claimMode);
-            newSeriesId = preview.successorSeriesId;
-            if (preview.collateralIn != 0) IERC20(series.collateralToken).forceApprove(ps.pool, preview.collateralIn);
-            uint256 collateralBefore = LibCustody.beginUnreservedDebit(series.collateralToken, preview.collateralIn);
-            _expectRiskIngress(ps, ps.pool, address(0), newSeriesId, preview.successorPairs);
-            (newPrincipal,, collateralCredit) = core.claimReturnedRisk(
-                oldSeriesId,
-                claimMode,
-                preview.collateralIn,
-                preview.successorPairs,
-                preview.collateralOut,
-                address(this)
-            );
-            LibCustody.finishUnreservedDebit(series.collateralToken, collateralBefore, preview.collateralIn);
-            _requireRiskIngressConsumed(ps);
-        } else {
-            uint256 oldPrincipal = IERC1155(ps.staticsDollarRisk).balanceOf(address(this), oldSeriesId);
-            if (oldPrincipal == 0) revert ZeroAmount();
-            IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview =
-                core.previewExpiredRiskRecovery(address(this), oldSeriesId, oldPrincipal, claimMode);
-            newSeriesId = preview.successorSeriesId;
-            uint256 receivedStaticsDollar = LibCustody.pull(ps.staticsDollar, msg.sender, preview.staticsDollarBurned);
-            if (receivedStaticsDollar < preview.staticsDollarBurned) {
-                revert InsufficientTransferReceived(
-                    ps.staticsDollar, preview.staticsDollarBurned, receivedStaticsDollar
-                );
-            }
-            uint256 staticsDollarBefore = LibCustody.beginUnreservedDebit(ps.staticsDollar, preview.staticsDollarBurned);
-            _expectRiskIngress(ps, ps.pool, address(0), newSeriesId, preview.holderPairs);
-            (,, newPrincipal) = core.recoverExpiredRisk(
-                address(this), oldSeriesId, oldPrincipal, claimMode, preview.seniorCollateralOut + preview.keeperBounty
-            );
-            LibCustody.finishUnreservedDebit(ps.staticsDollar, staticsDollarBefore, preview.staticsDollarBurned);
-            _requireRiskIngressConsumed(ps);
-            uint256 callerCollateral = preview.seniorCollateralOut + preview.keeperBounty;
-            LibCustody.pushUnreserved(series.collateralToken, msg.sender, callerCollateral, callerCollateral);
-            collateralCredit = preview.holderCollateralDust;
-            migration.oldPrincipal = oldPrincipal;
-            migration.remainingOldPrincipal = oldPrincipal;
+        IStaticsDollarCoreTypes.RecoveryClaimMode claimMode = _transitionClaimMode(core, series);
+        TransitionClaim memory claim = migration.returned
+            ? _claimReturnedTransition(ps, core, oldSeriesId, series, claimMode)
+            : _recoverExpiredTransition(ps, core, oldSeriesId, series, claimMode);
+        newSeriesId = claim.newSeriesId;
+        newPrincipal = claim.newPrincipal;
+        if (!migration.returned) {
+            migration.oldPrincipal = claim.oldPrincipal;
+            migration.remainingOldPrincipal = claim.oldPrincipal;
         }
         migration.newSeriesId = newSeriesId;
         migration.remainingNewPrincipal = newPrincipal;
         migration.remainingStaticsDollar = newPrincipal;
-        migration.remainingCollateral = collateralCredit;
+        migration.remainingCollateral = claim.collateralCredit;
         migration.claimed = true;
         if (newPrincipal != 0) LibPeriphery.reserve(ps, ps.staticsDollar, newPrincipal);
-        if (collateralCredit != 0) LibPeriphery.reserve(ps, series.collateralToken, collateralCredit);
+        if (claim.collateralCredit != 0) LibPeriphery.reserve(ps, series.collateralToken, claim.collateralCredit);
         emit SeriesTransitionProcessed(
             oldSeriesId, newSeriesId, migration.oldPrincipal, newPrincipal, migration.returned
         );
+    }
+
+    function _transitionClaimMode(IStaticsDollarCore core, IStaticsDollarCoreTypes.RiskSeries memory oldSeries)
+        private
+        view
+        returns (IStaticsDollarCoreTypes.RecoveryClaimMode claimMode)
+    {
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(oldSeries.profileId);
+        IStaticsDollarCoreTypes.RiskSeries memory successor = core.riskSeries(profile.activeSeriesId);
+        claimMode = profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired
+            || successor.status != IStaticsDollarCoreTypes.SeriesStatus.Active
+            ? IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly
+            : IStaticsDollarCoreTypes.RecoveryClaimMode.NAV;
+    }
+
+    function _claimReturnedTransition(
+        LibPeriphery.PS storage ps,
+        IStaticsDollarCore core,
+        uint256 oldSeriesId,
+        IStaticsDollarCoreTypes.RiskSeries memory series,
+        IStaticsDollarCoreTypes.RecoveryClaimMode claimMode
+    ) private returns (TransitionClaim memory claim) {
+        IStaticsDollarCoreTypes.RecoveryClaimPreview memory preview =
+            core.previewReturnedRiskClaim(address(this), oldSeriesId, claimMode);
+        claim.newSeriesId = preview.successorSeriesId;
+        if (preview.collateralIn != 0) IERC20(series.collateralToken).forceApprove(ps.pool, preview.collateralIn);
+        uint256 collateralBefore = LibCustody.beginUnreservedDebit(series.collateralToken, preview.collateralIn);
+        _expectRiskIngress(ps, ps.pool, address(0), claim.newSeriesId, preview.successorPairs);
+        (claim.newPrincipal,, claim.collateralCredit) = core.claimReturnedRisk(
+            oldSeriesId, claimMode, preview.collateralIn, preview.successorPairs, preview.collateralOut, address(this)
+        );
+        LibCustody.finishUnreservedDebit(series.collateralToken, collateralBefore, preview.collateralIn);
+        _requireRiskIngressConsumed(ps);
+    }
+
+    function _recoverExpiredTransition(
+        LibPeriphery.PS storage ps,
+        IStaticsDollarCore core,
+        uint256 oldSeriesId,
+        IStaticsDollarCoreTypes.RiskSeries memory series,
+        IStaticsDollarCoreTypes.RecoveryClaimMode claimMode
+    ) private returns (TransitionClaim memory claim) {
+        claim.oldPrincipal = IERC1155(ps.staticsDollarRisk).balanceOf(address(this), oldSeriesId);
+        if (claim.oldPrincipal == 0) revert ZeroAmount();
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview =
+            core.previewExpiredRiskRecovery(address(this), oldSeriesId, claim.oldPrincipal, claimMode);
+        claim.newSeriesId = preview.successorSeriesId;
+        uint256 receivedStaticsDollar = LibCustody.pull(ps.staticsDollar, msg.sender, preview.staticsDollarBurned);
+        if (receivedStaticsDollar < preview.staticsDollarBurned) {
+            revert InsufficientTransferReceived(ps.staticsDollar, preview.staticsDollarBurned, receivedStaticsDollar);
+        }
+        uint256 staticsDollarBefore = LibCustody.beginUnreservedDebit(ps.staticsDollar, preview.staticsDollarBurned);
+        _expectRiskIngress(ps, ps.pool, address(0), claim.newSeriesId, preview.holderPairs);
+        (,, claim.newPrincipal) = core.recoverExpiredRisk(
+            address(this),
+            oldSeriesId,
+            claim.oldPrincipal,
+            claimMode,
+            preview.seniorCollateralOut + preview.keeperBounty
+        );
+        LibCustody.finishUnreservedDebit(ps.staticsDollar, staticsDollarBefore, preview.staticsDollarBurned);
+        _requireRiskIngressConsumed(ps);
+        uint256 callerCollateral = preview.seniorCollateralOut + preview.keeperBounty;
+        LibCustody.pushUnreserved(series.collateralToken, msg.sender, callerCollateral, callerCollateral);
+        claim.collateralCredit = preview.holderCollateralDust;
     }
 
     function settleSeriesMigration(uint256 positionId, uint256 oldSeriesId)

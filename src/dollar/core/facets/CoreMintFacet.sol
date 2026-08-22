@@ -93,6 +93,17 @@ contract CoreMintFacet is ReentrancyGuard {
     error InvalidSeries(uint256 seriesId);
     error OnlyManagedPeriphery(address caller, address expected);
 
+    struct RecombineContext {
+        uint256 seriesId;
+        uint256 staticsDollarAmount;
+        uint256 shareAmount;
+        address receiver;
+        bool managed;
+        uint256 gross;
+        uint256 collateralOut;
+        bool terminalEligible;
+    }
+
     function depositCollateral(
         uint256 profileId,
         uint256 collateralAmount,
@@ -108,6 +119,19 @@ contract CoreMintFacet is ReentrancyGuard {
             revert OutputBelowMinimum(preview.staticsDollarMinted, minimumStaticsDollar);
         }
         if (preview.sharesMinted < minimumShares) revert OutputBelowMinimum(preview.sharesMinted, minimumShares);
+        _recordDeposit(cs, profileId, preview, collateralAmount);
+        _settleDeposit(cs, profileId, preview, staticsDollarReceiver, shareReceiver, collateralAmount);
+        return (preview.seriesId, preview.staticsDollarMinted, preview.sharesMinted);
+    }
+
+    /// @dev Custody pull followed by all deposit accounting mutations and the
+    /// post-accounting health checkpoint.
+    function _recordDeposit(
+        LibCoreStorage.CS storage cs,
+        uint256 profileId,
+        IStaticsDollarCoreTypes.DepositPreview memory preview,
+        uint256 collateralAmount
+    ) private {
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[profileId];
         IStaticsDollarCoreTypes.RiskSeries storage series = cs.riskSeries[preview.seriesId];
 
@@ -124,7 +148,19 @@ contract CoreMintFacet is ReentrancyGuard {
         cs.accountedCollateralByToken[profile.collateralToken] += netCollateral;
         LibCoreAccounting.updateSeriesIndex(cs, preview.seriesId);
         LibCoreAccounting.enforceHealthy(cs, profileId, profile);
+    }
 
+    /// @dev Fee collection, insurance acknowledgement, token minting, custody
+    /// enforcement, and the deposit event.
+    function _settleDeposit(
+        LibCoreStorage.CS storage cs,
+        uint256 profileId,
+        IStaticsDollarCoreTypes.DepositPreview memory preview,
+        address staticsDollarReceiver,
+        address shareReceiver,
+        uint256 collateralAmount
+    ) private {
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[profileId];
         LibCoreAccounting.collectSeriesFee(
             cs,
             msg.sender,
@@ -151,7 +187,6 @@ contract CoreMintFacet is ReentrancyGuard {
             preview.priceWad,
             preview.collateralPerPairWad
         );
-        return (preview.seriesId, preview.staticsDollarMinted, preview.sharesMinted);
     }
 
     function mintPegged(
@@ -177,12 +212,7 @@ contract CoreMintFacet is ReentrancyGuard {
         LibCoreAccounting.enforceHealthy(cs, profileId, profile);
 
         LibCoreAccounting.collectPeggedProfileFee(
-            cs,
-            msg.sender,
-            profile.collateralToken,
-            preview.feeAmount,
-            profileId,
-            IStaticsDollarCoreTypes.FeeKind.Mint
+            cs, msg.sender, profile.collateralToken, preview.feeAmount, profileId, IStaticsDollarCoreTypes.FeeKind.Mint
         );
         IStaticsDollar(cs.staticsDollar).mint(staticsDollarReceiver, staticsDollarAmount);
         LibCoreAccounting.enforceCustody(cs, profile.collateralToken);
@@ -291,59 +321,97 @@ contract CoreMintFacet is ReentrancyGuard {
             return (status, 0);
         }
 
-        IStaticsDollarCoreTypes.RiskSeries storage series = cs.riskSeries[seriesId];
+        RecombineContext memory ctx = RecombineContext({
+            seriesId: seriesId,
+            staticsDollarAmount: staticsDollarAmount,
+            shareAmount: shareAmount,
+            receiver: receiver,
+            managed: managed,
+            gross: 0,
+            collateralOut: 0,
+            terminalEligible: false
+        });
+        _applyRecombinationExit(cs, ctx, preview, minimumCollateralOut);
+        _recordRecombination(cs, ctx);
+        _settleRecombination(cs, ctx, preview);
+        return (IStaticsDollarCoreTypes.ExitStatus.Available, ctx.collateralOut);
+    }
+
+    /// @dev Series-mode guard, expired-book consumption, and the output bound.
+    function _applyRecombinationExit(
+        LibCoreStorage.CS storage cs,
+        RecombineContext memory ctx,
+        IStaticsDollarCoreTypes.RedemptionPreview memory preview,
+        uint256 minimumCollateralOut
+    ) private {
+        IStaticsDollarCoreTypes.RiskSeries storage series = cs.riskSeries[ctx.seriesId];
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[series.profileId];
         if (profile.mode == IStaticsDollarCoreTypes.ProfileMode.Inactive) {
             revert InvalidProfileMode(series.profileId, profile.mode);
         }
 
-        uint256 gross = preview.collateralOut + preview.feeAmount;
-        bool terminalEligible = series.status == IStaticsDollarCoreTypes.SeriesStatus.Recoverable
+        ctx.gross = preview.collateralOut + preview.feeAmount;
+        ctx.terminalEligible = series.status == IStaticsDollarCoreTypes.SeriesStatus.Recoverable
             || series.status == IStaticsDollarCoreTypes.SeriesStatus.Retired;
         if (series.status == IStaticsDollarCoreTypes.SeriesStatus.Recoverable) {
-            LibCoreRecovery.consumeExpiredBook(cs.expiredRecoveryBook[seriesId], shareAmount, gross);
+            LibCoreRecovery.consumeExpiredBook(cs.expiredRecoveryBook[ctx.seriesId], ctx.shareAmount, ctx.gross);
         }
-        collateralOut = managed ? gross : preview.collateralOut;
-        if (collateralOut < minimumCollateralOut) revert OutputBelowMinimum(collateralOut, minimumCollateralOut);
+        ctx.collateralOut = ctx.managed ? ctx.gross : preview.collateralOut;
+        if (ctx.collateralOut < minimumCollateralOut) {
+            revert OutputBelowMinimum(ctx.collateralOut, minimumCollateralOut);
+        }
+    }
 
-        series.seniorOutstanding -= staticsDollarAmount;
-        series.riskSharesOutstanding -= shareAmount;
-        series.accountedCollateral -= gross;
-        profile.seniorOutstanding -= staticsDollarAmount;
-        profile.accountedCollateral -= gross;
-        cs.totalSeniorOutstanding -= staticsDollarAmount;
-        cs.accountedCollateralByToken[series.collateralToken] -= gross;
-        LibCoreAccounting.updateSeriesIndex(cs, seriesId);
+    /// @dev Series, profile, and global accounting mutations.
+    function _recordRecombination(LibCoreStorage.CS storage cs, RecombineContext memory ctx) private {
+        IStaticsDollarCoreTypes.RiskSeries storage series = cs.riskSeries[ctx.seriesId];
+        IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[series.profileId];
+        series.seniorOutstanding -= ctx.staticsDollarAmount;
+        series.riskSharesOutstanding -= ctx.shareAmount;
+        series.accountedCollateral -= ctx.gross;
+        profile.seniorOutstanding -= ctx.staticsDollarAmount;
+        profile.accountedCollateral -= ctx.gross;
+        cs.totalSeniorOutstanding -= ctx.staticsDollarAmount;
+        cs.accountedCollateralByToken[series.collateralToken] -= ctx.gross;
+        LibCoreAccounting.updateSeriesIndex(cs, ctx.seriesId);
+    }
 
-        IStaticsDollar(cs.staticsDollar).burn(msg.sender, staticsDollarAmount);
-        IStaticsDollarRiskShares(cs.staticsDollarRisk).burn(msg.sender, seriesId, shareAmount);
-        if (!managed) {
+    /// @dev Burns, fee collection, collateral payout, custody enforcement,
+    /// terminal close, and the recombination event.
+    function _settleRecombination(
+        LibCoreStorage.CS storage cs,
+        RecombineContext memory ctx,
+        IStaticsDollarCoreTypes.RedemptionPreview memory preview
+    ) private {
+        IStaticsDollarCoreTypes.RiskSeries storage series = cs.riskSeries[ctx.seriesId];
+        IStaticsDollar(cs.staticsDollar).burn(msg.sender, ctx.staticsDollarAmount);
+        IStaticsDollarRiskShares(cs.staticsDollarRisk).burn(msg.sender, ctx.seriesId, ctx.shareAmount);
+        if (!ctx.managed) {
             LibCoreAccounting.collectSeriesFee(
                 cs,
                 msg.sender,
                 series.collateralToken,
                 preview.feeAmount,
-                seriesId,
+                ctx.seriesId,
                 IStaticsDollarCoreTypes.FeeKind.Redemption
             );
         }
-        LibCoreAccounting.pushExact(series.collateralToken, receiver, collateralOut);
+        LibCoreAccounting.pushExact(series.collateralToken, ctx.receiver, ctx.collateralOut);
         LibCoreAccounting.enforceCustody(cs, series.collateralToken);
-        if (terminalEligible && LibCoreRecovery.closeIfEmpty(cs, seriesId)) {
-            emit SeriesClosed(series.profileId, seriesId);
+        if (ctx.terminalEligible && LibCoreRecovery.closeIfEmpty(cs, ctx.seriesId)) {
+            emit SeriesClosed(series.profileId, ctx.seriesId);
         }
 
         emit Recombined(
             msg.sender,
-            receiver,
-            seriesId,
-            staticsDollarAmount,
-            shareAmount,
+            ctx.receiver,
+            ctx.seriesId,
+            ctx.staticsDollarAmount,
+            ctx.shareAmount,
             series.collateralToken,
-            collateralOut,
+            ctx.collateralOut,
             preview.collateralRatioBpsAfter
         );
-        return (IStaticsDollarCoreTypes.ExitStatus.Available, collateralOut);
     }
 
     function previewDeposit(uint256 profileId, uint256 collateralAmount)
@@ -531,11 +599,11 @@ contract CoreMintFacet is ReentrancyGuard {
         });
     }
 
-    function _previewPeggedRedemption(
-        LibCoreStorage.CS storage cs,
-        uint256 profileId,
-        uint256 staticsDollarAmount
-    ) private view returns (IStaticsDollarCoreTypes.PeggedRedemptionPreview memory preview) {
+    function _previewPeggedRedemption(LibCoreStorage.CS storage cs, uint256 profileId, uint256 staticsDollarAmount)
+        private
+        view
+        returns (IStaticsDollarCoreTypes.PeggedRedemptionPreview memory preview)
+    {
         if (staticsDollarAmount == 0) revert ZeroAmount();
         LibCoreAccounting.enforceBootstrapFinalized(cs);
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile = LibCoreAccounting.profile(cs, profileId);

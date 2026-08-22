@@ -49,6 +49,16 @@ struct StaticsGenesisDeployment {
     address avatarSVG;
 }
 
+/// @dev Internal grouping that keeps the launcher's live-local set within
+/// legacy-codegen stack limits.
+struct GenesisCollection {
+    GenesisActivationRegistry registry;
+    StaticsGenesisVault vault;
+    StaticsAvatarSVG avatar;
+    StaticsGenesisRenderer renderer;
+    StaticsGenesis genesis;
+}
+
 /// @notice Fresh-deployment-only launcher for the standalone Doppler Genesis system.
 contract DeployStaticsGenesis is Script {
     using PoolIdLibrary for PoolKey;
@@ -119,46 +129,30 @@ contract DeployStaticsGenesis is Script {
     {
         _validate(config, initialOwner);
 
-        StaticsFeeReceiver receiver =
-            new StaticsFeeReceiver(config.modules.poolInitializer, config.numeraire, initialOwner);
-        StaticsLaunchAllocationEscrow allocationEscrow =
-            new StaticsLaunchAllocationEscrow(config.treasury, initialOwner);
+        (StaticsFeeReceiver receiver, StaticsLaunchAllocationEscrow allocationEscrow) =
+            _deployLaunchReceivers(config, initialOwner);
         (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, allocationEscrow);
         receiver.bindMarket(statics, poolId);
 
-        GenesisActivationRegistry registry = new GenesisActivationRegistry(IERC20(statics), initialOwner, initialOwner);
-        StaticsGenesisVault vault =
-            new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.treasury);
-        StaticsAvatarSVG avatar = new StaticsAvatarSVG();
-        StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
-        StaticsGenesis genesis = new StaticsGenesis(
-            address(vault),
-            address(registry),
-            renderer,
-            initialOwner,
-            config.treasury,
-            config.contractURI,
-            config.externalURLBase
-        );
-        registry.bindGenesisCollection(address(genesis));
-        vault.finalizeGenesisCollection(address(genesis));
-        allocationEscrow.release(IERC20(statics), address(vault));
+        GenesisCollection memory collection = _deployGenesisCollection(statics, config, initialOwner);
+        collection.registry.bindGenesisCollection(address(collection.genesis));
+        collection.vault.finalizeGenesisCollection(address(collection.genesis));
+        allocationEscrow.release(IERC20(statics), address(collection.vault));
         if (IERC20(statics).balanceOf(config.treasury) != TREASURY_ALLOCATION) {
             revert AllocationMismatch(IERC20(statics).totalSupply(), IERC20(statics).balanceOf(config.treasury));
         }
 
-        GenesisLaunchDistributor distributor = new GenesisLaunchDistributor(
-            receiver, genesis, registry, config.treasury, initialOwner, config.genesisRewardShareBps
-        );
+        GenesisLaunchDistributor distributor =
+            _deployDistributor(receiver, collection.genesis, collection.registry, config, initialOwner);
         receiver.proposeDistributor(address(distributor));
         distributor.acceptFeeReceiverRole();
-        registry.proposeConsumer(address(distributor));
+        collection.registry.proposeConsumer(address(distributor));
         distributor.acceptActivationConsumer();
 
         receiver.transferOwnership(config.governance);
-        registry.transferOwnership(config.governance);
-        vault.transferOwnership(config.governance);
-        genesis.transferOwnership(config.governance);
+        collection.registry.transferOwnership(config.governance);
+        collection.vault.transferOwnership(config.governance);
+        collection.genesis.transferOwnership(config.governance);
         distributor.transferOwnership(config.governance);
 
         deployment = StaticsGenesisDeployment({
@@ -167,13 +161,53 @@ contract DeployStaticsGenesis is Script {
             poolId: poolId,
             feeReceiver: address(receiver),
             allocationEscrow: address(allocationEscrow),
-            activationRegistry: address(registry),
-            genesis: address(genesis),
-            genesisVault: address(vault),
+            activationRegistry: address(collection.registry),
+            genesis: address(collection.genesis),
+            genesisVault: address(collection.vault),
             genesisDistributor: address(distributor),
-            genesisRenderer: address(renderer),
-            avatarSVG: address(avatar)
+            genesisRenderer: address(collection.renderer),
+            avatarSVG: address(collection.avatar)
         });
+    }
+
+    function _deployLaunchReceivers(StaticsGenesisDeploymentConfig memory config, address initialOwner)
+        private
+        returns (StaticsFeeReceiver receiver, StaticsLaunchAllocationEscrow allocationEscrow)
+    {
+        receiver = new StaticsFeeReceiver(config.modules.poolInitializer, config.numeraire, initialOwner);
+        allocationEscrow = new StaticsLaunchAllocationEscrow(config.treasury, initialOwner);
+    }
+
+    function _deployGenesisCollection(
+        address statics,
+        StaticsGenesisDeploymentConfig memory config,
+        address initialOwner
+    ) private returns (GenesisCollection memory collection) {
+        collection.registry = new GenesisActivationRegistry(IERC20(statics), initialOwner, initialOwner);
+        collection.vault = new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.treasury);
+        collection.avatar = new StaticsAvatarSVG();
+        collection.renderer = new StaticsGenesisRenderer(collection.avatar);
+        collection.genesis = new StaticsGenesis(
+            address(collection.vault),
+            address(collection.registry),
+            collection.renderer,
+            initialOwner,
+            config.treasury,
+            config.contractURI,
+            config.externalURLBase
+        );
+    }
+
+    function _deployDistributor(
+        StaticsFeeReceiver receiver,
+        StaticsGenesis genesis,
+        GenesisActivationRegistry registry,
+        StaticsGenesisDeploymentConfig memory config,
+        address initialOwner
+    ) private returns (GenesisLaunchDistributor distributor) {
+        distributor = new GenesisLaunchDistributor(
+            receiver, genesis, registry, config.treasury, initialOwner, config.genesisRewardShareBps
+        );
     }
 
     /// @notice Canonical fully onchain URI used for every STATICS Doppler launch path.
@@ -218,8 +252,20 @@ contract DeployStaticsGenesis is Script {
         StaticsLaunchAllocationEscrow allocationEscrow
     ) private returns (address statics, bytes32 poolId) {
         IDopplerAirlock airlock = IDopplerAirlock(config.modules.airlock);
+        DopplerLaunchTypes.CreateParams memory params = _dopplerCreateParams(config, receiver, allocationEscrow);
+
+        statics = _launchThroughAirlock(airlock, params, allocationEscrow);
+        _assertPostLaunchSupply(statics, allocationEscrow);
+        poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer, config.fee);
+    }
+
+    function _dopplerCreateParams(
+        StaticsGenesisDeploymentConfig memory config,
+        StaticsFeeReceiver receiver,
+        StaticsLaunchAllocationEscrow allocationEscrow
+    ) private view returns (DopplerLaunchTypes.CreateParams memory params) {
         DopplerLaunchTypes.BeneficiaryData[] memory poolBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](2);
-        address dopplerOwner = airlock.owner();
+        address dopplerOwner = IDopplerAirlock(config.modules.airlock).owner();
         DopplerLaunchTypes.BeneficiaryData memory ownerBeneficiary =
             DopplerLaunchTypes.BeneficiaryData({beneficiary: dopplerOwner, shares: DOPPLER_OWNER_SHARE});
         DopplerLaunchTypes.BeneficiaryData memory staticsBeneficiary =
@@ -244,7 +290,7 @@ contract DeployStaticsGenesis is Script {
             })
         );
 
-        DopplerLaunchTypes.CreateParams memory params = DopplerLaunchTypes.CreateParams({
+        params = DopplerLaunchTypes.CreateParams({
             initialSupply: STATICS_SUPPLY,
             numTokensToSell: DOPPLER_INVENTORY,
             numeraire: config.numeraire,
@@ -259,7 +305,13 @@ contract DeployStaticsGenesis is Script {
             integrator: config.integrator,
             salt: config.salt
         });
+    }
 
+    function _launchThroughAirlock(
+        IDopplerAirlock airlock,
+        DopplerLaunchTypes.CreateParams memory params,
+        StaticsLaunchAllocationEscrow allocationEscrow
+    ) private returns (address statics) {
         address pool;
         address governance;
         address timelock;
@@ -271,6 +323,9 @@ contract DeployStaticsGenesis is Script {
         ) {
             revert UnexpectedDopplerResult(pool, governance, timelock, migrationPool);
         }
+    }
+
+    function _assertPostLaunchSupply(address statics, StaticsLaunchAllocationEscrow allocationEscrow) private view {
         uint256 totalSupply = IERC20(statics).totalSupply();
         uint256 escrowBalance = IERC20(statics).balanceOf(address(allocationEscrow));
         if (totalSupply != STATICS_SUPPLY || escrowBalance < TREASURY_ALLOCATION) {
@@ -280,7 +335,6 @@ contract DeployStaticsGenesis is Script {
         if (residual > MAX_MULTICURVE_RESIDUAL) {
             revert ExcessiveMulticurveResidual(residual, MAX_MULTICURVE_RESIDUAL);
         }
-        poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer, config.fee);
     }
 
     function _tokenFactoryData() private pure returns (bytes memory) {

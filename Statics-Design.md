@@ -177,7 +177,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **23 facets / 207 selectors** on `StaticsDiamond`; and
+- **26 facets / 207 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -1112,8 +1112,9 @@ Integrators should quote immediately before submission, provide explicit
 maximum inputs and minimum outputs, scope approvals to the typed next action,
 and reconcile indexed events against current views after reorgs.
 
-`IStaticsBasketLaunchModule` is an internal composition boundary between
-`BasketFacet` and `BasketLiquidityFacet`. Its selectors reject every caller
+`IStaticsBasketLaunchModule` is an internal composition boundary between the
+basket facets (`BasketCreationFacet`, `BasketMintFacet`, `BasketRedemptionFacet`,
+`BasketViewFacet`) and `BasketLiquidityFacet`. Its selectors reject every caller
 except the Diamond itself and should not be exposed as user launch actions.
 
 ## Deployment Model

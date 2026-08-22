@@ -117,22 +117,34 @@ library StaticsSelectors {
         selectors[6] = IStaticsCustody.stakingCustodyAccount.selector;
     }
 
-    function basket() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](14);
+    function basketCreation() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
         selectors[0] = IStaticsBasket.createBasket.selector;
-        selectors[1] = IStaticsBasket.mint.selector;
-        selectors[2] = IStaticsBasket.redeem.selector;
-        selectors[3] = IStaticsBasket.quoteMint.selector;
-        selectors[4] = IStaticsBasket.quoteRedeem.selector;
-        selectors[5] = IStaticsBasket.basket.selector;
-        selectors[6] = IStaticsBasket.basketCount.selector;
-        selectors[7] = IStaticsBasket.basketIdOf.selector;
-        selectors[8] = IStaticsBasket.vaultBalance.selector;
-        selectors[9] = IStaticsBasket.feeSharesFor.selector;
-        selectors[10] = IStaticsBasket.basketStatus.selector;
-        selectors[11] = IStaticsBasketCollateral.createAndMintBasketCollateral.selector;
-        selectors[12] = IStaticsBasketCollateral.mintBasketCollateral.selector;
-        selectors[13] = IStaticsBasketCollateral.redeemBasketCollateral.selector;
+    }
+
+    function basketMint() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsBasket.mint.selector;
+        selectors[1] = IStaticsBasket.quoteMint.selector;
+        selectors[2] = IStaticsBasketCollateral.createAndMintBasketCollateral.selector;
+        selectors[3] = IStaticsBasketCollateral.mintBasketCollateral.selector;
+    }
+
+    function basketRedemption() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsBasket.redeem.selector;
+        selectors[1] = IStaticsBasket.quoteRedeem.selector;
+        selectors[2] = IStaticsBasketCollateral.redeemBasketCollateral.selector;
+    }
+
+    function basketView() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsBasket.basket.selector;
+        selectors[1] = IStaticsBasket.basketCount.selector;
+        selectors[2] = IStaticsBasket.basketIdOf.selector;
+        selectors[3] = IStaticsBasket.vaultBalance.selector;
+        selectors[4] = IStaticsBasket.feeSharesFor.selector;
+        selectors[5] = IStaticsBasket.basketStatus.selector;
     }
 
     function basketCollateral() internal pure returns (bytes4[] memory selectors) {

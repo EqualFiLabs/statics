@@ -108,23 +108,34 @@ contract FlashCompositionHandler is Test {
         fundedCrossBasketReceiver.approveProtocol(config.assetB, type(uint256).max);
     }
 
+    struct FlashBooksSnapshot {
+        uint256 vaultA;
+        uint256 vaultB;
+        uint256 treasuryA;
+        uint256 treasuryB;
+    }
+
+    function _snapshotFlashBooks(uint256 basketId) private view returns (FlashBooksSnapshot memory snapshot) {
+        snapshot.vaultA = baskets.vaultBalance(basketId, assetA);
+        snapshot.vaultB = baskets.vaultBalance(basketId, assetB);
+        snapshot.treasuryA = rewards.treasuryAccrued(assetA);
+        snapshot.treasuryB = rewards.treasuryAccrued(assetB);
+    }
+
     function plainFlash(uint256 rawShares) external {
         uint256 shares = bound(rawShares, 1e12, 1 ether);
         (address[] memory assets,, uint256[] memory fees) = flashLoans.quoteFlashLoan(firstBasketId, shares);
-        uint256 vaultABefore = baskets.vaultBalance(firstBasketId, assetA);
-        uint256 vaultBBefore = baskets.vaultBalance(firstBasketId, assetB);
-        uint256 treasuryABefore = rewards.treasuryAccrued(assetA);
-        uint256 treasuryBBefore = rewards.treasuryAccrued(assetB);
+        FlashBooksSnapshot memory before = _snapshotFlashBooks(firstBasketId);
         receiver.setRepay(true);
         receiver.setReentryData(bytes(""));
         try receiver.execute(firstBasketId, shares, bytes("plain")) {
             if (
-                baskets.vaultBalance(firstBasketId, assetA) != vaultABefore
-                    || baskets.vaultBalance(firstBasketId, assetB) != vaultBBefore
+                baskets.vaultBalance(firstBasketId, assetA) != before.vaultA
+                    || baskets.vaultBalance(firstBasketId, assetB) != before.vaultB
             ) principalRestorationBroken = true;
             if (
-                rewards.treasuryAccrued(assets[0]) - treasuryABefore != fees[0]
-                    || rewards.treasuryAccrued(assets[1]) - treasuryBBefore != fees[1]
+                rewards.treasuryAccrued(assets[0]) - before.treasuryA != fees[0]
+                    || rewards.treasuryAccrued(assets[1]) - before.treasuryB != fees[1]
             ) flashFeeRoutingBroken = true;
         } catch {
             principalRestorationBroken = true;
@@ -135,8 +146,7 @@ contract FlashCompositionHandler is Test {
         uint256 shares = bound(rawShares, 1e12, 1 ether);
         (, uint256[] memory amounts,) = flashLoans.quoteFlashLoan(firstBasketId, shares);
         uint256[] memory maximums = baskets.quoteMint(firstBasketId, shares);
-        uint256 vaultABefore = baskets.vaultBalance(firstBasketId, assetA);
-        uint256 vaultBBefore = baskets.vaultBalance(firstBasketId, assetB);
+        FlashBooksSnapshot memory before = _snapshotFlashBooks(firstBasketId);
         receiver.approveProtocol(assetA, type(uint256).max);
         receiver.approveProtocol(assetB, type(uint256).max);
         receiver.setRepay(true);
@@ -145,8 +155,8 @@ contract FlashCompositionHandler is Test {
         );
         try receiver.execute(firstBasketId, shares, bytes("mint")) {
             if (
-                baskets.vaultBalance(firstBasketId, assetA) != vaultABefore + amounts[0]
-                    || baskets.vaultBalance(firstBasketId, assetB) != vaultBBefore + amounts[1]
+                baskets.vaultBalance(firstBasketId, assetA) != before.vaultA + amounts[0]
+                    || baskets.vaultBalance(firstBasketId, assetB) != before.vaultB + amounts[1]
                     || !receiver.reentrySucceeded()
             ) principalRestorationBroken = true;
         } catch {
@@ -160,16 +170,15 @@ contract FlashCompositionHandler is Test {
         uint256 upper = available < 1 ether ? available : 1 ether;
         uint256 shares = bound(rawShares, 1e12, upper);
         uint256[] memory expectedOut = baskets.quoteRedeem(firstBasketId, shares);
-        uint256 vaultABefore = baskets.vaultBalance(firstBasketId, assetA);
-        uint256 vaultBBefore = baskets.vaultBalance(firstBasketId, assetB);
+        FlashBooksSnapshot memory before = _snapshotFlashBooks(firstBasketId);
         receiver.setRepay(true);
         receiver.setReentryData(
             abi.encodeCall(IStaticsBasket.redeem, (firstBasketId, shares, address(receiver), new uint256[](2)))
         );
         try receiver.execute(firstBasketId, shares, bytes("redeem")) {
             if (
-                baskets.vaultBalance(firstBasketId, assetA) != vaultABefore - expectedOut[0]
-                    || baskets.vaultBalance(firstBasketId, assetB) != vaultBBefore - expectedOut[1]
+                baskets.vaultBalance(firstBasketId, assetA) != before.vaultA - expectedOut[0]
+                    || baskets.vaultBalance(firstBasketId, assetB) != before.vaultB - expectedOut[1]
                     || !receiver.reentrySucceeded()
             ) principalRestorationBroken = true;
         } catch {
@@ -213,10 +222,8 @@ contract FlashCompositionHandler is Test {
     function successfulCrossBasketMint(uint256 rawShares) external {
         uint256 shares = bound(rawShares, 1e12, 1 ether);
         uint256[] memory maximums = baskets.quoteMint(secondBasketId, shares);
-        uint256 firstABefore = baskets.vaultBalance(firstBasketId, assetA);
-        uint256 firstBBefore = baskets.vaultBalance(firstBasketId, assetB);
-        uint256 secondABefore = baskets.vaultBalance(secondBasketId, assetA);
-        uint256 secondBBefore = baskets.vaultBalance(secondBasketId, assetB);
+        FlashBooksSnapshot memory firstBefore = _snapshotFlashBooks(firstBasketId);
+        FlashBooksSnapshot memory secondBefore = _snapshotFlashBooks(secondBasketId);
         fundedCrossBasketReceiver.approveProtocol(assetA, type(uint256).max);
         fundedCrossBasketReceiver.approveProtocol(assetB, type(uint256).max);
         fundedCrossBasketReceiver.setRepay(true);
@@ -226,10 +233,10 @@ contract FlashCompositionHandler is Test {
         try fundedCrossBasketReceiver.execute(firstBasketId, shares, bytes("funded cross basket")) {
             if (
                 !fundedCrossBasketReceiver.reentrySucceeded()
-                    || baskets.vaultBalance(firstBasketId, assetA) != firstABefore
-                    || baskets.vaultBalance(firstBasketId, assetB) != firstBBefore
-                    || baskets.vaultBalance(secondBasketId, assetA) != secondABefore + maximums[0]
-                    || baskets.vaultBalance(secondBasketId, assetB) != secondBBefore + maximums[1]
+                    || baskets.vaultBalance(firstBasketId, assetA) != firstBefore.vaultA
+                    || baskets.vaultBalance(firstBasketId, assetB) != firstBefore.vaultB
+                    || baskets.vaultBalance(secondBasketId, assetA) != secondBefore.vaultA + maximums[0]
+                    || baskets.vaultBalance(secondBasketId, assetB) != secondBefore.vaultB + maximums[1]
             ) crossBasketAccountingBroken = true;
         } catch {
             crossBasketAccountingBroken = true;
@@ -289,7 +296,7 @@ contract FlashCompositionHandler is Test {
 
     function _v4BooksHash() private view returns (bytes32) {
         (uint160 sqrtPriceX96, int24 tick,,) = poolManager.getSlot0(v4Pool.toId());
-        return keccak256(
+        bytes32 coreHash = keccak256(
             abi.encode(
                 baskets.vaultBalance(v4BasketId, assetA),
                 custody.reservedByAccount(v4Account, assetA),
@@ -298,7 +305,11 @@ contract FlashCompositionHandler is Test {
                 rewards.treasuryAccrued(v4BasketToken),
                 custody.reservedByAccount(custody.feeCustodyAccount(), v4BasketToken),
                 custody.reservedByAccount(custody.stakingCustodyAccount(), v4BasketToken),
-                custody.globalReservedByToken(v4BasketToken),
+                custody.globalReservedByToken(v4BasketToken)
+            )
+        );
+        bytes32 peripheralHash = keccak256(
+            abi.encode(
                 IERC20(v4BasketToken).balanceOf(address(baskets)),
                 IERC20(assetA).balanceOf(address(poolManager)),
                 IERC20(v4BasketToken).balanceOf(address(poolManager)),
@@ -309,6 +320,7 @@ contract FlashCompositionHandler is Test {
                 tick
             )
         );
+        return keccak256(abi.encode(coreHash, peripheralHash));
     }
 }
 
@@ -402,7 +414,21 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
         assets[0] = address(assetA);
         uint256[] memory bundleAmounts = new uint256[](1);
         bundleAmounts[0] = 1.5 ether;
-        IStaticsBasket.CreateBasketParams memory params = IStaticsBasket.CreateBasketParams({
+        IStaticsBasket.CreateBasketParams memory params = _v4BasketParams(assets, bundleAmounts);
+        (IStaticsBasket.PoolLaunchParams[] memory launchPools, uint256[] memory launchMaximums) =
+            _fundDefaultLaunch(assets, alice);
+        vm.prank(alice);
+        (basketId, basketToken) =
+            baskets.createBasket{value: 1 ether}(params, launchPools, launchMaximums, type(uint256).max);
+        pool = _seedV4Liquidity(basketId, basketToken);
+    }
+
+    function _v4BasketParams(address[] memory assets, uint256[] memory bundleAmounts)
+        private
+        pure
+        returns (IStaticsBasket.CreateBasketParams memory params)
+    {
+        params = IStaticsBasket.CreateBasketParams({
             name: "Invariant V4 Basket",
             symbol: "iv4",
             assets: assets,
@@ -416,10 +442,9 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
             recoveryPenaltyBps: 500,
             loanDuration: 30 days
         });
-        (IStaticsBasket.PoolLaunchParams[] memory launchPools, uint256[] memory launchMaximums) =
-            _fundDefaultLaunch(assets, alice);
-        vm.prank(alice);
-        (basketId, basketToken) = baskets.createBasket{value: 1 ether}(params, launchPools, launchMaximums, type(uint256).max);
+    }
+
+    function _seedV4Liquidity(uint256 basketId, address basketToken) private returns (PoolKey memory pool) {
         uint256[] memory maximums = baskets.quoteMint(basketId, 100 ether);
         assetA.mint(alice, maximums[0] + 100 ether);
         vm.startPrank(alice);

@@ -43,6 +43,32 @@ contract PairingVaultFacet is ReentrancyGuard {
         uint64 epoch;
     }
 
+    struct RedemptionRequest {
+        uint256 seriesId;
+        uint256 staticsDollarAmount;
+        uint256 minStaticsDollarRedeemed;
+        uint256 minCollateralPerStaticsDollarWad;
+        address receiver;
+        bool unwrapToETH;
+    }
+
+    struct RedemptionContext {
+        IStaticsDollarCore core;
+        IStaticsDollarCoreTypes.RiskSeries series;
+        uint256 seriesId;
+        uint8 collateralDecimals;
+        address collateralToken;
+        uint256 availableBefore;
+        uint256 fill;
+    }
+
+    struct RedemptionDistribution {
+        uint256 grossCollateral;
+        uint256 toRedeemer;
+        uint256 toRiskSuppliers;
+        uint256 toInsurance;
+    }
+
     event Redeemed(
         address indexed caller,
         address indexed receiver,
@@ -98,7 +124,14 @@ contract PairingVaultFacet is ReentrancyGuard {
         if (receiver == address(0)) revert ZeroAddress();
         if (block.timestamp > deadline) revert DeadlineExpired(deadline, block.timestamp);
         return _redeem(
-            seriesId, staticsDollarAmount, minStaticsDollarRedeemed, minCollateralPerStaticsDollarWad, receiver, false
+            RedemptionRequest({
+                seriesId: seriesId,
+                staticsDollarAmount: staticsDollarAmount,
+                minStaticsDollarRedeemed: minStaticsDollarRedeemed,
+                minCollateralPerStaticsDollarWad: minCollateralPerStaticsDollarWad,
+                receiver: receiver,
+                unwrapToETH: false
+            })
         );
     }
 
@@ -120,102 +153,166 @@ contract PairingVaultFacet is ReentrancyGuard {
         }
         if (block.timestamp > deadline) revert DeadlineExpired(deadline, block.timestamp);
         return _redeem(
-            seriesId, staticsDollarAmount, minStaticsDollarRedeemed, minCollateralPerStaticsDollarWad, receiver, true
+            RedemptionRequest({
+                seriesId: seriesId,
+                staticsDollarAmount: staticsDollarAmount,
+                minStaticsDollarRedeemed: minStaticsDollarRedeemed,
+                minCollateralPerStaticsDollarWad: minCollateralPerStaticsDollarWad,
+                receiver: receiver,
+                unwrapToETH: true
+            })
         );
     }
 
-    function _redeem(
-        uint256 seriesId,
-        uint256 staticsDollarAmount,
-        uint256 minStaticsDollarRedeemed,
-        uint256 minCollateralPerStaticsDollarWad,
-        address receiver,
-        bool unwrapToETH
-    ) internal returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 fill, uint256 collateralOut) {
-        if (staticsDollarAmount == 0) revert ZeroAmount();
+    function _redeem(RedemptionRequest memory request)
+        internal
+        returns (IStaticsDollarCoreTypes.ExitStatus status, uint256 fill, uint256 collateralOut)
+    {
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _requireActiveSeries(ps, seriesId);
-
-        IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
-        IStaticsDollarCoreTypes.RiskSeries memory series = core.riskSeries(seriesId);
-        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
-        if (core.profileOperationPaused(series.profileId, PAUSE_PAIRING_FILLS)) {
-            revert ProfileOperationPaused(series.profileId, PAUSE_PAIRING_FILLS);
-        }
-        address collateralToken = series.collateralToken;
-        if (unwrapToETH && collateralToken != ps.weth) revert NotWETHCollateral();
-
-        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-        uint256 available = book.effectivePrincipal;
-        if (available == 0) revert NoRiskLiquidity();
-        fill = staticsDollarAmount > available ? available : staticsDollarAmount;
-        if (fill < minStaticsDollarRedeemed) revert FillBelowMinimum(fill, minStaticsDollarRedeemed);
+        RedemptionContext memory ctx = _prepareRedemption(ps, request);
 
         uint256 unhealthyBitmap;
-        (status, unhealthyBitmap,,) = core.checkpointGlobalCollateralExit();
+        (status, unhealthyBitmap,,) = ctx.core.checkpointGlobalCollateralExit();
         if (status != IStaticsDollarCoreTypes.ExitStatus.Available) {
-            emit RedemptionDeferred(msg.sender, receiver, seriesId, status, unhealthyBitmap);
+            emit RedemptionDeferred(msg.sender, request.receiver, request.seriesId, status, unhealthyBitmap);
             return (status, 0, 0);
         }
+        fill = ctx.fill;
 
-        uint256 receivedStaticsDollar = LibCustody.pull(ps.staticsDollar, msg.sender, fill);
-        if (receivedStaticsDollar < fill) {
-            revert InsufficientTransferReceived(ps.staticsDollar, fill, receivedStaticsDollar);
+        ConsumedLiquidity memory consumed;
+        RedemptionDistribution memory distribution;
+        (consumed, distribution.grossCollateral) = _recombineForRedemption(ps, ctx, request);
+        _applyRedemptionSplit(ps, ctx, request, distribution);
+        _settleRedemptionShares(ps, ctx, consumed, distribution);
+        collateralOut = distribution.toRedeemer;
+        _payRedeemer(ctx, request, collateralOut);
+
+        emit Redeemed(
+            msg.sender,
+            request.receiver,
+            request.seriesId,
+            fill,
+            collateralOut,
+            distribution.toRiskSuppliers,
+            distribution.toInsurance
+        );
+        return (IStaticsDollarCoreTypes.ExitStatus.Available, fill, collateralOut);
+    }
+
+    function _prepareRedemption(LibPeriphery.PS storage ps, RedemptionRequest memory request)
+        private
+        view
+        returns (RedemptionContext memory ctx)
+    {
+        if (request.staticsDollarAmount == 0) revert ZeroAmount();
+        _requireActiveSeries(ps, request.seriesId);
+
+        ctx.core = IStaticsDollarCore(ps.pool);
+        ctx.seriesId = request.seriesId;
+        ctx.series = ctx.core.riskSeries(request.seriesId);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile =
+            ctx.core.collateralProfile(ctx.series.profileId);
+        if (ctx.core.profileOperationPaused(ctx.series.profileId, PAUSE_PAIRING_FILLS)) {
+            revert ProfileOperationPaused(ctx.series.profileId, PAUSE_PAIRING_FILLS);
+        }
+        ctx.collateralToken = ctx.series.collateralToken;
+        ctx.collateralDecimals = profile.decimals;
+        if (request.unwrapToETH && ctx.collateralToken != ps.weth) revert NotWETHCollateral();
+
+        uint256 available = ps.series[request.seriesId].effectivePrincipal;
+        if (available == 0) revert NoRiskLiquidity();
+        ctx.availableBefore = available;
+        ctx.fill = request.staticsDollarAmount > available ? available : request.staticsDollarAmount;
+        if (ctx.fill < request.minStaticsDollarRedeemed) {
+            revert FillBelowMinimum(ctx.fill, request.minStaticsDollarRedeemed);
+        }
+    }
+
+    function _recombineForRedemption(
+        LibPeriphery.PS storage ps,
+        RedemptionContext memory ctx,
+        RedemptionRequest memory request
+    ) private returns (ConsumedLiquidity memory consumed, uint256 grossCollateral) {
+        uint256 receivedStaticsDollar = LibCustody.pull(ps.staticsDollar, msg.sender, ctx.fill);
+        if (receivedStaticsDollar < ctx.fill) {
+            revert InsufficientTransferReceived(ps.staticsDollar, ctx.fill, receivedStaticsDollar);
         }
 
         // Consume the tier pro rata; the underlying 1155s stay here and are burned by
         // the recombination in the next step.
-        ConsumedLiquidity memory consumed =
-            ConsumedLiquidity({availableBefore: available, totalStored: book.totalStored, epoch: book.epoch});
-        LibPeriphery.consume(ps, seriesId, fill);
+        LibPeriphery.SeriesBook storage book = ps.series[request.seriesId];
+        consumed =
+            ConsumedLiquidity({availableBefore: ctx.availableBefore, totalStored: book.totalStored, epoch: book.epoch});
+        LibPeriphery.consume(ps, request.seriesId, ctx.fill);
 
-        uint256 balanceBefore = IERC20(collateralToken).balanceOf(address(this));
-        uint256 staticsDollarBefore = LibCustody.beginUnreservedDebit(ps.staticsDollar, fill);
+        uint256 balanceBefore = IERC20(ctx.collateralToken).balanceOf(address(this));
+        uint256 staticsDollarBefore = LibCustody.beginUnreservedDebit(ps.staticsDollar, ctx.fill);
         (IStaticsDollarCoreTypes.ExitStatus recombinationStatus,) =
-            core.recombineManaged(seriesId, fill, fill, 0, address(this));
-        LibCustody.finishUnreservedDebit(ps.staticsDollar, staticsDollarBefore, fill);
+            ctx.core.recombineManaged(request.seriesId, ctx.fill, ctx.fill, 0, address(this));
+        LibCustody.finishUnreservedDebit(ps.staticsDollar, staticsDollarBefore, ctx.fill);
         if (recombinationStatus != IStaticsDollarCoreTypes.ExitStatus.Available) {
             revert UnexpectedExitStatus(recombinationStatus);
         }
-        uint256 grossCollateral = IERC20(collateralToken).balanceOf(address(this)) - balanceBefore;
+        grossCollateral = IERC20(ctx.collateralToken).balanceOf(address(this)) - balanceBefore;
+    }
 
-        (uint256 toRedeemer, uint256 toRiskSuppliers, uint256 toInsurance,) =
-            _splitProceeds(ps, series, profile.decimals, fill, grossCollateral);
-        collateralOut = toRedeemer;
+    function _applyRedemptionSplit(
+        LibPeriphery.PS storage ps,
+        RedemptionContext memory ctx,
+        RedemptionRequest memory request,
+        RedemptionDistribution memory distribution
+    ) private view {
+        (
+            distribution.toRedeemer, distribution.toRiskSuppliers, distribution.toInsurance,
+        ) = _splitProceeds(ps, ctx.series, ctx.collateralDecimals, ctx.fill, distribution.grossCollateral);
 
         // Rate guard: collateral per staticsDollar, WAD-normalized.
-        uint256 rateWad = Math.mulDiv(_toWad(profile.decimals, collateralOut), WAD, fill);
-        if (rateWad < minCollateralPerStaticsDollarWad) {
-            revert RateBelowMinimum(rateWad, minCollateralPerStaticsDollarWad);
+        uint256 rateWad = Math.mulDiv(_toWad(ctx.collateralDecimals, distribution.toRedeemer), WAD, ctx.fill);
+        if (rateWad < request.minCollateralPerStaticsDollarWad) {
+            revert RateBelowMinimum(rateWad, request.minCollateralPerStaticsDollarWad);
         }
+    }
 
-        if (toRiskSuppliers != 0) {
+    function _settleRedemptionShares(
+        LibPeriphery.PS storage ps,
+        RedemptionContext memory ctx,
+        ConsumedLiquidity memory consumed,
+        RedemptionDistribution memory distribution
+    ) private {
+        if (distribution.toRiskSuppliers != 0) {
             LibPeriphery.accrueRiskProceeds(
-                ps, seriesId, consumed.epoch, consumed.totalStored, collateralToken, toRiskSuppliers, SOURCE_REDEMPTION
+                ps,
+                ctx.seriesId,
+                consumed.epoch,
+                consumed.totalStored,
+                ctx.collateralToken,
+                distribution.toRiskSuppliers,
+                SOURCE_REDEMPTION
             );
         }
-        _releaseRiskIncentives(ps, seriesId, consumed, fill, collateralToken);
-        if (toInsurance != 0) {
-            IERC20(collateralToken).forceApprove(ps.pool, toInsurance);
-            uint256 collateralBefore = LibCustody.beginUnreservedDebit(collateralToken, toInsurance);
-            core.topUpInsurance(series.profileId, toInsurance);
-            LibCustody.finishUnreservedDebit(collateralToken, collateralBefore, toInsurance);
+        _releaseRiskIncentives(ps, ctx.seriesId, consumed, ctx.fill, ctx.collateralToken);
+        if (distribution.toInsurance != 0) {
+            IERC20(ctx.collateralToken).forceApprove(ps.pool, distribution.toInsurance);
+            uint256 collateralBefore = LibCustody.beginUnreservedDebit(ctx.collateralToken, distribution.toInsurance);
+            ctx.core.topUpInsurance(ctx.series.profileId, distribution.toInsurance);
+            LibCustody.finishUnreservedDebit(ctx.collateralToken, collateralBefore, distribution.toInsurance);
         }
+    }
 
-        if (unwrapToETH) {
-            uint256 unreserved = LibCustody.unreservedBalance(collateralToken);
+    function _payRedeemer(RedemptionContext memory ctx, RedemptionRequest memory request, uint256 collateralOut)
+        private
+    {
+        if (request.unwrapToETH) {
+            uint256 unreserved = LibCustody.unreservedBalance(ctx.collateralToken);
             if (collateralOut > unreserved) {
-                revert LibCustody.InsufficientUnreserved(collateralToken, collateralOut, unreserved);
+                revert LibCustody.InsufficientUnreserved(ctx.collateralToken, collateralOut, unreserved);
             }
-            IWETH9(collateralToken).withdraw(collateralOut);
-            (bool ok,) = payable(receiver).call{value: collateralOut}("");
-            if (!ok) revert NativeTransferFailed(receiver, collateralOut);
+            IWETH9(ctx.collateralToken).withdraw(collateralOut);
+            (bool ok,) = payable(request.receiver).call{value: collateralOut}("");
+            if (!ok) revert NativeTransferFailed(request.receiver, collateralOut);
         } else {
-            LibCustody.pushUnreserved(collateralToken, receiver, collateralOut, collateralOut);
+            LibCustody.pushUnreserved(ctx.collateralToken, request.receiver, collateralOut, collateralOut);
         }
-
-        emit Redeemed(msg.sender, receiver, seriesId, fill, collateralOut, toRiskSuppliers, toInsurance);
-        return (IStaticsDollarCoreTypes.ExitStatus.Available, fill, collateralOut);
     }
 
     function _releaseRiskIncentives(

@@ -72,8 +72,13 @@ contract BaseOracleForkTest is Test {
         StaticsDollarStackDeployment memory deployment = new DeployStaticsDollar().deployProduction(config);
         (uint256 seriesId, uint256 minted, uint256 shares, address user) = _depositLiveWeth(deployment);
 
-        IDiamondCut cut = IDiamondCut(deployment.core);
-        IDiamondLoupe loupe = IDiamondLoupe(deployment.core);
+        _removeCoreUpgradeSelectors(deployment.core, config.owner);
+        _assertCoreUpgradeSelectorsRemoved(deployment.core);
+        _assertCoreReinstallRejected(deployment.core);
+        _recombineAfterCoreFinalCut(deployment, seriesId, minted, shares, user);
+    }
+
+    function _removeCoreUpgradeSelectors(address coreDiamond, address owner) private {
         bytes4[] memory cutMutations = new bytes4[](1);
         cutMutations[0] = IDiamondCut.diamondCut.selector;
         bytes4[] memory ownershipMutations = new bytes4[](1);
@@ -81,19 +86,19 @@ contract BaseOracleForkTest is Test {
         IDiamondCut.FacetCut[] memory finalCut = new IDiamondCut.FacetCut[](2);
         finalCut[0] = IDiamondCut.FacetCut(address(0), IDiamondCut.FacetCutAction.Remove, cutMutations);
         finalCut[1] = IDiamondCut.FacetCut(address(0), IDiamondCut.FacetCutAction.Remove, ownershipMutations);
+        vm.prank(owner);
+        IDiamondCut(coreDiamond).diamondCut(finalCut, address(0), "");
+    }
 
-        vm.prank(config.owner);
-        cut.diamondCut(finalCut, address(0), "");
+    function _assertCoreUpgradeSelectorsRemoved(address coreDiamond) private {
+        IDiamondLoupe loupe = IDiamondLoupe(coreDiamond);
+        assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), address(0));
+        _assertMissingSelector(coreDiamond, IDiamondCut.diamondCut.selector);
+        assertEq(loupe.facetAddress(OwnershipFacet.transferOwnership.selector), address(0));
+        _assertMissingSelector(coreDiamond, OwnershipFacet.transferOwnership.selector);
+    }
 
-        for (uint256 i; i < cutMutations.length; ++i) {
-            assertEq(loupe.facetAddress(cutMutations[i]), address(0));
-            _assertMissingSelector(deployment.core, cutMutations[i]);
-        }
-        for (uint256 i; i < ownershipMutations.length; ++i) {
-            assertEq(loupe.facetAddress(ownershipMutations[i]), address(0));
-            _assertMissingSelector(deployment.core, ownershipMutations[i]);
-        }
-
+    function _assertCoreReinstallRejected(address coreDiamond) private {
         BaseFinalizedReplacementFacet replacement = new BaseFinalizedReplacementFacet();
         IDiamondCut.FacetCut[] memory reinstall = new IDiamondCut.FacetCut[](1);
         bytes4[] memory selector = new bytes4[](1);
@@ -102,8 +107,16 @@ contract BaseOracleForkTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(DiamondKernel.FunctionNotFound.selector, IDiamondCut.diamondCut.selector)
         );
-        cut.diamondCut(reinstall, address(0), "");
+        IDiamondCut(coreDiamond).diamondCut(reinstall, address(0), "");
+    }
 
+    function _recombineAfterCoreFinalCut(
+        StaticsDollarStackDeployment memory deployment,
+        uint256 seriesId,
+        uint256 minted,
+        uint256 shares,
+        address user
+    ) private {
         CoreMintFacet core = CoreMintFacet(deployment.core);
         IStaticsDollarCoreTypes.RedemptionPreview memory preview = core.previewRecombine(seriesId, minted);
         uint256 beforeBalance = IERC20(BASE_WETH).balanceOf(user);

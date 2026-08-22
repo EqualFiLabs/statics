@@ -108,7 +108,7 @@ contract CoreBootstrapTest is Test {
         assertEq(deployment.positionNFT, deployment.diamond);
         assertEq(ownership.owner(), owner);
         assertEq(loupe.facetAddresses().length, 11);
-        assertEq(staticsLoupe.facetAddresses().length, 23);
+        assertEq(staticsLoupe.facetAddresses().length, 26);
         assertTrue(loupe.facetAddress(CoreGovernanceFacet.setManagedRecoveryHolder.selector) != address(0));
         assertEq(loupe.facetAddress(bytes4(keccak256("registerManagedRecoveryHolder()"))), address(0));
         assertEq(IStaticsBasket(deployment.diamond).basketCount(), 0);
@@ -210,7 +210,14 @@ contract CoreBootstrapTest is Test {
         CorePartsHarness harness = new CorePartsHarness();
         MockETHUSDOracle oracle = new MockETHUSDOracle(2_500e18, 1 hours);
         CanonicalWETH9 collateral = new CanonicalWETH9();
+        _rejectEoaCounterfeit(harness, oracle, collateral);
+        _rejectCounterfeitTokenKind(harness, oracle, collateral);
+        _rejectMisboundTokenPool(harness, oracle, collateral);
+    }
 
+    function _rejectEoaCounterfeit(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)
+        private
+    {
         DeployCoreBootstrap.CoreParts memory eoaParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory eoaGenesis = harness.buildGenesis(eoaParts);
         address predictedEoaCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
@@ -218,8 +225,12 @@ contract CoreBootstrapTest is Test {
         CoreInit.InitArgs memory eoaArgs =
             _initArgs(makeAddr("eoaToken"), address(eoaRisk), address(oracle), address(collateral));
         vm.expectRevert(abi.encodeWithSelector(LibCore.ContractExpected.selector, eoaArgs.staticsDollar));
-        new StaticsDollarCoreDiamond(owner, eoaGenesis, eoaParts.init, abi.encodeCall(CoreInit.init, (eoaArgs)));
+        new StaticsDollarCoreDiamond(owner, eoaParts.init, abi.encodeCall(CoreInit.genesis, (eoaGenesis, eoaArgs)));
+    }
 
+    function _rejectCounterfeitTokenKind(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)
+        private
+    {
         DeployCoreBootstrap.CoreParts memory counterfeitParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory counterfeitGenesis = harness.buildGenesis(counterfeitParts);
         address predictedCounterfeitCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
@@ -229,9 +240,13 @@ contract CoreBootstrapTest is Test {
             _initArgs(address(counterfeit), address(counterfeitRisk), address(oracle), address(collateral));
         vm.expectPartialRevert(CoreInit.InvalidTokenKind.selector);
         new StaticsDollarCoreDiamond(
-            owner, counterfeitGenesis, counterfeitParts.init, abi.encodeCall(CoreInit.init, (counterfeitArgs))
+            owner, counterfeitParts.init, abi.encodeCall(CoreInit.genesis, (counterfeitGenesis, counterfeitArgs))
         );
+    }
 
+    function _rejectMisboundTokenPool(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)
+        private
+    {
         DeployCoreBootstrap.CoreParts memory misboundParts = harness.deployParts();
         IDiamondCut.FacetCut[] memory misboundGenesis = harness.buildGenesis(misboundParts);
         address predictedMisboundCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
@@ -241,7 +256,7 @@ contract CoreBootstrapTest is Test {
             _initArgs(address(misboundStaticsDollar), address(misboundRisk), address(oracle), address(collateral));
         vm.expectPartialRevert(CoreInit.InvalidTokenPool.selector);
         new StaticsDollarCoreDiamond(
-            owner, misboundGenesis, misboundParts.init, abi.encodeCall(CoreInit.init, (misboundArgs))
+            owner, misboundParts.init, abi.encodeCall(CoreInit.genesis, (misboundGenesis, misboundArgs))
         );
     }
 
@@ -265,7 +280,8 @@ contract CoreBootstrapTest is Test {
         staticsDollar = address(new StaticsDollar(predictedCore));
         staticsDollarRisk = address(new StaticsDollarRiskShares(predictedCore, ""));
         CoreInit.InitArgs memory args = _initArgs(staticsDollar, staticsDollarRisk, oracle, address(collateral));
-        core = address(new StaticsDollarCoreDiamond(owner, genesis, parts.init, abi.encodeCall(CoreInit.init, (args))));
+        core =
+            address(new StaticsDollarCoreDiamond(owner, parts.init, abi.encodeCall(CoreInit.genesis, (genesis, args))));
         assertEq(core, predictedCore);
     }
 

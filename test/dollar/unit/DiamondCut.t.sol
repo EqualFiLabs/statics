@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
+import {StaticsGenesisCut} from "src/diamond/StaticsGenesisCut.sol";
 import {DiamondKernel} from "src/diamond/DiamondKernel.sol";
 import {DiamondCutFacet} from "src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
@@ -101,24 +102,33 @@ contract DiamondCutTest is Test {
             address(valueFacetV1), IDiamondCut.FacetCutAction.Add, _singleSelector(DiamondValueFacetV1.value.selector)
         );
 
-        diamond = new StaticsDiamond(address(this), genesisCut, address(0), "", address(0));
+        diamond = new StaticsDiamond(
+            address(this),
+            address(0),
+            address(new StaticsGenesisCut()),
+            abi.encodeCall(StaticsGenesisCut.cut, (genesisCut))
+        );
         cut = IDiamondCut(address(diamond));
         loupe = IDiamondLoupe(address(diamond));
         ownership = OwnershipFacet(address(diamond));
     }
 
     function test_GenesisRequiresOwner() public {
-        IDiamondCut.FacetCut[] memory empty = new IDiamondCut.FacetCut[](0);
         vm.expectRevert(LibDiamond.ZeroAddress.selector);
-        new StaticsDiamond(address(0), empty, address(0), "", address(0));
+        new StaticsDiamond(address(0), address(0), address(0), "");
     }
 
     function test_GenesisRejectsFacetWithoutCode() public {
-        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        StaticsGenesisCut genesisCutContract = new StaticsGenesisCut();
+        // The diamond under construction is itself the codeless facet: its runtime
+        // code is not yet installed while the constructor's delegatecall runs.
+        address predictedDiamond = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
         IDiamondCut.FacetCut[] memory genesisCut =
-            _singleCut(predicted, IDiamondCut.FacetCutAction.Add, DiamondAddedFacet.addedValue.selector);
-        vm.expectRevert(abi.encodeWithSelector(LibDiamond.FacetHasNoCode.selector, predicted));
-        new StaticsDiamond(address(this), genesisCut, address(0), "", address(0));
+            _singleCut(predictedDiamond, IDiamondCut.FacetCutAction.Add, DiamondAddedFacet.addedValue.selector);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.FacetHasNoCode.selector, predictedDiamond));
+        new StaticsDiamond(
+            address(this), address(0), address(genesisCutContract), abi.encodeCall(StaticsGenesisCut.cut, (genesisCut))
+        );
     }
 
     function test_DiamondCutRequiresOwnerAndRejectsDuplicateSelectors() public {

@@ -246,7 +246,20 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         vm.prank(swapper);
         IERC20(input).approve(address(permit2Contract), amountIn);
 
-        (,, uint48 nonce) = permit2Contract.allowance(swapper, input, address(universalRouter));
+        (bytes memory encodedPermit, uint48 nonce) = _buildPermitApproval(swapper, swapperKey, input, amountIn);
+        bytes[] memory inputs = new bytes[](2);
+        inputs[0] = encodedPermit;
+        inputs[1] = _encodeSwapPlan(key, input, output, zeroForOne, amountIn, uint128(quotedOutput));
+
+        _executeRoutedSwap(swapper, inputs, input, output, amountIn, quotedOutput);
+        _assertPermitNonceConsumed(swapper, input, nonce);
+    }
+
+    function _buildPermitApproval(address swapper, uint256 swapperKey, address input, uint128 amountIn)
+        private
+        returns (bytes memory encodedPermit, uint48 nonce)
+    {
+        (,, nonce) = permit2Contract.allowance(swapper, input, address(universalRouter));
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
             details: IAllowanceTransfer.PermitDetails({
                 token: input, amount: amountIn, expiration: uint48(block.timestamp + 20 minutes), nonce: nonce
@@ -255,7 +268,17 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             sigDeadline: block.timestamp + 20 minutes
         });
         bytes memory signature = getPermitSignature(permitSingle, swapperKey, permit2Contract.DOMAIN_SEPARATOR());
+        encodedPermit = abi.encode(permitSingle, signature);
+    }
 
+    function _encodeSwapPlan(
+        PoolKey memory key,
+        address input,
+        address output,
+        bool zeroForOne,
+        uint128 amountIn,
+        uint128 amountOutMinimum
+    ) private pure returns (bytes memory) {
         Plan memory plan = Planner.init();
         plan.add(
             Actions.SWAP_EXACT_IN_SINGLE,
@@ -264,30 +287,39 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
                     poolKey: key,
                     zeroForOne: zeroForOne,
                     amountIn: amountIn,
-                    amountOutMinimum: uint128(quotedOutput),
+                    amountOutMinimum: amountOutMinimum,
                     minHopPriceX36: 0,
                     hookData: ""
                 })
             )
         );
         plan.add(Actions.SETTLE_ALL, abi.encode(Currency.wrap(input), amountIn));
-        plan.add(Actions.TAKE_ALL, abi.encode(Currency.wrap(output), quotedOutput));
+        plan.add(Actions.TAKE_ALL, abi.encode(Currency.wrap(output), amountOutMinimum));
+        return plan.encode();
+    }
 
-        bytes[] memory inputs = new bytes[](2);
-        inputs[0] = abi.encode(permitSingle, signature);
-        inputs[1] = plan.encode();
+    function _executeRoutedSwap(
+        address swapper,
+        bytes[] memory inputs,
+        address input,
+        address output,
+        uint128 amountIn,
+        uint256 quotedOutput
+    ) private {
         uint256 inputBefore = IERC20(input).balanceOf(swapper);
         uint256 outputBefore = IERC20(output).balanceOf(swapper);
         vm.prank(swapper);
         universalRouter.execute(
             abi.encodePacked(PERMIT2_PERMIT_COMMAND, V4_SWAP_COMMAND), inputs, block.timestamp + 1 minutes
         );
-
         assertEq(inputBefore - IERC20(input).balanceOf(swapper), amountIn);
         assertEq(IERC20(output).balanceOf(swapper) - outputBefore, quotedOutput);
+    }
+
+    function _assertPermitNonceConsumed(address swapper, address input, uint48 spentNonce) private view {
         (uint160 remaining,, uint48 nextNonce) = permit2Contract.allowance(swapper, input, address(universalRouter));
         assertEq(remaining, 0);
-        assertEq(nextNonce, nonce + 1);
+        assertEq(nextNonce, spentNonce + 1);
     }
 
     function _poolKey(IStaticsBasketLiquidity.CanonicalPoolView memory configured)

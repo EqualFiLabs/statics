@@ -52,8 +52,9 @@ contract PeripheryPositionHandler is Test, IERC1155Receiver, IERC721Receiver {
             vm.deal(address(this), address(this).balance + amount);
             weth.deposit{value: amount}();
             weth.approve(address(core), amount);
-            (, uint256 minted, uint256 shares) =
-                core.depositCollateral(1, amount, preview.staticsDollarMinted, preview.sharesMinted, address(this), address(this));
+            (, uint256 minted, uint256 shares) = core.depositCollateral(
+                1, amount, preview.staticsDollarMinted, preview.sharesMinted, address(this), address(this)
+            );
             if (minted == 0 || shares == 0) return;
             positions.push(staking.createAndStakeRiskShares(SERIES_ID, shares, address(this)));
         } catch {}
@@ -73,8 +74,7 @@ contract PeripheryPositionHandler is Test, IERC1155Receiver, IERC721Receiver {
         uint256 positionId = positions[rawIndex % positions.length];
         uint256 available = staking.riskLiquidity(positionId, SERIES_ID).effectiveShares;
         if (available == 0) return;
-        try staking.unstakeRiskShares(positionId, SERIES_ID, bound(rawAmount, 1, available), address(this)) {}
-        catch {}
+        try staking.unstakeRiskShares(positionId, SERIES_ID, bound(rawAmount, 1, available), address(this)) {} catch {}
     }
 
     function claim(uint256 rawIndex) external {

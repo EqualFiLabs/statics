@@ -25,7 +25,10 @@ import {DiamondLoupeFacet} from "../../src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
-import {BasketFacet} from "../../src/facets/BasketFacet.sol";
+import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
+import {BasketMintFacet} from "../../src/facets/BasketMintFacet.sol";
+import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
+import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
@@ -48,32 +51,34 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](18);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](21);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
         cut[3] = _cut(address(new GovernanceFacet()), StaticsSelectors.governance());
         cut[4] = _cut(address(new PositionNFTFacet()), StaticsSelectors.position());
         cut[5] = _cut(address(new CustodyFacet()), StaticsSelectors.custody());
-        cut[6] = _cut(address(new BasketFacet()), StaticsSelectors.basket());
-        cut[7] = _cut(address(new BasketAdminFacet()), StaticsSelectors.basketAdmin());
-        cut[8] = _cut(address(new LendingFacet()), StaticsSelectors.lending());
-        cut[9] = _cut(address(new FlashLoanFacet()), StaticsSelectors.flashLoan());
-        cut[10] = _cut(address(new BasketCollateralFacet()), StaticsSelectors.basketCollateral());
-        cut[11] = _cut(address(new BasketLiquidityFacet()), StaticsSelectors.basketLiquidity());
-        cut[12] = _cut(address(new BorrowLiquidityFacet()), StaticsSelectors.borrowLiquidity());
-        cut[13] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
-        cut[14] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
-        cut[15] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
-        cut[16] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
-        cut[17] = _cut(address(new ProtocolPoolFacet()), StaticsSelectors.protocolPools());
+        cut[6] = _cut(address(new BasketCreationFacet()), StaticsSelectors.basketCreation());
+        cut[7] = _cut(address(new BasketMintFacet()), StaticsSelectors.basketMint());
+        cut[8] = _cut(address(new BasketRedemptionFacet()), StaticsSelectors.basketRedemption());
+        cut[9] = _cut(address(new BasketViewFacet()), StaticsSelectors.basketView());
+        cut[10] = _cut(address(new BasketAdminFacet()), StaticsSelectors.basketAdmin());
+        cut[11] = _cut(address(new LendingFacet()), StaticsSelectors.lending());
+        cut[12] = _cut(address(new FlashLoanFacet()), StaticsSelectors.flashLoan());
+        cut[13] = _cut(address(new BasketCollateralFacet()), StaticsSelectors.basketCollateral());
+        cut[14] = _cut(address(new BasketLiquidityFacet()), StaticsSelectors.basketLiquidity());
+        cut[15] = _cut(address(new BorrowLiquidityFacet()), StaticsSelectors.borrowLiquidity());
+        cut[16] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
+        cut[17] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
+        cut[18] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
+        cut[19] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
+        cut[20] = _cut(address(new ProtocolPoolFacet()), StaticsSelectors.protocolPools());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
-            cut,
+            address(0),
             address(init),
-            abi.encodeCall(StaticsProtocolInit.initialize, (guardian, treasury, stakingToken, 1 ether, 0)),
-            address(0)
+            abi.encodeCall(StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0))
         );
     }
 

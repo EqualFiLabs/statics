@@ -10,18 +10,12 @@ interface IStaticsBasketRewards {
         uint256 totalClaimable;
     }
 
-    event BasketRewardAccrued(
-        uint256 indexed basketId, address indexed asset, uint256 amount, uint256 indexRay
-    );
+    event BasketRewardAccrued(uint256 indexed basketId, address indexed asset, uint256 amount, uint256 indexRay);
     event BasketRewardSettled(
         uint256 indexed positionId, uint256 indexed basketId, address indexed asset, uint256 amount
     );
     event BasketRewardClaimed(
-        uint256 indexed positionId,
-        uint256 indexed basketId,
-        address indexed asset,
-        address receiver,
-        uint256 amount
+        uint256 indexed positionId, uint256 indexed basketId, address indexed asset, address receiver, uint256 amount
     );
     event BasketRewardDustRouted(uint256 indexed basketId, address indexed asset, uint256 amount);
 
@@ -36,8 +30,5 @@ interface IStaticsBasketRewards {
         external
         returns (address[] memory assets, uint256[] memory amounts);
 
-    function basketRewardState(uint256 basketId, address asset)
-        external
-        view
-        returns (BasketRewardState memory state);
+    function basketRewardState(uint256 basketId, address asset) external view returns (BasketRewardState memory state);
 }

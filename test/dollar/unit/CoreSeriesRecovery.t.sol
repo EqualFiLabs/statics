@@ -90,6 +90,36 @@ contract CoreSeriesRecoveryTest is Test {
         staticsDollarRisk = StaticsDollarRiskShares(deployment.staticsDollarRisk);
     }
 
+    function test_ExpiredCollateralOnlyRecoveryPaysHolderFullCollateral() public {
+        uint256 minted = _depositWeth(2e18);
+        uint256 successorSeriesId = _finalizeUpside(0);
+        assertEq(successorSeriesId, 2);
+
+        uint256 expiredShares = staticsDollarRisk.balanceOf(alice, 1);
+        vm.prank(alice);
+        staticsDollar.transfer(keeper, expiredShares);
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview = recoveryFacet.previewExpiredRiskRecovery(
+            alice, 1, expiredShares, IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly
+        );
+        assertGt(preview.holderCollateral, 0);
+        assertEq(preview.holderPairs, 0);
+        assertEq(preview.holderCollateralDust, preview.holderCollateral);
+
+        uint256 keeperWethBefore = weth.balanceOf(keeper);
+        uint256 holderWethBefore = weth.balanceOf(alice);
+        vm.prank(keeper);
+        recoveryFacet.recoverExpiredRisk(
+            alice,
+            1,
+            expiredShares,
+            IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly,
+            preview.seniorCollateralOut + preview.keeperBounty
+        );
+        assertEq(weth.balanceOf(keeper) - keeperWethBefore, preview.seniorCollateralOut + preview.keeperBounty);
+        assertEq(weth.balanceOf(alice) - holderWethBefore, preview.holderCollateral);
+        assertEq(staticsDollarRisk.balanceOf(alice, 1), 0);
+    }
+
     function test_ReturnedAndExpiredUpsideRecoverySettleEveryAggregateBook() public {
         uint256 minted = _depositWeth(2e18);
         uint256 returned = minted / 2;
@@ -458,16 +488,46 @@ contract CoreSeriesRecoveryTest is Test {
         mintFacet.recombine(seriesId, recombined, recombined, 0, bob);
 
         _assertHistoricalSeriesClosed(seriesId);
-        assertEq(collateral.balanceOf(deployment.core), viewFacet.totalCollateral(address(collateral)));
-        assertEq(staticsDollar.totalSupply(), viewFacet.seniorLiabilities());
+        _assertLowDecimalBooksReconcile(collateral);
     }
 
     function testFuzz_LowDecimalAlternatingSettlementSweepsHistoricalBook(uint256 rawFirst, uint256 rawSecond) public {
         ZeroDecimalRecoveryCollateral collateral = new ZeroDecimalRecoveryCollateral();
         MockETHUSDOracle lowDecimalOracle = new MockETHUSDOracle(10e18, 30 days);
         (uint256 profileId, uint256 seriesId) = _activateLowDecimalProfile(collateral, lowDecimalOracle);
-        address bob = makeAddr("alternatingBob");
-        address carol = makeAddr("alternatingCarol");
+        LowDecimalSplit memory split = _depositAndSplitLowDecimal(collateral, profileId, seriesId, rawFirst, rawSecond);
+        _expireLowDecimalSeries(profileId, seriesId, lowDecimalOracle);
+
+        vm.prank(alice);
+        mintFacet.recombine(seriesId, split.first, split.first, 0, alice);
+        vm.prank(keeper);
+        recoveryFacet.recoverExpiredRisk(
+            split.bob, seriesId, split.second, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0
+        );
+        vm.prank(split.carol);
+        mintFacet.recombine(seriesId, split.third, split.third, 0, split.carol);
+
+        _assertHistoricalSeriesClosed(seriesId);
+        _assertLowDecimalBooksReconcile(collateral);
+    }
+
+    struct LowDecimalSplit {
+        uint256 first;
+        uint256 second;
+        uint256 third;
+        address bob;
+        address carol;
+    }
+
+    function _depositAndSplitLowDecimal(
+        ZeroDecimalRecoveryCollateral collateral,
+        uint256 profileId,
+        uint256 seriesId,
+        uint256 rawFirst,
+        uint256 rawSecond
+    ) private returns (LowDecimalSplit memory split) {
+        split.bob = makeAddr("alternatingBob");
+        split.carol = makeAddr("alternatingCarol");
         uint256 collateralAmount = 10;
         collateral.mint(alice, collateralAmount);
         vm.prank(alice);
@@ -480,16 +540,18 @@ contract CoreSeriesRecoveryTest is Test {
         );
 
         uint256 minimumSlice = minted / collateralAmount + 1;
-        uint256 first = bound(rawFirst, minimumSlice, minted - 2 * minimumSlice);
-        uint256 second = bound(rawSecond, minimumSlice, minted - first - minimumSlice);
-        uint256 third = minted - first - second;
+        split.first = bound(rawFirst, minimumSlice, minted - 2 * minimumSlice);
+        split.second = bound(rawSecond, minimumSlice, minted - split.first - minimumSlice);
+        split.third = minted - split.first - split.second;
         vm.startPrank(alice);
-        staticsDollarRisk.safeTransferFrom(alice, bob, seriesId, second, "");
-        staticsDollarRisk.safeTransferFrom(alice, carol, seriesId, third, "");
-        staticsDollar.transfer(keeper, second);
-        staticsDollar.transfer(carol, third);
+        staticsDollarRisk.safeTransferFrom(alice, split.bob, seriesId, split.second, "");
+        staticsDollarRisk.safeTransferFrom(alice, split.carol, seriesId, split.third, "");
+        staticsDollar.transfer(keeper, split.second);
+        staticsDollar.transfer(split.carol, split.third);
         vm.stopPrank();
+    }
 
+    function _expireLowDecimalSeries(uint256 profileId, uint256 seriesId, MockETHUSDOracle lowDecimalOracle) private {
         lowDecimalOracle.setPriceWad(16e18);
         lowDecimalOracle.setUpdatedAt(block.timestamp);
         transition.startSeriesTransition(profileId);
@@ -497,15 +559,9 @@ contract CoreSeriesRecoveryTest is Test {
         vm.warp(state.endsAt);
         lowDecimalOracle.setUpdatedAt(block.timestamp);
         transition.finalizeSeriesTransition(seriesId);
+    }
 
-        vm.prank(alice);
-        mintFacet.recombine(seriesId, first, first, 0, alice);
-        vm.prank(keeper);
-        recoveryFacet.recoverExpiredRisk(bob, seriesId, second, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0);
-        vm.prank(carol);
-        mintFacet.recombine(seriesId, third, third, 0, carol);
-
-        _assertHistoricalSeriesClosed(seriesId);
+    function _assertLowDecimalBooksReconcile(ZeroDecimalRecoveryCollateral collateral) private view {
         assertEq(collateral.balanceOf(deployment.core), viewFacet.totalCollateral(address(collateral)));
         assertEq(staticsDollar.totalSupply(), viewFacet.seniorLiabilities());
     }
@@ -600,36 +656,8 @@ contract CoreSeriesRecoveryTest is Test {
     }
 
     function testFuzz_LowDecimalManagedRecoveryPartitionsPreserveAggregateBooks(uint256 rawFirstClaim) public {
-        ZeroDecimalRecoveryCollateral collateral = new ZeroDecimalRecoveryCollateral();
-        MockETHUSDOracle lowDecimalOracle = new MockETHUSDOracle(10e18, 30 days);
-        (uint256 profileId, uint256 seriesId) = _activateLowDecimalProfile(collateral, lowDecimalOracle);
-        ManagedRecoveryActor actor = new ManagedRecoveryActor();
-        vm.prank(owner);
-        governance.setManagedRecoveryHolder(address(actor), true);
-
-        uint256 collateralAmount = 10_000;
-        collateral.mint(alice, collateralAmount);
-        vm.prank(alice);
-        collateral.approve(deployment.core, collateralAmount);
-        IStaticsDollarCoreTypes.DepositPreview memory depositPreview =
-            mintFacet.previewDeposit(profileId, collateralAmount);
-        vm.prank(alice);
-        (, uint256 minted,) = mintFacet.depositCollateral(
-            profileId,
-            collateralAmount,
-            depositPreview.staticsDollarMinted,
-            depositPreview.sharesMinted,
-            address(actor),
-            address(actor)
-        );
-
-        lowDecimalOracle.setPriceWad(16e18);
-        lowDecimalOracle.setUpdatedAt(block.timestamp);
-        transition.startSeriesTransition(profileId);
-        IStaticsDollarCoreTypes.SeriesRecoveryState memory state = viewFacet.seriesRecoveryState(seriesId);
-        vm.warp(state.endsAt);
-        lowDecimalOracle.setUpdatedAt(block.timestamp);
-        transition.finalizeSeriesTransition(seriesId);
+        (ManagedRecoveryActor actor, uint256 seriesId, uint256 minted, ZeroDecimalRecoveryCollateral collateral) =
+            _prepareLowDecimalExpiredSeries();
 
         (uint256 initialShares,, uint256 initialSenior, uint256 initialBounty) = viewFacet.expiredRecoveryBook(seriesId);
         assertEq(initialShares, minted);
@@ -647,6 +675,48 @@ contract CoreSeriesRecoveryTest is Test {
 
         assertEq(first.seniorCollateralOut + finalPreview.seniorCollateralOut, initialSenior);
         assertEq(first.keeperBounty + finalPreview.keeperBounty, initialBounty);
+        _assertExpiredBooksDrained(seriesId);
+        assertEq(collateral.balanceOf(deployment.core), viewFacet.totalCollateral(address(collateral)));
+    }
+
+    function _prepareLowDecimalExpiredSeries()
+        private
+        returns (ManagedRecoveryActor actor, uint256 seriesId, uint256 minted, ZeroDecimalRecoveryCollateral collateral)
+    {
+        collateral = new ZeroDecimalRecoveryCollateral();
+        MockETHUSDOracle lowDecimalOracle = new MockETHUSDOracle(10e18, 30 days);
+        (uint256 profileId, uint256 activeSeriesId) = _activateLowDecimalProfile(collateral, lowDecimalOracle);
+        seriesId = activeSeriesId;
+        actor = new ManagedRecoveryActor();
+        vm.prank(owner);
+        governance.setManagedRecoveryHolder(address(actor), true);
+
+        uint256 collateralAmount = 10_000;
+        collateral.mint(alice, collateralAmount);
+        vm.prank(alice);
+        collateral.approve(deployment.core, collateralAmount);
+        IStaticsDollarCoreTypes.DepositPreview memory depositPreview =
+            mintFacet.previewDeposit(profileId, collateralAmount);
+        vm.prank(alice);
+        (, minted,) = mintFacet.depositCollateral(
+            profileId,
+            collateralAmount,
+            depositPreview.staticsDollarMinted,
+            depositPreview.sharesMinted,
+            address(actor),
+            address(actor)
+        );
+
+        lowDecimalOracle.setPriceWad(16e18);
+        lowDecimalOracle.setUpdatedAt(block.timestamp);
+        transition.startSeriesTransition(profileId);
+        IStaticsDollarCoreTypes.SeriesRecoveryState memory state = viewFacet.seriesRecoveryState(seriesId);
+        vm.warp(state.endsAt);
+        lowDecimalOracle.setUpdatedAt(block.timestamp);
+        transition.finalizeSeriesTransition(seriesId);
+    }
+
+    function _assertExpiredBooksDrained(uint256 seriesId) private view {
         (uint256 remainingShares, uint256 remainingCollateral, uint256 remainingSenior, uint256 remainingBounty) =
             viewFacet.expiredRecoveryBook(seriesId);
         assertEq(remainingShares, 0);
@@ -655,7 +725,6 @@ contract CoreSeriesRecoveryTest is Test {
         assertEq(remainingBounty, 0);
         assertEq(uint256(viewFacet.riskSeries(seriesId).status), uint256(IStaticsDollarCoreTypes.SeriesStatus.Closed));
         assertEq(staticsDollar.totalSupply(), viewFacet.seniorLiabilities());
-        assertEq(collateral.balanceOf(deployment.core), viewFacet.totalCollateral(address(collateral)));
     }
 
     function test_LowDecimalManagedRecoveryFinalClaimKeepsBountyWithinJunior() public {

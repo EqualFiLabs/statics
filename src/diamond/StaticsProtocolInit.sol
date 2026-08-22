@@ -61,6 +61,31 @@ contract StaticsProtocolInit is ERC721Upgradeable {
     }
 
     function initializeUnified(UnifiedInitArgs calldata args) external initializer {
+        _initializeUnified(args);
+    }
+
+    /// @dev Applies the genesis facet cut before scalar protocol initialization inside the
+    /// Diamond's constructor, keeping nested facet arrays out of diamond constructor arguments.
+    function genesisInitialize(
+        IDiamondCut.FacetCut[] calldata cut,
+        address guardian,
+        address treasury,
+        address stakingToken,
+        uint256 creationFeeAmount,
+        uint256 positionCreationFeeAmount
+    ) external initializer {
+        LibDiamond.diamondCut(cut, address(0), "");
+        _initializeProtocol(guardian, treasury, stakingToken, creationFeeAmount, positionCreationFeeAmount);
+    }
+
+    /// @dev Applies the genesis facet cut before unified initialization inside the Diamond's
+    /// constructor, keeping nested facet arrays out of diamond constructor arguments.
+    function genesis(IDiamondCut.FacetCut[] calldata cut, UnifiedInitArgs calldata args) external initializer {
+        LibDiamond.diamondCut(cut, address(0), "");
+        _initializeUnified(args);
+    }
+
+    function _initializeUnified(UnifiedInitArgs calldata args) private {
         _initializeProtocol(
             args.guardian, args.treasury, args.stakingToken, args.creationFeeAmount, args.positionCreationFeeAmount
         );

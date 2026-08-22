@@ -53,7 +53,18 @@ contract CoreInit {
     );
     event SeriesOpened(uint256 indexed profileId, uint256 indexed seriesId, uint256 priceWad);
 
+    /// @dev Applies the genesis facet cut before core initialization inside the Diamond's
+    /// constructor, keeping nested facet arrays out of diamond constructor arguments.
+    function genesis(IDiamondCut.FacetCut[] calldata genesisCut, InitArgs calldata args) external {
+        LibDiamond.diamondCut(genesisCut, address(0), "");
+        _init(args);
+    }
+
     function init(InitArgs calldata args) external {
+        _init(args);
+    }
+
+    function _init(InitArgs calldata args) private {
         LibCoreStorage.CS storage cs = LibCoreStorage.s();
         if (cs.initialized) revert AlreadyInitialized();
         if (

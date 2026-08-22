@@ -179,13 +179,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         LibCoreStorage.enforceProtocolOwner();
         _enforceBootstrapFinalized();
         _validatePeggedConfig(
-            collateralToken,
-            oracle,
-            pegMinPriceWad,
-            pegMaxPriceWad,
-            mintFeeBps,
-            redemptionFeeBps,
-            debtCeiling
+            collateralToken, oracle, pegMinPriceWad, pegMaxPriceWad, mintFeeBps, redemptionFeeBps, debtCeiling
         );
         LibCoreStorage.CS storage cs = LibCoreStorage.s();
         profileId = cs.nextProfileId++;
@@ -452,9 +446,9 @@ contract CoreGovernanceFacet is ReentrancyGuard {
                 config.priceBandBps <= BPS || config.priceBandBps > 30_000
                     || config.priceBandBps > config.collateralRatioBps
             ) revert InvalidPriceBand(config.priceBandBps);
-            if (
-                config.pegMinPriceWad != 0 || config.pegMaxPriceWad != 0
-            ) revert InvalidPegBounds(config.pegMinPriceWad, config.pegMaxPriceWad);
+            if (config.pegMinPriceWad != 0 || config.pegMaxPriceWad != 0) {
+                revert InvalidPegBounds(config.pegMinPriceWad, config.pegMaxPriceWad);
+            }
         } else {
             if (
                 config.collateralRatioBps != BPS || config.priceBandBps != BPS || config.insuranceTargetBps != 0

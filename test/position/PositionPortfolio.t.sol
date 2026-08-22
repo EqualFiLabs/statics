@@ -6,19 +6,31 @@ import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 
 contract PositionPortfolioTest is StaticsTestBase {
     function testPortfolioTracksBasketLoanAndRewardLifecycles() external {
-        (uint256 basketId,) = _createDefaultBasket(0, 0);
+        (uint256 basketId, uint256 positionId, address[] memory rewardAssets) = _createPortfolioPosition();
+        _assertPortfolioEntries(positionId, basketId, rewardAssets);
+        _cycleLoanAndExit(positionId, basketId, rewardAssets);
+        _assertEmptyPortfolio(positionId);
+    }
+
+    function _createPortfolioPosition()
+        private
+        returns (uint256 basketId, uint256 positionId, address[] memory rewardAssets)
+    {
+        (basketId,) = _createDefaultBasket(0, 0);
         uint256[] memory mintInputs = baskets.quoteMint(basketId, 10 ether);
         _fundAndApprove(alice, mintInputs[0], mintInputs[1]);
 
         vm.prank(alice);
-        (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, mintInputs);
+        (positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, mintInputs);
 
-        address[] memory rewardAssets = new address[](2);
+        rewardAssets = new address[](2);
         rewardAssets[0] = address(assetA);
         rewardAssets[1] = address(assetB);
         vm.prank(alice);
         globalRewards.optInRewardAssets(positionId, rewardAssets);
+    }
 
+    function _assertPortfolioEntries(uint256 positionId, uint256 basketId, address[] memory rewardAssets) private view {
         IStaticsPositionPortfolio.PositionPortfolioCounts memory counts =
             positionPortfolio.positionPortfolioCounts(positionId);
         assertEq(counts.basketCount, 1);
@@ -35,13 +47,15 @@ contract PositionPortfolioTest is StaticsTestBase {
         (address[] memory firstRewardPage, uint256 rewardCursor) =
             positionPortfolio.globalRewardAssetsOfPosition(positionId, 0, 1);
         assertEq(firstRewardPage.length, 1);
-        assertEq(firstRewardPage[0], address(assetA));
+        assertEq(firstRewardPage[0], address(rewardAssets[0]));
         (address[] memory secondRewardPage, uint256 rewardEnd) =
             positionPortfolio.globalRewardAssetsOfPosition(positionId, rewardCursor, 1);
         assertEq(secondRewardPage.length, 1);
-        assertEq(secondRewardPage[0], address(assetB));
+        assertEq(secondRewardPage[0], address(rewardAssets[1]));
         assertEq(rewardEnd, 2);
+    }
 
+    function _cycleLoanAndExit(uint256 positionId, uint256 basketId, address[] memory rewardAssets) private {
         vm.prank(alice);
         (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 5 ether, alice);
         (uint256[] memory loanIds,) = positionPortfolio.loanIdsOfPosition(positionId, 0, 100);
@@ -56,8 +70,11 @@ contract PositionPortfolioTest is StaticsTestBase {
         vm.roll(block.number + 1);
         basketCollateral.withdrawBasketCollateral(positionId, basketId, 9.95 ether, alice);
         vm.stopPrank();
+    }
 
-        counts = positionPortfolio.positionPortfolioCounts(positionId);
+    function _assertEmptyPortfolio(uint256 positionId) private view {
+        IStaticsPositionPortfolio.PositionPortfolioCounts memory counts =
+            positionPortfolio.positionPortfolioCounts(positionId);
         assertEq(counts.basketCount, 0);
         assertEq(counts.loanCount, 0);
         assertEq(counts.globalRewardAssetCount, 0);

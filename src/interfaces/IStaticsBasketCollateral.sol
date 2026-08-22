@@ -34,12 +34,9 @@ interface IStaticsBasketCollateral {
         uint256[] calldata maxAmountsIn
     ) external payable returns (uint256 positionId, uint256[] memory amountsIn);
 
-    function mintBasketCollateral(
-        uint256 positionId,
-        uint256 basketId,
-        uint256 shares,
-        uint256[] calldata maxAmountsIn
-    ) external returns (uint256[] memory amountsIn);
+    function mintBasketCollateral(uint256 positionId, uint256 basketId, uint256 shares, uint256[] calldata maxAmountsIn)
+        external
+        returns (uint256[] memory amountsIn);
 
     function redeemBasketCollateral(
         uint256 positionId,

@@ -8,7 +8,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
-import {BasketFacet} from "../../src/facets/BasketFacet.sol";
+import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
+import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
+import {LibBasketMint} from "../../src/libraries/LibBasketMint.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibGovernance} from "../../src/libraries/LibGovernance.sol";
 import {
@@ -53,7 +55,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
 
         vm.prank(alice);
-        vm.expectRevert(BasketFacet.PermissionlessBasketCreationDisabled.selector);
+        vm.expectRevert(BasketCreationFacet.PermissionlessBasketCreationDisabled.selector);
         baskets.createBasket(params, _defaultPoolLaunchParams(2), _defaultLaunchMaximums(2), type(uint256).max);
 
         uint256 treasuryBefore = treasury.balance;
@@ -67,7 +69,7 @@ contract BasketLifecycleTest is StaticsTestBase {
     function testOwnerCannotAttachNativeValueWhileCreationIsClosed() public {
         basketAdmin.setCreationFee(0);
         vm.deal(address(this), 1 ether);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.IncorrectCreationFee.selector, 0, 1 ether));
+        vm.expectRevert(abi.encodeWithSelector(BasketCreationFacet.IncorrectCreationFee.selector, 0, 1 ether));
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         baskets.createBasket{value: 1 ether}(
             params,
@@ -102,7 +104,9 @@ contract BasketLifecycleTest is StaticsTestBase {
         uint256 treasuryBefore = treasury.balance;
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.LaunchDeadlineExpired.selector, expired, block.timestamp));
+        vm.expectRevert(
+            abi.encodeWithSelector(BasketCreationFacet.LaunchDeadlineExpired.selector, expired, block.timestamp)
+        );
         baskets.createBasket{value: 1 ether}(params, pools, maximums, expired);
 
         assertEq(baskets.basketCount(), 0);
@@ -114,7 +118,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         basketAdmin.setCreationFee(0);
 
         vm.prank(alice);
-        vm.expectRevert(BasketFacet.PermissionlessBasketCreationDisabled.selector);
+        vm.expectRevert(BasketCreationFacet.PermissionlessBasketCreationDisabled.selector);
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         baskets.createBasket(params, _defaultPoolLaunchParams(2), _defaultLaunchMaximums(2), type(uint256).max);
 
@@ -189,7 +193,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         vm.prank(guardian);
         governance.pause(1 << 0);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.ActionPaused.selector, 1 << 0));
+        vm.expectRevert(abi.encodeWithSelector(LibBasketMint.ActionPaused.selector, 1 << 0));
         baskets.mint(basketId, 1 ether, alice, quote);
 
         uint256[] memory minimums = baskets.quoteRedeem(basketId, 1 ether);
@@ -206,7 +210,9 @@ contract BasketLifecycleTest is StaticsTestBase {
 
         uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.ActionPaused.selector, LibGovernance.PAUSE_LIQUIDITY));
+        vm.expectRevert(
+            abi.encodeWithSelector(BasketCreationFacet.ActionPaused.selector, LibGovernance.PAUSE_LIQUIDITY)
+        );
         baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
 
         assertEq(baskets.basketCount(), 0);
@@ -238,12 +244,12 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.createBasket{value: 1 ether}(params, pools, maximums, type(uint256).max);
 
         params.assets[1] = params.assets[0];
-        vm.expectRevert(BasketFacet.InvalidBasketDefinition.selector);
+        vm.expectRevert(BasketCreationFacet.InvalidBasketDefinition.selector);
         baskets.createBasket{value: 1 ether}(params, pools, maximums, type(uint256).max);
 
         params.assets[1] = address(assetB);
         params.flashFeeBps = 10_001;
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.FeeExceedsCap.selector, 10_001));
+        vm.expectRevert(abi.encodeWithSelector(BasketCreationFacet.FeeExceedsCap.selector, 10_001));
         baskets.createBasket{value: 1 ether}(params, pools, maximums, type(uint256).max);
         vm.stopPrank();
     }
@@ -251,9 +257,9 @@ contract BasketLifecycleTest is StaticsTestBase {
     function testCreationRequiresExactConfiguredNativeFee() public {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         vm.startPrank(alice);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.IncorrectCreationFee.selector, 1 ether, 0));
+        vm.expectRevert(abi.encodeWithSelector(BasketCreationFacet.IncorrectCreationFee.selector, 1 ether, 0));
         baskets.createBasket(params, _defaultPoolLaunchParams(2), _defaultLaunchMaximums(2), type(uint256).max);
-        vm.expectRevert(abi.encodeWithSelector(BasketFacet.IncorrectCreationFee.selector, 1 ether, 2 ether));
+        vm.expectRevert(abi.encodeWithSelector(BasketCreationFacet.IncorrectCreationFee.selector, 1 ether, 2 ether));
         baskets.createBasket{value: 2 ether}(
             params, _defaultPoolLaunchParams(2), _defaultLaunchMaximums(2), type(uint256).max
         );
@@ -267,7 +273,7 @@ contract BasketLifecycleTest is StaticsTestBase {
 
         vm.prank(alice);
         vm.expectRevert(
-            abi.encodeWithSelector(BasketFacet.InvalidRecoveryParameters.selector, uint16(9_500), uint16(527))
+            abi.encodeWithSelector(BasketCreationFacet.InvalidRecoveryParameters.selector, uint16(9_500), uint16(527))
         );
         baskets.createBasket{value: 1 ether}(
             params,
@@ -351,10 +357,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         pools[0].pairedAssetAmount = 1;
         pools[1].pairedAssetAmount = 1;
         (uint256 basketId, address token) = _launchWith(params, pools, alice, 1 ether);
-        uint256 launchVault = baskets.vaultBalance(basketId, address(taxed));
-        uint256 launchBasketReserved = custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed));
-        uint256 launchReserved = custody.globalReservedByToken(address(taxed));
-        uint256 launchTreasury = globalRewards.treasuryAccrued(address(taxed));
+        TaxCreditSnapshot memory snapshot = _snapshotTaxCredits(basketId, address(taxed));
         vm.startPrank(alice);
         taxed.mint(alice, 10 ether);
         assetB.mint(alice, 10 ether);
@@ -364,17 +367,44 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.mint(basketId, 1 ether, alice, quote);
         vm.stopPrank();
 
-        uint256 received = quote[0] * 99 / 100;
-        uint256 backingIncrease = baskets.vaultBalance(basketId, address(taxed)) - launchVault;
+        _assertTaxCreditSettlement(basketId, address(taxed), token, quote[0] * 99 / 100, snapshot);
+    }
+
+    struct TaxCreditSnapshot {
+        uint256 launchVault;
+        uint256 launchBasketReserved;
+        uint256 launchReserved;
+        uint256 launchTreasury;
+    }
+
+    function _snapshotTaxCredits(uint256 basketId, address taxed)
+        private
+        view
+        returns (TaxCreditSnapshot memory snapshot)
+    {
+        snapshot.launchVault = baskets.vaultBalance(basketId, taxed);
+        snapshot.launchBasketReserved = custody.reservedByAccount(custody.basketCustodyAccount(basketId), taxed);
+        snapshot.launchReserved = custody.globalReservedByToken(taxed);
+        snapshot.launchTreasury = globalRewards.treasuryAccrued(taxed);
+    }
+
+    function _assertTaxCreditSettlement(
+        uint256 basketId,
+        address taxed,
+        address token,
+        uint256 received,
+        TaxCreditSnapshot memory snapshot
+    ) private view {
+        uint256 backingIncrease = baskets.vaultBalance(basketId, taxed) - snapshot.launchVault;
         assertEq(IERC20(token).balanceOf(alice), 1 ether);
         assertGt(backingIncrease, 0);
         uint256 feeReceived = received - backingIncrease;
-        assertEq(globalRewards.treasuryAccrued(address(taxed)) - launchTreasury, feeReceived);
+        assertEq(globalRewards.treasuryAccrued(taxed) - snapshot.launchTreasury, feeReceived);
         assertEq(
-            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(taxed)) - launchBasketReserved,
+            custody.reservedByAccount(custody.basketCustodyAccount(basketId), taxed) - snapshot.launchBasketReserved,
             backingIncrease
         );
-        assertEq(custody.globalReservedByToken(address(taxed)) - launchReserved, received);
+        assertEq(custody.globalReservedByToken(taxed) - snapshot.launchReserved, received);
     }
 
     function testMinimumRedemptionUsesObservedReceiverDelta() public {
@@ -395,7 +425,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         uint256[] memory outputs = baskets.quoteRedeem(basketId, 1 ether);
         vm.expectRevert(
             abi.encodeWithSelector(
-                BasketFacet.MinimumOutputNotMet.selector, address(taxed), outputs[0] * 99 / 100, outputs[0]
+                BasketRedemptionFacet.MinimumOutputNotMet.selector, address(taxed), outputs[0] * 99 / 100, outputs[0]
             )
         );
         baskets.redeem(basketId, 1 ether, alice, outputs);
@@ -415,9 +445,7 @@ contract BasketLifecycleTest is StaticsTestBase {
         params.assets[0] = address(taxed);
         (uint256 firstBasket, address firstToken) = _launch(params, alice, 1 ether);
         (uint256 secondBasket,) = _launch(params, alice, 1 ether);
-        uint256 firstSupplyBefore = IERC20(firstToken).totalSupply();
-        uint256 firstVaultBefore = baskets.vaultBalance(firstBasket, address(taxed));
-        uint256 secondVaultBefore = baskets.vaultBalance(secondBasket, address(taxed));
+        SenderTaxSnapshot memory snapshot = _snapshotSenderTax(firstBasket, secondBasket, address(taxed), firstToken);
         vm.startPrank(alice);
         taxed.mint(alice, 20 ether);
         assetB.mint(alice, 20 ether);
@@ -435,15 +463,41 @@ contract BasketLifecycleTest is StaticsTestBase {
         baskets.redeem(firstBasket, 1 ether, alice, outputs);
         vm.stopPrank();
 
-        bytes32 firstAccount = custody.basketCustodyAccount(firstBasket);
-        bytes32 secondAccount = custody.basketCustodyAccount(secondBasket);
-        assertEq(IERC20(firstToken).totalSupply(), firstSupplyBefore + 1 ether);
-        assertEq(baskets.vaultBalance(firstBasket, address(taxed)), firstVaultBefore + 2 ether);
-        assertEq(custody.reservedByAccount(firstAccount, address(taxed)), firstVaultBefore + 2 ether);
-        assertEq(custody.reservedByAccount(secondAccount, address(taxed)), secondVaultBefore + 2 ether);
+        _assertSenderTaxIsolation(firstBasket, secondBasket, address(taxed), firstToken, snapshot);
     }
 
-    function testProtocolRevenueCallbackCannotCrossIntoBasketFacet() public {
+    struct SenderTaxSnapshot {
+        uint256 firstSupplyBefore;
+        uint256 firstVaultBefore;
+        uint256 secondVaultBefore;
+    }
+
+    function _snapshotSenderTax(uint256 firstBasket, uint256 secondBasket, address taxed, address firstToken)
+        private
+        view
+        returns (SenderTaxSnapshot memory snapshot)
+    {
+        snapshot.firstSupplyBefore = IERC20(firstToken).totalSupply();
+        snapshot.firstVaultBefore = baskets.vaultBalance(firstBasket, taxed);
+        snapshot.secondVaultBefore = baskets.vaultBalance(secondBasket, taxed);
+    }
+
+    function _assertSenderTaxIsolation(
+        uint256 firstBasket,
+        uint256 secondBasket,
+        address taxed,
+        address firstToken,
+        SenderTaxSnapshot memory snapshot
+    ) private view {
+        bytes32 firstAccount = custody.basketCustodyAccount(firstBasket);
+        bytes32 secondAccount = custody.basketCustodyAccount(secondBasket);
+        assertEq(IERC20(firstToken).totalSupply(), snapshot.firstSupplyBefore + 1 ether);
+        assertEq(baskets.vaultBalance(firstBasket, taxed), snapshot.firstVaultBefore + 2 ether);
+        assertEq(custody.reservedByAccount(firstAccount, taxed), snapshot.firstVaultBefore + 2 ether);
+        assertEq(custody.reservedByAccount(secondAccount, taxed), snapshot.secondVaultBefore + 2 ether);
+    }
+
+    function testProtocolRevenueCallbackCannotCrossIntoBasketRedemption() public {
         MockReentrantERC20 reentrant = new MockReentrantERC20();
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0.01 ether, 0);
         params.assets[0] = address(reentrant);

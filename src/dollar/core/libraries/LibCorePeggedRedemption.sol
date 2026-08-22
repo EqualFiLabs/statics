@@ -54,17 +54,11 @@ library LibCorePeggedRedemption {
         unhealthyProfileBitmap = bitmap;
         totalSeniorDeficitWad = deficit;
         if (phase == IStaticsDollarCoreTypes.GlobalHealthPhase.Unavailable) {
-            return (
-                IStaticsDollarCoreTypes.ExitStatus.HealthUnavailable,
-                unhealthyProfileBitmap,
-                totalSeniorDeficitWad,
-                0
-            );
+            return
+                (IStaticsDollarCoreTypes.ExitStatus.HealthUnavailable, unhealthyProfileBitmap, totalSeniorDeficitWad, 0);
         }
         if (phase == IStaticsDollarCoreTypes.GlobalHealthPhase.Impaired) {
-            return (
-                IStaticsDollarCoreTypes.ExitStatus.Impaired, unhealthyProfileBitmap, totalSeniorDeficitWad, 0
-            );
+            return (IStaticsDollarCoreTypes.ExitStatus.Impaired, unhealthyProfileBitmap, totalSeniorDeficitWad, 0);
         }
         if (!cs.peggedRedemptionLatched) {
             return (IStaticsDollarCoreTypes.ExitStatus.Available, 0, 0, 0);

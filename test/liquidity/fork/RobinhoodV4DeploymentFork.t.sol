@@ -120,70 +120,87 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
         assertEq(IUniversalRouter(deployment.universalRouter).poolManager(), deployment.poolManager);
     }
 
+    struct LiveV4Flow {
+        IPoolManager poolManager;
+        IAllowanceTransfer permit2;
+        PoolSwapTest directRouter;
+        PoolKey key;
+        PoolId poolId;
+        PositionConfig position;
+        uint256 tokenId;
+    }
+
     function test_livePoolPositionQuoteRouterAndRemovalFlow() public {
-        IPoolManager poolManager = IPoolManager(deployment.poolManager);
-        IAllowanceTransfer permit2 = IAllowanceTransfer(deployment.permit2);
+        LiveV4Flow memory flow = _launchLivePool();
+
+        BalanceDelta exactInput = _swap(flow.directRouter, flow.key, true, -int256(1 ether));
+        BalanceDelta exactOutput = _swap(flow.directRouter, flow.key, false, int256(0.25 ether));
+        assertLt(exactInput.amount0(), 0);
+        assertGt(exactInput.amount1(), 0);
+        assertEq(uint256(uint128(exactOutput.amount0())), 0.25 ether);
+
+        _quoteAndVerifySlot0(flow);
+        _swapThroughUniversalRouter(flow.key, flow.key.currency0, flow.key.currency1, flow.permit2);
+
+        uint256 balance0Before = flow.key.currency0.balanceOfSelf();
+        uint256 balance1Before = flow.key.currency1.balanceOfSelf();
+        collect(flow.tokenId, flow.position, EMPTY);
+        assertTrue(
+            flow.key.currency0.balanceOfSelf() > balance0Before || flow.key.currency1.balanceOfSelf() > balance1Before,
+            "live position earns no fees"
+        );
+
+        decreaseLiquidity(flow.tokenId, flow.position, INITIAL_LIQUIDITY + ADDED_LIQUIDITY, EMPTY);
+        assertEq(lpm.getPositionLiquidity(flow.tokenId), 0);
+        assertEq(flow.poolManager.balanceOf(deployment.positionManager, flow.key.currency0.toId()), 0);
+        assertEq(flow.poolManager.balanceOf(deployment.positionManager, flow.key.currency1.toId()), 0);
+    }
+
+    function _launchLivePool() private returns (LiveV4Flow memory flow) {
+        flow.poolManager = IPoolManager(deployment.poolManager);
+        flow.permit2 = IAllowanceTransfer(deployment.permit2);
         lpm = IPositionManager(deployment.positionManager);
 
-        PoolSwapTest directRouter = new PoolSwapTest(poolManager);
+        flow.directRouter = new PoolSwapTest(flow.poolManager);
         MockERC20 tokenA = new MockERC20("Robinhood Fork A", "rhA", 18);
         MockERC20 tokenB = new MockERC20("Robinhood Fork B", "rhB", 18);
         tokenA.mint(address(this), 1_000_000 ether);
         tokenB.mint(address(this), 1_000_000 ether);
 
         (Currency currency0, Currency currency1) = SortTokens.sort(tokenA, tokenB);
-        PoolKey memory key = PoolKey(currency0, currency1, LP_FEE, TICK_SPACING, IHooks(address(0)));
-        PoolId poolId = key.toId();
-        poolManager.initialize(key, SQRT_PRICE_1_1);
+        flow.key = PoolKey(currency0, currency1, LP_FEE, TICK_SPACING, IHooks(address(0)));
+        flow.poolId = flow.key.toId();
+        flow.poolManager.initialize(flow.key, SQRT_PRICE_1_1);
 
-        _approve(currency0, directRouter, permit2);
-        _approve(currency1, directRouter, permit2);
+        _approve(flow.key.currency0, flow.directRouter, flow.permit2);
+        _approve(flow.key.currency1, flow.directRouter, flow.permit2);
 
-        PositionConfig memory position = PositionConfig({
-            poolKey: key,
+        flow.position = PositionConfig({
+            poolKey: flow.key,
             tickLower: TickMath.minUsableTick(TICK_SPACING),
             tickUpper: TickMath.maxUsableTick(TICK_SPACING)
         });
-        uint256 tokenId = lpm.nextTokenId();
-        mint(position, INITIAL_LIQUIDITY, address(this), EMPTY);
-        increaseLiquidity(tokenId, position, ADDED_LIQUIDITY, EMPTY);
+        flow.tokenId = lpm.nextTokenId();
+        mint(flow.position, INITIAL_LIQUIDITY, address(this), EMPTY);
+        increaseLiquidity(flow.tokenId, flow.position, ADDED_LIQUIDITY, EMPTY);
 
-        assertEq(lpm.getPositionLiquidity(tokenId), INITIAL_LIQUIDITY + ADDED_LIQUIDITY);
-        assertEq(IPositionManagerBindings(deployment.positionManager).ownerOf(tokenId), address(this));
+        assertEq(lpm.getPositionLiquidity(flow.tokenId), INITIAL_LIQUIDITY + ADDED_LIQUIDITY);
+        assertEq(IPositionManagerBindings(deployment.positionManager).ownerOf(flow.tokenId), address(this));
+    }
 
-        BalanceDelta exactInput = _swap(directRouter, key, true, -int256(1 ether));
-        BalanceDelta exactOutput = _swap(directRouter, key, false, int256(0.25 ether));
-        assertLt(exactInput.amount0(), 0);
-        assertGt(exactInput.amount1(), 0);
-        assertEq(uint256(uint128(exactOutput.amount0())), 0.25 ether);
-
+    function _quoteAndVerifySlot0(LiveV4Flow memory flow) private {
         (uint256 quoteOut,) = IV4Quoter(deployment.quoter)
             .quoteExactInputSingle(
                 IV4Quoter.QuoteExactSingleParams({
-                    poolKey: key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
-                })
+                poolKey: flow.key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
+            })
             );
         assertGt(quoteOut, 0);
 
-        (uint160 managerPrice,,,) = poolManager.getSlot0(poolId);
-        (uint160 viewPrice,,, uint24 observedFee) = IStateView(deployment.stateView).getSlot0(poolId);
+        (uint160 managerPrice,,,) = flow.poolManager.getSlot0(flow.poolId);
+        (uint160 viewPrice,,, uint24 observedFee) = IStateView(deployment.stateView).getSlot0(flow.poolId);
         assertEq(viewPrice, managerPrice);
         assertEq(observedFee, LP_FEE);
-
-        _swapThroughUniversalRouter(key, currency0, currency1, permit2);
-
-        uint256 balance0Before = currency0.balanceOfSelf();
-        uint256 balance1Before = currency1.balanceOfSelf();
-        collect(tokenId, position, EMPTY);
-        assertTrue(
-            currency0.balanceOfSelf() > balance0Before || currency1.balanceOfSelf() > balance1Before,
-            "live position earns no fees"
-        );
-
-        decreaseLiquidity(tokenId, position, INITIAL_LIQUIDITY + ADDED_LIQUIDITY, EMPTY);
-        assertEq(lpm.getPositionLiquidity(tokenId), 0);
-        assertEq(poolManager.balanceOf(deployment.positionManager, currency0.toId()), 0);
-        assertEq(poolManager.balanceOf(deployment.positionManager, currency1.toId()), 0);
     }
 
     function _selectFork() private {

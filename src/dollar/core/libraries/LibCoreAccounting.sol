@@ -12,14 +12,9 @@ import {LibCoreStorage} from "./LibCoreStorage.sol";
 import {LibSolvencyIndex} from "./LibSolvencyIndex.sol";
 
 interface ICoreFeeReceiver {
-    function onSeriesFee(uint256 seriesId, address token, uint256 amount, IStaticsDollarCoreTypes.FeeKind kind)
+    function onSeriesFee(uint256 seriesId, address token, uint256 amount, IStaticsDollarCoreTypes.FeeKind kind) external;
+    function onPeggedProfileFee(uint256 profileId, address token, uint256 amount, IStaticsDollarCoreTypes.FeeKind kind)
         external;
-    function onPeggedProfileFee(
-        uint256 profileId,
-        address token,
-        uint256 amount,
-        IStaticsDollarCoreTypes.FeeKind kind
-    ) external;
 }
 
 library LibCoreAccounting {

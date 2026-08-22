@@ -44,46 +44,91 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
     error PoolDecommissioned(PoolId poolId);
     error GovernancePoolBasketReward(PoolId poolId, uint256 amount);
 
+    struct IncreaseResult {
+        IStaticsLiquidityManager.PositionMovement movement;
+        uint256 funded0;
+        uint256 funded1;
+        uint256 refund0;
+        uint256 refund1;
+    }
+
+    struct StakeVerification {
+        PoolKey key;
+        PoolId poolId;
+        uint256 basketId;
+        address basketAsset;
+        uint256 liquidity;
+        address lpOwner;
+    }
+
     function stakeLiquidityPosition(uint256 positionId, uint256 tokenId) external nonReentrant {
         _enforceLiquidityAvailable();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        StakeVerification memory verified = _verifyStakeRequest(positionId, tokenId);
+        _takePositionCustody(verified, tokenId);
+        LibLiquidityRewards.LiquidityPosition storage position = _registerStakedPosition(verified, positionId, tokenId);
+        emit LiquidityPositionStaked(positionId, tokenId, verified.poolId, verified.liquidity, position.eligibleAtBlock);
+    }
+
+    function _verifyStakeRequest(uint256 positionId, uint256 tokenId)
+        private
+        returns (StakeVerification memory verified)
+    {
         IPositionManager positionManager = _positionManager();
         address positionOwner = IERC721(address(this)).ownerOf(positionId);
         IERC721 positionNft = IERC721(address(positionManager));
-        address lpOwner = positionNft.ownerOf(tokenId);
-        if (lpOwner != positionOwner) revert PositionOwnerMismatch(tokenId, positionOwner, lpOwner);
+        verified.lpOwner = positionNft.ownerOf(tokenId);
+        if (verified.lpOwner != positionOwner) revert PositionOwnerMismatch(tokenId, positionOwner, verified.lpOwner);
 
         (PoolKey memory key, PositionInfo info) = positionManager.getPoolAndPositionInfo(tokenId);
-        PoolId poolId = key.toId();
-        (IStaticsProtocolPools.ProtocolPoolKind kind,, uint256 basketId, address basketAsset) =
-            LibProtocolPools.enforceRegistered(poolId);
-        if (_poolIsDecommissioned(poolId)) revert PoolDecommissioned(poolId);
+        verified.poolId = key.toId();
+        IStaticsProtocolPools.ProtocolPoolKind kind;
+        (kind,, verified.basketId, verified.basketAsset) = LibProtocolPools.enforceRegistered(verified.poolId);
+        if (_poolIsDecommissioned(verified.poolId)) revert PoolDecommissioned(verified.poolId);
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
-            LibBasket.enforceActive(LibBasket.basketStorage().baskets[basketId], basketId);
+            LibBasket.enforceActive(LibBasket.basketStorage().baskets[verified.basketId], verified.basketId);
         }
         if (info.hasSubscriber()) revert PositionHasSubscriber(tokenId);
-        int24 expectedLower = TickMath.minUsableTick(key.tickSpacing);
-        int24 expectedUpper = TickMath.maxUsableTick(key.tickSpacing);
-        if (info.tickLower() != expectedLower || info.tickUpper() != expectedUpper) {
+        if (
+            info.tickLower() != TickMath.minUsableTick(key.tickSpacing)
+                || info.tickUpper() != TickMath.maxUsableTick(key.tickSpacing)
+        ) {
             revert PositionRangeNotFull(tokenId, info.tickLower(), info.tickUpper());
         }
-        uint256 liquidity = positionManager.getPositionLiquidity(tokenId);
-        if (liquidity == 0) revert InvalidLiquidityAmount();
+        verified.liquidity = positionManager.getPositionLiquidity(tokenId);
+        if (verified.liquidity == 0) revert InvalidLiquidityAmount();
+        verified.key = key;
+    }
 
-        positionNft.transferFrom(lpOwner, address(this), tokenId);
+    function _takePositionCustody(StakeVerification memory verified, uint256 tokenId) private {
+        IERC721 positionNft = IERC721(address(_positionManager()));
+        positionNft.transferFrom(verified.lpOwner, address(this), tokenId);
         if (positionNft.ownerOf(tokenId) != address(this)) {
             revert PositionOwnerMismatch(tokenId, address(this), positionNft.ownerOf(tokenId));
         }
-        if (positionManager.getPositionLiquidity(tokenId) != liquidity) {
-            revert PositionLiquidityMismatch(tokenId, liquidity, positionManager.getPositionLiquidity(tokenId));
+        uint256 observedLiquidity = _positionManager().getPositionLiquidity(tokenId);
+        if (observedLiquidity != verified.liquidity) {
+            revert PositionLiquidityMismatch(tokenId, verified.liquidity, observedLiquidity);
         }
-        address currency0 = Currency.unwrap(key.currency0);
-        address currency1 = Currency.unwrap(key.currency1);
-        LibLiquidityRewards.cachePoolCurrencies(poolId, currency0, currency1);
-        LibLiquidityRewards.LiquidityPosition storage position = LibLiquidityRewards.initializeRecord(
-            tokenId, positionId, basketId, basketAsset, poolId, currency0, currency1, liquidity
+    }
+
+    function _registerStakedPosition(StakeVerification memory verified, uint256 positionId, uint256 tokenId)
+        private
+        returns (LibLiquidityRewards.LiquidityPosition storage position)
+    {
+        address currency0 = Currency.unwrap(verified.key.currency0);
+        address currency1 = Currency.unwrap(verified.key.currency1);
+        LibLiquidityRewards.cachePoolCurrencies(verified.poolId, currency0, currency1);
+        return LibLiquidityRewards.initializeRecord(
+            tokenId,
+            positionId,
+            verified.basketId,
+            verified.basketAsset,
+            verified.poolId,
+            currency0,
+            currency1,
+            verified.liquidity
         );
-        emit LiquidityPositionStaked(positionId, tokenId, poolId, liquidity, position.eligibleAtBlock);
     }
 
     function activateLiquidityPosition(uint256 tokenId) external nonReentrant {
@@ -107,62 +152,98 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
         if (position.positionId != positionId) {
             revert PositionAssociationMismatch(tokenId, position.positionId, positionId);
         }
-        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId,) =
-            LibProtocolPools.enforceRegistered(position.poolId);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
-            LibBasket.enforceActive(LibBasket.basketStorage().baskets[basketId], basketId);
+        PoolKey memory key;
+        {
+            (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory registeredKey, uint256 basketId,) =
+                LibProtocolPools.enforceRegistered(position.poolId);
+            key = registeredKey;
+            if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
+                LibBasket.enforceActive(LibBasket.basketStorage().baskets[basketId], basketId);
+            }
         }
         LibLiquidityRewards.activateIfMatured(tokenId);
-        (uint256 settled0, uint256 settled1) = LibLiquidityRewards.settle(tokenId);
-        _emitSettled(position, tokenId, settled0, settled1);
-
-        IPositionManager positionManager = _positionManager();
-        uint256 beforeLiquidity = positionManager.getPositionLiquidity(tokenId);
-        uint256 recordedLiquidity = uint256(position.eligibleLiquidity) + uint256(position.pendingLiquidity);
-        if (beforeLiquidity != recordedLiquidity) {
-            revert PositionLiquidityMismatch(tokenId, recordedLiquidity, beforeLiquidity);
+        {
+            (uint256 settled0, uint256 settled1) = LibLiquidityRewards.settle(tokenId);
+            _emitSettled(position, tokenId, settled0, settled1);
         }
 
-        address managerAddress = LibBasketLiquidity.liquidityStorage().manager;
-        uint256 funded0 = _fundManager(position.currency0, managerAddress, request.amount0Max);
-        uint256 funded1 = _fundManager(position.currency1, managerAddress, request.amount1Max);
-        IStaticsLiquidityManager.PositionRequest memory managerRequest = IStaticsLiquidityManager.PositionRequest({
-            poolKey: key,
-            tickLower: TickMath.minUsableTick(key.tickSpacing),
-            tickUpper: TickMath.maxUsableTick(key.tickSpacing),
-            liquidity: request.liquidityDelta,
-            amount0Limit: funded0,
-            amount1Limit: funded1,
-            deadline: request.deadline
-        });
-        IStaticsLiquidityManager.PositionMovement memory movement;
-        (movement, refund0, refund1) =
-            IStaticsLiquidityManager(managerAddress).increaseUserPosition(managerRequest, tokenId, refundReceiver);
-        spent0 = movement.spent0;
-        spent1 = movement.spent1;
-        if (spent0 + refund0 != funded0 + movement.received0) {
-            revert IncompatibleLiquidityAsset(position.currency0, funded0 + movement.received0, spent0 + refund0);
-        }
-        if (spent1 + refund1 != funded1 + movement.received1) {
-            revert IncompatibleLiquidityAsset(position.currency1, funded1 + movement.received1, spent1 + refund1);
-        }
-        uint256 afterLiquidity = positionManager.getPositionLiquidity(tokenId);
-        uint256 expectedLiquidity = beforeLiquidity + request.liquidityDelta;
-        if (afterLiquidity != expectedLiquidity) {
-            revert PositionLiquidityMismatch(tokenId, expectedLiquidity, afterLiquidity);
-        }
+        uint256 beforeLiquidity = _verifyRecordedLiquidity(tokenId, position);
+        IncreaseResult memory result = _increaseViaManager(position, tokenId, request, refundReceiver, key);
+        _verifyProvision(position, tokenId, beforeLiquidity, request, result);
         LibLiquidityRewards.addPending(tokenId, request.liquidityDelta);
         emit StakedLiquidityIncreased(
             positionId,
             tokenId,
             position.poolId,
             request.liquidityDelta,
-            spent0,
-            spent1,
-            refund0,
-            refund1,
+            result.movement.spent0,
+            result.movement.spent1,
+            result.refund0,
+            result.refund1,
             position.eligibleAtBlock
         );
+        spent0 = result.movement.spent0;
+        spent1 = result.movement.spent1;
+        refund0 = result.refund0;
+        refund1 = result.refund1;
+    }
+
+    function _verifyRecordedLiquidity(uint256 tokenId, LibLiquidityRewards.LiquidityPosition storage position)
+        private
+        returns (uint256 recordedLiquidity)
+    {
+        uint256 actualLiquidity = _positionManager().getPositionLiquidity(tokenId);
+        recordedLiquidity = uint256(position.eligibleLiquidity) + uint256(position.pendingLiquidity);
+        if (actualLiquidity != recordedLiquidity) {
+            revert PositionLiquidityMismatch(tokenId, recordedLiquidity, actualLiquidity);
+        }
+    }
+
+    function _increaseViaManager(
+        LibLiquidityRewards.LiquidityPosition storage position,
+        uint256 tokenId,
+        IncreaseRequest calldata request,
+        address refundReceiver,
+        PoolKey memory key
+    ) private returns (IncreaseResult memory result) {
+        address managerAddress = LibBasketLiquidity.liquidityStorage().manager;
+        result.funded0 = _fundManager(position.currency0, managerAddress, request.amount0Max);
+        result.funded1 = _fundManager(position.currency1, managerAddress, request.amount1Max);
+        IStaticsLiquidityManager.PositionRequest memory managerRequest = IStaticsLiquidityManager.PositionRequest({
+            poolKey: key,
+            tickLower: TickMath.minUsableTick(key.tickSpacing),
+            tickUpper: TickMath.maxUsableTick(key.tickSpacing),
+            liquidity: request.liquidityDelta,
+            amount0Limit: result.funded0,
+            amount1Limit: result.funded1,
+            deadline: request.deadline
+        });
+        (result.movement, result.refund0, result.refund1) =
+            IStaticsLiquidityManager(managerAddress).increaseUserPosition(managerRequest, tokenId, refundReceiver);
+    }
+
+    function _verifyProvision(
+        LibLiquidityRewards.LiquidityPosition storage position,
+        uint256 tokenId,
+        uint256 beforeLiquidity,
+        IncreaseRequest calldata request,
+        IncreaseResult memory result
+    ) private {
+        if (result.movement.spent0 + result.refund0 != result.funded0 + result.movement.received0) {
+            revert IncompatibleLiquidityAsset(
+                position.currency0, result.funded0 + result.movement.received0, result.movement.spent0 + result.refund0
+            );
+        }
+        if (result.movement.spent1 + result.refund1 != result.funded1 + result.movement.received1) {
+            revert IncompatibleLiquidityAsset(
+                position.currency1, result.funded1 + result.movement.received1, result.movement.spent1 + result.refund1
+            );
+        }
+        uint256 expectedLiquidity = beforeLiquidity + request.liquidityDelta;
+        uint256 afterLiquidity = _positionManager().getPositionLiquidity(tokenId);
+        if (afterLiquidity != expectedLiquidity) {
+            revert PositionLiquidityMismatch(tokenId, expectedLiquidity, afterLiquidity);
+        }
     }
 
     function unstakeLiquidityPosition(uint256 positionId, uint256 tokenId, address receiver) external nonReentrant {

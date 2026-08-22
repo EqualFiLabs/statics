@@ -30,36 +30,29 @@ contract GovernanceProtocolPoolsTest is CanonicalPoolTestBase {
     function testGovernanceCreatesAndPermanentlySeedsPoolFromSeparatePayer() public {
         IStaticsProtocolPools.CreateGovernancePoolParams memory params = _params(address(assetA), address(assetB));
         _fundAndApprovePayer(params, alice);
-        (
-            PoolKey memory quotedKey,
-            PoolId quotedPoolId,
-            uint160 quotedPrice,
-            uint128 quotedLiquidity,
-            uint256 quotedA,
-            uint256 quotedB
-        ) = _quote(params);
+        IStaticsProtocolPools.GovernancePoolQuote memory quoted = _quote(params);
         uint256 aliceABefore = assetA.balanceOf(alice);
         uint256 aliceBBefore = assetB.balanceOf(alice);
 
         (PoolId poolId, uint128 liquidity, uint256 amountA, uint256 amountB) =
             protocolPools.createGovernancePool(params);
 
-        assertEq(PoolId.unwrap(poolId), PoolId.unwrap(quotedPoolId));
-        assertEq(liquidity, quotedLiquidity);
-        assertEq(amountA, quotedA);
-        assertEq(amountB, quotedB);
+        assertEq(PoolId.unwrap(poolId), PoolId.unwrap(quoted.poolId));
+        assertEq(liquidity, quoted.liquidity);
+        assertEq(amountA, quoted.amountA);
+        assertEq(amountB, quoted.amountB);
         assertEq(aliceABefore - assetA.balanceOf(alice), amountA);
         assertEq(aliceBBefore - assetB.balanceOf(alice), amountB);
         assertEq(IERC20(address(assetA)).allowance(address(diamond), address(swapFeeHook)), 0);
         assertEq(IERC20(address(assetB)).allowance(address(diamond), address(swapFeeHook)), 0);
         assertEq(swapFeeHook.lockedLiquidity(poolId), liquidity);
         (uint160 livePrice,,,) = poolManager.getSlot0(poolId);
-        assertEq(livePrice, quotedPrice);
+        assertEq(livePrice, quoted.sqrtPriceX96);
 
         IStaticsProtocolPools.ProtocolPoolView memory view_ = protocolPools.protocolPool(poolId);
         assertEq(uint256(view_.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.Governance));
         assertEq(PoolId.unwrap(view_.poolId), PoolId.unwrap(poolId));
-        assertEq(keccak256(abi.encode(view_.key)), keccak256(abi.encode(quotedKey)));
+        assertEq(keccak256(abi.encode(view_.key)), keccak256(abi.encode(quoted.key)));
         assertEq(view_.basketId, 0);
         assertEq(view_.basketAsset, address(0));
         assertEq(view_.permanentLiquidity, liquidity);
@@ -117,7 +110,8 @@ contract GovernanceProtocolPoolsTest is CanonicalPoolTestBase {
         taxed.approve(address(diamond), params.amountAMax);
         assetB.approve(address(diamond), params.amountBMax);
         vm.stopPrank();
-        (, PoolId poolId,,,,) = protocolPools.quoteGovernancePool(params);
+        IStaticsProtocolPools.GovernancePoolQuote memory quote = protocolPools.quoteGovernancePool(params);
+        PoolId poolId = quote.poolId;
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -225,16 +219,14 @@ contract GovernanceProtocolPoolsTest is CanonicalPoolTestBase {
         IStaticsProtocolPools.CreateGovernancePoolParams memory reverse = _params(address(assetB), address(assetA));
         reverse.sqrtPriceBPerAX96 = SQRT_PRICE_1_1 / 2;
 
-        (PoolKey memory forwardKey, PoolId forwardId, uint160 forwardPrice,, uint256 forwardA, uint256 forwardB) =
-            protocolPools.quoteGovernancePool(forward);
-        (PoolKey memory reverseKey, PoolId reverseId, uint160 reversePrice,, uint256 reverseA, uint256 reverseB) =
-            protocolPools.quoteGovernancePool(reverse);
+        IStaticsProtocolPools.GovernancePoolQuote memory forwardQuote = protocolPools.quoteGovernancePool(forward);
+        IStaticsProtocolPools.GovernancePoolQuote memory reverseQuote = protocolPools.quoteGovernancePool(reverse);
 
-        assertEq(keccak256(abi.encode(forwardKey)), keccak256(abi.encode(reverseKey)));
-        assertEq(PoolId.unwrap(forwardId), PoolId.unwrap(reverseId));
-        assertEq(forwardPrice, reversePrice);
-        assertEq(forwardA, reverseB);
-        assertEq(forwardB, reverseA);
+        assertEq(keccak256(abi.encode(forwardQuote.key)), keccak256(abi.encode(reverseQuote.key)));
+        assertEq(PoolId.unwrap(forwardQuote.poolId), PoolId.unwrap(reverseQuote.poolId));
+        assertEq(forwardQuote.sqrtPriceX96, reverseQuote.sqrtPriceX96);
+        assertEq(forwardQuote.amountA, reverseQuote.amountB);
+        assertEq(forwardQuote.amountB, reverseQuote.amountA);
     }
 
     function testFuzzQuoteRespectsBothMaximums(uint96 maxA, uint96 maxB) public view {
@@ -243,11 +235,11 @@ contract GovernanceProtocolPoolsTest is CanonicalPoolTestBase {
         IStaticsProtocolPools.CreateGovernancePoolParams memory params = _params(address(assetA), address(assetB));
         params.amountAMax = maxA;
         params.amountBMax = maxB;
-        (,,,, uint256 amountA, uint256 amountB) = protocolPools.quoteGovernancePool(params);
-        assertLe(amountA, maxA);
-        assertLe(amountB, maxB);
-        assertGt(amountA, 0);
-        assertGt(amountB, 0);
+        IStaticsProtocolPools.GovernancePoolQuote memory quote = protocolPools.quoteGovernancePool(params);
+        assertLe(quote.amountA, maxA);
+        assertLe(quote.amountB, maxB);
+        assertGt(quote.amountA, 0);
+        assertGt(quote.amountB, 0);
     }
 
     function _params(address tokenA, address tokenB)
@@ -281,7 +273,7 @@ contract GovernanceProtocolPoolsTest is CanonicalPoolTestBase {
     function _quote(IStaticsProtocolPools.CreateGovernancePoolParams memory params)
         private
         view
-        returns (PoolKey memory, PoolId, uint160, uint128, uint256, uint256)
+        returns (IStaticsProtocolPools.GovernancePoolQuote memory)
     {
         return protocolPools.quoteGovernancePool(params);
     }

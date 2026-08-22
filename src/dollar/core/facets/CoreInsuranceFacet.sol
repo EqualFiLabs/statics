@@ -15,6 +15,7 @@ contract CoreInsuranceFacet is ReentrancyGuard {
     error InvalidProfileKind(
         uint256 profileId, IStaticsDollarCoreTypes.ProfileKind expected, IStaticsDollarCoreTypes.ProfileKind actual
     );
+
     function topUpInsurance(uint256 profileId, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         LibCoreStorage.CS storage cs = LibCoreStorage.s();
@@ -56,9 +57,8 @@ contract CoreInsuranceFacet is ReentrancyGuard {
             priceWad = currentPrice;
             oracleHealthy = currentPrice >= profile.pegMinPriceWad && currentPrice <= profile.pegMaxPriceWad;
         }
-        recommendedMode = oracleHealthy
-            ? IStaticsDollarCoreTypes.ProfileMode.Active
-            : IStaticsDollarCoreTypes.ProfileMode.ReduceOnly;
+        recommendedMode =
+            oracleHealthy ? IStaticsDollarCoreTypes.ProfileMode.Active : IStaticsDollarCoreTypes.ProfileMode.ReduceOnly;
     }
 
     function insuranceTarget(uint256 profileId) external view returns (uint256 target) {
