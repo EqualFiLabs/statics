@@ -242,7 +242,7 @@ The launcher performs one creation broadcast in this order:
 4. Predict the Core address, deploy the permit-enabled `StaticsDollar` ERC-20 and
    `StaticsDollarRiskShares` ERC-1155 with that permanent authority, then deploy
    and initialize `StaticsDollarCoreDiamond`.
-5. Deploy the twenty-one unified protocol facets and initialize
+5. Deploy the twenty-four unified protocol facets and initialize
    `StaticsDiamond`, including the PositionNFT ERC-721, baskets, reservations,
    global rewards, Dollar periphery, typed gateway, canonical liquidity, and
    optional borrow-to-liquidity action. Initialization permanently records the
@@ -484,7 +484,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           23 facets, 207 selectors
+StaticsDiamond:           26 facets, 207 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
