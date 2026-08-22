@@ -45,7 +45,10 @@ contract StaticsTokenMetadataTest is Test {
     function testCanonicalTokenUriMatchesReviewedPayload() public view {
         string memory uri = harness.tokenURI();
         assertEq(bytes(uri).length, 1_201);
-        assertEq(sha256(bytes(uri)), hex"6a3b3de0ae40af1df020a398bb2114bd97f64b5751906bd31024ae2676f0fd68");
+        assertEq(
+            sha256(bytes(uri)),
+            hex"6a3b3de0ae40af1df020a398bb2114bd97f64b5751906bd31024ae2676f0fd68"
+        );
         assertTrue(_startsWith(uri, "data:application/json;base64,"));
         assertTrue(_startsWith(harness.imageURI(), "data:image/svg+xml;base64,"));
     }

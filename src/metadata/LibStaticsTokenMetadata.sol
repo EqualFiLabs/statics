@@ -7,7 +7,9 @@ import {LibStaticsLogoSVG} from "./LibStaticsLogoSVG.sol";
 /// @notice Canonical, fully onchain metadata for the Doppler-created STATICS ERC-20.
 library LibStaticsTokenMetadata {
     function imageURI() internal pure returns (string memory) {
-        return string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(LibStaticsLogoSVG.tokenLogo())));
+        return string.concat(
+            "data:image/svg+xml;base64,", Base64.encode(bytes(LibStaticsLogoSVG.tokenLogo()))
+        );
     }
 
     function tokenURI() internal pure returns (string memory) {
