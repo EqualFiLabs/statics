@@ -49,6 +49,16 @@ contract RobinhoodDeploymentConfigTest is Test {
         assertEq(config.positionManagerCodeHash, 0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d);
     }
 
+    function testMainnetManifestPinsVerifiedWeth() public view {
+        string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+
+        assertEq(vm.parseJsonAddress(manifest, ".contracts.weth.address"), 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73);
+        assertEq(
+            vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash"),
+            0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353
+        );
+    }
+
     function testTestnetManifestPinsVerifiedWeth() public view {
         string memory manifest = vm.readFile("deployments/robinhood-chain-testnet-46630.json");
 

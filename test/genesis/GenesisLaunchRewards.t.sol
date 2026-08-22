@@ -100,6 +100,26 @@ contract MockActivationConsumer is IGenesisActivationConsumer {
     }
 }
 
+contract MockActivationStateObserver is IGenesisActivationConsumer {
+    IGenesisActivationRegistry public immutable registry;
+    uint8 public observedTier;
+    uint16 public observedMultiplier;
+
+    constructor(IGenesisActivationRegistry registry_) {
+        registry = registry_;
+    }
+
+    function accept() external {
+        registry.acceptConsumer();
+    }
+
+    function onGenesisTransition(uint256 genesisId, address, address, uint16, uint16) external {
+        require(msg.sender == address(registry), "REGISTRY_ONLY");
+        observedTier = registry.tierOf(genesisId);
+        observedMultiplier = registry.multiplierBps(genesisId);
+    }
+}
+
 contract GenesisLaunchRewardsTest is Test {
     uint256 private constant PRICE = 180_000 ether;
     bytes32 private constant POOL_ID = keccak256("STATICS_WETH");
@@ -180,6 +200,26 @@ contract GenesisLaunchRewardsTest is Test {
     function testMarketBindingRequiresExactNinetyFivePercentBeneficiaryShare() public view {
         assertEq(feeReceiver.poolInitializer(), address(feeSource));
         assertEq(feeSource.getShares(POOL_ID, address(feeReceiver)), 0.95 ether);
+    }
+
+    function testActivationConsumerObservesPreviousTierDuringCallback() public {
+        _buyAndRegister(alice, 1);
+        MockActivationStateObserver observer = new MockActivationStateObserver(activationRegistry);
+        vm.prank(governance);
+        activationRegistry.proposeConsumer(address(observer));
+        observer.accept();
+
+        uint256 activationCost = activationRegistry.tierCost(1);
+        statics.transfer(alice, activationCost);
+        vm.startPrank(alice);
+        statics.approve(address(activationRegistry), activationCost);
+        activationRegistry.activate(1, 1);
+        vm.stopPrank();
+
+        assertEq(observer.observedTier(), 0);
+        assertEq(observer.observedMultiplier(), 10_000);
+        assertEq(activationRegistry.tierOf(1), 1);
+        assertEq(activationRegistry.multiplierBps(1), 11_000);
     }
 
     function testTwoGenesisWeightsUseRemainderIndexAcrossActivation() public {

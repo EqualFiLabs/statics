@@ -742,7 +742,7 @@ redeem Genesis
 
 The protocol does not require permanent destruction to create scarcity.
 
-Underlying token functionality allowing independent holders to voluntarily destroy their own tokens is outside this monetary policy. EqualFi protocol contracts must not invoke that functionality.
+Underlying token functionality allowing independent holders to voluntarily destroy their own tokens is outside this monetary policy. Statics protocol contracts must not invoke that functionality.
 
 ## Genesis activation payments
 
@@ -767,7 +767,7 @@ One hundred percent of the activation payment is transferred to treasury.
 
 Activation payments do not fund Genesis STATICS backing, fund the Genesis ETH reserve, or reduce STATICS total supply.
 
-Treasury may later use those STATICS for liquidity, market making, integrations, incentives, grants, future EqualFi products, or other governance-approved purposes.
+Treasury may later use those STATICS for liquidity, market making, integrations, incentives, grants, future Statics products, or other governance-approved purposes.
 
 The activation registry removes its burn-specific token dependency. ABI and event terminology must use payment rather than burn terminology.
 
@@ -839,7 +839,7 @@ Doppler WETH revenue
 post-epoch reserve buy-ins
 post-epoch acquisition fees
 donations
-future EqualFi revenue integrations
+future Statics revenue integrations
 ```
 
 Reserve decreases include:
@@ -864,7 +864,7 @@ The permanent reserve integration boundary established by this ADR is:
 StaticsGenesisVault.donate()
 ```
 
-Future EqualFi products may capitalize Genesis by contributing native ETH through that interface.
+Future Statics products may capitalize Genesis by contributing native ETH through that interface.
 
 The permanent activation integration boundary remains `GenesisActivationRegistry` and its activation multiplier. Full Statics reward systems may consume that multiplier for eligible staking and DEX-revenue weighting without migrating activation state.
 

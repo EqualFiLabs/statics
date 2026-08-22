@@ -12,8 +12,6 @@ import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerL
 /// @dev The canonical production `run()` remains configuration-hash gated. This entrypoint
 ///      additionally requires Anvil's private RPC namespace before it will broadcast anything.
 contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
-    uint256 private constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
-
     error InvalidLocalForkChain(uint256 chainId);
     error InvalidLocalForkRpc();
 
