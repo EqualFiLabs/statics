@@ -192,8 +192,8 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
         (uint256 quoteOut,) = IV4Quoter(deployment.quoter)
             .quoteExactInputSingle(
                 IV4Quoter.QuoteExactSingleParams({
-                    poolKey: flow.key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
-                })
+                poolKey: flow.key, zeroForOne: true, exactAmount: 0.1 ether, hookData: EMPTY
+            })
             );
         assertGt(quoteOut, 0);
 

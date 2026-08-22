@@ -262,8 +262,8 @@ contract DopplerGenesisLaunchForkTest is Test {
             (uint256 quotedSell,) = _forkQuoter()
                 .quoteExactInputSingle(
                     IV4Quoter.QuoteExactSingleParams({
-                        poolKey: key, zeroForOne: !buyZeroForOne, exactAmount: sellAmount, hookData: bytes("")
-                    })
+                    poolKey: key, zeroForOne: !buyZeroForOne, exactAmount: sellAmount, hookData: bytes("")
+                })
                 );
             minimumSell = uint128((quotedSell * 99) / 100);
         }

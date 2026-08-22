@@ -271,14 +271,14 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             .setPoolFeeConfiguration(
                 poolId,
                 IStaticsSwapFeeHook.FeeConfiguration({
-                    inputFeeBps: configuration.inputFeeBps,
-                    outputFeeBps: configuration.outputFeeBps,
-                    polShareBps: configuration.polShareBps,
-                    liquidityProviderShareBps: configuration.liquidityProviderShareBps,
-                    basketStakerShareBps: configuration.basketStakerShareBps,
-                    staticsStakerShareBps: configuration.staticsStakerShareBps,
-                    treasuryShareBps: configuration.treasuryShareBps
-                })
+                inputFeeBps: configuration.inputFeeBps,
+                outputFeeBps: configuration.outputFeeBps,
+                polShareBps: configuration.polShareBps,
+                liquidityProviderShareBps: configuration.liquidityProviderShareBps,
+                basketStakerShareBps: configuration.basketStakerShareBps,
+                staticsStakerShareBps: configuration.staticsStakerShareBps,
+                treasuryShareBps: configuration.treasuryShareBps
+            })
             );
         emit CanonicalPoolFeeConfigurationSet(
             basketId,
