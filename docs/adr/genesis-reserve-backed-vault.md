@@ -717,7 +717,7 @@ STATICS has a fixed maximum supply of:
 1,000,000,000
 ```
 
-EqualFi protocol contracts do not intentionally destroy STATICS as part of normal protocol economics.
+Statics protocol contracts do not intentionally destroy STATICS as part of normal protocol economics.
 
 There is:
 
