@@ -52,7 +52,8 @@ contract DeployStaticsTest is Test {
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
             creationFeeAmount: 0,
-            positionCreationFeeAmount: 0
+            positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0
         });
         uint64 firstCreationNonce = vm.getNonce(address(deployer));
 
@@ -75,13 +76,15 @@ contract DeployStaticsTest is Test {
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
             creationFeeAmount: 0,
-            positionCreationFeeAmount: 0.001 ether
+            positionCreationFeeAmount: 0.001 ether,
+            poolCreationFeeAmount: 0.05 ether
         });
 
         (StaticsDollarStackDeployment memory deployment,) = deployer.deploy(config);
 
         assertEq(IStaticsBasketAdmin(deployment.diamond).creationFee(), 0);
         assertEq(IStaticsPositionFees(deployment.diamond).positionCreationFee(), 0.001 ether);
+        assertEq(IStaticsProtocolPools(deployment.diamond).poolCreationFee(), 0.05 ether);
     }
 
     function testLaunchInstallsFullProtocolBehindTimelockedDiamond() public {
@@ -95,7 +98,8 @@ contract DeployStaticsTest is Test {
             treasury: treasury,
             stakingToken: address(deployer),
             creationFeeAmount: 0.01 ether,
-            positionCreationFeeAmount: 0
+            positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0.02 ether
         });
         DeployStatics.V4Config memory v4 = _v4Config();
 
@@ -125,12 +129,13 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 26, 207);
+        _assertManifest(diamond, 29, 218);
         _assertBasketRoutes(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
         assertEq(IStaticsPositionFees(diamond).positionCreationFee(), 0);
+        assertEq(IStaticsProtocolPools(diamond).poolCreationFee(), 0.02 ether);
         assertEq(deployment.gateway, diamond);
         assertEq(deployment.positionNFT, diamond);
         assertEq(StaticsDollar(deployment.staticsDollar).symbol(), "USDstx");
@@ -163,14 +168,9 @@ contract DeployStaticsTest is Test {
         assertEq(manager, deployment.liquidityManager);
         assertEq(StaticsSwapFeeHook(payable(hook)).staticsDiamond(), diamond);
         assertEq(address(StaticsSwapFeeHook(payable(hook)).poolManager()), deployment.poolManager);
-        IStaticsSwapFeeHook.FeeConfiguration memory feeConfig = StaticsSwapFeeHook(payable(hook)).feeConfiguration();
-        assertEq(feeConfig.inputFeeBps, 25);
-        assertEq(feeConfig.outputFeeBps, 25);
-        assertEq(feeConfig.polShareBps, 1_000);
-        assertEq(feeConfig.liquidityProviderShareBps, 2_500);
-        assertEq(feeConfig.basketStakerShareBps, 2_500);
-        assertEq(feeConfig.staticsStakerShareBps, 1_500);
-        assertEq(feeConfig.treasuryShareBps, 2_500);
+        (uint16 inputFeeBps, uint16 outputFeeBps) = StaticsSwapFeeHook(payable(hook)).defaultFeeRate();
+        assertEq(inputFeeBps, 25);
+        assertEq(outputFeeBps, 25);
         assertEq(
             uint160(hook) & Hooks.ALL_HOOK_MASK,
             Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
@@ -240,7 +240,8 @@ contract DeployStaticsTest is Test {
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
             creationFeeAmount: 1 ether,
-            positionCreationFeeAmount: 0
+            positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0
         });
         vm.expectRevert(DeployStatics.InvalidConfig.selector);
         deployer.deploy(config);

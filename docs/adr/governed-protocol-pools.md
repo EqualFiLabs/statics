@@ -1,7 +1,16 @@
 # ADR: Governed Uniswap v4 protocol pools
 
-- Status: Accepted and implemented
+- Status: Superseded by `docs/adr/permissionless-protocol-pools.md`
 - Date: 2026-08-06
+- Note: The governed generic-pool model described here was never shipped as a
+  standalone rail. The permissionless-protocol-pools ADR replaces its
+  `ProtocolPoolKind.Governance` class, `GovernancePool` storage,
+  `createGovernancePool`/`quoteGovernancePool`/`decommissionGovernancePool`
+  surface, fixed tick spacing, and mandatory permanent-liquidity seed with the
+  permissionless `General` pool class, creator-selected tick spacing and fee
+  rate, EIP-712 creator authorization, independent creation-fee gate, and fixed
+  500-bps creator share. This document is retained only as a historical design
+  record; the current implementation follows the superseding ADR.
 - Scope: Statics pool registration, permanent liquidity, fee routing, LP rewards,
   governance, indexing, and upgrade compatibility
 

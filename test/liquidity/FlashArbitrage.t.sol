@@ -13,6 +13,7 @@ import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/Pool
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {StaticsFlashArbitrageReceiver} from "../../src/periphery/StaticsFlashArbitrageReceiver.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 import {FlashArbitrageReceiver, ICanonicalV4SwapRouter} from "../mocks/FlashArbitrageReceiver.sol";
@@ -227,7 +228,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 liquidityProviderShareBps: 0,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 9_000,
-                treasuryShareBps: 1_000
+                treasuryShareBps: 500
             })
         );
 
@@ -254,9 +255,12 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
 
         uint256 basketTreasuryDelta = globalRewards.treasuryAccrued(basketToken) - basketTreasuryBefore;
         assertGt(basketTreasuryDelta, 0);
+        // The non-POL reservation now also covers the fixed 500-bps creator credit, so the fee-account
+        // reserve delta equals treasury accrual plus the creator credit for this leg.
+        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(alice, basketToken);
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), basketToken) - basketFeeReserveBefore,
-            basketTreasuryDelta
+            basketTreasuryDelta + basketCreatorCredit
         );
         assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(basketToken)), 0);
         assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(address(assetA))), 0);
@@ -601,7 +605,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 liquidityProviderShareBps: 1_000,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 3_000,
-                treasuryShareBps: 1_000
+                treasuryShareBps: 500
             })
         );
     }

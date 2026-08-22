@@ -22,8 +22,15 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
+import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
+import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 
+/// @notice Canonical Statics bilateral swap-fee hook. The hook holds PoolId-local fee rates and two
+/// global allocation profiles (basket canonical and general). The fixed 500-bps creator allocation is
+/// carved from the fee before applying the configurable profile shares, so every profile plus the
+/// creator share totals 10,000 bps. Collected fees are routed to the Diamond through
+/// `routeProtocolSwapFees`.
 contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
@@ -32,7 +39,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     using SafeERC20 for IERC20;
 
     uint256 private constant BPS = 10_000;
-    uint256 private constant MAX_COMBINED_FEE_BPS = 200;
+    uint256 private constant CREATOR_SHARE_BPS = LibProtocolPoolFee.CREATOR_SHARE_BPS;
     uint8 private constant UNLOCK_RELEASE = 1;
     uint8 private constant UNLOCK_SEED = 2;
     bytes32 private constant PERMANENT_LIQUIDITY_SALT = keccak256("statics.permanent.swap.fee.liquidity");
@@ -41,6 +48,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint256 liquidityProvider;
         uint256 basketStaker;
         uint256 staticsStaker;
+        uint256 creator;
         uint256 treasury;
     }
 
@@ -55,32 +63,41 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         int128 delta1;
     }
 
-    struct StoredPoolFeeConfiguration {
+    struct EffectiveRate {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
-        uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
-        uint16 basketStakerShareBps;
-        uint16 staticsStakerShareBps;
-        uint16 treasuryShareBps;
-        bool enabled;
+    }
+
+    struct AllocationShares {
+        uint256 pol;
+        uint256 liquidityProvider;
+        uint256 basketStaker;
+        uint256 staticsStaker;
+        uint256 creator;
+        uint256 treasury;
     }
 
     address public immutable staticsDiamond;
-    FeeConfiguration private fees;
+
+    uint16 private defaultInputFeeBps;
+    uint16 private defaultOutputFeeBps;
+    BasketFeeAllocation private basketAllocation;
+    GeneralFeeAllocation private generalAllocation;
 
     mapping(PoolId poolId => PoolRegistration registration) private registrations;
+    mapping(PoolId poolId => PoolFeeRate rate) private poolRates;
     mapping(PoolId poolId => mapping(Currency currency => uint256 amount)) private polPending;
     mapping(Currency currency => uint256 amount) private totalPending;
     mapping(PoolId poolId => mapping(Currency currency => PendingDistribution amount)) private distributions;
     mapping(PoolId poolId => uint128 liquidity) private permanentLiquidity;
     mapping(PoolId poolId => bool decommissioned) private decommissionedPools;
-    mapping(PoolId poolId => StoredPoolFeeConfiguration configuration) private poolFeeConfigurations;
 
     error OnlyStaticsDiamond(address caller);
-    error InvalidFeeConfiguration();
+    error InvalidFeeRate();
+    error InvalidAllocation();
     error PoolAlreadyRegistered(PoolId poolId);
     error PoolNotRegistered(PoolId poolId);
+    error InvalidPoolKind();
     error PoolIsDecommissioned(PoolId poolId);
     error PoolNotDecommissioned(PoolId poolId);
     error NativeCurrencyUnsupported();
@@ -103,7 +120,24 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
         staticsDiamond = diamond;
-        _setFeeConfiguration(inputFeeBps, outputFeeBps, 1_000, 2_500, 2_500, 1_500, 2_500);
+        _setDefaultFeeRate(inputFeeBps, outputFeeBps);
+        _setBasketFeeAllocation(
+            BasketFeeAllocation({
+                polShareBps: 1_000,
+                liquidityProviderShareBps: 2_500,
+                basketStakerShareBps: 2_500,
+                staticsStakerShareBps: 1_500,
+                treasuryShareBps: 2_000
+            })
+        );
+        _setGeneralFeeAllocation(
+            GeneralFeeAllocation({
+                polShareBps: 3_500,
+                liquidityProviderShareBps: 2_500,
+                staticsStakerShareBps: 1_500,
+                treasuryShareBps: 2_000
+            })
+        );
     }
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory permissions) {
@@ -130,77 +164,72 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         revert CanonicalPoolDonationForbidden();
     }
 
-    function feeConfiguration() external view returns (FeeConfiguration memory config) {
-        return fees;
+    // --- Fee rate administration ---
+
+    function defaultFeeRate() external view returns (uint16 inputFeeBps, uint16 outputFeeBps) {
+        return (defaultInputFeeBps, defaultOutputFeeBps);
     }
 
-    function setFeeConfiguration(
-        uint16 inputFeeBps,
-        uint16 outputFeeBps,
-        uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
-        uint16 basketStakerShareBps,
-        uint16 staticsStakerShareBps,
-        uint16 treasuryShareBps
-    ) external {
+    function setDefaultFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) external {
         _enforceDiamond();
-        _setFeeConfiguration(
-            inputFeeBps,
-            outputFeeBps,
-            polShareBps,
-            liquidityProviderShareBps,
-            basketStakerShareBps,
-            staticsStakerShareBps,
-            treasuryShareBps
-        );
+        _setDefaultFeeRate(inputFeeBps, outputFeeBps);
     }
 
-    function setPoolFeeConfiguration(PoolId poolId, FeeConfiguration calldata configuration) external {
+    function setPoolFeeRate(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external {
         _enforceDiamond();
         _enforceRegistered(poolId);
-        _validateFeeConfiguration(configuration);
-        poolFeeConfigurations[poolId] = StoredPoolFeeConfiguration({
-            inputFeeBps: configuration.inputFeeBps,
-            outputFeeBps: configuration.outputFeeBps,
-            polShareBps: configuration.polShareBps,
-            liquidityProviderShareBps: configuration.liquidityProviderShareBps,
-            basketStakerShareBps: configuration.basketStakerShareBps,
-            staticsStakerShareBps: configuration.staticsStakerShareBps,
-            treasuryShareBps: configuration.treasuryShareBps,
-            enabled: true
-        });
-        emit PoolFeeConfigurationSet(
-            poolId,
-            configuration.inputFeeBps,
-            configuration.outputFeeBps,
-            configuration.polShareBps,
-            configuration.liquidityProviderShareBps,
-            configuration.basketStakerShareBps,
-            configuration.staticsStakerShareBps,
-            configuration.treasuryShareBps
-        );
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) revert InvalidFeeRate();
+        poolRates[poolId] = PoolFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps, overridden: true});
+        emit PoolFeeRateSet(poolId, inputFeeBps, outputFeeBps, true);
     }
 
-    function clearPoolFeeConfiguration(PoolId poolId) external {
+    function clearPoolFeeRate(PoolId poolId) external {
         _enforceDiamond();
         _enforceRegistered(poolId);
-        delete poolFeeConfigurations[poolId];
-        emit PoolFeeConfigurationCleared(poolId);
+        delete poolRates[poolId];
+        emit PoolFeeRateSet(poolId, defaultInputFeeBps, defaultOutputFeeBps, false);
     }
 
-    function poolFeeConfiguration(PoolId poolId) external view returns (PoolFeeConfigurationView memory configuration) {
+    function poolFeeRate(PoolId poolId) external view returns (PoolFeeRate memory rate) {
         _enforceRegistered(poolId);
-        return _effectiveFeeConfiguration(poolId);
+        PoolFeeRate storage stored = poolRates[poolId];
+        if (stored.overridden) return stored;
+        return PoolFeeRate({inputFeeBps: defaultInputFeeBps, outputFeeBps: defaultOutputFeeBps, overridden: false});
     }
 
-    function registerPool(PoolKey calldata key) external returns (PoolId poolId) {
+    // --- Allocation profile administration ---
+
+    function basketFeeAllocation() external view returns (BasketFeeAllocation memory allocation) {
+        return basketAllocation;
+    }
+
+    function generalFeeAllocation() external view returns (GeneralFeeAllocation memory allocation) {
+        return generalAllocation;
+    }
+
+    function setBasketFeeAllocation(BasketFeeAllocation calldata allocation) external {
+        _enforceDiamond();
+        _setBasketFeeAllocation(allocation);
+    }
+
+    function setGeneralFeeAllocation(GeneralFeeAllocation calldata allocation) external {
+        _enforceDiamond();
+        _setGeneralFeeAllocation(allocation);
+    }
+
+    // --- Registration and lifecycle ---
+
+    function registerPool(PoolKey calldata key, PoolKind kind, address creator) external returns (PoolId poolId) {
         _enforceDiamond();
         if (key.currency0.isAddressZero() || key.currency1.isAddressZero()) revert NativeCurrencyUnsupported();
         if (key.fee != 0) revert NonzeroNativeLpFee(key.fee);
+        if (kind != PoolKind.BasketCanonical && kind != PoolKind.General) revert InvalidPoolKind();
         poolId = key.toId();
         if (registrations[poolId].registered) revert PoolAlreadyRegistered(poolId);
-        registrations[poolId] = PoolRegistration({currency0: key.currency0, currency1: key.currency1, registered: true});
-        emit PoolRegistered(poolId, key.currency0, key.currency1);
+        registrations[poolId] = PoolRegistration({
+            currency0: key.currency0, currency1: key.currency1, kind: kind, creator: creator, registered: true
+        });
+        emit PoolRegistered(poolId, key.currency0, key.currency1, kind, creator);
     }
 
     function decommissionPool(PoolKey calldata key) external {
@@ -394,14 +423,14 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _enforceRegistered(poolId);
         if (decommissionedPools[poolId]) revert PoolIsDecommissioned(poolId);
         bool exactInput = params.amountSpecified < 0;
-        PoolFeeConfigurationView memory configuration = _effectiveFeeConfiguration(poolId);
-        uint16 feeBps = exactInput ? configuration.inputFeeBps : configuration.outputFeeBps;
+        EffectiveRate memory rate = _effectiveRate(poolId);
+        uint16 feeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
         uint256 realized = _absolute(params.amountSpecified);
         uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
         if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
         _takeExact(specified, charged);
-        _allocate(poolId, specified, realized, charged, true, configuration);
+        _allocate(poolId, specified, realized, charged, true);
         _routeDistribution(poolId, specified);
         return (IHooks.beforeSwap.selector, toBeforeSwapDelta(charged.toInt128(), 0), 0);
     }
@@ -419,12 +448,12 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
             int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
             uint256 realized = _absolute(int256(unspecifiedDelta));
-            PoolFeeConfigurationView memory configuration = _effectiveFeeConfiguration(poolId);
-            uint16 feeBps = exactInput ? configuration.outputFeeBps : configuration.inputFeeBps;
+            EffectiveRate memory rate = _effectiveRate(poolId);
+            uint16 feeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
             charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
             if (charged != 0) {
                 _takeExact(unspecified, charged);
-                _allocate(poolId, unspecified, realized, charged, false, configuration);
+                _allocate(poolId, unspecified, realized, charged, false);
             }
         }
 
@@ -434,107 +463,101 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         return (IHooks.afterSwap.selector, charged.toInt128());
     }
 
-    function _allocate(
-        PoolId poolId,
-        Currency currency,
-        uint256 realized,
-        uint256 charged,
-        bool specifiedLeg,
-        PoolFeeConfigurationView memory configuration
-    ) private {
-        uint256 polAmount = Math.mulDiv(charged, configuration.polShareBps, BPS);
-        uint256 liquidityProviderAmount = Math.mulDiv(charged, configuration.liquidityProviderShareBps, BPS);
-        uint256 basketStakerAmount = Math.mulDiv(charged, configuration.basketStakerShareBps, BPS);
-        uint256 staticsStakerAmount = Math.mulDiv(charged, configuration.staticsStakerShareBps, BPS);
-        uint256 treasuryAmount =
-            charged - polAmount - liquidityProviderAmount - basketStakerAmount - staticsStakerAmount;
-        if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueLiquidityRewards(poolId)) {
-            polAmount += liquidityProviderAmount;
-            liquidityProviderAmount = 0;
-        }
-        if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueBasketRewards(poolId)) {
-            polAmount += basketStakerAmount;
-            basketStakerAmount = 0;
-        }
-        if (!IStaticsGlobalRewards(staticsDiamond).canAccrueStakerRewards(Currency.unwrap(currency))) {
-            treasuryAmount += staticsStakerAmount;
-            staticsStakerAmount = 0;
-        }
-        polPending[poolId][currency] += polAmount;
-        totalPending[currency] += polAmount;
+    function _allocate(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg) private {
+        AllocationShares memory shares = _computeShares(poolId, currency, charged);
+        polPending[poolId][currency] += shares.pol;
+        totalPending[currency] += shares.pol;
         PendingDistribution storage pending = distributions[poolId][currency];
-        pending.liquidityProvider += liquidityProviderAmount;
-        pending.basketStaker += basketStakerAmount;
-        pending.staticsStaker += staticsStakerAmount;
-        pending.treasury += treasuryAmount;
+        pending.liquidityProvider += shares.liquidityProvider;
+        pending.basketStaker += shares.basketStaker;
+        pending.staticsStaker += shares.staticsStaker;
+        pending.creator += shares.creator;
+        pending.treasury += shares.treasury;
         emit SwapLegFeeAccrued(
             poolId,
             currency,
             specifiedLeg,
             realized,
             charged,
-            polAmount,
-            liquidityProviderAmount,
-            basketStakerAmount,
-            staticsStakerAmount,
-            treasuryAmount
+            shares.pol,
+            shares.liquidityProvider,
+            shares.basketStaker,
+            shares.staticsStaker,
+            shares.creator,
+            shares.treasury
         );
     }
 
-    function _effectiveFeeConfiguration(PoolId poolId)
+    /// @dev Carves the fixed creator share first, then applies the class allocation profile. Fallback
+    /// policy: unavailable LP and basket-staker shares route to POL; unavailable Statics-staker share
+    /// routes to treasury; the creator share never falls back.
+    function _computeShares(PoolId poolId, Currency currency, uint256 charged)
         private
         view
-        returns (PoolFeeConfigurationView memory configuration)
+        returns (AllocationShares memory shares)
     {
-        StoredPoolFeeConfiguration storage overrideConfiguration = poolFeeConfigurations[poolId];
-        if (overrideConfiguration.enabled) {
-            return PoolFeeConfigurationView({
-                inputFeeBps: overrideConfiguration.inputFeeBps,
-                outputFeeBps: overrideConfiguration.outputFeeBps,
-                polShareBps: overrideConfiguration.polShareBps,
-                liquidityProviderShareBps: overrideConfiguration.liquidityProviderShareBps,
-                basketStakerShareBps: overrideConfiguration.basketStakerShareBps,
-                staticsStakerShareBps: overrideConfiguration.staticsStakerShareBps,
-                treasuryShareBps: overrideConfiguration.treasuryShareBps,
-                overridden: true
-            });
+        PoolKind kind = registrations[poolId].kind;
+        shares.creator = Math.mulDiv(charged, CREATOR_SHARE_BPS, BPS);
+        if (kind == PoolKind.BasketCanonical) {
+            BasketFeeAllocation storage a = basketAllocation;
+            shares.pol = Math.mulDiv(charged, a.polShareBps, BPS);
+            shares.liquidityProvider = Math.mulDiv(charged, a.liquidityProviderShareBps, BPS);
+            shares.basketStaker = Math.mulDiv(charged, a.basketStakerShareBps, BPS);
+            shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
+        } else {
+            GeneralFeeAllocation storage a = generalAllocation;
+            shares.pol = Math.mulDiv(charged, a.polShareBps, BPS);
+            shares.liquidityProvider = Math.mulDiv(charged, a.liquidityProviderShareBps, BPS);
+            shares.basketStaker = 0;
+            shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
         }
-        return PoolFeeConfigurationView({
-            inputFeeBps: fees.inputFeeBps,
-            outputFeeBps: fees.outputFeeBps,
-            polShareBps: fees.polShareBps,
-            liquidityProviderShareBps: fees.liquidityProviderShareBps,
-            basketStakerShareBps: fees.basketStakerShareBps,
-            staticsStakerShareBps: fees.staticsStakerShareBps,
-            treasuryShareBps: fees.treasuryShareBps,
-            overridden: false
-        });
+        shares.treasury = charged - shares.pol - shares.liquidityProvider - shares.basketStaker - shares.staticsStaker
+            - shares.creator;
+
+        if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueLiquidityRewards(poolId)) {
+            shares.pol += shares.liquidityProvider;
+            shares.liquidityProvider = 0;
+        }
+        if (shares.basketStaker != 0 && !IStaticsLiquidityRewards(staticsDiamond).canAccrueBasketRewards(poolId)) {
+            shares.pol += shares.basketStaker;
+            shares.basketStaker = 0;
+        }
+        if (!IStaticsGlobalRewards(staticsDiamond).canAccrueStakerRewards(Currency.unwrap(currency))) {
+            shares.treasury += shares.staticsStaker;
+            shares.staticsStaker = 0;
+        }
+    }
+
+    function _effectiveRate(PoolId poolId) private view returns (EffectiveRate memory rate) {
+        PoolFeeRate storage stored = poolRates[poolId];
+        if (stored.overridden) {
+            return EffectiveRate({inputFeeBps: stored.inputFeeBps, outputFeeBps: stored.outputFeeBps});
+        }
+        return EffectiveRate({inputFeeBps: defaultInputFeeBps, outputFeeBps: defaultOutputFeeBps});
     }
 
     function _routeDistribution(PoolId poolId, Currency currency) private {
         PendingDistribution storage pending = distributions[poolId][currency];
-        uint256 liquidityProviderAmount = pending.liquidityProvider;
-        uint256 basketStakerAmount = pending.basketStaker;
-        uint256 staticsStakerAmount = pending.staticsStaker;
-        uint256 treasuryAmount = pending.treasury;
-        if (liquidityProviderAmount == 0 && basketStakerAmount == 0 && staticsStakerAmount == 0 && treasuryAmount == 0) return;
+        IStaticsProtocolRevenue.ProtocolFeeDistribution memory distribution =
+            IStaticsProtocolRevenue.ProtocolFeeDistribution({
+                liquidityProvider: pending.liquidityProvider,
+                basketStaker: pending.basketStaker,
+                staticsStaker: pending.staticsStaker,
+                creator: pending.creator,
+                treasury: pending.treasury
+            });
+        uint256 total = distribution.liquidityProvider + distribution.basketStaker + distribution.staticsStaker
+            + distribution.creator + distribution.treasury;
+        if (total == 0) return;
         pending.liquidityProvider = 0;
         pending.basketStaker = 0;
         pending.staticsStaker = 0;
+        pending.creator = 0;
         pending.treasury = 0;
         IERC20 token = IERC20(Currency.unwrap(currency));
-        uint256 total = liquidityProviderAmount + basketStakerAmount + staticsStakerAmount + treasuryAmount;
         uint256 beforeBalance = currency.balanceOfSelf();
         token.forceApprove(staticsDiamond, total);
-        IStaticsLiquidityRewards(staticsDiamond)
-            .routeCanonicalSwapFees(
-                poolId,
-                Currency.unwrap(currency),
-                liquidityProviderAmount,
-                basketStakerAmount,
-                staticsStakerAmount,
-                treasuryAmount
-            );
+        IStaticsProtocolRevenue(staticsDiamond).routeProtocolSwapFees(poolId, Currency.unwrap(currency), distribution);
         uint256 afterBalance = currency.balanceOfSelf();
         _enforceExactDebit(currency, beforeBalance, afterBalance, total);
         uint256 remainingAllowance = token.allowance(address(this), staticsDiamond);
@@ -668,44 +691,46 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (available < required) revert PendingLiquidityInsolvent(currency, required, available);
     }
 
-    function _setFeeConfiguration(
-        uint16 inputFeeBps,
-        uint16 outputFeeBps,
-        uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
-        uint16 basketStakerShareBps,
-        uint16 staticsStakerShareBps,
-        uint16 treasuryShareBps
-    ) private {
-        FeeConfiguration memory configuration = FeeConfiguration({
-            inputFeeBps: inputFeeBps,
-            outputFeeBps: outputFeeBps,
-            polShareBps: polShareBps,
-            liquidityProviderShareBps: liquidityProviderShareBps,
-            basketStakerShareBps: basketStakerShareBps,
-            staticsStakerShareBps: staticsStakerShareBps,
-            treasuryShareBps: treasuryShareBps
-        });
-        _validateFeeConfiguration(configuration);
-        fees = configuration;
-        emit FeeConfigurationSet(
-            inputFeeBps,
-            outputFeeBps,
-            polShareBps,
-            liquidityProviderShareBps,
-            basketStakerShareBps,
-            staticsStakerShareBps,
-            treasuryShareBps
+    function _setDefaultFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) private {
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) revert InvalidFeeRate();
+        defaultInputFeeBps = inputFeeBps;
+        defaultOutputFeeBps = outputFeeBps;
+        emit DefaultFeeRateSet(inputFeeBps, outputFeeBps);
+    }
+
+    function _setBasketFeeAllocation(BasketFeeAllocation memory allocation) private {
+        if (!LibProtocolPoolFee.isValidConfigurableShares(
+                allocation.polShareBps,
+                allocation.liquidityProviderShareBps,
+                allocation.basketStakerShareBps,
+                allocation.staticsStakerShareBps,
+                allocation.treasuryShareBps
+            )) revert InvalidAllocation();
+        basketAllocation = allocation;
+        emit BasketFeeAllocationSet(
+            allocation.polShareBps,
+            allocation.liquidityProviderShareBps,
+            allocation.basketStakerShareBps,
+            allocation.staticsStakerShareBps,
+            allocation.treasuryShareBps
         );
     }
 
-    function _validateFeeConfiguration(FeeConfiguration memory configuration) private pure {
-        if (
-            uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps) > MAX_COMBINED_FEE_BPS
-                || uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
-                        + uint256(configuration.basketStakerShareBps) + uint256(configuration.staticsStakerShareBps)
-                        + uint256(configuration.treasuryShareBps) != BPS
-        ) revert InvalidFeeConfiguration();
+    function _setGeneralFeeAllocation(GeneralFeeAllocation memory allocation) private {
+        if (!LibProtocolPoolFee.isValidConfigurableShares(
+                allocation.polShareBps,
+                allocation.liquidityProviderShareBps,
+                0,
+                allocation.staticsStakerShareBps,
+                allocation.treasuryShareBps
+            )) revert InvalidAllocation();
+        generalAllocation = allocation;
+        emit GeneralFeeAllocationSet(
+            allocation.polShareBps,
+            allocation.liquidityProviderShareBps,
+            allocation.staticsStakerShareBps,
+            allocation.treasuryShareBps
+        );
     }
 
     function _absolute(int256 value) private pure returns (uint256) {

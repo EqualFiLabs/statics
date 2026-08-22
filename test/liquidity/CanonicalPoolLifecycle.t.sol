@@ -98,18 +98,18 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
             basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
         assertEq(effective.inputFeeBps, 40);
         assertEq(effective.outputFeeBps, 60);
-        assertEq(effective.polShareBps, 0);
-        assertEq(effective.liquidityProviderShareBps, 0);
-        assertEq(effective.basketStakerShareBps, 0);
-        assertEq(effective.staticsStakerShareBps, 8_000);
+        // Allocation is the global basket profile (creator carved separately); only the rate is
+        // PoolId-local under the permissionless-pool model.
+        assertEq(effective.polShareBps, 1_000);
+        assertEq(effective.liquidityProviderShareBps, 2_500);
+        assertEq(effective.basketStakerShareBps, 2_500);
+        assertEq(effective.staticsStakerShareBps, 1_500);
         assertEq(effective.treasuryShareBps, 2_000);
         assertTrue(effective.overridden);
-        IStaticsSwapFeeHook.PoolFeeConfigurationView memory hookEffective =
-            swapFeeHook.poolFeeConfiguration(pool.poolId);
-        assertEq(hookEffective.inputFeeBps, effective.inputFeeBps);
-        assertEq(hookEffective.outputFeeBps, effective.outputFeeBps);
-        assertEq(hookEffective.staticsStakerShareBps, effective.staticsStakerShareBps);
-        assertTrue(hookEffective.overridden);
+        IStaticsSwapFeeHook.PoolFeeRate memory hookRate = swapFeeHook.poolFeeRate(pool.poolId);
+        assertEq(hookRate.inputFeeBps, effective.inputFeeBps);
+        assertEq(hookRate.outputFeeBps, effective.outputFeeBps);
+        assertTrue(hookRate.overridden);
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
@@ -125,7 +125,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(effective.liquidityProviderShareBps, 2_500);
         assertEq(effective.basketStakerShareBps, 2_500);
         assertEq(effective.staticsStakerShareBps, 1_500);
-        assertEq(effective.treasuryShareBps, 2_500);
+        assertEq(effective.treasuryShareBps, 2_000);
         assertFalse(effective.overridden);
     }
 

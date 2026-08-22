@@ -51,6 +51,7 @@ for the canonical machine-readable integration-beta state.
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
 | **Flash composition** | Basket constituents can be borrowed atomically through a typed callback while nested flash loans remain blocked. |
 | **Canonical v4 liquidity** | Protocol-created BasketToken/constituent pools use zero native LP fee and a Statics hook that charges bilateral input/output fees. |
+| **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s — gated by an independent creation fee and EIP-712 creator authorization — selecting tick spacing and an initial Statics fee rate, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
 | **Permanent liquidity** | The hook converts matched POL allocations into hook-owned full-range liquidity with no ordinary withdrawal path. |
 | **Governed lifecycle** | A shared timelock owns both Diamonds; guardians can restrict exposure while repayment, recovery, and exit paths remain available. |
 
@@ -297,7 +298,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           26 facets, 207 selectors
+StaticsDiamond:           29 facets, 218 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -405,9 +406,15 @@ Basket lending locks deposited BasketTokens and releases the proportional consti
 
 ### Canonical liquidity and bilateral fees
 
-Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The pool uses zero native LP fee. `StaticsSwapFeeHook` charges configured fees on both input and output, then allocates them across permanent POL, eligible canonical LP positions, deposited BasketTokens, global Statics stakers, and treasury.
+Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The pool uses zero native LP fee. `StaticsSwapFeeHook` charges configured fees on both input and output, then allocates them across permanent POL, eligible canonical LP positions, deposited BasketTokens, global Statics stakers, a fixed 500-bps creator share, and treasury.
 
-Matched POL inventory is converted into hook-owned full-range liquidity. It has no normal withdrawal path and can unwind only after the basket enters `ExitOnly` and its canonical pool is decommissioned. Timelocked per-pool overrides may replace or clear the complete global fee configuration.
+Matched POL inventory is converted into hook-owned full-range liquidity. It has no normal withdrawal path and can unwind only after the basket enters `ExitOnly` and its canonical pool is decommissioned. The swap-fee **rate** is PoolId-local, while fee **allocation** is governed by two global profiles (basket and general); the fixed creator share sits outside those profiles and the configurable shares always total 9,500 bps.
+
+### Permissionless general pools
+
+Beyond basket canonical pools, anyone can create a **general pool** — a Statics-hook Uniswap v4 pool between two compatible ERC-20s with no basket association — once permissionless creation is enabled. `createPool` (preceded by a deterministic `quotePool`) lets the creator select a valid tick spacing, initial price, and initial Statics fee rate; Statics always fixes native fee zero and the installed hook. Creation is gated by an independent `poolCreationFeeAmount` that doubles as the permissionless switch: zero means only the Diamond owner may create (disabled), while a nonzero fee requires exact payment from every caller and forwards it to treasury.
+
+Creator attribution uses EIP-712 authorization (domain `"Statics Protocol Pools"`) validated for EOA and ERC-1271 signers, binding the PoolId, price, fee rate, creator, an unordered nonce, and a deadline. A direct creator needs no signature; relayed authorization does not bind `msg.sender`, so front-running cannot steal creator identity, and unused nonces can be cancelled with `invalidatePoolCreationNonce`. General pools require no mandatory liquidity seed and may begin with zero liquidity, growing POL from swap activity. Distinct tick spacings for the same pair are independent PoolIds; a different fee rate or price alone cannot create a duplicate. The immutable creator earns a fixed 500-bps perpetual share, claimed pull-based through `claimCreatorRevenue`. General pools never gain basket backing, collateral, or lending status, and a pool's price is never a Statics solvency input. The owner-only `decommissionGeneralPool` is the terminal exit; it preserves accrued creator credits and user LP principal. General pools carry no privacy guarantees: the immutable creator address, creation events, nonces, every swap and LP action, and every revenue claim are permanently public and linkable onchain, so use a fresh creator address per pool where identity separation matters.
 
 ### Statics Dollar profiles
 
@@ -500,6 +507,30 @@ flashLender.flashLoan(basketId, shares, address(receiver), routeData);
 // keccak256("IStaticsFlashBorrower.onStaticsFlashLoan") and restore principal + fees.
 ```
 
+**Create a permissionless general pool**
+
+```solidity
+IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
+    tokenA: tokenA,
+    tokenB: tokenB,
+    tickSpacing: 60,
+    sqrtPriceBPerAX96: initialSqrtPriceBPerAX96,
+    feeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 30, outputFeeBps: 30}),
+    creator: msg.sender,
+    nonce: nonce,
+    deadline: block.timestamp + 1 hours
+});
+
+// Deterministic preview: sorted PoolKey, PoolId, normalized price, fee, and EIP-712 digest.
+IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
+
+// A direct creator (creator == msg.sender) passes empty authorization and consumes no nonce.
+PoolId poolId = pools.createPool{value: quote.creationFee}(params, "");
+
+// Later, the immutable creator pulls accrued revenue.
+pools.claimCreatorRevenue(tokenA, msg.sender, minReceived);
+```
+
 ---
 
 ## Configuration Reference
@@ -515,6 +546,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
+| `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; zero disables permissionless creation (owner-only) and is not free public creation |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI for standalone Genesis |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Genesis token-page base URL before the appended token ID |
 | `WETH_ADDRESS` | Verified WETH for the selected chain |
@@ -556,3 +588,5 @@ Runtime protocol state is available through the Diamond loupe, basket, position,
 ## License
 
 Statics is licensed under the Business Source License 1.1 (`BUSL-1.1`). See [`LICENSE`](./LICENSE) for the authoritative licensor, Additional Use Grant, Change Date, and Change License terms. Third-party submodules remain governed by their own licenses.
+
+BUSL-1.1 is a source-available compromise, not an Open Source license. Before the Change Date, the grant lets you **copy, modify, create derivative works, redistribute, and make non-production use** of the Licensed Work; production use requires a commercial license from the Licensor unless an Additional Use Grant applies (currently "None"). On the earlier of the Change Date (`2030-07-18`) or the fourth anniversary of a version's first public distribution, that version relicenses to the Change License (MIT). This balances open review, auditing, and experimentation against protecting production commercialization during the initial period; publishing the source, ADRs, and this LLM-oriented index does not waive the production-use restriction.

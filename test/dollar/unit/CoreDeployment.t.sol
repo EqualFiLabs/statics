@@ -91,7 +91,7 @@ contract CoreDeploymentTest is Test {
         assertEq(MockETHUSDOracle(deployment.oracle).priceWad(), 2_500e18);
 
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(deployment.diamond, 26, 207);
+        _assertManifest(deployment.diamond, 29, 218);
     }
 
     function test_LocalBroadcastEntrypointUsesDeployerForAddressPredictions() public {
@@ -218,6 +218,7 @@ contract CoreDeploymentTest is Test {
             stakingToken: weth,
             creationFeeAmount: 1 ether,
             positionCreationFeeAmount: 0.001 ether,
+            poolCreationFeeAmount: 0.05 ether,
             weth: weth,
             ethUsdFeed: address(ethFeed),
             sequencerUptimeFeed: address(sequencerFeed),

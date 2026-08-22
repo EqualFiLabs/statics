@@ -28,6 +28,7 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
         config.profileGuardian = deployer;
         config.treasury = deployer;
         config.creationFeeAmount = 1 ether;
+        config.poolCreationFeeAmount = 0.05 ether;
         config.deployMockWeth = true;
         config.deployMockOracle = true;
         config.mockOraclePriceWad = 2_500e18;

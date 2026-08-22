@@ -153,11 +153,11 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         PoolLegSnapshot memory after_ = _snapshotPoolLegs(pool);
 
         uint256 netOutput = uint256(uint128(zeroForOne ? delta.amount1() : delta.amount0()));
-        uint256 inputFee = Math.mulDiv(amountIn, 40, 10_000, Math.Rounding.Ceil);
-        uint256 outputFee = Math.mulDiv(netOutput, 60, 10_000 - 60, Math.Rounding.Ceil);
+        uint256 inputLp = Math.mulDiv(Math.mulDiv(amountIn, 40, 10_000, Math.Rounding.Ceil), 9_500, 10_000);
+        uint256 outputLp = Math.mulDiv(Math.mulDiv(netOutput, 60, 10_000 - 60, Math.Rounding.Ceil), 9_500, 10_000);
 
-        assertEq(after_.indexed0 - before.indexed0, zeroForOne ? inputFee : outputFee);
-        assertEq(after_.indexed1 - before.indexed1, zeroForOne ? outputFee : inputFee);
+        assertEq(after_.indexed0 - before.indexed0, zeroForOne ? inputLp : outputLp);
+        assertEq(after_.indexed1 - before.indexed1, zeroForOne ? outputLp : inputLp);
         assertEq(after_.locked, before.locked);
         assertEq(after_.pending0, before.pending0);
         assertEq(after_.pending1, before.pending1);
@@ -191,6 +191,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         uint16 basketStakerShareBps,
         uint16 treasuryShareBps
     ) private {
+        // PoolId-local rate override.
         basketLiquidity.setCanonicalPoolFeeConfiguration(
             overriddenBasketId,
             asset,
@@ -198,10 +199,26 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
                 inputFeeBps: 40,
                 outputFeeBps: 60,
                 polShareBps: 0,
-                liquidityProviderShareBps: lpShareBps,
-                basketStakerShareBps: basketStakerShareBps,
+                liquidityProviderShareBps: 0,
+                basketStakerShareBps: 0,
                 staticsStakerShareBps: 0,
-                treasuryShareBps: treasuryShareBps
+                treasuryShareBps: 0
+            })
+        );
+        // Global basket allocation: callers express intent as shares of 10,000; the configurable
+        // budget is 9,500 (the fixed 500-bps creator share is carved separately). Scale accordingly.
+        uint16 lp = uint16(uint256(lpShareBps) * 9_500 / 10_000);
+        uint16 basketStaker = uint16(uint256(basketStakerShareBps) * 9_500 / 10_000);
+        uint16 treasury = uint16(uint256(treasuryShareBps) * 9_500 / 10_000);
+        basketLiquidity.setSwapFeeConfiguration(
+            IStaticsBasketLiquidity.SwapFeeConfiguration({
+                inputFeeBps: 25,
+                outputFeeBps: 25,
+                polShareBps: 9_500 - lp - basketStaker - treasury,
+                liquidityProviderShareBps: lp,
+                basketStakerShareBps: basketStaker,
+                staticsStakerShareBps: 0,
+                treasuryShareBps: treasury
             })
         );
     }

@@ -1,6 +1,6 @@
 # ADR: Permissionless Uniswap v4 protocol pools
 
-- Status: Proposed
+- Status: Accepted and implemented
 - Date: 2026-08-21
 - Scope: Statics pool creation, PoolKey policy, Statics fee configuration, creator revenue, permanent liquidity, LP rewards, governance, indexing, routing, and DEX market structure
 - Supersedes: `docs/adr/governed-protocol-pools.md` where the decisions conflict
@@ -1407,6 +1407,26 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 - Disabling creation never disables existing-market exits or claims.
 - Statics-owned implementation code must continue compiling under the default non-IR profile.
 
+### Public onchain visibility
+
+Permissionless general pools are fully public onchain constructs and carry no
+privacy guarantees:
+
+- The immutable creator address bound into each pool's EIP-712 authorization is
+  recorded permanently and is publicly readable through `protocolPoolCreator`
+  and the `ProtocolPoolCreated` event.
+- Creation transactions, the relayer/`msg.sender` that submitted them, consumed
+  and invalidated nonces, every swap, every LP action, and every
+  `claimCreatorRevenue` call are permanently public and linkable to the same
+  creator and participant addresses.
+- Because a general pool cannot be reassigned to a new creator, creator identity
+  and its complete revenue history are permanently correlatable.
+
+Integrators and creators who want to separate a market's onchain identity from
+other activity should use a fresh creator address (or a dedicated smart-contract
+wallet) per pool. Statics provides no mixing, shielding, or unlinkability layer,
+and none of these public artifacts can be redacted after the fact.
+
 ## Required invariants
 
 1. A PoolId belongs to at most one Statics protocol-pool class.
@@ -1430,7 +1450,11 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 19. A consumed or invalidated creator nonce cannot authorize creation.
 20. Independent creator authorizations do not require sequential nonce execution.
 21. Every active protocol pool resolves to exactly one immutable creator.
-22. Creator revenue equals exactly 500 bps of collected Statics bilateral fees.
+22. Creator revenue equals exactly 500 bps of collected Statics bilateral fees,
+    computed by floor division per fee leg; sub-wei rounding dust from that
+    division accrues to treasury rather than the creator, so at dust-scale
+    `charged` the credited creator share may floor to zero while treasury absorbs
+    the remainder. No other party is ever underpaid and totals always conserve.
 23. Every configurable basket or general allocation profile sums to exactly 9,500 bps.
 24. Every complete allocation including the fixed creator share sums to exactly 10,000 bps.
 25. Allocation-profile changes affect subsequent accrual only and never rewrite accrued liabilities.

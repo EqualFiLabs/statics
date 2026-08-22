@@ -13,7 +13,10 @@ import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol"
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
-import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
+import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
+import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
+import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
+import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
@@ -59,7 +62,10 @@ abstract contract DeployStaticsProtocol {
         address vault;
         address gateway;
         address init;
-        address protocolPools;
+        address protocolPoolCreation;
+        address protocolPoolAdmin;
+        address protocolPoolView;
+        address protocolRevenue;
     }
 
     struct ProtocolDeploymentConfig {
@@ -71,6 +77,7 @@ abstract contract DeployStaticsProtocol {
         address stakingToken;
         uint256 creationFeeAmount;
         uint256 positionCreationFeeAmount;
+        uint256 poolCreationFeeAmount;
     }
 
     function _deployStaticsProtocol(ProtocolDeploymentConfig memory config)
@@ -94,6 +101,7 @@ abstract contract DeployStaticsProtocol {
             stakingToken: config.stakingToken,
             creationFeeAmount: config.creationFeeAmount,
             positionCreationFeeAmount: config.positionCreationFeeAmount,
+            poolCreationFeeAmount: config.poolCreationFeeAmount,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(
@@ -127,7 +135,10 @@ abstract contract DeployStaticsProtocol {
         parts.vault = address(new PairingVaultFacet());
         parts.gateway = address(new StaticsDollarGatewayFacet());
         parts.init = address(new StaticsProtocolInit());
-        parts.protocolPools = address(new ProtocolPoolFacet());
+        parts.protocolPoolCreation = address(new ProtocolPoolCreationFacet());
+        parts.protocolPoolAdmin = address(new ProtocolPoolAdminFacet());
+        parts.protocolPoolView = address(new ProtocolPoolViewFacet());
+        parts.protocolRevenue = address(new ProtocolRevenueFacet());
     }
 
     function _protocolCut(ProtocolParts memory parts, address basketLiquidity, address liquidityRewards)
@@ -135,7 +146,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](26);
+        cut = new IDiamondCut.FacetCut[](29);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -177,8 +188,18 @@ abstract contract DeployStaticsProtocol {
         cut[24] = IDiamondCut.FacetCut(
             parts.positionPortfolio, IDiamondCut.FacetCutAction.Add, StaticsSelectors.positionPortfolio()
         );
-        cut[25] =
-            IDiamondCut.FacetCut(parts.protocolPools, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPools());
+        cut[25] = IDiamondCut.FacetCut(
+            parts.protocolPoolCreation, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolCreation()
+        );
+        cut[26] = IDiamondCut.FacetCut(
+            parts.protocolPoolAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolAdmin()
+        );
+        cut[27] = IDiamondCut.FacetCut(
+            parts.protocolPoolView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolView()
+        );
+        cut[28] = IDiamondCut.FacetCut(
+            parts.protocolRevenue, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolRevenue()
+        );
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {

@@ -62,7 +62,7 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 26 facets and 207 selectors on
+The fresh-deployment launcher installs 29 facets and 218 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -169,45 +169,59 @@ StaticsLiquidityManager
 
 Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, while the pool's native LP fee remains zero.
-The default fee is 50 basis points on input and 50 basis points on output, split
-10% to POL, 25% to activated protocol-pool LPs, 25% to deposited BasketToken
-positions, 15% to global Statics stakers, and 25% to treasury. Unavailable LP
-and basket-staker allocations independently redirect to POL. An unavailable
-global Statics-staker allocation redirects to treasury. A registered pool may
-override the complete seven-field configuration; clearing that override
-restores the latest global rates and split.
+The default fee is 50 basis points on input and 50 basis points on output. The
+swap-fee **rate** is PoolId-local, while fee **allocation** is governed by two
+global profiles. The creator share is permanently fixed at 500 BPS; governance
+configures the remaining 9,500 BPS through independent basket and general
+allocation profiles. The initial basket-pool split is 10% to POL, 25% to
+activated protocol-pool LPs, 25% to deposited BasketToken positions, 15% to
+global Statics stakers, 5% to the fixed creator share, and 20% to treasury. The
+initial general-pool split is 35% to POL, 25% to protocol-pool LPs, 15% to
+global Statics stakers, 5% to the fixed creator share, and 20% to treasury;
+general pools have no basket-staker share. Unavailable LP and basket-staker
+allocations independently redirect to PoolId-local POL. An unavailable global
+Statics-staker allocation redirects to treasury. The fixed creator allocation
+never falls back and always credits the immutable creator.
 
-This global configuration is the default. Basket-specific entrypoints resolve
-a canonical pool by `basketId` and constituent, while protocol-pool entrypoints
-address either pool class directly by PoolId. Timelocked governance may
-override input/output rates and the five-way
-POL/canonical-LP/basket-staker/Statics-staker/treasury split. The two rates may
-total at most 200 BPS, the split must total 10,000 BPS, and POL or canonical
-LPs may explicitly be set to zero. Clearing the override restores the latest
-global rates and split.
-Overrides never release or reclassify pending POL, never remove permanent
-liquidity, and do not alter decommissioning. Unavailable canonical-LP and
-basket-staker shares still redirect to POL; unavailable global Statics-staker
-shares redirect to treasury. Governance pools have no basket reward book, so
-their basket-staker allocation always redirects to POL before fee delivery.
+This global allocation is the default distribution beside the PoolId-local
+rate. Basket-specific entrypoints resolve a canonical pool by `basketId` and
+constituent, while protocol-pool entrypoints address either pool class directly
+by PoolId. Timelocked governance may adjust a PoolId's input/output rate with
+`setProtocolPoolFeeRate` (combined at most 200 BPS) and may reconfigure the
+basket and general allocation profiles with `setBasketFeeAllocation` and
+`setGeneralFeeAllocation`. Each configurable profile must total exactly 9,500
+BPS so that the profile plus the fixed 500-BPS creator share sums to 10,000
+BPS; POL or protocol-pool LPs may explicitly be set to zero.
+Profile changes never rewrite accrued creator credits, LP rewards, basket
+rewards, Statics-staker rewards, treasury revenue, or pending POL, and never
+alter decommissioning. Changing a rate does not change the applicable profile,
+and vice versa.
 
 Protocol pools reject native Uniswap v4 donations in `beforeDonate`. This
 prevents third parties from injecting an opposite-side asset into pending POL
 and forcing hook-owned inventory to compound at a manipulated spot price.
 Protocol seeding and swap-fee routing remain the only POL inventory sources.
 
-The normalized registry recognizes existing basket canonical pools without a
-storage migration and stores governance-created pools in a separate namespace.
-Governance creates a fixed-policy PoolKey between any two compatible ERC-20s,
-initializes it, and permanently seeds full-range liquidity from an approved
-payer in one transaction. Registration does not admit either asset as basket
-backing, Dollar collateral, or a borrowable asset.
+The normalized registry recognizes existing basket canonical pools and stores
+general pools in a fresh namespace (`statics.storage.protocol.pools.v2`). A
+general pool is a permissionless Statics-hook PoolKey between any two compatible
+ERC-20s, with no basket association. Anyone may create one — subject to the
+independent pool creation fee and EIP-712 creator authorization — selecting a
+valid tick spacing, initial price, and initial Statics fee rate. Creation does
+not require an initial permanent-liquidity seed; the market may begin with zero
+liquidity and grow POL from swap activity. Registration does not admit either
+asset as basket backing, Dollar collateral, or a borrowable asset, and a pool's
+spot price, TWAP, or liquidity is never a Statics solvency input.
 
 After every swap, matched POL amounts are added as hook-owned full-range
 liquidity in the same pool. No caller, administrator, or treasury can withdraw
 active-pool POL. On `ExitOnly`, permissionless decommissioning releases it,
 burns the released BasketTokens, and reserves the resulting constituents for
-the common treasury. User-owned v4 positions remain under their owners'
+the common treasury. General pools instead use the owner-only terminal
+`decommissionGeneralPool`, which stops later swaps, releases permanent
+liquidity to treasury accounting, preserves accrued creator credits and earned
+LP rewards, and never seizes user LP principal; the creator cannot decommission
+a pool. User-owned v4 positions remain under their owners'
 control and collect no native LP fee. A full-range NFT for either protocol-pool
 class may instead be attached to a PositionNFT and held by the Diamond to earn
 the LP hook share.

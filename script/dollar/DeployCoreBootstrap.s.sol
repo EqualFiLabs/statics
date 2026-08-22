@@ -28,6 +28,7 @@ struct CoreBootstrapConfig {
     address stakingToken;
     uint256 creationFeeAmount;
     uint256 positionCreationFeeAmount;
+    uint256 poolCreationFeeAmount;
     address initialOracle;
     address requiredSequencerUptimeFeed;
     uint256 minimumSequencerGracePeriod;
@@ -108,7 +109,8 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,
                 creationFeeAmount: config.creationFeeAmount,
-                positionCreationFeeAmount: config.positionCreationFeeAmount
+                positionCreationFeeAmount: config.positionCreationFeeAmount,
+                poolCreationFeeAmount: config.poolCreationFeeAmount
             });
         return _deployStaticsProtocol(protocolConfig);
     }

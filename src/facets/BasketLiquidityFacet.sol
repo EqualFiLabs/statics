@@ -245,16 +245,17 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         LibDiamond.enforceIsContractOwner();
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
-        IStaticsSwapFeeHook(ls.hook)
-            .setFeeConfiguration(
-                configuration.inputFeeBps,
-                configuration.outputFeeBps,
-                configuration.polShareBps,
-                configuration.liquidityProviderShareBps,
-                configuration.basketStakerShareBps,
-                configuration.staticsStakerShareBps,
-                configuration.treasuryShareBps
-            );
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        hook.setDefaultFeeRate(configuration.inputFeeBps, configuration.outputFeeBps);
+        hook.setBasketFeeAllocation(
+            IStaticsSwapFeeHook.BasketFeeAllocation({
+                polShareBps: configuration.polShareBps,
+                liquidityProviderShareBps: configuration.liquidityProviderShareBps,
+                basketStakerShareBps: configuration.basketStakerShareBps,
+                staticsStakerShareBps: configuration.staticsStakerShareBps,
+                treasuryShareBps: configuration.treasuryShareBps
+            })
+        );
         emit SwapFeeConfigurationChanged(configuration);
     }
 
@@ -267,19 +268,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         PoolId poolId = stored.key.toId();
-        IStaticsSwapFeeHook(ls.hook)
-            .setPoolFeeConfiguration(
-                poolId,
-                IStaticsSwapFeeHook.FeeConfiguration({
-                inputFeeBps: configuration.inputFeeBps,
-                outputFeeBps: configuration.outputFeeBps,
-                polShareBps: configuration.polShareBps,
-                liquidityProviderShareBps: configuration.liquidityProviderShareBps,
-                basketStakerShareBps: configuration.basketStakerShareBps,
-                staticsStakerShareBps: configuration.staticsStakerShareBps,
-                treasuryShareBps: configuration.treasuryShareBps
-            })
-            );
+        IStaticsSwapFeeHook(ls.hook).setPoolFeeRate(poolId, configuration.inputFeeBps, configuration.outputFeeBps);
         emit CanonicalPoolFeeConfigurationSet(
             basketId,
             asset,
@@ -299,7 +288,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         PoolId poolId = stored.key.toId();
-        IStaticsSwapFeeHook(ls.hook).clearPoolFeeConfiguration(poolId);
+        IStaticsSwapFeeHook(ls.hook).clearPoolFeeRate(poolId);
         emit CanonicalPoolFeeConfigurationCleared(basketId, asset, poolId);
     }
 
@@ -365,15 +354,17 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     function swapFeeConfiguration() external view returns (SwapFeeConfiguration memory configuration) {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
-        IStaticsSwapFeeHook.FeeConfiguration memory stored = IStaticsSwapFeeHook(ls.hook).feeConfiguration();
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
+        IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();
         configuration = SwapFeeConfiguration({
-            inputFeeBps: stored.inputFeeBps,
-            outputFeeBps: stored.outputFeeBps,
-            polShareBps: stored.polShareBps,
-            liquidityProviderShareBps: stored.liquidityProviderShareBps,
-            basketStakerShareBps: stored.basketStakerShareBps,
-            staticsStakerShareBps: stored.staticsStakerShareBps,
-            treasuryShareBps: stored.treasuryShareBps
+            inputFeeBps: inputFeeBps,
+            outputFeeBps: outputFeeBps,
+            polShareBps: allocation.polShareBps,
+            liquidityProviderShareBps: allocation.liquidityProviderShareBps,
+            basketStakerShareBps: allocation.basketStakerShareBps,
+            staticsStakerShareBps: allocation.staticsStakerShareBps,
+            treasuryShareBps: allocation.treasuryShareBps
         });
     }
 
@@ -384,17 +375,18 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     {
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
-        IStaticsSwapFeeHook.PoolFeeConfigurationView memory effective =
-            IStaticsSwapFeeHook(ls.hook).poolFeeConfiguration(stored.key.toId());
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IStaticsSwapFeeHook.PoolFeeRate memory rate = hook.poolFeeRate(stored.key.toId());
+        IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();
         configuration = PoolFeeConfigurationView({
-            inputFeeBps: effective.inputFeeBps,
-            outputFeeBps: effective.outputFeeBps,
-            polShareBps: effective.polShareBps,
-            liquidityProviderShareBps: effective.liquidityProviderShareBps,
-            basketStakerShareBps: effective.basketStakerShareBps,
-            staticsStakerShareBps: effective.staticsStakerShareBps,
-            treasuryShareBps: effective.treasuryShareBps,
-            overridden: effective.overridden
+            inputFeeBps: rate.inputFeeBps,
+            outputFeeBps: rate.outputFeeBps,
+            polShareBps: allocation.polShareBps,
+            liquidityProviderShareBps: allocation.liquidityProviderShareBps,
+            basketStakerShareBps: allocation.basketStakerShareBps,
+            staticsStakerShareBps: allocation.staticsStakerShareBps,
+            treasuryShareBps: allocation.treasuryShareBps,
+            overridden: rate.overridden
         });
     }
 
@@ -436,7 +428,10 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         association.asset = asset;
         association.associated = true;
 
-        IStaticsSwapFeeHook(ls.hook).registerPool(key);
+        IStaticsSwapFeeHook(ls.hook)
+            .registerPool(
+                key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, LibBasket.basketStorage().baskets[basketId].creator
+            );
         int24 tick = IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
         emit CanonicalPoolInitialized(
             basketId, asset, poolId, Currency.unwrap(currency0), Currency.unwrap(currency1), sqrtPriceX96, tick

@@ -151,7 +151,7 @@ contract PositionNFTTest is Test {
             address(init),
             abi.encodeCall(
                 StaticsProtocolInit.genesisInitialize,
-                (cut, makeAddr("guardian"), treasury, address(stakingToken), 0, 0)
+                (cut, makeAddr("guardian"), treasury, address(stakingToken), 0, 0, 0)
             )
         );
         nft = IERC721(address(diamond));

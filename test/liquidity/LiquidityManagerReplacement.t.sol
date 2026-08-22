@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
-import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
+import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {BorrowLiquidityTestBase} from "../helpers/BorrowLiquidityTestBase.sol";
 
@@ -42,7 +42,7 @@ contract LiquidityManagerReplacementTest is BorrowLiquidityTestBase {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ProtocolPoolFacet.LiquidityManagerBindingMismatch.selector,
+                ProtocolPoolAdminFacet.LiquidityManagerBindingMismatch.selector,
                 address(replacement),
                 address(diamond),
                 wrongDiamond
