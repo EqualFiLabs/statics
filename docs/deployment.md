@@ -23,12 +23,14 @@ selected by chain ID and reads:
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
 | `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor |
-| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis acquisition-fee recipient, and royalty receiver |
-| `WETH_ADDRESS` | Verified WETH paired with STATICS |
+| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis activation-payment recipient, and royalty receiver |
+| `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical address and runtime code hash |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
 | `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
 | `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
 | `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
+| `STATICS_GENESIS_RESERVE_SHARE_BPS` | Share (0..10,000) of harvested WETH routed into the permanent Genesis native ETH reserve; the remainder is attributed to the active distributor |
+| `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for immutable `genesisEpochEnd`; it must be future at deployment and is included in the launch hash |
 | `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Token-page base URL; the Genesis token ID is appended directly |
@@ -41,15 +43,23 @@ The deployment:
 4. transfers exactly 200,000,000 STATICS to treasury and sends any returned
    Multicurve rounding dust to the vault as non-liability surplus;
 5. mints all 5,555 Genesis NFTs to the vault with no initial backing liability;
-6. deploys and binds the permanent activation registry and temporary launch
-   distributor; and
-7. proposes the configured governance address as the two-step owner of every
+6. deploys the vault with an immutable future `genesisEpochEnd`, binds the fee
+   receiver's permanent reserve vault, and sets `reserveShareBps` before the
+   launch distributor is accepted so a nonzero share can never route around an
+   unbound reserve vault;
+7. deploys and binds the permanent activation registry (with its immutable
+   treasury) and temporary launch distributor; and
+8. proposes the configured governance address as the two-step owner of every
    administered standalone contract.
 
-Vault purchases require the current native acquisition fee plus exactly
-180,018 STATICS; redemption returns exactly 180,018 STATICS and charges no
-native fee. Acquisition revenue is pull-based. Activation burns liquid STATICS
-and can never debit vault backing.
+Vault purchases require exactly 180,000 STATICS plus, after the immutable
+Genesis Epoch, a native reserve buy-in of `ceil(reserveETH / 5,554)` and the
+current native acquisition fee; during the epoch no native value is charged.
+Redemption returns exactly 180,000 STATICS and, after the epoch, an additional
+native reserve payout of `floor(reserveETH / 5,555)`. The buy-in and fee
+permanently enter the reserve, which has no withdrawal path. Activation forwards
+its exact STATICS cost to the treasury, never burns STATICS, and can never debit
+vault backing.
 
 Before simulation or broadcast, execute the official-module integration proof:
 
@@ -72,11 +82,16 @@ official standard Multicurve initializers.
 
 The canonical `run()` path is deliberately locked on Robinhood while
 `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
-curves, static fee, and Genesis reward share requires a reviewed follow-up
-commit that pins their exact hash. The lower-level `deploy()` function remains
-available to unit and fork tests. Deployment also rejects more than 100 STATICS
-of Multicurve rounding residual so an upstream or configuration error cannot
-silently shrink the 800-million-token public inventory.
+curves, static fee, Genesis reward share, and reserve parameters requires a
+reviewed follow-up commit that pins their exact hash. That commitment also binds
+the canonical Robinhood WETH address and runtime code hash recorded in the
+mainnet deployment manifest. Before any simulation or broadcast, the launcher
+rejects a different `WETH_ADDRESS` or runtime bytecode so WETH `withdraw()`
+cannot silently cross the permanent reserve security boundary. The lower-level
+`deploy()` function remains available to unit and fork tests. Deployment also
+rejects more than 100 STATICS of Multicurve rounding residual so an upstream or
+configuration error cannot silently shrink the 800-million-token public
+inventory.
 
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
@@ -206,10 +221,12 @@ their addresses are the same. Production liquidity configuration must use the
 selected manifest's PoolManager, PositionManager, Permit2, hook calibration,
 and recorded code hashes; Solidity contracts do not embed those addresses.
 The SDK's existing generated Robinhood binding remains mainnet-specific.
-The testnet manifest also records the independently verified WETH address and
-runtime code hash. Set `WETH_ADDRESS` to that manifest value for the Robinhood
-testnet rehearsal; the launcher still requires the environment value so a
-mainnet deployment cannot silently inherit a testnet token address.
+Both manifests record independently verified WETH addresses and runtime code
+hashes. Set `WETH_ADDRESS` to the selected manifest value. The standalone
+Genesis launcher actively enforces the Robinhood mainnet WETH address and
+runtime hash because WETH unwrapping funds its permanent reserve; the full-stack
+launcher still requires the environment value so a mainnet deployment cannot
+silently inherit a testnet token address.
 
 The target network must implement Cancun transient storage (EIP-1153).
 `FlashLoanFacet` uses OpenZeppelin's transient reentrancy guard so callbacks can

@@ -132,7 +132,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             IERC20 statics = IERC20(deployment.statics);
             StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
             StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
-            StaticsFeeReceiver receiver = StaticsFeeReceiver(deployment.feeReceiver);
+            StaticsFeeReceiver receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
             GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
             GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
 
@@ -153,6 +153,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(statics.balanceOf(deployment.genesisVault), 1 ether);
             assertEq(receiver.activeDistributor(), address(distributor));
             assertEq(registry.activeConsumer(), address(distributor));
+            assertEq(receiver.reserveVault(), address(vault));
+            assertEq(receiver.reserveShareBps(), 5_000);
+            assertEq(registry.treasury(), treasury);
+            assertEq(vault.genesisEpochEnd(), block.timestamp + 7 days);
+            assertTrue(vault.epochActive());
+            assertEq(vault.reserveETH(), 0);
             assertEq(receiver.pendingOwner(), governance);
             assertEq(registry.pendingOwner(), governance);
             assertEq(vault.pendingOwner(), governance);
@@ -189,7 +195,32 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[3].tickLower, -84_100);
             assertEq(curves[3].tickUpper, -83_000);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
-            assertTrue(deployer.launchConfigHash(30_000, 5_000) != bytes32(0));
+            uint256 epochEnd = block.timestamp + 7 days;
+            address canonicalWeth = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+            bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
+            bytes32 launchHash =
+                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd, canonicalWeth, canonicalWethHash);
+            assertTrue(launchHash != bytes32(0));
+            assertTrue(
+                launchHash
+                    != deployer.launchConfigHash(30_000, 5_000, 4_000, epochEnd, canonicalWeth, canonicalWethHash)
+            );
+            assertTrue(
+                launchHash
+                    != deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd + 1, canonicalWeth, canonicalWethHash)
+            );
+            assertTrue(
+                launchHash
+                    != deployer.launchConfigHash(
+                        30_000, 5_000, 5_000, epochEnd, address(uint160(canonicalWeth) + 1), canonicalWethHash
+                    )
+            );
+            assertTrue(
+                launchHash
+                    != deployer.launchConfigHash(
+                        30_000, 5_000, 5_000, epochEnd, canonicalWeth, bytes32(uint256(canonicalWethHash) + 1)
+                    )
+            );
         }
 
         function testRejectsExcessiveMulticurveResidual() public {
@@ -213,8 +244,42 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             deployer.deploy(config, address(deployer));
 
             config = _config();
+            config.genesisEpochEnd = block.timestamp;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidEpochEnd.selector, block.timestamp));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
             config.contractURI = "";
             vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsNoncanonicalRobinhoodWeth() public {
+            vm.chainId(4_663);
+            StaticsGenesisDeploymentConfig memory config = _config();
+            string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+            address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.InvalidRobinhoodWeth.selector, canonicalWeth, config.numeraire
+                )
+            );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsRobinhoodWethCodeHashDrift() public {
+            vm.chainId(4_663);
+            string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+            address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+            bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
+            vm.etch(canonicalWeth, hex"60006000fd");
+            StaticsGenesisDeploymentConfig memory config = _config();
+            config.numeraire = canonicalWeth;
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.InvalidRobinhoodWethCodeHash.selector, expectedCodeHash, canonicalWeth.codehash
+                )
+            );
             deployer.deploy(config, address(deployer));
         }
 
@@ -245,6 +310,8 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 salt: keccak256("STATICS_DOPPLER_TEST"),
                 fee: 30_000,
                 genesisRewardShareBps: 5_000,
+                reserveShareBps: 5_000,
+                genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",
                 externalURLBase: "https://statics.finance/genesis/"

@@ -29,7 +29,8 @@ arbitrage graph rather than creating only one disconnected pair.
 ## The complete system
 
 - The standalone Genesis release creates the fixed STATICS supply, a 5,555-NFT
-  collection with a mechanical 180,018-STATICS redemption floor, and a
+  collection with a mechanical 180,000-STATICS redemption floor plus a
+  post-epoch 1/5,555 share of a permanent native ETH reserve, and a
   permanent STATICS/WETH market before the full protocol is ready. Trading
   fees fund treasury operations and permanent liquidity rather than requiring
   treasury token sales.

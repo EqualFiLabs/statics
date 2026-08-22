@@ -107,6 +107,7 @@ contract RobinhoodV4DeploymentForkTest is Test, LiquidityOperations, Permit2Sign
         _assertCodeHash("reservesLens", deployment.reservesLens);
         _assertCodeHash("universalRouter", deployment.universalRouter);
         _assertCodeHash("permit2", deployment.permit2);
+        _assertCodeHash("weth", deployment.weth);
 
         IPositionManagerBindings positionManager = IPositionManagerBindings(deployment.positionManager);
         assertEq(positionManager.poolManager(), deployment.poolManager);

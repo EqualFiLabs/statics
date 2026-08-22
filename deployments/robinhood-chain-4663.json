@@ -71,7 +71,8 @@
       "runtimeCodeHash": "0x864cc9ad53b338b82da1f7cab85ab0b3d5c8861acb422b6fec63cf36234f36a6"
     },
     "weth": {
-      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
     }
   }
 }

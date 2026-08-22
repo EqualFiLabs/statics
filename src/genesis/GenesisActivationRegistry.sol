@@ -10,11 +10,8 @@ import {IGenesisActivationConsumer, IGenesisActivationRegistry} from "../interfa
 import {IStaticsGenesis} from "../interfaces/IStaticsGenesis.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
-interface IDopplerBurnableToken {
-    function burn(uint256 amount) external;
-}
-
 /// @notice Permanent activation source of truth shared by launch rewards and the later Statics protocol.
+///         Activation payments are forwarded in full to the Statics treasury; STATICS is never burned.
 contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, ReentrancyGuard {
     using LibExactAssetTransfer for IERC20;
 
@@ -23,6 +20,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
     uint256 public constant MAX_TIER_COST = 100_000 ether;
 
     IERC20 public immutable statics;
+    address public immutable override treasury;
     address public bootstrapper;
     address public override genesisCollection;
     address public override activeConsumer;
@@ -32,6 +30,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
     mapping(uint8 tier => uint256 cost) private _tierCost;
 
     error InvalidStaticsToken();
+    error InvalidTreasury();
     error InvalidBootstrapper();
     error UnauthorizedBootstrapper(address caller);
     error InvalidGenesisCollection();
@@ -45,11 +44,13 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
     error UnauthorizedPendingConsumer(address caller);
     error OwnershipRenunciationDisabled();
 
-    constructor(IERC20 statics_, address bootstrapper_, address governance) Ownable(governance) {
+    constructor(IERC20 statics_, address bootstrapper_, address governance, address treasury_) Ownable(governance) {
         if (address(statics_) == address(0) || address(statics_).code.length == 0) revert InvalidStaticsToken();
         if (bootstrapper_ == address(0)) revert InvalidBootstrapper();
+        if (treasury_ == address(0)) revert InvalidTreasury();
         statics = statics_;
         bootstrapper = bootstrapper_;
+        treasury = treasury_;
         _tierCost[1] = 10_000 ether;
         _tierCost[2] = 20_000 ether;
         _tierCost[3] = 30_000 ether;
@@ -96,7 +97,9 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         emit GenesisCollectionBound(collection);
     }
 
-    function activate(uint256 genesisId, uint8 targetTier) external override nonReentrant returns (uint256 burned) {
+    /// @notice Activate a Genesis to a higher tier. The exact cumulative STATICS cost is transferred to
+    ///         the Statics treasury. STATICS totalSupply is never reduced and Genesis backing is untouched.
+    function activate(uint256 genesisId, uint8 targetTier) external override nonReentrant returns (uint256 paid) {
         address collection = genesisCollection;
         if (collection == address(0)) revert InvalidGenesisCollection();
         address tokenOwner = IERC721(collection).ownerOf(genesisId);
@@ -105,16 +108,16 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         if (targetTier <= currentTier || targetTier > MAX_TIER) revert InvalidTargetTier(currentTier, targetTier);
 
         for (uint8 tier = currentTier + 1; tier <= targetTier; ++tier) {
-            burned += _tierCost[tier];
+            paid += _tierCost[tier];
         }
 
         _notifyConsumer(
             genesisId, tokenOwner, tokenOwner, multiplierForTier(currentTier), multiplierForTier(targetTier)
         );
-        statics.pullExact(msg.sender, burned);
-        IDopplerBurnableToken(address(statics)).burn(burned);
         _tierOf[genesisId] = targetTier;
-        emit GenesisActivated(genesisId, currentTier, targetTier, burned);
+        statics.pullExact(msg.sender, paid);
+        statics.pushExact(treasury, paid);
+        emit GenesisActivated(genesisId, currentTier, targetTier, paid);
         IStaticsGenesis(collection).refreshMetadata(genesisId);
     }
 

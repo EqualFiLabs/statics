@@ -39,7 +39,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         bytes memory json = abi.encodePacked(
             '{"name":"Statics Genesis #',
             tokenId.toString(),
-            '","description":"A fixed-supply Statics Genesis NFT redeemable for 180,018 STATICS.","image":"',
+            '","description":"A fixed-supply, dual-backed Statics Genesis NFT redeemable for 180,000 STATICS plus a 1/5,555 share of the permanent native ETH reserve after the Genesis Epoch.","image":"',
             image,
             '","external_url":"',
             externalURLBase,

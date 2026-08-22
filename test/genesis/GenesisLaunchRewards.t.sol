@@ -100,9 +100,28 @@ contract MockActivationConsumer is IGenesisActivationConsumer {
     }
 }
 
+contract MockActivationStateObserver is IGenesisActivationConsumer {
+    IGenesisActivationRegistry public immutable registry;
+    uint8 public observedTier;
+    uint16 public observedMultiplier;
+
+    constructor(IGenesisActivationRegistry registry_) {
+        registry = registry_;
+    }
+
+    function accept() external {
+        registry.acceptConsumer();
+    }
+
+    function onGenesisTransition(uint256 genesisId, address, address, uint16, uint16) external {
+        require(msg.sender == address(registry), "REGISTRY_ONLY");
+        observedTier = registry.tierOf(genesisId);
+        observedMultiplier = registry.multiplierBps(genesisId);
+    }
+}
+
 contract GenesisLaunchRewardsTest is Test {
-    uint256 private constant PRICE = 180_018 ether;
-    uint256 private constant FEE = 0.003 ether;
+    uint256 private constant PRICE = 180_000 ether;
     bytes32 private constant POOL_ID = keccak256("STATICS_WETH");
 
     address private governance;
@@ -137,8 +156,8 @@ contract GenesisLaunchRewardsTest is Test {
         vm.prank(governance);
         feeReceiver.bindMarket(address(statics), POOL_ID);
 
-        activationRegistry = new GenesisActivationRegistry(statics, address(this), governance);
-        vault = new StaticsGenesisVault(statics, address(this), governance, treasury);
+        activationRegistry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
+        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
@@ -181,6 +200,26 @@ contract GenesisLaunchRewardsTest is Test {
     function testMarketBindingRequiresExactNinetyFivePercentBeneficiaryShare() public view {
         assertEq(feeReceiver.poolInitializer(), address(feeSource));
         assertEq(feeSource.getShares(POOL_ID, address(feeReceiver)), 0.95 ether);
+    }
+
+    function testActivationConsumerObservesPreviousTierDuringCallback() public {
+        _buyAndRegister(alice, 1);
+        MockActivationStateObserver observer = new MockActivationStateObserver(activationRegistry);
+        vm.prank(governance);
+        activationRegistry.proposeConsumer(address(observer));
+        observer.accept();
+
+        uint256 activationCost = activationRegistry.tierCost(1);
+        statics.transfer(alice, activationCost);
+        vm.startPrank(alice);
+        statics.approve(address(activationRegistry), activationCost);
+        activationRegistry.activate(1, 1);
+        vm.stopPrank();
+
+        assertEq(observer.observedTier(), 0);
+        assertEq(observer.observedMultiplier(), 10_000);
+        assertEq(activationRegistry.tierOf(1), 1);
+        assertEq(activationRegistry.multiplierBps(1), 11_000);
     }
 
     function testTwoGenesisWeightsUseRemainderIndexAcrossActivation() public {
@@ -273,7 +312,7 @@ contract GenesisLaunchRewardsTest is Test {
         statics.transfer(carol, PRICE);
         vm.startPrank(carol);
         statics.approve(address(vault), PRICE);
-        vault.buyGenesis{value: FEE}(1, carol);
+        vault.buyGenesis(1, carol);
         vm.stopPrank();
         assertEq(distributor.effectiveWeight(1), 10_000);
         assertEq(distributor.pendingGenesis(1, address(statics)), 0);
@@ -349,7 +388,7 @@ contract GenesisLaunchRewardsTest is Test {
         statics.transfer(owner, PRICE);
         vm.startPrank(owner);
         statics.approve(address(vault), PRICE);
-        vault.buyGenesis{value: FEE}(tokenId, owner);
+        vault.buyGenesis(tokenId, owner);
         distributor.registerGenesis(tokenId);
         vm.stopPrank();
     }
