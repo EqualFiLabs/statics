@@ -17,6 +17,7 @@ struct StaticsDollarProductionConfig {
     address stakingToken;
     uint256 creationFeeAmount;
     uint256 positionCreationFeeAmount;
+    uint256 poolCreationFeeAmount;
     address weth;
     address ethUsdFeed;
     address sequencerUptimeFeed;
@@ -37,6 +38,7 @@ struct StaticsDollarLocalConfig {
     address stakingToken;
     uint256 creationFeeAmount;
     uint256 positionCreationFeeAmount;
+    uint256 poolCreationFeeAmount;
     address weth;
     address oracle;
     bool deployMockWeth;
@@ -142,6 +144,7 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
                 stakingToken: config.stakingToken,
                 creationFeeAmount: config.creationFeeAmount,
                 positionCreationFeeAmount: config.positionCreationFeeAmount,
+                poolCreationFeeAmount: config.poolCreationFeeAmount,
                 initialOracle: address(oracle),
                 requiredSequencerUptimeFeed: config.sequencerUptimeFeed,
                 minimumSequencerGracePeriod: config.sequencerGracePeriod,
@@ -206,6 +209,7 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
                 stakingToken: config.stakingToken,
                 creationFeeAmount: config.creationFeeAmount,
                 positionCreationFeeAmount: config.positionCreationFeeAmount,
+                poolCreationFeeAmount: config.poolCreationFeeAmount,
                 initialOracle: config.oracle,
                 requiredSequencerUptimeFeed: address(0),
                 minimumSequencerGracePeriod: 0,
@@ -282,6 +286,7 @@ contract DeployStaticsDollar is DeployStaticsDollarBase {
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
+            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
             weth: vm.envAddress("WETH_ADDRESS"),
             ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
             sequencerUptimeFeed: vm.envAddress("SEQUENCER_UPTIME_FEED"),
@@ -309,6 +314,7 @@ contract DeployStaticsDollar is DeployStaticsDollarBase {
         config.treasury = deployer;
         config.creationFeeAmount = 1 ether;
         config.positionCreationFeeAmount = 0.001 ether;
+        config.poolCreationFeeAmount = 0.05 ether;
         config.deployMockWeth = true;
         config.deployMockOracle = true;
         config.mockOraclePriceWad = 2_500e18;

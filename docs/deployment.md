@@ -120,6 +120,7 @@ canonical launcher reads:
 | `STAKING_TOKEN` | Deployed `StaticsToken` address used as the immutable global staking denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | `0` closes public creation and permits owner-only zero-value genesis; a positive value opens exact-fee public creation |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for every new Position NFT; `0` makes creation free and does not disable it; initial target is `1000000000000000` wei (`0.001 ETH`) |
+| `POOL_CREATION_FEE_AMOUNT` | Independent exact native fee for each permissionless general pool; `0` disables permissionless creation (owner-only, and not free public creation), while a positive value requires exact payment from every caller and is forwarded to treasury |
 | `WETH_ADDRESS` | Verified canonical WETH for the target chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |
 | `SEQUENCER_UPTIME_FEED` | Verified target-chain sequencer uptime feed |
@@ -484,7 +485,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           26 facets, 207 selectors
+StaticsDiamond:           29 facets, 218 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

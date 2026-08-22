@@ -18,6 +18,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
@@ -26,6 +27,7 @@ contract HookInvariantFeeReceiver {
 
     address public hook;
     mapping(address asset => uint256 amount) public stakerFees;
+    mapping(address asset => uint256 amount) public creatorFees;
     mapping(address asset => uint256 amount) public treasuryFees;
 
     function configureHook(address hook_) external {
@@ -45,43 +47,38 @@ contract HookInvariantFeeReceiver {
         return false;
     }
 
-    function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) public {
-        require(msg.sender == hook);
-        uint256 total = stakerAmount + treasuryAmount;
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), total);
-        stakerFees[asset] += stakerAmount;
-        treasuryFees[asset] += treasuryAmount;
-    }
-
-    function routeCanonicalSwapFees(
+    function routeProtocolSwapFees(
         PoolId,
         address asset,
-        uint256 liquidityProviderAmount,
-        uint256 basketStakerAmount,
-        uint256 staticsStakerAmount,
-        uint256 treasuryAmount
+        IStaticsProtocolRevenue.ProtocolFeeDistribution calldata distribution
     ) external {
-        require(liquidityProviderAmount == 0);
-        require(basketStakerAmount == 0);
-        routeSwapFees(asset, staticsStakerAmount, treasuryAmount);
+        require(msg.sender == hook);
+        require(distribution.liquidityProvider == 0);
+        require(distribution.basketStaker == 0);
+        uint256 total = distribution.staticsStaker + distribution.creator + distribution.treasury;
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), total);
+        stakerFees[asset] += distribution.staticsStaker;
+        creatorFees[asset] += distribution.creator;
+        treasuryFees[asset] += distribution.treasury;
     }
 
     function registerPool(PoolKey calldata key) external returns (PoolId) {
-        return IStaticsSwapFeeHook(hook).registerPool(key);
+        return IStaticsSwapFeeHook(hook).registerPool(key, IStaticsSwapFeeHook.PoolKind.General, address(this));
     }
 
-    function setPoolFeeConfiguration(PoolId poolId, IStaticsSwapFeeHook.FeeConfiguration calldata configuration)
-        external
-    {
-        IStaticsSwapFeeHook(hook).setPoolFeeConfiguration(poolId, configuration);
+    function setPoolFeeRate(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external {
+        IStaticsSwapFeeHook(hook).setPoolFeeRate(poolId, inputFeeBps, outputFeeBps);
     }
 
-    function clearPoolFeeConfiguration(PoolId poolId) external {
-        IStaticsSwapFeeHook(hook).clearPoolFeeConfiguration(poolId);
+    function setGeneralFeeAllocation(IStaticsSwapFeeHook.GeneralFeeAllocation calldata allocation) external {
+        IStaticsSwapFeeHook(hook).setGeneralFeeAllocation(allocation);
     }
 }
 
 contract HookAccountingHandler is Test {
+    uint16 private constant INPUT_FEE_BPS = 25;
+    uint16 private constant OUTPUT_FEE_BPS = 25;
+
     PoolSwapTest private immutable router;
     StaticsSwapFeeHook private immutable hook;
     HookInvariantFeeReceiver private immutable receiver;
@@ -131,18 +128,18 @@ contract HookAccountingHandler is Test {
     ) external {
         uint256 inputFeeBps = bound(rawInputFeeBps, 1, 199);
         uint256 outputFeeBps = bound(rawOutputFeeBps, 1, 200 - inputFeeBps);
-        uint256 polShareBps = bound(rawPolShareBps, 0, 10_000);
-        uint256 liquidityProviderShareBps = bound(rawLiquidityProviderShareBps, 0, 10_000 - polShareBps);
-        uint256 staticsStakerShareBps = bound(rawStakerShareBps, 0, 10_000 - polShareBps - liquidityProviderShareBps);
-        uint256 treasuryShareBps = 10_000 - polShareBps - liquidityProviderShareBps - staticsStakerShareBps;
-        receiver.setPoolFeeConfiguration(
-            poolId,
-            IStaticsSwapFeeHook.FeeConfiguration({
-                inputFeeBps: uint16(inputFeeBps),
-                outputFeeBps: uint16(outputFeeBps),
+        // Keep LP allocation at zero (no eligible LPs) so all configurable weight lands in observable
+        // staker/treasury buckets; POL is exercised through a nonzero pol share.
+        uint256 polShareBps = bound(rawPolShareBps, 0, 9_500);
+        uint256 staticsStakerShareBps = bound(rawStakerShareBps, 0, 9_500 - polShareBps);
+        uint256 treasuryShareBps = 9_500 - polShareBps - staticsStakerShareBps;
+        // silence unused param without changing the fuzz surface
+        rawLiquidityProviderShareBps;
+        receiver.setPoolFeeRate(poolId, uint16(inputFeeBps), uint16(outputFeeBps));
+        receiver.setGeneralFeeAllocation(
+            IStaticsSwapFeeHook.GeneralFeeAllocation({
                 polShareBps: uint16(polShareBps),
-                liquidityProviderShareBps: uint16(liquidityProviderShareBps),
-                basketStakerShareBps: 0,
+                liquidityProviderShareBps: 0,
                 staticsStakerShareBps: uint16(staticsStakerShareBps),
                 treasuryShareBps: uint16(treasuryShareBps)
             })
@@ -150,7 +147,7 @@ contract HookAccountingHandler is Test {
     }
 
     function clearPoolConfiguration() external {
-        receiver.clearPoolFeeConfiguration(poolId);
+        receiver.setPoolFeeRate(poolId, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
     }
 
     function _swap(int256 amountSpecified, bool zeroForOne) private {
@@ -170,10 +167,10 @@ contract HookAccountingHandler is Test {
             BalanceDelta delta
         ) {
             ++successfulSwaps;
-            IStaticsSwapFeeHook.PoolFeeConfigurationView memory configuration = hook.poolFeeConfiguration(poolId);
-            bool routesExternalFees = configuration.staticsStakerShareBps != 0 || configuration.treasuryShareBps != 0;
+            // With staker+treasury+creator always summing to configurable+creator > 0, every realized
+            // two-asset swap must route both legs.
             if (
-                routesExternalFees && delta.amount0() != 0 && delta.amount1() != 0
+                delta.amount0() != 0 && delta.amount1() != 0
                     && (_routed(token0) <= token0FeesBefore || _routed(token1) <= token1FeesBefore)
             ) missedFeeLeg = true;
             uint128 locked = hook.lockedLiquidity(poolId);
@@ -183,7 +180,7 @@ contract HookAccountingHandler is Test {
     }
 
     function _routed(address asset) private view returns (uint256) {
-        return receiver.stakerFees(asset) + receiver.treasuryFees(asset);
+        return receiver.stakerFees(asset) + receiver.treasuryFees(asset) + receiver.creatorFees(asset);
     }
 }
 
@@ -241,19 +238,22 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
     }
 
     function invariantEffectivePoolConfigurationIsValid() public view {
-        IStaticsSwapFeeHook.PoolFeeConfigurationView memory configuration = hook.poolFeeConfiguration(poolId);
-        assertLe(uint256(configuration.inputFeeBps) + uint256(configuration.outputFeeBps), 200);
+        IStaticsSwapFeeHook.PoolFeeRate memory rate = hook.poolFeeRate(poolId);
+        assertLe(uint256(rate.inputFeeBps) + uint256(rate.outputFeeBps), 200);
+        IStaticsSwapFeeHook.GeneralFeeAllocation memory allocation = hook.generalFeeAllocation();
         assertEq(
-            uint256(configuration.polShareBps) + uint256(configuration.liquidityProviderShareBps)
-                + uint256(configuration.basketStakerShareBps) + uint256(configuration.staticsStakerShareBps)
-                + uint256(configuration.treasuryShareBps),
-            10_000
+            uint256(allocation.polShareBps) + uint256(allocation.liquidityProviderShareBps)
+                + uint256(allocation.staticsStakerShareBps) + uint256(allocation.treasuryShareBps),
+            9_500
         );
     }
 
     function _assertReceiverBalance(Currency currency) private view {
         address asset = Currency.unwrap(currency);
-        assertEq(IERC20(asset).balanceOf(address(receiver)), receiver.stakerFees(asset) + receiver.treasuryFees(asset));
+        assertEq(
+            IERC20(asset).balanceOf(address(receiver)),
+            receiver.stakerFees(asset) + receiver.treasuryFees(asset) + receiver.creatorFees(asset)
+        );
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {

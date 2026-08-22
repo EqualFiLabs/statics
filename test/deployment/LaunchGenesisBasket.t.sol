@@ -130,7 +130,8 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             treasury: makeAddr("treasury"),
             stakingToken: address(deployer),
             creationFeeAmount: 0,
-            positionCreationFeeAmount: 0
+            positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0
         });
         DeployStatics.V4Config memory v4 = _v4Config();
         (deployment, timelock) = deployer.deployWithLiquidity(config, v4);

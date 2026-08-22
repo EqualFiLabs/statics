@@ -17,7 +17,6 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
-import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLiquidityRewards} from "../libraries/LibLiquidityRewards.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -37,12 +36,9 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
     error PositionAssociationMismatch(uint256 tokenId, uint256 expectedPositionId, uint256 actualPositionId);
     error PositionLiquidityMismatch(uint256 tokenId, uint256 expected, uint256 actual);
     error IncompatibleLiquidityAsset(address asset, uint256 expected, uint256 actual);
-    error InvalidRewardAsset(PoolId poolId, address asset);
-    error OnlySwapFeeHook(address caller, address expected);
     error NoLiquidityRewards(uint256 tokenId);
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error PoolDecommissioned(PoolId poolId);
-    error GovernancePoolBasketReward(PoolId poolId, uint256 amount);
 
     struct IncreaseResult {
         IStaticsLiquidityManager.PositionMovement movement;
@@ -303,42 +299,6 @@ contract LiquidityRewardsFacet is IStaticsLiquidityRewards, ReentrancyGuard {
         if (amount0 < minAmount0) revert MinimumOutputNotMet(position.currency0, amount0, minAmount0);
         if (amount1 < minAmount1) revert MinimumOutputNotMet(position.currency1, amount1, minAmount1);
         LibLiquidityRewards.clearIfEmpty(tokenId);
-    }
-
-    function routeCanonicalSwapFees(
-        PoolId poolId,
-        address asset,
-        uint256 liquidityProviderAmount,
-        uint256 basketStakerAmount,
-        uint256 staticsStakerAmount,
-        uint256 treasuryAmount
-    ) external nonReentrant {
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (msg.sender != ls.hook) revert OnlySwapFeeHook(msg.sender, ls.hook);
-        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId,) =
-            LibProtocolPools.enforceRegistered(poolId);
-        address currency0 = Currency.unwrap(key.currency0);
-        address currency1 = Currency.unwrap(key.currency1);
-        if (asset != currency0 && asset != currency1) revert InvalidRewardAsset(poolId, asset);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.Governance && basketStakerAmount != 0) {
-            revert GovernancePoolBasketReward(poolId, basketStakerAmount);
-        }
-        uint256 total = liquidityProviderAmount + basketStakerAmount + staticsStakerAmount + treasuryAmount;
-        if (total == 0) return;
-        uint256 received = LibCustody.pull(asset, msg.sender, total);
-        if (received != total) revert IncompatibleLiquidityAsset(asset, total, received);
-        LibCustody.reserve(LibCustody.feeAccount(), asset, total);
-        if (liquidityProviderAmount != 0) {
-            uint256 indexRay = LibLiquidityRewards.accrue(poolId, asset, liquidityProviderAmount);
-            emit LiquidityRewardAccrued(poolId, asset, liquidityProviderAmount, indexRay);
-        }
-        if (basketStakerAmount != 0) {
-            LibBasketRewards.accrueReserved(
-                basketId, LibBasket.basketStorage().baskets[basketId], asset, basketStakerAmount
-            );
-        }
-        LibGlobalRewards.accrueReservedSwapStakerFee(asset, staticsStakerAmount);
-        LibGlobalRewards.accrueReservedTreasuryFee(asset, treasuryAmount);
     }
 
     function stakedLiquidityPosition(uint256 tokenId) external view returns (StakedLiquidityView memory view_) {

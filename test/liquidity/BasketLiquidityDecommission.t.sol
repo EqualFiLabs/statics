@@ -86,7 +86,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
             liquidityProviderShareBps: 1_000,
             basketStakerShareBps: 0,
             staticsStakerShareBps: 2_000,
-            treasuryShareBps: 1_000
+            treasuryShareBps: 500
         });
         basketLiquidity.setSwapFeeConfiguration(configuration);
         IStaticsBasketLiquidity.SwapFeeConfiguration memory stored = basketLiquidity.swapFeeConfiguration();

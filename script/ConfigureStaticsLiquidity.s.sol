@@ -133,11 +133,9 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
-        IStaticsSwapFeeHook.FeeConfiguration memory feeConfig = hook.feeConfiguration();
-        if (feeConfig.inputFeeBps != config.inputFeeBps || feeConfig.outputFeeBps != config.outputFeeBps) {
-            revert InvalidHookFees(
-                config.inputFeeBps, feeConfig.inputFeeBps, config.outputFeeBps, feeConfig.outputFeeBps
-            );
+        (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
+        if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
+            revert InvalidHookFees(config.inputFeeBps, inputFeeBps, config.outputFeeBps, outputFeeBps);
         }
         uint160 actualFlags = uint160(config.hook) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert InvalidHookFlags(REQUIRED_HOOK_FLAGS, actualFlags);

@@ -40,7 +40,10 @@ import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
-import {ProtocolPoolFacet} from "../../src/facets/ProtocolPoolFacet.sol";
+import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
+import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
+import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
+import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -51,7 +54,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](21);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](24);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -72,13 +75,18 @@ contract StaticsTestDeployer {
         cut[17] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
         cut[18] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
         cut[19] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
-        cut[20] = _cut(address(new ProtocolPoolFacet()), StaticsSelectors.protocolPools());
+        cut[20] = _cut(address(new ProtocolPoolCreationFacet()), StaticsSelectors.protocolPoolCreation());
+        cut[21] = _cut(address(new ProtocolPoolAdminFacet()), StaticsSelectors.protocolPoolAdmin());
+        cut[22] = _cut(address(new ProtocolPoolViewFacet()), StaticsSelectors.protocolPoolView());
+        cut[23] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
             address(0),
             address(init),
-            abi.encodeCall(StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0))
+            abi.encodeCall(
+                StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0, 0)
+            )
         );
     }
 

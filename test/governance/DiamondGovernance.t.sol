@@ -63,7 +63,8 @@ contract DiamondGovernanceTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(deployer),
                 creationFeeAmount: 1 ether,
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                poolCreationFeeAmount: 0
             })
         );
         diamond = StaticsDiamond(payable(deployment.diamond));
@@ -73,7 +74,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 26);
+        assertEq(loupe.facetAddresses().length, 29);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));

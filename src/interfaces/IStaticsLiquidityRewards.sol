@@ -89,15 +89,6 @@ interface IStaticsLiquidityRewards {
         uint256 minAmount1
     ) external returns (uint256 amount0, uint256 amount1);
 
-    function routeCanonicalSwapFees(
-        PoolId poolId,
-        address asset,
-        uint256 liquidityProviderAmount,
-        uint256 basketStakerAmount,
-        uint256 staticsStakerAmount,
-        uint256 treasuryAmount
-    ) external;
-
     function stakedLiquidityPosition(uint256 tokenId) external view returns (StakedLiquidityView memory position);
     function poolLiquidityRewards(PoolId poolId) external view returns (PoolLiquidityRewardView memory pool);
     function pendingLiquidityRewards(uint256 positionId, uint256 tokenId)
