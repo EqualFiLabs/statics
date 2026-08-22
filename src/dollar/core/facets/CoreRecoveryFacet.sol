@@ -488,7 +488,10 @@ contract CoreRecoveryFacet is ReentrancyGuard {
     ) private view {
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile = cs.collateralProfiles[oldSeries.profileId];
         preview.successorSeriesId = profile.activeSeriesId;
-        if (mode != IStaticsDollarCoreTypes.RecoveryClaimMode.NAV) return;
+        if (mode != IStaticsDollarCoreTypes.RecoveryClaimMode.NAV) {
+            preview.holderCollateralDust = preview.holderCollateral;
+            return;
+        }
         IStaticsDollarCoreTypes.RiskSeries storage successor = cs.riskSeries[preview.successorSeriesId];
         if (successor.status != IStaticsDollarCoreTypes.SeriesStatus.Active) {
             revert SeriesNotActive(preview.successorSeriesId);

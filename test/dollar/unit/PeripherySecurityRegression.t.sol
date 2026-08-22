@@ -20,6 +20,7 @@ import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 import {PairingVaultFacet} from "src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
+import {LibPeriphery} from "src/dollar/periphery/libraries/LibPeriphery.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {MockERC20, MockFeeOnTransferERC20} from "test/mocks/MockERC20.sol";
 
@@ -551,6 +552,33 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(staking.totalRiskLiquidity(successorSeriesId), successorPrincipal);
         assertEq(staticsDollarRisk.balanceOf(deployment.diamond, successorSeriesId), successorPrincipal);
         assertEq(staking.riskLiquidity(positionId, SERIES_ID).claimableStaticsDollar, successorPrincipal);
+    }
+
+    function test_RetiredProfileTransitionCreditsHolderCollateralToMigration() public {
+        (uint256 dollars, uint256 shares) = _deposit(alice, 3 ether);
+        uint256 positionId = _createAndStake(alice, shares);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        transition.finalizeSeriesTransition(SERIES_ID);
+        vm.startPrank(owner);
+        CoreGovernanceFacet(address(deployment.core)).enterReduceOnly(PROFILE_ID);
+        CoreGovernanceFacet(address(deployment.core))
+            .setProfileMode(PROFILE_ID, IStaticsDollarCoreTypes.ProfileMode.Retired);
+        vm.stopPrank();
+
+        assertFalse(staking.seriesMigration(SERIES_ID).returned);
+
+        vm.startPrank(alice);
+        staticsDollar.approve(deployment.diamond, dollars);
+        staking.processSeriesTransition(SERIES_ID);
+        vm.stopPrank();
+
+        LibPeriphery.SeriesMigration memory migration = staking.seriesMigration(SERIES_ID);
+        assertEq(migration.remainingStaticsDollar, 0);
+        assertGt(migration.remainingCollateral, 0);
+        assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ID), 0);
     }
 
     function _deposit(address account, uint256 collateralAmount) internal returns (uint256 dollars, uint256 shares) {

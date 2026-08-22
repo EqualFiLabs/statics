@@ -90,6 +90,36 @@ contract CoreSeriesRecoveryTest is Test {
         staticsDollarRisk = StaticsDollarRiskShares(deployment.staticsDollarRisk);
     }
 
+    function test_ExpiredCollateralOnlyRecoveryPaysHolderFullCollateral() public {
+        uint256 minted = _depositWeth(2e18);
+        uint256 successorSeriesId = _finalizeUpside(0);
+        assertEq(successorSeriesId, 2);
+
+        uint256 expiredShares = staticsDollarRisk.balanceOf(alice, 1);
+        vm.prank(alice);
+        staticsDollar.transfer(keeper, expiredShares);
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview = recoveryFacet.previewExpiredRiskRecovery(
+            alice, 1, expiredShares, IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly
+        );
+        assertGt(preview.holderCollateral, 0);
+        assertEq(preview.holderPairs, 0);
+        assertEq(preview.holderCollateralDust, preview.holderCollateral);
+
+        uint256 keeperWethBefore = weth.balanceOf(keeper);
+        uint256 holderWethBefore = weth.balanceOf(alice);
+        vm.prank(keeper);
+        recoveryFacet.recoverExpiredRisk(
+            alice,
+            1,
+            expiredShares,
+            IStaticsDollarCoreTypes.RecoveryClaimMode.CollateralOnly,
+            preview.seniorCollateralOut + preview.keeperBounty
+        );
+        assertEq(weth.balanceOf(keeper) - keeperWethBefore, preview.seniorCollateralOut + preview.keeperBounty);
+        assertEq(weth.balanceOf(alice) - holderWethBefore, preview.holderCollateral);
+        assertEq(staticsDollarRisk.balanceOf(alice, 1), 0);
+    }
+
     function test_ReturnedAndExpiredUpsideRecoverySettleEveryAggregateBook() public {
         uint256 minted = _depositWeth(2e18);
         uint256 returned = minted / 2;
