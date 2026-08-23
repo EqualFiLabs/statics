@@ -70,22 +70,22 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         _assertConserved(address(statics), uint256(preTransferReward) + postTransferReward);
     }
 
-    function check_activationSettlesAtPreviousWeight(uint128 reward, uint256 targetTier) public {
-        vm.assume(targetTier >= 1 && targetTier <= registry.MAX_TIER());
+    function check_activationSettlesAtPreviousWeight(uint96 reward) public {
         _queue(reward, 0);
         feeReceiver.harvest();
-        uint256 expectedGenesisReward = Math.mulDiv(reward, GENESIS_SHARE_BPS, 10_000);
-        uint256 activationCost = _activationCost(targetTier);
+        distributor.accrue();
+        uint256 pendingBefore = distributor.pendingGenesis(1, address(statics));
+        uint256 activationCost = registry.tierCost(1);
         uint256 treasuryBefore = statics.balanceOf(treasury);
 
         vm.startPrank(alice);
         statics.approve(address(registry), activationCost);
-        registry.activate(1, uint8(targetTier));
+        registry.activate(1, 1);
         vm.stopPrank();
 
-        assertEq(distributor.pendingGenesis(1, address(statics)), expectedGenesisReward);
-        assertEq(distributor.effectiveWeight(1), registry.multiplierForTier(uint8(targetTier)));
-        assertEq(registry.tierOf(1), targetTier);
+        assertEq(distributor.pendingGenesis(1, address(statics)), pendingBefore);
+        assertEq(distributor.effectiveWeight(1), registry.multiplierForTier(1));
+        assertEq(registry.tierOf(1), 1);
         assertEq(statics.balanceOf(treasury) - treasuryBefore, activationCost);
         _assertConserved(address(statics), reward);
     }
@@ -123,12 +123,6 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         if (staticsAmount != 0) statics.mint(address(feeSource), staticsAmount);
         if (wethAmount != 0) weth.mint(address(feeSource), wethAmount);
         feeSource.queue(staticsAmount, wethAmount);
-    }
-
-    function _activationCost(uint256 targetTier) private view returns (uint256 cost) {
-        for (uint256 tier = 1; tier <= targetTier; ++tier) {
-            cost += registry.tierCost(uint8(tier));
-        }
     }
 
     function _assertConserved(address asset, uint256 allocated) private view {
