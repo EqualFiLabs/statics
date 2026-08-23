@@ -155,12 +155,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes =
                 _validateRobinhoodDopplerModules(config.modules);
             bytes32 currentHash = launchConfigHash(config, wethRuntimeCodeHash, moduleCodeHashes);
-            if (
-                APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH == bytes32(0)
-                    || currentHash != APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH
-            ) {
-                revert ProductionLaunchConfigurationNotRatified(currentHash, APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH);
-            }
+            _requireApprovedProductionConfig(currentHash);
         }
 
         vm.startBroadcast(privateKey);
@@ -359,6 +354,13 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
                 TREASURY_GENESIS_RELEASE_BATCH
             )
         );
+    }
+
+    function _requireApprovedProductionConfig(bytes32 currentHash) internal pure {
+        bytes32 approvedHash = APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH;
+        if (approvedHash == bytes32(0) || currentHash != approvedHash) {
+            revert ProductionLaunchConfigurationNotRatified(currentHash, approvedHash);
+        }
     }
 
     function _createDopplerMarket(

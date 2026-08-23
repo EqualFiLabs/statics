@@ -111,6 +111,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     }
 }
 
+    contract DeployStaticsGenesisHarness is DeployStaticsGenesis {
+        function requireApprovedProductionConfig(bytes32 currentHash) external pure {
+            _requireApprovedProductionConfig(currentHash);
+        }
+    }
+
     contract DeployStaticsGenesisTest is Test {
         DeployStaticsGenesis private deployer;
         MockDopplerToken private weth;
@@ -293,10 +299,22 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
+        function testZeroApprovedHashBlocksProductionRatification() public {
+            DeployStaticsGenesisHarness harness = new DeployStaticsGenesisHarness();
+            bytes32 currentHash = keccak256("unratified Robinhood launch");
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.ProductionLaunchConfigurationNotRatified.selector, currentHash, bytes32(0)
+                )
+            );
+            harness.requireApprovedProductionConfig(currentHash);
+        }
+
         function testLaunchManifestHashBindsDependenciesAndMetadata() public {
             StaticsGenesisDeploymentConfig memory config = _config();
             bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
             StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            StaticsDopplerLaunchConfig.Modules memory originalModules = config.modules;
             bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
 
             config.numeraire = address(uint160(config.numeraire) + 1);
@@ -305,7 +323,32 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.modules.airlock = address(uint160(config.modules.airlock) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.modules.airlock = address(airlock);
+            config.modules.tokenFactory = address(uint160(config.modules.tokenFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.tokenFactory = originalModules.tokenFactory;
+            config.modules.governanceFactory = address(uint160(config.modules.governanceFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.governanceFactory = originalModules.governanceFactory;
+            config.modules.poolInitializer = address(uint160(config.modules.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.poolInitializer = address(initializer);
+            config.modules.noOpMigrator = address(uint160(config.modules.noOpMigrator) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.noOpMigrator = originalModules.noOpMigrator;
+
+            codeHashes.airlock = bytes32(uint256(codeHashes.airlock) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            codeHashes.tokenFactory = bytes32(uint256(codeHashes.tokenFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            codeHashes.governanceFactory = bytes32(uint256(codeHashes.governanceFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
             codeHashes.poolInitializer = bytes32(uint256(codeHashes.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            codeHashes.noOpMigrator = bytes32(uint256(codeHashes.noOpMigrator) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             codeHashes = _codeHashes();
             assertNotEq(
