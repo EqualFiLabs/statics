@@ -110,281 +110,283 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     }
 }
 
-contract DeployStaticsGenesisTest is Test {
-    DeployStaticsGenesis private deployer;
-    MockDopplerToken private weth;
-    MockDeploymentInitializer private initializer;
-    MockDeploymentAirlock private airlock;
-    address private governance;
-    address private treasury;
+    contract DeployStaticsGenesisTest is Test {
+        DeployStaticsGenesis private deployer;
+        MockDopplerToken private weth;
+        MockDeploymentInitializer private initializer;
+        MockDeploymentAirlock private airlock;
+        address private governance;
+        address private treasury;
 
-    function setUp() public {
-        governance = makeAddr("governance");
-        treasury = makeAddr("treasury");
-        deployer = new DeployStaticsGenesis();
-        weth = new MockDopplerToken(address(this));
-        initializer = new MockDeploymentInitializer();
-        airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), initializer);
+        function setUp() public {
+            governance = makeAddr("governance");
+            treasury = makeAddr("treasury");
+            deployer = new DeployStaticsGenesis();
+            weth = new MockDopplerToken(address(this));
+            initializer = new MockDeploymentInitializer();
+            airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), initializer);
+        }
+
+        function testDeploysDopplerGenesisStackWithExactAllocations() public {
+            StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
+            IERC20 statics = IERC20(deployment.statics);
+            StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
+            StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
+            StaticsFeeReceiver receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
+            GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
+            GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
+
+            assertEq(statics.totalSupply(), 1_000_000_000 ether);
+            assertEq(statics.balanceOf(treasury), 200_000_000 ether);
+            assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
+            assertEq(statics.balanceOf(address(initializer)), 799_999_999 ether);
+            assertEq(genesis.balanceOf(address(vault)), 5_555);
+            assertEq(vault.requiredBacking(), 0);
+            assertEq(vault.tokenBacking(), 0);
+            assertEq(statics.balanceOf(address(vault)), 1 ether);
+            assertEq(statics.balanceOf(deployment.allocationEscrow), 0);
+            assertEq(receiver.statics(), deployment.statics);
+            assertEq(receiver.poolId(), deployment.poolId);
+            assertEq(receiver.poolInitializer(), address(initializer));
+            assertEq(initializer.getShares(deployment.poolId, address(receiver)), 0.95 ether);
+            assertEq(initializer.getShares(deployment.poolId, airlock.owner()), 0.05 ether);
+            assertEq(statics.balanceOf(deployment.genesisVault), 1 ether);
+            assertEq(receiver.activeDistributor(), address(distributor));
+            assertEq(registry.activeConsumer(), address(distributor));
+            assertEq(receiver.reserveVault(), address(vault));
+            assertEq(receiver.reserveShareBps(), 5_000);
+            assertEq(registry.treasury(), treasury);
+            assertEq(vault.genesisEpochEnd(), block.timestamp + 7 days);
+            assertTrue(vault.epochActive());
+            assertEq(vault.reserveETH(), 0);
+            assertEq(receiver.pendingOwner(), governance);
+            assertEq(registry.pendingOwner(), governance);
+            assertEq(vault.pendingOwner(), governance);
+            assertEq(genesis.pendingOwner(), governance);
+            assertEq(distributor.pendingOwner(), governance);
+
+            vm.startPrank(governance);
+            receiver.acceptOwnership();
+            registry.acceptOwnership();
+            vault.acceptOwnership();
+            genesis.acceptOwnership();
+            distributor.acceptOwnership();
+            vm.stopPrank();
+            assertEq(receiver.owner(), governance);
+            assertEq(registry.owner(), governance);
+            assertEq(vault.owner(), governance);
+            assertEq(genesis.owner(), governance);
+            assertEq(distributor.owner(), governance);
+            assertEq(receiver.pendingOwner(), address(0));
+            assertEq(registry.pendingOwner(), address(0));
+            assertEq(vault.pendingOwner(), address(0));
+            assertEq(genesis.pendingOwner(), address(0));
+            assertEq(distributor.pendingOwner(), address(0));
+        }
+
+        function testSixCurveLaunchGeometryMatchesEconomicModel() public view {
+            DopplerLaunchTypes.Curve[] memory curves = deployer.defaultCurves();
+            assertEq(curves.length, 6);
+
+            assertEq(curves[0].tickLower, -168_800);
+            assertEq(curves[0].tickUpper, -153_800);
+            assertEq(curves[0].numPositions, 11);
+            assertEq(curves[0].shares, 0.025 ether);
+
+            assertEq(curves[1].tickLower, -160_700);
+            assertEq(curves[1].tickUpper, -139_900);
+            assertEq(curves[1].numPositions, 11);
+            assertEq(curves[1].shares, 0.075 ether);
+
+            assertEq(curves[2].tickLower, -146_900);
+            assertEq(curves[2].tickUpper, -123_800);
+            assertEq(curves[2].numPositions, 11);
+            assertEq(curves[2].shares, 0.125 ether);
+
+            assertEq(curves[3].tickLower, -130_800);
+            assertEq(curves[3].tickUpper, -100_800);
+            assertEq(curves[3].numPositions, 11);
+            assertEq(curves[3].shares, 0.2 ether);
+
+            assertEq(curves[4].tickLower, -107_700);
+            assertEq(curves[4].tickUpper, -77_800);
+            assertEq(curves[4].numPositions, 11);
+            assertEq(curves[4].shares, 0.425 ether);
+
+            assertEq(curves[5].tickLower, -77_800);
+            assertEq(curves[5].tickUpper, 887_200);
+            assertEq(curves[5].numPositions, 1);
+            assertEq(curves[5].shares, 0.15 ether);
+
+            uint256 totalShares;
+            for (uint256 i; i < curves.length; ++i) {
+                totalShares += curves[i].shares;
+            }
+            assertEq(totalShares, 1 ether);
+            assertEq(curves[4].tickUpper, curves[5].tickLower);
+            assertEq(deployer.FAR_TICK(), 887_100);
+            assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
+        }
+
+        function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
+            assertNotEq(launchHash, bytes32(0));
+
+            config.fee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.fee -= 1;
+            config.genesisRewardShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.genesisRewardShareBps -= 1;
+            config.reserveShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.reserveShareBps -= 1;
+            config.genesisEpochEnd += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.genesisEpochEnd -= 1;
+            config.governance = address(uint160(config.governance) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.governance = governance;
+            config.treasury = address(uint160(config.treasury) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.treasury = treasury;
+            config.integrator = makeAddr("integrator");
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.integrator = address(0);
+            config.salt = bytes32(uint256(config.salt) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+        }
+
+        function testLaunchManifestHashBindsDependenciesAndMetadata() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
+
+            config.numeraire = address(uint160(config.numeraire) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.numeraire = address(weth);
+            config.modules.airlock = address(uint160(config.modules.airlock) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.airlock = address(airlock);
+            codeHashes.poolInitializer = bytes32(uint256(codeHashes.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            assertNotEq(
+                deployer.launchConfigHash(config, bytes32(uint256(canonicalWethHash) + 1), codeHashes), launchHash
+            );
+            config.contractURI = "ipfs://different-contract.json";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.contractURI = "ipfs://statics-genesis/contract.json";
+            config.externalURLBase = "https://example.com/genesis/";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+        }
+
+        function testRejectsExcessiveMulticurveResidual() public {
+            airlock.setResidual(101 ether);
+            StaticsGenesisDeploymentConfig memory config = _config();
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesis.ExcessiveMulticurveResidual.selector, 101 ether, 100 ether)
+            );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsInvalidFeeAndMetadata() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            config.fee = 0;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 0));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.fee = 100_001;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 100_001));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.genesisEpochEnd = block.timestamp;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidEpochEnd.selector, block.timestamp));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.contractURI = "";
+            vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsNoncanonicalRobinhoodWeth() public {
+            vm.chainId(4_663);
+            StaticsGenesisDeploymentConfig memory config = _config();
+            string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+            address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.InvalidRobinhoodWeth.selector, canonicalWeth, config.numeraire
+                )
+            );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsRobinhoodWethCodeHashDrift() public {
+            vm.chainId(4_663);
+            string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+            address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+            bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
+            vm.etch(canonicalWeth, hex"60006000fd");
+            StaticsGenesisDeploymentConfig memory config = _config();
+            config.numeraire = canonicalWeth;
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.InvalidRobinhoodWethCodeHash.selector, expectedCodeHash, canonicalWeth.codehash
+                )
+            );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testLocalForkEntrypointRejectsWrongChainBeforeReadingSecrets() public {
+            DeployStaticsGenesisLocalFork localForkDeployer = new DeployStaticsGenesisLocalFork();
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesisLocalFork.InvalidLocalForkChain.selector, block.chainid)
+            );
+            localForkDeployer.runLocalFork();
+        }
+
+        function _config() private returns (StaticsGenesisDeploymentConfig memory config) {
+            DeploymentModule tokenFactory = new DeploymentModule();
+            DeploymentModule governanceFactory = new DeploymentModule();
+            DeploymentModule noOpMigrator = new DeploymentModule();
+            config = StaticsGenesisDeploymentConfig({
+                governance: governance,
+                treasury: treasury,
+                numeraire: address(weth),
+                integrator: address(0),
+                modules: StaticsDopplerLaunchConfig.Modules({
+                    airlock: address(airlock),
+                    tokenFactory: address(tokenFactory),
+                    governanceFactory: address(governanceFactory),
+                    poolInitializer: address(initializer),
+                    noOpMigrator: address(noOpMigrator)
+                }),
+                salt: keccak256("STATICS_DOPPLER_TEST"),
+                fee: 30_000,
+                genesisRewardShareBps: 5_000,
+                reserveShareBps: 5_000,
+                genesisEpochEnd: block.timestamp + 7 days,
+                tokenURI: "ipfs://statics/token.json",
+                contractURI: "ipfs://statics-genesis/contract.json",
+                externalURLBase: "https://statics.finance/genesis/"
+            });
+        }
+
+        function _codeHashes() private pure returns (StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes) {
+            codeHashes = StaticsDopplerLaunchConfig.RuntimeCodeHashes({
+                airlock: keccak256("airlock"),
+                tokenFactory: keccak256("tokenFactory"),
+                governanceFactory: keccak256("governanceFactory"),
+                poolInitializer: keccak256("poolInitializer"),
+                noOpMigrator: keccak256("noOpMigrator")
+            });
+        }
     }
-
-    function testDeploysDopplerGenesisStackWithExactAllocations() public {
-        StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
-        IERC20 statics = IERC20(deployment.statics);
-        StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
-        StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
-        StaticsFeeReceiver receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
-        GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
-        GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
-
-        assertEq(statics.totalSupply(), 1_000_000_000 ether);
-        assertEq(statics.balanceOf(treasury), 200_000_000 ether);
-        assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
-        assertEq(statics.balanceOf(address(initializer)), 799_999_999 ether);
-        assertEq(genesis.balanceOf(address(vault)), 5_555);
-        assertEq(vault.requiredBacking(), 0);
-        assertEq(vault.tokenBacking(), 0);
-        assertEq(statics.balanceOf(address(vault)), 1 ether);
-        assertEq(statics.balanceOf(deployment.allocationEscrow), 0);
-        assertEq(receiver.statics(), deployment.statics);
-        assertEq(receiver.poolId(), deployment.poolId);
-        assertEq(receiver.poolInitializer(), address(initializer));
-        assertEq(initializer.getShares(deployment.poolId, address(receiver)), 0.95 ether);
-        assertEq(initializer.getShares(deployment.poolId, airlock.owner()), 0.05 ether);
-        assertEq(statics.balanceOf(deployment.genesisVault), 1 ether);
-        assertEq(receiver.activeDistributor(), address(distributor));
-        assertEq(registry.activeConsumer(), address(distributor));
-        assertEq(receiver.reserveVault(), address(vault));
-        assertEq(receiver.reserveShareBps(), 5_000);
-        assertEq(registry.treasury(), treasury);
-        assertEq(vault.genesisEpochEnd(), block.timestamp + 7 days);
-        assertTrue(vault.epochActive());
-        assertEq(vault.reserveETH(), 0);
-        assertEq(receiver.pendingOwner(), governance);
-        assertEq(registry.pendingOwner(), governance);
-        assertEq(vault.pendingOwner(), governance);
-        assertEq(genesis.pendingOwner(), governance);
-        assertEq(distributor.pendingOwner(), governance);
-
-        vm.startPrank(governance);
-        receiver.acceptOwnership();
-        registry.acceptOwnership();
-        vault.acceptOwnership();
-        genesis.acceptOwnership();
-        distributor.acceptOwnership();
-        vm.stopPrank();
-        assertEq(receiver.owner(), governance);
-        assertEq(registry.owner(), governance);
-        assertEq(vault.owner(), governance);
-        assertEq(genesis.owner(), governance);
-        assertEq(distributor.owner(), governance);
-        assertEq(receiver.pendingOwner(), address(0));
-        assertEq(registry.pendingOwner(), address(0));
-        assertEq(vault.pendingOwner(), address(0));
-        assertEq(genesis.pendingOwner(), address(0));
-        assertEq(distributor.pendingOwner(), address(0));
-    }
-
-    function testSixCurveLaunchGeometryMatchesEconomicModel() public view {
-        DopplerLaunchTypes.Curve[] memory curves = deployer.defaultCurves();
-        assertEq(curves.length, 6);
-
-        assertEq(curves[0].tickLower, -168_800);
-        assertEq(curves[0].tickUpper, -153_800);
-        assertEq(curves[0].numPositions, 11);
-        assertEq(curves[0].shares, 0.025 ether);
-
-        assertEq(curves[1].tickLower, -160_700);
-        assertEq(curves[1].tickUpper, -139_900);
-        assertEq(curves[1].numPositions, 11);
-        assertEq(curves[1].shares, 0.075 ether);
-
-        assertEq(curves[2].tickLower, -146_900);
-        assertEq(curves[2].tickUpper, -123_800);
-        assertEq(curves[2].numPositions, 11);
-        assertEq(curves[2].shares, 0.125 ether);
-
-        assertEq(curves[3].tickLower, -130_800);
-        assertEq(curves[3].tickUpper, -100_800);
-        assertEq(curves[3].numPositions, 11);
-        assertEq(curves[3].shares, 0.2 ether);
-
-        assertEq(curves[4].tickLower, -107_700);
-        assertEq(curves[4].tickUpper, -77_800);
-        assertEq(curves[4].numPositions, 11);
-        assertEq(curves[4].shares, 0.425 ether);
-
-        assertEq(curves[5].tickLower, -77_800);
-        assertEq(curves[5].tickUpper, 887_200);
-        assertEq(curves[5].numPositions, 1);
-        assertEq(curves[5].shares, 0.15 ether);
-
-        uint256 totalShares;
-        for (uint256 i; i < curves.length; ++i) totalShares += curves[i].shares;
-        assertEq(totalShares, 1 ether);
-        assertEq(curves[4].tickUpper, curves[5].tickLower);
-        assertEq(deployer.FAR_TICK(), 887_100);
-        assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
-    }
-
-    function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
-        StaticsGenesisDeploymentConfig memory config = _config();
-        bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
-        StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
-        bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
-        assertNotEq(launchHash, bytes32(0));
-
-        config.fee += 1;
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.fee -= 1;
-        config.genesisRewardShareBps += 1;
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.genesisRewardShareBps -= 1;
-        config.reserveShareBps += 1;
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.reserveShareBps -= 1;
-        config.genesisEpochEnd += 1;
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.genesisEpochEnd -= 1;
-        config.governance = address(uint160(config.governance) + 1);
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.governance = governance;
-        config.treasury = address(uint160(config.treasury) + 1);
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.treasury = treasury;
-        config.integrator = makeAddr("integrator");
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.integrator = address(0);
-        config.salt = bytes32(uint256(config.salt) + 1);
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-    }
-
-    function testLaunchManifestHashBindsDependenciesAndMetadata() public {
-        StaticsGenesisDeploymentConfig memory config = _config();
-        bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
-        StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
-        bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
-
-        config.numeraire = address(uint160(config.numeraire) + 1);
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.numeraire = address(weth);
-        config.modules.airlock = address(uint160(config.modules.airlock) + 1);
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.modules.airlock = address(airlock);
-        codeHashes.poolInitializer = bytes32(uint256(codeHashes.poolInitializer) + 1);
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        codeHashes = _codeHashes();
-        assertNotEq(
-            deployer.launchConfigHash(config, bytes32(uint256(canonicalWethHash) + 1), codeHashes), launchHash
-        );
-        config.contractURI = "ipfs://different-contract.json";
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-        config.contractURI = "ipfs://statics-genesis/contract.json";
-        config.externalURLBase = "https://example.com/genesis/";
-        assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
-    }
-
-    function testRejectsExcessiveMulticurveResidual() public {
-        airlock.setResidual(101 ether);
-        StaticsGenesisDeploymentConfig memory config = _config();
-        vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsGenesis.ExcessiveMulticurveResidual.selector, 101 ether, 100 ether)
-        );
-        deployer.deploy(config, address(deployer));
-    }
-
-    function testRejectsInvalidFeeAndMetadata() public {
-        StaticsGenesisDeploymentConfig memory config = _config();
-        config.fee = 0;
-        vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 0));
-        deployer.deploy(config, address(deployer));
-
-        config = _config();
-        config.fee = 100_001;
-        vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidFee.selector, 100_001));
-        deployer.deploy(config, address(deployer));
-
-        config = _config();
-        config.genesisEpochEnd = block.timestamp;
-        vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidEpochEnd.selector, block.timestamp));
-        deployer.deploy(config, address(deployer));
-
-        config = _config();
-        config.contractURI = "";
-        vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
-        deployer.deploy(config, address(deployer));
-    }
-
-    function testRejectsNoncanonicalRobinhoodWeth() public {
-        vm.chainId(4_663);
-        StaticsGenesisDeploymentConfig memory config = _config();
-        string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
-        address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DeployStaticsGenesis.InvalidRobinhoodWeth.selector, canonicalWeth, config.numeraire
-            )
-        );
-        deployer.deploy(config, address(deployer));
-    }
-
-    function testRejectsRobinhoodWethCodeHashDrift() public {
-        vm.chainId(4_663);
-        string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
-        address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
-        bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
-        vm.etch(canonicalWeth, hex"60006000fd");
-        StaticsGenesisDeploymentConfig memory config = _config();
-        config.numeraire = canonicalWeth;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DeployStaticsGenesis.InvalidRobinhoodWethCodeHash.selector, expectedCodeHash, canonicalWeth.codehash
-            )
-        );
-        deployer.deploy(config, address(deployer));
-    }
-
-    function testLocalForkEntrypointRejectsWrongChainBeforeReadingSecrets() public {
-        DeployStaticsGenesisLocalFork localForkDeployer = new DeployStaticsGenesisLocalFork();
-        vm.expectRevert(
-            abi.encodeWithSelector(DeployStaticsGenesisLocalFork.InvalidLocalForkChain.selector, block.chainid)
-        );
-        localForkDeployer.runLocalFork();
-    }
-
-    function _config() private returns (StaticsGenesisDeploymentConfig memory config) {
-        DeploymentModule tokenFactory = new DeploymentModule();
-        DeploymentModule governanceFactory = new DeploymentModule();
-        DeploymentModule noOpMigrator = new DeploymentModule();
-        config = StaticsGenesisDeploymentConfig({
-            governance: governance,
-            treasury: treasury,
-            numeraire: address(weth),
-            integrator: address(0),
-            modules: StaticsDopplerLaunchConfig.Modules({
-                airlock: address(airlock),
-                tokenFactory: address(tokenFactory),
-                governanceFactory: address(governanceFactory),
-                poolInitializer: address(initializer),
-                noOpMigrator: address(noOpMigrator)
-            }),
-            salt: keccak256("STATICS_DOPPLER_TEST"),
-            fee: 30_000,
-            genesisRewardShareBps: 5_000,
-            reserveShareBps: 5_000,
-            genesisEpochEnd: block.timestamp + 7 days,
-            tokenURI: "ipfs://statics/token.json",
-            contractURI: "ipfs://statics-genesis/contract.json",
-            externalURLBase: "https://statics.finance/genesis/"
-        });
-    }
-
-    function _codeHashes() private pure returns (StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes) {
-        codeHashes = StaticsDopplerLaunchConfig.RuntimeCodeHashes({
-            airlock: keccak256("airlock"),
-            tokenFactory: keccak256("tokenFactory"),
-            governanceFactory: keccak256("governanceFactory"),
-            poolInitializer: keccak256("poolInitializer"),
-            noOpMigrator: keccak256("noOpMigrator")
-        });
-    }
-}
