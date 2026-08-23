@@ -188,8 +188,11 @@ contract GlobalRewardOptInInvariantTest is StdInvariant, StaticsTestBase {
     function invariantEligibleStakeMatchesSelectedPositionBalances() public view {
         for (uint256 i; i < handler.rewardTokenCount(); ++i) {
             address asset = handler.rewardToken(i);
-            assertEq(globalRewards.rewardAsset(asset).eligibleStake, handler.eligibleStake(asset));
-            assertEq(globalRewards.rewardAsset(asset).pendingStake, handler.pendingStake(asset));
+            IStaticsGlobalRewards.RewardAssetView memory book = globalRewards.rewardAsset(asset);
+            assertEq(book.eligibleStake, handler.eligibleStake(asset));
+            assertEq(book.pendingStake, handler.pendingStake(asset));
+            assertEq(book.eligibleWeight, book.eligibleStake);
+            assertEq(book.pendingWeight, book.pendingStake);
         }
     }
 

@@ -15,10 +15,12 @@ library LibGlobalRewards {
     bytes32 internal constant REWARD_STORAGE_POSITION = keccak256("statics.storage.global.rewards.v3");
     uint256 internal constant RAY = 1e27;
     uint256 internal constant MAX_REWARD_ASSETS_PER_POSITION = 64;
+    uint256 internal constant MAX_CHECKPOINT_ASSETS = 8;
     uint256 internal constant REWARD_ELIGIBILITY_DELAY = 24 hours;
     uint256 internal constant REWARD_BUCKET_SIZE = 1 hours;
     uint8 internal constant REWARD_BUCKET_COUNT = 25;
     uint256 internal constant STAKER_SHARE_BPS = 9_000;
+    uint16 internal constant BASE_REWARD_MULTIPLIER_BPS = 10_000;
 
     struct RewardBook {
         uint256 eligibleStake;
@@ -31,6 +33,11 @@ library LibGlobalRewards {
         uint256[25] pendingBuckets;
         mapping(uint40 epoch => uint256 indexRay) activationIndexRay;
         mapping(uint40 epoch => bool recorded) activationRecorded;
+        uint256 eligibleWeight;
+        uint256 pendingWeight;
+        uint256[25] pendingWeightBuckets;
+        uint32 pendingBucketBitmap;
+        bool weightInitialized;
     }
 
     struct PositionSelection {
@@ -39,6 +46,9 @@ library LibGlobalRewards {
         uint256 checkpointRay;
         uint40 pendingStartTime;
         uint40 eligibleAt;
+        uint256 eligibleWeight;
+        uint256 pendingWeight;
+        bool weightInitialized;
     }
 
     struct StakePosition {
@@ -48,6 +58,7 @@ library LibGlobalRewards {
         mapping(address asset => uint256 indexPlusOne) optedInIndexPlusOne;
         mapping(address asset => PositionSelection selection) selections;
         mapping(address asset => uint256 amount) claimable;
+        uint16 rewardMultiplierBps;
     }
 
     struct RewardStorage {
@@ -65,6 +76,9 @@ library LibGlobalRewards {
     error RewardAssetNotOptedIn(uint256 positionId, address asset);
     error RewardAssetLimitExceeded(uint256 positionId);
     error InvalidMaturitySchedule(uint40 eligibleAt);
+    error InvalidRewardMultiplier(uint16 multiplierBps);
+    error InvalidCheckpointAssetCount(uint256 count);
+    error RewardBookNeedsCheckpoint(address asset);
 
     function rewardStorage() internal pure returns (RewardStorage storage rs) {
         bytes32 position = REWARD_STORAGE_POSITION;
@@ -87,9 +101,9 @@ library LibGlobalRewards {
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
         uint256 stakerAmount;
-        if (book.eligibleStake != 0) {
+        if (book.eligibleWeight != 0) {
             stakerAmount = Math.mulDiv(grossFee, STAKER_SHARE_BPS, LibBasket.BPS);
-            _increaseIndex(book, stakerAmount, book.eligibleStake);
+            _increaseIndex(book, stakerAmount, book.eligibleWeight);
         }
         uint256 treasuryAmount = grossFee - stakerAmount;
         rs.treasuryAccrued[asset] += treasuryAmount;
@@ -101,8 +115,8 @@ library LibGlobalRewards {
         RewardStorage storage rs = rewardStorage();
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
-        if (book.eligibleStake == 0) revert InvalidRewardAsset(asset);
-        _increaseIndex(book, amount, book.eligibleStake);
+        if (book.eligibleWeight == 0) revert InvalidRewardAsset(asset);
+        _increaseIndex(book, amount, book.eligibleWeight);
         emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, amount, 0, book.indexRay);
     }
 
@@ -127,8 +141,13 @@ library LibGlobalRewards {
         LibPositionPortfolio.addGlobalRewardAsset(positionId, asset);
         PositionSelection storage selection = position.selections[asset];
         selection.checkpointRay = book.indexRay;
-        if (position.balance != 0) _increasePending(positionId, asset, selection, book, position.balance);
-        emit IStaticsGlobalRewards.RewardAssetOptedIn(positionId, asset, selection.pendingStake, selection.eligibleAt);
+        selection.weightInitialized = true;
+        if (position.balance != 0) {
+            _increasePending(positionId, asset, selection, book, position.balance, effectiveRewardMultiplier(position));
+        }
+        emit IStaticsGlobalRewards.RewardAssetOptedIn(
+            positionId, asset, selection.pendingStake, selection.pendingWeight, selection.eligibleAt
+        );
     }
 
     function optOut(uint256 positionId, address asset) internal {
@@ -139,63 +158,157 @@ library LibGlobalRewards {
         settleAsset(positionId, asset);
         RewardBook storage book = rs.books[asset];
         PositionSelection storage selection = position.selections[asset];
+        _ensureSelectionWeight(selection);
         uint256 removedEligible = selection.eligibleStake;
         uint256 removedPending = selection.pendingStake;
-        if (removedEligible != 0) book.eligibleStake -= removedEligible;
+        uint256 removedEligibleWeight = selection.eligibleWeight;
+        uint256 removedPendingWeight = selection.pendingWeight;
+        if (removedEligible != 0) {
+            book.eligibleStake -= removedEligible;
+            book.eligibleWeight -= removedEligibleWeight;
+        }
         if (removedPending != 0) {
-            _removePendingBucket(book, selection.eligibleAt, removedPending);
+            _removePendingBucket(book, selection.eligibleAt, removedPending, removedPendingWeight);
             book.pendingStake -= removedPending;
+            book.pendingWeight -= removedPendingWeight;
         }
         _removeOptIn(position, asset, indexPlusOne);
         if (position.claimable[asset] == 0) LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
         _routeDustIfEmpty(rs, asset, book);
-        emit IStaticsGlobalRewards.RewardAssetOptedOut(positionId, asset, removedEligible, removedPending);
+        emit IStaticsGlobalRewards.RewardAssetOptedOut(
+            positionId, asset, removedEligible, removedPending, removedEligibleWeight, removedPendingWeight
+        );
     }
 
     function increaseStake(uint256 positionId, uint256 amount) internal {
         RewardStorage storage rs = rewardStorage();
         StakePosition storage position = rs.positions[positionId];
+        uint16 multiplierBps = effectiveRewardMultiplier(position);
         uint256 length = position.optedInAssets.length;
         for (uint256 i; i < length; ++i) {
             address asset = position.optedInAssets[i];
             RewardBook storage book = rs.books[asset];
             _rollMatured(asset, book);
             PositionSelection storage selection = position.selections[asset];
+            _ensureSelectionWeight(selection);
             _settleEligible(rs, position, positionId, asset, selection, book);
             _syncMatured(position, positionId, asset, selection, book);
-            _increasePending(positionId, asset, selection, book, amount);
+            _increasePending(positionId, asset, selection, book, amount, multiplierBps);
         }
     }
 
     function decreaseStake(uint256 positionId, uint256 amount) internal {
         RewardStorage storage rs = rewardStorage();
         StakePosition storage position = rs.positions[positionId];
+        uint16 multiplierBps = effectiveRewardMultiplier(position);
         uint256 length = position.optedInAssets.length;
         for (uint256 i; i < length; ++i) {
             address asset = position.optedInAssets[i];
             RewardBook storage book = rs.books[asset];
             _rollMatured(asset, book);
             PositionSelection storage selection = position.selections[asset];
+            _ensureSelectionWeight(selection);
             _settleEligible(rs, position, positionId, asset, selection, book);
             _syncMatured(position, positionId, asset, selection, book);
 
             uint256 pendingReduction = amount < selection.pendingStake ? amount : selection.pendingStake;
             if (pendingReduction != 0) {
-                _removePendingBucket(book, selection.eligibleAt, pendingReduction);
-                selection.pendingStake -= pendingReduction;
+                uint256 priorPending = selection.pendingStake;
+                uint256 priorPendingWeight = selection.pendingWeight;
+                _removePendingBucket(book, selection.eligibleAt, priorPending, priorPendingWeight);
+                uint256 remainingPending = priorPending - pendingReduction;
+                uint256 remainingPendingWeight = _weight(remainingPending, multiplierBps);
+                selection.pendingStake = remainingPending;
+                selection.pendingWeight = remainingPendingWeight;
                 book.pendingStake -= pendingReduction;
-                if (selection.pendingStake == 0) {
+                book.pendingWeight = book.pendingWeight - priorPendingWeight + remainingPendingWeight;
+                if (remainingPending == 0) {
                     selection.pendingStartTime = 0;
                     selection.eligibleAt = 0;
+                } else {
+                    _addPendingBucket(book, selection.eligibleAt, remainingPending, remainingPendingWeight);
                 }
             }
             uint256 eligibleReduction = amount - pendingReduction;
             if (eligibleReduction != 0) {
-                selection.eligibleStake -= eligibleReduction;
+                uint256 priorEligible = selection.eligibleStake;
+                uint256 priorEligibleWeight = selection.eligibleWeight;
+                uint256 remainingEligible = priorEligible - eligibleReduction;
+                uint256 remainingEligibleWeight = _weight(remainingEligible, multiplierBps);
+                selection.eligibleStake = remainingEligible;
+                selection.eligibleWeight = remainingEligibleWeight;
                 book.eligibleStake -= eligibleReduction;
+                book.eligibleWeight = book.eligibleWeight - priorEligibleWeight + remainingEligibleWeight;
             }
             _routeDustIfEmpty(rs, asset, book);
         }
+    }
+
+    function transitionPositionWeight(uint256 positionId, uint16 newMultiplierBps) internal {
+        _validateMultiplier(newMultiplierBps);
+        RewardStorage storage rs = rewardStorage();
+        StakePosition storage position = rs.positions[positionId];
+        uint16 previousMultiplierBps = effectiveRewardMultiplier(position);
+        if (previousMultiplierBps == newMultiplierBps) {
+            position.rewardMultiplierBps = newMultiplierBps;
+            return;
+        }
+
+        _enforcePositionBooksFresh(rs, position);
+        uint256 length = position.optedInAssets.length;
+        for (uint256 i; i < length; ++i) {
+            address asset = position.optedInAssets[i];
+            RewardBook storage book = rs.books[asset];
+            PositionSelection storage selection = position.selections[asset];
+            _ensureSelectionWeight(selection);
+            _settleEligible(rs, position, positionId, asset, selection, book);
+            _syncMatured(position, positionId, asset, selection, book);
+
+            uint256 previousEligibleWeight = selection.eligibleWeight;
+            uint256 nextEligibleWeight = _weight(selection.eligibleStake, newMultiplierBps);
+            selection.eligibleWeight = nextEligibleWeight;
+            book.eligibleWeight = book.eligibleWeight - previousEligibleWeight + nextEligibleWeight;
+
+            uint256 previousPendingWeight = selection.pendingWeight;
+            if (selection.pendingStake != 0) {
+                _removePendingBucket(book, selection.eligibleAt, selection.pendingStake, previousPendingWeight);
+                uint256 nextPendingWeight = _weight(selection.pendingStake, newMultiplierBps);
+                selection.pendingWeight = nextPendingWeight;
+                book.pendingWeight = book.pendingWeight - previousPendingWeight + nextPendingWeight;
+                _addPendingBucket(book, selection.eligibleAt, selection.pendingStake, nextPendingWeight);
+            }
+
+            emit IStaticsGlobalRewards.PositionRewardWeightChanged(
+                positionId, asset, previousMultiplierBps, newMultiplierBps, nextEligibleWeight, selection.pendingWeight
+            );
+        }
+        position.rewardMultiplierBps = newMultiplierBps;
+    }
+
+    function checkpointRewardAssets(address[] calldata assets) internal {
+        uint256 length = assets.length;
+        if (length == 0 || length > MAX_CHECKPOINT_ASSETS) revert InvalidCheckpointAssetCount(length);
+        RewardStorage storage rs = rewardStorage();
+        for (uint256 i; i < length; ++i) {
+            address asset = assets[i];
+            if (asset == address(0)) revert InvalidRewardAsset(asset);
+            _rollMatured(asset, rs.books[asset]);
+            emit IStaticsGlobalRewards.RewardBookCheckpointed(asset);
+        }
+    }
+
+    function enforcePositionRewardBooksFresh(uint256 positionId) internal view {
+        RewardStorage storage rs = rewardStorage();
+        _enforcePositionBooksFresh(rs, rs.positions[positionId]);
+    }
+
+    function rewardBookNeedsCheckpoint(address asset) internal view returns (bool) {
+        return _needsCheckpoint(rewardStorage().books[asset]);
+    }
+
+    function effectiveRewardMultiplier(StakePosition storage position) internal view returns (uint16) {
+        uint16 multiplierBps = position.rewardMultiplierBps;
+        return multiplierBps == 0 ? BASE_REWARD_MULTIPLIER_BPS : multiplierBps;
     }
 
     function clearOptInsAfterFullUnstake(uint256 positionId) internal {
@@ -207,7 +320,7 @@ library LibGlobalRewards {
             delete position.optedInIndexPlusOne[asset];
             delete position.selections[asset];
             if (position.claimable[asset] == 0) LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
-            emit IStaticsGlobalRewards.RewardAssetOptedOut(positionId, asset, 0, 0);
+            emit IStaticsGlobalRewards.RewardAssetOptedOut(positionId, asset, 0, 0, 0, 0);
         }
     }
 
@@ -218,6 +331,7 @@ library LibGlobalRewards {
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
         PositionSelection storage selection = position.selections[asset];
+        _ensureSelectionWeight(selection);
         _settleEligible(rs, position, positionId, asset, selection, book);
         _syncMatured(position, positionId, asset, selection, book);
     }
@@ -229,15 +343,17 @@ library LibGlobalRewards {
         if (position.optedInIndexPlusOne[asset] == 0) return amount;
         RewardBook storage book = rs.books[asset];
         PositionSelection storage selection = position.selections[asset];
-        if (selection.eligibleStake != 0 && book.indexRay > selection.checkpointRay) {
-            amount += Math.mulDiv(selection.eligibleStake, book.indexRay - selection.checkpointRay, RAY);
+        uint256 eligibleWeight = _selectionEligibleWeight(selection);
+        if (eligibleWeight != 0 && book.indexRay > selection.checkpointRay) {
+            amount += Math.mulDiv(eligibleWeight, book.indexRay - selection.checkpointRay, RAY);
         }
-        if (selection.pendingStake != 0) {
+        uint256 pendingWeight = _selectionPendingWeight(selection);
+        if (pendingWeight != 0) {
             uint40 epoch = uint40(uint256(selection.eligibleAt) / REWARD_BUCKET_SIZE);
             if (book.activationRecorded[epoch]) {
                 uint256 activationIndex = book.activationIndexRay[epoch];
                 if (book.indexRay > activationIndex) {
-                    amount += Math.mulDiv(selection.pendingStake, book.indexRay - activationIndex, RAY);
+                    amount += Math.mulDiv(pendingWeight, book.indexRay - activationIndex, RAY);
                 }
             }
         }
@@ -251,6 +367,14 @@ library LibGlobalRewards {
         return book.pendingStake - _duePendingStake(book);
     }
 
+    function effectiveEligibleWeight(RewardBook storage book) internal view returns (uint256 total) {
+        total = _bookEligibleWeight(book) + _duePendingWeight(book);
+    }
+
+    function effectivePendingWeight(RewardBook storage book) internal view returns (uint256) {
+        return _bookPendingWeight(book) - _duePendingWeight(book);
+    }
+
     function selectionView(uint256 positionId, address asset)
         internal
         view
@@ -261,14 +385,18 @@ library LibGlobalRewards {
         if (!result.selected) return result;
         PositionSelection storage selection = position.selections[asset];
         result.eligibleStake = selection.eligibleStake;
+        result.eligibleWeight = _selectionEligibleWeight(selection);
         result.pendingStake = selection.pendingStake;
+        result.pendingWeight = _selectionPendingWeight(selection);
         result.eligibleAt = selection.eligibleAt;
         if (selection.pendingStake == 0) return result;
         RewardBook storage book = rewardStorage().books[asset];
         uint40 epoch = uint40(uint256(selection.eligibleAt) / REWARD_BUCKET_SIZE);
         if (book.activationRecorded[epoch] || block.timestamp >= selection.eligibleAt) {
             result.eligibleStake += result.pendingStake;
+            result.eligibleWeight += result.pendingWeight;
             result.pendingStake = 0;
+            result.pendingWeight = 0;
             result.eligibleAt = 0;
         }
     }
@@ -307,7 +435,7 @@ library LibGlobalRewards {
     }
 
     function _routeDustIfEmpty(RewardStorage storage rs, address asset, RewardBook storage book) private {
-        if (book.eligibleStake != 0 || book.indexedAmount == 0) return;
+        if (book.eligibleWeight != 0 || book.indexedAmount == 0) return;
         uint256 dust = book.indexedAmount - book.crystallizedAmount;
         book.indexedAmount = 0;
         book.crystallizedAmount = 0;
@@ -327,12 +455,14 @@ library LibGlobalRewards {
         address asset,
         PositionSelection storage selection,
         RewardBook storage book,
-        uint256 amount
+        uint256 amount,
+        uint16 multiplierBps
     ) private {
         uint256 priorPending = selection.pendingStake;
+        uint256 priorPendingWeight = selection.pendingWeight;
         uint256 priorCredit;
         if (priorPending != 0) {
-            _removePendingBucket(book, selection.eligibleAt, priorPending);
+            _removePendingBucket(book, selection.eligibleAt, priorPending, priorPendingWeight);
             if (block.timestamp > selection.pendingStartTime) {
                 priorCredit = block.timestamp - selection.pendingStartTime;
                 if (priorCredit > REWARD_ELIGIBILITY_DELAY) priorCredit = REWARD_ELIGIBILITY_DELAY;
@@ -340,16 +470,19 @@ library LibGlobalRewards {
         }
 
         uint256 totalPending = priorPending + amount;
+        uint256 totalPendingWeight = _weight(totalPending, multiplierBps);
         uint256 weightedCredit = priorPending == 0 ? 0 : Math.mulDiv(priorPending, priorCredit, totalPending);
         uint256 pendingStart = block.timestamp - weightedCredit;
         uint40 eligibleAt = _eligibleAt(pendingStart);
 
         selection.pendingStake = totalPending;
+        selection.pendingWeight = totalPendingWeight;
         selection.pendingStartTime = pendingStart.toUint40();
         selection.eligibleAt = eligibleAt;
         book.pendingStake += amount;
-        _addPendingBucket(book, eligibleAt, totalPending);
-        emit IStaticsGlobalRewards.RewardStakeScheduled(positionId, asset, totalPending, eligibleAt);
+        book.pendingWeight = book.pendingWeight - priorPendingWeight + totalPendingWeight;
+        _addPendingBucket(book, eligibleAt, totalPending, totalPendingWeight);
+        emit IStaticsGlobalRewards.RewardStakeScheduled(positionId, asset, totalPending, totalPendingWeight, eligibleAt);
     }
 
     function _syncMatured(
@@ -366,20 +499,23 @@ library LibGlobalRewards {
         if (!book.activationRecorded[epoch]) return;
 
         uint256 activationIndex = book.activationIndexRay[epoch];
+        uint256 pendingWeight = selection.pendingWeight;
         uint256 added;
         if (book.indexRay > activationIndex) {
-            added = Math.mulDiv(pendingStake, book.indexRay - activationIndex, RAY);
+            added = Math.mulDiv(pendingWeight, book.indexRay - activationIndex, RAY);
             _increaseClaimable(rewardStorage(), position, asset, added);
             book.crystallizedAmount += added;
         }
 
         selection.eligibleStake += pendingStake;
+        selection.eligibleWeight += pendingWeight;
         selection.pendingStake = 0;
+        selection.pendingWeight = 0;
         selection.pendingStartTime = 0;
         selection.eligibleAt = 0;
         selection.checkpointRay = book.indexRay;
         emit IStaticsGlobalRewards.PositionRewardEligibilityActivated(
-            positionId, asset, pendingStake, eligibleAt, activationIndex
+            positionId, asset, pendingStake, pendingWeight, eligibleAt, activationIndex
         );
     }
 
@@ -393,8 +529,8 @@ library LibGlobalRewards {
     ) private {
         uint256 priorIndex = selection.checkpointRay;
         uint256 added;
-        if (selection.eligibleStake != 0 && book.indexRay > priorIndex) {
-            added = Math.mulDiv(selection.eligibleStake, book.indexRay - priorIndex, RAY);
+        if (selection.eligibleWeight != 0 && book.indexRay > priorIndex) {
+            added = Math.mulDiv(selection.eligibleWeight, book.indexRay - priorIndex, RAY);
             _increaseClaimable(rs, position, asset, added);
             book.crystallizedAmount += added;
         }
@@ -412,6 +548,7 @@ library LibGlobalRewards {
     }
 
     function _rollMatured(address asset, RewardBook storage book) private {
+        _ensureBookWeights(book);
         uint40 currentEpoch = (block.timestamp / REWARD_BUCKET_SIZE).toUint40();
         uint40 nextEpoch = book.nextBucketEpoch;
         if (nextEpoch == 0) {
@@ -426,17 +563,7 @@ library LibGlobalRewards {
         for (uint256 i; i < elapsed; ++i) {
             uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
             uint40 epoch = nextEpoch + uint40(i);
-            uint256 amount = book.pendingBuckets[index];
-            if (amount != 0) {
-                book.pendingBuckets[index] = 0;
-                book.pendingStake -= amount;
-                book.eligibleStake += amount;
-                book.activationIndexRay[epoch] = book.indexRay;
-                book.activationRecorded[epoch] = true;
-                emit IStaticsGlobalRewards.RewardBucketMatured(
-                    asset, (uint256(epoch) * REWARD_BUCKET_SIZE).toUint40(), amount, book.eligibleStake, book.indexRay
-                );
-            }
+            _matureBucket(asset, book, index, epoch);
         }
 
         if (uint256(currentEpoch - nextEpoch) + 1 >= REWARD_BUCKET_COUNT) {
@@ -448,7 +575,31 @@ library LibGlobalRewards {
         }
     }
 
-    function _addPendingBucket(RewardBook storage book, uint40 eligibleAt, uint256 amount) private {
+    function _matureBucket(address asset, RewardBook storage book, uint8 index, uint40 epoch) private {
+        uint256 stake = book.pendingBuckets[index];
+        if (stake == 0) return;
+        uint256 weight = book.pendingWeightBuckets[index];
+        book.pendingBucketBitmap &= ~(uint32(1) << index);
+        book.pendingBuckets[index] = 0;
+        book.pendingWeightBuckets[index] = 0;
+        book.pendingStake -= stake;
+        book.eligibleStake += stake;
+        book.pendingWeight -= weight;
+        book.eligibleWeight += weight;
+        book.activationIndexRay[epoch] = book.indexRay;
+        book.activationRecorded[epoch] = true;
+        emit IStaticsGlobalRewards.RewardBucketMatured(
+            asset,
+            (uint256(epoch) * REWARD_BUCKET_SIZE).toUint40(),
+            stake,
+            weight,
+            book.eligibleStake,
+            book.eligibleWeight,
+            book.indexRay
+        );
+    }
+
+    function _addPendingBucket(RewardBook storage book, uint40 eligibleAt, uint256 amount, uint256 weight) private {
         uint40 epoch = uint40(uint256(eligibleAt) / REWARD_BUCKET_SIZE);
         uint40 nextEpoch = book.nextBucketEpoch;
         if (epoch < nextEpoch) revert InvalidMaturitySchedule(eligibleAt);
@@ -456,9 +607,11 @@ library LibGlobalRewards {
         if (offset >= REWARD_BUCKET_COUNT) revert InvalidMaturitySchedule(eligibleAt);
         uint8 index = uint8((uint256(book.bucketCursor) + offset) % REWARD_BUCKET_COUNT);
         book.pendingBuckets[index] += amount;
+        book.pendingWeightBuckets[index] += weight;
+        book.pendingBucketBitmap |= uint32(1) << index;
     }
 
-    function _removePendingBucket(RewardBook storage book, uint40 eligibleAt, uint256 amount) private {
+    function _removePendingBucket(RewardBook storage book, uint40 eligibleAt, uint256 amount, uint256 weight) private {
         uint40 epoch = uint40(uint256(eligibleAt) / REWARD_BUCKET_SIZE);
         uint40 nextEpoch = book.nextBucketEpoch;
         if (epoch < nextEpoch) revert InvalidMaturitySchedule(eligibleAt);
@@ -466,6 +619,8 @@ library LibGlobalRewards {
         if (offset >= REWARD_BUCKET_COUNT) revert InvalidMaturitySchedule(eligibleAt);
         uint8 index = uint8((uint256(book.bucketCursor) + offset) % REWARD_BUCKET_COUNT);
         book.pendingBuckets[index] -= amount;
+        book.pendingWeightBuckets[index] -= weight;
+        if (book.pendingBuckets[index] == 0) book.pendingBucketBitmap &= ~(uint32(1) << index);
     }
 
     function _duePendingStake(RewardBook storage book) private view returns (uint256 total) {
@@ -481,9 +636,101 @@ library LibGlobalRewards {
         }
     }
 
+    function _duePendingWeight(RewardBook storage book) private view returns (uint256 total) {
+        uint40 nextEpoch = book.nextBucketEpoch;
+        if (nextEpoch == 0) return 0;
+        uint40 currentEpoch = (block.timestamp / REWARD_BUCKET_SIZE).toUint40();
+        if (currentEpoch < nextEpoch) return 0;
+        uint256 elapsed = uint256(currentEpoch - nextEpoch) + 1;
+        if (elapsed > REWARD_BUCKET_COUNT) elapsed = REWARD_BUCKET_COUNT;
+        uint8 cursor = book.bucketCursor;
+        bool initialized = book.weightInitialized;
+        for (uint256 i; i < elapsed; ++i) {
+            uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
+            total += initialized ? book.pendingWeightBuckets[index] : book.pendingBuckets[index];
+        }
+    }
+
+    function _needsCheckpoint(RewardBook storage book) private view returns (bool) {
+        if (!book.weightInitialized && (book.eligibleStake != 0 || book.pendingStake != 0)) return true;
+        uint40 nextEpoch = book.nextBucketEpoch;
+        if (nextEpoch == 0) return false;
+        uint40 currentEpoch = (block.timestamp / REWARD_BUCKET_SIZE).toUint40();
+        if (currentEpoch < nextEpoch) return false;
+        uint256 elapsed = uint256(currentEpoch - nextEpoch) + 1;
+        if (elapsed > REWARD_BUCKET_COUNT) elapsed = REWARD_BUCKET_COUNT;
+        uint32 bitmap = book.pendingBucketBitmap;
+        uint8 cursor = book.bucketCursor;
+        if (!book.weightInitialized) {
+            for (uint256 i; i < elapsed; ++i) {
+                uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
+                if (book.pendingBuckets[index] != 0) return true;
+            }
+        } else {
+            for (uint256 i; i < elapsed; ++i) {
+                uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
+                if (bitmap & (uint32(1) << index) != 0) return true;
+            }
+        }
+        return elapsed >= REWARD_BUCKET_COUNT - 1;
+    }
+
+    function _enforcePositionBooksFresh(RewardStorage storage rs, StakePosition storage position) private view {
+        uint256 length = position.optedInAssets.length;
+        for (uint256 i; i < length; ++i) {
+            address asset = position.optedInAssets[i];
+            if (_needsCheckpoint(rs.books[asset])) revert RewardBookNeedsCheckpoint(asset);
+        }
+    }
+
+    function _ensureBookWeights(RewardBook storage book) private {
+        if (book.weightInitialized) return;
+        book.eligibleWeight = book.eligibleStake;
+        book.pendingWeight = book.pendingStake;
+        uint32 bitmap;
+        for (uint256 i; i < REWARD_BUCKET_COUNT; ++i) {
+            uint256 pendingAmount = book.pendingBuckets[i];
+            book.pendingWeightBuckets[i] = pendingAmount;
+            if (pendingAmount != 0) bitmap |= uint32(1) << uint32(i);
+        }
+        book.pendingBucketBitmap = bitmap;
+        book.weightInitialized = true;
+    }
+
+    function _ensureSelectionWeight(PositionSelection storage selection) private {
+        if (selection.weightInitialized) return;
+        selection.eligibleWeight = selection.eligibleStake;
+        selection.pendingWeight = selection.pendingStake;
+        selection.weightInitialized = true;
+    }
+
+    function _bookEligibleWeight(RewardBook storage book) private view returns (uint256) {
+        return book.weightInitialized ? book.eligibleWeight : book.eligibleStake;
+    }
+
+    function _bookPendingWeight(RewardBook storage book) private view returns (uint256) {
+        return book.weightInitialized ? book.pendingWeight : book.pendingStake;
+    }
+
+    function _selectionEligibleWeight(PositionSelection storage selection) private view returns (uint256) {
+        return selection.weightInitialized ? selection.eligibleWeight : selection.eligibleStake;
+    }
+
+    function _selectionPendingWeight(PositionSelection storage selection) private view returns (uint256) {
+        return selection.weightInitialized ? selection.pendingWeight : selection.pendingStake;
+    }
+
     function _eligibleAt(uint256 pendingStart) private pure returns (uint40) {
         uint256 raw = pendingStart + REWARD_ELIGIBILITY_DELAY;
         uint256 rounded = Math.ceilDiv(raw, REWARD_BUCKET_SIZE) * REWARD_BUCKET_SIZE;
         return rounded.toUint40();
+    }
+
+    function _weight(uint256 stake, uint16 multiplierBps) private pure returns (uint256) {
+        return Math.mulDiv(stake, multiplierBps, BASE_REWARD_MULTIPLIER_BPS);
+    }
+
+    function _validateMultiplier(uint16 multiplierBps) private pure {
+        if (multiplierBps < BASE_REWARD_MULTIPLIER_BPS) revert InvalidRewardMultiplier(multiplierBps);
     }
 }
