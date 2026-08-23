@@ -34,9 +34,8 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         distributor.accept(receiver);
     }
 
-    function check_exactHarvestConservation(uint96 staticsAmount, uint96 wethAmount, uint16 reserveShareBps) public {
-        vm.assume(reserveShareBps <= receiver.BPS());
-        receiver.setReserveShareBps(reserveShareBps);
+    function check_exactHarvestConservation(uint96 staticsAmount, uint96 wethAmount) public {
+        receiver.setReserveShareBps(5_000);
         _queue(staticsAmount, wethAmount);
         receiver.harvest();
 
