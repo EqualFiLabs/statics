@@ -12,13 +12,13 @@ run_halmos() {
   local root="$1"
   local contract="$2"
   local output="$3"
-  "$HALMOS_BIN" \
+  FOUNDRY_PROFILE=formal "$HALMOS_BIN" \
     --root "$root" \
     --contract "$contract" \
     --solver-timeout-branching 0 \
     --solver-timeout-assertion 0 \
-    --solver-parallel \
     --solver-threads "${HALMOS_THREADS:-4}" \
+    --forge-build-out out-formal \
     --json-output "$HALMOS_JSON_DIR/$output.json"
 }
 

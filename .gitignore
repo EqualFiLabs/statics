@@ -1,5 +1,6 @@
 cache/
 out/
+out-formal/
 broadcast/
 coverage/
 lcov.info
@@ -14,3 +15,4 @@ x-ray/
 /formal-results/
 /verification/doppler/cache/
 /verification/doppler/out/
+/verification/doppler/out-formal/

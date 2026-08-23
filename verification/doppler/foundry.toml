@@ -13,3 +13,6 @@ via_ir = true
 [fmt]
 line_length = 120
 tab_width = 4
+
+[profile.formal]
+out = "out-formal"
