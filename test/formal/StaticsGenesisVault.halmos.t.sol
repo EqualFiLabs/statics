@@ -29,27 +29,27 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(duringRedemption.reservePayout, 0);
     }
 
-    function check_epochQuotesAfter(uint88 reserve) public {
+    function check_epochPurchaseQuoteAfter(uint80 quotient, uint16 remainder) public {
+        vm.assume(remainder < 5_554);
+        uint256 reserve = uint256(quotient) * 5_554 + remainder;
         _donate(reserve);
         vm.warp(vault.genesisEpochEnd());
         GenesisPurchaseQuote memory afterPurchase = vault.quoteGenesisPurchase();
-        GenesisRedemptionQuote memory afterRedemption = vault.quoteGenesisRedemption();
         assertFalse(afterPurchase.epochActive);
         assertEq(afterPurchase.nativeFee, vault.nativeAcquisitionFee());
         assertEq(afterPurchase.requiredNative, afterPurchase.reserveBuyIn + vault.nativeAcquisitionFee());
+        uint256 expectedBuyIn = uint256(quotient) + (remainder == 0 ? 0 : 1);
+        assertEq(afterPurchase.reserveBuyIn, expectedBuyIn);
+    }
+
+    function check_epochRedemptionQuoteAfter(uint80 quotient, uint16 remainder) public {
+        vm.assume(remainder < 5_555);
+        uint256 reserve = uint256(quotient) * 5_555 + remainder;
+        _donate(reserve);
+        vm.warp(vault.genesisEpochEnd());
+        GenesisRedemptionQuote memory afterRedemption = vault.quoteGenesisRedemption();
         assertFalse(afterRedemption.epochActive);
-
-        uint256 buyIn = afterPurchase.reserveBuyIn;
-        if (reserve == 0) {
-            assertEq(buyIn, 0);
-        } else {
-            assertGe(buyIn * vault.RESERVE_BUY_IN_DENOMINATOR(), reserve);
-            assertLt((buyIn - 1) * vault.RESERVE_BUY_IN_DENOMINATOR(), reserve);
-        }
-
-        uint256 payout = afterRedemption.reservePayout;
-        assertLe(payout * vault.RESERVE_DENOMINATOR(), reserve);
-        assertLt(uint256(reserve) - payout * vault.RESERVE_DENOMINATOR(), vault.RESERVE_DENOMINATOR());
+        assertEq(afterRedemption.reservePayout, quotient);
     }
 
     function check_acquisitionAndRedemptionPreserveSolvency(uint88 reserve, uint88 excessNative) public {
