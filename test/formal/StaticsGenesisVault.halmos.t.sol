@@ -29,9 +29,8 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(duringRedemption.reservePayout, 0);
     }
 
-    /// @dev Quotients through uint64 cover reserves above 100,000 native ETH.
-    ///      Certora separately checks the full-width arithmetic invariant.
-    function check_epochPurchaseQuoteAfter(uint64 quotient, uint16 remainder) public {
+    /// @dev Foundry regression beside Certora's full-width arithmetic rule.
+    function testFuzz_epochPurchaseQuoteAfter(uint64 quotient, uint16 remainder) public {
         vm.assume(remainder < 5_554);
         uint256 reserve = uint256(quotient) * 5_554 + remainder;
         _donate(reserve);
@@ -44,7 +43,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(afterPurchase.reserveBuyIn, expectedBuyIn);
     }
 
-    function check_epochRedemptionQuoteAfter(uint64 quotient, uint16 remainder) public {
+    function testFuzz_epochRedemptionQuoteAfter(uint64 quotient, uint16 remainder) public {
         vm.assume(remainder < 5_555);
         uint256 reserve = uint256(quotient) * 5_555 + remainder;
         _donate(reserve);
