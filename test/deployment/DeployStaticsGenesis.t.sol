@@ -184,43 +184,105 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(distributor.pendingOwner(), address(0));
         }
 
-        function testFourCurveFixtureUsesExactPlaceholderWeights() public view {
+        function testSixCurveLaunchGeometryMatchesEconomicModel() public view {
             DopplerLaunchTypes.Curve[] memory curves = deployer.defaultCurves();
-            assertEq(curves.length, 4);
-            assertEq(curves[0].shares, 0.5 ether);
-            assertEq(curves[1].shares, 0.25 ether);
-            assertEq(curves[2].shares, 0.24 ether);
-            assertEq(curves[3].shares, 0.01 ether);
+            assertEq(curves.length, 6);
+
+            assertEq(curves[0].tickLower, -168_800);
+            assertEq(curves[0].tickUpper, -153_800);
             assertEq(curves[0].numPositions, 11);
-            assertEq(curves[3].tickLower, -84_100);
-            assertEq(curves[3].tickUpper, -83_000);
+            assertEq(curves[0].shares, 0.025 ether);
+
+            assertEq(curves[1].tickLower, -160_700);
+            assertEq(curves[1].tickUpper, -139_900);
+            assertEq(curves[1].numPositions, 11);
+            assertEq(curves[1].shares, 0.075 ether);
+
+            assertEq(curves[2].tickLower, -146_900);
+            assertEq(curves[2].tickUpper, -123_800);
+            assertEq(curves[2].numPositions, 11);
+            assertEq(curves[2].shares, 0.125 ether);
+
+            assertEq(curves[3].tickLower, -130_800);
+            assertEq(curves[3].tickUpper, -100_800);
+            assertEq(curves[3].numPositions, 11);
+            assertEq(curves[3].shares, 0.2 ether);
+
+            assertEq(curves[4].tickLower, -107_700);
+            assertEq(curves[4].tickUpper, -77_800);
+            assertEq(curves[4].numPositions, 11);
+            assertEq(curves[4].shares, 0.425 ether);
+
+            assertEq(curves[5].tickLower, -77_800);
+            assertEq(curves[5].tickUpper, 887_200);
+            assertEq(curves[5].numPositions, 1);
+            assertEq(curves[5].shares, 0.15 ether);
+
+            uint256 totalShares;
+            for (uint256 i; i < curves.length; ++i) {
+                totalShares += curves[i].shares;
+            }
+            assertEq(totalShares, 1 ether);
+            assertEq(curves[4].tickUpper, curves[5].tickLower);
+            assertEq(deployer.FAR_TICK(), 887_100);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
-            uint256 epochEnd = block.timestamp + 7 days;
-            address canonicalWeth = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+        }
+
+        function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
             bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
-            bytes32 launchHash =
-                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd, canonicalWeth, canonicalWethHash);
-            assertTrue(launchHash != bytes32(0));
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(30_000, 5_000, 4_000, epochEnd, canonicalWeth, canonicalWethHash)
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
+            assertNotEq(launchHash, bytes32(0));
+
+            config.fee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.fee -= 1;
+            config.genesisRewardShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.genesisRewardShareBps -= 1;
+            config.reserveShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.reserveShareBps -= 1;
+            config.genesisEpochEnd += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.genesisEpochEnd -= 1;
+            config.governance = address(uint160(config.governance) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.governance = governance;
+            config.treasury = address(uint160(config.treasury) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.treasury = treasury;
+            config.integrator = makeAddr("integrator");
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.integrator = address(0);
+            config.salt = bytes32(uint256(config.salt) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+        }
+
+        function testLaunchManifestHashBindsDependenciesAndMetadata() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
+
+            config.numeraire = address(uint160(config.numeraire) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.numeraire = address(weth);
+            config.modules.airlock = address(uint160(config.modules.airlock) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.airlock = address(airlock);
+            codeHashes.poolInitializer = bytes32(uint256(codeHashes.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            assertNotEq(
+                deployer.launchConfigHash(config, bytes32(uint256(canonicalWethHash) + 1), codeHashes), launchHash
             );
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd + 1, canonicalWeth, canonicalWethHash)
-            );
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(
-                        30_000, 5_000, 5_000, epochEnd, address(uint160(canonicalWeth) + 1), canonicalWethHash
-                    )
-            );
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(
-                        30_000, 5_000, 5_000, epochEnd, canonicalWeth, bytes32(uint256(canonicalWethHash) + 1)
-                    )
-            );
+            config.contractURI = "ipfs://different-contract.json";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.contractURI = "ipfs://statics-genesis/contract.json";
+            config.externalURLBase = "https://example.com/genesis/";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
         function testRejectsExcessiveMulticurveResidual() public {
@@ -315,6 +377,16 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",
                 externalURLBase: "https://statics.finance/genesis/"
+            });
+        }
+
+        function _codeHashes() private pure returns (StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes) {
+            codeHashes = StaticsDopplerLaunchConfig.RuntimeCodeHashes({
+                airlock: keccak256("airlock"),
+                tokenFactory: keccak256("tokenFactory"),
+                governanceFactory: keccak256("governanceFactory"),
+                poolInitializer: keccak256("poolInitializer"),
+                noOpMigrator: keccak256("noOpMigrator")
             });
         }
     }

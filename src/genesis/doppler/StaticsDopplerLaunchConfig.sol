@@ -16,6 +16,14 @@ library StaticsDopplerLaunchConfig {
         address noOpMigrator;
     }
 
+    struct RuntimeCodeHashes {
+        bytes32 airlock;
+        bytes32 tokenFactory;
+        bytes32 governanceFactory;
+        bytes32 poolInitializer;
+        bytes32 noOpMigrator;
+    }
+
     error UnsupportedDopplerChain(uint256 chainId);
 
     function modules(uint256 chainId) internal pure returns (Modules memory config) {

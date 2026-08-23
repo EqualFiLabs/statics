@@ -1,0 +1,14 @@
+{
+  "name": "@statics/genesis-economics",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "generate": "node src/simulate.mjs generate",
+    "check": "node src/simulate.mjs check",
+    "test": "node --test test/simulate.test.mjs"
+  }
+}

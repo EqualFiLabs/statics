@@ -14,6 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  genesis-economics:
+    name: Genesis economics / check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test simulator
+        run: npm --prefix tools/genesis-economics test
+      - name: Check generated reports
+        run: npm --prefix tools/genesis-economics run check
+
   format:
     name: Solidity / format
     runs-on: ubuntu-latest
