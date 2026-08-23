@@ -80,7 +80,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
-    int24 public constant FAR_TICK = -83_100;
+    int24 public constant FAR_TICK = 887_100;
     address public constant GOVERNANCE_DEAD = address(0xdead);
     address public constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
 
@@ -244,17 +244,27 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         return LibStaticsTokenMetadata.tokenURI();
     }
 
-    /// @notice Nonproduction four-curve fixture. Production ranges require a separate ratification.
+    /// @notice Six-curve Robinhood launch geometry pinned to the committed economics model.
     function defaultCurves() public pure returns (DopplerLaunchTypes.Curve[] memory curves) {
-        curves = new DopplerLaunchTypes.Curve[](4);
-        curves[0] =
-            DopplerLaunchTypes.Curve({tickLower: -887_200, tickUpper: -142_200, numPositions: 11, shares: 0.5 ether});
-        curves[1] =
-            DopplerLaunchTypes.Curve({tickLower: -222_200, tickUpper: -116_300, numPositions: 11, shares: 0.25 ether});
-        curves[2] =
-            DopplerLaunchTypes.Curve({tickLower: -176_200, tickUpper: -84_100, numPositions: 11, shares: 0.24 ether});
-        curves[3] =
-            DopplerLaunchTypes.Curve({tickLower: -84_100, tickUpper: -83_000, numPositions: 11, shares: 0.01 ether});
+        curves = new DopplerLaunchTypes.Curve[](6);
+        curves[0] = DopplerLaunchTypes.Curve({
+            tickLower: -168_800, tickUpper: -153_800, numPositions: 11, shares: 0.025 ether
+        });
+        curves[1] = DopplerLaunchTypes.Curve({
+            tickLower: -160_700, tickUpper: -139_900, numPositions: 11, shares: 0.075 ether
+        });
+        curves[2] = DopplerLaunchTypes.Curve({
+            tickLower: -146_900, tickUpper: -123_800, numPositions: 11, shares: 0.125 ether
+        });
+        curves[3] = DopplerLaunchTypes.Curve({
+            tickLower: -130_800, tickUpper: -100_800, numPositions: 11, shares: 0.2 ether
+        });
+        curves[4] = DopplerLaunchTypes.Curve({
+            tickLower: -107_700, tickUpper: -77_800, numPositions: 11, shares: 0.425 ether
+        });
+        curves[5] = DopplerLaunchTypes.Curve({
+            tickLower: -77_800, tickUpper: 887_200, numPositions: 1, shares: 0.15 ether
+        });
     }
 
     function launchConfigHash(
