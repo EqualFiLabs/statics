@@ -14,8 +14,9 @@ test("ports the Uniswap v4 tick constants exactly", () => {
 });
 
 test("aligns the opening price to the cheaper tick", () => {
-  const raw = Math.log((111111.11111111111 / 1e9) / 4000) / Math.log(1.0001);
-  const aligned = fdvToTick("111111.111111111111", "1000000000", "4000", 100);
+  const wethUsd = Number(config.marketReference.wethUsd);
+  const raw = Math.log((111111.11111111111 / 1e9) / wethUsd) / Math.log(1.0001);
+  const aligned = fdvToTick("111111.111111111111", "1000000000", wethUsd, 100);
   assert.ok(aligned <= raw);
   assert.equal(Math.abs(aligned % 100), 0);
 });

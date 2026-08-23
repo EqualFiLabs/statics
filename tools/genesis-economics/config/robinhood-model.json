@@ -7,7 +7,7 @@
   },
   "marketReference": {
     "status": "model-only",
-    "wethUsd": "4000",
+    "wethUsd": "2375",
     "observedAt": null,
     "source": null,
     "notice": "Replace with a reviewed near-launch observation before ratifying production ticks."
