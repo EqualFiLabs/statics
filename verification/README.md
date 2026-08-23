@@ -33,7 +33,7 @@ tests beside the symbolic checks.
 | Harvested WETH equals reserve plus distributor allocation; STATICS is fully attributed | `StaticsFeeReceiver` | Halmos | Pass |
 | Donations are excluded from harvested revenue and liabilities remain covered | `StaticsFeeReceiver` | Halmos | Pass |
 | Distributor changes crystallize arbitrary pending fees to the old distributor | `StaticsFeeReceiver` | Halmos | Pass |
-| Share changes crystallize pending fees under the old share | `StaticsFeeReceiver` | Halmos plus Foundry fuzz | Pass; zero-share symbolic boundary plus general regression |
+| Share changes crystallize pending fees under the old share | `StaticsFeeReceiver` | Halmos plus Foundry fuzz | Pass; zero and approved 50% symbolic boundaries plus general regression |
 | Claimed, claimable, treasury, indexed, and remainder accounting cannot create rewards | `GenesisLaunchDistributor` | Halmos | Pass |
 | Transfer checkpoints assign pre-transfer rewards to the old owner and reset activation | `GenesisLaunchDistributor` | Halmos plus Foundry regression | Pass |
 | Activation settles the old weight and transfers the exact cumulative tier cost | `GenesisLaunchDistributor`, `GenesisActivationRegistry` | Halmos plus Foundry invariant/fuzz | Pass |
@@ -108,6 +108,10 @@ passing result.
   arbitrary reward sizes and action sequences are covered by the adjacent fuzz
   and invariant suites. These are explicit proof boundaries, not exclusions
   from protocol behavior.
+- The approved 50% WETH reserve split is proved with a non-round representative
+  harvest, while the zero-share identity remains symbolic over `uint96` WETH
+  amounts. The adjacent Foundry fuzz regression covers arbitrary valid shares
+  and harvest amounts.
 
 ## Fork and economic evidence boundaries
 

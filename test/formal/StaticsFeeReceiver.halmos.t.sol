@@ -50,6 +50,22 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         _assertLiabilitiesCovered();
     }
 
+    function check_approvedReserveSplitConservesWethExactly() public {
+        uint256 grossWeth = 1 ether + 1;
+        receiver.setReserveShareBps(5_000);
+        _queue(0, grossWeth);
+        receiver.harvest();
+
+        uint256 reserveAllocation = receiver.cumulativeReserveWeth();
+        uint256 distributorAllocation = receiver.cumulativeDistributorWeth();
+        assertEq(reserveAllocation, grossWeth / 2);
+        assertEq(distributorAllocation, grossWeth - reserveAllocation);
+        assertEq(reserveAllocation + distributorAllocation, grossWeth);
+        assertEq(receiver.cumulativeHarvested(address(weth)), grossWeth);
+        assertEq(receiver.totalDistributorLiability(address(weth)), distributorAllocation);
+        _assertLiabilitiesCovered();
+    }
+
     function check_directDonationsAreNeverHarvested(uint96 donation, uint96 harvested) public {
         statics.mint(address(receiver), donation);
         _queue(harvested, 0);
@@ -67,6 +83,20 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
 
         assertEq(receiver.cumulativeReserveWeth(), 0);
         assertEq(receiver.cumulativeDistributorWeth(), grossWeth);
+        assertEq(receiver.reserveShareBps(), newShare);
+        _assertLiabilitiesCovered();
+    }
+
+    function check_reserveShareChangeCrystallizesApprovedShare(uint16 newShare) public {
+        vm.assume(newShare <= receiver.BPS());
+        uint256 grossWeth = 1 ether + 1;
+        receiver.setReserveShareBps(5_000);
+        _queue(0, grossWeth);
+        receiver.setReserveShareBps(newShare);
+
+        uint256 expectedReserve = grossWeth / 2;
+        assertEq(receiver.cumulativeReserveWeth(), expectedReserve);
+        assertEq(receiver.cumulativeDistributorWeth(), grossWeth - expectedReserve);
         assertEq(receiver.reserveShareBps(), newShare);
         _assertLiabilitiesCovered();
     }
