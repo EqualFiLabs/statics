@@ -15,7 +15,9 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _deployGenesis(block.timestamp + 7 days);
     }
 
-    function check_epochBoundaryQuotes(uint128 reserve) public {
+    /// @dev A uint96 reserve exceeds the native currency that can economically
+    ///      exist while keeping symbolic division tractable for the solver.
+    function check_epochBoundaryQuotes(uint96 reserve) public {
         _donate(reserve);
         GenesisPurchaseQuote memory duringPurchase = vault.quoteGenesisPurchase();
         GenesisRedemptionQuote memory duringRedemption = vault.quoteGenesisRedemption();
@@ -38,7 +40,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(afterRedemption.reservePayout, uint256(reserve) / 5_555);
     }
 
-    function check_acquisitionAndRedemptionPreserveSolvency(uint128 reserve, uint96 excessNative) public {
+    function check_acquisitionAndRedemptionPreserveSolvency(uint96 reserve, uint96 excessNative) public {
         _donate(reserve);
         vm.warp(vault.genesisEpochEnd());
         uint256 requiredNative = vault.reserveBuyIn() + vault.nativeAcquisitionFee();
@@ -60,7 +62,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _assertSolvent();
     }
 
-    function check_directGenesisReturnOnlyOvercollateralizes(uint128 reserve) public {
+    function check_directGenesisReturnOnlyOvercollateralizes(uint96 reserve) public {
         _donate(reserve);
         _acquire(1, alice);
         assertEq(vault.tokenBacking(), vault.requiredBacking());
@@ -83,7 +85,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _assertSolvent();
     }
 
-    function check_governanceTransitionsCannotReduceCustody(uint128 reserve, uint96 fee) public {
+    function check_governanceTransitionsCannotReduceCustody(uint96 reserve, uint96 fee) public {
         vm.assume(fee <= vault.MAX_NATIVE_ACQUISITION_FEE());
         _donate(reserve);
         uint256 tokenCustody = statics.balanceOf(address(vault));

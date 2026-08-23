@@ -18,6 +18,7 @@ run_halmos() {
     --solver-timeout-branching 0 \
     --solver-timeout-assertion 0 \
     --solver-threads "${HALMOS_THREADS:-4}" \
+    --loop "${HALMOS_LOOP_BOUND:-8}" \
     --forge-build-out out-formal \
     --json-output "$HALMOS_JSON_DIR/$output.json"
 }
