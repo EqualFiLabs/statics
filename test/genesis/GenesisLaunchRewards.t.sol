@@ -346,10 +346,10 @@ contract GenesisLaunchRewardsTest is Test {
         nextConsumer.accept(activationRegistry);
 
         vm.prank(governance);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsFeeReceiver.DistributorAlreadyActivated.selector, address(distributor))
+        );
         feeReceiver.proposeDistributor(address(distributor));
-        vm.prank(governance);
-        vm.expectRevert(GenesisLaunchDistributor.LaunchRewardsAlreadyFinalized.selector);
-        distributor.acceptFeeReceiverRole();
 
         vm.prank(governance);
         activationRegistry.proposeConsumer(address(distributor));

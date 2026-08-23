@@ -496,6 +496,29 @@ contract GenesisSecuredCreditTest is Test {
         assertEq(successor.pendingGenesis(2, address(statics)), quote.genesisDistribution);
     }
 
+    function testDetachedDistributorCannotBeReactivatedWithStaleWeights() public {
+        _buyGenesis(alice, 1);
+        vm.prank(alice);
+        distributor.registerGenesis(1);
+
+        GenesisLaunchDistributor successor =
+            new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 7_500);
+        vm.prank(governance);
+        feeReceiver.proposeDistributor(address(successor));
+        vm.prank(governance);
+        successor.acceptFeeReceiverRole();
+        vm.prank(governance);
+        activationRegistry.proposeConsumer(address(successor));
+        vm.prank(governance);
+        successor.acceptActivationConsumer();
+
+        vm.prank(governance);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsFeeReceiver.DistributorAlreadyActivated.selector, address(distributor))
+        );
+        feeReceiver.proposeDistributor(address(distributor));
+    }
+
     function testRecoveryHarvestsAndCrystallizesFeesBeforeRemovingWeight() public {
         _buyGenesis(alice, 1);
         _buyGenesis(bob, 2);

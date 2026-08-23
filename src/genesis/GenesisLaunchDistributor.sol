@@ -245,8 +245,7 @@ contract GenesisLaunchDistributor is
         uint256 available = balance > accounted ? balance - accounted : 0;
         if (available < amount) revert InconsistentFeeTransfer(statics, amount, available);
         accountedCustody[statics] = accounted + amount;
-        if (totalWeight == 0) pendingGenesisRecovery += amount;
-        else _increaseRecoveryIndex(amount);
+        pendingGenesisRecovery += amount;
         emit PendingGenesisRecoveryReceived(msg.sender, amount);
     }
 

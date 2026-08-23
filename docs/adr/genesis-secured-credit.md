@@ -778,7 +778,9 @@ active while doing so would make an already-open Genesis credit unrecoverable.
 Fee-distributor acceptance occurs before activation-consumer acceptance, and
 recovery remains unavailable during that handoff gap. Any zero-weight pending
 recovery amount migrates exactly to the successor and remains pending there
-until successor-managed eligible weight exists.
+until successor-managed eligible weight exists. Distributor activation is
+one-time: a detached distributor cannot later be reactivated with stale
+registration and activation weights.
 
 ## Protocol linkage
 

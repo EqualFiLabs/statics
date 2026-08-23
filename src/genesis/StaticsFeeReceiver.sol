@@ -45,6 +45,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     uint16 public override reserveShareBps;
     address public override activeDistributor;
     address public override pendingDistributor;
+    mapping(address distributor => bool activated) public distributorActivated;
 
     mapping(address asset => uint256 amount) public override cumulativeHarvested;
     mapping(address distributor => mapping(address asset => uint256 amount))
@@ -65,6 +66,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     error ReserveVaultNotBound();
     error InvalidReserveShare(uint16 shareBps);
     error InvalidDistributor(address distributor);
+    error DistributorAlreadyActivated(address distributor);
     error UnauthorizedPendingDistributor(address caller);
     error DistributorNotActive();
     error InvalidReceiver(address receiver);
@@ -145,6 +147,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         if (distributor == address(0) || distributor.code.length == 0 || distributor == activeDistributor) {
             revert InvalidDistributor(distributor);
         }
+        if (distributorActivated[distributor]) revert DistributorAlreadyActivated(distributor);
         pendingDistributor = distributor;
         emit DistributorProposed(activeDistributor, distributor);
     }
@@ -152,12 +155,14 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     function acceptDistributor() external override nonReentrant {
         address pending = pendingDistributor;
         if (msg.sender != pending) revert UnauthorizedPendingDistributor(msg.sender);
+        if (distributorActivated[pending]) revert DistributorAlreadyActivated(pending);
         if (statics == address(0)) revert MarketNotBound();
         address vault = reserveVault;
         if (vault != address(0)) _validateRecoveryDistributor(pending, vault);
         address previous = activeDistributor;
         if (previous == address(0)) {
             activeDistributor = pending;
+            distributorActivated[pending] = true;
             delete pendingDistributor;
             emit DistributorAccepted(address(0), pending);
             _harvest(pending);
@@ -166,6 +171,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         _harvest(previous);
         IGenesisRecoveryDistributor(previous).migratePendingGenesisRecovery(pending);
         activeDistributor = pending;
+        distributorActivated[pending] = true;
         delete pendingDistributor;
         emit DistributorAccepted(previous, pending);
     }
