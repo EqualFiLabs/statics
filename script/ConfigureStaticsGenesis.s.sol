@@ -80,6 +80,16 @@ contract ConfigureStaticsGenesis is Script {
         vm.stopBroadcast();
     }
 
+    function runScheduleInitialization() external returns (bytes32 operationId) {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        bytes32 salt = vm.envBytes32("STATICS_GENESIS_HANDOFF_TIMELOCK_SALT");
+        StaticsGenesisHandoffConfig memory config = _loadConfig();
+        vm.startBroadcast(privateKey);
+        operationId = scheduleInitialization(diamond, config, salt);
+        vm.stopBroadcast();
+    }
+
     function runExecute() external {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
@@ -90,11 +100,21 @@ contract ConfigureStaticsGenesis is Script {
         vm.stopBroadcast();
     }
 
+    function runExecuteInitialization() external {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        bytes32 salt = vm.envBytes32("STATICS_GENESIS_HANDOFF_TIMELOCK_SALT");
+        StaticsGenesisHandoffConfig memory config = _loadConfig();
+        vm.startBroadcast(privateKey);
+        executeInitialization(diamond, config, salt);
+        vm.stopBroadcast();
+    }
+
     function schedule(address diamond, StaticsGenesisHandoffConfig memory config, bytes32 salt)
         public
         returns (bytes32 operationId)
     {
-        TimelockController timelock = _validateBefore(diamond, config);
+        TimelockController timelock = _validateBefore(diamond, config, true);
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = buildBatch(diamond, config);
         uint256 delay = timelock.getMinDelay();
         timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
@@ -105,10 +125,36 @@ contract ConfigureStaticsGenesis is Script {
     }
 
     function execute(address diamond, StaticsGenesisHandoffConfig memory config, bytes32 salt) public {
-        TimelockController timelock = _validateBefore(diamond, config);
+        TimelockController timelock = _validateBefore(diamond, config, true);
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) = buildBatch(diamond, config);
         timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
         _validateAfter(diamond, config);
+    }
+
+    function scheduleInitialization(address diamond, StaticsGenesisHandoffConfig memory config, bytes32 salt)
+        public
+        returns (bytes32 operationId)
+    {
+        TimelockController timelock = _validateBefore(diamond, config, false);
+        (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
+            buildInitializationBatch(diamond, config);
+        uint256 delay = timelock.getMinDelay();
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
+        operationId = timelock.hashOperationBatch(targets, values, payloads, bytes32(0), salt);
+        emit StaticsGenesisHandoffPrepared(
+            operationId, diamond, address(timelock), config.genesis, config.launchDistributor, delay
+        );
+    }
+
+    function executeInitialization(address diamond, StaticsGenesisHandoffConfig memory config, bytes32 salt) public {
+        TimelockController timelock = _validateBefore(diamond, config, false);
+        (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
+            buildInitializationBatch(diamond, config);
+        timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
+        IStaticsGenesisIntegration integration = IStaticsGenesisIntegration(diamond);
+        if (integration.genesisCollection() != config.genesis || integration.genesisRecoveryReady()) {
+            revert GenesisHandoffFailed();
+        }
     }
 
     function buildBatch(address diamond, StaticsGenesisHandoffConfig memory config)
@@ -150,7 +196,40 @@ contract ConfigureStaticsGenesis is Script {
         payloads[6] = abi.encodeCall(IStaticsGenesis.bindProtocol, (diamond));
     }
 
-    function _validateBefore(address diamond, StaticsGenesisHandoffConfig memory config)
+    function buildInitializationBatch(address diamond, StaticsGenesisHandoffConfig memory config)
+        public
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        (address[] memory unifiedTargets, uint256[] memory unifiedValues, bytes[] memory unifiedPayloads) =
+            buildBatch(diamond, config);
+        targets = new address[](1);
+        values = new uint256[](1);
+        payloads = new bytes[](1);
+        targets[0] = unifiedTargets[0];
+        values[0] = unifiedValues[0];
+        payloads[0] = unifiedPayloads[0];
+    }
+
+    /// @notice Typed calls for a Safe or other Genesis governance executor after Diamond initialization.
+    function buildGenesisGovernanceBatch(address diamond, StaticsGenesisHandoffConfig memory config)
+        public
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        (address[] memory unifiedTargets, uint256[] memory unifiedValues, bytes[] memory unifiedPayloads) =
+            buildBatch(diamond, config);
+        targets = new address[](6);
+        values = new uint256[](6);
+        payloads = new bytes[](6);
+        for (uint256 i; i < 6; ++i) {
+            targets[i] = unifiedTargets[i + 1];
+            values[i] = unifiedValues[i + 1];
+            payloads[i] = unifiedPayloads[i + 1];
+        }
+    }
+
+    function _validateBefore(address diamond, StaticsGenesisHandoffConfig memory config, bool requireUnifiedGovernance)
         private
         view
         returns (TimelockController timelock)
@@ -168,11 +247,14 @@ contract ConfigureStaticsGenesis is Script {
         _contract(config.launchDistributor);
         _contract(config.statics);
         _contract(config.numeraire);
-        _owner(config.genesis, owner);
-        _owner(config.vault, owner);
-        _owner(config.activationRegistry, owner);
-        _owner(config.feeReceiver, owner);
-        _owner(config.launchDistributor, owner);
+        address genesisGovernance = IERC173(config.genesis).owner();
+        _owner(config.vault, genesisGovernance);
+        _owner(config.activationRegistry, genesisGovernance);
+        _owner(config.feeReceiver, genesisGovernance);
+        _owner(config.launchDistributor, genesisGovernance);
+        if (requireUnifiedGovernance && genesisGovernance != owner) {
+            revert InvalidOwner(config.genesis, owner, genesisGovernance);
+        }
 
         bool genesisInstalled =
             IDiamondLoupe(diamond).facetAddress(IStaticsGenesisIntegration.registerGenesis.selector) != address(0);

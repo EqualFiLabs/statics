@@ -198,6 +198,43 @@ contract ConfigureStaticsGenesisTest is Test {
         assertEq(targets[6], address(genesis));
     }
 
+    function testSeparateGenesisGovernanceUsesTwoGovernedBatches() public {
+        address genesisGovernance = makeAddr("genesisGovernance");
+        vm.startPrank(address(timelock));
+        feeReceiver.transferOwnership(genesisGovernance);
+        registry.transferOwnership(genesisGovernance);
+        vault.transferOwnership(genesisGovernance);
+        genesis.transferOwnership(genesisGovernance);
+        launchDistributor.transferOwnership(genesisGovernance);
+        vm.stopPrank();
+        vm.startPrank(genesisGovernance);
+        feeReceiver.acceptOwnership();
+        registry.acceptOwnership();
+        vault.acceptOwnership();
+        genesis.acceptOwnership();
+        launchDistributor.acceptOwnership();
+        vm.stopPrank();
+
+        bytes32 salt = keccak256("separate Genesis governance");
+        bytes32 operationId = ceremony.scheduleInitialization(address(integration), config, salt);
+        assertTrue(timelock.isOperationPending(operationId));
+        vm.warp(block.timestamp + timelock.getMinDelay());
+        ceremony.executeInitialization(address(integration), config, salt);
+        assertEq(integration.genesisCollection(), address(genesis));
+        assertFalse(integration.genesisRecoveryReady());
+
+        (address[] memory targets,, bytes[] memory payloads) =
+            ceremony.buildGenesisGovernanceBatch(address(integration), config);
+        for (uint256 i; i < targets.length; ++i) {
+            vm.prank(genesisGovernance);
+            (bool success,) = targets[i].call(payloads[i]);
+            assertTrue(success);
+        }
+
+        assertTrue(integration.genesisIntegrationReady());
+        assertTrue(launchDistributor.finalized());
+    }
+
     function _buyGenesis(address owner, uint256 genesisId) private {
         statics.mint(owner, GENESIS_PRICE);
         vm.startPrank(owner);
