@@ -550,6 +550,9 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI for standalone Genesis |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Genesis token-page base URL before the appended token ID |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Governed share of harvested WETH routed into the permanent Genesis native reserve |
+| `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native Genesis secured-credit origination fee |
+| `STATICS_GENESIS_CREDIT_EXTENSION_FEE` | Ratified flat native Genesis secured-credit extension fee |
+| `STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS` | Ratified caller share of the fixed recovery residual; must be between 1 and 9,999 bps |
 | `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for the immutable Genesis Epoch end and launch hash |
 | `WETH_ADDRESS` | Verified WETH for the selected chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |

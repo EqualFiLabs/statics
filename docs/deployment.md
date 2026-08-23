@@ -30,6 +30,9 @@ selected by chain ID and reads:
 | `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
 | `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Share (0..10,000) of harvested WETH routed into the permanent Genesis native ETH reserve; the remainder is attributed to the active distributor |
+| `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native fee required to open Genesis secured credit; no protocol default is assumed |
+| `STATICS_GENESIS_CREDIT_EXTENSION_FEE` | Ratified flat native fee quoted when extending Genesis secured credit; no protocol default is assumed |
+| `STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS` | Ratified caller share of the fixed 9,000-STATICS recovery residual; must be greater than 0 and less than 10,000 |
 | `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for immutable `genesisEpochEnd`; it must be future at deployment and is included in the launch hash |
 | `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
