@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "whetstoneresearch/doppler",
+    "revision": "86a5200456b148c156d2eb81a893747dd601c3ca",
+    "multicurvePath": "src/libraries/Multicurve.sol"
+  },
+  "marketReference": {
+    "status": "model-only",
+    "wethUsd": "4000",
+    "observedAt": null,
+    "source": null,
+    "notice": "Replace with a reviewed near-launch observation before ratifying production ticks."
+  },
+  "economics": {
+    "totalSupplyTokens": "1000000000",
+    "dopplerInventoryTokens": "800000000",
+    "genesisBackingTokens": "180000",
+    "feePips": 15000,
+    "tickSpacing": 100,
+    "maximumResidualTokens": "100"
+  },
+  "curves": [
+    {
+      "name": "launch-access",
+      "lowerFdvUsd": "111111.111111111111",
+      "upperFdvUsd": "500000",
+      "inventoryTokens": "20000000",
+      "numPositions": 11
+    },
+    {
+      "name": "genesis-discovery",
+      "lowerFdvUsd": "250000",
+      "upperFdvUsd": "2000000",
+      "inventoryTokens": "60000000",
+      "numPositions": 11
+    },
+    {
+      "name": "early",
+      "lowerFdvUsd": "1000000",
+      "upperFdvUsd": "10000000",
+      "inventoryTokens": "100000000",
+      "numPositions": 11
+    },
+    {
+      "name": "core",
+      "lowerFdvUsd": "5000000",
+      "upperFdvUsd": "100000000",
+      "inventoryTokens": "160000000",
+      "numPositions": 11
+    },
+    {
+      "name": "growth",
+      "lowerFdvUsd": "50000000",
+      "upperFdvUsd": "1000000000",
+      "inventoryTokens": "340000000",
+      "numPositions": 11
+    },
+    {
+      "name": "permanent-tail",
+      "lowerFdvUsd": "1000000000",
+      "upperTick": 887200,
+      "inventoryTokens": "120000000",
+      "numPositions": 1
+    }
+  ],
+  "fdvMilestonesUsd": [
+    "250000",
+    "500000",
+    "1000000",
+    "2000000",
+    "5000000",
+    "10000000",
+    "25000000",
+    "50000000",
+    "100000000",
+    "250000000",
+    "500000000",
+    "1000000000",
+    "2000000000",
+    "5000000000",
+    "10000000000"
+  ],
+  "genesisBackingValueScenariosUsd": [
+    "20",
+    "50",
+    "100",
+    "250",
+    "500",
+    "1000"
+  ]
+}

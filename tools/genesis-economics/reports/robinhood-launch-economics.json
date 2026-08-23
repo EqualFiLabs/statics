@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "whetstoneresearch/doppler",
+    "revision": "86a5200456b148c156d2eb81a893747dd601c3ca",
+    "multicurvePath": "src/libraries/Multicurve.sol"
+  },
+  "marketReference": {
+    "status": "model-only",
+    "wethUsd": "4000",
+    "observedAt": null,
+    "source": null,
+    "notice": "Replace with a reviewed near-launch observation before ratifying production ticks."
+  },
+  "warnings": [
+    "USD values are offchain modeling references, not oracle commitments.",
+    "The model-only WETH/USD assumption must be replaced near launch before production ratification.",
+    "Gas is measured by the required Foundry fork proof, not estimated by this offchain model."
+  ],
+  "economics": {
+    "totalSupplyTokens": "1000000000",
+    "dopplerInventoryTokens": "800000000",
+    "genesisBackingTokens": "180000",
+    "feePips": 15000,
+    "tickSpacing": 100,
+    "maximumResidualTokens": "100",
+    "openingFdvUsd": 111099.93816476,
+    "openingGenesisBackingValueUsd": 19.99798887,
+    "totalPositions": 56,
+    "farTick": 887100,
+    "token0ResidualTokens": "0.000000000000022151",
+    "token1ResidualTokens": "0.000000000000020298",
+    "forkGasMeasurement": null
+  },
+  "curves": [
+    {
+      "name": "launch-access",
+      "tickLower": -174000,
+      "tickUpper": -159000,
+      "numPositions": 11,
+      "sharesWad": "25000000000000000",
+      "inventoryTokens": "20000000"
+    },
+    {
+      "name": "genesis-discovery",
+      "tickLower": -165900,
+      "tickUpper": -145100,
+      "numPositions": 11,
+      "sharesWad": "75000000000000000",
+      "inventoryTokens": "60000000"
+    },
+    {
+      "name": "early",
+      "tickLower": -152100,
+      "tickUpper": -129000,
+      "numPositions": 11,
+      "sharesWad": "125000000000000000",
+      "inventoryTokens": "100000000"
+    },
+    {
+      "name": "core",
+      "tickLower": -136000,
+      "tickUpper": -106000,
+      "numPositions": 11,
+      "sharesWad": "200000000000000000",
+      "inventoryTokens": "160000000"
+    },
+    {
+      "name": "growth",
+      "tickLower": -113000,
+      "tickUpper": -83000,
+      "numPositions": 11,
+      "sharesWad": "425000000000000000",
+      "inventoryTokens": "340000000"
+    },
+    {
+      "name": "permanent-tail",
+      "tickLower": -83000,
+      "tickUpper": 887200,
+      "numPositions": 1,
+      "sharesWad": "150000000000000000",
+      "inventoryTokens": "120000000"
+    }
+  ],
+  "milestones": [
+    {
+      "fdvUsd": 250000,
+      "staticsPriceUsd": 0.00025,
+      "staticsDistributed": 4898870.65424275,
+      "staticsRemaining": 795101129.3457572,
+      "netWethAbsorbed": 0.23383995,
+      "grossWethInputAtFee": 0.23740097,
+      "averagePriceUsd": 0.00019093,
+      "genesisBackingUnits": 27.21594808
+    },
+    {
+      "fdvUsd": 500000,
+      "staticsPriceUsd": 0.0005,
+      "staticsDistributed": 26576493.92939353,
+      "staticsRemaining": 773423506.0706065,
+      "netWethAbsorbed": 2.33067971,
+      "grossWethInputAtFee": 2.3661723,
+      "averagePriceUsd": 0.00035079,
+      "genesisBackingUnits": 147.6471885
+    },
+    {
+      "fdvUsd": 1000000,
+      "staticsPriceUsd": 0.001,
+      "staticsDistributed": 43452579.6160208,
+      "staticsRemaining": 756547420.3839792,
+      "netWethAbsorbed": 5.50312924,
+      "grossWethInputAtFee": 5.58693324,
+      "averagePriceUsd": 0.00050659,
+      "genesisBackingUnits": 241.40322009
+    },
+    {
+      "fdvUsd": 2000000,
+      "staticsPriceUsd": 0.002,
+      "staticsDistributed": 89466173.07299209,
+      "staticsRemaining": 710533826.9270079,
+      "netWethAbsorbed": 23.11000032,
+      "grossWethInputAtFee": 23.46192926,
+      "averagePriceUsd": 0.00103324,
+      "genesisBackingUnits": 497.03429485
+    },
+    {
+      "fdvUsd": 5000000,
+      "staticsPriceUsd": 0.005,
+      "staticsDistributed": 123355355.56271422,
+      "staticsRemaining": 676644644.4372858,
+      "netWethAbsorbed": 52.60116662,
+      "grossWethInputAtFee": 53.40219961,
+      "averagePriceUsd": 0.00170568,
+      "genesisBackingUnits": 685.3075309
+    },
+    {
+      "fdvUsd": 10000000,
+      "staticsPriceUsd": 0.01,
+      "staticsDistributed": 190891401.10271466,
+      "staticsRemaining": 609108598.8972853,
+      "netWethAbsorbed": 181.03028216,
+      "grossWethInputAtFee": 183.78708849,
+      "averagePriceUsd": 0.00379337,
+      "genesisBackingUnits": 1060.5077839
+    },
+    {
+      "fdvUsd": 25000000,
+      "staticsPriceUsd": 0.025,
+      "staticsDistributed": 224357986.1339798,
+      "staticsRemaining": 575642013.8660202,
+      "netWethAbsorbed": 324.42609139,
+      "grossWethInputAtFee": 329.36659024,
+      "averagePriceUsd": 0.00578408,
+      "genesisBackingUnits": 1246.4332563
+    },
+    {
+      "fdvUsd": 50000000,
+      "staticsPriceUsd": 0.05,
+      "staticsDistributed": 267256929.98740345,
+      "staticsRemaining": 532743070.01259655,
+      "netWethAbsorbed": 721.18000013,
+      "grossWethInputAtFee": 732.16243668,
+      "averagePriceUsd": 0.01079381,
+      "genesisBackingUnits": 1484.76072215
+    },
+    {
+      "fdvUsd": 100000000,
+      "staticsPriceUsd": 0.1,
+      "staticsDistributed": 363281609.82858324,
+      "staticsRemaining": 436718390.17141676,
+      "netWethAbsorbed": 2532.16355606,
+      "grossWethInputAtFee": 2570.7244224,
+      "averagePriceUsd": 0.027881,
+      "genesisBackingUnits": 2018.23116571
+    },
+    {
+      "fdvUsd": 250000000,
+      "staticsPriceUsd": 0.25,
+      "staticsDistributed": 434507135.08397126,
+      "staticsRemaining": 365492864.91602874,
+      "netWethAbsorbed": 5583.05820828,
+      "grossWethInputAtFee": 5668.07939927,
+      "averagePriceUsd": 0.0513967,
+      "genesisBackingUnits": 2413.92852824
+    },
+    {
+      "fdvUsd": 500000000,
+      "staticsPriceUsd": 0.5,
+      "staticsDistributed": 525444507.80047005,
+      "staticsRemaining": 274555492.19952995,
+      "netWethAbsorbed": 13979.21526398,
+      "grossWethInputAtFee": 14192.0967147,
+      "averagePriceUsd": 0.1064182,
+      "genesisBackingUnits": 2919.13615445
+    },
+    {
+      "fdvUsd": 1000000000,
+      "staticsPriceUsd": 1,
+      "staticsDistributed": 680331664.0697464,
+      "staticsRemaining": 119668335.9302536,
+      "netWethAbsorbed": 42928.22076307,
+      "grossWethInputAtFee": 43581.95001327,
+      "averagePriceUsd": 0.25239584,
+      "genesisBackingUnits": 3779.62035594
+    },
+    {
+      "fdvUsd": 2000000000,
+      "staticsPriceUsd": 2,
+      "staticsDistributed": 715381708.1704079,
+      "staticsRemaining": 84618291.82959208,
+      "netWethAbsorbed": 55320.2826953,
+      "grossWethInputAtFee": 56162.72354853,
+      "averagePriceUsd": 0.30931897,
+      "genesisBackingUnits": 3974.34282317
+    },
+    {
+      "fdvUsd": 5000000000,
+      "staticsPriceUsd": 5,
+      "staticsDistributed": 746482693.2211345,
+      "staticsRemaining": 53517306.7788655,
+      "netWethAbsorbed": 79907.77025409,
+      "grossWethInputAtFee": 81124.63985187,
+      "averagePriceUsd": 0.42818284,
+      "genesisBackingUnits": 4147.12607345
+    },
+    {
+      "fdvUsd": 10000000000,
+      "staticsPriceUsd": 10,
+      "staticsDistributed": 762157549.4658234,
+      "staticsRemaining": 37842450.53417659,
+      "netWethAbsorbed": 107617.26311595,
+      "grossWethInputAtFee": 109256.10468624,
+      "averagePriceUsd": 0.56480324,
+      "genesisBackingUnits": 4234.20860814
+    }
+  ],
+  "accessibility": [
+    {
+      "targetGenesisBackingValueUsd": 20,
+      "fdvUsd": 111111.11111111,
+      "staticsPriceUsd": 0.00011111,
+      "staticsDistributed": 173.26549792,
+      "staticsRemaining": 799999826.7345021,
+      "netWethAbsorbed": 0.00000481,
+      "grossWethInputAtFee": 0.00000489,
+      "averagePriceUsd": 0.00011111,
+      "genesisBackingUnits": 0.00096259
+    },
+    {
+      "targetGenesisBackingValueUsd": 50,
+      "fdvUsd": 277777.77777778,
+      "staticsPriceUsd": 0.00027778,
+      "staticsDistributed": 6711047.12874496,
+      "staticsRemaining": 793288952.871255,
+      "netWethAbsorbed": 0.35322756,
+      "grossWethInputAtFee": 0.35860666,
+      "averagePriceUsd": 0.00021053,
+      "genesisBackingUnits": 37.28359516
+    },
+    {
+      "targetGenesisBackingValueUsd": 100,
+      "fdvUsd": 555555.55555556,
+      "staticsPriceUsd": 0.00055556,
+      "staticsDistributed": 28416453.50389373,
+      "staticsRemaining": 771583546.4961063,
+      "netWethAbsorbed": 2.57414044,
+      "grossWethInputAtFee": 2.61334055,
+      "averagePriceUsd": 0.00036235,
+      "genesisBackingUnits": 157.86918613
+    },
+    {
+      "targetGenesisBackingValueUsd": 250,
+      "fdvUsd": 1388888.88888889,
+      "staticsPriceUsd": 0.00138889,
+      "staticsDistributed": 59183366.17069519,
+      "staticsRemaining": 740816633.8293048,
+      "netWethAbsorbed": 10.2172169,
+      "grossWethInputAtFee": 10.37280903,
+      "averagePriceUsd": 0.00069055,
+      "genesisBackingUnits": 328.79647873
+    },
+    {
+      "targetGenesisBackingValueUsd": 500,
+      "fdvUsd": 2777777.77777778,
+      "staticsPriceUsd": 0.00277778,
+      "staticsDistributed": 98412899.04586864,
+      "staticsRemaining": 701587100.9541314,
+      "netWethAbsorbed": 28.44893491,
+      "grossWethInputAtFee": 28.88216742,
+      "averagePriceUsd": 0.00115631,
+      "genesisBackingUnits": 546.73832803
+    },
+    {
+      "targetGenesisBackingValueUsd": 1000,
+      "fdvUsd": 5555555.55555556,
+      "staticsPriceUsd": 0.00555556,
+      "staticsDistributed": 130175624.14544117,
+      "staticsRemaining": 669824375.8545588,
+      "netWethAbsorbed": 61.61738188,
+      "grossWethInputAtFee": 62.55571765,
+      "averagePriceUsd": 0.00189336,
+      "genesisBackingUnits": 723.19791192
+    }
+  ]
+}
