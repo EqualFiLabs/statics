@@ -1,0 +1,8 @@
+@solady/=vendor/doppler/lib/solady/src/
+@statics/=../../src/
+@uniswap/v4-core/=vendor/doppler/lib/v4-core/
+@v4-core/=vendor/doppler/lib/v4-core/src/
+@v4-periphery/=vendor/doppler/lib/v4-periphery/src/
+forge-std/=../../lib/forge-std/src/
+doppler/=vendor/doppler/src/
+src/=vendor/doppler/src/

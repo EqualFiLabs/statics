@@ -11,3 +11,6 @@ artifacts/diamond-manifests/
 audits/
 x-ray/
 /.c
+/formal-results/
+/verification/doppler/cache/
+/verification/doppler/out/

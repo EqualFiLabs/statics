@@ -13,3 +13,9 @@
 [submodule "sdk"]
 	path = sdk
 	url = https://github.com/EqualFiLabs/statics-sdk.git
+[submodule "lib/halmos-cheatcodes"]
+	path = lib/halmos-cheatcodes
+	url = https://github.com/a16z/halmos-cheatcodes.git
+[submodule "verification/doppler/vendor/doppler"]
+	path = verification/doppler/vendor/doppler
+	url = https://github.com/whetstoneresearch/doppler.git

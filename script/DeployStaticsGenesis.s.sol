@@ -15,6 +15,7 @@ import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
 import {StaticsTreasuryVesting} from "../src/genesis/StaticsTreasuryVesting.sol";
 import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
+import {StaticsLaunchCurves} from "../src/genesis/doppler/StaticsLaunchCurves.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 import {LibStaticsTokenMetadata} from "../src/metadata/LibStaticsTokenMetadata.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
@@ -276,19 +277,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
 
     /// @notice Six-curve Robinhood launch geometry pinned to the committed economics model.
     function defaultCurves() public pure returns (DopplerLaunchTypes.Curve[] memory curves) {
-        curves = new DopplerLaunchTypes.Curve[](6);
-        curves[0] =
-            DopplerLaunchTypes.Curve({tickLower: -168_800, tickUpper: -153_800, numPositions: 11, shares: 0.025 ether});
-        curves[1] =
-            DopplerLaunchTypes.Curve({tickLower: -160_700, tickUpper: -139_900, numPositions: 11, shares: 0.075 ether});
-        curves[2] =
-            DopplerLaunchTypes.Curve({tickLower: -146_900, tickUpper: -123_800, numPositions: 11, shares: 0.125 ether});
-        curves[3] =
-            DopplerLaunchTypes.Curve({tickLower: -130_800, tickUpper: -100_800, numPositions: 11, shares: 0.2 ether});
-        curves[4] =
-            DopplerLaunchTypes.Curve({tickLower: -107_700, tickUpper: -77_800, numPositions: 11, shares: 0.425 ether});
-        curves[5] =
-            DopplerLaunchTypes.Curve({tickLower: -77_800, tickUpper: 887_200, numPositions: 1, shares: 0.15 ether});
+        return StaticsLaunchCurves.defaultCurves();
     }
 
     function launchConfigHash(
