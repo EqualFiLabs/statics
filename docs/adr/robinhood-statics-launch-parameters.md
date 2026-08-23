@@ -156,9 +156,9 @@ The current production modeling target is:
 | Launch access | $100k -> $500k | 20M | 2.5% |
 | Genesis discovery | $250k -> $2M | 60M | 7.5% |
 | Early | $1M -> $10M | 100M | 12.5% |
-| Core | $5M -> $100M | 140M | 17.5% |
-| Growth | $50M -> $1B+ | 200M | 25.0% |
-| Permanent tail | $250M -> maximum practical tick | 280M | 35.0% |
+| Core | $5M -> $100M | 160M | 20.0% |
+| Growth | $50M -> $1B | 340M | 42.5% |
+| Permanent tail | $1B -> maximum practical tick | 120M | 15.0% |
 | **Total** | | **800M** | **100%** |
 
 These are economic targets, not yet the final `Multicurve` structs.
@@ -174,15 +174,19 @@ shares
 
 for every curve.
 
+The final permanent tail should follow Doppler's documented tail pattern: one position beginning exactly where the preceding growth curve ends and extending to the maximum practical tick.
+
 ## Intentional overlap
 
-The target regions overlap.
+The target regions before the permanent tail overlap.
 
 This is deliberate.
 
 Overlapping curves provide smoother liquidity composition as STATICS appreciates and avoid hard economic cliffs between distinct valuation regimes.
 
 The production curve should not behave as a sequence of isolated bonding-curve stages.
+
+The permanent tail is the exception: it begins at the growth curve's terminal $1B modeling target rather than overlapping it.
 
 ## Opening inventory constraint
 
@@ -237,24 +241,31 @@ STATICS purchased in these regions may instead remain liquid, be traded, activat
 The final Multicurve allocation should contain approximately:
 
 ```text
-280,000,000 STATICS
+120,000,000 STATICS
 ```
 
 or:
 
 ```text
-35% of Doppler public inventory
+15% of Doppler public inventory
+12% of total STATICS supply
 ```
 
-in a long-duration tail extending toward the maximum practical Uniswap price range.
+in a single long-duration tail beginning at the modeled $1B FDV endpoint of the preceding growth curve and extending toward the maximum practical Uniswap price range.
 
-The purpose of this allocation is not short-term fundraising.
+This leaves:
+
+```text
+680,000,000 STATICS
+```
+
+or 85% of Doppler public inventory participating in the launch, discovery, early, core, and growth regions below the tail.
+
+The purpose of the tail is not short-term fundraising and it is not intended to warehouse an excessive fraction of public inventory above $1B.
 
 It exists to preserve original protocol launch liquidity if STATICS appreciates through valuations such as:
 
 ```text
-$250M
-$500M
 $1B
 $2B
 $5B
@@ -264,7 +275,7 @@ and beyond
 
 The production configuration must not create an artificial terminal valuation comparable to the current nonproduction filler curve.
 
-STATICS reaching $1B FDV must not require exhausting the original 800M Doppler inventory.
+STATICS reaching $1B FDV must not require exhausting the original 800M Doppler inventory, but the protocol also should not unnecessarily withhold a third or more of public inventory from sub-$1B price discovery.
 
 ## Doppler swap fee
 
@@ -704,6 +715,11 @@ POST_EPOCH_NATIVE_ACQUISITION_FEE
 STATICS_GENESIS_EPOCH_END
     TBD
 
+MULTICURVE_PERMANENT_TAIL
+    proposed: 120,000,000 STATICS / 15% of Doppler inventory
+    modeled start: $1B FDV
+    one position to maximum practical tick
+
 MULTICURVE
     exact ticks and positions TBD following simulation
 ```
@@ -738,11 +754,19 @@ The market should remain public and permissionless.
 
 Economic curve design is preferred over privileged access.
 
+### Allocate 35% of Doppler inventory to the permanent tail
+
+Rejected.
+
+A 280M-STATICS tail would withhold too much of the public inventory from sub-$1B price discovery, especially because Genesis acquisition itself can remove large amounts of STATICS from liquid circulation.
+
+A 15% tail preserves substantial permanent high-valuation liquidity while leaving 85% of the public Doppler allocation available through the pre-tail launch curve.
+
 ### Exhaust Doppler inventory near $1B FDV
 
 Rejected.
 
-A substantial permanent liquidity tail is preferred so the original launch market can remain economically relevant at much larger valuations.
+A permanent liquidity tail is preferred so the original launch market can remain economically relevant at much larger valuations.
 
 ### Route STATICS fees into the ETH reserve
 
