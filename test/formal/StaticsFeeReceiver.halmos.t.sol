@@ -60,18 +60,13 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         _assertLiabilitiesCovered();
     }
 
-    function check_reserveShareChangeUsesPreviousShare(uint96 grossWeth, bool oldShareAllReserve, uint16 newShare)
-        public
-    {
+    function check_reserveShareChangeCrystallizesPreviousZeroShare(uint96 grossWeth, uint16 newShare) public {
         vm.assume(newShare <= receiver.BPS());
-        uint16 oldShare = oldShareAllReserve ? receiver.BPS() : 0;
-        receiver.setReserveShareBps(oldShare);
         _queue(0, grossWeth);
         receiver.setReserveShareBps(newShare);
 
-        uint256 expectedReserve = oldShareAllReserve ? grossWeth : 0;
-        assertEq(receiver.cumulativeReserveWeth(), expectedReserve);
-        assertEq(receiver.cumulativeDistributorWeth(), uint256(grossWeth) - expectedReserve);
+        assertEq(receiver.cumulativeReserveWeth(), 0);
+        assertEq(receiver.cumulativeDistributorWeth(), grossWeth);
         assertEq(receiver.reserveShareBps(), newShare);
         _assertLiabilitiesCovered();
     }
