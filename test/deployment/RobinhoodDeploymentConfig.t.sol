@@ -59,6 +59,41 @@ contract RobinhoodDeploymentConfigTest is Test {
         );
     }
 
+    function testMainnetManifestPinsVerifiedDopplerModules() public view {
+        string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+
+        _assertManifestContract(
+            manifest,
+            ".contracts.dopplerAirlock",
+            0xeb7C034704eF8Dcd2D32324c1545f62fB4aD0862,
+            0x86b37100cbe9841771c452a592985b4e921254b127a380246073b84ec953f7f8
+        );
+        _assertManifestContract(
+            manifest,
+            ".contracts.dopplerTokenFactory",
+            0x1B37D3a72082029c44B35B604Ea473617580b69a,
+            0x27abd63146eb5743b7871e211da17163afbb495863a626c0d002312af6813459
+        );
+        _assertManifestContract(
+            manifest,
+            ".contracts.dopplerGovernanceFactory",
+            0xdb036746D65DD52126b1915f1AdF555e6C5237Cf,
+            0xefce8ac4a6fe83ae3dd1c3cfebc0e370e1595a66608bed5610ffdd1f291b7f63
+        );
+        _assertManifestContract(
+            manifest,
+            ".contracts.dopplerPoolInitializer",
+            0x4e3468951D49f2EEa976eD0D6e75fFCb44a9a544,
+            0xc41a91106002f15bf70ae266824317f3f3ac638ac72ca5253bae395fa47ee631
+        );
+        _assertManifestContract(
+            manifest,
+            ".contracts.dopplerNoOpMigrator",
+            0xba2F330EDb16cD8056f5988d8CE19BbC63475A0e,
+            0x7bf5115543e8e0769ceabe4da9b8e23547c9e95c1cce15d24d96f164406129e3
+        );
+    }
+
     function testTestnetManifestPinsVerifiedWeth() public view {
         string memory manifest = vm.readFile("deployments/robinhood-chain-testnet-46630.json");
 
@@ -78,5 +113,15 @@ contract RobinhoodDeploymentConfigTest is Test {
 
         assertEq(vm.parseJsonString(mainnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
         assertEq(vm.parseJsonString(testnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
+    }
+
+    function _assertManifestContract(
+        string memory manifest,
+        string memory path,
+        address expectedAddress,
+        bytes32 expectedCodeHash
+    ) private pure {
+        assertEq(vm.parseJsonAddress(manifest, string.concat(path, ".address")), expectedAddress);
+        assertEq(vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash")), expectedCodeHash);
     }
 }

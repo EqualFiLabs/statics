@@ -76,6 +76,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint96 public constant STATICS_FEE_SHARE = 0.95 ether;
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
     uint256 public constant MAX_MULTICURVE_RESIDUAL = 100 ether;
+    bytes20 public constant DOPPLER_SOURCE_REVISION = hex"86a5200456b148c156d2eb81a893747dd601c3ca";
     /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
@@ -92,6 +93,8 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error InvalidEpochEnd(uint256 epochEnd);
     error InvalidRobinhoodWeth(address expected, address actual);
     error InvalidRobinhoodWethCodeHash(bytes32 expected, bytes32 actual);
+    error InvalidRobinhoodDependency(address expected, address actual);
+    error InvalidRobinhoodDependencyCodeHash(address dependency, bytes32 expected, bytes32 actual);
     error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
     error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
@@ -125,14 +128,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         });
         if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
             bytes32 wethRuntimeCodeHash = _validateRobinhoodWeth(config.numeraire);
-            bytes32 currentHash = launchConfigHash(
-                config.fee,
-                config.genesisRewardShareBps,
-                config.reserveShareBps,
-                config.genesisEpochEnd,
-                config.numeraire,
-                wethRuntimeCodeHash
-            );
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes =
+                _validateRobinhoodDopplerModules(config.modules);
+            bytes32 currentHash = launchConfigHash(config, wethRuntimeCodeHash, moduleCodeHashes);
             if (
                 APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH == bytes32(0)
                     || currentHash != APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH
@@ -260,37 +258,55 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     }
 
     function launchConfigHash(
-        uint24 fee,
-        uint16 genesisRewardShareBps,
-        uint16 reserveShareBps,
-        uint256 genesisEpochEnd,
-        address weth,
-        bytes32 wethRuntimeCodeHash
+        StaticsGenesisDeploymentConfig memory config,
+        bytes32 wethRuntimeCodeHash,
+        StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes
     ) public pure returns (bytes32) {
-        // Split encoding across two tuples so legacy codegen keeps within stack limits.
-        bytes memory economics = abi.encode(
-            STATICS_SUPPLY,
-            DOPPLER_INVENTORY,
-            TREASURY_ALLOCATION,
-            GENESIS_BACKING,
-            GENESIS_MAX_SUPPLY,
-            POST_EPOCH_NATIVE_ACQUISITION_FEE,
-            DOPPLER_OWNER_SHARE,
-            STATICS_FEE_SHARE
+        bytes32 provenanceHash = keccak256(abi.encode(ROBINHOOD_MAINNET_CHAIN_ID, DOPPLER_SOURCE_REVISION));
+        bytes32 fixedEconomicsHash = keccak256(
+            abi.encode(
+                STATICS_SUPPLY,
+                DOPPLER_INVENTORY,
+                TREASURY_ALLOCATION,
+                GENESIS_BACKING,
+                GENESIS_MAX_SUPPLY,
+                POST_EPOCH_NATIVE_ACQUISITION_FEE,
+                DOPPLER_OWNER_SHARE,
+                STATICS_FEE_SHARE
+            )
         );
-        bytes memory launch = abi.encode(
-            fee,
-            genesisRewardShareBps,
-            reserveShareBps,
-            genesisEpochEnd,
-            weth,
-            wethRuntimeCodeHash,
-            TICK_SPACING,
-            FAR_TICK,
-            keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
-            defaultCurves()
+        bytes32 launchEconomicsHash = keccak256(
+            abi.encode(config.fee, config.genesisRewardShareBps, config.reserveShareBps, config.genesisEpochEnd)
         );
-        return keccak256(abi.encode(economics, launch));
+        bytes32 authorityHash =
+            keccak256(abi.encode(config.governance, config.treasury, config.integrator, config.salt));
+        bytes32 dependencyHash =
+            keccak256(abi.encode(config.numeraire, wethRuntimeCodeHash, config.modules, moduleCodeHashes));
+        bytes32 marketHash = keccak256(
+            abi.encode(
+                TICK_SPACING, FAR_TICK, GOVERNANCE_DEAD, MIGRATION_DEAD, keccak256(_tokenFactoryData()), defaultCurves()
+            )
+        );
+        bytes32 metadataHash = keccak256(
+            abi.encode(
+                keccak256(bytes("Statics")),
+                keccak256(bytes("STATICS")),
+                keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
+                keccak256(bytes(config.contractURI)),
+                keccak256(bytes(config.externalURLBase))
+            )
+        );
+        return keccak256(
+            abi.encode(
+                provenanceHash,
+                fixedEconomicsHash,
+                launchEconomicsHash,
+                authorityHash,
+                dependencyHash,
+                marketHash,
+                metadataHash
+            )
+        );
     }
 
     function _createDopplerMarket(
@@ -422,7 +438,10 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
                 || config.numeraire == address(0)
         ) revert ZeroAddress();
         _requireContract(config.numeraire);
-        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) _validateRobinhoodWeth(config.numeraire);
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            _validateRobinhoodWeth(config.numeraire);
+            _validateRobinhoodDopplerModules(config.modules);
+        }
         _requireContract(config.modules.airlock);
         _requireContract(config.modules.tokenFactory);
         _requireContract(config.modules.governanceFactory);
@@ -444,6 +463,37 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
         bytes32 actualCodeHash = configuredWeth.codehash;
         if (actualCodeHash != expectedCodeHash) revert InvalidRobinhoodWethCodeHash(expectedCodeHash, actualCodeHash);
+    }
+
+    function _validateRobinhoodDopplerModules(StaticsDopplerLaunchConfig.Modules memory modules)
+        private
+        view
+        returns (StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes)
+    {
+        string memory manifest = vm.readFile(_robinhoodManifestPath(ROBINHOOD_MAINNET_CHAIN_ID));
+        codeHashes.airlock = _validateRobinhoodDependency(manifest, ".contracts.dopplerAirlock", modules.airlock);
+        codeHashes.tokenFactory =
+            _validateRobinhoodDependency(manifest, ".contracts.dopplerTokenFactory", modules.tokenFactory);
+        codeHashes.governanceFactory =
+            _validateRobinhoodDependency(manifest, ".contracts.dopplerGovernanceFactory", modules.governanceFactory);
+        codeHashes.poolInitializer =
+            _validateRobinhoodDependency(manifest, ".contracts.dopplerPoolInitializer", modules.poolInitializer);
+        codeHashes.noOpMigrator =
+            _validateRobinhoodDependency(manifest, ".contracts.dopplerNoOpMigrator", modules.noOpMigrator);
+    }
+
+    function _validateRobinhoodDependency(string memory manifest, string memory path, address configured)
+        private
+        view
+        returns (bytes32 expectedCodeHash)
+    {
+        address expected = vm.parseJsonAddress(manifest, string.concat(path, ".address"));
+        if (configured != expected) revert InvalidRobinhoodDependency(expected, configured);
+        expectedCodeHash = vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash"));
+        bytes32 actualCodeHash = configured.codehash;
+        if (actualCodeHash != expectedCodeHash) {
+            revert InvalidRobinhoodDependencyCodeHash(configured, expectedCodeHash, actualCodeHash);
+        }
     }
 
     function _requireContract(address target) private view {

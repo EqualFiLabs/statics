@@ -86,6 +86,48 @@ contract DopplerGenesisLaunchForkTest is Test {
         _deployAndAssert();
     }
 
+    function testRobinhoodDopplerLaunchRejectsRuntimeCodeDrift() public {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            if (vm.envOr("REQUIRE_DOPPLER_FORK_PROOF", false)) fail("ROBINHOOD_MAINNET is required");
+            vm.skip(true);
+            return;
+        }
+        vm.createSelectFork(rpcUrl);
+
+        StaticsDopplerLaunchConfig.Modules memory modules = StaticsDopplerLaunchConfig.modules(block.chainid);
+        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+        bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.dopplerPoolInitializer.runtimeCodeHash");
+        vm.etch(modules.poolInitializer, hex"60006000fd");
+
+        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+        StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
+            governance: makeAddr("driftGovernance"),
+            treasury: makeAddr("driftTreasury"),
+            numeraire: vm.parseJsonAddress(manifest, ".contracts.weth.address"),
+            integrator: address(0),
+            modules: modules,
+            salt: keccak256("STATICS_DOPPLER_DRIFT_PROOF"),
+            fee: 15_000,
+            genesisRewardShareBps: 5_000,
+            reserveShareBps: 5_000,
+            genesisEpochEnd: block.timestamp + 30 days,
+            tokenURI: deployer.staticsTokenURI(),
+            contractURI: "ipfs://statics-genesis/contract.json",
+            externalURLBase: "https://statics.finance/genesis/"
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployStaticsGenesis.InvalidRobinhoodDependencyCodeHash.selector,
+                modules.poolInitializer,
+                expectedCodeHash,
+                modules.poolInitializer.codehash
+            )
+        );
+        deployer.deploy(config, address(deployer));
+    }
+
     function _deployAndAssert() private {
         StaticsDopplerLaunchConfig.Modules memory modules = StaticsDopplerLaunchConfig.modules(block.chainid);
         _assertCode(modules.airlock);

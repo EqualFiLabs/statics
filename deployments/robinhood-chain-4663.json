@@ -9,6 +9,8 @@
   "contractDocumentation": "https://docs.robinhood.com/chain/contracts/",
   "sourceProvenance": {
     "blockExplorer": "https://robinhoodchain.blockscout.com/",
+    "doppler": "https://github.com/whetstoneresearch/doppler/tree/86a5200456b148c156d2eb81a893747dd601c3ca",
+    "dopplerRuntimeVerifiedAt": "2026-08-22",
     "v4Periphery": "https://github.com/Uniswap/v4-periphery/tree/3779387e5d296f39df543d23524b050f89a62917",
     "v4Core": "https://github.com/Uniswap/v4-core/tree/59d3ecf53afa9264a16bba0e38f4c5d2231f80bc",
     "permit2": "https://github.com/Uniswap/permit2/tree/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
@@ -73,6 +75,26 @@
     "weth": {
       "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
       "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+    },
+    "dopplerAirlock": {
+      "address": "0xeb7C034704eF8Dcd2D32324c1545f62fB4aD0862",
+      "runtimeCodeHash": "0x86b37100cbe9841771c452a592985b4e921254b127a380246073b84ec953f7f8"
+    },
+    "dopplerTokenFactory": {
+      "address": "0x1B37D3a72082029c44B35B604Ea473617580b69a",
+      "runtimeCodeHash": "0x27abd63146eb5743b7871e211da17163afbb495863a626c0d002312af6813459"
+    },
+    "dopplerGovernanceFactory": {
+      "address": "0xdb036746D65DD52126b1915f1AdF555e6C5237Cf",
+      "runtimeCodeHash": "0xefce8ac4a6fe83ae3dd1c3cfebc0e370e1595a66608bed5610ffdd1f291b7f63"
+    },
+    "dopplerPoolInitializer": {
+      "address": "0x4e3468951D49f2EEa976eD0D6e75fFCb44a9a544",
+      "runtimeCodeHash": "0xc41a91106002f15bf70ae266824317f3f3ac638ac72ca5253bae395fa47ee631"
+    },
+    "dopplerNoOpMigrator": {
+      "address": "0xba2F330EDb16cD8056f5988d8CE19BbC63475A0e",
+      "runtimeCodeHash": "0x7bf5115543e8e0769ceabe4da9b8e23547c9e95c1cce15d24d96f164406129e3"
     }
   }
 }

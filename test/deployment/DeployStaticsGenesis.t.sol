@@ -195,32 +195,63 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[3].tickLower, -84_100);
             assertEq(curves[3].tickUpper, -83_000);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
-            uint256 epochEnd = block.timestamp + 7 days;
-            address canonicalWeth = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+        }
+
+        function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
             bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
-            bytes32 launchHash =
-                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd, canonicalWeth, canonicalWethHash);
-            assertTrue(launchHash != bytes32(0));
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(30_000, 5_000, 4_000, epochEnd, canonicalWeth, canonicalWethHash)
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
+            assertNotEq(launchHash, bytes32(0));
+
+            config.fee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.fee -= 1;
+            config.genesisRewardShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.genesisRewardShareBps -= 1;
+            config.reserveShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.reserveShareBps -= 1;
+            config.genesisEpochEnd += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.genesisEpochEnd -= 1;
+            config.governance = address(uint160(config.governance) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.governance = governance;
+            config.treasury = address(uint160(config.treasury) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.treasury = treasury;
+            config.integrator = makeAddr("integrator");
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.integrator = address(0);
+            config.salt = bytes32(uint256(config.salt) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+        }
+
+        function testLaunchManifestHashBindsDependenciesAndMetadata() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
+            StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
+
+            config.numeraire = address(uint160(config.numeraire) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.numeraire = address(weth);
+            config.modules.airlock = address(uint160(config.modules.airlock) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.airlock = address(airlock);
+            codeHashes.poolInitializer = bytes32(uint256(codeHashes.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            assertNotEq(
+                deployer.launchConfigHash(config, bytes32(uint256(canonicalWethHash) + 1), codeHashes), launchHash
             );
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd + 1, canonicalWeth, canonicalWethHash)
-            );
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(
-                        30_000, 5_000, 5_000, epochEnd, address(uint160(canonicalWeth) + 1), canonicalWethHash
-                    )
-            );
-            assertTrue(
-                launchHash
-                    != deployer.launchConfigHash(
-                        30_000, 5_000, 5_000, epochEnd, canonicalWeth, bytes32(uint256(canonicalWethHash) + 1)
-                    )
-            );
+            config.contractURI = "ipfs://different-contract.json";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.contractURI = "ipfs://statics-genesis/contract.json";
+            config.externalURLBase = "https://example.com/genesis/";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
         function testRejectsExcessiveMulticurveResidual() public {
@@ -315,6 +346,16 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",
                 externalURLBase: "https://statics.finance/genesis/"
+            });
+        }
+
+        function _codeHashes() private pure returns (StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes) {
+            codeHashes = StaticsDopplerLaunchConfig.RuntimeCodeHashes({
+                airlock: keccak256("airlock"),
+                tokenFactory: keccak256("tokenFactory"),
+                governanceFactory: keccak256("governanceFactory"),
+                poolInitializer: keccak256("poolInitializer"),
+                noOpMigrator: keccak256("noOpMigrator")
             });
         }
     }
