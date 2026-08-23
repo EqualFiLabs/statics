@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-08-23
-- Scope: Genesis secured credit, partial access to isolated STATICS backing, native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
+- Scope: Genesis secured credit, partial access to isolated STATICS backing, reserve-capitalizing native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
 - Amends: `genesis-reserve-backed-vault.md`
 - Extends: the self-backed credit lifecycle established by Position-owned BasketToken lending
 - Preserves: 5,555 fixed Genesis supply, 180,000 STATICS gross backing per circulating Genesis, fixed 1,000,000,000 STATICS supply, post-epoch native ETH reserve rights, activation multipliers, transfer-reset activation, post-epoch reserve buy-in, permanent reserve accounting, and ordinary Genesis acquisition and redemption
@@ -68,6 +68,17 @@ The owner selects:
 ```
 
 and pays the configured native origination service fee.
+
+Each origination and extension service fee uses the current governed split:
+
+```text
+10% -> permanent Genesis ETH reserve backing
+90% -> canonical Statics treasury
+```
+
+The percentages are configurable through the authorized Statics
+administration/governance path, must always total 100%, and do not change either
+destination.
 
 The Genesis remains owned by the user but becomes non-transferable while the facility is active.
 
@@ -216,18 +227,21 @@ maturity
     -> current timestamp + service term
 ```
 
-The native origination payment is protocol service revenue.
+The native origination payment is protocol service revenue split between
+permanent Genesis reserve backing and the canonical Statics treasury.
 
 It does not:
 
 ```text
-increase reserveETH
 increase Genesis STATICS backing
 reduce principal
 increase principal
 purchase activation
 enter the Genesis recovery-reward index
 ```
+
+Its reserve portion increases `reserveETH` exactly. Its treasury portion is
+transferred to the canonical Statics treasury.
 
 Production service-fee amounts require separate economic parameter ratification.
 
@@ -368,17 +382,20 @@ At maximum utilization:
 Opening a credit facility for principal `B` atomically:
 
 1. validates ownership, eligibility, fee, and absence of an existing facility;
-2. establishes the credit lock;
-3. records principal `B`;
-4. records maturity;
-5. increases aggregate outstanding Genesis principal by `B`;
-6. reduces recognized retained backing by `B`;
-7. transfers exactly `B` STATICS to the Genesis owner; and
-8. verifies post-operation solvency.
+2. reads the current service-fee split;
+3. increases `reserveETH` by the exact reserve portion of the native fee;
+4. transfers the exact treasury portion to the canonical Statics treasury;
+5. establishes the credit lock;
+6. records principal `B`;
+7. records maturity;
+8. increases aggregate outstanding Genesis principal by `B`;
+9. reduces recognized retained backing by `B`;
+10. transfers exactly `B` STATICS to the Genesis owner; and
+11. verifies post-operation solvency and native custody.
 
-No ETH reserve accounting changes.
-
-The transaction reverts atomically if the vault cannot transfer the exact principal.
+The transaction reverts atomically if the fee cannot be split exactly, the
+treasury portion cannot be transferred, the reserve portion cannot be
+accounted, or the vault cannot transfer the exact principal.
 
 ## Service term
 
@@ -417,6 +434,11 @@ amount. It is not derived from principal and has no protocol-level economic
 cap. The current value must be visible through the extension quote before the
 owner submits acceptance.
 
+The extension payment uses the governed reserve/treasury split in effect when
+extension executes. A split change affects only future service payments. It
+does not reallocate a fee already paid or reduce previously accounted
+`reserveETH`.
+
 A future extension-fee change does not modify:
 
 ```text
@@ -433,6 +455,11 @@ A successful extension performs exactly:
 
 ```text
 maturity += 30 days
+
+reserveETH += current fee reserve portion
+
+current fee treasury portion
+    -> canonical Statics treasury
 ```
 
 It does not calculate a fee from:
@@ -792,22 +819,71 @@ former owner's PositionNFT
 
 Failure to clear required protocol state reverts recovery atomically.
 
-## Native service-fee routing
+## Native service-fee split
 
 Origination and extension payments are service revenue.
 
-They route to the canonical Statics treasury rather than:
+The initial split is:
+
+```text
+creditServiceReserveShareBps = 1,000
+    -> 10%
+
+creditServiceTreasuryShareBps = 9,000
+    -> 90%
+```
+
+The authorized Statics administration/governance path may configure both
+percentages atomically, subject to:
+
+```text
+0 <= creditServiceReserveShareBps <= 10,000
+
+0 <= creditServiceTreasuryShareBps <= 10,000
+
+creditServiceReserveShareBps
+    + creditServiceTreasuryShareBps
+    == 10,000
+```
+
+Neither percentage may be changed independently into an invalid sum.
+Every successful change emits the previous and new pair so indexers and clients
+can display the active allocation.
+
+For a native service fee `F`:
+
+```text
+reserve portion
+    = floor(F * creditServiceReserveShareBps / 10,000)
+
+treasury portion
+    = F - reserve portion
+```
+
+Any integer-division remainder therefore accrues to treasury, while the two
+destinations always receive exactly `F` in aggregate.
+
+The reserve portion remains in `StaticsGenesisVault` custody and increases
+`reserveETH` by exactly that amount. It becomes permanent backing attributable
+across the fixed 5,555 Genesis reserve shares and is subject to the existing
+non-withdrawable reserve rules.
+
+The treasury portion routes to the canonical Statics treasury.
+
+No portion routes to:
 
 ```text
 Genesis STATICS backing
-Genesis ETH reserve
 Genesis recovery rewards
 credit principal
 ```
 
-Fee routing must be exact.
+The current total fee, reserve percentage, treasury percentage, reserve
+portion, and treasury portion must be exposed by the applicable quote before
+payment.
 
-A failed treasury transfer reverts the corresponding origination or extension without changing credit state.
+A failed reserve-accounting update or treasury transfer reverts the
+corresponding origination or extension without changing credit state.
 
 Production values for:
 
@@ -819,7 +895,7 @@ Genesis recovery caller share bps
 
 require separate economic ratification.
 
-## ETH reserve isolation
+## ETH reserve protection and service-fee capitalization
 
 Genesis secured credit accesses only the fixed STATICS backing.
 
@@ -828,13 +904,13 @@ It never borrows, encumbers, advances, prices, or distributes the Genesis ETH re
 During open credit:
 
 ```text
-reserveETH unchanged
+reserveETH increases by the origination fee reserve portion
 ```
 
 During extension:
 
 ```text
-reserveETH unchanged
+reserveETH increases by the extension fee reserve portion
 ```
 
 During repayment:
@@ -912,6 +988,18 @@ quoteGenesisCreditExtension(genesisId)
 quoteGenesisCreditRecovery(genesisId)
 totalOutstandingGenesisCredit()
 recoveryCallerShareBps()
+creditServiceReserveShareBps()
+creditServiceTreasuryShareBps()
+```
+
+Origination and extension quotes should report at minimum:
+
+```text
+total native service fee
+reserve share bps
+treasury share bps
+native reserve portion
+native treasury portion
 ```
 
 A credit view should report at minimum:
@@ -993,13 +1081,37 @@ active credit does not reduce reward multiplier
 
 active credit does not remove Genesis reward eligibility
 
-opening credit does not modify reserveETH
+creditServiceReserveShareBps
+    + creditServiceTreasuryShareBps
+    == 10,000
+
+creditServiceReserveShareBps <= 10,000
+
+creditServiceTreasuryShareBps <= 10,000
+
+initial credit service fee split
+    == 1,000 bps reserve + 9,000 bps treasury
+
+service fee reserve portion
+    == floor(service fee
+        * creditServiceReserveShareBps / 10,000)
+
+service fee treasury portion
+    == service fee - service fee reserve portion
+
+service fee reserve portion
+    + service fee treasury portion
+    == exact service fee paid
+
+opening credit increases reserveETH by exactly
+the quoted origination fee reserve portion
 
 extension does not modify principal
 
 extension does not modify retained STATICS backing
 
-extension does not modify reserveETH
+extension increases reserveETH by exactly
+the quoted extension fee reserve portion
 
 extension increases maturity by exactly one service term
 
@@ -1011,7 +1123,13 @@ paying the exact current extension quote purchases the next term
 
 the current extension quote exposes the complete flat native fee
 
+each current service-fee quote exposes the complete
+reserve and treasury split
+
 an extension-fee change does not modify an already-purchased term
+
+a service-fee split change does not reallocate past payments
+or reduce previously accounted reserveETH
 
 service fees never increase STATICS principal
 
@@ -1079,13 +1197,36 @@ Real-flow tests must cover at minimum:
 ```text
 post-epoch Genesis acquisition
     -> open small credit
+    -> 10% of origination fee enters reserveETH
+    -> 90% of origination fee reaches treasury
     -> continue earning rewards
     -> extension fee changes
     -> current principal and purchased term remain unchanged
     -> exact current extension quote accepted
     -> extend
+    -> 10% of extension fee enters reserveETH
+    -> 90% of extension fee reaches treasury
     -> repay
     -> transfer Genesis
+
+governed service-fee split
+    -> configure a new valid reserve/treasury pair
+    -> previous and new pair emitted
+    -> existing reserveETH remains unchanged
+    -> next origination uses the new split
+    -> next extension uses the new split
+    -> unauthorized configuration reverts
+    -> invalid pair whose sum is not 10,000 reverts
+
+service-fee split boundary
+    -> configure 0 bps reserve and 10,000 bps treasury
+    -> exact payment reaches treasury
+    -> configure 10,000 bps reserve and 0 bps treasury
+    -> exact payment enters reserveETH
+    -> use a fee that does not divide evenly by 10,000
+    -> reserve receives the floored portion
+    -> treasury receives the complete remainder
+    -> no native value is stranded
 
 post-epoch Genesis acquisition
     -> activate Genesis
@@ -1155,7 +1296,7 @@ credit-active Genesis
 
 credit-active Genesis
     -> reserve donation
-    -> reserve accounting remains independent
+    -> reserve donation and service-fee capitalization remain exact
 
 paused origination
     -> new credit reverts
@@ -1208,6 +1349,10 @@ The implementation must preserve the following boundaries:
 - A compromised marketplace approval cannot originate credit.
 - Credit cannot cause the vault to debit another Genesis's required backing.
 - Credit never exposes native ETH reserve custody.
+- Only the authorized Statics administration/governance path may change the service-fee split.
+- Service-fee governance may change only the reserve/treasury percentages and must preserve a 10,000-bps total.
+- Service-fee governance cannot change the fixed reserve or treasury destinations, reallocate past payments, or withdraw accounted `reserveETH`.
+- Origination and extension atomically account the exact reserve portion and transfer the exact treasury portion before completing credit state changes.
 - Recovery has a fixed NFT destination: `StaticsGenesisVault`.
 - Any privileged foreclosure surface may transfer a recoverable Genesis only to its immutable vault.
 - Recovery cannot select an arbitrary NFT receiver.
@@ -1216,6 +1361,7 @@ The implementation must preserve the following boundaries:
 - Recovery cannot modify, confiscate, or erase unrelated PositionNFT ledger state.
 - Service-fee configuration cannot alter principal already outstanding.
 - Reward-distributor failure cannot silently misaccount the Genesis-holder portion of the 9,000-STATICS recovery residual.
+- Native service-fee rounding cannot strand value or cause aggregate allocations to differ from the exact payment.
 - All principal, repayment, unused-credit, caller-incentive, and Genesis-reward transfers use exact-transfer accounting.
 - No oracle, NFT marketplace, external liquidation venue, or arbitrary recipient enters the solvency boundary.
 
@@ -1236,10 +1382,14 @@ open secured credit
     -> access up to 171,000 STATICS
     -> preserve those Genesis benefits
     -> pay a native service fee
+    -> capitalize the governed reserve portion
+    -> route the remainder to treasury
 
 extend
     -> purchase another service term
     -> preserve principal and benefits
+    -> capitalize the governed reserve portion
+    -> route the remainder to treasury
 
 repay
     -> restore backing
@@ -1293,6 +1443,8 @@ STATICS accessed
 Service term
 Origination service fee
 Extension service fee
+Reserve allocation
+Treasury allocation
 Next service deadline
 Recovery date
 Recovery caller incentive
@@ -1344,6 +1496,18 @@ Rejected.
 Origination and extension fees purchase access to the secured-credit service for the applicable term.
 
 Choosing to stop using the service early does not reverse the completed service purchase.
+
+### Route all credit service fees to treasury
+
+Rejected.
+
+Genesis secured credit relies on permanent reserve exposure as part of the
+holder's reason to retain and maintain the NFT. The initial 10% reserve share
+lets credit usage itself capitalize that backing, while the 90% treasury share
+preserves protocol service revenue.
+
+Governance may later adjust the percentages as one valid pair totaling 100%,
+but cannot change either destination or reallocate reserve already capitalized.
 
 ### Distribute all retained backing after a small-principal default
 
