@@ -15,9 +15,9 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _deployGenesis(block.timestamp + 7 days);
     }
 
-    /// @dev A uint96 reserve exceeds the native currency that can economically
+    /// @dev A uint88 reserve exceeds the native currency that can economically
     ///      exist while keeping symbolic division tractable for the solver.
-    function check_epochBoundaryQuotes(uint96 reserve) public {
+    function check_epochQuotesDuring(uint88 reserve) public {
         _donate(reserve);
         GenesisPurchaseQuote memory duringPurchase = vault.quoteGenesisPurchase();
         GenesisRedemptionQuote memory duringRedemption = vault.quoteGenesisRedemption();
@@ -27,20 +27,32 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(duringPurchase.requiredNative, 0);
         assertTrue(duringRedemption.epochActive);
         assertEq(duringRedemption.reservePayout, 0);
+    }
 
+    function check_epochQuotesAfter(uint88 reserve) public {
+        _donate(reserve);
         vm.warp(vault.genesisEpochEnd());
         GenesisPurchaseQuote memory afterPurchase = vault.quoteGenesisPurchase();
         GenesisRedemptionQuote memory afterRedemption = vault.quoteGenesisRedemption();
-        uint256 expectedBuyIn = (uint256(reserve) + 5_553) / 5_554;
         assertFalse(afterPurchase.epochActive);
-        assertEq(afterPurchase.reserveBuyIn, expectedBuyIn);
         assertEq(afterPurchase.nativeFee, vault.nativeAcquisitionFee());
-        assertEq(afterPurchase.requiredNative, expectedBuyIn + vault.nativeAcquisitionFee());
+        assertEq(afterPurchase.requiredNative, afterPurchase.reserveBuyIn + vault.nativeAcquisitionFee());
         assertFalse(afterRedemption.epochActive);
-        assertEq(afterRedemption.reservePayout, uint256(reserve) / 5_555);
+
+        uint256 buyIn = afterPurchase.reserveBuyIn;
+        if (reserve == 0) {
+            assertEq(buyIn, 0);
+        } else {
+            assertGe(buyIn * vault.RESERVE_BUY_IN_DENOMINATOR(), reserve);
+            assertLt((buyIn - 1) * vault.RESERVE_BUY_IN_DENOMINATOR(), reserve);
+        }
+
+        uint256 payout = afterRedemption.reservePayout;
+        assertLe(payout * vault.RESERVE_DENOMINATOR(), reserve);
+        assertLt(uint256(reserve) - payout * vault.RESERVE_DENOMINATOR(), vault.RESERVE_DENOMINATOR());
     }
 
-    function check_acquisitionAndRedemptionPreserveSolvency(uint96 reserve, uint96 excessNative) public {
+    function check_acquisitionAndRedemptionPreserveSolvency(uint88 reserve, uint88 excessNative) public {
         _donate(reserve);
         vm.warp(vault.genesisEpochEnd());
         uint256 requiredNative = vault.reserveBuyIn() + vault.nativeAcquisitionFee();
@@ -62,7 +74,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _assertSolvent();
     }
 
-    function check_directGenesisReturnOnlyOvercollateralizes(uint96 reserve) public {
+    function check_directGenesisReturnOnlyOvercollateralizes(uint88 reserve) public {
         _donate(reserve);
         _acquire(1, alice);
         assertEq(vault.tokenBacking(), vault.requiredBacking());
@@ -85,7 +97,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _assertSolvent();
     }
 
-    function check_governanceTransitionsCannotReduceCustody(uint96 reserve, uint96 fee) public {
+    function check_governanceTransitionsCannotReduceCustody(uint88 reserve, uint96 fee) public {
         vm.assume(fee <= vault.MAX_NATIVE_ACQUISITION_FEE());
         _donate(reserve);
         uint256 tokenCustody = statics.balanceOf(address(vault));
