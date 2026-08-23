@@ -3,7 +3,7 @@ pragma solidity 0.8.33;
 
 import {SymTest} from "halmos-cheatcodes/SymTest.sol";
 import {GenesisPurchaseQuote, GenesisRedemptionQuote} from "../../src/interfaces/IStaticsGenesisVault.sol";
-import {FormalForceNative, FormalGenesisEnvironment} from "./mocks/FormalGenesisMocks.sol";
+import {FormalGenesisEnvironment} from "./mocks/FormalGenesisMocks.sol";
 
 contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
     address private alice;
@@ -91,8 +91,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _donate(donation);
         uint256 reserveBefore = vault.reserveETH();
         uint256 custodyBefore = address(vault).balance;
-        vm.deal(address(this), forcedAmount);
-        new FormalForceNative{value: forcedAmount}(payable(address(vault)));
+        vm.deal(address(vault), custodyBefore + forcedAmount);
         assertEq(vault.reserveETH(), reserveBefore);
         assertEq(address(vault).balance, custodyBefore + forcedAmount);
         _assertSolvent();

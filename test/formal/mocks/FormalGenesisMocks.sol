@@ -119,12 +119,6 @@ contract FormalGenesisProtocol {
     }
 }
 
-contract FormalForceNative {
-    constructor(address payable receiver) payable {
-        selfdestruct(receiver);
-    }
-}
-
 abstract contract FormalGenesisEnvironment is Test {
     FormalToken internal statics;
     GenesisActivationRegistry internal registry;
