@@ -111,10 +111,10 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
             paid += _tierCost[tier];
         }
 
-        _tierOf[genesisId] = targetTier;
         _notifyConsumer(
             genesisId, tokenOwner, tokenOwner, multiplierForTier(currentTier), multiplierForTier(targetTier)
         );
+        _tierOf[genesisId] = targetTier;
         statics.pullExact(msg.sender, paid);
         statics.pushExact(treasury, paid);
         emit GenesisActivated(genesisId, currentTier, targetTier, paid);

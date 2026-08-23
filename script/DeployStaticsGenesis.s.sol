@@ -15,6 +15,7 @@ import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
 import {StaticsLaunchAllocationEscrow} from "../src/genesis/StaticsLaunchAllocationEscrow.sol";
 import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
+import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 import {LibStaticsTokenMetadata} from "../src/metadata/LibStaticsTokenMetadata.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
@@ -62,7 +63,7 @@ struct GenesisCollection {
 }
 
 /// @notice Fresh-deployment-only launcher for the standalone Doppler Genesis system.
-contract DeployStaticsGenesis is Script {
+contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     using PoolIdLibrary for PoolKey;
 
     uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
@@ -89,6 +90,8 @@ contract DeployStaticsGenesis is Script {
     error InvalidRewardShare(uint256 shareBps);
     error InvalidReserveShare(uint256 shareBps);
     error InvalidEpochEnd(uint256 epochEnd);
+    error InvalidRobinhoodWeth(address expected, address actual);
+    error InvalidRobinhoodWethCodeHash(bytes32 expected, bytes32 actual);
     error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
     error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
@@ -120,9 +123,15 @@ contract DeployStaticsGenesis is Script {
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
             externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
         });
-        if (block.chainid == 4_663) {
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            bytes32 wethRuntimeCodeHash = _validateRobinhoodWeth(config.numeraire);
             bytes32 currentHash = launchConfigHash(
-                config.fee, config.genesisRewardShareBps, config.reserveShareBps, config.genesisEpochEnd
+                config.fee,
+                config.genesisRewardShareBps,
+                config.reserveShareBps,
+                config.genesisEpochEnd,
+                config.numeraire,
+                wethRuntimeCodeHash
             );
             if (
                 APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH == bytes32(0)
@@ -250,11 +259,14 @@ contract DeployStaticsGenesis is Script {
             DopplerLaunchTypes.Curve({tickLower: -84_100, tickUpper: -83_000, numPositions: 11, shares: 0.01 ether});
     }
 
-    function launchConfigHash(uint24 fee, uint16 genesisRewardShareBps, uint16 reserveShareBps, uint256 genesisEpochEnd)
-        public
-        pure
-        returns (bytes32)
-    {
+    function launchConfigHash(
+        uint24 fee,
+        uint16 genesisRewardShareBps,
+        uint16 reserveShareBps,
+        uint256 genesisEpochEnd,
+        address weth,
+        bytes32 wethRuntimeCodeHash
+    ) public pure returns (bytes32) {
         // Split encoding across two tuples so legacy codegen keeps within stack limits.
         bytes memory economics = abi.encode(
             STATICS_SUPPLY,
@@ -271,6 +283,8 @@ contract DeployStaticsGenesis is Script {
             genesisRewardShareBps,
             reserveShareBps,
             genesisEpochEnd,
+            weth,
+            wethRuntimeCodeHash,
             TICK_SPACING,
             FAR_TICK,
             keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
@@ -408,6 +422,7 @@ contract DeployStaticsGenesis is Script {
                 || config.numeraire == address(0)
         ) revert ZeroAddress();
         _requireContract(config.numeraire);
+        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) _validateRobinhoodWeth(config.numeraire);
         _requireContract(config.modules.airlock);
         _requireContract(config.modules.tokenFactory);
         _requireContract(config.modules.governanceFactory);
@@ -420,6 +435,15 @@ contract DeployStaticsGenesis is Script {
         if (config.genesisRewardShareBps > 10_000) revert InvalidRewardShare(config.genesisRewardShareBps);
         if (config.reserveShareBps > 10_000) revert InvalidReserveShare(config.reserveShareBps);
         if (config.genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(config.genesisEpochEnd);
+    }
+
+    function _validateRobinhoodWeth(address configuredWeth) private view returns (bytes32 expectedCodeHash) {
+        string memory manifest = vm.readFile(_robinhoodManifestPath(ROBINHOOD_MAINNET_CHAIN_ID));
+        address expectedWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+        if (configuredWeth != expectedWeth) revert InvalidRobinhoodWeth(expectedWeth, configuredWeth);
+        expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
+        bytes32 actualCodeHash = configuredWeth.codehash;
+        if (actualCodeHash != expectedCodeHash) revert InvalidRobinhoodWethCodeHash(expectedCodeHash, actualCodeHash);
     }
 
     function _requireContract(address target) private view {

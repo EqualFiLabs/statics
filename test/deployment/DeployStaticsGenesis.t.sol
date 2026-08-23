@@ -196,14 +196,30 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[3].tickUpper, -83_000);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
             uint256 epochEnd = block.timestamp + 7 days;
-            assertTrue(deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd) != bytes32(0));
+            address canonicalWeth = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+            bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
+            bytes32 launchHash =
+                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd, canonicalWeth, canonicalWethHash);
+            assertTrue(launchHash != bytes32(0));
             assertTrue(
-                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd)
-                    != deployer.launchConfigHash(30_000, 5_000, 4_000, epochEnd)
+                launchHash
+                    != deployer.launchConfigHash(30_000, 5_000, 4_000, epochEnd, canonicalWeth, canonicalWethHash)
             );
             assertTrue(
-                deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd)
-                    != deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd + 1)
+                launchHash
+                    != deployer.launchConfigHash(30_000, 5_000, 5_000, epochEnd + 1, canonicalWeth, canonicalWethHash)
+            );
+            assertTrue(
+                launchHash
+                    != deployer.launchConfigHash(
+                        30_000, 5_000, 5_000, epochEnd, address(uint160(canonicalWeth) + 1), canonicalWethHash
+                    )
+            );
+            assertTrue(
+                launchHash
+                    != deployer.launchConfigHash(
+                        30_000, 5_000, 5_000, epochEnd, canonicalWeth, bytes32(uint256(canonicalWethHash) + 1)
+                    )
             );
         }
 
@@ -235,6 +251,35 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config = _config();
             config.contractURI = "";
             vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsNoncanonicalRobinhoodWeth() public {
+            vm.chainId(4_663);
+            StaticsGenesisDeploymentConfig memory config = _config();
+            string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+            address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.InvalidRobinhoodWeth.selector, canonicalWeth, config.numeraire
+                )
+            );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsRobinhoodWethCodeHashDrift() public {
+            vm.chainId(4_663);
+            string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+            address canonicalWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+            bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
+            vm.etch(canonicalWeth, hex"60006000fd");
+            StaticsGenesisDeploymentConfig memory config = _config();
+            config.numeraire = canonicalWeth;
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.InvalidRobinhoodWethCodeHash.selector, expectedCodeHash, canonicalWeth.codehash
+                )
+            );
             deployer.deploy(config, address(deployer));
         }
 

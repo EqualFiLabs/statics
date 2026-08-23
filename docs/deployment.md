@@ -24,7 +24,7 @@ selected by chain ID and reads:
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
 | `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor |
 | `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis activation-payment recipient, and royalty receiver |
-| `WETH_ADDRESS` | Verified WETH paired with STATICS |
+| `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical address and runtime code hash |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
 | `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
 | `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
@@ -82,11 +82,16 @@ official standard Multicurve initializers.
 
 The canonical `run()` path is deliberately locked on Robinhood while
 `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
-curves, static fee, and Genesis reward share requires a reviewed follow-up
-commit that pins their exact hash. The lower-level `deploy()` function remains
-available to unit and fork tests. Deployment also rejects more than 100 STATICS
-of Multicurve rounding residual so an upstream or configuration error cannot
-silently shrink the 800-million-token public inventory.
+curves, static fee, Genesis reward share, and reserve parameters requires a
+reviewed follow-up commit that pins their exact hash. That commitment also binds
+the canonical Robinhood WETH address and runtime code hash recorded in the
+mainnet deployment manifest. Before any simulation or broadcast, the launcher
+rejects a different `WETH_ADDRESS` or runtime bytecode so WETH `withdraw()`
+cannot silently cross the permanent reserve security boundary. The lower-level
+`deploy()` function remains available to unit and fork tests. Deployment also
+rejects more than 100 STATICS of Multicurve rounding residual so an upstream or
+configuration error cannot silently shrink the 800-million-token public
+inventory.
 
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
@@ -216,10 +221,12 @@ their addresses are the same. Production liquidity configuration must use the
 selected manifest's PoolManager, PositionManager, Permit2, hook calibration,
 and recorded code hashes; Solidity contracts do not embed those addresses.
 The SDK's existing generated Robinhood binding remains mainnet-specific.
-The testnet manifest also records the independently verified WETH address and
-runtime code hash. Set `WETH_ADDRESS` to that manifest value for the Robinhood
-testnet rehearsal; the launcher still requires the environment value so a
-mainnet deployment cannot silently inherit a testnet token address.
+Both manifests record independently verified WETH addresses and runtime code
+hashes. Set `WETH_ADDRESS` to the selected manifest value. The standalone
+Genesis launcher actively enforces the Robinhood mainnet WETH address and
+runtime hash because WETH unwrapping funds its permanent reserve; the full-stack
+launcher still requires the environment value so a mainnet deployment cannot
+silently inherit a testnet token address.
 
 The target network must implement Cancun transient storage (EIP-1153).
 `FlashLoanFacet` uses OpenZeppelin's transient reentrancy guard so callbacks can
