@@ -10,6 +10,7 @@ library LibPosition {
     bytes32 internal constant BASKET_MODULE = keccak256("statics.position.module.basket");
     bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
     bytes32 internal constant LIQUIDITY_MODULE = keccak256("statics.position.module.liquidity");
+    bytes32 internal constant GENESIS_MODULE = keccak256("statics.position.module.genesis");
 
     /// @dev Fits in one storage word. Public reporting widens each integer to uint256.
     struct PackedPositionState {
@@ -156,6 +157,14 @@ library LibPosition {
 
     function liquidityLegKey(address moduleAuthority) internal pure returns (bytes32) {
         return legKey(moduleAuthority, LIQUIDITY_MODULE, bytes32(uint256(1)));
+    }
+
+    function genesisLegKey(uint256 genesisId) internal view returns (bytes32) {
+        return legKey(GENESIS_MODULE, bytes32(genesisId));
+    }
+
+    function genesisLegKey(address moduleAuthority, uint256 genesisId) internal pure returns (bytes32) {
+        return legKey(moduleAuthority, GENESIS_MODULE, bytes32(genesisId));
     }
 
     function activateLeg(uint256 positionId, bytes32 moduleType, bytes32 localPositionId)

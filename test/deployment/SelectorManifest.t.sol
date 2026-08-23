@@ -13,7 +13,9 @@ import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
+import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
+import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {
     IStaticsPosition,
     IStaticsPositionFees,
@@ -22,14 +24,41 @@ import {
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testGenesisNFTSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.genesisNFT();
+        bytes4[] memory expected = new bytes4[](14);
+        expected[0] = IStaticsGenesisIntegration.linkGenesis.selector;
+        expected[1] = IStaticsGenesisIntegration.unlinkGenesis.selector;
+        expected[2] = IStaticsGenesisIntegration.linkedGenesis.selector;
+        expected[3] = IStaticsGenesisIntegration.linkedPosition.selector;
+        expected[4] = IStaticsGenesisIntegration.genesisCollection.selector;
+        expected[5] = IStaticsGenesisIntegration.genesisRecoveryVault.selector;
+        expected[6] = IStaticsGenesisIntegration.genesisRecoveryAsset.selector;
+        expected[7] = IStaticsGenesisIntegration.genesisRecoveryReady.selector;
+        expected[8] = IStaticsGenesisIntegration.genesisIntegrationReady.selector;
+        expected[9] = IStaticsGenesisIntegration.genesisRecoveryCallback.selector;
+        expected[10] = IStaticsGenesisIntegration.onGenesisRecovery.selector;
+        expected[11] = IStaticsGenesisIntegration.onGenesisTransition.selector;
+        expected[12] = IStaticsGenesisIntegration.acceptGenesisDistributorRole.selector;
+        expected[13] = IStaticsGenesisIntegration.acceptGenesisConsumerRole.selector;
+        assertEq(actual.length, expected.length);
+        for (uint256 i; i < actual.length; ++i) {
+            assertEq(actual[i], expected[i]);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(actual[i], actual[j]);
+            }
+        }
+    }
+
     function testPositionSelectorManifestIncludesFeesAndOwnerIndex() public pure {
         assertEq(type(IModularPositionNFT).interfaceId, bytes4(0x212b8e93));
         assertEq(type(IPositionOwnerIndex).interfaceId, bytes4(0x7ef5913d));
         bytes4[] memory selectors = StaticsSelectors.position();
-        assertEq(selectors.length, 26);
+        assertEq(selectors.length, 27);
         assertEq(selectors[12], IStaticsPosition.createPosition.selector);
         assertEq(selectors[17], IModularPositionNFT.positionState.selector);
         assertEq(selectors[18], IModularPositionNFT.isLegActive.selector);
+        assertEq(selectors[26], IERC5192.locked.selector);
         assertEq(selectors[19], IModularPositionNFT.isPositionClosable.selector);
         assertEq(selectors[20], IStaticsPositionModule.createPositionForModule.selector);
         assertEq(selectors[21], IStaticsPositionFees.setPositionCreationFee.selector);

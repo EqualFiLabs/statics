@@ -9,6 +9,7 @@ import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/I
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IModularPositionNFT} from "src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "src/interfaces/IPositionOwnerIndex.sol";
+import {IERC5192} from "src/interfaces/IERC5192.sol";
 
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {StaticsProtocolInit} from "src/diamond/StaticsProtocolInit.sol";
@@ -284,6 +285,7 @@ contract PositionNFTTest is Test {
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IPositionOwnerIndex).interfaceId));
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IERC5192).interfaceId));
     }
 
     function test_PositionMetadataContainsBrandedOnchainImage() public {

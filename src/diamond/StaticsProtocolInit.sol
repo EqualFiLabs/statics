@@ -26,6 +26,7 @@ import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol
 import {IStaticsPosition, IStaticsPositionFees} from "../interfaces/IStaticsPosition.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsDollarRiskLiquidity} from "../dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
 import {IStaticsDollarRiskIncentives} from "../dollar/interfaces/IStaticsDollarRiskIncentives.sol";
@@ -152,6 +153,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;
         ds.supportedInterfaces[type(IModularPositionNFT).interfaceId] = true;
         ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
+        ds.supportedInterfaces[type(IERC5192).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionPortfolio).interfaceId] = true;
 
         LibGovernance.governanceStorage().guardian = guardian;

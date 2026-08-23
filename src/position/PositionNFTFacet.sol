@@ -7,10 +7,12 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibPositionSVG} from "../metadata/LibPositionSVG.sol";
+import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
 import {LibPosition} from "./LibPosition.sol";
 
 contract PositionNFTFacet is
@@ -18,7 +20,8 @@ contract PositionNFTFacet is
     IModularPositionNFT,
     IStaticsPosition,
     IStaticsPositionFees,
-    IStaticsPositionModule
+    IStaticsPositionModule,
+    IERC5192
 {
     using Strings for uint256;
     uint256 internal constant MAX_POSITION_PAGE_SIZE = 100;
@@ -35,6 +38,7 @@ contract PositionNFTFacet is
     error PositionHasActiveLegs(uint256 positionId, uint256 activeLegCount);
     error PositionHasUnresolvedObligations(uint256 positionId, uint256 unresolvedObligationCount);
     error InvalidPositionPageSize(uint256 requested, uint256 maximum);
+    error PositionLocked(uint256 positionId);
 
     function createPosition(address receiver) external payable returns (uint256 positionId) {
         _enforcePositionCreationFee();
@@ -156,6 +160,11 @@ contract PositionNFTFacet is
             && state.unresolvedObligationCount == 0;
     }
 
+    function locked(uint256 positionId) public view returns (bool) {
+        _requireOwned(positionId);
+        return LibGenesisIntegration.genesisStorage().linkedGenesis[positionId] != 0;
+    }
+
     function _createPosition(address receiver, bytes32 moduleType, bytes32 localPositionId)
         private
         returns (uint256 positionId)
@@ -169,6 +178,10 @@ contract PositionNFTFacet is
     }
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address previousOwner) {
+        address currentOwner = _ownerOf(tokenId);
+        if (currentOwner != address(0) && to != address(0) && currentOwner != to && locked(tokenId)) {
+            revert PositionLocked(tokenId);
+        }
         previousOwner = super._update(to, tokenId, auth);
         LibPosition.syncOwnerIndex(tokenId, to);
     }
