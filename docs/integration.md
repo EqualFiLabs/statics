@@ -9,6 +9,8 @@ Most applications need:
 - `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
   `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
   temporary Genesis rewards;
+- `IStaticsGenesisIntegration` at `StaticsDiamond` for permanent Genesis
+  rewards, Position linkage, and recovery after the governed handoff;
 - `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
   and ordinary Statics Dollar gateway address;
 - `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
@@ -31,6 +33,7 @@ Use compiled ABIs from these sources:
 | Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote epoch/reserve pricing, buy, redeem, donate native reserve, inspect inventory, and verify dual backing |
 | Genesis activation | `src/interfaces/IGenesisActivationRegistry.sol` | Permanent tiers, treasury-paid activation costs, multipliers, transfer reset, and consumer handoff |
 | Genesis launch fees | `src/interfaces/IStaticsFeeReceiver.sol` and `IGenesisLaunchDistributor.sol` | Authenticated Doppler harvests, permanent WETH reserve funding, reward indexes, claims, and distributor handoff |
+| Full Genesis integration | `src/interfaces/IStaticsGenesisIntegration.sol` | Register, link/unlink, inspect direct and Position weights, claim permanent rewards, and inspect recovery readiness |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
@@ -94,6 +97,23 @@ manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
 swaps. Registered Genesis rewards are indexed only after the permanent receiver
 collects its authenticated 95% beneficiary share from the standard Doppler
 initializer; raw receiver balances are not protocol revenue.
+
+After `genesisIntegrationReady()` becomes true, an actual Genesis owner may
+call `registerGenesis(genesisId)` once for the permanent reward interval.
+Registration does not require Position linkage and follows the token across
+later transfers. On an owner-changing transfer, already attributed rewards
+settle to `genesisOwnerClaimable(previousOwner, asset)`, activation resets to
+Tier 0, and future direct weight follows the new owner. Use
+`claimGenesisRewards` for rewards still attached to a held token and
+`claimGenesisOwnerRewards` for crystallized prior-owner credits.
+
+`linkGenesis(positionId, genesisId)` requires the same actual owner for both
+NFTs; approvals do not authorize linking or unlinking. While linked,
+`locked()` is true for both NFTs and owner-changing transfer is prohibited.
+The activation multiplier applies only to global STATICS reward weight. It
+does not change raw stake, withdrawable principal, collateral, LP rewards, or
+direct Genesis rewards. Recovery clears the link and boost but preserves the
+PositionNFT, raw stake, pending maturity, claims, and unrelated legs.
 
 ## Basket creation and discovery
 
@@ -202,8 +222,10 @@ full unstake clears selections but preserves settled claims.
 
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
-per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`
-timestamp and pending/eligible split. Fee accrual or the next position action
+per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`,
+raw pending/eligible stake, and pending/eligible effective weight.
+`stakePosition` reports the current `rewardMultiplierBps`; `totalStaked()`
+remains raw principal. Fee accrual or the next position action
 rolls due maturity buckets; no separate activation transaction is required.
 Position-specific views and actions require ERC-721 ownership or approval.
 Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the

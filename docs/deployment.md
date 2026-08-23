@@ -124,6 +124,41 @@ distributor. Verify `owner() == governance` and `pendingOwner() == address(0)`
 on all five contracts; until then the broadcaster remains the active owner.
 The four-curve fixture and fee values are not approved production economics.
 
+## Full Statics Genesis handoff
+
+Full Statics deployment and the standalone Genesis launch remain separate.
+Fresh `StaticsDiamond` deployments install `GenesisNFTFacet` but leave its
+external bindings uninitialized, so registration and linking stay unavailable.
+For an existing pre-feature Diamond, first deploy the replacement facets with
+`PrepareStaticsGenesisUpgrade`; set `STATICS_GENESIS_INSTALL_UPGRADE=true` so
+the same initialization cut replaces the reward, Position, and custody facets
+and adds the Genesis facet without iterating existing Positions.
+
+Deploy the stateless initializer with:
+
+```bash
+forge script script/ConfigureStaticsGenesis.s.sol:ConfigureStaticsGenesis \
+  --sig "runDeployInitializer()" \
+  --rpc-url "$RPC_URL" \
+  --broadcast -vv
+```
+
+`ConfigureStaticsGenesis` validates the canonical Genesis, vault, activation
+registry, fee receiver, treasury, STATICS, WETH, launch distributor, and reward
+share before preparing any handoff. If all administered Genesis contracts are
+owned by the Statics timelock, `runSchedule()` and `runExecute()` perform one
+ordered batch. If Genesis governance remains a separate Safe or controller,
+use `runScheduleInitialization()` and `runExecuteInitialization()` for the
+Diamond-owned cut, then execute the six typed calls returned by
+`buildGenesisGovernanceBatch()` from Genesis governance.
+
+The ordered transition initializes the Diamond, proposes and accepts it as fee
+distributor, migrates any pending recovery value, finalizes the launch
+distributor, proposes and accepts the Diamond as activation consumer, and binds
+`StaticsGenesis.protocol()`. Historical launch claims remain in the finalized
+launch distributor. New full-protocol registration and Position linkage are
+enabled only when `genesisIntegrationReady()` is true.
+
 ## Required configuration
 
 Copy `.env.example` and select every production parameter explicitly. The
@@ -156,6 +191,18 @@ canonical launcher reads:
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed JSON manifest for the owner-funded first basket |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding the approvals and atomic basket launch |
+| `STATICS_GENESIS_INTEGRATION_INIT_ADDRESS` | Deployed one-time Diamond initializer used by the Genesis handoff |
+| `STATICS_GENESIS_HANDOFF_TIMELOCK_SALT` | Unique salt binding the Genesis integration initialization or unified handoff |
+| `STATICS_GENESIS_FEE_RECEIVER_ADDRESS` | Permanent standalone fee receiver being handed to the Diamond distributor |
+| `STATICS_GENESIS_ACTIVATION_REGISTRY_ADDRESS` | Permanent activation registry whose consumer rotates to the Diamond |
+| `STATICS_GENESIS_NFT_ADDRESS` | Canonical Genesis collection bound to the Diamond |
+| `STATICS_GENESIS_VAULT_ADDRESS` | Canonical secured-credit and recovery vault |
+| `STATICS_GENESIS_DISTRIBUTOR_ADDRESS` | Temporary launch distributor finalized by the handoff |
+| `STATICS_GENESIS_INSTALL_UPGRADE` | `true` only for an existing Diamond that needs the prepared replacement facets; fresh deployments use `false` |
+| `STATICS_GLOBAL_REWARDS_FACET_ADDRESS` | Prepared replacement facet for an existing-Diamond handoff |
+| `STATICS_POSITION_NFT_FACET_ADDRESS` | Prepared replacement facet for an existing-Diamond handoff |
+| `STATICS_CUSTODY_FACET_ADDRESS` | Prepared replacement facet for an existing-Diamond handoff |
+| `STATICS_GENESIS_NFT_FACET_ADDRESS` | Prepared Genesis facet for an existing-Diamond handoff |
 
 `RPC_URL` is consumed by the Forge command rather than Solidity. Do not infer
 feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
@@ -505,7 +552,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           29 facets, 218 selectors
+StaticsDiamond:           30 facets, 254 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

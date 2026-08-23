@@ -177,7 +177,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **29 facets / 218 selectors** on `StaticsDiamond`; and
+- **30 facets / 254 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -248,12 +248,20 @@ One PositionNFT can own several independent legs:
 - immediately consumable Statics Dollar Risk Share liquidity, funded
   incentives, fill proceeds, and series-migration credits;
 - pairing-vault state; and
-- voluntarily custodied full-range v4 LP NFTs and their hook-fee claims.
+- voluntarily custodied full-range v4 LP NFTs and their hook-fee claims; and
+- one optional linked Genesis NFT that supplies the Position's global STATICS
+  reward multiplier without entering Diamond custody.
 
 ERC-721 ownership and approvals authorize attached legs. Transferring the NFT
 transfers its staking balance, reward claims, collateral, obligations, and
 control of voluntarily custodied LP NFTs. Integrators must inspect every active
 leg before accepting a transfer.
+
+Genesis linkage is stricter than ordinary leg authority: only the actual owner
+of both NFTs may link or unlink. While linked, owner-changing transfer of either
+NFT is blocked and both expose ERC-5192 lock state. Recovery severs the link,
+returns the Position multiplier to 1.00x, and leaves Position ownership and all
+unrelated Position ledger state unchanged.
 
 The Diamond implements the pre-ERC Modular Position NFT reporting interface
 (`0x212b8e93`). `positionState` reports current existence, a structural nonce,
@@ -432,6 +440,15 @@ basket redemption backing.
 Statics has one immutable-at-initialization staking-token address. The token
 must be a deployed contract and staking transfers must be exact: taxed or
 otherwise balance-changing staking tokens are rejected.
+
+Raw stake is always tracked separately from effective reward weight. Base
+positions use 10,000 BPS; a linked Genesis supplies the registry's current
+10,000-to-12,500 BPS multiplier. Each reward denominator and position
+settlement uses `floor(raw stake * multiplierBps / 10,000)`, while custody,
+withdrawals, `totalStaked()`, collateral, governance, and every non-global
+reward rail continue using unmultiplied principal. A multiplier transition
+settles the completed interval before replacing weight and never resets a
+pending stake bucket's maturity.
 
 `createAndStake` creates a PositionNFT, selects its initial reward assets, and
 stakes in one call. `stake` increases an existing authorized position.
@@ -1140,6 +1157,7 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Basket collateral | `IStaticsBasketCollateral` |
 | Basket position rewards | `IStaticsBasketRewards` |
 | Global staking and rewards | `IStaticsGlobalRewards` |
+| Full Genesis integration | `IStaticsGenesisIntegration` |
 | Basket lending | `IStaticsLending` |
 | Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
 | PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; onchain financial-account metadata with an internal logo-and-ID SVG and no mutable renderer |

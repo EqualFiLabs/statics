@@ -1,6 +1,6 @@
 # ADR: Full Statics Genesis integration and staking reward multipliers
 
-- Status: Proposed
+- Status: Accepted and implemented
 - Date: 2026-08-23
 - Scope: Full Statics Genesis integration, Genesis-to-PositionNFT linkage, mutual transfer locking, permanent Genesis reward distribution, activation callbacks, secured-credit recovery callbacks, and activation-weighted global STATICS staking
 - Depends on: `genesis-secured-credit.md`
@@ -111,6 +111,12 @@ Risk Share accounting
 Genesis activation remains canonical in `GenesisActivationRegistry`.
 
 The Diamond never creates a second activation tier or independent multiplier source of truth.
+
+The implementation lives in `GenesisNFTFacet`, `LibGenesisIntegration`,
+`LibGenesisRewards`, and the weight-aware `LibGlobalRewards`. Fresh Statics
+deployments install the facet inertly. `ConfigureStaticsGenesis` performs the
+separate governed binding and handoff after the standalone launch contracts
+exist; the standalone launcher is not coupled to full-Statics deployment.
 
 ## StaticsFeeReceiver remains permanent
 

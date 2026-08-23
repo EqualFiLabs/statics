@@ -202,6 +202,10 @@ forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
 # Shared PositionNFT behavior
 forge test --match-path test/position/PositionNFT.t.sol -vv
 
+# Full Genesis rewards, Position linkage, recovery, and governed handoff
+forge test --match-path test/genesis/GenesisPositionIntegration.t.sol -vv
+forge test --match-path test/deployment/ConfigureStaticsGenesis.t.sol -vv
+
 # SDK surface
 npm test --prefix sdk
 ```
@@ -298,7 +302,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           29 facets, 218 selectors
+StaticsDiamond:           30 facets, 254 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -389,6 +393,13 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
+A Genesis NFT can be linked to exactly one PositionNFT when both have the same
+actual owner. The link moves neither NFT into custody. It applies the Genesis
+activation multiplier only to the Position's global STATICS reward weight and
+locks owner-changing transfers of both NFTs until voluntary unlinking or credit
+recovery clears the relationship. Recovery leaves the PositionNFT and every
+unrelated ledger item with its owner and removes only the Genesis leg and boost.
+
 Every valid PositionNFT has fully onchain Base64 JSON and a stable Base64 SVG
 showing the Statics logo and Position ID. The image deliberately excludes live
 financial state. Generative SVG identity belongs to the scarce Genesis
@@ -397,6 +408,16 @@ collection, where metadata can also reflect the NFT's future activation tier.
 ### Global rewards
 
 Users stake the configured Statics ERC-20 in a PositionNFT and opt into selected reward assets. Each asset indexes rewards only across positions that selected it. Eligibility begins after the configured delay, so a new selection cannot capture historical fees. Unsupported or temporarily ineligible fee shares fall through to the governed accounting destination rather than remaining unbooked.
+
+Raw staked STATICS remains principal. Reward indexes use effective weight,
+`floor(raw stake * rewardMultiplierBps / 10,000)`. Every multiplier change
+settles the old interval first and preserves pending-stake maturity.
+
+After the governed Genesis handoff, `StaticsDiamond` becomes the permanent
+`StaticsFeeReceiver` distributor and activation consumer. Registered Genesis
+NFTs earn direct STATICS and WETH rewards independently of Position linkage.
+Registration stays with the token across transfers, activation resets to Tier
+0, and rewards earned before transfer crystallize to the prior owner.
 
 Canonical LP rewards are separate: users may stake eligible full-range PositionManager NFTs for active Statics pools, accrue next-block liquidity weight, claim rewards, and unstake the NFT without a cooldown.
 
