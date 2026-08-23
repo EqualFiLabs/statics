@@ -29,6 +29,8 @@ contract GenesisIntegrationFeeSource {
     address public statics;
     address public numeraire;
     address public beneficiary;
+    uint256 public pendingStatics;
+    uint256 public pendingNumeraire;
 
     function configure(address statics_, address numeraire_, address beneficiary_) external {
         statics = statics_;
@@ -36,8 +38,21 @@ contract GenesisIntegrationFeeSource {
         beneficiary = beneficiary_;
     }
 
-    function collectFees(bytes32) external pure returns (uint128 fees0, uint128 fees1) {
-        return (0, 0);
+    function queue(uint256 staticsAmount, uint256 numeraireAmount) external {
+        if (staticsAmount != 0) IERC20(statics).transferFrom(msg.sender, address(this), staticsAmount);
+        if (numeraireAmount != 0) IERC20(numeraire).transferFrom(msg.sender, address(this), numeraireAmount);
+        pendingStatics += staticsAmount;
+        pendingNumeraire += numeraireAmount;
+    }
+
+    function collectFees(bytes32) external returns (uint128 fees0, uint128 fees1) {
+        uint256 staticsAmount = pendingStatics;
+        uint256 numeraireAmount = pendingNumeraire;
+        delete pendingStatics;
+        delete pendingNumeraire;
+        if (staticsAmount != 0) IERC20(statics).transfer(msg.sender, staticsAmount);
+        if (numeraireAmount != 0) IERC20(numeraire).transfer(msg.sender, numeraireAmount);
+        return (uint128(staticsAmount), uint128(numeraireAmount));
     }
 
     function getShares(bytes32, address account) external view returns (uint256) {
@@ -116,7 +131,8 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
                 activationRegistry: address(activationRegistry),
                 feeReceiver: address(feeReceiver),
                 statics: address(stakingAsset),
-                numeraire: address(numeraire)
+                numeraire: address(numeraire),
+                genesisRewardShareBps: 9_000
             })
             );
 
@@ -126,6 +142,8 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         integration.acceptGenesisConsumerRole();
         genesis.bindProtocol(address(diamond));
         assertTrue(integration.genesisIntegrationReady());
+        stakingAsset.approve(address(feeSource), type(uint256).max);
+        numeraire.approve(address(feeSource), type(uint256).max);
         vm.deal(alice, 100 ether);
         vm.deal(bob, 100 ether);
     }
@@ -281,6 +299,94 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(activationRegistry.multiplierBps(6), 10_000);
     }
 
+    function testRegistrationPersistsAcrossTransferAndRewardsFollowNewOwner() external {
+        _buyAndRegister(alice, 8);
+        _buyAndRegister(bob, 9);
+        _queueRewards(2_000 ether, 200 ether);
+        feeReceiver.harvest();
+
+        assertEq(stakingAsset.balanceOf(address(diamond)), 0, "transfer setup pulled rewards");
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 8);
+
+        assertTrue(integration.genesisRegistered(8));
+        assertEq(integration.genesisEffectiveWeight(8), 10_000);
+        assertEq(integration.genesisOwnerClaimable(alice, address(stakingAsset)), 900 ether);
+        assertEq(integration.genesisOwnerClaimable(alice, address(numeraire)), 90 ether);
+        assertEq(stakingAsset.balanceOf(address(diamond)), 0, "transfer moved reward tokens");
+
+        _queueRewards(2_000 ether, 200 ether);
+        integration.accrueGenesisRewards();
+        vm.prank(bob);
+        assertEq(integration.claimGenesisRewards(8, address(stakingAsset), bob), 900 ether);
+        vm.prank(alice);
+        assertEq(integration.claimGenesisOwnerRewards(address(stakingAsset), alice), 900 ether);
+    }
+
+    function testTransferResetsActivationWithoutResettingRegistration() external {
+        _buyAndRegister(alice, 10);
+        _activate(alice, 10, 4);
+        assertEq(integration.genesisEffectiveWeight(10), 12_500);
+
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 10);
+
+        assertEq(activationRegistry.tierOf(10), 0);
+        assertTrue(integration.genesisRegistered(10));
+        assertEq(integration.genesisEffectiveWeight(10), 10_000);
+    }
+
+    function testRewardsUseIsolatedCustodyAndTreasuryReceivesConfiguredShare() external {
+        _buyAndRegister(alice, 11);
+        _queueRewards(1_000 ether, 100 ether);
+        integration.accrueGenesisRewards();
+
+        bytes32 account = custody.genesisRewardCustodyAccount();
+        assertEq(custody.reservedByAccount(account, address(stakingAsset)), 1_000 ether);
+        assertEq(custody.reservedByAccount(account, address(numeraire)), 100 ether);
+        IStaticsGenesisIntegration.GenesisRewardBookView memory book =
+            integration.genesisRewardBook(address(stakingAsset));
+        assertEq(book.treasuryClaimable, 100 ether);
+        assertEq(integration.pendingGenesisRewards(11, address(stakingAsset)), 900 ether);
+
+        vm.prank(treasury);
+        assertEq(integration.claimGenesisTreasuryRewards(address(stakingAsset), treasury), 100 ether);
+        vm.prank(alice);
+        assertEq(integration.claimGenesisRewards(11, address(stakingAsset), alice), 900 ether);
+        assertEq(custody.reservedByAccount(account, address(stakingAsset)), 0);
+    }
+
+    function testRecoveryPreservesRegistrationButRemovesBothRewardWeights() external {
+        _buyAndRegister(alice, 12);
+        _activate(alice, 12, 4);
+        uint256 positionId = _createPosition(alice);
+        vm.prank(alice);
+        integration.linkGenesis(positionId, 12);
+        _queueRewards(1_000 ether, 0);
+        integration.accrueGenesisRewards();
+
+        vm.warp(epochEnd);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(12, 100_000 ether);
+        vm.warp(uint256(vault.creditRecoverableAt(12)) + 1);
+        vm.prank(bob);
+        vault.recoverGenesisCredit(12);
+
+        assertTrue(integration.genesisRegistered(12));
+        assertEq(integration.genesisEffectiveWeight(12), 0);
+        assertEq(integration.genesisTotalWeight(), 0);
+        assertEq(integration.linkedPosition(12), 0);
+        assertEq(integration.linkedGenesis(positionId), 0);
+        assertEq(genesis.ownerOf(12), address(vault));
+        assertEq(IERC721(address(diamond)).ownerOf(positionId), alice);
+        assertEq(activationRegistry.tierOf(12), 0);
+        assertGt(integration.pendingGenesisRecovery(), 0);
+        vm.prank(alice);
+        assertEq(globalRewards.stakePosition(positionId).rewardMultiplierBps, 10_000);
+        vm.prank(alice);
+        assertEq(integration.claimGenesisOwnerRewards(address(stakingAsset), alice), 900 ether);
+    }
+
     function _installGenesisIntegration() private {
         GenesisNFTFacet genesisFacet = new GenesisNFTFacet();
         GenesisIntegrationInitHarness initHarness = new GenesisIntegrationInitHarness();
@@ -304,6 +410,18 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         stakingAsset.approve(address(vault), GENESIS_PRICE);
         vault.buyGenesis(genesisId, owner);
         vm.stopPrank();
+    }
+
+    function _buyAndRegister(address owner, uint256 genesisId) private {
+        _buyGenesis(owner, genesisId);
+        vm.prank(owner);
+        integration.registerGenesis(genesisId);
+    }
+
+    function _queueRewards(uint256 staticsAmount, uint256 numeraireAmount) private {
+        if (staticsAmount != 0) stakingAsset.mint(address(this), staticsAmount);
+        if (numeraireAmount != 0) numeraire.mint(address(this), numeraireAmount);
+        feeSource.queue(staticsAmount, numeraireAmount);
     }
 
     function _createPosition(address owner) private returns (uint256 positionId) {

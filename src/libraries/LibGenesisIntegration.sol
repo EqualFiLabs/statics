@@ -15,6 +15,23 @@ interface IGenesisVaultConfiguration {
 
 library LibGenesisIntegration {
     bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.genesis.integration.v1");
+    uint256 internal constant BPS = 10_000;
+
+    struct RewardBook {
+        uint256 indexRay;
+        uint256 indexRemainder;
+        uint256 indexedAmount;
+        uint256 crystallizedAmount;
+        uint256 totalClaimable;
+        uint256 totalClaimed;
+        uint256 treasuryClaimable;
+    }
+
+    struct GenesisAssetState {
+        uint256 checkpointRay;
+        uint256 settlementRemainderRay;
+        uint256 accrued;
+    }
 
     struct InitArgs {
         address genesis;
@@ -23,6 +40,7 @@ library LibGenesisIntegration {
         address feeReceiver;
         address statics;
         address numeraire;
+        uint16 genesisRewardShareBps;
     }
 
     struct GenesisStorage {
@@ -35,6 +53,17 @@ library LibGenesisIntegration {
         bool initialized;
         mapping(uint256 genesisId => uint256 positionId) linkedPosition;
         mapping(uint256 positionId => uint256 genesisId) linkedGenesis;
+        uint16 genesisRewardShareBps;
+        uint256 totalWeight;
+        uint256 pendingGenesisRecovery;
+        mapping(uint256 genesisId => bool registered) registered;
+        mapping(uint256 genesisId => uint256 weight) effectiveWeight;
+        mapping(address asset => RewardBook book) rewardBooks;
+        mapping(uint256 genesisId => mapping(address asset => GenesisAssetState state)) genesisAssetState;
+        mapping(address owner => mapping(address asset => uint256 amount)) ownerClaimable;
+        mapping(address owner => mapping(address asset => uint256 remainderRay)) ownerClaimRemainderRay;
+        mapping(address asset => uint256 amount) accountedCustody;
+        mapping(address asset => uint256 amount) indexedReceiverAttribution;
     }
 
     error AlreadyInitialized();
@@ -43,6 +72,7 @@ library LibGenesisIntegration {
     error InvalidVaultConfiguration();
     error InvalidActivationRegistryConfiguration();
     error InvalidFeeReceiverConfiguration();
+    error InvalidRewardShare(uint256 shareBps);
 
     function genesisStorage() internal pure returns (GenesisStorage storage gs) {
         bytes32 position = STORAGE_POSITION;
@@ -60,6 +90,7 @@ library LibGenesisIntegration {
         _enforceContract(args.feeReceiver);
         _enforceContract(args.statics);
         _enforceContract(args.numeraire);
+        if (args.genesisRewardShareBps > BPS) revert InvalidRewardShare(args.genesisRewardShareBps);
 
         IStaticsGenesis genesis = IStaticsGenesis(args.genesis);
         if (genesis.vault() != args.vault || genesis.activationRegistry() != args.activationRegistry) {
@@ -85,6 +116,7 @@ library LibGenesisIntegration {
         gs.feeReceiver = args.feeReceiver;
         gs.statics = args.statics;
         gs.numeraire = args.numeraire;
+        gs.genesisRewardShareBps = args.genesisRewardShareBps;
         gs.initialized = true;
     }
 

@@ -32,4 +32,8 @@ contract CustodyFacet is IStaticsCustody {
     function stakingCustodyAccount() external pure returns (bytes32) {
         return LibCustody.stakingAccount();
     }
+
+    function genesisRewardCustodyAccount() external pure returns (bytes32) {
+        return LibCustody.genesisRewardAccount();
+    }
 }

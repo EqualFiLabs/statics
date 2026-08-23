@@ -26,7 +26,7 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 contract SelectorManifestTest is Test {
     function testGenesisNFTSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.genesisNFT();
-        bytes4[] memory expected = new bytes4[](14);
+        bytes4[] memory expected = new bytes4[](32);
         expected[0] = IStaticsGenesisIntegration.linkGenesis.selector;
         expected[1] = IStaticsGenesisIntegration.unlinkGenesis.selector;
         expected[2] = IStaticsGenesisIntegration.linkedGenesis.selector;
@@ -41,6 +41,24 @@ contract SelectorManifestTest is Test {
         expected[11] = IStaticsGenesisIntegration.onGenesisTransition.selector;
         expected[12] = IStaticsGenesisIntegration.acceptGenesisDistributorRole.selector;
         expected[13] = IStaticsGenesisIntegration.acceptGenesisConsumerRole.selector;
+        expected[14] = IStaticsGenesisIntegration.registerGenesis.selector;
+        expected[15] = IStaticsGenesisIntegration.accrueGenesisRewards.selector;
+        expected[16] = IStaticsGenesisIntegration.claimGenesisRewards.selector;
+        expected[17] = IStaticsGenesisIntegration.claimGenesisOwnerRewards.selector;
+        expected[18] = IStaticsGenesisIntegration.claimGenesisTreasuryRewards.selector;
+        expected[19] = IStaticsGenesisIntegration.setGenesisRewardShareBps.selector;
+        expected[20] = IStaticsGenesisIntegration.checkpointGenesisRecovery.selector;
+        expected[21] = IStaticsGenesisIntegration.accrueGenesisRecovery.selector;
+        expected[22] = IStaticsGenesisIntegration.migratePendingGenesisRecovery.selector;
+        expected[23] = IStaticsGenesisIntegration.acceptPendingGenesisRecovery.selector;
+        expected[24] = IStaticsGenesisIntegration.pendingGenesisRewards.selector;
+        expected[25] = IStaticsGenesisIntegration.genesisRewardBook.selector;
+        expected[26] = IStaticsGenesisIntegration.genesisRegistered.selector;
+        expected[27] = IStaticsGenesisIntegration.genesisEffectiveWeight.selector;
+        expected[28] = IStaticsGenesisIntegration.genesisTotalWeight.selector;
+        expected[29] = IStaticsGenesisIntegration.genesisRewardShareBps.selector;
+        expected[30] = IStaticsGenesisIntegration.genesisOwnerClaimable.selector;
+        expected[31] = IStaticsGenesisIntegration.pendingGenesisRecovery.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

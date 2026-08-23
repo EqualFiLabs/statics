@@ -111,7 +111,7 @@ library StaticsSelectors {
     }
 
     function custody() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](7);
+        selectors = new bytes4[](8);
         selectors[0] = IStaticsCustody.globalReservedByToken.selector;
         selectors[1] = IStaticsCustody.reservedByAccount.selector;
         selectors[2] = IStaticsCustody.unreservedBalance.selector;
@@ -119,6 +119,7 @@ library StaticsSelectors {
         selectors[4] = IStaticsCustody.basketCustodyAccount.selector;
         selectors[5] = IStaticsCustody.feeCustodyAccount.selector;
         selectors[6] = IStaticsCustody.stakingCustodyAccount.selector;
+        selectors[7] = IStaticsCustody.genesisRewardCustodyAccount.selector;
     }
 
     function basketCreation() internal pure returns (bytes4[] memory selectors) {
@@ -195,7 +196,7 @@ library StaticsSelectors {
     }
 
     function genesisNFT() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](14);
+        selectors = new bytes4[](32);
         selectors[0] = IStaticsGenesisIntegration.linkGenesis.selector;
         selectors[1] = IStaticsGenesisIntegration.unlinkGenesis.selector;
         selectors[2] = IStaticsGenesisIntegration.linkedGenesis.selector;
@@ -210,6 +211,24 @@ library StaticsSelectors {
         selectors[11] = IStaticsGenesisIntegration.onGenesisTransition.selector;
         selectors[12] = IStaticsGenesisIntegration.acceptGenesisDistributorRole.selector;
         selectors[13] = IStaticsGenesisIntegration.acceptGenesisConsumerRole.selector;
+        selectors[14] = IStaticsGenesisIntegration.registerGenesis.selector;
+        selectors[15] = IStaticsGenesisIntegration.accrueGenesisRewards.selector;
+        selectors[16] = IStaticsGenesisIntegration.claimGenesisRewards.selector;
+        selectors[17] = IStaticsGenesisIntegration.claimGenesisOwnerRewards.selector;
+        selectors[18] = IStaticsGenesisIntegration.claimGenesisTreasuryRewards.selector;
+        selectors[19] = IStaticsGenesisIntegration.setGenesisRewardShareBps.selector;
+        selectors[20] = IStaticsGenesisIntegration.checkpointGenesisRecovery.selector;
+        selectors[21] = IStaticsGenesisIntegration.accrueGenesisRecovery.selector;
+        selectors[22] = IStaticsGenesisIntegration.migratePendingGenesisRecovery.selector;
+        selectors[23] = IStaticsGenesisIntegration.acceptPendingGenesisRecovery.selector;
+        selectors[24] = IStaticsGenesisIntegration.pendingGenesisRewards.selector;
+        selectors[25] = IStaticsGenesisIntegration.genesisRewardBook.selector;
+        selectors[26] = IStaticsGenesisIntegration.genesisRegistered.selector;
+        selectors[27] = IStaticsGenesisIntegration.genesisEffectiveWeight.selector;
+        selectors[28] = IStaticsGenesisIntegration.genesisTotalWeight.selector;
+        selectors[29] = IStaticsGenesisIntegration.genesisRewardShareBps.selector;
+        selectors[30] = IStaticsGenesisIntegration.genesisOwnerClaimable.selector;
+        selectors[31] = IStaticsGenesisIntegration.pendingGenesisRecovery.selector;
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {
