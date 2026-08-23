@@ -13,6 +13,7 @@ import {
     IGenesisActivationRegistry
 } from "../../src/interfaces/IGenesisActivationRegistry.sol";
 import {IStaticsFeeReceiver} from "../../src/interfaces/IStaticsFeeReceiver.sol";
+import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -157,7 +158,15 @@ contract GenesisLaunchRewardsTest is Test {
         feeReceiver.bindMarket(address(statics), POOL_ID);
 
         activationRegistry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(feeReceiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
+        vault =
+            new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),

@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IGenesisRecoveryDistributor} from "../interfaces/IGenesisRecoveryDistributor.sol";
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
@@ -74,6 +75,8 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     error NoDistributorFees(address distributor, address asset);
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
+    error InvalidRecoveryDistributor(address distributor, address expectedVault, address expectedAsset);
+    error PendingGenesisRecoveryBlocksRotation(address distributor, uint256 pendingAmount);
 
     constructor(address poolInitializer_, address numeraire_, address governance) Ownable(governance) {
         if (poolInitializer_ == address(0) || poolInitializer_.code.length == 0) {
@@ -115,6 +118,8 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         if (reserveVault != address(0)) revert ReserveVaultAlreadyBound();
         if (reserveVault_ == address(0) || reserveVault_.code.length == 0) revert InvalidReserveVault();
         if (address(IReserveVault(reserveVault_).statics()) != statics) revert InvalidReserveVault();
+        address distributor = activeDistributor;
+        if (distributor != address(0)) _validateRecoveryDistributor(distributor, reserveVault_);
         reserveVault = reserveVault_;
         emit ReserveVaultBound(reserveVault_);
     }
@@ -149,6 +154,8 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         address pending = pendingDistributor;
         if (msg.sender != pending) revert UnauthorizedPendingDistributor(msg.sender);
         if (statics == address(0)) revert MarketNotBound();
+        address vault = reserveVault;
+        if (vault != address(0)) _validateRecoveryDistributor(pending, vault);
         address previous = activeDistributor;
         if (previous == address(0)) {
             activeDistributor = pending;
@@ -156,6 +163,10 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
             emit DistributorAccepted(address(0), pending);
             _harvest(pending);
             return;
+        }
+        uint256 pendingRecovery = IGenesisRecoveryDistributor(previous).pendingGenesisRecovery();
+        if (pendingRecovery != 0) {
+            revert PendingGenesisRecoveryBlocksRotation(previous, pendingRecovery);
         }
         _harvest(previous);
         activeDistributor = pending;
@@ -256,5 +267,22 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         distributorClaimable[distributor][asset] += amount;
         totalDistributorLiability[asset] += amount;
         emit FeesHarvested(distributor, asset, amount, cumulativeDistributorAttributed[distributor][asset]);
+    }
+
+    function _validateRecoveryDistributor(address distributor, address expectedVault) private view {
+        try IGenesisRecoveryDistributor(distributor).genesisRecoveryVault() returns (address reportedVault) {
+            if (reportedVault != expectedVault) {
+                revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+            }
+        } catch {
+            revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+        }
+        try IGenesisRecoveryDistributor(distributor).genesisRecoveryAsset() returns (address reportedAsset) {
+            if (reportedAsset != statics) {
+                revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+            }
+        } catch {
+            revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+        }
     }
 }

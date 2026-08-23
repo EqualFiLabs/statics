@@ -1,6 +1,44 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+struct GenesisCreditConfig {
+    address feeReceiver;
+    address treasury;
+    uint256 originationFee;
+    uint256 extensionFee;
+    uint16 recoveryCallerShareBps;
+}
+
+struct GenesisCredit {
+    address owner;
+    uint256 principal;
+    uint40 maturity;
+}
+
+struct GenesisCreditServiceQuote {
+    uint256 totalNativeFee;
+    uint16 reserveShareBps;
+    uint16 treasuryShareBps;
+    uint256 reservePortion;
+    uint256 treasuryPortion;
+}
+
+struct GenesisCreditView {
+    address owner;
+    uint256 principal;
+    uint40 maturity;
+    uint40 recoverableAt;
+    bool active;
+}
+
+struct GenesisCreditRecoveryQuote {
+    uint256 unusedCredit;
+    uint256 recoveryResidual;
+    uint256 callerIncentive;
+    uint256 genesisDistribution;
+    uint40 recoverableAt;
+}
+
 /// @notice Full snapshot of Genesis Vault STATICS and native ETH reserve accounting.
 struct GenesisVaultAccounting {
     uint256 vaultPrice;
@@ -9,6 +47,8 @@ struct GenesisVaultAccounting {
     uint256 vaultInventory;
     uint256 circulatingGenesis;
     uint256 tokenBacking;
+    uint256 grossBacking;
+    uint256 outstandingGenesisCredit;
     uint256 requiredBacking;
     uint256 tokenCustody;
     uint256 reserveETH;
@@ -55,6 +95,34 @@ interface IStaticsGenesisVault {
     event NativeAcquisitionFeeSet(uint256 previousFee, uint256 newFee);
     event ReserveFunded(address indexed contributor, uint256 amount, uint256 reserveETH);
     event PurchaseRefunded(address indexed payer, uint256 amount);
+    event GenesisCreditOpened(
+        uint256 indexed genesisId, address indexed owner, uint256 principal, uint40 maturity, uint256 nativeFee
+    );
+    event GenesisCreditExtended(
+        uint256 indexed genesisId, address indexed owner, uint40 previousMaturity, uint40 newMaturity, uint256 nativeFee
+    );
+    event GenesisCreditRepaid(
+        uint256 indexed genesisId, address indexed payer, address indexed owner, uint256 principal
+    );
+    event GenesisCreditRecovered(
+        uint256 indexed genesisId,
+        address indexed formerOwner,
+        address indexed caller,
+        uint256 principal,
+        uint256 unusedCredit,
+        uint256 callerIncentive,
+        uint256 genesisDistribution
+    );
+    event CreditOriginationFeeSet(uint256 previousFee, uint256 newFee);
+    event CreditExtensionFeeSet(uint256 previousFee, uint256 newFee);
+    event RecoveryCallerShareSet(uint16 previousShareBps, uint16 newShareBps);
+    event CreditServiceFeeSplitSet(
+        uint16 previousReserveShareBps,
+        uint16 previousTreasuryShareBps,
+        uint16 newReserveShareBps,
+        uint16 newTreasuryShareBps
+    );
+    event CreditOriginationsPausedSet(bool paused);
 
     function buyGenesis(uint256 tokenId, address receiver) external payable;
     function redeemGenesis(uint256 tokenId, address receiver) external;
@@ -62,6 +130,15 @@ interface IStaticsGenesisVault {
     function setPurchasesPaused(bool paused) external;
     function setNativeAcquisitionFee(uint256 newFee) external;
     function donate() external payable;
+    function openGenesisCredit(uint256 genesisId, uint256 principal) external payable;
+    function extendGenesisCredit(uint256 genesisId) external payable;
+    function repayGenesisCredit(uint256 genesisId) external;
+    function recoverGenesisCredit(uint256 genesisId) external;
+    function setCreditOriginationFee(uint256 newFee) external;
+    function setCreditExtensionFee(uint256 newFee) external;
+    function setRecoveryCallerShareBps(uint16 newShareBps) external;
+    function setCreditServiceFeeSplit(uint16 reserveShareBps, uint16 treasuryShareBps) external;
+    function setCreditOriginationsPaused(bool paused) external;
 
     function quoteGenesisPurchase() external view returns (GenesisPurchaseQuote memory quote);
     function quoteGenesisRedemption() external view returns (GenesisRedemptionQuote memory quote);
@@ -79,4 +156,25 @@ interface IStaticsGenesisVault {
     function requiredBacking() external view returns (uint256);
     function isVaultInventory(uint256 tokenId) external view returns (bool);
     function vaultAccounting() external view returns (GenesisVaultAccounting memory accounting);
+    function creditLimit(uint256 genesisId) external view returns (uint256);
+    function credit(uint256 genesisId) external view returns (GenesisCreditView memory state);
+    function creditActive(uint256 genesisId) external view returns (bool);
+    function creditRecoverableAt(uint256 genesisId) external view returns (uint40);
+    function quoteGenesisCredit(uint256 principal) external view returns (GenesisCreditServiceQuote memory quote);
+    function quoteGenesisCreditExtension(uint256 genesisId)
+        external
+        view
+        returns (GenesisCreditServiceQuote memory quote);
+    function quoteGenesisCreditRecovery(uint256 genesisId)
+        external
+        view
+        returns (GenesisCreditRecoveryQuote memory quote);
+    function grossBacking() external view returns (uint256);
+    function totalOutstandingGenesisCredit() external view returns (uint256);
+    function creditOriginationFee() external view returns (uint256);
+    function creditExtensionFee() external view returns (uint256);
+    function recoveryCallerShareBps() external view returns (uint16);
+    function creditServiceReserveShareBps() external view returns (uint16);
+    function creditServiceTreasuryShareBps() external view returns (uint16);
+    function creditOriginationsPaused() external view returns (bool);
 }

@@ -9,8 +9,11 @@ import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
+import {IGenesisRecoveryDistributor} from "../../src/interfaces/IGenesisRecoveryDistributor.sol";
+import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
 import {MockWrappedNative} from "../mocks/MockWrappedNative.sol";
+import {MockGenesisFeeReceiver} from "../mocks/MockGenesisCreditDependencies.sol";
 
 /// @notice Doppler fee source mock that pays STATICS and WETH on collectFees.
 contract ReserveFeeSource {
@@ -55,7 +58,27 @@ contract ReserveFeeSource {
     }
 }
 
-contract MockDistributor {
+contract MockDistributor is IGenesisRecoveryDistributor {
+    address public immutable override genesisRecoveryVault;
+    address public immutable override genesisRecoveryAsset;
+    uint256 public override pendingGenesisRecovery;
+
+    constructor(address vault_, address asset_) {
+        genesisRecoveryVault = vault_;
+        genesisRecoveryAsset = asset_;
+    }
+
+    function accept(StaticsFeeReceiver receiver) external {
+        receiver.acceptDistributor();
+    }
+
+    function accrueGenesisRecovery(uint256 amount) external override {
+        require(msg.sender == genesisRecoveryVault, "ONLY_VAULT");
+        emit GenesisRecoveryAccrued(amount, 0, 0);
+    }
+}
+
+contract IncompatibleReserveDistributor {
     function accept(StaticsFeeReceiver receiver) external {
         receiver.acceptDistributor();
     }
@@ -86,7 +109,14 @@ contract StaticsFeeReceiverReserveTest is Test {
         receiver.bindMarket(address(statics), POOL_ID);
 
         GenesisActivationRegistry registry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 30 days);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(receiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
+        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 30 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         StaticsGenesis genesis = new StaticsGenesis(
             address(vault),
@@ -100,7 +130,7 @@ contract StaticsFeeReceiverReserveTest is Test {
         registry.bindGenesisCollection(address(genesis));
         vault.finalizeGenesisCollection(address(genesis));
 
-        distributor = new MockDistributor();
+        distributor = new MockDistributor(address(vault), address(statics));
     }
 
     function _bindAndActivate(uint16 shareBps) private {
@@ -113,8 +143,17 @@ contract StaticsFeeReceiverReserveTest is Test {
     }
 
     function testReserveVaultBindingRequiresMatchingStaticsAndIsOneTime() public {
+        MockDopplerToken otherStatics = new MockDopplerToken(address(this));
+        MockGenesisFeeReceiver otherReceiver = new MockGenesisFeeReceiver(address(otherStatics));
+        GenesisCreditConfig memory otherCreditConfig = GenesisCreditConfig({
+            feeReceiver: address(otherReceiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
         StaticsGenesisVault otherVault = new StaticsGenesisVault(
-            new MockDopplerToken(address(this)), address(this), governance, block.timestamp + 1 days
+            otherStatics, address(this), governance, block.timestamp + 1 days, otherCreditConfig
         );
         vm.prank(governance);
         vm.expectRevert(StaticsFeeReceiver.InvalidReserveVault.selector);
@@ -133,6 +172,23 @@ contract StaticsFeeReceiverReserveTest is Test {
         vm.prank(governance);
         vm.expectRevert(StaticsFeeReceiver.ReserveVaultNotBound.selector);
         receiver.setReserveShareBps(5_000);
+    }
+
+    function testBoundVaultRejectsIncompatibleDistributor() public {
+        IncompatibleReserveDistributor incompatible = new IncompatibleReserveDistributor();
+        vm.startPrank(governance);
+        receiver.bindReserveVault(address(vault));
+        receiver.proposeDistributor(address(incompatible));
+        vm.stopPrank();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsFeeReceiver.InvalidRecoveryDistributor.selector,
+                address(incompatible),
+                address(vault),
+                address(statics)
+            )
+        );
+        incompatible.accept(receiver);
     }
 
     function testHarvestSplitsWethAndForwardsReserveAsNativeEth() public {

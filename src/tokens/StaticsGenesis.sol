@@ -14,6 +14,7 @@ import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegist
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
+import {IStaticsGenesisVault} from "../interfaces/IStaticsGenesisVault.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 
 /// @notice Fixed 5,555-token collection paired one-for-one with 180,000 STATICS claims plus a
@@ -59,6 +60,8 @@ contract StaticsGenesis is
     error OwnershipRenunciationDisabled();
     error InvalidTransferValidator(address validator);
     error GenesisLocked(uint256 genesisId);
+    error UnexpectedGenesisOwner(uint256 genesisId, address expected, address actual);
+    error InvalidRecoveryAcknowledgement(address protocol, bytes4 acknowledgement);
 
     event DefaultRoyaltyUpdated(address indexed receiver, uint96 royaltyBps);
     event ExternalURLBaseUpdated(string externalURLBase);
@@ -180,6 +183,11 @@ contract StaticsGenesis is
 
     function locked(uint256 genesisId) public view override returns (bool) {
         _requireOwned(genesisId);
+        try IStaticsGenesisVault(vault).creditActive(genesisId) returns (bool active) {
+            if (active) return true;
+        } catch {
+            return true;
+        }
         address protocol_ = protocol;
         if (protocol_ == address(0)) return false;
         try IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId) returns (uint256 positionId) {
@@ -190,7 +198,7 @@ contract StaticsGenesis is
     }
 
     function refreshLockStatus(uint256 genesisId) external override {
-        if (msg.sender != protocol) revert UnauthorizedProtocol(msg.sender);
+        if (msg.sender != protocol && msg.sender != vault) revert UnauthorizedProtocol(msg.sender);
         bool currentStatus = locked(genesisId);
         if (reportedLockStatus[genesisId] == currentStatus) return;
         reportedLockStatus[genesisId] = currentStatus;
@@ -201,6 +209,24 @@ contract StaticsGenesis is
     function refreshMetadata(uint256 genesisId) external override {
         if (msg.sender != protocol && msg.sender != activationRegistry) revert UnauthorizedProtocol(msg.sender);
         _requireOwned(genesisId);
+        emit MetadataUpdate(genesisId);
+    }
+
+    function recoverToVault(uint256 genesisId, address expectedOwner) external override {
+        if (msg.sender != vault) revert UnauthorizedVault(msg.sender);
+        address previousOwner = _ownerOf(genesisId);
+        if (previousOwner != expectedOwner) revert UnexpectedGenesisOwner(genesisId, expectedOwner, previousOwner);
+
+        address protocol_ = protocol;
+        if (protocol_ != address(0)) {
+            bytes4 acknowledgement = IStaticsGenesisProtocol(protocol_).onGenesisRecovery(genesisId, previousOwner);
+            if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) {
+                revert InvalidRecoveryAcknowledgement(protocol_, acknowledgement);
+            }
+        }
+
+        IGenesisActivationRegistry(activationRegistry).onGenesisTransfer(genesisId, previousOwner, vault);
+        super._update(vault, genesisId, address(0));
         emit MetadataUpdate(genesisId);
     }
 

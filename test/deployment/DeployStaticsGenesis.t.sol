@@ -159,6 +159,13 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(vault.genesisEpochEnd(), block.timestamp + 7 days);
             assertTrue(vault.epochActive());
             assertEq(vault.reserveETH(), 0);
+            assertEq(vault.creditOriginationFee(), 0.003 ether);
+            assertEq(vault.creditExtensionFee(), 0.003 ether);
+            assertEq(vault.recoveryCallerShareBps(), 2_000);
+            assertEq(vault.creditServiceReserveShareBps(), 1_000);
+            assertEq(vault.creditServiceTreasuryShareBps(), 9_000);
+            assertEq(distributor.genesisRecoveryVault(), address(vault));
+            assertEq(distributor.genesisRecoveryAsset(), address(statics));
             assertEq(receiver.pendingOwner(), governance);
             assertEq(registry.pendingOwner(), governance);
             assertEq(vault.pendingOwner(), governance);
@@ -244,6 +251,15 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.reserveShareBps += 1;
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.reserveShareBps -= 1;
+            config.creditOriginationFee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.creditOriginationFee -= 1;
+            config.creditExtensionFee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.creditExtensionFee -= 1;
+            config.recoveryCallerShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.recoveryCallerShareBps -= 1;
             config.genesisEpochEnd += 1;
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.genesisEpochEnd -= 1;
@@ -311,6 +327,16 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             deployer.deploy(config, address(deployer));
 
             config = _config();
+            config.recoveryCallerShareBps = 0;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidRecoveryCallerShare.selector, 0));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.recoveryCallerShareBps = 10_000;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidRecoveryCallerShare.selector, 10_000));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
             config.contractURI = "";
             vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
             deployer.deploy(config, address(deployer));
@@ -373,6 +399,9 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 fee: 30_000,
                 genesisRewardShareBps: 5_000,
                 reserveShareBps: 5_000,
+                creditOriginationFee: 0.003 ether,
+                creditExtensionFee: 0.003 ether,
+                recoveryCallerShareBps: 2_000,
                 genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",

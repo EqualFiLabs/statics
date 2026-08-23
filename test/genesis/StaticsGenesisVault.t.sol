@@ -10,6 +10,7 @@ import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegi
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
 import {
+    GenesisCreditConfig,
     GenesisPurchaseQuote,
     GenesisRedemptionQuote,
     GenesisVaultAccounting
@@ -18,6 +19,10 @@ import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
+import {
+    MockGenesisFeeReceiver,
+    MockGenesisRecoveryDistributor
+} from "../mocks/MockGenesisCreditDependencies.sol";
 
 contract MockGenesisProtocol is IStaticsGenesisProtocol {
     address public immutable override genesisCollection;
@@ -36,6 +41,17 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         delete linkedPosition[genesisId];
         IStaticsGenesis(genesisCollection).refreshLockStatus(genesisId);
     }
+
+    function onGenesisRecovery(uint256 genesisId, address _previousOwner)
+        external
+        override
+        returns (bytes4 acknowledgement)
+    {
+        _previousOwner;
+        require(msg.sender == genesisCollection, "ONLY_GENESIS");
+        delete linkedPosition[genesisId];
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
 }
 
     contract RevertingLinkGenesisProtocol is IStaticsGenesisProtocol {
@@ -53,6 +69,10 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         function linkedPosition(uint256) external view override returns (uint256) {
             require(!revertLinkRead, "LINK_UNAVAILABLE");
             return 0;
+        }
+
+        function onGenesisRecovery(uint256, address) external pure override returns (bytes4 acknowledgement) {
+            return IStaticsGenesisProtocol.onGenesisRecovery.selector;
         }
     }
 
@@ -92,6 +112,8 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             GenesisActivationRegistry private activationRegistry;
             StaticsGenesis private genesis;
             StaticsGenesisVault private vault;
+            MockGenesisFeeReceiver private feeReceiver;
+            MockGenesisRecoveryDistributor private recoveryDistributor;
 
             function setUp() public {
                 treasury = makeAddr("treasury");
@@ -101,7 +123,17 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
                 statics = new MockDopplerToken(address(this));
                 activationRegistry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-                vault = new StaticsGenesisVault(statics, address(this), governance, epochEnd);
+                feeReceiver = new MockGenesisFeeReceiver(address(statics));
+                GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+                    feeReceiver: address(feeReceiver),
+                    treasury: treasury,
+                    originationFee: 0.003 ether,
+                    extensionFee: 0.003 ether,
+                    recoveryCallerShareBps: 2_000
+                });
+                vault = new StaticsGenesisVault(statics, address(this), governance, epochEnd, creditConfig);
+                recoveryDistributor = new MockGenesisRecoveryDistributor(address(vault), address(statics));
+                feeReceiver.setActiveDistributor(address(recoveryDistributor));
                 StaticsAvatarSVG avatar = new StaticsAvatarSVG();
                 StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
                 genesis = new StaticsGenesis(

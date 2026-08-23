@@ -20,6 +20,7 @@ import {LibStaticsTokenMetadata} from "../src/metadata/LibStaticsTokenMetadata.s
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../src/tokens/StaticsGenesis.sol";
+import {GenesisCreditConfig} from "../src/interfaces/IStaticsGenesisVault.sol";
 
 struct StaticsGenesisDeploymentConfig {
     address governance;
@@ -31,6 +32,9 @@ struct StaticsGenesisDeploymentConfig {
     uint24 fee;
     uint16 genesisRewardShareBps;
     uint16 reserveShareBps;
+    uint256 creditOriginationFee;
+    uint256 creditExtensionFee;
+    uint16 recoveryCallerShareBps;
     uint256 genesisEpochEnd;
     /// @dev Retained for lower-level config compatibility. Doppler launch calldata always uses canonical metadata.
     string tokenURI;
@@ -90,6 +94,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error InvalidFee(uint256 fee);
     error InvalidRewardShare(uint256 shareBps);
     error InvalidReserveShare(uint256 shareBps);
+    error InvalidRecoveryCallerShare(uint256 shareBps);
     error InvalidEpochEnd(uint256 epochEnd);
     error InvalidRobinhoodWeth(address expected, address actual);
     error InvalidRobinhoodWethCodeHash(bytes32 expected, bytes32 actual);
@@ -106,10 +111,12 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         uint256 fee = vm.envUint("STATICS_DOPPLER_FEE");
         uint256 rewardShare = vm.envUint("STATICS_GENESIS_REWARD_SHARE_BPS");
         uint256 reserveShare = vm.envUint("STATICS_GENESIS_RESERVE_SHARE_BPS");
+        uint256 recoveryCallerShare = vm.envUint("STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS");
         uint256 genesisEpochEnd = vm.envUint("STATICS_GENESIS_EPOCH_END");
         if (fee > type(uint24).max) revert InvalidFee(fee);
         if (rewardShare > type(uint16).max) revert InvalidRewardShare(rewardShare);
         if (reserveShare > type(uint16).max) revert InvalidReserveShare(reserveShare);
+        if (recoveryCallerShare > type(uint16).max) revert InvalidRecoveryCallerShare(recoveryCallerShare);
         if (genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(genesisEpochEnd);
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
             governance: vm.envAddress("STATICS_GENESIS_GOVERNANCE"),
@@ -121,6 +128,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
             reserveShareBps: uint16(reserveShare),
+            creditOriginationFee: vm.envUint("STATICS_GENESIS_CREDIT_ORIGINATION_FEE"),
+            creditExtensionFee: vm.envUint("STATICS_GENESIS_CREDIT_EXTENSION_FEE"),
+            recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
@@ -156,7 +166,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, allocationEscrow);
         receiver.bindMarket(statics, poolId);
 
-        GenesisCollection memory collection = _deployGenesisCollection(statics, config, initialOwner);
+        GenesisCollection memory collection = _deployGenesisCollection(statics, receiver, config, initialOwner);
         collection.registry.bindGenesisCollection(address(collection.genesis));
         collection.vault.finalizeGenesisCollection(address(collection.genesis));
         allocationEscrow.release(IERC20(statics), address(collection.vault));
@@ -207,13 +217,22 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
 
     function _deployGenesisCollection(
         address statics,
+        StaticsFeeReceiver receiver,
         StaticsGenesisDeploymentConfig memory config,
         address initialOwner
     ) private returns (GenesisCollection memory collection) {
         collection.registry = new GenesisActivationRegistry(
             IERC20(statics), initialOwner, initialOwner, config.treasury
         );
-        collection.vault = new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.genesisEpochEnd);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(receiver),
+            treasury: config.treasury,
+            originationFee: config.creditOriginationFee,
+            extensionFee: config.creditExtensionFee,
+            recoveryCallerShareBps: config.recoveryCallerShareBps
+        });
+        collection.vault =
+            new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.genesisEpochEnd, creditConfig);
         collection.avatar = new StaticsAvatarSVG();
         collection.renderer = new StaticsGenesisRenderer(collection.avatar);
         collection.genesis = new StaticsGenesis(
@@ -280,7 +299,15 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             )
         );
         bytes32 launchEconomicsHash = keccak256(
-            abi.encode(config.fee, config.genesisRewardShareBps, config.reserveShareBps, config.genesisEpochEnd)
+            abi.encode(
+                config.fee,
+                config.genesisRewardShareBps,
+                config.reserveShareBps,
+                config.creditOriginationFee,
+                config.creditExtensionFee,
+                config.recoveryCallerShareBps,
+                config.genesisEpochEnd
+            )
         );
         bytes32 authorityHash =
             keccak256(abi.encode(config.governance, config.treasury, config.integrator, config.salt));
@@ -457,6 +484,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);
         if (config.genesisRewardShareBps > 10_000) revert InvalidRewardShare(config.genesisRewardShareBps);
         if (config.reserveShareBps > 10_000) revert InvalidReserveShare(config.reserveShareBps);
+        if (config.recoveryCallerShareBps == 0 || config.recoveryCallerShareBps >= 10_000) {
+            revert InvalidRecoveryCallerShare(config.recoveryCallerShareBps);
+        }
         if (config.genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(config.genesisEpochEnd);
     }
 

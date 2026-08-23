@@ -8,6 +8,7 @@ import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistribut
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IGenesisLaunchDistributor} from "../../src/interfaces/IGenesisLaunchDistributor.sol";
+import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -176,8 +177,16 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         feeSource.configure(address(statics), address(weth), address(receiver));
         receiver.bindMarket(address(statics), poolId);
         registry = new GenesisActivationRegistry(statics, address(this), address(this), treasury);
-        StaticsGenesisVault vault =
-            new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 3650 days);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(receiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
+        StaticsGenesisVault vault = new StaticsGenesisVault(
+            statics, address(this), address(this), block.timestamp + 3650 days, creditConfig
+        );
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
@@ -236,7 +245,8 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         uint256 accounted = distributor.accountedCustody(asset);
         assertGe(IERC20Like(asset).balanceOf(address(distributor)), accounted);
         uint256 deferred = receiver.distributorClaimable(address(distributor), asset);
-        assertGe(accounted + deferred, book.totalClaimable + book.treasuryClaimable);
+        uint256 pendingRecovery = asset == address(statics) ? distributor.pendingGenesisRecovery() : 0;
+        assertGe(accounted + deferred, book.totalClaimable + book.treasuryClaimable + pendingRecovery);
     }
 }
 

@@ -8,6 +8,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IGenesisActivationConsumer, IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
 import {IGenesisLaunchDistributor} from "../interfaces/IGenesisLaunchDistributor.sol";
+import {IGenesisRecoveryDistributor} from "../interfaces/IGenesisRecoveryDistributor.sol";
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {IStaticsGenesis} from "../interfaces/IStaticsGenesis.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
@@ -15,6 +16,7 @@ import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 /// @notice Temporary two-asset launch reward index for registered Genesis NFTs.
 contract GenesisLaunchDistributor is
     IGenesisLaunchDistributor,
+    IGenesisRecoveryDistributor,
     IGenesisActivationConsumer,
     Ownable2Step,
     ReentrancyGuard
@@ -51,6 +53,7 @@ contract GenesisLaunchDistributor is
     uint16 public genesisRewardShareBps;
     uint256 public totalWeight;
     bool public finalized;
+    uint256 public override pendingGenesisRecovery;
 
     mapping(uint256 genesisId => bool registered) public registered;
     mapping(uint256 genesisId => uint256 weight) public effectiveWeight;
@@ -77,6 +80,8 @@ contract GenesisLaunchDistributor is
     error InconsistentFeeTransfer(address asset, uint256 expected, uint256 received);
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
+    error UnauthorizedRecoveryVault(address caller);
+    error InvalidRecoveryAmount();
 
     constructor(
         IStaticsFeeReceiver feeReceiver_,
@@ -136,6 +141,7 @@ contract GenesisLaunchDistributor is
         _genesisAssetState[genesisId][statics].checkpointRay = _rewardBooks[statics].indexRay;
         _genesisAssetState[genesisId][numeraire].checkpointRay = _rewardBooks[numeraire].indexRay;
         emit GenesisRegistered(genesisId, weight, totalWeight);
+        _flushPendingGenesisRecovery();
     }
 
     function accrue() external override nonReentrant returns (uint256 staticsAmount, uint256 numeraireAmount) {
@@ -179,6 +185,34 @@ contract GenesisLaunchDistributor is
             _rewardBooks[numeraire].indexRemainder = 0;
         }
         emit GenesisWeightChanged(genesisId, previousWeight, nextWeight, totalWeight);
+        _flushPendingGenesisRecovery();
+    }
+
+    function accrueGenesisRecovery(uint256 amount) external override nonReentrant {
+        if (msg.sender != vault) revert UnauthorizedRecoveryVault(msg.sender);
+        if (amount == 0) revert InvalidRecoveryAmount();
+        IERC20 token = IERC20(statics);
+        uint256 balance = token.balanceOf(address(this));
+        uint256 accounted = accountedCustody[statics];
+        uint256 available = balance > accounted ? balance - accounted : 0;
+        if (available < amount) revert InconsistentFeeTransfer(statics, amount, available);
+        accountedCustody[statics] = accounted + amount;
+
+        if (totalWeight == 0) {
+            pendingGenesisRecovery += amount;
+            emit GenesisRecoveryAccrued(amount, pendingGenesisRecovery, _rewardBooks[statics].indexRay);
+            return;
+        }
+        _increaseRecoveryIndex(amount);
+        emit GenesisRecoveryAccrued(amount, pendingGenesisRecovery, _rewardBooks[statics].indexRay);
+    }
+
+    function genesisRecoveryVault() external view override returns (address) {
+        return vault;
+    }
+
+    function genesisRecoveryAsset() external view override returns (address) {
+        return statics;
     }
 
     function claimGenesis(uint256 genesisId, address asset, address receiver)
@@ -342,6 +376,22 @@ contract GenesisLaunchDistributor is
             book.indexedAmount += genesisAmount;
         }
         emit RevenueAccrued(asset, amount, genesisAmount, treasuryAmount, book.indexRay);
+    }
+
+    function _flushPendingGenesisRecovery() private {
+        uint256 amount = pendingGenesisRecovery;
+        if (amount == 0 || totalWeight == 0) return;
+        pendingGenesisRecovery = 0;
+        _increaseRecoveryIndex(amount);
+        emit PendingGenesisRecoveryIndexed(amount, _rewardBooks[statics].indexRay);
+    }
+
+    function _increaseRecoveryIndex(uint256 amount) private {
+        RewardBook storage book = _rewardBooks[statics];
+        uint256 scaled = amount * RAY + book.indexRemainder;
+        book.indexRay += scaled / totalWeight;
+        book.indexRemainder = scaled % totalWeight;
+        book.indexedAmount += amount;
     }
 
     function _settle(uint256 genesisId, address asset) private {
