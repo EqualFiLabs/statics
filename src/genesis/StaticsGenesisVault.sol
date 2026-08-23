@@ -404,8 +404,12 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     }
 
     function creditLimit(uint256 genesisId) external view override returns (uint256) {
-        if (!finalized || _isVaultInventory(genesisId)) return 0;
-        return MAX_CREDIT_PRINCIPAL;
+        if (!finalized) return 0;
+        try genesis.ownerOf(genesisId) returns (address tokenOwner) {
+            return tokenOwner == address(this) ? 0 : MAX_CREDIT_PRINCIPAL;
+        } catch {
+            return 0;
+        }
     }
 
     function credit(uint256 genesisId) external view override returns (GenesisCreditView memory state) {

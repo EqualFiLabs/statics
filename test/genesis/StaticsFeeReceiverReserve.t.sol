@@ -89,186 +89,187 @@ contract MockDistributor is IGenesisRecoveryDistributor {
     }
 }
 
-contract IncompatibleReserveDistributor {
-    function accept(StaticsFeeReceiver receiver) external {
-        receiver.acceptDistributor();
-    }
-}
-
-contract StaticsFeeReceiverReserveTest is Test {
-    bytes32 private constant POOL_ID = keccak256("STATICS_WETH_RESERVE");
-
-    address private governance;
-    address private treasury;
-    MockDopplerToken private statics;
-    MockWrappedNative private weth;
-    ReserveFeeSource private feeSource;
-    StaticsFeeReceiver private receiver;
-    StaticsGenesisVault private vault;
-    MockDistributor private distributor;
-
-    function setUp() public {
-        governance = makeAddr("governance");
-        treasury = makeAddr("treasury");
-        statics = new MockDopplerToken(address(this));
-        weth = new MockWrappedNative();
-        vm.deal(address(weth), 2_000_000 ether);
-        feeSource = new ReserveFeeSource();
-        receiver = new StaticsFeeReceiver(address(feeSource), address(weth), governance);
-        feeSource.configure(address(statics), address(weth), address(receiver));
-        vm.prank(governance);
-        receiver.bindMarket(address(statics), POOL_ID);
-
-        GenesisActivationRegistry registry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
-            feeReceiver: address(receiver),
-            treasury: treasury,
-            originationFee: 0,
-            extensionFee: 0,
-            recoveryCallerShareBps: 2_000
-        });
-        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 30 days, creditConfig);
-        StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
-        StaticsGenesis genesis = new StaticsGenesis(
-            address(vault),
-            address(registry),
-            renderer,
-            governance,
-            treasury,
-            "ipfs://contract.json",
-            "https://statics.finance/genesis/"
-        );
-        registry.bindGenesisCollection(address(genesis));
-        vault.finalizeGenesisCollection(address(genesis));
-
-        distributor = new MockDistributor(address(vault), address(statics));
+    contract IncompatibleReserveDistributor {
+        function accept(StaticsFeeReceiver receiver) external {
+            receiver.acceptDistributor();
+        }
     }
 
-    function _bindAndActivate(uint16 shareBps) private {
-        vm.startPrank(governance);
-        receiver.bindReserveVault(address(vault));
-        receiver.setReserveShareBps(shareBps);
-        receiver.proposeDistributor(address(distributor));
-        vm.stopPrank();
-        distributor.accept(receiver);
-    }
+    contract StaticsFeeReceiverReserveTest is Test {
+        bytes32 private constant POOL_ID = keccak256("STATICS_WETH_RESERVE");
 
-    function testReserveVaultBindingRequiresMatchingStaticsAndIsOneTime() public {
-        MockDopplerToken otherStatics = new MockDopplerToken(address(this));
-        MockGenesisFeeReceiver otherReceiver = new MockGenesisFeeReceiver(address(otherStatics));
-        GenesisCreditConfig memory otherCreditConfig = GenesisCreditConfig({
-            feeReceiver: address(otherReceiver),
-            treasury: treasury,
-            originationFee: 0,
-            extensionFee: 0,
-            recoveryCallerShareBps: 2_000
-        });
-        StaticsGenesisVault otherVault = new StaticsGenesisVault(
-            otherStatics, address(this), governance, block.timestamp + 1 days, otherCreditConfig
-        );
-        vm.prank(governance);
-        vm.expectRevert(StaticsFeeReceiver.InvalidReserveVault.selector);
-        receiver.bindReserveVault(address(otherVault));
+        address private governance;
+        address private treasury;
+        MockDopplerToken private statics;
+        MockWrappedNative private weth;
+        ReserveFeeSource private feeSource;
+        StaticsFeeReceiver private receiver;
+        StaticsGenesisVault private vault;
+        MockDistributor private distributor;
 
-        vm.prank(governance);
-        receiver.bindReserveVault(address(vault));
-        assertEq(receiver.reserveVault(), address(vault));
+        function setUp() public {
+            governance = makeAddr("governance");
+            treasury = makeAddr("treasury");
+            statics = new MockDopplerToken(address(this));
+            weth = new MockWrappedNative();
+            vm.deal(address(weth), 2_000_000 ether);
+            feeSource = new ReserveFeeSource();
+            receiver = new StaticsFeeReceiver(address(feeSource), address(weth), governance);
+            feeSource.configure(address(statics), address(weth), address(receiver));
+            vm.prank(governance);
+            receiver.bindMarket(address(statics), POOL_ID);
 
-        vm.prank(governance);
-        vm.expectRevert(StaticsFeeReceiver.ReserveVaultAlreadyBound.selector);
-        receiver.bindReserveVault(address(vault));
-    }
-
-    function testNonzeroReserveShareRequiresBoundVault() public {
-        vm.prank(governance);
-        vm.expectRevert(StaticsFeeReceiver.ReserveVaultNotBound.selector);
-        receiver.setReserveShareBps(5_000);
-    }
-
-    function testBoundVaultRejectsIncompatibleDistributor() public {
-        IncompatibleReserveDistributor incompatible = new IncompatibleReserveDistributor();
-        vm.startPrank(governance);
-        receiver.bindReserveVault(address(vault));
-        receiver.proposeDistributor(address(incompatible));
-        vm.stopPrank();
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                StaticsFeeReceiver.InvalidRecoveryDistributor.selector,
-                address(incompatible),
+            GenesisActivationRegistry registry =
+                new GenesisActivationRegistry(statics, address(this), governance, treasury);
+            GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+                feeReceiver: address(receiver),
+                treasury: treasury,
+                originationFee: 0,
+                extensionFee: 0,
+                recoveryCallerShareBps: 2_000
+            });
+            vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 30 days, creditConfig);
+            StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
+            StaticsGenesis genesis = new StaticsGenesis(
                 address(vault),
-                address(statics)
-            )
-        );
-        incompatible.accept(receiver);
+                address(registry),
+                renderer,
+                governance,
+                treasury,
+                "ipfs://contract.json",
+                "https://statics.finance/genesis/"
+            );
+            registry.bindGenesisCollection(address(genesis));
+            vault.finalizeGenesisCollection(address(genesis));
+
+            distributor = new MockDistributor(address(vault), address(statics));
+        }
+
+        function _bindAndActivate(uint16 shareBps) private {
+            vm.startPrank(governance);
+            receiver.bindReserveVault(address(vault));
+            receiver.setReserveShareBps(shareBps);
+            receiver.proposeDistributor(address(distributor));
+            vm.stopPrank();
+            distributor.accept(receiver);
+        }
+
+        function testReserveVaultBindingRequiresMatchingStaticsAndIsOneTime() public {
+            MockDopplerToken otherStatics = new MockDopplerToken(address(this));
+            MockGenesisFeeReceiver otherReceiver = new MockGenesisFeeReceiver(address(otherStatics));
+            GenesisCreditConfig memory otherCreditConfig = GenesisCreditConfig({
+                feeReceiver: address(otherReceiver),
+                treasury: treasury,
+                originationFee: 0,
+                extensionFee: 0,
+                recoveryCallerShareBps: 2_000
+            });
+            StaticsGenesisVault otherVault = new StaticsGenesisVault(
+                otherStatics, address(this), governance, block.timestamp + 1 days, otherCreditConfig
+            );
+            vm.prank(governance);
+            vm.expectRevert(StaticsFeeReceiver.InvalidReserveVault.selector);
+            receiver.bindReserveVault(address(otherVault));
+
+            vm.prank(governance);
+            receiver.bindReserveVault(address(vault));
+            assertEq(receiver.reserveVault(), address(vault));
+
+            vm.prank(governance);
+            vm.expectRevert(StaticsFeeReceiver.ReserveVaultAlreadyBound.selector);
+            receiver.bindReserveVault(address(vault));
+        }
+
+        function testNonzeroReserveShareRequiresBoundVault() public {
+            vm.prank(governance);
+            vm.expectRevert(StaticsFeeReceiver.ReserveVaultNotBound.selector);
+            receiver.setReserveShareBps(5_000);
+        }
+
+        function testBoundVaultRejectsIncompatibleDistributor() public {
+            IncompatibleReserveDistributor incompatible = new IncompatibleReserveDistributor();
+            vm.startPrank(governance);
+            receiver.bindReserveVault(address(vault));
+            receiver.proposeDistributor(address(incompatible));
+            vm.stopPrank();
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    StaticsFeeReceiver.InvalidRecoveryDistributor.selector,
+                    address(incompatible),
+                    address(vault),
+                    address(statics)
+                )
+            );
+            incompatible.accept(receiver);
+        }
+
+        function testHarvestSplitsWethAndForwardsReserveAsNativeEth() public {
+            _bindAndActivate(5_000);
+            weth.mint(address(feeSource), 100 ether);
+            statics.transfer(address(feeSource), 40 ether);
+            feeSource.queue(40 ether, 100 ether);
+
+            vm.prank(governance);
+            (uint256 staticsAmount, uint256 wethAmount) = receiver.harvest();
+
+            // harvest() returns gross harvested amounts; only the distributor WETH remainder is attributed.
+            assertEq(staticsAmount, 40 ether);
+            assertEq(wethAmount, 100 ether);
+            assertEq(receiver.distributorClaimable(address(distributor), address(statics)), 40 ether);
+            assertEq(receiver.distributorClaimable(address(distributor), address(weth)), 50 ether);
+            // Reserve WETH was unwrapped and donated to the vault as native ETH.
+            assertEq(receiver.cumulativeReserveWeth(), 50 ether);
+            assertEq(receiver.cumulativeDistributorWeth(), 50 ether);
+            assertEq(vault.reserveETH(), 50 ether);
+            assertEq(address(vault).balance, 50 ether);
+            // gross == reserve + distributor.
+            assertEq(receiver.cumulativeReserveWeth() + receiver.cumulativeDistributorWeth(), 100 ether);
+        }
+
+        function testZeroReserveShareRoutesAllWethToDistributor() public {
+            _bindAndActivate(0);
+            weth.mint(address(feeSource), 80 ether);
+            feeSource.queue(0, 80 ether);
+            vm.prank(governance);
+            receiver.harvest();
+            assertEq(receiver.distributorClaimable(address(distributor), address(weth)), 80 ether);
+            assertEq(receiver.cumulativeReserveWeth(), 0);
+            assertEq(receiver.cumulativeDistributorWeth(), 80 ether);
+            assertEq(vault.reserveETH(), 0);
+        }
+
+        function testSetReserveShareHarvestsAtOldShareFirst() public {
+            _bindAndActivate(2_000);
+            weth.mint(address(feeSource), 100 ether);
+            feeSource.queue(0, 100 ether);
+
+            // Queue is pending; changing the share must harvest at the OLD 2,000 bps first.
+            vm.prank(governance);
+            receiver.setReserveShareBps(8_000);
+            assertEq(receiver.cumulativeReserveWeth(), 20 ether); // old share applied
+            assertEq(vault.reserveETH(), 20 ether);
+            assertEq(receiver.reserveShareBps(), 8_000);
+
+            // New harvest uses the new 8,000 bps.
+            weth.mint(address(feeSource), 100 ether);
+            feeSource.queue(0, 100 ether);
+            vm.prank(governance);
+            receiver.harvest();
+            assertEq(receiver.cumulativeReserveWeth(), 20 ether + 80 ether);
+        }
+
+        function testFuzzWethSplitConservesGross(uint96 rawGross, uint16 rawShare) public {
+            uint256 gross = bound(uint256(rawGross), 1, 1_000_000 ether);
+            uint16 share = uint16(bound(uint256(rawShare), 0, 10_000));
+            _bindAndActivate(share);
+            weth.mint(address(feeSource), gross);
+            feeSource.queue(0, gross);
+            vm.prank(governance);
+            receiver.harvest();
+            uint256 expectedReserve = (gross * share) / 10_000;
+            assertEq(receiver.cumulativeReserveWeth(), expectedReserve);
+            assertEq(receiver.cumulativeDistributorWeth(), gross - expectedReserve);
+            assertEq(receiver.cumulativeReserveWeth() + receiver.cumulativeDistributorWeth(), gross);
+            assertEq(vault.reserveETH(), expectedReserve);
+        }
     }
-
-    function testHarvestSplitsWethAndForwardsReserveAsNativeEth() public {
-        _bindAndActivate(5_000);
-        weth.mint(address(feeSource), 100 ether);
-        statics.transfer(address(feeSource), 40 ether);
-        feeSource.queue(40 ether, 100 ether);
-
-        vm.prank(governance);
-        (uint256 staticsAmount, uint256 wethAmount) = receiver.harvest();
-
-        // harvest() returns gross harvested amounts; only the distributor WETH remainder is attributed.
-        assertEq(staticsAmount, 40 ether);
-        assertEq(wethAmount, 100 ether);
-        assertEq(receiver.distributorClaimable(address(distributor), address(statics)), 40 ether);
-        assertEq(receiver.distributorClaimable(address(distributor), address(weth)), 50 ether);
-        // Reserve WETH was unwrapped and donated to the vault as native ETH.
-        assertEq(receiver.cumulativeReserveWeth(), 50 ether);
-        assertEq(receiver.cumulativeDistributorWeth(), 50 ether);
-        assertEq(vault.reserveETH(), 50 ether);
-        assertEq(address(vault).balance, 50 ether);
-        // gross == reserve + distributor.
-        assertEq(receiver.cumulativeReserveWeth() + receiver.cumulativeDistributorWeth(), 100 ether);
-    }
-
-    function testZeroReserveShareRoutesAllWethToDistributor() public {
-        _bindAndActivate(0);
-        weth.mint(address(feeSource), 80 ether);
-        feeSource.queue(0, 80 ether);
-        vm.prank(governance);
-        receiver.harvest();
-        assertEq(receiver.distributorClaimable(address(distributor), address(weth)), 80 ether);
-        assertEq(receiver.cumulativeReserveWeth(), 0);
-        assertEq(receiver.cumulativeDistributorWeth(), 80 ether);
-        assertEq(vault.reserveETH(), 0);
-    }
-
-    function testSetReserveShareHarvestsAtOldShareFirst() public {
-        _bindAndActivate(2_000);
-        weth.mint(address(feeSource), 100 ether);
-        feeSource.queue(0, 100 ether);
-
-        // Queue is pending; changing the share must harvest at the OLD 2,000 bps first.
-        vm.prank(governance);
-        receiver.setReserveShareBps(8_000);
-        assertEq(receiver.cumulativeReserveWeth(), 20 ether); // old share applied
-        assertEq(vault.reserveETH(), 20 ether);
-        assertEq(receiver.reserveShareBps(), 8_000);
-
-        // New harvest uses the new 8,000 bps.
-        weth.mint(address(feeSource), 100 ether);
-        feeSource.queue(0, 100 ether);
-        vm.prank(governance);
-        receiver.harvest();
-        assertEq(receiver.cumulativeReserveWeth(), 20 ether + 80 ether);
-    }
-
-    function testFuzzWethSplitConservesGross(uint96 rawGross, uint16 rawShare) public {
-        uint256 gross = bound(uint256(rawGross), 1, 1_000_000 ether);
-        uint16 share = uint16(bound(uint256(rawShare), 0, 10_000));
-        _bindAndActivate(share);
-        weth.mint(address(feeSource), gross);
-        feeSource.queue(0, gross);
-        vm.prank(governance);
-        receiver.harvest();
-        uint256 expectedReserve = (gross * share) / 10_000;
-        assertEq(receiver.cumulativeReserveWeth(), expectedReserve);
-        assertEq(receiver.cumulativeDistributorWeth(), gross - expectedReserve);
-        assertEq(receiver.cumulativeReserveWeth() + receiver.cumulativeDistributorWeth(), gross);
-        assertEq(vault.reserveETH(), expectedReserve);
-    }
-}

@@ -225,12 +225,17 @@ contract StaticsGenesis is
 
         address protocol_ = protocol;
         if (protocol_ != address(0)) {
-            bytes4 acknowledgement = IStaticsGenesisProtocol(protocol_).onGenesisRecovery(genesisId, previousOwner);
-            if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) {
-                revert InvalidRecoveryAcknowledgement(protocol_, acknowledgement);
-            }
             uint256 positionId = IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId);
-            if (positionId != 0) revert RecoveryLinkNotCleared(protocol_, genesisId, positionId);
+            if (positionId != 0) {
+                bytes4 acknowledgement = IStaticsGenesisProtocol(protocol_).onGenesisRecovery(genesisId, previousOwner);
+                if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) {
+                    revert InvalidRecoveryAcknowledgement(protocol_, acknowledgement);
+                }
+                uint256 remainingPositionId = IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId);
+                if (remainingPositionId != 0) {
+                    revert RecoveryLinkNotCleared(protocol_, genesisId, remainingPositionId);
+                }
+            }
         }
 
         IGenesisActivationRegistry(activationRegistry).onGenesisTransfer(genesisId, previousOwner, vault);

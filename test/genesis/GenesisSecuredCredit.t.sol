@@ -231,6 +231,10 @@ contract GenesisSecuredCreditTest is Test {
         vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 1 ether);
     }
 
+    function testCreditLimitReturnsZeroForNonexistentGenesis() public view {
+        assertEq(vault.creditLimit(genesis.COLLECTION_SIZE() + 1), 0);
+    }
+
     function testApprovedOperatorCannotOriginateOwnerCredit() public {
         _buyGenesis(alice, 1);
         vm.prank(alice);
@@ -592,6 +596,24 @@ contract GenesisSecuredCreditTest is Test {
         assertTrue(protocol.recoveryCalled());
         assertEq(protocol.linkedPosition(1), 0);
         assertEq(protocol.unrelatedLedgerValue(), 77);
+        assertEq(genesis.ownerOf(1), address(vault));
+    }
+
+    function testUnlinkedRecoveryDoesNotCallBoundProtocol() public {
+        _buyGenesis(alice, 1);
+        MockGenesisCreditProtocol protocol = new MockGenesisCreditProtocol(address(genesis));
+        vm.prank(governance);
+        genesis.bindProtocol(address(protocol));
+        protocol.setRejectRecovery(true);
+
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, MAX_PRINCIPAL);
+        GenesisCreditRecoveryQuote memory quote = vault.quoteGenesisCreditRecovery(1);
+        vm.warp(uint256(quote.recoverableAt) + 1);
+        vm.prank(keeper);
+        vault.recoverGenesisCredit(1);
+
+        assertFalse(protocol.recoveryCalled());
         assertEq(genesis.ownerOf(1), address(vault));
     }
 

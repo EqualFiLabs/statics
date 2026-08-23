@@ -11,10 +11,7 @@ import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {GenesisCreditConfig, GenesisCreditView} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
-import {
-    MockGenesisFeeReceiver,
-    MockGenesisRecoveryDistributor
-} from "../mocks/MockGenesisCreditDependencies.sol";
+import {MockGenesisFeeReceiver, MockGenesisRecoveryDistributor} from "../mocks/MockGenesisCreditDependencies.sol";
 
 contract ForceNativeToGenesisVault {
     constructor(address payable receiver) payable {

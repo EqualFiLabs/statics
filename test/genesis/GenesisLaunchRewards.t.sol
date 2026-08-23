@@ -165,8 +165,7 @@ contract GenesisLaunchRewardsTest is Test {
             extensionFee: 0,
             recoveryCallerShareBps: 2_000
         });
-        vault =
-            new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days, creditConfig);
+        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),

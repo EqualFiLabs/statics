@@ -19,10 +19,7 @@ import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
-import {
-    MockGenesisFeeReceiver,
-    MockGenesisRecoveryDistributor
-} from "../mocks/MockGenesisCreditDependencies.sol";
+import {MockGenesisFeeReceiver, MockGenesisRecoveryDistributor} from "../mocks/MockGenesisCreditDependencies.sol";
 
 contract MockGenesisProtocol is IStaticsGenesisProtocol {
     address public immutable override genesisCollection;

@@ -184,9 +184,8 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             extensionFee: 0,
             recoveryCallerShareBps: 2_000
         });
-        StaticsGenesisVault vault = new StaticsGenesisVault(
-            statics, address(this), address(this), block.timestamp + 3650 days, creditConfig
-        );
+        StaticsGenesisVault vault =
+            new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 3650 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
