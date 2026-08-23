@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import {readFile, writeFile} from "node:fs/promises";
 import {fileURLToPath} from "node:url";
 import {dirname, resolve} from "node:path";
-import {createModel, formatUnits, residualFor, simulateAtFdv, validateModel} from "./model.mjs";
+import {
+  createModel,
+  formatUnits,
+  formatWadPercentage,
+  residualFor,
+  simulateAtFdv,
+  validateModel
+} from "./model.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const configPath = resolve(root, "config/robinhood-model.json");
@@ -76,7 +83,7 @@ function markdown(report) {
     "| Region | Tick lower | Tick upper | Positions | Share | Inventory |",
     "|---|---:|---:|---:|---:|---:|",
     ...report.curves.map((curve) =>
-      `| ${curve.name} | ${curve.tickLower} | ${curve.tickUpper} | ${curve.numPositions} | ${(Number(curve.sharesWad) / 1e16).toFixed(1)}% | ${Number(curve.inventoryTokens).toLocaleString("en-US")} STATICS |`
+      `| ${curve.name} | ${curve.tickLower} | ${curve.tickUpper} | ${curve.numPositions} | ${formatWadPercentage(BigInt(curve.sharesWad))}% | ${Number(curve.inventoryTokens).toLocaleString("en-US")} STATICS |`
     ),
     "",
     "## Model checks",
@@ -126,8 +133,9 @@ if (command === "generate") {
   await writeFile(jsonPath, json);
   await writeFile(markdownPath, md);
 } else if (command === "check") {
-  assert.equal(await readFile(jsonPath, "utf8"), json, "JSON report is stale; run npm run generate");
-  assert.equal(await readFile(markdownPath, "utf8"), md, "Markdown report is stale; run npm run generate");
+  const generateCommand = "npm --prefix tools/genesis-economics run generate";
+  assert.equal(await readFile(jsonPath, "utf8"), json, `JSON report is stale; run ${generateCommand}`);
+  assert.equal(await readFile(markdownPath, "utf8"), md, `Markdown report is stale; run ${generateCommand}`);
 } else {
   throw new Error(`unknown command: ${command}`);
 }

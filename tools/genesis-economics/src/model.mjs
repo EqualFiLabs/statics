@@ -42,6 +42,16 @@ export function formatUnits(value, decimals = 6) {
   return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
 }
 
+export function formatWadPercentage(value, decimals = 1) {
+  assert.ok(value >= 0n && value <= WAD, "WAD percentage is out of range");
+  assert.ok(Number.isInteger(decimals) && decimals >= 0 && decimals <= 18, "invalid percentage decimals");
+  const scale = 10n ** BigInt(decimals);
+  const rounded = (value * 100n * scale + WAD / 2n) / WAD;
+  const whole = rounded / scale;
+  if (decimals === 0) return whole.toString();
+  return `${whole}.${(rounded % scale).toString().padStart(decimals, "0")}`;
+}
+
 export function sqrtPriceAtTick(tick) {
   assert.ok(Number.isInteger(tick) && Math.abs(tick) <= 887272, "invalid tick");
   const absolute = Math.abs(tick);
@@ -168,16 +178,18 @@ export function simulateAtFdv(model, fdvUsd, isToken0 = true) {
     absorbed += state.wethAbsorbed;
   }
   const distributed = model.inventoryTokens - remaining;
+  const staticsDistributed = Math.max(0, distributed);
+  const staticsRemaining = Math.max(0, remaining);
   const grossWeth = absorbed / (1 - model.feePips / 1_000_000);
   return {
     fdvUsd: Number(fdvUsd),
     staticsPriceUsd: Number(fdvUsd) / model.totalSupplyTokens,
-    staticsDistributed: Math.max(0, distributed),
-    staticsRemaining: Math.max(0, remaining),
+    staticsDistributed,
+    staticsRemaining,
     netWethAbsorbed: absorbed,
     grossWethInputAtFee: grossWeth,
-    averagePriceUsd: distributed > 0 ? absorbed * model.wethUsd / distributed : 0,
-    genesisBackingUnits: distributed / model.genesisBackingTokens
+    averagePriceUsd: staticsDistributed > 0 ? absorbed * model.wethUsd / staticsDistributed : 0,
+    genesisBackingUnits: staticsDistributed / model.genesisBackingTokens
   };
 }
 

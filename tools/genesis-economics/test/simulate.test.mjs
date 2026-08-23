@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-import {createModel, fdvToTick, formatUnits, residualFor, sqrtPriceAtTick, validateModel} from "../src/model.mjs";
+import {
+  createModel,
+  fdvToTick,
+  formatUnits,
+  formatWadPercentage,
+  residualFor,
+  simulateAtFdv,
+  sqrtPriceAtTick,
+  validateModel
+} from "../src/model.mjs";
 
 const config = JSON.parse(
   await readFile(new URL("../config/robinhood-model.json", import.meta.url), "utf8")
@@ -21,6 +30,20 @@ test("aligns the opening price to the cheaper tick", () => {
   assert.equal(Math.abs(aligned % 100), 0);
 });
 
+test("formats WAD percentages without lossy Number conversion", () => {
+  assert.equal(formatWadPercentage(123456789012345678n), "12.3");
+  assert.equal(formatWadPercentage(999999999999999999n), "100.0");
+});
+
+test("clamps distribution-derived metrics together", () => {
+  const baseline = createModel(config);
+  const model = {...baseline, inventoryTokens: baseline.inventoryTokens - 0.001};
+  const result = simulateAtFdv(model, 1);
+  assert.equal(result.staticsDistributed, 0);
+  assert.equal(result.averagePriceUsd, 0);
+  assert.equal(result.genesisBackingUnits, 0);
+});
+
 test("validates curve topology, token ordering, and residual bounds", () => {
   const model = createModel(config);
   validateModel(model);
@@ -28,5 +51,6 @@ test("validates curve topology, token ordering, and residual bounds", () => {
   assert.equal(model.positions.assetToken1.length, 56);
   assert.ok(residualFor(model, "assetToken0") <= model.maximumResidual);
   assert.ok(residualFor(model, "assetToken1") <= model.maximumResidual);
-  assert.match(formatUnits(residualFor(model, "assetToken0"), 18), /^0\./);
+  assert.match(formatUnits(residualFor(model, "assetToken0"), 18), /^0(?:\..*)?$/);
+  assert.match(formatUnits(0n, 18), /^0(?:\..*)?$/);
 });
