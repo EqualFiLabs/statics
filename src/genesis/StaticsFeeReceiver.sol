@@ -76,7 +76,6 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
     error InvalidRecoveryDistributor(address distributor, address expectedVault, address expectedAsset);
-    error PendingGenesisRecoveryBlocksRotation(address distributor, uint256 pendingAmount);
 
     constructor(address poolInitializer_, address numeraire_, address governance) Ownable(governance) {
         if (poolInitializer_ == address(0) || poolInitializer_.code.length == 0) {
@@ -164,11 +163,8 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
             _harvest(pending);
             return;
         }
-        uint256 pendingRecovery = IGenesisRecoveryDistributor(previous).pendingGenesisRecovery();
-        if (pendingRecovery != 0) {
-            revert PendingGenesisRecoveryBlocksRotation(previous, pendingRecovery);
-        }
         _harvest(previous);
+        IGenesisRecoveryDistributor(previous).migratePendingGenesisRecovery(pending);
         activeDistributor = pending;
         delete pendingDistributor;
         emit DistributorAccepted(previous, pending);
@@ -282,6 +278,10 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
                 revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
             }
         } catch {
+            revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+        }
+        try IGenesisRecoveryDistributor(distributor).genesisRecoveryReady() returns (bool) {}
+        catch {
             revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
         }
     }

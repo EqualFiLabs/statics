@@ -9,6 +9,7 @@ contract MockGenesisCreditProtocol is IStaticsGenesisProtocol {
     uint256 public unrelatedLedgerValue = 77;
     bool public recoveryCalled;
     bool public rejectRecovery;
+    bool public clearLinkOnRecovery = true;
 
     constructor(address collection) {
         genesisCollection = collection;
@@ -23,6 +24,14 @@ contract MockGenesisCreditProtocol is IStaticsGenesisProtocol {
         rejectRecovery = value;
     }
 
+    function setClearLinkOnRecovery(bool value) external {
+        clearLinkOnRecovery = value;
+    }
+
+    function genesisRecoveryCallback() external pure override returns (bytes4 acknowledgement) {
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
+
     function onGenesisRecovery(uint256 genesisId, address previousOwner)
         external
         override
@@ -32,7 +41,7 @@ contract MockGenesisCreditProtocol is IStaticsGenesisProtocol {
         require(msg.sender == genesisCollection, "ONLY_GENESIS");
         require(!rejectRecovery, "RECOVERY_REJECTED");
         recoveryCalled = true;
-        delete linkedPosition[genesisId];
+        if (clearLinkOnRecovery) delete linkedPosition[genesisId];
         return IStaticsGenesisProtocol.onGenesisRecovery.selector;
     }
 }

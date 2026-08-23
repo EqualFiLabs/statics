@@ -233,6 +233,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[4].tickUpper, curves[5].tickLower);
             assertEq(deployer.FAR_TICK(), 887_100);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
+            assertEq(deployer.GENESIS_CREDIT_MAX_PRINCIPAL(), 171_000 ether);
+            assertEq(deployer.GENESIS_CREDIT_RECOVERY_RESIDUAL(), 9_000 ether);
+            assertEq(deployer.GENESIS_CREDIT_TERM(), 30 days);
+            assertEq(deployer.GENESIS_CREDIT_RECOVERY_GRACE(), 1 hours);
+            assertEq(deployer.GENESIS_CREDIT_INITIAL_RESERVE_SHARE_BPS(), 1_000);
+            assertEq(deployer.GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS(), 9_000);
         }
 
         function testLaunchManifestHashBindsEconomicsAndAuthorities() public {

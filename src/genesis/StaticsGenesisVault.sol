@@ -173,7 +173,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     }
 
     /// @notice Permissionless reserve capitalization. Increases reserveETH by exactly msg.value.
-    function donate() external payable override nonReentrant {
+    function donate() external payable override {
         if (msg.value == 0) revert ZeroDonation();
         reserveETH += msg.value;
         _enforceSolvency();
@@ -313,11 +313,12 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         uint256 callerIncentive = Math.mulDiv(RECOVERY_RESIDUAL, recoveryCallerShareBps, BPS);
         uint256 genesisDistribution = RECOVERY_RESIDUAL - callerIncentive;
 
+        distributor.checkpointGenesisRecovery(genesisId, state.owner);
+        genesis.recoverToVault(genesisId, state.owner);
+
         delete _credit[genesisId];
         totalOutstandingGenesisCredit -= principal;
         tokenBacking -= GENESIS_PRICE - principal;
-
-        genesis.recoverToVault(genesisId, state.owner);
         if (unusedCredit != 0) statics.pushExact(state.owner, unusedCredit);
         statics.pushExact(msg.sender, callerIncentive);
         statics.pushExact(address(distributor), genesisDistribution);
@@ -597,6 +598,11 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         }
         try distributor.genesisRecoveryAsset() returns (address recoveryAsset) {
             if (recoveryAsset != address(statics)) revert InvalidRecoveryDistributor(active);
+        } catch {
+            revert InvalidRecoveryDistributor(active);
+        }
+        try distributor.genesisRecoveryReady() returns (bool ready) {
+            if (!ready) revert InvalidRecoveryDistributor(active);
         } catch {
             revert InvalidRecoveryDistributor(active);
         }

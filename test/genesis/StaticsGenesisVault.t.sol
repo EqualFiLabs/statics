@@ -42,6 +42,10 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         IStaticsGenesis(genesisCollection).refreshLockStatus(genesisId);
     }
 
+    function genesisRecoveryCallback() external pure override returns (bytes4 acknowledgement) {
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
+
     function onGenesisRecovery(uint256 genesisId, address _previousOwner)
         external
         override
@@ -69,6 +73,10 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         function linkedPosition(uint256) external view override returns (uint256) {
             require(!revertLinkRead, "LINK_UNAVAILABLE");
             return 0;
+        }
+
+        function genesisRecoveryCallback() external pure override returns (bytes4 acknowledgement) {
+            return IStaticsGenesisProtocol.onGenesisRecovery.selector;
         }
 
         function onGenesisRecovery(uint256, address) external pure override returns (bytes4 acknowledgement) {

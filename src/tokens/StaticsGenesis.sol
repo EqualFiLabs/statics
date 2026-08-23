@@ -62,6 +62,7 @@ contract StaticsGenesis is
     error GenesisLocked(uint256 genesisId);
     error UnexpectedGenesisOwner(uint256 genesisId, address expected, address actual);
     error InvalidRecoveryAcknowledgement(address protocol, bytes4 acknowledgement);
+    error RecoveryLinkNotCleared(address protocol, uint256 genesisId, uint256 positionId);
 
     event DefaultRoyaltyUpdated(address indexed receiver, uint96 royaltyBps);
     event ExternalURLBaseUpdated(string externalURLBase);
@@ -113,6 +114,11 @@ contract StaticsGenesis is
         if (collection != address(this)) revert InvalidProtocol();
         try IStaticsGenesisProtocol(protocol_).linkedPosition(1) returns (uint256) {}
         catch {
+            revert InvalidProtocol();
+        }
+        try IStaticsGenesisProtocol(protocol_).genesisRecoveryCallback() returns (bytes4 acknowledgement) {
+            if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) revert InvalidProtocol();
+        } catch {
             revert InvalidProtocol();
         }
         protocol = protocol_;
@@ -223,6 +229,8 @@ contract StaticsGenesis is
             if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) {
                 revert InvalidRecoveryAcknowledgement(protocol_, acknowledgement);
             }
+            uint256 positionId = IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId);
+            if (positionId != 0) revert RecoveryLinkNotCleared(protocol_, genesisId, positionId);
         }
 
         IGenesisActivationRegistry(activationRegistry).onGenesisTransfer(genesisId, previousOwner, vault);

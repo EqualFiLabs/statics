@@ -62,6 +62,7 @@ contract MockDistributor is IGenesisRecoveryDistributor {
     address public immutable override genesisRecoveryVault;
     address public immutable override genesisRecoveryAsset;
     uint256 public override pendingGenesisRecovery;
+    bool public override genesisRecoveryReady = true;
 
     constructor(address vault_, address asset_) {
         genesisRecoveryVault = vault_;
@@ -75,6 +76,16 @@ contract MockDistributor is IGenesisRecoveryDistributor {
     function accrueGenesisRecovery(uint256 amount) external override {
         require(msg.sender == genesisRecoveryVault, "ONLY_VAULT");
         emit GenesisRecoveryAccrued(amount, 0, 0);
+    }
+
+    function checkpointGenesisRecovery(uint256, address) external pure override {}
+
+    function migratePendingGenesisRecovery(address) external pure override returns (uint256 amount) {
+        return 0;
+    }
+
+    function acceptPendingGenesisRecovery(uint256 amount) external override {
+        pendingGenesisRecovery += amount;
     }
 }
 

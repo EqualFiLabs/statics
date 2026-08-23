@@ -22,5 +22,6 @@ interface IStaticsGenesis is IERC721 {
 interface IStaticsGenesisProtocol {
     function genesisCollection() external view returns (address);
     function linkedPosition(uint256 genesisId) external view returns (uint256 positionId);
+    function genesisRecoveryCallback() external pure returns (bytes4 acknowledgement);
     function onGenesisRecovery(uint256 genesisId, address previousOwner) external returns (bytes4 acknowledgement);
 }

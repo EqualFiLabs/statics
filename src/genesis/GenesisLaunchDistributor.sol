@@ -81,7 +81,10 @@ contract GenesisLaunchDistributor is
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
     error UnauthorizedRecoveryVault(address caller);
+    error UnauthorizedRecoveryPredecessor(address caller);
     error InvalidRecoveryAmount();
+    error RecoveryRolesNotActive();
+    error UnexpectedRecoveryOwner(uint256 genesisId, address expectedOwner, address actualOwner);
 
     constructor(
         IStaticsFeeReceiver feeReceiver_,
@@ -123,11 +126,13 @@ contract GenesisLaunchDistributor is
 
     function acceptActivationConsumer() external override onlyOwner {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
+        if (feeReceiver.activeDistributor() != address(this)) revert RecoveryRolesNotActive();
         activationRegistry.acceptConsumer();
     }
 
     function registerGenesis(uint256 genesisId) external override nonReentrant {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
+        if (!genesisRecoveryReady()) revert RecoveryRolesNotActive();
         if (registered[genesisId]) revert GenesisAlreadyRegistered(genesisId);
         address tokenOwner = genesis.ownerOf(genesisId);
         if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
@@ -207,12 +212,54 @@ contract GenesisLaunchDistributor is
         emit GenesisRecoveryAccrued(amount, pendingGenesisRecovery, _rewardBooks[statics].indexRay);
     }
 
+    function checkpointGenesisRecovery(uint256 genesisId, address expectedOwner) external override nonReentrant {
+        if (msg.sender != vault) revert UnauthorizedRecoveryVault(msg.sender);
+        if (!genesisRecoveryReady()) revert RecoveryRolesNotActive();
+        address tokenOwner = genesis.ownerOf(genesisId);
+        if (tokenOwner != expectedOwner) revert UnexpectedRecoveryOwner(genesisId, expectedOwner, tokenOwner);
+
+        _accrue();
+        _settle(genesisId, statics);
+        _settle(genesisId, numeraire);
+        _crystallizeToOwner(genesisId, expectedOwner, statics);
+        _crystallizeToOwner(genesisId, expectedOwner, numeraire);
+    }
+
+    function migratePendingGenesisRecovery(address successor) external override nonReentrant returns (uint256 amount) {
+        if (msg.sender != address(feeReceiver)) revert UnauthorizedRecoveryPredecessor(msg.sender);
+        amount = pendingGenesisRecovery;
+        if (amount == 0) return 0;
+        pendingGenesisRecovery = 0;
+        accountedCustody[statics] -= amount;
+        IERC20(statics).pushExact(successor, amount);
+        IGenesisRecoveryDistributor(successor).acceptPendingGenesisRecovery(amount);
+        emit PendingGenesisRecoveryMigrated(successor, amount);
+    }
+
+    function acceptPendingGenesisRecovery(uint256 amount) external override nonReentrant {
+        if (msg.sender != feeReceiver.activeDistributor()) revert UnauthorizedRecoveryPredecessor(msg.sender);
+        if (amount == 0) revert InvalidRecoveryAmount();
+        IERC20 token = IERC20(statics);
+        uint256 balance = token.balanceOf(address(this));
+        uint256 accounted = accountedCustody[statics];
+        uint256 available = balance > accounted ? balance - accounted : 0;
+        if (available < amount) revert InconsistentFeeTransfer(statics, amount, available);
+        accountedCustody[statics] = accounted + amount;
+        if (totalWeight == 0) pendingGenesisRecovery += amount;
+        else _increaseRecoveryIndex(amount);
+        emit PendingGenesisRecoveryReceived(msg.sender, amount);
+    }
+
     function genesisRecoveryVault() external view override returns (address) {
         return vault;
     }
 
     function genesisRecoveryAsset() external view override returns (address) {
         return statics;
+    }
+
+    function genesisRecoveryReady() public view override returns (bool) {
+        return feeReceiver.activeDistributor() == address(this) && activationRegistry.activeConsumer() == address(this);
     }
 
     function claimGenesis(uint256 genesisId, address asset, address receiver)

@@ -762,6 +762,12 @@ from `StaticsGenesisVault`. It indexes the complete Genesis-holder portion
 without applying `genesisRewardShareBps`, because the caller incentive has
 already been removed and none of the remainder belongs to treasury.
 
+Immediately before the ownership transition, the vault also invokes a
+recovery-only checkpoint on that distributor. The checkpoint harvests currently
+collectible Doppler fees, settles the defaulting Genesis, and crystallizes its
+direct entitlement to the former owner before its weight is removed. Ordinary
+NFT transfers retain the existing storage-only checkpoint behavior.
+
 This is an additional inflow to the existing index, not a second reward ledger,
 registry, or distributor.
 
@@ -769,6 +775,10 @@ registry, or distributor.
 online. Its successor must preserve the same vault-authenticated recovery inflow
 and activation-weighted STATICS index behavior. A replacement may not become
 active while doing so would make an already-open Genesis credit unrecoverable.
+Fee-distributor acceptance occurs before activation-consumer acceptance, and
+recovery remains unavailable during that handoff gap. Any zero-weight pending
+recovery amount migrates exactly to the successor and remains pending there
+until successor-managed eligible weight exists.
 
 ## Protocol linkage
 
@@ -818,6 +828,9 @@ former owner's PositionNFT
 ```
 
 Failure to clear required protocol state reverts recovery atomically.
+The one-time protocol binding therefore requires an explicit recovery-callback
+capability acknowledgement, and each callback must leave
+`linkedPosition(genesisId) == 0` before the NFT can return to vault inventory.
 
 ## Native service-fee split
 

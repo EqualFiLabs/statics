@@ -23,6 +23,7 @@ contract MockGenesisRecoveryDistributor is IGenesisRecoveryDistributor {
     uint256 public override pendingGenesisRecovery;
     uint256 public totalRecoveryAccrued;
     bool public shouldRevert;
+    bool public override genesisRecoveryReady = true;
 
     constructor(address vault_, address asset_) {
         genesisRecoveryVault = vault_;
@@ -33,11 +34,33 @@ contract MockGenesisRecoveryDistributor is IGenesisRecoveryDistributor {
         shouldRevert = value;
     }
 
+    function setGenesisRecoveryReady(bool value) external {
+        genesisRecoveryReady = value;
+    }
+
+    function checkpointGenesisRecovery(uint256, address) external view override {
+        require(msg.sender == genesisRecoveryVault, "ONLY_VAULT");
+        require(!shouldRevert, "RECOVERY_REVERTED");
+    }
+
     function accrueGenesisRecovery(uint256 amount) external override {
         require(msg.sender == genesisRecoveryVault, "ONLY_VAULT");
         require(!shouldRevert, "RECOVERY_REVERTED");
         require(IERC20(genesisRecoveryAsset).balanceOf(address(this)) >= totalRecoveryAccrued + amount, "MISSING_ASSET");
         totalRecoveryAccrued += amount;
         emit GenesisRecoveryAccrued(amount, 0, 0);
+    }
+
+    function migratePendingGenesisRecovery(address successor) external override returns (uint256 amount) {
+        amount = pendingGenesisRecovery;
+        if (amount == 0) return 0;
+        pendingGenesisRecovery = 0;
+        IERC20(genesisRecoveryAsset).transfer(successor, amount);
+        IGenesisRecoveryDistributor(successor).acceptPendingGenesisRecovery(amount);
+    }
+
+    function acceptPendingGenesisRecovery(uint256 amount) external override {
+        pendingGenesisRecovery += amount;
+        emit PendingGenesisRecoveryReceived(msg.sender, amount);
     }
 }

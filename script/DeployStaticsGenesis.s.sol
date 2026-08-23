@@ -76,6 +76,12 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint256 public constant GENESIS_BACKING = 180_000 ether;
     uint256 public constant GENESIS_MAX_SUPPLY = 5_555;
     uint256 public constant POST_EPOCH_NATIVE_ACQUISITION_FEE = 0.003 ether;
+    uint256 public constant GENESIS_CREDIT_MAX_PRINCIPAL = 171_000 ether;
+    uint256 public constant GENESIS_CREDIT_RECOVERY_RESIDUAL = 9_000 ether;
+    uint256 public constant GENESIS_CREDIT_TERM = 30 days;
+    uint256 public constant GENESIS_CREDIT_RECOVERY_GRACE = 1 hours;
+    uint16 public constant GENESIS_CREDIT_INITIAL_RESERVE_SHARE_BPS = 1_000;
+    uint16 public constant GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS = 9_000;
     uint96 public constant DOPPLER_OWNER_SHARE = 0.05 ether;
     uint96 public constant STATICS_FEE_SHARE = 0.95 ether;
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
@@ -294,6 +300,12 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
                 GENESIS_BACKING,
                 GENESIS_MAX_SUPPLY,
                 POST_EPOCH_NATIVE_ACQUISITION_FEE,
+                GENESIS_CREDIT_MAX_PRINCIPAL,
+                GENESIS_CREDIT_RECOVERY_RESIDUAL,
+                GENESIS_CREDIT_TERM,
+                GENESIS_CREDIT_RECOVERY_GRACE,
+                GENESIS_CREDIT_INITIAL_RESERVE_SHARE_BPS,
+                GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS,
                 DOPPLER_OWNER_SHARE,
                 STATICS_FEE_SHARE
             )
