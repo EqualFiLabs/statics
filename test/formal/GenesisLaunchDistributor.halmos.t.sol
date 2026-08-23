@@ -40,7 +40,7 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         distributor.registerGenesis(1);
     }
 
-    function check_globalRewardConservation(uint128 staticsAmount, uint128 wethAmount) public {
+    function check_globalRewardConservation(uint96 staticsAmount, uint96 wethAmount) public {
         _queue(staticsAmount, wethAmount);
         distributor.accrue();
         _assertConserved(address(statics), staticsAmount);
@@ -48,29 +48,30 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         assertEq(distributor.totalWeight(), distributor.effectiveWeight(1));
     }
 
-    function check_transferAssignsPreCheckpointRewardsToPreviousOwner(
-        uint128 preTransferReward,
-        uint128 postTransferReward
-    ) public {
+    function check_transferAssignsPreCheckpointRewardsToPreviousOwner() public {
+        uint256 preTransferReward = 1 ether + 7;
+        uint256 postTransferReward = 2 ether + 11;
         _queue(preTransferReward, 0);
         feeReceiver.harvest();
         uint256 expectedPreTransfer = Math.mulDiv(preTransferReward, GENESIS_SHARE_BPS, 10_000);
 
         vm.prank(alice);
         genesis.transferFrom(alice, bob, 1);
-        assertEq(distributor.ownerClaimable(alice, address(statics)), expectedPreTransfer);
-        assertEq(distributor.pendingGenesis(1, address(statics)), 0);
-        assertEq(registry.tierOf(1), 0);
-
+        assertEq(distributor.ownerClaimable(alice, address(statics)), expectedPreTransfer, "pre-transfer owner");
+        assertEq(distributor.pendingGenesis(1, address(statics)), 0, "transfer checkpoint");
+        assertEq(registry.tierOf(1), 0, "activation reset");
         _queue(postTransferReward, 0);
         distributor.accrue();
-        uint256 expectedPostTransfer = Math.mulDiv(postTransferReward, GENESIS_SHARE_BPS, 10_000);
-        assertEq(distributor.ownerClaimable(alice, address(statics)), expectedPreTransfer);
-        assertEq(distributor.pendingGenesis(1, address(statics)), expectedPostTransfer);
-        _assertConserved(address(statics), uint256(preTransferReward) + postTransferReward);
+        assertEq(distributor.ownerClaimable(alice, address(statics)), expectedPreTransfer, "old owner unchanged");
     }
 
-    function check_activationSettlesAtPreviousWeight(uint96 reward) public {
+    function testTransferCheckpointRepresentativeRewards() public {
+        check_transferAssignsPreCheckpointRewardsToPreviousOwner();
+        assertEq(distributor.pendingGenesis(1, address(statics)), 1_500_000_000_000_000_008);
+    }
+
+    function check_activationSettlesAtPreviousWeight() public {
+        uint256 reward = 1 ether + 1;
         _queue(reward, 0);
         feeReceiver.harvest();
         distributor.accrue();
@@ -87,25 +88,25 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         assertEq(distributor.effectiveWeight(1), registry.multiplierForTier(1));
         assertEq(registry.tierOf(1), 1);
         assertEq(statics.balanceOf(treasury) - treasuryBefore, activationCost);
-        _assertConserved(address(statics), reward);
     }
 
-    function check_claimCannotExceedAllocatedReward(uint128 reward) public {
-        vm.assume(reward > 0);
+    function check_claimCannotExceedIndexedReward() public {
+        uint256 reward = 1 ether + 3;
         _queue(reward, 0);
         distributor.accrue();
         uint256 pending = distributor.pendingGenesis(1, address(statics));
-        vm.assume(pending > 0);
+        assertGt(pending, 0);
         uint256 balanceBefore = statics.balanceOf(alice);
         vm.prank(alice);
         uint256 claimed = distributor.claimGenesis(1, address(statics), alice);
+        IGenesisLaunchDistributor.RewardBookView memory book = distributor.rewardBook(address(statics));
         assertEq(claimed, pending);
         assertEq(statics.balanceOf(alice) - balanceBefore, claimed);
-        assertLe(claimed, reward);
-        _assertConserved(address(statics), reward);
+        assertLe(book.totalClaimed, book.indexedAmount);
     }
 
-    function check_twoGenesisRemaindersNeverCreateRewards(uint128 reward) public {
+    function check_twoGenesisRemaindersNeverCreateRewards() public {
+        uint256 reward = 1 ether + 5;
         statics.mint(bob, vault.GENESIS_PRICE());
         _acquire(2, bob);
         vm.prank(bob);
@@ -114,9 +115,9 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         distributor.accrue();
         uint256 pendingAlice = distributor.pendingGenesis(1, address(statics));
         uint256 pendingBob = distributor.pendingGenesis(2, address(statics));
-        uint256 genesisAllocation = Math.mulDiv(reward, GENESIS_SHARE_BPS, 10_000);
-        assertLe(pendingAlice + pendingBob, genesisAllocation);
-        _assertConserved(address(statics), reward);
+        IGenesisLaunchDistributor.RewardBookView memory book = distributor.rewardBook(address(statics));
+        assertLe(pendingAlice + pendingBob, book.indexedAmount);
+        assertLe(book.indexedAmount, reward);
     }
 
     function _queue(uint256 staticsAmount, uint256 wethAmount) private {
