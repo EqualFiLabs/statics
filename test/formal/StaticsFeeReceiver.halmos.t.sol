@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Test} from "forge-std/Test.sol";
 import {SymTest} from "halmos-cheatcodes/SymTest.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
@@ -35,18 +34,17 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         distributor.accept(receiver);
     }
 
-    function check_exactHarvestConservation(uint128 staticsAmount, uint128 wethAmount, uint16 reserveShareBps) public {
+    function check_exactHarvestConservation(uint96 staticsAmount, uint96 wethAmount, uint16 reserveShareBps) public {
         vm.assume(reserveShareBps <= receiver.BPS());
         receiver.setReserveShareBps(reserveShareBps);
         _queue(staticsAmount, wethAmount);
         receiver.harvest();
 
-        uint256 reserveAllocation = Math.mulDiv(wethAmount, reserveShareBps, receiver.BPS());
-        uint256 distributorWeth = uint256(wethAmount) - reserveAllocation;
+        uint256 reserveAllocation = receiver.cumulativeReserveWeth();
+        uint256 distributorWeth = receiver.cumulativeDistributorWeth();
         assertEq(receiver.cumulativeHarvested(address(statics)), staticsAmount);
         assertEq(receiver.cumulativeHarvested(address(weth)), wethAmount);
-        assertEq(receiver.cumulativeReserveWeth(), reserveAllocation);
-        assertEq(receiver.cumulativeDistributorWeth(), distributorWeth);
+        assertEq(reserveAllocation + distributorWeth, wethAmount);
         assertEq(receiver.distributorClaimable(address(distributor), address(statics)), staticsAmount);
         assertEq(receiver.distributorClaimable(address(distributor), address(weth)), distributorWeth);
         assertEq(receiver.totalDistributorLiability(address(statics)), staticsAmount);
@@ -54,7 +52,7 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         _assertLiabilitiesCovered();
     }
 
-    function check_directDonationsAreNeverHarvested(uint128 donation, uint128 harvested) public {
+    function check_directDonationsAreNeverHarvested(uint96 donation, uint96 harvested) public {
         statics.mint(address(receiver), donation);
         _queue(harvested, 0);
         receiver.harvest();
@@ -64,21 +62,23 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         _assertLiabilitiesCovered();
     }
 
-    function check_reserveShareChangeUsesPreviousShare(uint128 grossWeth, uint16 oldShare, uint16 newShare) public {
-        vm.assume(oldShare <= receiver.BPS());
+    function check_reserveShareChangeUsesPreviousShare(uint96 grossWeth, bool oldShareAllReserve, uint16 newShare)
+        public
+    {
         vm.assume(newShare <= receiver.BPS());
+        uint16 oldShare = oldShareAllReserve ? receiver.BPS() : 0;
         receiver.setReserveShareBps(oldShare);
         _queue(0, grossWeth);
         receiver.setReserveShareBps(newShare);
 
-        uint256 expectedReserve = Math.mulDiv(grossWeth, oldShare, receiver.BPS());
+        uint256 expectedReserve = oldShareAllReserve ? grossWeth : 0;
         assertEq(receiver.cumulativeReserveWeth(), expectedReserve);
         assertEq(receiver.cumulativeDistributorWeth(), uint256(grossWeth) - expectedReserve);
         assertEq(receiver.reserveShareBps(), newShare);
         _assertLiabilitiesCovered();
     }
 
-    function check_distributorRotationAttributesPendingFeesToOldDistributor(uint128 staticsAmount, uint128 wethAmount)
+    function check_distributorRotationAttributesPendingFeesToOldDistributor(uint96 staticsAmount, uint96 wethAmount)
         public
     {
         FormalDistributorSink nextDistributor = new FormalDistributorSink();
@@ -94,7 +94,7 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         _assertLiabilitiesCovered();
     }
 
-    function check_recoverSurplusCannotTouchLiability(uint128 liability, uint128 donation) public {
+    function check_recoverSurplusCannotTouchLiability(uint96 liability, uint96 donation) public {
         _queue(liability, 0);
         receiver.harvest();
         statics.mint(address(receiver), donation);
@@ -104,7 +104,7 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         _assertLiabilitiesCovered();
     }
 
-    function check_claimReducesCustodyAndLiabilityTogether(uint128 amount) public {
+    function check_claimReducesCustodyAndLiabilityTogether(uint96 amount) public {
         vm.assume(amount > 0);
         _queue(amount, 0);
         receiver.harvest();
