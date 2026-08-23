@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-08-23
-- Scope: Genesis secured credit, partial access to isolated STATICS backing, native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless recovery, and recovery-surplus distribution
+- Scope: Genesis secured credit, partial access to isolated STATICS backing, native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
 - Amends: `genesis-reserve-backed-vault.md`
 - Extends: the self-backed credit lifecycle established by Position-owned BasketToken lending
 - Preserves: 5,555 fixed Genesis supply, 180,000 STATICS gross backing per circulating Genesis, fixed 1,000,000,000 STATICS supply, post-epoch native ETH reserve rights, activation multipliers, transfer-reset activation, post-epoch reserve buy-in, permanent reserve accounting, and ordinary Genesis acquisition and redemption
@@ -87,7 +87,7 @@ fixed maturity
     |   credit closes
     |   Genesis unlocks
     |
-    +--> pay extension service fee
+    +--> accept current extension service fee
     |       |
     |       v
     |   maturity += one service term
@@ -102,7 +102,9 @@ fixed maturity
 
 Opening, extending, or repaying secured credit does not reset Genesis activation, remove reward eligibility, remove the activation multiplier, withdraw ETH reserve backing, or transfer ownership.
 
-Recovery ends beneficial ownership.
+Recovery ends beneficial ownership. The fixed 9,000-STATICS recovery residual
+pays a configured incentive to the permissionless caller and routes the
+remainder through the existing activation-weighted Genesis STATICS fee index.
 
 ## Post-epoch availability
 
@@ -402,7 +404,30 @@ The principal itself does not increase with elapsed time.
 
 ## Extension service
 
-Before maturity, the Genesis owner may pay the configured native extension service fee.
+At or before maturity, the Genesis owner may purchase another service term by
+paying the configured native extension service fee in effect when extension is
+executed.
+
+The current extension fee is a renewal offer, not a fee term permanently fixed
+when credit originates. Paying the exact quoted extension fee is affirmative
+acceptance of the next service term.
+
+Like the origination service fee, the extension service fee is a flat native
+amount. It is not derived from principal and has no protocol-level economic
+cap. The current value must be visible through the extension quote before the
+owner submits acceptance.
+
+A future extension-fee change does not modify:
+
+```text
+outstanding principal
+current maturity
+an already-purchased service term
+repayment rights
+recovery grace
+```
+
+It changes only the price at which the owner may purchase a later service term.
 
 A successful extension performs exactly:
 
@@ -442,7 +467,9 @@ An extension payment is final.
 
 Repaying before the purchased service period ends does not refund any origination or extension service fee.
 
-An expired facility may not be extended. Once maturity has passed, the holder may still repay until recovery executes.
+At exactly `maturity`, extension remains available. A facility is expired only
+when `block.timestamp > maturity`. Once expired, the holder may still repay
+until recovery executes but may not purchase another service term.
 
 ## Repayment
 
@@ -493,8 +520,17 @@ maximum credit amount = 171,000 STATICS
 unused credit amount
     = 171,000 - B
 
-fixed recovery distribution
+fixed recovery residual
     = 9,000 STATICS
+
+configured recovery caller share
+    = recoveryCallerShareBps
+
+caller incentive
+    = floor(9,000 * recoveryCallerShareBps / 10,000)
+
+Genesis holder distribution
+    = 9,000 - caller incentive
 ```
 
 The vault already retains:
@@ -512,7 +548,9 @@ That amount resolves exactly as:
     =
 (171,000 - B)
 +
-9,000
+caller incentive
++
+Genesis holder distribution
 ```
 
 Therefore recovery distributes:
@@ -521,8 +559,11 @@ Therefore recovery distributes:
 171,000 - B STATICS
     -> defaulting owner
 
-9,000 STATICS
-    -> Genesis reward index
+caller incentive
+    -> permissionless recovery caller
+
+Genesis holder distribution
+    -> existing Genesis STATICS reward index
 ```
 
 and transfers the Genesis into ordinary vault inventory.
@@ -533,7 +574,7 @@ At maximum principal:
 B = 171,000
 
 unused credit amount = 0
-recovery distribution = 9,000
+fixed recovery residual = 9,000
 ```
 
 At a 9,000-STATICS principal:
@@ -542,7 +583,7 @@ At a 9,000-STATICS principal:
 B = 9,000
 
 unused credit amount = 162,000
-recovery distribution = 9,000
+fixed recovery residual = 9,000
 ```
 
 The holder therefore receives 171,000 STATICS in total economic value from the backing release and recovery settlement regardless of utilization:
@@ -555,7 +596,9 @@ unused credit returned at recovery
 171,000 STATICS
 ```
 
-The fixed 9,000-STATICS residual is forfeited when the owner chooses not to restore the backing and recover the Genesis.
+The fixed 9,000-STATICS residual is forfeited when the owner chooses not to
+restore the backing and recover the Genesis. It funds the permissionless caller
+incentive and the remaining Genesis-holder distribution.
 
 ## Economic meaning of recovery
 
@@ -570,7 +613,7 @@ loses future Genesis utility
 loses future reward multiplier benefits
 loses future ETH reserve exposure
 loses any NFT market premium
-forfeits 9,000 STATICS to remaining Genesis holders
+forfeits 9,000 STATICS to the recovery caller and remaining Genesis holders
 ```
 
 The protocol:
@@ -595,26 +638,36 @@ current reserve buy-in
 current native acquisition fee
 ```
 
-## Recovery reward distribution
+## Recovery caller incentive and Genesis reward distribution
 
-The complete:
+The fixed:
 
 ```text
 9,000 STATICS
 ```
 
-recovery amount belongs to eligible Genesis holders.
+recovery residual is divided between the permissionless recovery caller and
+eligible Genesis holders.
 
-It is not split with:
+The configured caller share must satisfy:
+
+```text
+0 < recoveryCallerShareBps < 10,000
+```
+
+so recovery always provides a caller incentive while preserving a positive
+Genesis-holder distribution.
+
+The residual is not split with:
 
 ```text
 treasury
-recovery caller
 protocol-owned liquidity
 global STATICS staking
 ```
 
-Recovery uses the same weighted-index premise already established for Genesis launch rewards.
+The caller incentive is paid directly to `msg.sender`. The remainder uses the
+same weighted STATICS fee index already established for Genesis launch rewards.
 
 Eligibility uses the Genesis activation multiplier.
 
@@ -623,8 +676,13 @@ Conceptually:
 ```text
 9,000 STATICS
         |
+        +--> configured caller share -> recovery caller
+        |
         v
-Genesis weighted reward index
+remaining STATICS
+        |
+        v
+existing Genesis weighted reward index
         |
         v
 eligible Genesis holders
@@ -634,32 +692,56 @@ Credit-active Genesis NFTs remain eligible because secured credit does not remov
 
 The Genesis being recovered must not participate in its own recovery distribution.
 
-Recovery therefore performs reward state changes in this order:
+Recovery therefore performs reward and ownership state changes in this order:
 
-1. settle the defaulting Genesis's rewards through the recovery boundary;
-2. remove its Genesis reward weight;
-3. clear any PositionNFT or full-protocol Genesis linkage that cannot survive vault ownership;
-4. reset activation through the ordinary owner-changing transition;
-5. transfer the Genesis to vault inventory;
-6. close the secured-credit accounting;
-7. return any unused credit amount to the former owner; and
-8. accrue exactly 9,000 STATICS into the remaining Genesis weighted reward index.
+1. settle the defaulting Genesis's direct rewards through the recovery boundary;
+2. settle every reward index whose effective PositionNFT weight includes the
+   defaulting Genesis boost;
+3. remove the recovered Genesis's direct reward weight and PositionNFT boost;
+4. sever only the recovered Genesis relationship while preserving the
+   PositionNFT and all unrelated ledger state;
+5. reset Genesis activation through the ordinary owner-changing transition;
+6. transfer the Genesis to vault inventory;
+7. close the secured-credit accounting;
+8. return any unused credit amount to the former owner;
+9. pay the configured caller incentive to the recovery caller; and
+10. accrue the remaining recovery residual into the existing Genesis weighted
+    STATICS reward index.
 
-If no eligible Genesis weight exists after recovery, the 9,000 STATICS remains reserved to the Genesis reward system until eligible weight exists. It does not become treasury revenue.
+If no eligible Genesis weight exists after recovery, only the Genesis-holder
+portion remains pending in the same Genesis reward distributor until eligible
+weight exists. It does not become treasury revenue. The caller incentive is
+still paid when recovery executes.
 
-## Reward-consumer boundary
+## Existing Genesis fee-index integration
 
-`GenesisLaunchDistributor` remains a temporary launch implementation.
+`GenesisLaunchDistributor` already maintains the activation-weighted Genesis
+reward books fed by the permanent Doppler `StaticsFeeReceiver`.
 
-Secured credit must not permanently bind Genesis recovery economics to that specific contract.
+Genesis recovery reuses those same books:
 
-Instead, the permanent Genesis reward consumer interface must support direct, authenticated Genesis reward accrual from `StaticsGenesisVault`.
+```text
+Doppler
+    -> StaticsFeeReceiver
+    -> active Genesis reward distributor
 
-The currently active Genesis reward implementation must be able to accept an exact STATICS amount from the vault and index it using the canonical activation-weighted Genesis denominator.
+StaticsGenesisVault recovery
+    -> same active Genesis reward distributor
+    -> same STATICS RewardBook and indexRay
+```
 
-Distributor rotation must preserve this capability.
+The active distributor accepts an exact, authenticated STATICS recovery amount
+from `StaticsGenesisVault`. It indexes the complete Genesis-holder portion
+without applying `genesisRewardShareBps`, because the caller incentive has
+already been removed and none of the remainder belongs to treasury.
 
-A replacement consumer may not become active while doing so would make an already-open Genesis credit unrecoverable.
+This is an additional inflow to the existing index, not a second reward ledger,
+registry, or distributor.
+
+`GenesisLaunchDistributor` remains replaceable when Statics proper comes
+online. Its successor must preserve the same vault-authenticated recovery inflow
+and activation-weighted STATICS index behavior. A replacement may not become
+active while doing so would make an already-open Genesis credit unrecoverable.
 
 ## Protocol linkage
 
@@ -671,7 +753,26 @@ Ordinary repayment leaves those relationships unchanged.
 
 Recovery is different because the NFT becomes vault inventory.
 
-Before or during recovery, any protocol relationship incompatible with vault ownership must be atomically cleared through a narrow protocol callback.
+Before or during recovery, the recovered Genesis contribution must be
+atomically removed through a narrow protocol callback.
+
+The callback settles the PositionNFT with its Genesis-derived boost through the
+recovery boundary, then removes only that boost and Genesis connection. It does
+not burn, transfer, close, or reset the PositionNFT.
+
+The former owner retains:
+
+```text
+the PositionNFT itself
+deposited BasketTokens
+canonical LP positions
+open loans and obligations
+accrued and claimable rewards
+every unrelated portfolio and accounting entry
+```
+
+After recovery, those positions continue under their ordinary unboosted
+economics.
 
 The required post-recovery invariant is:
 
@@ -681,6 +782,12 @@ vault-owned Genesis
     -> no stale beneficial-owner reward weight
     -> no active credit
     -> ordinary purchasable vault inventory
+
+former owner's PositionNFT
+    -> ownership unchanged
+    -> underlying ledger items unchanged
+    -> recovered Genesis boost removed
+    -> continues earning at its remaining effective weight
 ```
 
 Failure to clear required protocol state reverts recovery atomically.
@@ -707,6 +814,7 @@ Production values for:
 ```text
 Genesis origination service fee
 Genesis extension service fee
+Genesis recovery caller share bps
 ```
 
 require separate economic ratification.
@@ -745,27 +853,35 @@ A recovered Genesis returns to vault inventory without receiving an ETH reserve 
 
 Its fixed 1/5,555 reserve share remains part of the permanent Genesis reserve system.
 
-## Recursive use
+## Use of released STATICS
 
-A holder may use released STATICS to acquire additional assets, including another Genesis if ordinary post-epoch acquisition requirements are satisfied.
+Released STATICS remains freely composable. A holder may apply it toward any
+purpose, including another Genesis acquisition when the ordinary post-epoch
+requirements are satisfied.
 
-The protocol does not attempt to identify or prohibit recursive Genesis acquisition.
+Genesis secured credit does not create a self-funding recursive acquisition
+loop.
 
-This mirrors the accepted BasketToken lending principle that 95% self-backed credit can be composed recursively.
-
-Genesis recursion remains bounded by:
+At maximum credit:
 
 ```text
-95% maximum STATICS access
-finite 5,555 Genesis supply
-post-epoch ETH reserve buy-in
-native acquisition fees
-native credit service fees
-available STATICS liquidity
-market price of STATICS
+STATICS released from one Genesis
+    = 171,000
+
+STATICS required for another Genesis
+    = 180,000
+
+additional STATICS required
+    = 9,000
 ```
 
-No additional anti-loop rule is introduced.
+The next acquisition additionally requires the current native reserve buy-in
+and acquisition fee, and opening credit against it requires another native
+origination service fee.
+
+Each additional Genesis therefore requires fresh STATICS and native capital.
+No address-level anti-loop rule is necessary because the released principal
+alone cannot fund the next acquisition.
 
 ## Pauses and liveness
 
@@ -773,7 +889,8 @@ Governance may pause new Genesis credit origination.
 
 Repayment must remain available while origination is paused.
 
-Permissionless recovery must remain available while origination is paused.
+Permissionless recovery and its configured caller incentive must remain
+available while origination is paused.
 
 Ordinary Genesis redemption remains unavailable for a credit-locked Genesis until the credit is repaid or recovered.
 
@@ -792,7 +909,9 @@ creditActive(genesisId)
 creditRecoverableAt(genesisId)
 quoteGenesisCredit(principal)
 quoteGenesisCreditExtension(genesisId)
+quoteGenesisCreditRecovery(genesisId)
 totalOutstandingGenesisCredit()
+recoveryCallerShareBps()
 ```
 
 A credit view should report at minimum:
@@ -803,6 +922,16 @@ principal
 maturity
 recoverableAt
 active
+```
+
+A recovery quote should report at minimum:
+
+```text
+unused credit returned to former owner
+fixed recovery residual
+caller incentive
+Genesis holder distribution
+recoverableAt
 ```
 
 Genesis Vault accounting should additionally expose:
@@ -826,7 +955,20 @@ Genesis gross backing per circulating NFT
 maximum Genesis credit principal
     == 171,000 STATICS
 
-fixed Genesis recovery distribution
+fixed Genesis recovery residual
+    == 9,000 STATICS
+
+0 < recoveryCallerShareBps < 10,000
+
+recovery caller incentive
+    == floor(9,000 STATICS
+        * recoveryCallerShareBps / 10,000)
+
+Genesis holder recovery distribution
+    == 9,000 STATICS - recovery caller incentive
+
+recovery caller incentive
+    + Genesis holder recovery distribution
     == 9,000 STATICS
 
 one active credit facility per Genesis
@@ -861,6 +1003,16 @@ extension does not modify reserveETH
 
 extension increases maturity by exactly one service term
 
+extension is available at block.timestamp == maturity
+
+extension is unavailable when block.timestamp > maturity
+
+paying the exact current extension quote purchases the next term
+
+the current extension quote exposes the complete flat native fee
+
+an extension-fee change does not modify an already-purchased term
+
 service fees never increase STATICS principal
 
 repayment restores exactly stored principal
@@ -889,16 +1041,28 @@ recovery decreases circulating Genesis by exactly one
 
 recovery clears the recovered Genesis credit
 
-recovery clears incompatible protocol linkage
+recovery settles every PositionNFT reward index affected
+by the recovered Genesis boost before removing that boost
+
+recovery severs the recovered Genesis connection
+
+recovery preserves PositionNFT ownership and every
+unrelated PositionNFT ledger item
 
 recovery returns exactly 171,000 - principal STATICS
 to the former owner
 
-recovery allocates exactly 9,000 STATICS
-to Genesis rewards
+recovery pays exactly the quoted caller incentive
+to msg.sender
+
+recovery indexes exactly the quoted Genesis holder
+distribution through the existing Genesis STATICS reward book
 
 recovered Genesis receives none of its own
-9,000-STATICS recovery distribution
+Genesis holder recovery distribution
+
+if eligible Genesis weight is zero, the Genesis holder
+distribution remains pending and never routes to treasury
 
 recovery pays zero ETH reserve value
 
@@ -916,6 +1080,9 @@ Real-flow tests must cover at minimum:
 post-epoch Genesis acquisition
     -> open small credit
     -> continue earning rewards
+    -> extension fee changes
+    -> current principal and purchased term remain unchanged
+    -> exact current extension quote accepted
     -> extend
     -> repay
     -> transfer Genesis
@@ -937,7 +1104,10 @@ Genesis linked to full-protocol benefits
     -> open credit
     -> expire
     -> recover
+    -> boosted PositionNFT indexes settled
     -> link cleared
+    -> PositionNFT ownership and ledger items preserved
+    -> PositionNFT continues with Genesis boost removed
     -> activation reset
     -> NFT becomes vault inventory
 
@@ -945,13 +1115,29 @@ small principal
     -> expire
     -> recover
     -> unused 95% capacity returned to borrower
-    -> exactly 9,000 STATICS indexed to Genesis rewards
+    -> quoted caller incentive paid to recovery caller
+    -> 9,000 minus caller incentive indexed to Genesis rewards
 
 maximum principal
     -> expire
     -> recover
     -> zero unused capacity returned
-    -> exactly 9,000 STATICS indexed to Genesis rewards
+    -> quoted caller incentive paid to recovery caller
+    -> 9,000 minus caller incentive indexed to Genesis rewards
+
+no eligible Genesis reward weight
+    -> expire credit
+    -> recover
+    -> caller incentive paid immediately
+    -> Genesis holder distribution remains pending
+    -> eligible weight returns
+    -> pending distribution enters the existing STATICS reward index
+
+active Genesis reward distributor
+    -> open credit
+    -> rotate to Statics-proper distributor
+    -> expire credit
+    -> recover through successor's same authenticated inflow
 
 multiple Genesis credits
     -> independent maturities
@@ -974,7 +1160,7 @@ credit-active Genesis
 paused origination
     -> new credit reverts
     -> repayment remains live
-    -> mature recovery remains live
+    -> mature incentivized recovery remains live
 ```
 
 Boundary tests must explicitly cover:
@@ -983,12 +1169,17 @@ Boundary tests must explicitly cover:
 block.timestamp == maturity - 1
 
 block.timestamp == maturity
+    -> extension succeeds
 
 block.timestamp == maturity + 1
+    -> extension reverts
+    -> repayment remains available
 
 block.timestamp == recoverableAt
+    -> recovery reverts
 
 block.timestamp == recoverableAt + 1
+    -> recovery succeeds
 ```
 
 Fuzz and invariant suites must combine:
@@ -1020,11 +1211,13 @@ The implementation must preserve the following boundaries:
 - Recovery has a fixed NFT destination: `StaticsGenesisVault`.
 - Any privileged foreclosure surface may transfer a recoverable Genesis only to its immutable vault.
 - Recovery cannot select an arbitrary NFT receiver.
-- Recovery cannot select an arbitrary STATICS reward receiver.
+- Recovery pays the configured caller incentive only to `msg.sender`; the caller cannot select another incentive receiver.
+- Recovery routes the Genesis-holder portion only into the active existing Genesis STATICS reward index.
+- Recovery cannot modify, confiscate, or erase unrelated PositionNFT ledger state.
 - Service-fee configuration cannot alter principal already outstanding.
-- Reward-consumer failure cannot silently misaccount the 9,000-STATICS recovery amount.
-- All principal, repayment, unused-credit, and recovery-reward transfers use exact-transfer accounting.
-- No oracle, NFT marketplace, external liquidation venue, arbitrary executor, or keeper-selected recipient enters the solvency boundary.
+- Reward-distributor failure cannot silently misaccount the Genesis-holder portion of the 9,000-STATICS recovery residual.
+- All principal, repayment, unused-credit, caller-incentive, and Genesis-reward transfers use exact-transfer accounting.
+- No oracle, NFT marketplace, external liquidation venue, or arbitrary recipient enters the solvency boundary.
 
 ## Economic consequences
 
@@ -1056,7 +1249,8 @@ repay
 fail to repay
     -> receive 95% of STATICS backing in aggregate
     -> surrender Genesis
-    -> forfeit 5% of backing to remaining Genesis holders
+    -> forfeit 5% of backing to the recovery caller
+       and remaining Genesis holders
 ```
 
 This materially reduces the need for a long-term Genesis holder to sell or redeem solely to access liquidity.
@@ -1101,6 +1295,7 @@ Origination service fee
 Extension service fee
 Next service deadline
 Recovery date
+Recovery caller incentive
 Repay
 ```
 
@@ -1164,21 +1359,16 @@ or 5% of the Genesis gross STATICS backing.
 
 Unused credit capacity belongs to the former owner and is returned during recovery.
 
-### Give the recovery caller part of the 9,000 STATICS
-
-Rejected for the initial design.
-
-The complete recovery amount belongs to eligible Genesis holders.
-
-Recovery remains permissionless with a fixed outcome.
-
 ### Bind recovery rewards permanently to GenesisLaunchDistributor
 
 Rejected.
 
-The launch distributor is intentionally replaceable.
+The launch distributor is intentionally replaceable when Statics proper comes
+online.
 
-Recovery uses the permanent Genesis reward-consumer boundary and preserves the same activation-weighted index semantics across distributor rotation.
+Recovery feeds the currently active distributor's existing activation-weighted
+STATICS fee index. A successor preserves that same authenticated vault inflow
+without introducing a second reward system.
 
 ### Enable secured credit during the Genesis Epoch
 
@@ -1187,11 +1377,3 @@ Rejected.
 The Genesis Epoch intentionally requires early STATICS commitment in exchange for subsidized access to accumulating ETH reserve exposure.
 
 Allowing immediate 95% backing access would materially alter that launch bargain.
-
-### Prevent recursive Genesis acquisition
-
-Rejected.
-
-The system already accepts bounded recursive self-backed credit for BasketTokens.
-
-Post-epoch reserve buy-in, service fees, available liquidity, fixed NFT supply, and the 95% maximum provide natural constraints without address-level use restrictions.
