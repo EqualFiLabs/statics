@@ -30,7 +30,7 @@ the symbolic checks.
 | --- | --- | --- | --- |
 | STATICS backing covers circulating Genesis after acquisition, redemption, and direct return | `StaticsGenesisVault` | Halmos | Pass |
 | Token custody and native custody cover accounted backing and reserve | `StaticsGenesisVault` | Halmos | Pass |
-| Active-epoch purchase and redemption native amounts are zero | `StaticsGenesisVault` | Halmos | Pass |
+| Active-epoch buy-in and redemption payout are zero; acquisition charges and reserves exactly the governed native fee | `StaticsGenesisVault` | Halmos against production source | Pass |
 | Post-epoch buy-in is ceil(reserve / 5,554) and redemption is floor(reserve / 5,555) | `StaticsGenesisVault` | Certora plus Foundry fuzz | Pass |
 | Forced ETH is not classified as reserve; governance configuration cannot withdraw reserve | `StaticsGenesisVault` | Halmos | Pass |
 | Credit opening and repayment are exact principal/backing inverses; extension changes only maturity and fee accounting | `StaticsGenesisVault` | Halmos transition model plus real-contract Foundry fuzz/invariant | Pass |
@@ -80,7 +80,7 @@ were proved with Certora CLI 8.18 and Solidity 0.8.33:
 
 | Configuration | Proved rules | Hosted report |
 | --- | --- | --- |
-| `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/8f9f98e3459345b19a572fc89291cfe6) |
+| `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/c54f876e768043699924b74316dd778e) |
 | `FeeReceiver.conf` | Distributor claimable balances remain within cumulative attribution; surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/abb1925bef8e419c895b8f2e8dc751ac) |
 | `GenesisDistributor.conf` | Indexed rewards remain within attribution; crystallization remains within indexing; crystallized rewards equal claimable plus claimed; surplus recovery preserves all accounted reward quantities | [report](https://prover.certora.com/output/8471858/a48691aab08842f78289becff42f086f) |
 | `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation preserves immutable state and released accounting | [report](https://prover.certora.com/output/8471858/a7766363efed470e8451ae481a54e894) |
