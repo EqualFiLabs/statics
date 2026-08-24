@@ -15,6 +15,8 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _deployGenesis(block.timestamp + 7 days);
     }
 
+    receive() external payable {}
+
     /// @dev A uint88 reserve exceeds the native currency that can economically
     ///      exist while keeping symbolic division tractable for the solver.
     function check_epochQuotesDuring(uint88 reserve) public {

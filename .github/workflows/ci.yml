@@ -60,7 +60,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          version: 1.7.1
       - name: Prove Genesis launch invariants
         env:
           HALMOS_BIN: ${{ github.workspace }}/.halmos-venv/bin/halmos
@@ -158,6 +158,7 @@ jobs:
           git submodule sync
           git submodule update --init --depth=1 \
             lib/forge-std \
+            lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
             lib/v4-periphery
