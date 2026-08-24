@@ -641,6 +641,28 @@ for the same raw stake.
 
 This avoids cumulative rounding drift.
 
+## Permissionless reward-book preflight
+
+A multiplier transition deliberately reverts if one of the Position's selected
+reward books has matured buckets that have not yet been rolled. This keeps the
+transition itself bounded and prevents a cold 64-asset recovery from also doing
+unbounded historical maintenance.
+
+No recovery-specific maintenance function is required. Before submitting a
+linked recovery, any keeper can:
+
+1. derive the Position's selected global reward assets from the existing
+   opt-in and opt-out events (the owner-authorized portfolio getter is not the
+   keeper path);
+2. check `rewardBookNeedsCheckpoint(asset)` for each asset;
+3. call permissionless `checkpointRewardAssets(assets)` in batches of at most
+   eight; and
+4. retry recovery after every selected book reports fresh.
+
+If another bucket matures before recovery executes, recovery safely reverts and
+the keeper repeats the same preflight. This procedure remains permissionless,
+preserves the 64-asset Position bound, and requires no owner action.
+
 ## Pending stake during multiplier changes
 
 Pending stake is not withdrawn, restarted, or forced to mature when a multiplier changes.
