@@ -199,16 +199,12 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         if (!_isVaultInventory(tokenId)) revert GenesisNotInVault(tokenId);
 
         bool epochActive_ = _epochActive();
-        uint256 buyIn;
-        uint256 fee;
-        if (!epochActive_) {
-            buyIn = _reserveBuyIn(reserveETH);
-            fee = nativeAcquisitionFee;
-        }
+        uint256 buyIn = epochActive_ ? 0 : _reserveBuyIn(reserveETH);
+        uint256 fee = nativeAcquisitionFee;
         uint256 requiredNative = buyIn + fee;
         if (msg.value < requiredNative) revert InsufficientNative(msg.value, requiredNative);
 
-        // Effects: buy-in and fee both permanently accrete to the reserve after the epoch.
+        // Effects: the fee always accretes to the reserve; the buy-in joins it after the epoch.
         statics.pullExact(msg.sender, GENESIS_PRICE);
         tokenBacking += GENESIS_PRICE;
         if (buyIn + fee != 0) reserveETH += buyIn + fee;
@@ -390,7 +386,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     function quoteGenesisPurchase() external view override returns (GenesisPurchaseQuote memory quote) {
         bool epochActive_ = _epochActive();
         uint256 buyIn = epochActive_ ? 0 : _reserveBuyIn(reserveETH);
-        uint256 fee = epochActive_ ? 0 : nativeAcquisitionFee;
+        uint256 fee = nativeAcquisitionFee;
         quote = GenesisPurchaseQuote({
             staticsPrice: GENESIS_PRICE,
             reserveBuyIn: buyIn,

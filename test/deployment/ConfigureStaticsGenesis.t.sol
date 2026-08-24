@@ -275,9 +275,11 @@ contract ConfigureStaticsGenesisTest is Test {
 
     function _buyGenesis(address owner, uint256 genesisId) private {
         statics.mint(owner, GENESIS_PRICE);
+        uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
+        vm.deal(owner, requiredNative);
         vm.startPrank(owner);
         statics.approve(address(vault), GENESIS_PRICE);
-        vault.buyGenesis(genesisId, owner);
+        vault.buyGenesis{value: requiredNative}(genesisId, owner);
         vm.stopPrank();
     }
 }

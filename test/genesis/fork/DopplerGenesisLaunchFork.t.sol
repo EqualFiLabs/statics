@@ -204,15 +204,18 @@ contract DopplerGenesisLaunchForkTest is Test {
             assertEq(registry.activeConsumer(), address(distributor));
             assertEq(receiver.pendingOwner(), governance);
 
-            // Genesis Epoch acquisition costs exactly 180,000 STATICS and requires zero native ETH.
+            // The epoch waives the reserve buy-in but still charges the governed acquisition fee.
+            uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
+            uint256 reserveBefore = vault.reserveETH();
+            vm.deal(treasury, treasury.balance + requiredNative);
             vm.startPrank(treasury);
             statics.approve(address(vault), vault.GENESIS_PRICE());
-            vault.buyGenesis(1, treasury);
+            vault.buyGenesis{value: requiredNative}(1, treasury);
             distributor.registerGenesis(1);
             vm.stopPrank();
             assertEq(genesis.ownerOf(1), treasury);
             assertEq(vault.requiredBacking(), vault.GENESIS_PRICE());
-            assertEq(vault.reserveETH(), 0);
+            assertEq(vault.reserveETH(), reserveBefore + requiredNative);
         }
 
         {

@@ -320,9 +320,10 @@ contract GenesisLaunchRewardsTest is Test {
         _queue(1_000 ether, 0);
         distributor.accrue();
         statics.transfer(carol, PRICE);
+        uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
         vm.startPrank(carol);
         statics.approve(address(vault), PRICE);
-        vault.buyGenesis(1, carol);
+        vault.buyGenesis{value: requiredNative}(1, carol);
         vm.stopPrank();
         assertEq(distributor.effectiveWeight(1), 10_000);
         assertEq(distributor.pendingGenesis(1, address(statics)), 0);
@@ -396,9 +397,10 @@ contract GenesisLaunchRewardsTest is Test {
 
     function _buyAndRegister(address owner, uint256 tokenId) private {
         statics.transfer(owner, PRICE);
+        uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
         vm.startPrank(owner);
         statics.approve(address(vault), PRICE);
-        vault.buyGenesis(tokenId, owner);
+        vault.buyGenesis{value: requiredNative}(tokenId, owner);
         distributor.registerGenesis(tokenId);
         vm.stopPrank();
     }

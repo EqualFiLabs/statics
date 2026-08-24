@@ -41,7 +41,7 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (statics.balanceOf(address(this)) < PRICE) return;
         uint256 tokenId = (seed % genesis.COLLECTION_SIZE()) + 1;
         if (!vault.isVaultInventory(tokenId)) return;
-        uint256 required = vault.reserveBuyIn() + (vault.epochActive() ? 0 : vault.nativeAcquisitionFee());
+        uint256 required = vault.quoteGenesisPurchase().requiredNative;
         if (address(this).balance < required) return;
         vault.buyGenesis{value: required}(tokenId, address(this));
         acquiredIds.push(tokenId);

@@ -82,7 +82,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint256 public constant TREASURY_GENESIS_RELEASE_BATCH = 50;
     uint256 public constant GENESIS_BACKING = 180_000 ether;
     uint256 public constant GENESIS_MAX_SUPPLY = 5_555;
-    uint256 public constant POST_EPOCH_NATIVE_ACQUISITION_FEE = 0.003 ether;
+    uint256 public constant NATIVE_ACQUISITION_FEE = 0.003 ether;
     uint256 public constant GENESIS_CREDIT_MAX_PRINCIPAL = 171_000 ether;
     uint256 public constant GENESIS_CREDIT_RECOVERY_RESIDUAL = 9_000 ether;
     uint256 public constant GENESIS_CREDIT_TERM = 30 days;
@@ -303,7 +303,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
                 DOPPLER_INVENTORY,
                 PROTOCOL_ALLOCATION,
                 _treasuryVestingHash(),
-                POST_EPOCH_NATIVE_ACQUISITION_FEE,
+                NATIVE_ACQUISITION_FEE,
                 GENESIS_CREDIT_MAX_PRINCIPAL,
                 GENESIS_CREDIT_RECOVERY_RESIDUAL,
                 GENESIS_CREDIT_TERM,

@@ -211,7 +211,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             vm.deal(actors[i], 1 ether);
             vm.startPrank(actors[i]);
             statics.approve(address(vault), PRICE);
-            vault.buyGenesis(i + 1, actors[i]);
+            vault.buyGenesis{value: vault.quoteGenesisPurchase().requiredNative}(i + 1, actors[i]);
             distributor.registerGenesis(i + 1);
             vm.stopPrank();
         }
