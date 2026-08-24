@@ -184,9 +184,12 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         assertLe(vesting.vestedGenesisAt(timestamp), GENESIS_PRINCIPAL);
     }
 
-    function check_staticsReleaseEqualsCurrentVesting(uint24 elapsed) public {
-        vm.assume(elapsed > 0);
-        vm.warp(vesting.vestingStart() + elapsed);
+    /// @dev Exact per-second vesting is proved above and in CVL. This transition
+    ///      samples every whole day through and beyond the schedule so symbolic
+    ///      ERC-20 transfer execution remains tractable.
+    function check_staticsReleaseEqualsDailyVesting(uint8 elapsedDays) public {
+        vm.assume(elapsedDays > 0);
+        vm.warp(vesting.vestingStart() + uint256(elapsedDays) * 1 days);
         uint256 vested = vesting.vestedStaticsAt(block.timestamp);
         uint256 recipientBefore = token.balanceOf(recipient);
 
