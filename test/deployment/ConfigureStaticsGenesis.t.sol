@@ -16,6 +16,8 @@ import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
+import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
+import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -198,7 +200,7 @@ contract ConfigureStaticsGenesisTest is Test {
         assertEq(targets[6], address(genesis));
     }
 
-    function testSeparateGenesisGovernanceUsesTwoGovernedBatches() public {
+    function testSeparateGenesisGovernanceRequiresOrderedRoleHandoff() public {
         address genesisGovernance = makeAddr("genesisGovernance");
         vm.startPrank(address(timelock));
         feeReceiver.transferOwnership(genesisGovernance);
@@ -223,16 +225,50 @@ contract ConfigureStaticsGenesisTest is Test {
         assertEq(integration.genesisCollection(), address(genesis));
         assertFalse(integration.genesisRecoveryReady());
 
+        vm.startPrank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, alice, address(timelock)));
+        integration.acceptGenesisDistributorRole();
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, alice, address(timelock)));
+        integration.acceptGenesisConsumerRole();
+        vm.stopPrank();
+
+        vm.prank(genesisGovernance);
+        registry.proposeConsumer(address(integration));
+        vm.prank(address(timelock));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisNFTFacet.GenesisDistributorNotActive.selector, address(launchDistributor))
+        );
+        integration.acceptGenesisConsumerRole();
+
         (address[] memory targets,, bytes[] memory payloads) =
-            ceremony.buildGenesisGovernanceBatch(address(integration), config);
-        for (uint256 i; i < targets.length; ++i) {
-            vm.prank(genesisGovernance);
-            (bool success,) = targets[i].call(payloads[i]);
-            assertTrue(success);
-        }
+            ceremony.buildGenesisDistributorProposal(address(integration), config);
+        _executeCalls(genesisGovernance, targets, payloads);
+        (targets,, payloads) = ceremony.buildStaticsDistributorAcceptance(address(integration));
+        _executeCalls(address(timelock), targets, payloads);
+        vm.prank(address(timelock));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GenesisNFTFacet.GenesisConsumerPredecessorNotFinalized.selector, address(launchDistributor)
+            )
+        );
+        integration.acceptGenesisConsumerRole();
+        (targets,, payloads) = ceremony.buildGenesisConsumerProposal(address(integration), config);
+        _executeCalls(genesisGovernance, targets, payloads);
+        (targets,, payloads) = ceremony.buildStaticsConsumerAcceptance(address(integration));
+        _executeCalls(address(timelock), targets, payloads);
+        (targets,, payloads) = ceremony.buildGenesisProtocolBinding(address(integration), config);
+        _executeCalls(genesisGovernance, targets, payloads);
 
         assertTrue(integration.genesisIntegrationReady());
         assertTrue(launchDistributor.finalized());
+    }
+
+    function _executeCalls(address caller, address[] memory targets, bytes[] memory payloads) private {
+        for (uint256 i; i < targets.length; ++i) {
+            vm.prank(caller);
+            (bool success,) = targets[i].call(payloads[i]);
+            assertTrue(success);
+        }
     }
 
     function _buyGenesis(address owner, uint256 genesisId) private {

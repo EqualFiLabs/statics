@@ -641,6 +641,28 @@ for the same raw stake.
 
 This avoids cumulative rounding drift.
 
+## Permissionless reward-book preflight
+
+A multiplier transition deliberately reverts if one of the Position's selected
+reward books has matured buckets that have not yet been rolled. This keeps the
+transition itself bounded and prevents a cold 64-asset recovery from also doing
+unbounded historical maintenance.
+
+No recovery-specific maintenance function is required. Before submitting a
+linked recovery, any keeper can:
+
+1. derive the Position's selected global reward assets from the existing
+   opt-in and opt-out events (the owner-authorized portfolio getter is not the
+   keeper path);
+2. check `rewardBookNeedsCheckpoint(asset)` for each asset;
+3. call permissionless `checkpointRewardAssets(assets)` in batches of at most
+   eight; and
+4. retry recovery after every selected book reports fresh.
+
+If another bucket matures before recovery executes, recovery safely reverts and
+the keeper repeats the same preflight. This procedure remains permissionless,
+preserves the 64-asset Position bound, and requires no owner action.
+
 ## Pending stake during multiplier changes
 
 Pending stake is not withdrawn, restarted, or forced to mature when a multiplier changes.
@@ -944,7 +966,13 @@ credit accounting closes
 
 The recovered Genesis must have zero direct Genesis reward weight before the recovery distribution is indexed.
 
-It therefore cannot receive any portion of its own recovery penalty.
+If other eligible weight exists at recovery, it therefore receives none of the
+amount indexed at that boundary. If no eligible weight exists, the holder
+portion remains global pending value rather than being assigned or excluded on
+a per-token basis. A later ordinary vault purchase restores the registered
+Genesis's then-current weight; if that purchase creates the first eligible
+weight, the pending amount is indexed using that weight and may accrue to the
+reacquired Genesis.
 
 ## Recovery with no linked Position
 
@@ -1094,7 +1122,7 @@ claimGenesisRewards(genesisId, asset, receiver)
 claimGenesisOwnerRewards(asset, receiver)
 
 acceptGenesisDistributorRole()
-acceptGenesisActivationConsumerRole()
+acceptGenesisConsumerRole()
 
  genesisRecoveryCallback()
 onGenesisRecovery(genesisId, previousOwner)
@@ -1185,7 +1213,7 @@ Implementation and verification must establish at minimum:
 33. Recovery deactivates only the Genesis Position leg.
 34. Recovery preserves pending-stake eligibility timestamps while replacing its effective weight with base weight.
 35. The recovered Genesis has zero direct reward weight before its recovery distribution is indexed.
-36. A recovered Genesis cannot earn its own recovery distribution.
+36. Zero-weight recovery value remains pending and later distributes by then-current eligible weight without per-token exclusions.
 37. Unlinked Genesis recovery does not depend on the protocol callback.
 38. Genesis reward custody cannot be consumed by unrelated Diamond modules.
 39. No lifecycle operation requires iteration over all Genesis NFTs.
@@ -1282,6 +1310,16 @@ credit-active linked Genesis
     -> pending stake maturity unchanged
     -> link cleared
     -> unrelated Position state preserved
+```
+
+```text
+sole registered Genesis
+    -> permissionless recovery
+    -> total direct weight becomes zero
+    -> Genesis-holder recovery amount remains pending
+    -> same Genesis is reacquired through the ordinary vault purchase path
+    -> base weight returns
+    -> pending amount indexes using then-current weight
 ```
 
 The recovery Position should contain realistic unrelated state such as:

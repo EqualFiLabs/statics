@@ -211,22 +211,71 @@ contract ConfigureStaticsGenesis is Script {
         payloads[0] = unifiedPayloads[0];
     }
 
-    /// @notice Typed calls for a Safe or other Genesis governance executor after Diamond initialization.
-    function buildGenesisGovernanceBatch(address diamond, StaticsGenesisHandoffConfig memory config)
+    /// @notice First Genesis-governance call after Diamond initialization.
+    function buildGenesisDistributorProposal(address diamond, StaticsGenesisHandoffConfig memory config)
         public
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        (address[] memory unifiedTargets, uint256[] memory unifiedValues, bytes[] memory unifiedPayloads) =
-            buildBatch(diamond, config);
-        targets = new address[](6);
-        values = new uint256[](6);
-        payloads = new bytes[](6);
-        for (uint256 i; i < 6; ++i) {
-            targets[i] = unifiedTargets[i + 1];
-            values[i] = unifiedValues[i + 1];
-            payloads[i] = unifiedPayloads[i + 1];
-        }
+        targets = new address[](1);
+        values = new uint256[](1);
+        payloads = new bytes[](1);
+        targets[0] = config.feeReceiver;
+        payloads[0] = abi.encodeCall(IStaticsFeeReceiver.proposeDistributor, (diamond));
+    }
+
+    /// @notice Statics-governance call after Genesis governance proposes the Diamond.
+    function buildStaticsDistributorAcceptance(address diamond)
+        public
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        targets = new address[](1);
+        values = new uint256[](1);
+        payloads = new bytes[](1);
+        targets[0] = diamond;
+        payloads[0] = abi.encodeCall(IStaticsGenesisIntegration.acceptGenesisDistributorRole, ());
+    }
+
+    /// @notice Genesis-governance calls after the Diamond becomes the active fee distributor.
+    function buildGenesisConsumerProposal(address diamond, StaticsGenesisHandoffConfig memory config)
+        public
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        targets = new address[](2);
+        values = new uint256[](2);
+        payloads = new bytes[](2);
+        targets[0] = config.launchDistributor;
+        payloads[0] = abi.encodeCall(IGenesisLaunchDistributor.finalizeLaunchRewards, ());
+        targets[1] = config.activationRegistry;
+        payloads[1] = abi.encodeCall(IGenesisActivationRegistry.proposeConsumer, (diamond));
+    }
+
+    /// @notice Statics-governance call after Genesis governance proposes the Diamond as consumer.
+    function buildStaticsConsumerAcceptance(address diamond)
+        public
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        targets = new address[](1);
+        values = new uint256[](1);
+        payloads = new bytes[](1);
+        targets[0] = diamond;
+        payloads[0] = abi.encodeCall(IStaticsGenesisIntegration.acceptGenesisConsumerRole, ());
+    }
+
+    /// @notice Final Genesis-governance call after both Diamond roles are active.
+    function buildGenesisProtocolBinding(address diamond, StaticsGenesisHandoffConfig memory config)
+        public
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
+    {
+        targets = new address[](1);
+        values = new uint256[](1);
+        payloads = new bytes[](1);
+        targets[0] = config.genesis;
+        payloads[0] = abi.encodeCall(IStaticsGenesis.bindProtocol, (diamond));
     }
 
     function _validateBefore(address diamond, StaticsGenesisHandoffConfig memory config, bool requireUnifiedGovernance)

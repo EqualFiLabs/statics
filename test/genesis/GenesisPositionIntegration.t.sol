@@ -6,10 +6,19 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Test} from "forge-std/Test.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
+import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
+import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
-import {GenesisCreditConfig, IStaticsGenesisVault} from "../../src/interfaces/IStaticsGenesisVault.sol";
+import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
+import {
+    GenesisCreditConfig,
+    GenesisCreditRecoveryQuote,
+    GenesisPurchaseQuote,
+    IStaticsGenesisVault
+} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
@@ -89,6 +98,17 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
     StaticsGenesis private genesis;
     IStaticsGenesisIntegration private integration;
     uint256 private epochEnd;
+
+    struct ComposedRecoverySnapshot {
+        bytes32 collateralHash;
+        bytes32 loanHash;
+        bytes32 portfolioHash;
+        uint256 rewardA;
+        uint256 rewardB;
+        uint40 pendingEligibleAt;
+        uint256 positionNonce;
+        uint256 positionObligations;
+    }
 
     function setUp() public override {
         super.setUp();
@@ -387,6 +407,168 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(integration.claimGenesisOwnerRewards(address(stakingAsset), alice), 900 ether);
     }
 
+    function testDeferredRecoveryIndexesWhenSameGenesisIsReacquired() external {
+        _buyAndRegister(alice, 13);
+        assertEq(integration.genesisTotalWeight(), 10_000);
+
+        vm.warp(epochEnd);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(13, 100_000 ether);
+        GenesisCreditRecoveryQuote memory recoveryQuote = vault.quoteGenesisCreditRecovery(13);
+        vm.warp(uint256(recoveryQuote.recoverableAt) + 1);
+        vm.prank(bob);
+        vault.recoverGenesisCredit(13);
+
+        assertTrue(integration.genesisRegistered(13));
+        assertEq(integration.genesisEffectiveWeight(13), 0);
+        assertEq(integration.genesisTotalWeight(), 0);
+        assertEq(integration.pendingGenesisRecovery(), recoveryQuote.genesisDistribution);
+        assertEq(genesis.ownerOf(13), address(vault));
+
+        stakingAsset.mint(bob, GENESIS_PRICE);
+        GenesisPurchaseQuote memory purchaseQuote = vault.quoteGenesisPurchase();
+        vm.startPrank(bob);
+        stakingAsset.approve(address(vault), GENESIS_PRICE);
+        vault.buyGenesis{value: purchaseQuote.requiredNative}(13, bob);
+        vm.stopPrank();
+
+        assertEq(genesis.ownerOf(13), bob);
+        assertTrue(integration.genesisRegistered(13));
+        assertEq(integration.genesisEffectiveWeight(13), 10_000);
+        assertEq(integration.genesisTotalWeight(), 10_000);
+        assertEq(integration.pendingGenesisRecovery(), 0);
+        assertEq(integration.pendingGenesisRewards(13, address(stakingAsset)), recoveryQuote.genesisDistribution);
+        vm.prank(bob);
+        assertEq(integration.claimGenesisRewards(13, address(stakingAsset), bob), recoveryQuote.genesisDistribution);
+    }
+
+    function testPermissionlessRecoveryPreservesComposedPositionState() external {
+        (uint256 basketId,) = _createDefaultBasket(0, 0);
+        _buyAndRegister(alice, 14);
+        _activate(alice, 14, 4);
+
+        address[] memory rewardAssets = _assets(address(assetA), address(assetB));
+        stakingAsset.mint(alice, 130 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 130 ether);
+        uint256 positionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
+        vm.warp(globalRewards.rewardSelection(positionId, address(assetA)).eligibleAt);
+        globalRewards.checkpointRewardAssets(rewardAssets);
+        integration.linkGenesis(positionId, 14);
+        vm.stopPrank();
+
+        uint256[] memory mintInputs = baskets.quoteMint(basketId, 10 ether);
+        _fundAndApprove(alice, mintInputs[0], mintInputs[1]);
+        vm.startPrank(alice);
+        basketCollateral.mintBasketCollateral(positionId, basketId, 10 ether, mintInputs);
+        (uint256 loanId,) = lending.borrow(positionId, basketId, 5 ether, alice);
+        vm.stopPrank();
+
+        vm.warp(epochEnd);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(14, 100_000 ether);
+        uint256 recoverableAt = vault.creditRecoverableAt(14);
+        vm.warp(recoverableAt - 25 hours);
+        vm.prank(alice);
+        globalRewards.stake(positionId, 10 ether);
+        vm.warp(recoverableAt + 1);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardBookNeedsCheckpoint.selector, address(assetA)));
+        vault.recoverGenesisCredit(14);
+        vm.prank(bob);
+        globalRewards.checkpointRewardAssets(rewardAssets);
+
+        vm.prank(alice);
+        globalRewards.stake(positionId, 20 ether);
+        ComposedRecoverySnapshot memory beforeRecovery =
+            _composedRecoverySnapshot(positionId, basketId, loanId, rewardAssets);
+        assertGt(beforeRecovery.rewardA, 0);
+        assertGt(beforeRecovery.rewardB, 0);
+
+        vm.prank(bob);
+        vault.recoverGenesisCredit(14);
+
+        ComposedRecoverySnapshot memory afterRecovery =
+            _composedRecoverySnapshot(positionId, basketId, loanId, rewardAssets);
+        assertEq(afterRecovery.collateralHash, beforeRecovery.collateralHash);
+        assertEq(afterRecovery.loanHash, beforeRecovery.loanHash);
+        assertEq(afterRecovery.portfolioHash, beforeRecovery.portfolioHash);
+        assertEq(afterRecovery.rewardA, beforeRecovery.rewardA);
+        assertEq(afterRecovery.rewardB, beforeRecovery.rewardB);
+        assertEq(afterRecovery.pendingEligibleAt, beforeRecovery.pendingEligibleAt);
+        assertEq(afterRecovery.positionObligations, beforeRecovery.positionObligations);
+        assertGt(afterRecovery.positionNonce, beforeRecovery.positionNonce);
+        assertEq(IERC721(address(diamond)).ownerOf(positionId), alice);
+        assertEq(integration.linkedPosition(14), 0);
+        assertEq(integration.linkedGenesis(positionId), 0);
+        assertFalse(IERC5192(address(diamond)).locked(positionId));
+        assertTrue(
+            IStaticsPosition(address(diamond)).isLegActive(positionId, LibPosition.stakingLegKey(address(diamond)))
+        );
+        assertTrue(
+            IStaticsPosition(address(diamond))
+                .isLegActive(positionId, LibPosition.basketLegKey(address(diamond), basketId))
+        );
+
+        vm.prank(alice);
+        IStaticsGlobalRewards.StakePositionView memory stake = globalRewards.stakePosition(positionId);
+        vm.prank(alice);
+        IStaticsGlobalRewards.RewardSelectionView memory selection =
+            globalRewards.rewardSelection(positionId, address(assetA));
+        assertEq(stake.stakedBalance, 130 ether);
+        assertEq(stake.rewardMultiplierBps, 10_000);
+        assertEq(selection.eligibleStake, 110 ether);
+        assertEq(selection.eligibleWeight, 110 ether);
+        assertEq(selection.pendingStake, 20 ether);
+        assertEq(selection.pendingWeight, 20 ether);
+
+        uint256[] memory minimums = new uint256[](2);
+        minimums[0] = beforeRecovery.rewardA;
+        minimums[1] = beforeRecovery.rewardB;
+        vm.prank(alice);
+        uint256[] memory claimed = globalRewards.claimRewards(positionId, rewardAssets, alice, minimums);
+        assertEq(claimed[0], beforeRecovery.rewardA);
+        assertEq(claimed[1], beforeRecovery.rewardB);
+    }
+
+    function testMaximumAssetRecoveryUsesPermissionlessCheckpointBatches() external {
+        uint256 maximumGas = 16_000_000;
+        address[] memory rewardAssets = new address[](64);
+        for (uint256 i; i < rewardAssets.length; ++i) {
+            rewardAssets[i] = address(new MockERC20("Reward", "RWD", 18));
+        }
+        _buyAndRegister(alice, 15);
+        _activate(alice, 15, 4);
+        stakingAsset.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 1 ether);
+        uint256 positionId = globalRewards.createAndStake(1 ether, alice, rewardAssets);
+        integration.linkGenesis(positionId, 15);
+        vm.warp(epochEnd);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(15, 100_000 ether);
+        vm.stopPrank();
+        vm.warp(uint256(vault.creditRecoverableAt(15)) + 1);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardBookNeedsCheckpoint.selector, rewardAssets[0]));
+        vault.recoverGenesisCredit(15);
+        _checkpointRewardAssetsInBatches(bob, rewardAssets);
+
+        uint256 gasBefore = gasleft();
+        vm.prank(bob);
+        vault.recoverGenesisCredit(15);
+        uint256 recoveryGas = gasBefore - gasleft();
+
+        emit log_named_uint("64-asset composed Genesis recovery gas", recoveryGas);
+        assertLt(recoveryGas, maximumGas);
+        assertEq(genesis.ownerOf(15), address(vault));
+        vm.prank(alice);
+        assertEq(globalRewards.stakePosition(positionId).rewardMultiplierBps, 10_000);
+        vm.prank(alice);
+        assertEq(globalRewards.rewardSelection(positionId, rewardAssets[63]).eligibleWeight, 1 ether);
+    }
+
     function _installGenesisIntegration() private {
         GenesisNFTFacet genesisFacet = new GenesisNFTFacet();
         GenesisIntegrationInitHarness initHarness = new GenesisIntegrationInitHarness();
@@ -406,9 +588,10 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
 
     function _buyGenesis(address owner, uint256 genesisId) private {
         stakingAsset.mint(owner, GENESIS_PRICE);
+        GenesisPurchaseQuote memory quote = vault.quoteGenesisPurchase();
         vm.startPrank(owner);
         stakingAsset.approve(address(vault), GENESIS_PRICE);
-        vault.buyGenesis(genesisId, owner);
+        vault.buyGenesis{value: quote.requiredNative}(genesisId, owner);
         vm.stopPrank();
     }
 
@@ -442,12 +625,59 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         stakingAsset.approve(address(activationRegistry), type(uint256).max);
     }
 
+    function _composedRecoverySnapshot(
+        uint256 positionId,
+        uint256 basketId,
+        uint256 loanId,
+        address[] memory rewardAssets
+    ) private returns (ComposedRecoverySnapshot memory snapshot) {
+        vm.startPrank(alice);
+        uint256[] memory pending = globalRewards.pendingRewards(positionId, rewardAssets);
+        IStaticsGlobalRewards.RewardSelectionView memory selection =
+            globalRewards.rewardSelection(positionId, rewardAssets[0]);
+        vm.stopPrank();
+        IModularPositionNFT.PositionState memory structural =
+            IModularPositionNFT(address(diamond)).positionState(positionId);
+        IStaticsBasketCollateral.BasketCollateralPosition memory collateral =
+            basketCollateral.basketCollateralPosition(positionId, basketId);
+        IStaticsLending.LoanView memory loan = lending.loan(loanId);
+        IStaticsPositionPortfolio.PositionPortfolioCounts memory portfolio =
+            positionPortfolio.positionPortfolioCounts(positionId);
+        snapshot = ComposedRecoverySnapshot({
+            collateralHash: keccak256(abi.encode(collateral)),
+            loanHash: keccak256(abi.encode(loan)),
+            portfolioHash: keccak256(abi.encode(portfolio)),
+            rewardA: pending[0],
+            rewardB: pending[1],
+            pendingEligibleAt: selection.eligibleAt,
+            positionNonce: structural.stateNonce,
+            positionObligations: structural.unresolvedObligationCount
+        });
+    }
+
+    function _checkpointRewardAssetsInBatches(address caller, address[] memory assets) private {
+        for (uint256 offset; offset < assets.length; offset += 8) {
+            address[] memory batch = new address[](8);
+            for (uint256 i; i < 8; ++i) {
+                batch[i] = assets[offset + i];
+            }
+            vm.prank(caller);
+            globalRewards.checkpointRewardAssets(batch);
+        }
+    }
+
     function _asset(address asset) private pure returns (address[] memory assets) {
         assets = new address[](1);
         assets[0] = asset;
     }
 
+    function _assets(address first, address second) private pure returns (address[] memory assets) {
+        assets = new address[](2);
+        assets[0] = first;
+        assets[1] = second;
+    }
+
     function _installLocalLiquidityIntegration() internal pure override returns (bool) {
-        return false;
+        return true;
     }
 }
