@@ -44,7 +44,7 @@ case "$TARGET" in
     run_halmos "$ROOT" StaticsGenesisHalmosTest genesis
     ;;
   vesting)
-    run_halmos "$ROOT" StaticsTreasuryVestingHalmosTest vesting 51
+    run_halmos "$ROOT" StaticsTreasuryVestingHalmosTest vesting
     ;;
   all)
     for target in vault fees distributor genesis vesting; do
