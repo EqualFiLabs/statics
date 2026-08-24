@@ -1,6 +1,7 @@
 cache/
 out/
 out-formal/
+out-formal-genesis/
 broadcast/
 coverage/
 lcov.info

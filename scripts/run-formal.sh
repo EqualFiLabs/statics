@@ -13,6 +13,7 @@ run_halmos() {
   local contract="$2"
   local output="$3"
   local loop_bound="${4:-${HALMOS_LOOP_BOUND:-8}}"
+  local build_out="${5:-out-formal-genesis}"
   FOUNDRY_PROFILE=formal "$HALMOS_BIN" \
     --root "$root" \
     --contract "$contract" \
@@ -20,13 +21,13 @@ run_halmos() {
     --solver-timeout-assertion 0 \
     --solver-threads "${HALMOS_THREADS:-4}" \
     --loop "$loop_bound" \
-    --forge-build-out out-formal \
+    --forge-build-out "$build_out" \
     --json-output "$HALMOS_JSON_DIR/$output.json"
 }
 
 case "$TARGET" in
   geometry)
-    run_halmos "$ROOT/verification/doppler" DopplerLaunchGeometryHalmosTest geometry
+    run_halmos "$ROOT/verification/doppler" DopplerLaunchGeometryHalmosTest geometry 8 out-formal
     forge test \
       --root "$ROOT/verification/doppler" \
       --match-path test/DopplerLaunchGeometry.halmos.t.sol
