@@ -149,8 +149,19 @@ share before preparing any handoff. If all administered Genesis contracts are
 owned by the Statics timelock, `runSchedule()` and `runExecute()` perform one
 ordered batch. If Genesis governance remains a separate Safe or controller,
 use `runScheduleInitialization()` and `runExecuteInitialization()` for the
-Diamond-owned cut, then execute the six typed calls returned by
-`buildGenesisGovernanceBatch()` from Genesis governance.
+Diamond-owned cut. The remaining six typed calls must alternate between the
+two authorities in this order:
+
+1. Genesis governance executes `buildGenesisDistributorProposal()`;
+2. Statics governance executes `buildStaticsDistributorAcceptance()`;
+3. Genesis governance executes `buildGenesisConsumerProposal()` to finalize
+   launch rewards and propose the Diamond as activation consumer;
+4. Statics governance executes `buildStaticsConsumerAcceptance()`; and
+5. Genesis governance executes `buildGenesisProtocolBinding()`.
+
+The Diamond role-acceptance wrappers are owner-only. Consumer acceptance also
+requires the Diamond to already be the active fee distributor, so neither an
+arbitrary caller nor an out-of-order Safe batch can advance the handoff.
 
 The ordered transition initializes the Diamond, proposes and accepts it as fee
 distributor, migrates any pending recovery value, finalizes the launch

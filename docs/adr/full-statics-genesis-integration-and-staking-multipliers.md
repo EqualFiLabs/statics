@@ -1122,7 +1122,7 @@ claimGenesisRewards(genesisId, asset, receiver)
 claimGenesisOwnerRewards(asset, receiver)
 
 acceptGenesisDistributorRole()
-acceptGenesisActivationConsumerRole()
+acceptGenesisConsumerRole()
 
  genesisRecoveryCallback()
 onGenesisRecovery(genesisId, previousOwner)
