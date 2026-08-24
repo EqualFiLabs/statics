@@ -717,7 +717,9 @@ eligible Genesis holders
 
 Credit-active Genesis NFTs remain eligible because secured credit does not remove productive reward rights.
 
-The Genesis being recovered must not participate in its own recovery distribution.
+The Genesis being recovered must have zero effective weight when its recovery
+distribution is handled. If other eligible Genesis weight exists at that
+boundary, the recovered Genesis receives none of that indexed amount.
 
 Recovery therefore performs reward and ownership state changes in this order:
 
@@ -738,7 +740,11 @@ Recovery therefore performs reward and ownership state changes in this order:
 If no eligible Genesis weight exists after recovery, only the Genesis-holder
 portion remains pending in the same Genesis reward distributor until eligible
 weight exists. It does not become treasury revenue. The caller incentive is
-still paid when recovery executes.
+still paid when recovery executes. Pending value is not permanently attributed
+to, or excluded from, any token. It is distributed using the then-current
+eligible weights when weight next exists. Consequently, if the recovered
+Genesis is later reacquired through the ordinary vault purchase path, its
+restored base weight may participate in that later distribution.
 
 ## Existing Genesis fee-index integration
 

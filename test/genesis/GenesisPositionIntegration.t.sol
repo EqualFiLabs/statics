@@ -9,7 +9,12 @@ import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
-import {GenesisCreditConfig, IStaticsGenesisVault} from "../../src/interfaces/IStaticsGenesisVault.sol";
+import {
+    GenesisCreditConfig,
+    GenesisCreditRecoveryQuote,
+    GenesisPurchaseQuote,
+    IStaticsGenesisVault
+} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
@@ -387,6 +392,41 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(integration.claimGenesisOwnerRewards(address(stakingAsset), alice), 900 ether);
     }
 
+    function testDeferredRecoveryIndexesWhenSameGenesisIsReacquired() external {
+        _buyAndRegister(alice, 13);
+        assertEq(integration.genesisTotalWeight(), 10_000);
+
+        vm.warp(epochEnd);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(13, 100_000 ether);
+        GenesisCreditRecoveryQuote memory recoveryQuote = vault.quoteGenesisCreditRecovery(13);
+        vm.warp(uint256(recoveryQuote.recoverableAt) + 1);
+        vm.prank(bob);
+        vault.recoverGenesisCredit(13);
+
+        assertTrue(integration.genesisRegistered(13));
+        assertEq(integration.genesisEffectiveWeight(13), 0);
+        assertEq(integration.genesisTotalWeight(), 0);
+        assertEq(integration.pendingGenesisRecovery(), recoveryQuote.genesisDistribution);
+        assertEq(genesis.ownerOf(13), address(vault));
+
+        stakingAsset.mint(bob, GENESIS_PRICE);
+        GenesisPurchaseQuote memory purchaseQuote = vault.quoteGenesisPurchase();
+        vm.startPrank(bob);
+        stakingAsset.approve(address(vault), GENESIS_PRICE);
+        vault.buyGenesis{value: purchaseQuote.requiredNative}(13, bob);
+        vm.stopPrank();
+
+        assertEq(genesis.ownerOf(13), bob);
+        assertTrue(integration.genesisRegistered(13));
+        assertEq(integration.genesisEffectiveWeight(13), 10_000);
+        assertEq(integration.genesisTotalWeight(), 10_000);
+        assertEq(integration.pendingGenesisRecovery(), 0);
+        assertEq(integration.pendingGenesisRewards(13, address(stakingAsset)), recoveryQuote.genesisDistribution);
+        vm.prank(bob);
+        assertEq(integration.claimGenesisRewards(13, address(stakingAsset), bob), recoveryQuote.genesisDistribution);
+    }
+
     function _installGenesisIntegration() private {
         GenesisNFTFacet genesisFacet = new GenesisNFTFacet();
         GenesisIntegrationInitHarness initHarness = new GenesisIntegrationInitHarness();
@@ -406,9 +446,10 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
 
     function _buyGenesis(address owner, uint256 genesisId) private {
         stakingAsset.mint(owner, GENESIS_PRICE);
+        GenesisPurchaseQuote memory quote = vault.quoteGenesisPurchase();
         vm.startPrank(owner);
         stakingAsset.approve(address(vault), GENESIS_PRICE);
-        vault.buyGenesis(genesisId, owner);
+        vault.buyGenesis{value: quote.requiredNative}(genesisId, owner);
         vm.stopPrank();
     }
 
