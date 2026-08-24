@@ -109,7 +109,7 @@ contract StaticsGenesisHalmosTest is SymTest, FormalGenesisEnvironment {
     }
 }
 
-contract StaticsTreasuryVestingHalmosTest is SymTest, FormalGenesisEnvironment {
+contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
     uint256 private constant PROTOCOL_ALLOCATION = 200_000_000 ether;
     uint256 private constant DOPPLER_INVENTORY = 800_000_000 ether;
     uint256 private constant BACKING_COMMITMENT = 99_900_000 ether;
@@ -117,27 +117,42 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, FormalGenesisEnvironment {
     uint256 private constant GENESIS_PRINCIPAL = 555;
     uint256 private constant DURATION = 60 days;
 
+    FormalToken private token;
+    FormalBootstrapVault private vault;
+    FormalBootstrapGenesis private genesis;
+    StaticsTreasuryVesting private vesting;
+    address private recipient;
+
     function setUp() public {
-        _deployGenesis(block.timestamp + 365 days);
+        token = new FormalToken("Formal STATICS", "FSTATICS");
+        recipient = makeAddr("formalVestingRecipient");
+        vesting = new StaticsTreasuryVesting(address(this), address(this), recipient);
+        vault = new FormalBootstrapVault(token);
+        genesis = new FormalBootstrapGenesis(address(vault), address(vesting));
+        token.mint(address(vesting), PROTOCOL_ALLOCATION);
+        token.mint(makeAddr("formalVestingInventory"), DOPPLER_INVENTORY);
+        vesting.finalizeBootstrap(address(token), address(vault), address(genesis));
     }
 
     function check_bootstrapSplitsBackingVestingAndResidual(uint96 residual) public {
         vm.assume(residual <= 100 ether);
         FormalToken token = new FormalToken("Residual STATICS", "RSTATICS");
-        address recipient = makeAddr("formalVestingRecipient");
-        StaticsTreasuryVesting residualVesting = new StaticsTreasuryVesting(address(this), address(this), recipient);
+        address residualRecipient = makeAddr("formalResidualRecipient");
+        StaticsTreasuryVesting residualVesting =
+            new StaticsTreasuryVesting(address(this), address(this), residualRecipient);
         FormalBootstrapVault residualVault = new FormalBootstrapVault(token);
         FormalBootstrapGenesis residualGenesis =
             new FormalBootstrapGenesis(address(residualVault), address(residualVesting));
         token.mint(address(residualVesting), PROTOCOL_ALLOCATION + residual);
         token.mint(makeAddr("formalResidualInventory"), DOPPLER_INVENTORY - residual);
+        uint256 vaultBalanceBefore = token.balanceOf(address(residualVault));
 
         uint256 reported =
             residualVesting.finalizeBootstrap(address(token), address(residualVault), address(residualGenesis));
 
         assertEq(reported, residual);
         assertEq(token.balanceOf(address(residualVesting)), STATICS_PRINCIPAL);
-        assertEq(token.balanceOf(address(residualVault)), BACKING_COMMITMENT + residual);
+        assertEq(token.balanceOf(address(residualVault)) - vaultBalanceBefore, BACKING_COMMITMENT + residual);
         assertEq(residualVesting.bootstrapper(), address(0));
         assertEq(residualVesting.releasedStatics(), 0);
         assertEq(residualVesting.releasedGenesis(), 0);
@@ -171,14 +186,14 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, FormalGenesisEnvironment {
         vm.assume(elapsed > 0);
         vm.warp(vesting.vestingStart() + elapsed);
         uint256 vested = vesting.vestedStaticsAt(block.timestamp);
-        uint256 recipientBefore = statics.balanceOf(treasury);
+        uint256 recipientBefore = token.balanceOf(recipient);
 
         uint256 amount = vesting.releaseStatics();
 
         assertEq(amount, vested);
         assertEq(vesting.releasedStatics(), vested);
-        assertEq(statics.balanceOf(treasury) - recipientBefore, vested);
-        assertEq(statics.balanceOf(address(vesting)), STATICS_PRINCIPAL - vested);
+        assertEq(token.balanceOf(recipient) - recipientBefore, vested);
+        assertEq(token.balanceOf(address(vesting)), STATICS_PRINCIPAL - vested);
         assertLe(vesting.releasedStatics(), STATICS_PRINCIPAL);
     }
 
@@ -190,8 +205,8 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(count, 50);
         assertEq(vesting.releasedGenesis(), 50);
         assertEq(vesting.nextGenesisId(), 5_051);
-        assertEq(genesis.ownerOf(5_001), treasury);
-        assertEq(genesis.ownerOf(5_050), treasury);
+        assertEq(genesis.ownerOf(5_001), recipient);
+        assertEq(genesis.ownerOf(5_050), recipient);
         assertEq(genesis.ownerOf(5_051), address(vesting));
         assertEq(genesis.balanceOf(address(vesting)), GENESIS_PRINCIPAL - 50);
     }
@@ -211,7 +226,7 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(vesting.vestingEnd(), end);
         assertEq(vesting.releasedStatics(), staticsReleased);
         assertEq(vesting.releasedGenesis(), genesisReleased);
-        assertEq(address(vesting.statics()), address(statics));
+        assertEq(address(vesting.statics()), address(token));
         assertEq(address(vesting.genesisVault()), address(vault));
         assertEq(address(vesting.genesis()), address(genesis));
     }

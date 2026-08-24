@@ -126,6 +126,8 @@ contract FormalBootstrapGenesis {
     uint256 public constant mintedSupply = COLLECTION_SIZE;
     address public immutable vault;
     address public immutable treasuryVesting;
+    address public releaseRecipient;
+    uint256 public released;
 
     constructor(address vault_, address treasuryVesting_) {
         vault = vault_;
@@ -134,13 +136,24 @@ contract FormalBootstrapGenesis {
 
     function balanceOf(address owner) external view returns (uint256) {
         if (owner == vault) return 5_000;
-        if (owner == treasuryVesting) return 555;
+        if (owner == treasuryVesting) return 555 - released;
+        if (owner == releaseRecipient) return released;
         return 0;
     }
 
     function ownerOf(uint256 genesisId) external view returns (address) {
         require(genesisId >= 1 && genesisId <= COLLECTION_SIZE, "invalid Genesis");
-        return genesisId >= 5_001 ? treasuryVesting : vault;
+        if (genesisId < 5_001) return vault;
+        return genesisId < 5_001 + released ? releaseRecipient : treasuryVesting;
+    }
+
+    function safeTransferFrom(address from, address to, uint256 genesisId) external {
+        require(msg.sender == treasuryVesting, "only vesting");
+        require(from == treasuryVesting && to != address(0), "invalid transfer");
+        require(genesisId == 5_001 + released, "nonsequential release");
+        if (released == 0) releaseRecipient = to;
+        else require(to == releaseRecipient, "recipient changed during batch");
+        ++released;
     }
 }
 
