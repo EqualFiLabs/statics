@@ -2,7 +2,26 @@ methods {
     function tokenBacking() external returns (uint256) envfree;
     function reserveETH() external returns (uint256) envfree;
     function genesisEpochEnd() external returns (uint256) envfree;
+    function creditServiceReserveShareBps() external returns (uint16) envfree;
+    function creditServiceTreasuryShareBps() external returns (uint16) envfree;
     function owner() external returns (address) envfree;
+}
+
+/// Governance can select any valid credit-service split, and the stored shares
+/// remain exact complements that conserve 100% of the configured allocation.
+rule creditServiceFeeSplitIsExact(env e, uint16 reserveShareBps, uint16 treasuryShareBps) {
+    require e.msg.sender == owner();
+    require to_mathint(reserveShareBps) + to_mathint(treasuryShareBps) == 10000;
+
+    setCreditServiceFeeSplit(e, reserveShareBps, treasuryShareBps);
+
+    assert creditServiceReserveShareBps() == reserveShareBps,
+        "reserve fee share must equal the governed value";
+    assert creditServiceTreasuryShareBps() == treasuryShareBps,
+        "treasury fee share must be the exact complement";
+    assert to_mathint(creditServiceReserveShareBps())
+            + to_mathint(creditServiceTreasuryShareBps()) == 10000,
+        "credit-service fee shares must conserve 100 percent";
 }
 
 /// Post-epoch buy-in is exactly ceil(reserve / 5,554) at full uint256 width.
