@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "passes": {
+    "standalone-launch": [
+      "src/genesis/StaticsGenesisVault.sol",
+      "src/tokens/StaticsGenesis.sol",
+      "src/genesis/StaticsTreasuryVesting.sol",
+      "src/genesis/StaticsFeeReceiver.sol",
+      "src/genesis/GenesisLaunchDistributor.sol",
+      "src/genesis/GenesisActivationRegistry.sol",
+      "src/genesis/LibExactAssetTransfer.sol"
+    ],
+    "diamond-integration": [
+      "src/facets/GenesisNFTFacet.sol",
+      "src/libraries/LibGenesisIntegration.sol",
+      "src/libraries/LibGenesisRewards.sol",
+      "src/facets/GlobalRewardsFacet.sol",
+      "src/libraries/LibGlobalRewards.sol",
+      "src/libraries/LibCustody.sol",
+      "src/position/PositionNFTFacet.sol",
+      "src/position/LibPosition.sol",
+      "src/libraries/LibPositionPortfolio.sol",
+      "src/diamond/StaticsGenesisIntegrationInit.sol",
+      "src/diamond/StaticsProtocolInit.sol",
+      "src/diamond/StaticsGenesisCut.sol",
+      "src/diamond/StaticsDiamond.sol",
+      "src/diamond/DiamondKernel.sol",
+      "src/libraries/LibDiamond.sol",
+      "src/facets/DiamondCutFacet.sol"
+    ],
+    "deployment-handoff": [
+      "script/DeployStaticsGenesis.s.sol",
+      "script/ConfigureStaticsGenesis.s.sol",
+      "script/PrepareStaticsGenesisUpgrade.s.sol",
+      "script/dollar/DeployStaticsProtocol.s.sol",
+      "src/diamond/StaticsProtocolInit.sol",
+      "src/diamond/StaticsGenesisIntegrationInit.sol",
+      "src/diamond/StaticsGenesisCut.sol",
+      "src/libraries/StaticsSelectors.sol",
+      "src/genesis/doppler/StaticsDopplerLaunchConfig.sol",
+      "src/genesis/doppler/StaticsLaunchCurves.sol"
+    ]
+  }
+}

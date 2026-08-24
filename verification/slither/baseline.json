@@ -1,0 +1,2484 @@
+{
+  "schema": 1,
+  "counts": {
+    "High": 13,
+    "Medium": 56,
+    "Low": 58,
+    "Informational": 23
+  },
+  "raw_counts": {
+    "High": 13,
+    "Medium": 56,
+    "Low": 61,
+    "Informational": 44
+  },
+  "findings": [
+    {
+      "id": "109166833c1b732a8efee945",
+      "impact": "High",
+      "confidence": "High",
+      "check": "arbitrary-send-erc20",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.pull(address,address,uint256) (src/libraries/LibCustody.sol#105-111) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#107)",
+      "rationale": "The transfer helpers are internal and every caller supplies an authenticated payer or a protocol-controlled source; balance deltas enforce the exact-transfer assumption.",
+      "occurrences": 1
+    },
+    {
+      "id": "20f516ed3875d66f5237e6f7",
+      "impact": "High",
+      "confidence": "High",
+      "check": "arbitrary-send-erc20",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/LibExactAssetTransfer.sol"
+      ],
+      "summary": "LibExactAssetTransfer.pullExact(IERC20,address,uint256) (src/genesis/LibExactAssetTransfer.sol#12-23) uses arbitrary from in transferFrom: token.safeTransferFrom(from,address(this),amount) (src/genesis/LibExactAssetTransfer.sol#15)",
+      "rationale": "The transfer helpers are internal and every caller supplies an authenticated payer or a protocol-controlled source; balance deltas enforce the exact-transfer assumption.",
+      "occurrences": 1
+    },
+    {
+      "id": "ab431bad522d6fd97d0a16f5",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "arbitrary-send-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver._fundReserve(uint256) (src/genesis/StaticsFeeReceiver.sol#235-264) sends eth to arbitrary user",
+      "rationale": "Reserve ETH is sent only to the immutable, one-time validated Genesis Vault, whose payable donate entrypoint accounts the exact value received.",
+      "occurrences": 1
+    },
+    {
+      "id": "36985ae4ba326a28ed998584",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#204-231):",
+      "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "4ed8357e089603682707134e",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor._pullAttributed(address) (src/genesis/GenesisLaunchDistributor.sol#387-398):",
+      "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "75655770ec72f807cdae3920",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#204-231):",
+      "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "b0071ce908b3da05416eb3da",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.pullAttributed(LibGenesisIntegration.GenesisStorage,address) (src/libraries/LibGenesisRewards.sol#244-259):",
+      "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "0742c580baec2bcea5a94578",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver.setReserveShareBps(uint16) (src/genesis/StaticsFeeReceiver.sol#128-138):",
+      "rationale": "The native unwrap/donation path and its callers are nonReentrant; post-call writes complete accounting for the already validated immutable reserve destination.",
+      "occurrences": 1
+    },
+    {
+      "id": "bb731744b6be8919446df4c1",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#204-231):",
+      "rationale": "The native unwrap/donation path and its callers are nonReentrant; post-call writes complete accounting for the already validated immutable reserve destination.",
+      "occurrences": 1
+    },
+    {
+      "id": "cbf2018a28ff0604e987822a",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver.acceptDistributor() (src/genesis/StaticsFeeReceiver.sol#155-177):",
+      "rationale": "The native unwrap/donation path and its callers are nonReentrant; post-call writes complete accounting for the already validated immutable reserve destination.",
+      "occurrences": 1
+    },
+    {
+      "id": "d63bb8105ee0e2d4f0cb6428",
+      "impact": "High",
+      "confidence": "High",
+      "check": "unprotected-upgrade",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff",
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#43-167) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#58-69)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#71-73)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#77-90)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#94-97). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#77-90)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#94-97)",
+      "rationale": "StaticsProtocolInit is a Diamond delegatecall initializer, not a proxy implementation. Direct calls mutate only the disposable initializer contract; Diamond execution is owner-gated by LibDiamond.",
+      "occurrences": 1
+    },
+    {
+      "id": "26f3805c7b7e327bcf918bd7",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "weak-prng",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._rollMatured(address,LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#550-576) uses a weak PRNG: \"book.bucketCursor = uint8((uint256(cursor) + elapsed) % REWARD_BUCKET_COUNT) (src/libraries/LibGlobalRewards.sol#574)\"",
+      "rationale": "Modulo arithmetic selects deterministic ring-buffer buckets. It is not randomness and cannot influence winner selection or value allocation.",
+      "occurrences": 1
+    },
+    {
+      "id": "e1b9e0487251b8b09e85fc2f",
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "weak-prng",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._addPendingBucket(LibGlobalRewards.RewardBook,uint40,uint256,uint256) (src/libraries/LibGlobalRewards.sol#602-612) uses a weak PRNG: \"index = uint8((uint256(book.bucketCursor) + offset) % REWARD_BUCKET_COUNT) (src/libraries/LibGlobalRewards.sol#608)\"",
+      "rationale": "Modulo arithmetic selects deterministic ring-buffer buckets. It is not randomness and cannot influence winner selection or value allocation.",
+      "occurrences": 1
+    },
+    {
+      "id": "240b00446d52c2d39c1b6e35",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#72-82) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "33d4808b0e6908d04c3a260a",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting._requireBootstrapped() (src/genesis/StaticsTreasuryVesting.sol#192-194) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "362b0de9df44352c54330d3c",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.releaseStatics() (src/genesis/StaticsTreasuryVesting.sol#118-126) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "3d3152bf2208be7c22d474d2",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#189-226) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "3fb1da76ca11d31b2786031d",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.vestingComplete() (src/genesis/StaticsTreasuryVesting.sol#180-182) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "4f20415d4a69e6915cc21b82",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "56c53adaa10f0958c69fdbdb",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting._vestedAt(uint256,uint256) (src/genesis/StaticsTreasuryVesting.sol#184-190) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "85da94ba3f03d67727c91a81",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "9950c5b0f6cb1f862e2ddbf0",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver._attribute(address,address,uint256) (src/genesis/StaticsFeeReceiver.sol#266-272) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "b34224e728fca5a26a8e2f45",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#452-460) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "bdedbdf6cfd57770fdc3adfe",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.vestingEnd() (src/genesis/StaticsTreasuryVesting.sol#155-158) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "c062ab7f30f63a205417bd0d",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver._fundReserve(uint256) (src/genesis/StaticsFeeReceiver.sol#235-264) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "e167eb633cd606308ce218eb",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._requireContract(address) (script/DeployStaticsGenesis.s.sol#556-558) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "f06e3a3f5b56890fd6338753",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "f1c87606c7f5ab7d1a22b698",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.releaseGenesis(uint256) (src/genesis/StaticsTreasuryVesting.sol#128-143) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "f51bff9727e9cc7a4d965ad1",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver._fundReserve(uint256) (src/genesis/StaticsFeeReceiver.sol#235-264) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "0230cc83590fb8c632503239",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimTreasuryRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#308-325):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "278296b97d2fdf9dce0d5d88",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimOwnerRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#288-306):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "3acb4baeaa42eba0e93f8cf9",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.setGenesisRewardShareBps(uint16) (src/genesis/GenesisLaunchDistributor.sol#327-334):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "5a52693e54b6aa73e087c0f1",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "61b84545253af7df437b9093",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.finalizeLaunchRewards() (src/genesis/GenesisLaunchDistributor.sol#336-343):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "6743455f79b480b6dee5ad49",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#215-226):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "6e486a43ec059719eb79a686",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisActivationRegistry.sol"
+      ],
+      "summary": "Reentrancy in GenesisActivationRegistry.onGenesisTransfer(uint256,address,address) (src/genesis/GenesisActivationRegistry.sol#124-136):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "780ee4adf4a6dfbbd3afeda5",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#264-286):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "91e0c77add89ae9f69d8778f",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#310-337):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "b48374e5a9f2b5eb852bf13d",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#157-194):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "c68214f7d604679155c226ed",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#133-150):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "c83c1f64f6817983f07ef7d0",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#381-385):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "cd231ce742b627302f7cdf56",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "de22fe3c5a290ed730114dab",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisActivationRegistry.sol"
+      ],
+      "summary": "Reentrancy in GenesisActivationRegistry.activate(uint256,uint8) (src/genesis/GenesisActivationRegistry.sol#102-122):",
+      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "occurrences": 1
+    },
+    {
+      "id": "05267c287457a26fb576624f",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.accrueNonSwapFee(bytes32,address,uint256).stakerAmount (src/libraries/LibGlobalRewards.sol#103) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "10f65ab7d98e89cbd8d1a9c2",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "LibGenesisRewards.allocate(LibGenesisIntegration.GenesisStorage,address,uint256).genesisAmount (src/libraries/LibGenesisRewards.sol#275) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "3787badecfd30bf3ac033632",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._increasePending(uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook,uint256,uint16).priorCredit (src/libraries/LibGlobalRewards.sol#463) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "537d44ca259ed068a7affb30",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#531) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "5f6af4ec8bb2db5edd492969",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._ensureBookWeights(LibGlobalRewards.RewardBook).bitmap (src/libraries/LibGlobalRewards.sol#690) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "717b50853f436fb165c89f70",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#97) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "8f7d60dde9172624dabd56f1",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "GenesisLaunchDistributor._allocate(address,uint256).genesisAmount (src/genesis/GenesisLaunchDistributor.sol#414) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "d244b9830de16ff1b1342075",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.buyGenesis(uint256,address).fee (src/genesis/StaticsGenesisVault.sol#203) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "ed4d024a6684c5c5a4971262",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.buyGenesis(uint256,address).buyIn (src/genesis/StaticsGenesisVault.sol#202) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "fe31ca0b51b00cf0626c7244",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "StaticsGenesis.bindProtocol(address).collection (src/tokens/StaticsGenesis.sol#113) is a local variable never initialized",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
+      "occurrences": 1
+    },
+    {
+      "id": "045540207dc70ae10166fe21",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#381-385) ignores return value by feeReceiver.harvest() (src/genesis/GenesisLaunchDistributor.sol#382)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "0a626ffa1a2cdf926aabd6f2",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#168-178) ignores return value by LibPosition.activateLeg(positionId,moduleType,localPositionId) (src/position/PositionNFTFacet.sol#175)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "1df73104aeb42009c4e86f43",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet.syncPositionOwnerIndex(uint256) (src/position/PositionNFTFacet.sol#97-101) ignores return value by LibPosition.syncOwnerIndex(positionId,owner) (src/position/PositionNFTFacet.sol#99)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "1f9fa2c07267e591a46608af",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#84-119) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#110)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "3c3975c4132509154b43b00b",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet._update(address,uint256,address) (src/position/PositionNFTFacet.sol#180-187) ignores return value by LibPosition.syncOwnerIndex(tokenId,to) (src/position/PositionNFTFacet.sol#186)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "3f9b90571884329927df1e91",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/LibPosition.sol"
+      ],
+      "summary": "LibPosition.activateLeg(uint256,bytes32,bytes32) (src/position/LibPosition.sol#170-189) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/position/LibPosition.sol#177)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "5b67ad30ddb2029c12d18ae2",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "StaticsGenesis.bindProtocol(address) (src/tokens/StaticsGenesis.sol#109-132) ignores return value by IStaticsGenesisProtocol(protocol_).linkedPosition(1) (src/tokens/StaticsGenesis.sol#120-123)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "7781d899e2f55ef5dbbc0f77",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver.bindMarket(address,bytes32) (src/genesis/StaticsFeeReceiver.sol#101-113) ignores return value by (currency0,currency1,None,None,hooks) = feeSource.getPoolKey(poolId_) (src/genesis/StaticsFeeReceiver.sol#104)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "85b7fe8639bbdcbc1f2ec6b0",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#66-72) ignores return value by receiver.harvest() (src/libraries/LibGenesisRewards.sol#69)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "ad34d5201f8d3075c4ffcf21",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.activateStakingLeg(uint256) (src/libraries/LibGlobalRewards.sol#404-410) ignores return value by LibPosition.activateLeg(positionId,LibPosition.STAKING_MODULE,bytes32(uint256(1))) (src/libraries/LibGlobalRewards.sol#408)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "c250beb79cccb0508f1b2013",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#204-231) ignores return value by feeSource.collectFees(poolId) (src/genesis/StaticsFeeReceiver.sol#211)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "cb7deed087d9e387f3aa71d5",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver.acceptDistributor() (src/genesis/StaticsFeeReceiver.sol#155-177) ignores return value by IGenesisRecoveryDistributor(previous).migratePendingGenesisRecovery(pending) (src/genesis/StaticsFeeReceiver.sol#172)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "d80c4cd87353b20ec0f595ea",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis.deploy(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#167-212) ignores return value by treasuryVesting.finalizeBootstrap(statics,address(collection.vault),address(collection.genesis)) (script/DeployStaticsGenesis.s.sol#181)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "dad03c4c69dfb9f1a7443f6c",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/facets/GenesisNFTFacet.sol"
+      ],
+      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#32-55) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#51)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "dfe792a0c69a629d7c3018df",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "StaticsFeeReceiver._validateRecoveryDistributor(address,address) (src/genesis/StaticsFeeReceiver.sol#274-293) ignores return value by IGenesisRecoveryDistributor(distributor).genesisRecoveryReady() (src/genesis/StaticsFeeReceiver.sol#289-292)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "e61208dbb7a1f3ba48f115d7",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#121-129) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#127)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "ea80e0b622b9953cd9b813a9",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.releaseGenesis(uint256) (src/genesis/StaticsTreasuryVesting.sol#128-143) has external calls inside a loop: genesis.safeTransferFrom(address(this),recipient,genesisId) (src/genesis/StaticsTreasuryVesting.sol#140)",
+      "rationale": "Permissionless Genesis vesting releases are sequential and capped to 50 NFTs per call, allowing progress without an unbounded loop.",
+      "occurrences": 1
+    },
+    {
+      "id": "2db46d6d30a07e653d09b967",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.redeemGenesis(uint256,address).receiver (src/genesis/StaticsGenesisVault.sol#228) lacks a zero-check on :",
+      "rationale": "Redemption validates the receiver before the native send; a zero native sender intentionally disables direct native ingress for deployments that do not use that path, while production supplies WETH.",
+      "occurrences": 1
+    },
+    {
+      "id": "a1d94ba7e8ef13a61085c56a",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/diamond/StaticsDiamond.sol"
+      ],
+      "summary": "StaticsDiamond.constructor(address,address,address,bytes).nativeSender (src/diamond/StaticsDiamond.sol#11) lacks a zero-check on :",
+      "rationale": "Redemption validates the receiver before the native send; a zero native sender intentionally disables direct native ingress for deployments that do not use that path, while production supplies WETH.",
+      "occurrences": 1
+    },
+    {
+      "id": "1371ac1ad3e7c35573294676",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#204-231):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "1ca10ee0f672f5e29baf2c41",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "2bf5a74462ed73e31b277e49",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#133-150):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "369a5c7be1bf6f6e919ea6c0",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#310-337):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "3da05cc32b88802159b95095",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#157-194):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "46ba1f785689a2f9893facfe",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor._pullAttributed(address) (src/genesis/GenesisLaunchDistributor.sol#387-398):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "5f25f93b9477780447e110c4",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff",
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#94-97):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "7eaf8cb9b2ecca4b005c9c80",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#264-286):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "8cd66c5c56040014c230d022",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimOwnerRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#288-306):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "ad6c3f29ed9c8505d72c05a9",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFeeReceiver._fundReserve(uint256) (src/genesis/StaticsFeeReceiver.sol#235-264):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "b35f7204bce55856a85b195e",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#215-226):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "ce597c9f2ab652716777a25e",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff",
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#77-90):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "d03fc0e322d522ffc18fd473",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
+      "id": "1217d0c90bbf04a1ec71419d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#168-178):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 2
+    },
+    {
+      "id": "14f6a49e51b2d5a75e34296b",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#191-205):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "36919de1c0586fea1c003b2d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "3b92660805eac326746a1ac7",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#43-47):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 2
+    },
+    {
+      "id": "5e7ccdace7a9294b282f6d15",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#42-98):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "8978467368a0bcd2814da4cc",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "8e0bb599dcdfb76ac6733566",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.setRewardShare(uint16) (src/libraries/LibGenesisRewards.sol#221-230):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "94f931896f34ccd85304d28b",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.transition(uint256,address,address,uint16) (src/libraries/LibGenesisRewards.sol#74-100):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "99dcc05dfa6f019c70e20874",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/ConfigureStaticsGenesis.s.sol"
+      ],
+      "summary": "Reentrancy in ConfigureStaticsGenesis.runScheduleInitialization() (script/ConfigureStaticsGenesis.s.sol#83-91):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "a1fa25e3eae398c4c4a18d54",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#49-59):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 2
+    },
+    {
+      "id": "a597a21ae52f29d01a20f550",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#207-219):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "af637da4dcf1c1f9684dae78",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#171-189):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "b90ecf8d70748c8734d2ecdf",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/ConfigureStaticsGenesis.s.sol"
+      ],
+      "summary": "Reentrancy in ConfigureStaticsGenesis.schedule(address,StaticsGenesisHandoffConfig,bytes32) (script/ConfigureStaticsGenesis.s.sol#113-125):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "bd7b643704d2d0ffeb61dd46",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#66-72):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "c1b37d81059c985dd7064c35",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#194-201):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "dd1f89b4590b3f8efa71a75d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/ConfigureStaticsGenesis.s.sol"
+      ],
+      "summary": "Reentrancy in ConfigureStaticsGenesis.scheduleInitialization(address,StaticsGenesisHandoffConfig,bytes32) (script/ConfigureStaticsGenesis.s.sol#134-147):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "dd919b8abe37eb3a602f33dc",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.register(uint256) (src/libraries/LibGenesisRewards.sol#48-64):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "e05ff575b87420a06d1dd5c5",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/ConfigureStaticsGenesis.s.sol"
+      ],
+      "summary": "Reentrancy in ConfigureStaticsGenesis.runSchedule() (script/ConfigureStaticsGenesis.s.sol#73-81):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "e2d0320ba22a838244be6839",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#66-72):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "e866e48757bbc8a1fb9fb7d5",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.migratePendingRecovery(address) (src/libraries/LibGenesisRewards.sol#149-159):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "00da091cbf82513e74d9baf1",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._increasePending(uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook,uint256,uint16) (src/libraries/LibGlobalRewards.sol#453-486) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "13faa2742d9af07f7233c17d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting._requireBootstrapped() (src/genesis/StaticsTreasuryVesting.sol#192-194) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "1aaaf8dd12b8194fe9f9112d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.vestingEnd() (src/genesis/StaticsTreasuryVesting.sol#155-158) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "1f5ab552c3a49e05ea1cc6a4",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis.run() (script/DeployStaticsGenesis.s.sol#122-165) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "4b1a5f5020876082ad40a23f",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.releaseGenesis(uint256) (src/genesis/StaticsTreasuryVesting.sol#128-143) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "508a40f60c90b9c0fb3b4e8d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#65-116) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "77d613b9fb2f16f0abe5e828",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#452-460) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "781343c323cc572999d56f5d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#279-293) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "787623ec1f63692f68069368",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._needsCheckpoint(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#654-676) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "7db1dc875b69f71b1a0cd2ae",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.selectionView(uint256,address) (src/libraries/LibGlobalRewards.sol#378-402) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "7f49e1d82d322960d1d5582d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.vestingComplete() (src/genesis/StaticsTreasuryVesting.sol#180-182) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "84665fe0597b8d34c38c044f",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#310-337) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "877774bb4a4a54a3c0b23ee3",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.releaseStatics() (src/genesis/StaticsTreasuryVesting.sol#118-126) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "87c4f07733990853fdf32644",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.constructor(IERC20,address,address,uint256,GenesisCreditConfig) (src/genesis/StaticsGenesisVault.sol#116-143) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "8d8e9a4545cf7adc972aefe6",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.creditActive(uint256) (src/genesis/StaticsGenesisVault.sol#433-435) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "92fc230928c6470f07e10cbe",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._rollMatured(address,LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#550-576) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "93237df980dbcd0baecdb1fa",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting._vestedAt(uint256,uint256) (src/genesis/StaticsTreasuryVesting.sol#184-190) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "957a32a59ae627a2afd77a5d",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._addPendingBucket(LibGlobalRewards.RewardBook,uint40,uint256,uint256) (src/libraries/LibGlobalRewards.sol#602-612) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "99bc00143e02c49ff0bc757c",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault._epochActive() (src/genesis/StaticsGenesisVault.sol#555-557) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "c40c903cc4634c81e85c3741",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "d8dff30a60d6531db26ade4c",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._duePendingStake(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#626-637) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "f4bf8cc6ba429702f17fac45",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._duePendingWeight(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#639-652) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "18711fe497862acc913e5025",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#31-36) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "36254a4b99ad285bbf2ea129",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.rewardStorage() (src/libraries/LibGlobalRewards.sol#83-88) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "37112d1f16d7251f89bf4141",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibDiamond.sol"
+      ],
+      "summary": "LibDiamond.diamondStorage() (src/libraries/LibDiamond.sol#42-47) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "4e780e432275c1516e5889e5",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibGenesisIntegration.sol"
+      ],
+      "summary": "LibGenesisIntegration.genesisStorage() (src/libraries/LibGenesisIntegration.sol#77-82) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "4f8d25218e8d3ca28f028e06",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibDiamond.sol"
+      ],
+      "summary": "LibDiamond.initializeCut(address,bytes) (src/libraries/LibDiamond.sol#134-149) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "635418a38e6a6ef6877df794",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/diamond/DiamondKernel.sol"
+      ],
+      "summary": "DiamondKernel.fallback() (src/diamond/DiamondKernel.sol#19-31) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "91b726e83a510feed53f1fe9",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/LibPosition.sol"
+      ],
+      "summary": "LibPosition.positionStorage() (src/position/LibPosition.sol#44-49) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "f9bdff5b44835158f349baa8",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibPositionPortfolio.sol"
+      ],
+      "summary": "LibPositionPortfolio.portfolioStorage() (src/libraries/LibPositionPortfolio.sol#27-32) uses assembly",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "949e5d4c422972c74c9e344a",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "cyclomatic-complexity",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#65-116) has a high cyclomatic complexity (12).",
+      "rationale": "The flagged deployment and initialization orchestration validates a bounded launch configuration and keeps the trust handoff atomic.",
+      "occurrences": 1
+    },
+    {
+      "id": "b63f63ba7b36484d7247290e",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "cyclomatic-complexity",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "StaticsGenesis.bindProtocol(address) (src/tokens/StaticsGenesis.sol#109-132) has a high cyclomatic complexity (12).",
+      "rationale": "The flagged deployment and initialization orchestration validates a bounded launch configuration and keeps the trust handoff atomic.",
+      "occurrences": 1
+    },
+    {
+      "id": "168234822fe9f7fb4af02f57",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "Low level call in StaticsGenesisVault._collectCreditServiceFee(uint256) (src/genesis/StaticsGenesisVault.sol#589-598):",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
+      "occurrences": 1
+    },
+    {
+      "id": "2f059ef07cdc4bafe28a72f7",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibDiamond.sol"
+      ],
+      "summary": "Low level call in LibDiamond.initializeCut(address,bytes) (src/libraries/LibDiamond.sol#134-149):",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
+      "occurrences": 1
+    },
+    {
+      "id": "30e0a0995f36a44c087e607b",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "Low level call in StaticsGenesisVault.redeemGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#228-250):",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
+      "occurrences": 1
+    },
+    {
+      "id": "313342381fe4f7311a38a886",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "Low level call in StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#189-226):",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
+      "occurrences": 1
+    },
+    {
+      "id": "35ba33a894c26b4ebac4f7dd",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Low level call in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#194-201):",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
+      "occurrences": 1
+    },
+    {
+      "id": "3ddb93e8fdd2f2ec0e6cc007",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsFeeReceiver.sol"
+      ],
+      "summary": "FormalFeeSource (test/formal/mocks/FormalGenesisMocks.sol#41-88) should inherit from IDopplerFeeSource (src/genesis/StaticsFeeReceiver.sol#13-20)",
+      "rationale": "The reported structural interface similarities do not define a required substitutability boundary; Statics uses explicit narrow interfaces at each integration point.",
+      "occurrences": 6
+    },
+    {
+      "id": "ba847e77f4055063cfd3bfc4",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet (src/position/PositionNFTFacet.sol#18-202) should inherit from IPositionOwnerIndex (src/interfaces/IPositionOwnerIndex.sol#7-18)",
+      "rationale": "The reported structural interface similarities do not define a required substitutability boundary; Statics uses explicit narrow interfaces at each integration point.",
+      "occurrences": 1
+    },
+    {
+      "id": "80c71c04fca45e21b03108e1",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "naming-convention",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/diamond/StaticsDiamond.sol"
+      ],
+      "summary": "Variable StaticsDiamond.NATIVE_SENDER (src/diamond/StaticsDiamond.sol#7) is not in mixedCase",
+      "rationale": "The retained name follows established deployment/configuration vocabulary and does not create an ambiguous storage or authorization boundary.",
+      "occurrences": 1
+    },
+    {
+      "id": "88929f9eb0480ec4a406b49e",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "pragma",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff",
+        "diamond-integration",
+        "standalone-launch"
+      ],
+      "paths": [
+        "script/ConfigureStaticsGenesis.s.sol",
+        "script/DeployStaticsGenesis.s.sol",
+        "script/PrepareStaticsGenesisUpgrade.s.sol",
+        "script/dollar/DeployStaticsProtocol.s.sol",
+        "src/diamond/DiamondKernel.sol",
+        "src/diamond/StaticsDiamond.sol",
+        "src/diamond/StaticsGenesisCut.sol",
+        "src/diamond/StaticsGenesisIntegrationInit.sol",
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/facets/DiamondCutFacet.sol",
+        "src/facets/GenesisNFTFacet.sol",
+        "src/facets/GlobalRewardsFacet.sol",
+        "src/genesis/GenesisActivationRegistry.sol",
+        "src/genesis/GenesisLaunchDistributor.sol",
+        "src/genesis/LibExactAssetTransfer.sol",
+        "src/genesis/StaticsFeeReceiver.sol",
+        "src/genesis/StaticsGenesisVault.sol",
+        "src/genesis/StaticsTreasuryVesting.sol",
+        "src/genesis/doppler/StaticsDopplerLaunchConfig.sol",
+        "src/genesis/doppler/StaticsLaunchCurves.sol",
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibDiamond.sol",
+        "src/libraries/LibGenesisIntegration.sol",
+        "src/libraries/LibGenesisRewards.sol",
+        "src/libraries/LibGlobalRewards.sol",
+        "src/libraries/LibPositionPortfolio.sol",
+        "src/libraries/StaticsSelectors.sol",
+        "src/position/LibPosition.sol",
+        "src/position/PositionNFTFacet.sol",
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "18 different versions of Solidity are used:",
+      "rationale": "Owned production contracts pin Solidity 0.8.33; shared Diamond kernel compatibility is intentionally bounded to the audited 0.8.28-or-newer compiler family.",
+      "occurrences": 1
+    },
+    {
+      "id": "8d20a83f10bdc8416e7fe999",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "pragma",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff",
+        "diamond-integration",
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/diamond/DiamondKernel.sol",
+        "src/diamond/StaticsDiamond.sol",
+        "src/diamond/StaticsGenesisCut.sol",
+        "src/diamond/StaticsGenesisIntegrationInit.sol",
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/facets/DiamondCutFacet.sol",
+        "src/facets/GenesisNFTFacet.sol",
+        "src/facets/GlobalRewardsFacet.sol",
+        "src/genesis/GenesisActivationRegistry.sol",
+        "src/genesis/GenesisLaunchDistributor.sol",
+        "src/genesis/LibExactAssetTransfer.sol",
+        "src/genesis/StaticsFeeReceiver.sol",
+        "src/genesis/StaticsGenesisVault.sol",
+        "src/genesis/StaticsTreasuryVesting.sol",
+        "src/genesis/doppler/StaticsDopplerLaunchConfig.sol",
+        "src/genesis/doppler/StaticsLaunchCurves.sol",
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibDiamond.sol",
+        "src/libraries/LibGenesisIntegration.sol",
+        "src/libraries/LibGenesisRewards.sol",
+        "src/libraries/LibGlobalRewards.sol",
+        "src/libraries/LibPositionPortfolio.sol",
+        "src/libraries/StaticsSelectors.sol",
+        "src/position/LibPosition.sol",
+        "src/position/PositionNFTFacet.sol",
+        "src/tokens/StaticsGenesis.sol"
+      ],
+      "summary": "12 different versions of Solidity are used:",
+      "rationale": "Owned production contracts pin Solidity 0.8.33; shared Diamond kernel compatibility is intentionally bounded to the audited 0.8.28-or-newer compiler family.",
+      "occurrences": 1
+    },
+    {
+      "id": "f5b4205a648baa2fa29bd4b5",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "unindexed-event-address",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibDiamond.sol"
+      ],
+      "summary": "Event LibDiamond.DiamondCut(IDiamondCut.FacetCut[],address,bytes) (src/libraries/LibDiamond.sol#29) has address parameters but no indexed parameters",
+      "rationale": "The event already uses the EVM topic budget for the primary lookup keys; the remaining address stays available in event data.",
+      "occurrences": 1
+    },
+    {
+      "id": "164853b7d2a05217f56aac29",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "unused-state",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/ConfigureStaticsGenesis.s.sol"
+      ],
+      "summary": "CommonBase.UINT256_MAX (lib/forge-std/src/Base.sol#37-38) is never used in ConfigureStaticsGenesis (script/ConfigureStaticsGenesis.s.sol#47-395)",
+      "rationale": "The flagged fields belong to deployment result bundles, immutable configuration surfaces, or inherited compatibility state retained for the composed launch ceremony.",
+      "occurrences": 9
+    },
+    {
+      "id": "c705c177921aaf287b610ba3",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "unused-state",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/PrepareStaticsGenesisUpgrade.s.sol"
+      ],
+      "summary": "CommonBase.MULTICALL3_ADDRESS (lib/forge-std/src/Base.sol#31) is never used in PrepareStaticsGenesisUpgrade (script/PrepareStaticsGenesisUpgrade.s.sol#55-79)",
+      "rationale": "The flagged fields belong to deployment result bundles, immutable configuration surfaces, or inherited compatibility state retained for the composed launch ceremony.",
+      "occurrences": 9
+    }
+  ]
+}
