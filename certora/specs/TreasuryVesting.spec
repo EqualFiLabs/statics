@@ -11,6 +11,8 @@ methods {
     function vestingEnd() external returns (uint256) envfree;
     function releasedStatics() external returns (uint256) envfree;
     function releasedGenesis() external returns (uint256) envfree;
+    function vestedStaticsAt(uint256) external returns (uint256) envfree;
+    function vestedGenesisAt(uint256) external returns (uint256) envfree;
 }
 
 /// STATICS vesting is zero before launch, linear by integer floor, and capped at principal.
