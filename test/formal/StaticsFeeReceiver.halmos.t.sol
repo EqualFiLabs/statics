@@ -29,7 +29,7 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
         receiver.bindMarket(address(statics), keccak256("formal-pool"));
         reserveVault = new FormalReserveVault(address(statics));
         receiver.bindReserveVault(address(reserveVault));
-        distributor = new FormalDistributorSink();
+        distributor = new FormalDistributorSink(address(reserveVault), address(statics));
         receiver.proposeDistributor(address(distributor));
         distributor.accept(receiver);
     }
@@ -104,7 +104,7 @@ contract StaticsFeeReceiverHalmosTest is SymTest, Test {
     function check_distributorRotationAttributesPendingFeesToOldDistributor(uint96 staticsAmount, uint96 wethAmount)
         public
     {
-        FormalDistributorSink nextDistributor = new FormalDistributorSink();
+        FormalDistributorSink nextDistributor = new FormalDistributorSink(address(reserveVault), address(statics));
         _queue(staticsAmount, wethAmount);
         receiver.proposeDistributor(address(nextDistributor));
         nextDistributor.accept(receiver);

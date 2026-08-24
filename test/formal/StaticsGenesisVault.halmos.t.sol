@@ -79,7 +79,7 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         _assertSolvent();
     }
 
-    function check_directGenesisReturnDoesNotReduceBackingLedger(uint88 reserve) public {
+    function check_directGenesisReturnOnlyOvercollateralizes(uint88 reserve) public {
         uint256 backingBefore = vault.tokenBacking();
         uint256 requiredBefore = vault.requiredBacking();
         uint256 circulatingBefore = vault.circulatingGenesis();
@@ -88,8 +88,8 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         assertEq(vault.tokenBacking(), vault.requiredBacking());
         vm.prank(alice);
         genesis.transferFrom(alice, address(vault), 1);
-        assertEq(vault.circulatingGenesis(), circulatingBefore + 1);
-        assertEq(vault.requiredBacking(), requiredBefore + vault.GENESIS_PRICE());
+        assertEq(vault.circulatingGenesis(), circulatingBefore);
+        assertEq(vault.requiredBacking(), requiredBefore);
         assertEq(vault.tokenBacking(), backingBefore + vault.GENESIS_PRICE());
         _assertSolvent();
     }

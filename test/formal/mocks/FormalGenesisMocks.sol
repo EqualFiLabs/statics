@@ -158,6 +158,22 @@ contract FormalBootstrapGenesis {
 }
 
 contract FormalDistributorSink {
+    address public immutable genesisRecoveryVault;
+    address public immutable genesisRecoveryAsset;
+
+    constructor(address genesisRecoveryVault_, address genesisRecoveryAsset_) {
+        genesisRecoveryVault = genesisRecoveryVault_;
+        genesisRecoveryAsset = genesisRecoveryAsset_;
+    }
+
+    function genesisRecoveryReady() external pure returns (bool) {
+        return true;
+    }
+
+    function migratePendingGenesisRecovery(address) external pure returns (uint256 amount) {
+        return 0;
+    }
+
     function accept(StaticsFeeReceiver receiver) external {
         receiver.acceptDistributor();
     }
