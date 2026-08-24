@@ -22,17 +22,17 @@ Genesis maximum supply      = 5,555
 Genesis STATICS backing     = 180,000 STATICS
 ```
 
-During the Genesis Epoch, a vault-owned Genesis may be acquired for exactly:
+During the Genesis Epoch, a vault-owned Genesis may be acquired for:
 
 ```text
-180,000 STATICS
+180,000 STATICS + current native acquisition fee
 ```
 
 with:
 
 ```text
 no native reserve buy-in
-no native acquisition fee
+100% of the acquisition fee added to reserveETH
 ```
 
 Meanwhile, the permanent ETH reserve is already allowed to accumulate from qualifying protocol revenue.
@@ -652,7 +652,7 @@ treasury allocation
 Genesis backing
 Genesis maximum supply
 Genesis Epoch end
-post-epoch native acquisition fee
+native acquisition fee
 Doppler swap fee
 Doppler beneficiary split
 Genesis reserve share
@@ -709,7 +709,7 @@ STATICS_GENESIS_RESERVE_SHARE_BPS
 STATICS_GENESIS_REWARD_SHARE_BPS
     proposed: 5,000 / 50%
 
-POST_EPOCH_NATIVE_ACQUISITION_FEE
+NATIVE_ACQUISITION_FEE
     0.003 ETH
 
 STATICS_GENESIS_EPOCH_END

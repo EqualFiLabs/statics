@@ -67,9 +67,10 @@ Governance may rotate only the withdrawal recipient. It cannot change the
 schedule, principal, token range, or release assets early. A recipient contract
 must implement ERC-721 receipt before Genesis can be released to it.
 
-Vault purchases require exactly 180,000 STATICS plus, after the immutable
-Genesis Epoch, a native reserve buy-in of `ceil(reserveETH / 5,554)` and the
-current native acquisition fee; during the epoch no native value is charged.
+Vault purchases always require exactly 180,000 STATICS plus the current native
+acquisition fee. During the immutable Genesis Epoch the reserve buy-in is waived;
+after the epoch, purchases additionally require a native reserve buy-in of
+`ceil(reserveETH / 5,554)`.
 Redemption returns exactly 180,000 STATICS and, after the epoch, an additional
 native reserve payout of `floor(reserveETH / 5,555)`. The buy-in and fee
 permanently enter the reserve, which has no withdrawal path. Activation forwards

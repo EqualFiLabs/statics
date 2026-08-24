@@ -55,19 +55,20 @@ All 5,555 Genesis NFTs exist from deployment. Integrators call
 `quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
 token, approve the returned 180,000-STATICS price, and send at least the
 returned `requiredNative` with payable `buyGenesis(tokenId, receiver)`. During
-the immutable Genesis Epoch `requiredNative` is zero; after the epoch it is the
-reserve buy-in `ceil(reserveETH / 5,554)` plus the native acquisition fee, both
-of which permanently enter the reserve. The native `value` is a maximum: any
-excess is refunded on-chain, and insufficient native reverts atomically.
+the immutable Genesis Epoch `requiredNative` is the native acquisition fee and
+the reserve buy-in is waived. After the epoch `requiredNative` is the reserve
+buy-in `ceil(reserveETH / 5,554)` plus that fee. The fee always enters the
+reserve, and the post-epoch buy-in joins it. The native `value` is a maximum:
+any excess is refunded on-chain, and insufficient native reverts atomically.
 `quoteGenesisRedemption()` reports the fixed 180,000-STATICS payout and, after
 the epoch, the additional `floor(reserveETH / 5,555)` native reserve payout;
 `redeemGenesis(tokenId, receiver)` returns both. `donate()` permissionlessly and
 irreversibly capitalizes the reserve. A redeemed token becomes ordinary vault inventory
 and may be purchased again.
 
-Native acquisition fees are not withdrawable revenue. After the Genesis Epoch,
-each fee and reserve buy-in increases accounted `reserveETH`; during the epoch the
-native fee is zero. Integrators must use `reserveETH`, not the vault's raw native
+Native acquisition fees are not withdrawable revenue. Each fee increases
+accounted `reserveETH` in both epoch states; after the Genesis Epoch, each reserve
+buy-in does too. Integrators must use `reserveETH`, not the vault's raw native
 balance, for reserve NAV because forced or accidental ETH does not enter protocol
 accounting. No governance, treasury, or recipient claim function can withdraw the
 accounted reserve.
