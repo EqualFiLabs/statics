@@ -136,23 +136,23 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
 
     function check_bootstrapSplitsBackingVestingAndResidual(uint96 residual) public {
         vm.assume(residual <= 100 ether);
-        FormalToken token = new FormalToken("Residual STATICS", "RSTATICS");
+        FormalToken residualToken = new FormalToken("Residual STATICS", "RSTATICS");
         address residualRecipient = makeAddr("formalResidualRecipient");
         StaticsTreasuryVesting residualVesting =
             new StaticsTreasuryVesting(address(this), address(this), residualRecipient);
-        FormalBootstrapVault residualVault = new FormalBootstrapVault(token);
+        FormalBootstrapVault residualVault = new FormalBootstrapVault(residualToken);
         FormalBootstrapGenesis residualGenesis =
             new FormalBootstrapGenesis(address(residualVault), address(residualVesting));
-        token.mint(address(residualVesting), PROTOCOL_ALLOCATION + residual);
-        token.mint(makeAddr("formalResidualInventory"), DOPPLER_INVENTORY - residual);
-        uint256 vaultBalanceBefore = token.balanceOf(address(residualVault));
+        residualToken.mint(address(residualVesting), PROTOCOL_ALLOCATION + residual);
+        residualToken.mint(makeAddr("formalResidualInventory"), DOPPLER_INVENTORY - residual);
+        uint256 vaultBalanceBefore = residualToken.balanceOf(address(residualVault));
 
         uint256 reported =
-            residualVesting.finalizeBootstrap(address(token), address(residualVault), address(residualGenesis));
+            residualVesting.finalizeBootstrap(address(residualToken), address(residualVault), address(residualGenesis));
 
         assertEq(reported, residual);
-        assertEq(token.balanceOf(address(residualVesting)), STATICS_PRINCIPAL);
-        assertEq(token.balanceOf(address(residualVault)) - vaultBalanceBefore, BACKING_COMMITMENT + residual);
+        assertEq(residualToken.balanceOf(address(residualVesting)), STATICS_PRINCIPAL);
+        assertEq(residualToken.balanceOf(address(residualVault)) - vaultBalanceBefore, BACKING_COMMITMENT + residual);
         assertEq(residualVesting.bootstrapper(), address(0));
         assertEq(residualVesting.releasedStatics(), 0);
         assertEq(residualVesting.releasedGenesis(), 0);
@@ -162,7 +162,7 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
             .call(
                 abi.encodeWithSelector(
                     residualVesting.finalizeBootstrap.selector,
-                    address(token),
+                    address(residualToken),
                     address(residualVault),
                     address(residualGenesis)
                 )
@@ -170,7 +170,9 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         assertFalse(secondBootstrap);
     }
 
-    function check_vestingFormulaIsLinearAndCapped(uint64 elapsed) public view {
+    /// @dev uint24 covers every second through the 60-day schedule and more than
+    ///      130 days after its cap while keeping symbolic multiplication tractable.
+    function check_vestingFormulaIsLinearAndCapped(uint24 elapsed) public view {
         uint256 timestamp = vesting.vestingStart() + elapsed;
         uint256 expectedStatics =
             elapsed >= DURATION ? STATICS_PRINCIPAL : Math.mulDiv(STATICS_PRINCIPAL, elapsed, DURATION);
@@ -182,7 +184,7 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         assertLe(vesting.vestedGenesisAt(timestamp), GENESIS_PRINCIPAL);
     }
 
-    function check_staticsReleaseEqualsCurrentVesting(uint64 elapsed) public {
+    function check_staticsReleaseEqualsCurrentVesting(uint24 elapsed) public {
         vm.assume(elapsed > 0);
         vm.warp(vesting.vestingStart() + elapsed);
         uint256 vested = vesting.vestedStaticsAt(block.timestamp);
