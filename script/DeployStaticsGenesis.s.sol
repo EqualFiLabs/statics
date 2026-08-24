@@ -98,7 +98,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
-    int24 public constant FAR_TICK = 887_100;
+    int24 public constant FAR_TICK = StaticsLaunchCurves.FAR_TICK;
     address public constant GOVERNANCE_DEAD = address(0xdead);
     address public constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
 

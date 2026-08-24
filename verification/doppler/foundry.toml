@@ -8,7 +8,16 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
 bytecode_hash = "none"
-via_ir = true
+
+additional_compiler_profiles = [
+    { name = "doppler-multicurve", via_ir = true, optimizer_runs = 200 },
+]
+
+compilation_restrictions = [
+    # Pinned upstream Multicurve fails legacy codegen with stack-too-deep; the
+    # Statics harness and shared launch configuration remain on legacy codegen.
+    { paths = "vendor/doppler/src/libraries/Multicurve.sol", via_ir = true },
+]
 
 [fmt]
 line_length = 120

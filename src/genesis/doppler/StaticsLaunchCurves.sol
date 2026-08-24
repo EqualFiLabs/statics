@@ -5,6 +5,8 @@ import {DopplerLaunchTypes} from "./DopplerLaunchTypes.sol";
 
 /// @notice Authoritative six-curve STATICS launch geometry shared by deployment and verification.
 library StaticsLaunchCurves {
+    int24 internal constant FAR_TICK = 887_100;
+
     function defaultCurves() internal pure returns (DopplerLaunchTypes.Curve[] memory curves) {
         curves = new DopplerLaunchTypes.Curve[](6);
         curves[0] =

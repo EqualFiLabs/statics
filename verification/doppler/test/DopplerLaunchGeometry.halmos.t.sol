@@ -15,7 +15,7 @@ contract DopplerLaunchGeometryHalmosTest is Test {
     uint256 private constant TAIL_INVENTORY = 120_000_000 ether;
     uint256 private constant MAX_RESIDUAL = 100 ether;
     int24 private constant TICK_SPACING = 100;
-    int24 private constant FAR_TICK = 887_100;
+    int24 private constant FAR_TICK = StaticsLaunchCurves.FAR_TICK;
 
     PinnedMulticurveHarness private harness;
 
@@ -46,8 +46,10 @@ contract DopplerLaunchGeometryHalmosTest is Test {
         Position[] memory positions = harness.calculatePositions(adjusted, TICK_SPACING, TARGET_INVENTORY, 0, isToken0);
 
         assertEq(curves.length, 6);
+        assertEq(adjusted.length, 6);
         assertEq(positions.length, 56);
-        assertEq(FAR_TICK, 887_100);
+        assertLt(FAR_TICK, curves[5].tickUpper);
+        assertGe(FAR_TICK, curves[5].tickLower);
         assertEq(curves[4].tickUpper, curves[5].tickLower);
         assertEq(curves[5].shares, 0.15 ether);
         assertEq((TARGET_INVENTORY * curves[5].shares) / 1 ether, TAIL_INVENTORY);

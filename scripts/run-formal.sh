@@ -27,6 +27,9 @@ run_halmos() {
 case "$TARGET" in
   geometry)
     run_halmos "$ROOT/verification/doppler" DopplerLaunchGeometryHalmosTest geometry
+    forge test \
+      --root "$ROOT/verification/doppler" \
+      --match-path test/DopplerLaunchGeometry.halmos.t.sol
     ;;
   vault)
     run_halmos "$ROOT" StaticsGenesisVaultHalmosTest vault
