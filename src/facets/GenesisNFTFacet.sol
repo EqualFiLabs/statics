@@ -25,6 +25,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
     error UnauthorizedGenesis(address caller);
     error UnauthorizedActivationRegistry(address caller);
     error UnauthorizedTreasury(address caller);
+    error GenesisDistributorNotActive(address activeDistributor);
 
     function linkGenesis(uint256 positionId, uint256 genesisId) external nonReentrant {
         if (!LibGenesisIntegration.integrationReady()) revert GenesisIntegrationNotReady();
@@ -139,11 +140,16 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
     /// @dev Deliberately not guarded by the Diamond-wide reentrancy slot. A predecessor
     /// distributor may synchronously migrate recovery value back into this Diamond during acceptance.
     function acceptGenesisDistributorRole() external {
+        LibDiamond.enforceIsContractOwner();
         IStaticsFeeReceiver(LibGenesisIntegration.genesisStorage().feeReceiver).acceptDistributor();
     }
 
     function acceptGenesisConsumerRole() external {
-        IGenesisActivationRegistry(LibGenesisIntegration.genesisStorage().activationRegistry).acceptConsumer();
+        LibDiamond.enforceIsContractOwner();
+        LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
+        address activeDistributor = IStaticsFeeReceiver(gs.feeReceiver).activeDistributor();
+        if (activeDistributor != address(this)) revert GenesisDistributorNotActive(activeDistributor);
+        IGenesisActivationRegistry(gs.activationRegistry).acceptConsumer();
     }
 
     function registerGenesis(uint256 genesisId) external nonReentrant {
