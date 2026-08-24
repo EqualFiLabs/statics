@@ -1,6 +1,6 @@
 # ADR: Genesis secured credit against fixed STATICS backing
 
-- Status: Proposed
+- Status: Accepted and implemented
 - Date: 2026-08-23
 - Scope: Genesis secured credit, partial access to isolated STATICS backing, reserve-capitalizing native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
 - Amends: `genesis-reserve-backed-vault.md`
@@ -134,7 +134,8 @@ This preserves the Genesis Epoch's intended early-capital commitment.
 Without this restriction, an epoch participant could:
 
 ```text
-acquire Genesis for 180,000 STATICS
+acquire Genesis for 180,000 STATICS + current native acquisition fee
+(epoch reserve buy-in waived)
         |
         v
 release up to 171,000 STATICS
@@ -354,9 +355,9 @@ requiredStaticsBacking
 The vault must always satisfy:
 
 ```text
-actual STATICS custody >= logical retained backing
+actual STATICS custody >= recognized retained backing
 
-logical retained backing >= requiredStaticsBacking
+recognized retained backing >= requiredStaticsBacking
 ```
 
 Credit principal is not an unsecured protocol liability. It is a controlled release of the backing represented by the still-locked Genesis.
