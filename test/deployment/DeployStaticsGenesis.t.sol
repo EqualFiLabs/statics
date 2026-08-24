@@ -72,7 +72,7 @@ contract MockDeploymentInitializer {
 contract MockDeploymentAirlock is IDopplerAirlock {
     address private constant GOVERNANCE_DEAD = address(0xdead);
     address private constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
-    address public immutable override owner;
+    address public override owner;
     MockDeploymentInitializer public immutable initializer;
     uint256 public lastNumTokensToSell;
     bytes32 public lastTokenFactoryDataHash;
@@ -85,6 +85,10 @@ contract MockDeploymentAirlock is IDopplerAirlock {
 
     function setResidual(uint256 residual_) external {
         residual = residual_;
+    }
+
+    function setOwner(address owner_) external {
+        owner = owner_;
     }
 
     function create(DopplerLaunchTypes.CreateParams calldata params)
@@ -269,6 +273,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
             bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
             assertNotEq(launchHash, bytes32(0));
+            assertNotEq(deployer.staticsImplementationHash(), bytes32(0));
 
             config.fee += 1;
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
@@ -302,6 +307,11 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.integrator = address(0);
             config.salt = bytes32(uint256(config.salt) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.salt = keccak256("STATICS_DOPPLER_TEST");
+            address originalDopplerOwner = airlock.owner();
+            airlock.setOwner(makeAddr("rotatedAirlockOwner"));
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            airlock.setOwner(originalDopplerOwner);
         }
 
         function testZeroApprovedHashBlocksProductionRatification() public {
@@ -325,7 +335,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.numeraire = address(uint160(config.numeraire) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.numeraire = address(weth);
-            config.modules.airlock = address(uint160(config.modules.airlock) + 1);
+            config.modules.airlock = address(new MockDeploymentAirlock(makeAddr("differentAirlockOwner"), initializer));
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.modules.airlock = address(airlock);
             config.modules.tokenFactory = address(uint160(config.modules.tokenFactory) + 1);
@@ -375,6 +385,13 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             vm.expectRevert(
                 abi.encodeWithSelector(DeployStaticsGenesis.ExcessiveMulticurveResidual.selector, 101 ether, 100 ether)
             );
+            deployer.deploy(config, address(deployer));
+        }
+
+        function testRejectsRenouncedDopplerOwner() public {
+            airlock.setOwner(address(0));
+            StaticsGenesisDeploymentConfig memory config = _config();
+            vm.expectRevert(DeployStaticsGenesis.ZeroAddress.selector);
             deployer.deploy(config, address(deployer));
         }
 

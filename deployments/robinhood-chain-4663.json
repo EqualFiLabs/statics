@@ -1,10 +1,10 @@
 {
   "network": "Robinhood Chain",
   "chainId": 4663,
-  "forkBlock": 14498238,
-  "forkBlockHash": "0x6aa5df55371aa944352e06703b7905fb0ddf3a58c495833ee7595ef08aa46417",
-  "forkBlockTimestamp": 1784530141,
-  "verifiedAt": "2026-07-20",
+  "forkBlock": 45234855,
+  "forkBlockHash": "0xd65b81057261cc49ef60573d9f500ec9563257d673e10f1ff8d3d7c6ce33670d",
+  "forkBlockTimestamp": 1787611417,
+  "verifiedAt": "2026-08-24",
   "rpcDocumentation": "https://docs.robinhood.com/chain/connecting/",
   "contractDocumentation": "https://docs.robinhood.com/chain/contracts/",
   "sourceProvenance": {
@@ -74,7 +74,23 @@
     },
     "weth": {
       "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-      "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+      "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353",
+      "implementation": {
+        "address": "0xc6b81b429797e0f555440b70cd99e032d7ae947e",
+        "runtimeCodeHash": "0xbe1295f37be34ffe03ad779bda0ef278907e1856b51a3be2f35ee541d75d4650"
+      },
+      "proxyAdmin": {
+        "address": "0xa3acd31afb851b4eb9dad00f5204c01d924267df",
+        "runtimeCodeHash": "0xa4b2186ab82fa36fb4ae158582e5615ea519e757c26c13ba4a33daaaed8902a7",
+        "owner": {
+          "address": "0x2A153c6A1B66DBc930a8d7017230ab0253005C09",
+          "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353",
+          "implementation": {
+            "address": "0x3c3e52bc8c181d06a76e2518bbc655c5bb3ce7cd",
+            "runtimeCodeHash": "0x0d88feac198ef1b50b99fddf06aa9f6b1050bfe7211d6f04173de9b6d8953bcb"
+          }
+        }
+      }
     },
     "dopplerAirlock": {
       "address": "0xeb7C034704eF8Dcd2D32324c1545f62fB4aD0862",

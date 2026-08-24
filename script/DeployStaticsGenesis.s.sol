@@ -67,6 +67,10 @@ struct GenesisCollection {
     StaticsGenesis genesis;
 }
 
+interface IProxyAdminOwner {
+    function owner() external view returns (address);
+}
+
 /// @notice Fresh-deployment-only launcher for the standalone Doppler Genesis system.
 contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     using PoolIdLibrary for PoolKey;
@@ -102,6 +106,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     int24 public constant FAR_TICK = StaticsLaunchCurves.FAR_TICK;
     address public constant GOVERNANCE_DEAD = address(0xdead);
     address public constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
+    bytes32 private constant ERC1967_IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 private constant ERC1967_ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     error ZeroAddress();
     error InvalidModule(address module);
@@ -276,11 +283,30 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         return StaticsLaunchCurves.defaultCurves();
     }
 
+    /// @notice Commitment to every Statics contract created by this launcher.
+    /// @dev Creation code binds compiler output and constructor logic; constructor values are
+    ///      committed separately by `launchConfigHash`.
+    function staticsImplementationHash() public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(type(StaticsFeeReceiver).creationCode),
+                keccak256(type(StaticsTreasuryVesting).creationCode),
+                keccak256(type(GenesisActivationRegistry).creationCode),
+                keccak256(type(StaticsGenesisVault).creationCode),
+                keccak256(type(StaticsAvatarSVG).creationCode),
+                keccak256(type(StaticsGenesisRenderer).creationCode),
+                keccak256(type(StaticsGenesis).creationCode),
+                keccak256(type(GenesisLaunchDistributor).creationCode)
+            )
+        );
+    }
+
     function launchConfigHash(
         StaticsGenesisDeploymentConfig memory config,
-        bytes32 wethRuntimeCodeHash,
+        bytes32 wethDependencyHash,
         StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes
-    ) public pure returns (bytes32) {
+    ) public view returns (bytes32) {
+        address dopplerOwner = IDopplerAirlock(config.modules.airlock).owner();
         bytes32 provenanceHash = keccak256(abi.encode(ROBINHOOD_MAINNET_CHAIN_ID, DOPPLER_SOURCE_REVISION));
         bytes32 fixedEconomicsHash = keccak256(
             abi.encode(
@@ -311,9 +337,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             )
         );
         bytes32 authorityHash =
-            keccak256(abi.encode(config.governance, config.treasury, config.integrator, config.salt));
+            keccak256(abi.encode(config.governance, config.treasury, config.integrator, dopplerOwner, config.salt));
         bytes32 dependencyHash =
-            keccak256(abi.encode(config.numeraire, wethRuntimeCodeHash, config.modules, moduleCodeHashes));
+            keccak256(abi.encode(config.numeraire, wethDependencyHash, config.modules, moduleCodeHashes));
         bytes32 marketHash = keccak256(
             abi.encode(
                 TICK_SPACING,
@@ -336,6 +362,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         return keccak256(
             abi.encode(
                 provenanceHash,
+                staticsImplementationHash(),
                 fixedEconomicsHash,
                 launchEconomicsHash,
                 authorityHash,
@@ -507,6 +534,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         _requireContract(config.modules.governanceFactory);
         _requireContract(config.modules.poolInitializer);
         _requireContract(config.modules.noOpMigrator);
+        if (IDopplerAirlock(config.modules.airlock).owner() == address(0)) revert ZeroAddress();
         if (
             bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
                 || bytes(config.externalURLBase).length == 0
@@ -522,13 +550,88 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         if (config.genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(config.genesisEpochEnd);
     }
 
-    function _validateRobinhoodWeth(address configuredWeth) private view returns (bytes32 expectedCodeHash) {
+    function _validateRobinhoodWeth(address configuredWeth) private view returns (bytes32 wethDependencyHash) {
         string memory manifest = vm.readFile(_robinhoodManifestPath(ROBINHOOD_MAINNET_CHAIN_ID));
         address expectedWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
         if (configuredWeth != expectedWeth) revert InvalidRobinhoodWeth(expectedWeth, configuredWeth);
-        expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
-        bytes32 actualCodeHash = configuredWeth.codehash;
-        if (actualCodeHash != expectedCodeHash) revert InvalidRobinhoodWethCodeHash(expectedCodeHash, actualCodeHash);
+        bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
+        bytes32 configuredCodeHash = configuredWeth.codehash;
+        if (configuredCodeHash != expectedCodeHash) {
+            revert InvalidRobinhoodWethCodeHash(expectedCodeHash, configuredCodeHash);
+        }
+
+        address implementation = address(uint160(uint256(vm.load(configuredWeth, ERC1967_IMPLEMENTATION_SLOT))));
+        address expectedImplementation = vm.parseJsonAddress(manifest, ".contracts.weth.implementation.address");
+        if (implementation != expectedImplementation) {
+            revert InvalidRobinhoodDependency(expectedImplementation, implementation);
+        }
+        bytes32 expectedImplementationCodeHash =
+            vm.parseJsonBytes32(manifest, ".contracts.weth.implementation.runtimeCodeHash");
+        _requireRobinhoodCodeHash(implementation, expectedImplementationCodeHash);
+
+        bytes32 authorityHash = _validateRobinhoodWethAuthority(configuredWeth, manifest);
+        wethDependencyHash = keccak256(
+            abi.encode(expectedCodeHash, expectedImplementation, expectedImplementationCodeHash, authorityHash)
+        );
+    }
+
+    function _validateRobinhoodWethAuthority(address configuredWeth, string memory manifest)
+        private
+        view
+        returns (bytes32 authorityHash)
+    {
+        address proxyAdmin = address(uint160(uint256(vm.load(configuredWeth, ERC1967_ADMIN_SLOT))));
+        address expectedProxyAdmin = vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.address");
+        if (proxyAdmin != expectedProxyAdmin) revert InvalidRobinhoodDependency(expectedProxyAdmin, proxyAdmin);
+        bytes32 expectedProxyAdminCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.runtimeCodeHash");
+        _requireRobinhoodCodeHash(proxyAdmin, expectedProxyAdminCodeHash);
+
+        bytes32 ownerHash = _validateRobinhoodProxyAdminOwner(proxyAdmin, manifest);
+        authorityHash = keccak256(abi.encode(expectedProxyAdmin, expectedProxyAdminCodeHash, ownerHash));
+    }
+
+    function _validateRobinhoodProxyAdminOwner(address proxyAdmin, string memory manifest)
+        private
+        view
+        returns (bytes32 ownerHash)
+    {
+        address proxyAdminOwner = IProxyAdminOwner(proxyAdmin).owner();
+        address expectedProxyAdminOwner = vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.owner.address");
+        if (proxyAdminOwner != expectedProxyAdminOwner) {
+            revert InvalidRobinhoodDependency(expectedProxyAdminOwner, proxyAdminOwner);
+        }
+        bytes32 expectedProxyAdminOwnerCodeHash =
+            vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.owner.runtimeCodeHash");
+        _requireRobinhoodCodeHash(proxyAdminOwner, expectedProxyAdminOwnerCodeHash);
+
+        address ownerImplementation = address(uint160(uint256(vm.load(proxyAdminOwner, ERC1967_IMPLEMENTATION_SLOT))));
+        address expectedOwnerImplementation =
+            vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.owner.implementation.address");
+        if (ownerImplementation != expectedOwnerImplementation) {
+            revert InvalidRobinhoodDependency(expectedOwnerImplementation, ownerImplementation);
+        }
+        bytes32 expectedOwnerImplementationCodeHash =
+            vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.owner.implementation.runtimeCodeHash");
+        _requireRobinhoodCodeHash(ownerImplementation, expectedOwnerImplementationCodeHash);
+
+        address ownerProxyAdmin = address(uint160(uint256(vm.load(proxyAdminOwner, ERC1967_ADMIN_SLOT))));
+        if (ownerProxyAdmin != proxyAdmin) revert InvalidRobinhoodDependency(proxyAdmin, ownerProxyAdmin);
+
+        ownerHash = keccak256(
+            abi.encode(
+                expectedProxyAdminOwner,
+                expectedProxyAdminOwnerCodeHash,
+                expectedOwnerImplementation,
+                expectedOwnerImplementationCodeHash
+            )
+        );
+    }
+
+    function _requireRobinhoodCodeHash(address dependency, bytes32 expectedCodeHash) private view {
+        bytes32 actualCodeHash = dependency.codehash;
+        if (actualCodeHash != expectedCodeHash) {
+            revert InvalidRobinhoodDependencyCodeHash(dependency, expectedCodeHash, actualCodeHash);
+        }
     }
 
     function _validateRobinhoodDopplerModules(StaticsDopplerLaunchConfig.Modules memory modules)

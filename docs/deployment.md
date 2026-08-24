@@ -24,9 +24,9 @@ selected by chain ID and reads:
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
 | `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor, and immutable admin that may rotate the treasury vesting withdrawal recipient |
 | `STATICS_GENESIS_TREASURY` | Initial recipient of vested STATICS and Genesis, Genesis activation payments, and royalties |
-| `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical address and runtime code hash |
+| `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical proxy, implementation, proxy admin, and ownership-controller code |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
-| `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
+| `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt; use a cryptographically random 32-byte value and keep the raw salt confidential until the launch transaction reaches the sequencer |
 | `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
 | `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Share (0..10,000) of harvested WETH routed into the permanent Genesis native ETH reserve; the remainder is attributed to the active distributor |
@@ -100,14 +100,57 @@ The canonical `run()` path is deliberately locked on Robinhood while
 `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
 curves, static fee, Genesis reward share, and reserve parameters requires a
 reviewed follow-up commit that pins their exact hash. That commitment also binds
-the canonical Robinhood WETH address and runtime code hash recorded in the
-mainnet deployment manifest. Before any simulation or broadcast, the launcher
-rejects a different `WETH_ADDRESS` or runtime bytecode so WETH `withdraw()`
-cannot silently cross the permanent reserve security boundary. The lower-level
+the creation bytecode of every Statics Genesis contract, the exact
+Doppler/Airlock-owner beneficiary, canonical Robinhood WETH address, proxy
+bytecode, ERC-1967 implementation address and bytecode, proxy-admin address and
+bytecode, and the proxy admin's ownership-controller proxy and implementation
+recorded in the mainnet deployment manifest. The launcher also requires that
+the ownership controller remains administered by that proxy admin. A Statics
+source or compiler-output change, later Airlock ownership rotation, or WETH
+authority/code drift therefore invalidates the reviewed hash instead of
+silently changing deployed protocol logic, the recipient of 5% of
+launch-position fees, or the code that executes `withdraw()`. Before any
+simulation or broadcast, the launcher rejects a renounced Airlock owner, a
+different `WETH_ADDRESS`, or drift at any pinned WETH authority or proxy layer
+so upstream authority and native unwrapping cannot silently cross permanent
+launch security boundaries. These checks bind the state observed during Forge
+script simulation; they are not an atomic onchain guard because the script
+expands into multiple broadcast transactions. Simulate immediately before
+submission, reject any stale broadcast artifact, and rerun the checks after any
+delay or dependency-state change. WETH remains governed upstream after
+deployment, so later role or upgrade changes are an explicit continuing
+dependency. The lower-level
 `deploy()` function remains available to unit and fork tests. Deployment also
 rejects more than 100 STATICS of Multicurve rounding residual so an upstream or
 configuration error cannot silently shrink the 800-million-token public
 inventory.
+
+### Production salt and submission ceremony
+
+The pinned Doppler token factory deploys a deterministic clone keyed by
+`STATICS_DOPPLER_SALT`, and `Airlock.create()` is permissionless. A party that
+learns the raw salt before the intended creation reaches Robinhood's sequencer
+can consume that deterministic token address first with different initialization
+data. This is a launch denial of service: it forces a new salt and a newly
+reviewed launch hash.
+
+For production:
+
+1. Generate the salt from a cryptographically secure random source. Do not use
+   a phrase, timestamp, repository value, or a hash of predictable text.
+2. Publish only the approved launch hash before launch. Do not publish the raw
+   salt or a deployment manifest containing it until the creation transaction
+   is sequenced.
+3. Do not expose the production salt through simulation calls to an untrusted
+   RPC. Simulate from a local fork or infrastructure trusted for the launch
+   ceremony.
+4. Submit through a trusted, low-latency Robinhood RPC path that forwards
+   directly to the first-come, first-served sequencer. Do not route the launch
+   through a public pending-transaction service or an untrusted relay.
+5. Confirm the creation transaction and expected token address before
+   publishing the raw salt and final manifest. A failed or interrupted
+   multi-transaction broadcast is not a completed launch; resume only after
+   reconciling every included nonce and deployed address.
 
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
