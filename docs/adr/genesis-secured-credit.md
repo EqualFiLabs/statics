@@ -1,6 +1,6 @@
 # ADR: Genesis secured credit against fixed STATICS backing
 
-- Status: Accepted
+- Status: Accepted and implemented
 - Date: 2026-08-23
 - Scope: Genesis secured credit, partial access to isolated STATICS backing, reserve-capitalizing native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
 - Amends: `genesis-reserve-backed-vault.md`
