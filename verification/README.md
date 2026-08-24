@@ -16,10 +16,12 @@ python3.12 -m venv .halmos-venv
 HALMOS_BIN="$PWD/.halmos-venv/bin/halmos" scripts/run-formal.sh all
 ```
 
-The proof runner writes one JSON result per target to `formal-results/`. The
-ordinary Foundry suites remain part of the gate because the post-epoch division
-regressions and value-moving launch lifecycles are intentionally executable
-tests beside the symbolic checks.
+The proof runner writes JSON results to `formal-results/`. Root Genesis targets
+use a scoped artifact directory and separate Halmos invocations; the isolated
+Doppler target retains its own build. The ordinary Foundry suites remain part
+of the gate because full-cap transfers, post-epoch division regressions, and
+other value-moving launch lifecycles are intentionally executable tests beside
+the symbolic checks.
 
 ## Property ledger
 
@@ -38,7 +40,9 @@ tests beside the symbolic checks.
 | Transfer checkpoints assign pre-transfer rewards to the old owner and reset activation | `GenesisLaunchDistributor` | Halmos plus Foundry regression | Pass |
 | Activation settles the old weight and transfers the exact cumulative tier cost | `GenesisLaunchDistributor`, `GenesisActivationRegistry` | Halmos plus Foundry invariant/fuzz | Pass |
 | Genesis supply is fixed at 5,555 with one-time bindings and no callable burn path | `StaticsGenesis` | Halmos | Pass |
-| Escrow release sends exactly 200M STATICS to treasury, drains residual, and cannot repeat | `StaticsLaunchAllocationEscrow` | Halmos | Pass |
+| Bootstrap commits exactly 99.9M STATICS to Vault backing, routes at most 100 STATICS residual as unaccounted Vault surplus, retains 100.1M vesting principal, clears bootstrap authority, and cannot repeat | `StaticsTreasuryVesting` | Halmos plus Foundry | Pass |
+| STATICS and 555 Genesis vest linearly by integer floor over 60 days and cap at their immutable principals | `StaticsTreasuryVesting` | Halmos plus Certora plus Foundry fuzz | Pass |
+| Permissionless releases preserve STATICS custody, transfer sequential Genesis IDs, and bind the immutable 50-NFT cap; recipient rotation preserves schedule, bindings, and released accounting | `StaticsTreasuryVesting` | Halmos plus Certora plus Foundry | Pass |
 | Exact pinned Multicurve produces six curves, 56 nonzero positions, a 120M tail, and residual at most 100 STATICS for both token orders | pinned Doppler `Multicurve` | Halmos plus Foundry | Pass |
 | Launch hash binds economics, authorities, dependencies, runtime hashes, geometry, metadata, salt, and epoch | `DeployStaticsGenesis` | Foundry | Pass |
 | Zero approved Robinhood hash blocks production execution | `DeployStaticsGenesis` | Foundry | Pass |
@@ -56,6 +60,7 @@ Install `certora-cli`, expose the Solidity 0.8.33 compiler as `solc8.33`, set
 scripts/run-certora.sh vault
 scripts/run-certora.sh fees
 scripts/run-certora.sh distributor
+scripts/run-certora.sh vesting
 ```
 
 The configurations enable basic rule-sanity checks, disable optimistic loops,
@@ -68,6 +73,7 @@ were proved with Certora CLI 8.18 and Solidity 0.8.33:
 | `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/6fdea74367f24739bbd461a813b5b452) |
 | `FeeReceiver.conf` | Surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/44904946b709447eaf79c06336b9170d) |
 | `GenesisDistributor.conf` | Surplus recovery preserves all accounted reward quantities | [report](https://prover.certora.com/output/8471858/91b769bd131b47ab9a8229f062bfb801) |
+| `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation preserves immutable state and released accounting | [report](https://prover.certora.com/output/8471858/a7766363efed470e8451ae481a54e894) |
 
 The aggregate ghost invariants remain in the specs as reviewable next-stage
 properties, but the default configurations do not select them yet. Hosted runs
@@ -98,6 +104,13 @@ passing result.
   handlers provide executable arbitrary-sequence coverage; they complement but
   do not turn a local transition proof into a theorem about an unmodeled
   dependency.
+- Treasury vesting arithmetic is symbolic for every timestamp in the `uint24`
+  domain, which covers the complete 60-day schedule and more than 130 days
+  beyond its cap. The value-moving Halmos transition executes STATICS release at
+  the 30-day midpoint, while adjacent Foundry fuzz tests vary timestamps. The
+  Genesis symbolic transition uses a four-NFT ordered batch and binds the
+  immutable 50-NFT cap; the real-contract Foundry regression executes the full
+  50-transfer batch.
 - Post-epoch division is verified at full `uint256` width in CVL. The adjacent
   Foundry regression decomposes reserves into a `uint64` quotient and bounded
   remainder, covering reserves above 100,000 native ETH.
