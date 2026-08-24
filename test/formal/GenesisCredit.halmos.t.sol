@@ -83,18 +83,18 @@ contract GenesisCreditRepresentativeTest is Test {
 
         statics.mint(alice, 600_000 ether);
         statics.mint(bob, 600_000 ether);
+        vm.deal(alice, 1 ether);
+        vm.deal(bob, 1 ether);
         vm.startPrank(alice);
         statics.approve(address(vault), type(uint256).max);
-        vault.buyGenesis(1, alice);
+        vault.buyGenesis{value: vault.quoteGenesisPurchase().requiredNative}(1, alice);
         distributor.registerGenesis(1);
         vm.stopPrank();
         vm.startPrank(bob);
         statics.approve(address(vault), type(uint256).max);
-        vault.buyGenesis(2, bob);
+        vault.buyGenesis{value: vault.quoteGenesisPurchase().requiredNative}(2, bob);
         distributor.registerGenesis(2);
         vm.stopPrank();
-        vm.deal(alice, 1 ether);
-        vm.deal(bob, 1 ether);
         vm.warp(vault.genesisEpochEnd());
     }
 

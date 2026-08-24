@@ -245,6 +245,8 @@ abstract contract FormalGenesisEnvironment is Test {
     }
 
     function _acquire(uint256 genesisId, address owner) internal {
-        vault.buyGenesis(genesisId, owner);
+        uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
+        vm.deal(address(this), address(this).balance + requiredNative);
+        vault.buyGenesis{value: requiredNative}(genesisId, owner);
     }
 }

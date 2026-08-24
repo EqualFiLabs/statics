@@ -25,10 +25,27 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         GenesisRedemptionQuote memory duringRedemption = vault.quoteGenesisRedemption();
         assertTrue(duringPurchase.epochActive);
         assertEq(duringPurchase.reserveBuyIn, 0);
-        assertEq(duringPurchase.nativeFee, 0);
-        assertEq(duringPurchase.requiredNative, 0);
+        assertEq(duringPurchase.nativeFee, vault.nativeAcquisitionFee());
+        assertEq(duringPurchase.requiredNative, vault.nativeAcquisitionFee());
         assertTrue(duringRedemption.epochActive);
         assertEq(duringRedemption.reservePayout, 0);
+    }
+
+    function check_epochAcquisitionAccretesFeeAndPreservesSolvency(uint88 reserve, uint88 excessNative) public {
+        _donate(reserve);
+        uint256 reserveBefore = vault.reserveETH();
+        uint256 backingBefore = vault.tokenBacking();
+        uint256 circulatingBefore = vault.circulatingGenesis();
+        uint256 fee = vault.nativeAcquisitionFee();
+        vm.deal(address(this), fee + excessNative);
+
+        vault.buyGenesis{value: fee + excessNative}(1, alice);
+
+        assertEq(vault.reserveETH(), reserveBefore + fee);
+        assertEq(vault.tokenBacking(), backingBefore + vault.GENESIS_PRICE());
+        assertEq(vault.circulatingGenesis(), circulatingBefore + 1);
+        assertEq(address(this).balance, excessNative);
+        _assertSolvent();
     }
 
     /// @dev Foundry regression beside Certora's full-width arithmetic rule.
