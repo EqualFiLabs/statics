@@ -75,6 +75,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     address public immutable override owner;
     MockDeploymentInitializer public immutable initializer;
     uint256 public lastNumTokensToSell;
+    bytes32 public lastTokenFactoryDataHash;
     uint256 public residual = 1 ether;
 
     constructor(address owner_, MockDeploymentInitializer initializer_) {
@@ -94,6 +95,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         require(params.initialSupply == token.totalSupply(), "SUPPLY");
         require(params.numTokensToSell == 800_000_000 ether, "INVENTORY");
         lastNumTokensToSell = params.numTokensToSell;
+        lastTokenFactoryDataHash = keccak256(params.tokenFactoryData);
         DopplerLaunchTypes.PoolInitializerData memory poolData =
             abi.decode(params.poolInitializerData, (DopplerLaunchTypes.PoolInitializerData));
         require(poolData.dopplerHook == address(0), "HOOK");
@@ -147,6 +149,9 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 0);
             assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
+            assertEq(
+                airlock.lastTokenFactoryDataHash(), keccak256(_expectedTokenFactoryData("ipfs://statics/token.json"))
+            );
             assertEq(statics.balanceOf(address(initializer)), 799_999_999 ether);
             assertEq(genesis.balanceOf(address(vault)), 5_000);
             assertEq(genesis.balanceOf(address(vesting)), 555);
@@ -354,6 +359,9 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertNotEq(
                 deployer.launchConfigHash(config, bytes32(uint256(canonicalWethHash) + 1), codeHashes), launchHash
             );
+            config.tokenURI = "ipfs://different-token.json";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.tokenURI = "ipfs://statics/token.json";
             config.contractURI = "ipfs://different-contract.json";
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.contractURI = "ipfs://statics-genesis/contract.json";
@@ -394,6 +402,11 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config = _config();
             config.recoveryCallerShareBps = 10_000;
             vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidRecoveryCallerShare.selector, 10_000));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.tokenURI = "";
+            vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
             deployer.deploy(config, address(deployer));
 
             config = _config();
@@ -477,5 +490,21 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 poolInitializer: keccak256("poolInitializer"),
                 noOpMigrator: keccak256("noOpMigrator")
             });
+        }
+
+        function _expectedTokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
+            return abi.encode(
+                "Statics",
+                "STATICS",
+                new DopplerLaunchTypes.VestingSchedule[](0),
+                new address[](0),
+                new uint256[](0),
+                new uint256[](0),
+                tokenURI,
+                uint256(0),
+                uint48(0),
+                address(0),
+                new address[](0)
+            );
         }
     }

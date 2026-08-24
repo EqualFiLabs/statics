@@ -303,6 +303,22 @@
       "occurrences": 1
     },
     {
+      "id": "39beeb6920ab459d3db3d78a",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#495-523) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
       "id": "4f20415d4a69e6915cc21b82",
       "impact": "Medium",
       "confidence": "High",
@@ -331,22 +347,6 @@
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting._vestedAt(uint256,uint256) (src/genesis/StaticsTreasuryVesting.sol#184-190) uses a dangerous strict equality:",
-      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
-      "occurrences": 1
-    },
-    {
-      "id": "85da94ba3f03d67727c91a81",
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "deployment-handoff"
-      ],
-      "paths": [
-        "script/DeployStaticsGenesis.s.sol"
-      ],
-      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
