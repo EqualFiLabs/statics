@@ -13,10 +13,7 @@ contract DeployStaticsGenesisMetadataTest is Test {
     }
 
     function testCanonicalTokenURIUsesPinnedIPFSMetadata() public view {
-        assertEq(
-            deployer.staticsTokenURI(),
-            "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR"
-        );
+        assertEq(deployer.staticsTokenURI(), "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR");
     }
 
     function testLaunchConfigHashBindsConfiguredTokenURI() public view {
