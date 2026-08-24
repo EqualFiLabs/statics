@@ -17,7 +17,6 @@ import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/Dopple
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsLaunchCurves} from "../src/genesis/doppler/StaticsLaunchCurves.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
-import {LibStaticsTokenMetadata} from "../src/metadata/LibStaticsTokenMetadata.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../src/tokens/StaticsGenesis.sol";
@@ -37,8 +36,9 @@ struct StaticsGenesisDeploymentConfig {
     uint256 creditExtensionFee;
     uint16 recoveryCallerShareBps;
     uint256 genesisEpochEnd;
-    /// @dev Retained for lower-level config compatibility. Doppler launch calldata always uses canonical metadata.
+    /// @dev ERC20 token metadata URI passed through to Doppler's token factory.
     string tokenURI;
+    /// @dev ERC-7572 collection metadata URI for the Genesis NFT collection.
     string contractURI;
     string externalURLBase;
 }
@@ -95,6 +95,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
     uint256 public constant MAX_MULTICURVE_RESIDUAL = 100 ether;
     bytes20 public constant DOPPLER_SOURCE_REVISION = hex"86a5200456b148c156d2eb81a893747dd601c3ca";
+    string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
     /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
@@ -265,9 +266,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
-    /// @notice Canonical fully onchain URI used for every STATICS Doppler launch path.
+    /// @notice Canonical IPFS metadata URI used for the production STATICS Doppler launch.
     function staticsTokenURI() public pure returns (string memory) {
-        return LibStaticsTokenMetadata.tokenURI();
+        return STATICS_TOKEN_URI;
     }
 
     /// @notice Six-curve Robinhood launch geometry pinned to the committed economics model.
@@ -315,14 +316,19 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             keccak256(abi.encode(config.numeraire, wethRuntimeCodeHash, config.modules, moduleCodeHashes));
         bytes32 marketHash = keccak256(
             abi.encode(
-                TICK_SPACING, FAR_TICK, GOVERNANCE_DEAD, MIGRATION_DEAD, keccak256(_tokenFactoryData()), defaultCurves()
+                TICK_SPACING,
+                FAR_TICK,
+                GOVERNANCE_DEAD,
+                MIGRATION_DEAD,
+                keccak256(_tokenFactoryData(config.tokenURI)),
+                defaultCurves()
             )
         );
         bytes32 metadataHash = keccak256(
             abi.encode(
                 keccak256(bytes("Statics")),
                 keccak256(bytes("STATICS")),
-                keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
+                keccak256(bytes(config.tokenURI)),
                 keccak256(bytes(config.contractURI)),
                 keccak256(bytes(config.externalURLBase))
             )
@@ -412,7 +418,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             numTokensToSell: DOPPLER_INVENTORY,
             numeraire: config.numeraire,
             tokenFactory: config.modules.tokenFactory,
-            tokenFactoryData: _tokenFactoryData(),
+            tokenFactoryData: _tokenFactoryData(config.tokenURI),
             governanceFactory: config.modules.governanceFactory,
             governanceFactoryData: abi.encode(address(treasuryVesting)),
             poolInitializer: config.modules.poolInitializer,
@@ -454,7 +460,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         }
     }
 
-    function _tokenFactoryData() private pure returns (bytes memory) {
+    function _tokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
         return abi.encode(
             "Statics",
             "STATICS",
@@ -462,7 +468,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            LibStaticsTokenMetadata.tokenURI(),
+            tokenURI,
             uint256(0),
             uint48(0),
             address(0),
@@ -501,7 +507,10 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         _requireContract(config.modules.governanceFactory);
         _requireContract(config.modules.poolInitializer);
         _requireContract(config.modules.noOpMigrator);
-        if (bytes(config.contractURI).length == 0 || bytes(config.externalURLBase).length == 0) {
+        if (
+            bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
+                || bytes(config.externalURLBase).length == 0
+        ) {
             revert InvalidMetadataURI();
         }
         if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);
@@ -546,7 +555,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     {
         address expected = vm.parseJsonAddress(manifest, string.concat(path, ".address"));
         if (configured != expected) revert InvalidRobinhoodDependency(expected, configured);
-        expectedCodeHash = vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash"));
+        expectedCodeHash = vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash");
         bytes32 actualCodeHash = configured.codehash;
         if (actualCodeHash != expectedCodeHash) {
             revert InvalidRobinhoodDependencyCodeHash(configured, expectedCodeHash, actualCodeHash);
