@@ -2,15 +2,15 @@
   "schema": 1,
   "counts": {
     "High": 13,
-    "Medium": 56,
+    "Medium": 54,
     "Low": 58,
-    "Informational": 23
+    "Informational": 22
   },
   "raw_counts": {
     "High": 13,
-    "Medium": 56,
-    "Low": 61,
-    "Informational": 44
+    "Medium": 54,
+    "Low": 58,
+    "Informational": 43
   },
   "findings": [
     {
@@ -282,7 +282,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#189-226) uses a dangerous strict equality:",
+      "summary": "StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#189-222) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -378,7 +378,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#452-460) uses a dangerous strict equality:",
+      "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#448-456) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -618,7 +618,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#310-337):",
+      "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#306-333):",
       "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
       "occurrences": 1
     },
@@ -811,38 +811,6 @@
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "GenesisLaunchDistributor._allocate(address,uint256).genesisAmount (src/genesis/GenesisLaunchDistributor.sol#414) is a local variable never initialized",
-      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
-      "occurrences": 1
-    },
-    {
-      "id": "d244b9830de16ff1b1342075",
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsGenesisVault.sol"
-      ],
-      "summary": "StaticsGenesisVault.buyGenesis(uint256,address).fee (src/genesis/StaticsGenesisVault.sol#203) is a local variable never initialized",
-      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
-      "occurrences": 1
-    },
-    {
-      "id": "ed4d024a6684c5c5a4971262",
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsGenesisVault.sol"
-      ],
-      "summary": "StaticsGenesisVault.buyGenesis(uint256,address).buyIn (src/genesis/StaticsGenesisVault.sol#202) is a local variable never initialized",
       "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
       "occurrences": 1
     },
@@ -1146,7 +1114,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.redeemGenesis(uint256,address).receiver (src/genesis/StaticsGenesisVault.sol#228) lacks a zero-check on :",
+      "summary": "StaticsGenesisVault.redeemGenesis(uint256,address).receiver (src/genesis/StaticsGenesisVault.sol#224) lacks a zero-check on :",
       "rationale": "Redemption validates the receiver before the native send; a zero native sender intentionally disables direct native ingress for deployments that do not use that path, while production supplies WETH.",
       "occurrences": 1
     },
@@ -1226,7 +1194,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#310-337):",
+      "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#306-333):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -1390,7 +1358,7 @@
       ],
       "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#168-178):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
-      "occurrences": 2
+      "occurrences": 1
     },
     {
       "id": "14f6a49e51b2d5a75e34296b",
@@ -1439,7 +1407,7 @@
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#43-47):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
-      "occurrences": 2
+      "occurrences": 1
     },
     {
       "id": "5e7ccdace7a9294b282f6d15",
@@ -1536,7 +1504,7 @@
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#49-59):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
-      "occurrences": 2
+      "occurrences": 1
     },
     {
       "id": "a597a21ae52f29d01a20f550",
@@ -1810,7 +1778,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#452-460) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#448-456) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -1826,7 +1794,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#279-293) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#275-289) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -1890,7 +1858,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#310-337) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#306-333) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -1938,7 +1906,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.creditActive(uint256) (src/genesis/StaticsGenesisVault.sol#433-435) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.creditActive(uint256) (src/genesis/StaticsGenesisVault.sol#429-431) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -2002,7 +1970,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault._epochActive() (src/genesis/StaticsGenesisVault.sol#555-557) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault._epochActive() (src/genesis/StaticsGenesisVault.sol#551-553) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -2226,7 +2194,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "Low level call in StaticsGenesisVault._collectCreditServiceFee(uint256) (src/genesis/StaticsGenesisVault.sol#589-598):",
+      "summary": "Low level call in StaticsGenesisVault._collectCreditServiceFee(uint256) (src/genesis/StaticsGenesisVault.sol#585-594):",
       "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
       "occurrences": 1
     },
@@ -2258,7 +2226,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "Low level call in StaticsGenesisVault.redeemGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#228-250):",
+      "summary": "Low level call in StaticsGenesisVault.redeemGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#224-246):",
       "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
       "occurrences": 1
     },
@@ -2274,7 +2242,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "Low level call in StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#189-226):",
+      "summary": "Low level call in StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#189-222):",
       "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
       "occurrences": 1
     },
@@ -2386,49 +2354,6 @@
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "18 different versions of Solidity are used:",
-      "rationale": "Owned production contracts pin Solidity 0.8.33; shared Diamond kernel compatibility is intentionally bounded to the audited 0.8.28-or-newer compiler family.",
-      "occurrences": 1
-    },
-    {
-      "id": "8d20a83f10bdc8416e7fe999",
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "pragma",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "deployment-handoff",
-        "diamond-integration",
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/diamond/DiamondKernel.sol",
-        "src/diamond/StaticsDiamond.sol",
-        "src/diamond/StaticsGenesisCut.sol",
-        "src/diamond/StaticsGenesisIntegrationInit.sol",
-        "src/diamond/StaticsProtocolInit.sol",
-        "src/facets/DiamondCutFacet.sol",
-        "src/facets/GenesisNFTFacet.sol",
-        "src/facets/GlobalRewardsFacet.sol",
-        "src/genesis/GenesisActivationRegistry.sol",
-        "src/genesis/GenesisLaunchDistributor.sol",
-        "src/genesis/LibExactAssetTransfer.sol",
-        "src/genesis/StaticsFeeReceiver.sol",
-        "src/genesis/StaticsGenesisVault.sol",
-        "src/genesis/StaticsTreasuryVesting.sol",
-        "src/genesis/doppler/StaticsDopplerLaunchConfig.sol",
-        "src/genesis/doppler/StaticsLaunchCurves.sol",
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibDiamond.sol",
-        "src/libraries/LibGenesisIntegration.sol",
-        "src/libraries/LibGenesisRewards.sol",
-        "src/libraries/LibGlobalRewards.sol",
-        "src/libraries/LibPositionPortfolio.sol",
-        "src/libraries/StaticsSelectors.sol",
-        "src/position/LibPosition.sol",
-        "src/position/PositionNFTFacet.sol",
-        "src/tokens/StaticsGenesis.sol"
-      ],
-      "summary": "12 different versions of Solidity are used:",
       "rationale": "Owned production contracts pin Solidity 0.8.33; shared Diamond kernel compatibility is intentionally bounded to the audited 0.8.28-or-newer compiler family.",
       "occurrences": 1
     },
