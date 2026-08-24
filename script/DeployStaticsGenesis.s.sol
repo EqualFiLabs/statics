@@ -555,7 +555,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     {
         address expected = vm.parseJsonAddress(manifest, string.concat(path, ".address"));
         if (configured != expected) revert InvalidRobinhoodDependency(expected, configured);
-        expectedCodeHash = vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash");
+        expectedCodeHash = vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash"));
         bytes32 actualCodeHash = configured.codehash;
         if (actualCodeHash != expectedCodeHash) {
             revert InvalidRobinhoodDependencyCodeHash(configured, expectedCodeHash, actualCodeHash);
