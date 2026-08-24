@@ -66,6 +66,7 @@ contract GenesisLaunchDistributor is
 
     error InvalidContract(address target);
     error InvalidTreasury();
+    error InvalidRewardPair(address statics, address numeraire);
     error InvalidRewardShare(uint256 shareBps);
     error InvalidRewardAsset(address asset);
     error InvalidReceiver(address receiver);
@@ -108,8 +109,16 @@ contract GenesisLaunchDistributor is
         feeReceiver = feeReceiver_;
         genesis = genesis_;
         activationRegistry = activationRegistry_;
-        statics = feeReceiver_.statics();
-        numeraire = feeReceiver_.numeraire();
+        address statics_ = feeReceiver_.statics();
+        address numeraire_ = feeReceiver_.numeraire();
+        if (
+            statics_ == address(0) || numeraire_ == address(0) || statics_ == numeraire_ || statics_.code.length == 0
+                || numeraire_.code.length == 0
+        ) {
+            revert InvalidRewardPair(statics_, numeraire_);
+        }
+        statics = statics_;
+        numeraire = numeraire_;
         vault = genesis_.vault();
         treasury = treasury_;
         genesisRewardShareBps = genesisRewardShareBps_;

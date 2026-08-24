@@ -212,6 +212,31 @@ contract GenesisLaunchRewardsTest is Test {
         assertEq(feeSource.getShares(POOL_ID, address(feeReceiver)), 0.95 ether);
     }
 
+    function testDistributorRejectsIdenticalRewardAssets() public {
+        vm.mockCall(address(feeReceiver), abi.encodeCall(feeReceiver.statics, ()), abi.encode(address(weth)));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisLaunchDistributor.InvalidRewardPair.selector, address(weth), address(weth))
+        );
+        new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 10_000);
+    }
+
+    function testDistributorRejectsZeroRewardAsset() public {
+        vm.mockCall(address(feeReceiver), abi.encodeCall(feeReceiver.statics, ()), abi.encode(address(0)));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisLaunchDistributor.InvalidRewardPair.selector, address(0), address(weth))
+        );
+        new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 10_000);
+    }
+
+    function testDistributorRejectsRewardAssetWithoutCode() public {
+        address missingAsset = makeAddr("missingRewardAsset");
+        vm.mockCall(address(feeReceiver), abi.encodeCall(feeReceiver.statics, ()), abi.encode(missingAsset));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisLaunchDistributor.InvalidRewardPair.selector, missingAsset, address(weth))
+        );
+        new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 10_000);
+    }
+
     function testActivationConsumerObservesPreviousTierDuringCallback() public {
         _buyAndRegister(alice, 1);
         MockActivationStateObserver observer = new MockActivationStateObserver(activationRegistry);
