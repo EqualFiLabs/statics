@@ -78,7 +78,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
     }
 
     function _numericAttribute(string memory traitType, uint256 value, uint256 maxValue)
-        internal
+        private
         pure
         returns (string memory)
     {

@@ -19,18 +19,6 @@ contract GenesisMetadataRegistryMock {
     }
 }
 
-contract StaticsGenesisRendererHarness is StaticsGenesisRenderer {
-    constructor(StaticsAvatarSVG avatarSVG_) StaticsGenesisRenderer(avatarSVG_) {}
-
-    function numericAttribute(string memory traitType, uint256 value, uint256 maxValue)
-        external
-        pure
-        returns (string memory)
-    {
-        return _numericAttribute(traitType, value, maxValue);
-    }
-}
-
 contract StaticsGenesisMetadataTest is Test {
     address private constant VAULT = address(0x1001);
     address private constant TREASURY_VESTING = address(0x1002);
@@ -38,13 +26,13 @@ contract StaticsGenesisMetadataTest is Test {
     string private constant EXTERNAL_URL_BASE = "https://staticsprotocol.com/genesis/";
 
     GenesisMetadataRegistryMock private registry;
-    StaticsGenesisRendererHarness private renderer;
+    StaticsGenesisRenderer private renderer;
     StaticsGenesis private genesis;
 
     function setUp() public {
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         registry = new GenesisMetadataRegistryMock();
-        renderer = new StaticsGenesisRendererHarness(avatar);
+        renderer = new StaticsGenesisRenderer(avatar);
         genesis = new StaticsGenesis(
             VAULT,
             TREASURY_VESTING,
@@ -54,13 +42,6 @@ contract StaticsGenesisMetadataTest is Test {
             address(this),
             CONTRACT_URI,
             EXTERNAL_URL_BASE
-        );
-    }
-
-    function testActivationTierUsesMarketplaceNumericTraitShape() public view {
-        assertEq(
-            renderer.numericAttribute("Activation Tier", 3, 4),
-            '{"display_type":"number","trait_type":"Activation Tier","value":3,"max_value":4}'
         );
     }
 

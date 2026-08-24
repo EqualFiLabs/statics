@@ -472,7 +472,11 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 _buyFor(buyer, 1);
                 _activateBuyer(1, 1);
                 string memory decoded = _decodeDataURI(genesis.tokenURI(1));
-                assertTrue(_contains(decoded, '"trait_type":"Activation Tier","value":1'));
+                assertTrue(
+                    _contains(
+                        decoded, '{"display_type":"number","trait_type":"Activation Tier","value":1,"max_value":4}'
+                    )
+                );
                 assertTrue(_contains(decoded, "180,000 STATICS"));
                 assertTrue(_contains(decoded, '"external_url":"https://statics.finance/genesis/1"'));
             }
