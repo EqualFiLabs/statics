@@ -316,7 +316,9 @@ contract ConfigureStaticsGenesis is Script {
         } else if (!genesisInstalled) {
             revert InvalidHandoffState();
         }
-        if (IStaticsGenesisIntegration(diamond).genesisCollection() != address(0)) revert InvalidHandoffState();
+        if (genesisInstalled && IStaticsGenesisIntegration(diamond).genesisCollection() != address(0)) {
+            revert InvalidHandoffState();
+        }
         if (IStaticsGenesis(config.genesis).protocol() != address(0)) revert InvalidHandoffState();
         _binding(config.genesis, config.vault, IStaticsGenesis(config.genesis).vault());
         _binding(config.genesis, config.activationRegistry, IStaticsGenesis(config.genesis).activationRegistry());
