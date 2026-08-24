@@ -50,9 +50,10 @@ contract StaticsTokenMetadataTest is Test {
         assertTrue(_startsWith(harness.imageURI(), "data:image/svg+xml;base64,"));
     }
 
-    function testProductionDeployerExposesSameCanonicalUri() public {
+    function testProductionDeployerUsesDopplerMetadataInsteadOfInlineUri() public {
         DeployStaticsGenesis deployer = new DeployStaticsGenesis();
-        assertEq(deployer.staticsTokenURI(), harness.tokenURI());
+        assertEq(deployer.staticsTokenURI(), "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR");
+        assertNotEq(deployer.staticsTokenURI(), harness.tokenURI());
     }
 
     function _startsWith(string memory value, string memory prefix) private pure returns (bool) {
