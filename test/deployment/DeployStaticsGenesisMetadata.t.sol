@@ -3,7 +3,50 @@ pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {DeployStaticsGenesis, StaticsGenesisDeploymentConfig} from "../../script/DeployStaticsGenesis.s.sol";
+import {DopplerLaunchTypes, IDopplerAirlock} from "../../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
+
+contract MetadataDeploymentModule {}
+
+contract CapturingMetadataAirlock is IDopplerAirlock {
+    error CapturedTokenURI(string tokenURI);
+    error MetadataCaptureUnexpectedlySucceeded();
+
+    address public immutable override owner;
+
+    constructor() {
+        owner = address(this);
+    }
+
+    function create(DopplerLaunchTypes.CreateParams calldata params)
+        external
+        returns (address, address, address, address, address)
+    {
+        (bool success, bytes memory reason) = address(this).staticcall(
+            abi.encodePacked(this.captureTokenFactoryData.selector, params.tokenFactoryData)
+        );
+        if (success) revert MetadataCaptureUnexpectedlySucceeded();
+        assembly ("memory-safe") {
+            revert(add(reason, 0x20), mload(reason))
+        }
+    }
+
+    function captureTokenFactoryData(
+        string calldata,
+        string calldata,
+        DopplerLaunchTypes.VestingSchedule[] calldata,
+        address[] calldata,
+        uint256[] calldata,
+        uint256[] calldata,
+        string calldata tokenURI,
+        uint256,
+        uint48,
+        address,
+        address[] calldata
+    ) external pure {
+        revert CapturedTokenURI(tokenURI);
+    }
+}
 
 contract DeployStaticsGenesisMetadataTest is Test {
     DeployStaticsGenesis private deployer;
@@ -24,6 +67,24 @@ contract DeployStaticsGenesisMetadataTest is Test {
         config.tokenURI = "ipfs://different-metadata-cid";
 
         assertNotEq(deployer.launchConfigHash(config, bytes32(uint256(1)), codeHashes), originalHash);
+    }
+
+    function testDeployPassesConfiguredTokenURIToDopplerFactory() public {
+        string memory tokenURI = "ipfs://configured-doppler-token-metadata";
+        MetadataDeploymentModule module = new MetadataDeploymentModule();
+        CapturingMetadataAirlock airlock = new CapturingMetadataAirlock();
+        StaticsGenesisDeploymentConfig memory config = _config(tokenURI);
+        config.numeraire = address(module);
+        config.modules = StaticsDopplerLaunchConfig.Modules({
+            airlock: address(airlock),
+            tokenFactory: address(module),
+            governanceFactory: address(module),
+            poolInitializer: address(module),
+            noOpMigrator: address(module)
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(CapturingMetadataAirlock.CapturedTokenURI.selector, tokenURI));
+        deployer.deploy(config, address(this));
     }
 
     function _config(string memory tokenURI) private pure returns (StaticsGenesisDeploymentConfig memory config) {
