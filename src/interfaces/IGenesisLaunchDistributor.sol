@@ -38,6 +38,7 @@ interface IGenesisLaunchDistributor {
     function setGenesisRewardShareBps(uint16 newShareBps) external;
     function finalizeLaunchRewards() external;
     function recoverSurplus(address asset, address receiver, uint256 amount) external;
+    function finalized() external view returns (bool);
     function pendingGenesis(uint256 genesisId, address asset) external view returns (uint256 amount);
     function rewardBook(address asset) external view returns (RewardBookView memory book);
 }

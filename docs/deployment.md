@@ -160,8 +160,9 @@ two authorities in this order:
 5. Genesis governance executes `buildGenesisProtocolBinding()`.
 
 The Diamond role-acceptance wrappers are owner-only. Consumer acceptance also
-requires the Diamond to already be the active fee distributor, so neither an
-arbitrary caller nor an out-of-order Safe batch can advance the handoff.
+requires the Diamond to already be the active fee distributor and any existing
+launch consumer to be finalized, so neither an arbitrary caller nor an
+out-of-order Safe batch can advance the handoff.
 
 The ordered transition initializes the Diamond, proposes and accepts it as fee
 distributor, migrates any pending recovery value, finalizes the launch

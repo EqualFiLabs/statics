@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
+import {IGenesisLaunchDistributor} from "../interfaces/IGenesisLaunchDistributor.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
@@ -26,6 +27,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
     error UnauthorizedActivationRegistry(address caller);
     error UnauthorizedTreasury(address caller);
     error GenesisDistributorNotActive(address activeDistributor);
+    error GenesisConsumerPredecessorNotFinalized(address predecessor);
 
     function linkGenesis(uint256 positionId, uint256 genesisId) external nonReentrant {
         if (!LibGenesisIntegration.integrationReady()) revert GenesisIntegrationNotReady();
@@ -149,7 +151,12 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         address activeDistributor = IStaticsFeeReceiver(gs.feeReceiver).activeDistributor();
         if (activeDistributor != address(this)) revert GenesisDistributorNotActive(activeDistributor);
-        IGenesisActivationRegistry(gs.activationRegistry).acceptConsumer();
+        IGenesisActivationRegistry registry = IGenesisActivationRegistry(gs.activationRegistry);
+        address predecessor = registry.activeConsumer();
+        if (predecessor != address(0) && !IGenesisLaunchDistributor(predecessor).finalized()) {
+            revert GenesisConsumerPredecessorNotFinalized(predecessor);
+        }
+        registry.acceptConsumer();
     }
 
     function registerGenesis(uint256 genesisId) external nonReentrant {

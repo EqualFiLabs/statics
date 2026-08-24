@@ -245,6 +245,13 @@ contract ConfigureStaticsGenesisTest is Test {
         _executeCalls(genesisGovernance, targets, payloads);
         (targets,, payloads) = ceremony.buildStaticsDistributorAcceptance(address(integration));
         _executeCalls(address(timelock), targets, payloads);
+        vm.prank(address(timelock));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GenesisNFTFacet.GenesisConsumerPredecessorNotFinalized.selector, address(launchDistributor)
+            )
+        );
+        integration.acceptGenesisConsumerRole();
         (targets,, payloads) = ceremony.buildGenesisConsumerProposal(address(integration), config);
         _executeCalls(genesisGovernance, targets, payloads);
         (targets,, payloads) = ceremony.buildStaticsConsumerAcceptance(address(integration));
