@@ -154,6 +154,20 @@ contract StaticsTreasuryVestingTest is Test {
         assertEq(statics.balanceOf(treasury), 100_100_000 ether);
     }
 
+    function testFuzzStaticsReleaseMatchesVesting(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 120 days);
+        vm.warp(vesting.vestingStart() + elapsed);
+        uint256 expected = vesting.vestedStaticsAt(block.timestamp);
+        uint256 recipientBefore = statics.balanceOf(treasury);
+
+        uint256 released = vesting.releaseStatics();
+
+        assertEq(released, expected);
+        assertEq(vesting.releasedStatics(), expected);
+        assertEq(statics.balanceOf(treasury) - recipientBefore, expected);
+        assertEq(statics.balanceOf(address(vesting)), vesting.STATICS_VESTING_PRINCIPAL() - expected);
+    }
+
     function testGenesisReleaseClampsToFiftyAndUsesAscendingIds() public {
         vm.warp(vesting.vestingStart() + 30 days);
         assertEq(vesting.releaseGenesis(500), 50);
