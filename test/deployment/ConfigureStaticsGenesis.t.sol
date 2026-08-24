@@ -6,13 +6,18 @@ import {Test} from "forge-std/Test.sol";
 
 import {ConfigureStaticsGenesis, StaticsGenesisHandoffConfig} from "../../script/ConfigureStaticsGenesis.s.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
-import {StaticsGenesisUpgradeParts} from "../../script/PrepareStaticsGenesisUpgrade.s.sol";
+import {
+    PrepareStaticsGenesisUpgrade,
+    StaticsGenesisUpgradeParts
+} from "../../script/PrepareStaticsGenesisUpgrade.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {StaticsGenesisIntegrationInit} from "../../src/diamond/StaticsGenesisIntegrationInit.sol";
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
+import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -202,22 +207,44 @@ contract ConfigureStaticsGenesisTest is Test {
         assertEq(targets[6], address(genesis));
     }
 
+    function testLegacyDiamondUpgradeCompletesUnifiedGovernanceHandoff() public {
+        _configureLegacyUpgrade();
+
+        bytes32 salt = keccak256("legacy unified Genesis handoff");
+        bytes32 operationId = ceremony.schedule(address(integration), config, salt);
+        assertTrue(timelock.isOperationPending(operationId));
+        vm.warp(block.timestamp + timelock.getMinDelay());
+        ceremony.execute(address(integration), config, salt);
+
+        assertEq(feeReceiver.activeDistributor(), address(integration));
+        assertEq(registry.activeConsumer(), address(integration));
+        assertEq(genesis.protocol(), address(integration));
+        assertTrue(launchDistributor.finalized());
+        assertTrue(integration.genesisIntegrationReady());
+    }
+
+    function testLegacyDiamondUpgradeCompletesSeparateGovernanceInitialization() public {
+        _configureLegacyUpgrade();
+        address genesisGovernance = makeAddr("legacyGenesisGovernance");
+        _transferGenesisGovernance(genesisGovernance);
+
+        bytes32 salt = keccak256("legacy separate Genesis initialization");
+        bytes32 operationId = ceremony.scheduleInitialization(address(integration), config, salt);
+        assertTrue(timelock.isOperationPending(operationId));
+        vm.warp(block.timestamp + timelock.getMinDelay());
+        ceremony.executeInitialization(address(integration), config, salt);
+
+        assertEq(integration.genesisCollection(), address(genesis));
+        assertFalse(integration.genesisRecoveryReady());
+        assertTrue(
+            IDiamondLoupe(address(integration)).facetAddress(IStaticsGenesisIntegration.registerGenesis.selector)
+                != address(0)
+        );
+    }
+
     function testSeparateGenesisGovernanceRequiresOrderedRoleHandoff() public {
         address genesisGovernance = makeAddr("genesisGovernance");
-        vm.startPrank(address(timelock));
-        feeReceiver.transferOwnership(genesisGovernance);
-        registry.transferOwnership(genesisGovernance);
-        vault.transferOwnership(genesisGovernance);
-        genesis.transferOwnership(genesisGovernance);
-        launchDistributor.transferOwnership(genesisGovernance);
-        vm.stopPrank();
-        vm.startPrank(genesisGovernance);
-        feeReceiver.acceptOwnership();
-        registry.acceptOwnership();
-        vault.acceptOwnership();
-        genesis.acceptOwnership();
-        launchDistributor.acceptOwnership();
-        vm.stopPrank();
+        _transferGenesisGovernance(genesisGovernance);
 
         bytes32 salt = keccak256("separate Genesis governance");
         bytes32 operationId = ceremony.scheduleInitialization(address(integration), config, salt);
@@ -263,6 +290,51 @@ contract ConfigureStaticsGenesisTest is Test {
 
         assertTrue(integration.genesisIntegrationReady());
         assertTrue(launchDistributor.finalized());
+    }
+
+    function _transferGenesisGovernance(address genesisGovernance) private {
+        vm.startPrank(address(timelock));
+        feeReceiver.transferOwnership(genesisGovernance);
+        registry.transferOwnership(genesisGovernance);
+        vault.transferOwnership(genesisGovernance);
+        genesis.transferOwnership(genesisGovernance);
+        launchDistributor.transferOwnership(genesisGovernance);
+        vm.stopPrank();
+        vm.startPrank(genesisGovernance);
+        feeReceiver.acceptOwnership();
+        registry.acceptOwnership();
+        vault.acceptOwnership();
+        genesis.acceptOwnership();
+        launchDistributor.acceptOwnership();
+        vm.stopPrank();
+    }
+
+    function _configureLegacyUpgrade() private {
+        PrepareStaticsGenesisUpgrade preparer = new PrepareStaticsGenesisUpgrade();
+        config.upgrade = preparer.deploy();
+        config.installUpgrade = true;
+
+        IDiamondCut.FacetCut[] memory planned = preparer.buildCut(config.upgrade);
+        uint256 additions;
+        for (uint256 i; i < planned.length; ++i) {
+            if (planned[i].action == IDiamondCut.FacetCutAction.Add) ++additions;
+        }
+        IDiamondCut.FacetCut[] memory removal = new IDiamondCut.FacetCut[](additions);
+        uint256 removalIndex;
+        for (uint256 i; i < planned.length; ++i) {
+            if (planned[i].action != IDiamondCut.FacetCutAction.Add) continue;
+            removal[removalIndex++] = IDiamondCut.FacetCut({
+                facetAddress: address(0),
+                action: IDiamondCut.FacetCutAction.Remove,
+                functionSelectors: planned[i].functionSelectors
+            });
+        }
+        vm.prank(address(timelock));
+        IDiamondCut(address(integration)).diamondCut(removal, address(0), "");
+        assertEq(
+            IDiamondLoupe(address(integration)).facetAddress(IStaticsGenesisIntegration.registerGenesis.selector),
+            address(0)
+        );
     }
 
     function _executeCalls(address caller, address[] memory targets, bytes[] memory payloads) private {
