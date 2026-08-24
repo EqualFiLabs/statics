@@ -366,10 +366,10 @@ releaseGenesis(maxCount)
 may release:
 
 ```text
-min(maxCount, vestedGenesis - releasedGenesis)
+min(maxCount, 50, vestedGenesis - releasedGenesis)
 ```
 
-sequential NFTs.
+sequential NFTs. A zero request is invalid, a request above 50 is clamped to 50, and a call when no Genesis is currently releasable reverts.
 
 The exact API may differ. The critical requirements are deterministic release order, no NFT beyond vested count may leave, eventual release of all 555 remains possible, and gas usage remains bounded per transaction.
 
@@ -385,9 +385,9 @@ It is the only treasury-asset disposition variable that governance may change.
 
 ## Governance authority
 
-Withdrawal-recipient changes use the same canonical Statics governance timelock used for the protocol's other governed actions.
+Withdrawal-recipient changes are guarded by an immutable `recipientAdmin` set to the configured `STATICS_GENESIS_GOVERNANCE` Safe or multisig at deployment.
 
-No separate vesting-specific timelock is introduced.
+No vesting-specific timelock, transferable ownership role, or later administrator replacement is introduced. The Safe may evolve its own signers and threshold without changing its address or the vesting contract.
 
 Governance may change `withdrawalRecipient`.
 
@@ -405,11 +405,8 @@ If Treasury Safe A is compromised:
 Treasury Safe A compromised
         |
         v
-canonical Statics governance
-proposes withdrawal-recipient change
-        |
-        v
-existing protocol timelock
+configured governance Safe/multisig
+executes withdrawal-recipient change
         |
         v
 withdrawalRecipient = Treasury Safe B
@@ -557,10 +554,11 @@ The vesting/bootstrap contract must account:
 
 residual
     -> Genesis Vault as unaccounted surplus
-       or the existing canonical residual destination
 ```
 
 Residual must not increase `tokenBacking`, treasury vesting principal, or Genesis vesting principal unless separately accounted through an ordinary protocol mechanism.
+
+Direct unsolicited transfers into the vesting contract are unsupported. They do not increase either vesting principal or any released counter and may remain permanently stranded.
 
 ## Bootstrap sequence
 
@@ -590,7 +588,7 @@ Conceptually:
    99.9M STATICS -> Genesis Vault.
 
 9. Any bounded Doppler residual is transferred
-   to its canonical surplus destination.
+   to the Genesis Vault as unaccounted surplus.
 
 10. Genesis Vault records exactly
     99.9M initial tokenBacking.
@@ -609,7 +607,7 @@ Conceptually:
 
 14. Bootstrap authority is permanently removed.
 
-15. Canonical governance timelock becomes the only
+15. The immutable configured governance Safe becomes the only
     authority capable of changing withdrawalRecipient.
 ```
 
@@ -704,7 +702,8 @@ TREASURY_GENESIS_BACKING = 99,900,000 STATICS
 TREASURY_STATICS_VESTING_PRINCIPAL = 100,100,000 STATICS
 TREASURY_VESTING_DURATION = 60 days
 withdrawal recipient
-governance / timelock authority
+immutable governance Safe / multisig authority
+maximum Genesis release batch = 50
 ```
 
 If any additional vesting parameter affects asset availability, it must also be included.
@@ -737,7 +736,7 @@ Implementation and verification must establish at minimum:
 20. No Genesis outside IDs 5001-5555 can be released by the vesting contract.
 21. Changing `withdrawalRecipient` cannot alter any vesting accounting.
 22. Changing `withdrawalRecipient` cannot make additional assets immediately vested.
-23. Only canonical governance/timelock may change `withdrawalRecipient`.
+23. Only the immutable configured governance Safe/multisig may change `withdrawalRecipient`.
 24. Governance cannot withdraw unvested STATICS.
 25. Governance cannot withdraw unvested Genesis.
 26. Governance cannot modify vesting duration.
@@ -884,13 +883,13 @@ request batch > releasable
 ```
 
 ```text
-timelock changes withdrawalRecipient
+governance Safe changes withdrawalRecipient
     -> future release goes to new recipient
     -> previously released accounting unchanged
 ```
 
 ```text
-non-timelock attempts recipient change
+non-admin attempts recipient change
     -> revert
 ```
 
@@ -941,13 +940,13 @@ Treasury Genesis after vest
 The launch deployer must be updated to:
 
 - replace `StaticsLaunchAllocationEscrow` with the treasury vesting/bootstrap contract;
-- bind the canonical governance timelock;
+- bind the immutable configured governance Safe/multisig as `recipientAdmin`;
 - bind the initial withdrawal recipient;
 - route the Doppler post-sale allocation to the vesting contract;
 - deploy Genesis with the 5,000 / 555 custody split;
 - seed the Genesis Vault with exactly 99.9M STATICS;
 - initialize Vault backing accordingly;
-- route Multicurve residual separately;
+- route Multicurve residual to the Genesis Vault as unaccounted surplus;
 - begin vesting only after successful bootstrap;
 - remove bootstrap authority permanently;
 - include all fixed treasury-reserve economics in `launchConfigHash`;
@@ -991,10 +990,12 @@ Update the relevant launch, Genesis, deployment, and treasury documentation to d
 100.1M liquid protocol STATICS allocation
 60-day immutable vesting
 60-day Genesis vesting
-timelocked withdrawal-recipient recovery
+Safe-guarded withdrawal-recipient recovery
 ```
 
 Public-facing language should distinguish `protocol allocation` from `immediately liquid treasury tokens` because the protocol does not receive 200M freely transferable STATICS at launch under this design.
+
+After all 100.1M STATICS and all 555 Genesis have been released, the vesting contract is economically inert. It remains onchain as a permanent record and has no destruction or decommissioning transition.
 
 ## Security rationale
 
@@ -1020,7 +1021,7 @@ the protocol receives:
     -> immutable 60-day vest
 ```
 
-The governance timelock retains recovery authority over the withdrawal destination but cannot accelerate the economic schedule.
+The immutable governance Safe retains recovery authority over the withdrawal destination but cannot accelerate the economic schedule.
 
 This allows the protocol to credibly state that the launch allocation cannot be dumped immediately through either liquid STATICS or protocol-owned Genesis NFTs, even if treasury operators or governance wished to do so.
 
@@ -1078,13 +1079,13 @@ An emergency withdrawal capable of extracting unvested assets is functionally an
 
 Rejected.
 
-A compromised treasury wallet would otherwise receive every future vested release. The destination may change through the canonical governance timelock without changing vesting economics.
+A compromised treasury wallet would otherwise receive every future vested release. The destination may change through the immutable configured governance Safe without changing vesting economics.
 
 ### Give the treasury wallet authority over the vesting contract
 
 Rejected.
 
-Compromise of the treasury should not compromise future vesting custody. Administrative authority belongs to canonical governance/timelock and is limited to withdrawal-recipient rotation.
+Compromise of the treasury should not compromise future vesting custody. Administrative authority belongs to the immutable configured governance Safe/multisig and is limited to withdrawal-recipient rotation.
 
 ### Allow arbitrary Genesis release order
 
