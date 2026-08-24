@@ -77,10 +77,13 @@ transfers. If governance later configures a validator, marketplaces must satisfy
 that policy; the vault has no bypass. After the full protocol is bound,
 `locked(tokenId)` reflects its Genesis-to-Position registry. A locked Genesis
 must be unlinked before either an ordinary transfer or vault redemption.
-The collection uses ERC-2309 consecutive construction for all 5,555 vault-held
-tokens and therefore does not emit 5,555 individual initial `Unlocked` events;
-integrators should read `locked(tokenId)`. Later link-state changes emit the
-standard ERC-5192 `Locked` or `Unlocked` event.
+The collection uses two ERC-2309 consecutive construction batches: IDs 1..5,000
+begin in the Genesis Vault, while treasury-reserve IDs 5,001..5,555 begin in the
+immutable treasury vesting contract. It therefore does not emit 5,555
+individual initial `Unlocked` events; integrators should read
+`locked(tokenId)`. The treasury IDs release in ascending order under the same
+60-day linear schedule as the treasury STATICS principal. Later link-state
+changes emit the standard ERC-5192 `Locked` or `Unlocked` event.
 
 Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in

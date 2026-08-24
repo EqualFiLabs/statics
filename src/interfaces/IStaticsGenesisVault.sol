@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 struct GenesisCreditConfig {
     address feeReceiver;
     address treasury;
@@ -148,6 +150,8 @@ interface IStaticsGenesisVault {
     function epochActive() external view returns (bool);
     function genesisEpochEnd() external view returns (uint256);
     function reserveETH() external view returns (uint256);
+    function statics() external view returns (IERC20);
+    function tokenBacking() external view returns (uint256);
     function reserveDenominator() external view returns (uint256);
     function vaultPrice() external view returns (uint256);
     function nativeAcquisitionFee() external view returns (uint256);

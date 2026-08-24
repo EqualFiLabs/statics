@@ -176,6 +176,7 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(registry),
             renderer,
             address(this),
@@ -184,11 +185,12 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
             "https://statics.finance/genesis/"
         );
         registry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
 
         handler = new GenesisVaultHandler(statics, genesis, vault);
         statics.transfer(address(handler), 800_000_000 ether);
-        statics.transfer(address(0xCAFE), 200_000_000 ether);
+        statics.transfer(address(0xCAFE), 100_100_000 ether);
         vm.deal(address(handler), 10_000 ether);
         vault.transferOwnership(address(handler));
         vm.prank(address(handler));

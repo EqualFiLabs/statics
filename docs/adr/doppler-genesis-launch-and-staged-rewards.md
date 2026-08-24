@@ -102,17 +102,17 @@ The genesis allocation is:
 | Doppler public inventory | 80% | 800,000,000 |
 | **Total** | **100%** | **1,000,000,000** |
 
-The treasury allocation will eventually be vested. Vesting mechanics and the
-vesting schedule are explicitly outside this implementation and require a
-later decision. The launch code must not claim that the unvested deployment is
-production-ready.
+The treasury allocation and protocol Genesis reserve are vested under the later
+accepted `protocol-treasury-genesis-reserve-and-launch-vesting.md` ADR. Its
+99,900,000-STATICS backing commitment, 100,100,000-STATICS vesting principal,
+555-Genesis reserve, and immutable 60-day schedule supersede the direct
+treasury-transfer and all-vault-custody details below.
 
-The Doppler Airlock creation path uses the launch governance factory and a
-one-use allocation escrow as its timelock recipient. The escrow transfers
-exactly 200,000,000 STATICS to treasury. Multicurve rounding dust returned by
-the initializer is sent to the Genesis Vault as non-liability surplus rather
-than increasing the treasury allocation. The no-op governance factory is
-unsuitable because it routes excess supply to a dead address.
+The Doppler Airlock creation path uses the launch governance factory and the
+immutable treasury vesting contract as its remainder recipient. Multicurve
+rounding dust is sent to the Genesis Vault as non-liability surplus. The no-op
+governance factory is unsuitable because it routes excess supply to a dead
+address.
 
 ## Genesis inventory and fixed claim
 

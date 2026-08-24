@@ -79,6 +79,7 @@ contract IncompatibleGenesisCreditProtocol {
 
 contract GenesisSecuredCreditTest is Test {
     uint256 private constant PRICE = 180_000 ether;
+    uint256 private constant INITIAL_BACKING = 99_900_000 ether;
     uint256 private constant MAX_PRINCIPAL = 171_000 ether;
     uint256 private constant RESIDUAL = 9_000 ether;
     uint256 private constant ORIGINATION_FEE = 0.003 ether;
@@ -129,6 +130,7 @@ contract GenesisSecuredCreditTest is Test {
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(activationRegistry),
             renderer,
             governance,
@@ -137,6 +139,7 @@ contract GenesisSecuredCreditTest is Test {
             "https://statics.finance/genesis/"
         );
         activationRegistry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
 
         distributor =
@@ -181,8 +184,8 @@ contract GenesisSecuredCreditTest is Test {
         assertTrue(state.active);
         assertTrue(genesis.locked(1));
         assertEq(statics.balanceOf(alice), 100_000 ether);
-        assertEq(vault.tokenBacking(), 80_000 ether);
-        assertEq(vault.requiredBacking(), 80_000 ether);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING + 80_000 ether);
+        assertEq(vault.requiredBacking(), INITIAL_BACKING + 80_000 ether);
         assertEq(vault.totalOutstandingGenesisCredit(), 100_000 ether);
         assertEq(vault.reserveETH(), reserveBefore + 0.0003 ether);
         assertEq(treasury.balance, treasuryBefore + 0.0027 ether);
@@ -217,8 +220,8 @@ contract GenesisSecuredCreditTest is Test {
         assertFalse(vault.creditActive(1));
         assertFalse(genesis.locked(1));
         assertEq(genesis.ownerOf(1), alice);
-        assertEq(vault.tokenBacking(), PRICE);
-        assertEq(vault.requiredBacking(), PRICE);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING + PRICE);
+        assertEq(vault.requiredBacking(), INITIAL_BACKING + PRICE);
         assertEq(vault.totalOutstandingGenesisCredit(), 0);
     }
 
@@ -394,8 +397,8 @@ contract GenesisSecuredCreditTest is Test {
         assertEq(activationRegistry.tierOf(1), 0);
         assertEq(distributor.effectiveWeight(1), 0);
         assertEq(statics.balanceOf(keeper) - keeperBefore, 1_800 ether);
-        assertEq(vault.tokenBacking(), PRICE);
-        assertEq(vault.requiredBacking(), PRICE);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING + PRICE);
+        assertEq(vault.requiredBacking(), INITIAL_BACKING + PRICE);
         assertEq(vault.totalOutstandingGenesisCredit(), 0);
         assertEq(vault.reserveETH(), reserveBeforeRecovery);
 
@@ -418,8 +421,8 @@ contract GenesisSecuredCreditTest is Test {
         vault.recoverGenesisCredit(1);
         assertEq(statics.balanceOf(alice) - aliceBefore, 170_000 ether);
         assertEq(statics.balanceOf(alice), MAX_PRINCIPAL);
-        assertEq(vault.tokenBacking(), 0);
-        assertEq(vault.requiredBacking(), 0);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING);
+        assertEq(vault.requiredBacking(), INITIAL_BACKING);
     }
 
     function testRecoveryStaysPendingUntilEligibleWeightReturns() public {
@@ -814,7 +817,7 @@ contract GenesisSecuredCreditTest is Test {
         );
         vault.openGenesisCredit{value: ORIGINATION_FEE + 1}(1, 1 ether);
         assertFalse(vault.creditActive(1));
-        assertEq(vault.tokenBacking(), PRICE);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING + PRICE);
     }
 
     function testTreasuryPaymentFailureRollsBackOrigination() public {
@@ -828,7 +831,7 @@ contract GenesisSecuredCreditTest is Test {
         vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
 
         assertFalse(vault.creditActive(1));
-        assertEq(vault.tokenBacking(), PRICE);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING + PRICE);
         assertEq(vault.reserveETH(), reserveBefore);
         assertEq(statics.balanceOf(alice), 0);
     }
@@ -856,10 +859,10 @@ contract GenesisSecuredCreditTest is Test {
         vm.prank(alice);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(1, principal);
         GenesisVaultAccounting memory openAccounting = vault.vaultAccounting();
-        assertEq(openAccounting.grossBacking, PRICE);
+        assertEq(openAccounting.grossBacking, INITIAL_BACKING + PRICE);
         assertEq(openAccounting.outstandingGenesisCredit, principal);
-        assertEq(openAccounting.requiredBacking, PRICE - principal);
-        assertEq(openAccounting.tokenBacking, PRICE - principal);
+        assertEq(openAccounting.requiredBacking, INITIAL_BACKING + PRICE - principal);
+        assertEq(openAccounting.tokenBacking, INITIAL_BACKING + PRICE - principal);
 
         statics.transfer(bob, principal);
         vm.startPrank(bob);
@@ -867,10 +870,10 @@ contract GenesisSecuredCreditTest is Test {
         vault.repayGenesisCredit(1);
         vm.stopPrank();
         GenesisVaultAccounting memory repaidAccounting = vault.vaultAccounting();
-        assertEq(repaidAccounting.grossBacking, PRICE);
+        assertEq(repaidAccounting.grossBacking, INITIAL_BACKING + PRICE);
         assertEq(repaidAccounting.outstandingGenesisCredit, 0);
-        assertEq(repaidAccounting.requiredBacking, PRICE);
-        assertEq(repaidAccounting.tokenBacking, PRICE);
+        assertEq(repaidAccounting.requiredBacking, INITIAL_BACKING + PRICE);
+        assertEq(repaidAccounting.tokenBacking, INITIAL_BACKING + PRICE);
     }
 
     function _buyGenesis(address buyer, uint256 genesisId) private {

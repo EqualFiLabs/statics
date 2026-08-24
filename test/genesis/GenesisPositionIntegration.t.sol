@@ -130,6 +130,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         vault = new StaticsGenesisVault(stakingAsset, address(this), address(this), epochEnd, creditConfig);
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(activationRegistry),
             new StaticsGenesisRenderer(new StaticsAvatarSVG()),
             address(this),
@@ -138,6 +139,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
             "https://statics.finance/genesis/"
         );
         activationRegistry.bindGenesisCollection(address(genesis));
+        stakingAsset.mint(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
         feeReceiver.bindReserveVault(address(vault));
 

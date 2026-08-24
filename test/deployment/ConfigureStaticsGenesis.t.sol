@@ -110,6 +110,7 @@ contract ConfigureStaticsGenesisTest is Test {
         vault = new StaticsGenesisVault(statics, address(this), address(timelock), epochEnd, creditConfig);
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(registry),
             new StaticsGenesisRenderer(new StaticsAvatarSVG()),
             address(timelock),
@@ -118,6 +119,7 @@ contract ConfigureStaticsGenesisTest is Test {
             "https://statics.finance/genesis/"
         );
         registry.bindGenesisCollection(address(genesis));
+        statics.mint(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
         vm.prank(address(timelock));
         feeReceiver.bindReserveVault(address(vault));

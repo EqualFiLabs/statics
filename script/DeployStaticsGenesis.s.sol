@@ -12,7 +12,7 @@ import {GenesisActivationRegistry} from "../src/genesis/GenesisActivationRegistr
 import {GenesisLaunchDistributor} from "../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
-import {StaticsLaunchAllocationEscrow} from "../src/genesis/StaticsLaunchAllocationEscrow.sol";
+import {StaticsTreasuryVesting} from "../src/genesis/StaticsTreasuryVesting.sol";
 import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
@@ -47,7 +47,7 @@ struct StaticsGenesisDeployment {
     address dopplerPoolInitializer;
     bytes32 poolId;
     address feeReceiver;
-    address allocationEscrow;
+    address treasuryVesting;
     address activationRegistry;
     address genesis;
     address genesisVault;
@@ -72,7 +72,14 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
 
     uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
     uint256 public constant DOPPLER_INVENTORY = 800_000_000 ether;
-    uint256 public constant TREASURY_ALLOCATION = 200_000_000 ether;
+    uint256 public constant PROTOCOL_ALLOCATION = 200_000_000 ether;
+    uint256 public constant TREASURY_GENESIS_COUNT = 555;
+    uint256 public constant TREASURY_GENESIS_FIRST_ID = 5_001;
+    uint256 public constant TREASURY_GENESIS_LAST_ID = 5_555;
+    uint256 public constant TREASURY_GENESIS_BACKING = 99_900_000 ether;
+    uint256 public constant TREASURY_STATICS_VESTING_PRINCIPAL = 100_100_000 ether;
+    uint256 public constant TREASURY_VESTING_DURATION = 60 days;
+    uint256 public constant TREASURY_GENESIS_RELEASE_BATCH = 50;
     uint256 public constant GENESIS_BACKING = 180_000 ether;
     uint256 public constant GENESIS_MAX_SUPPLY = 5_555;
     uint256 public constant POST_EPOCH_NATIVE_ACQUISITION_FEE = 0.003 ether;
@@ -167,18 +174,15 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     {
         _validate(config, initialOwner);
 
-        (StaticsFeeReceiver receiver, StaticsLaunchAllocationEscrow allocationEscrow) =
+        (StaticsFeeReceiver receiver, StaticsTreasuryVesting treasuryVesting) =
             _deployLaunchReceivers(config, initialOwner);
-        (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, allocationEscrow);
+        (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, treasuryVesting);
         receiver.bindMarket(statics, poolId);
 
-        GenesisCollection memory collection = _deployGenesisCollection(statics, receiver, config, initialOwner);
+        GenesisCollection memory collection =
+            _deployGenesisCollection(statics, receiver, treasuryVesting, config, initialOwner);
         collection.registry.bindGenesisCollection(address(collection.genesis));
-        collection.vault.finalizeGenesisCollection(address(collection.genesis));
-        allocationEscrow.release(IERC20(statics), address(collection.vault));
-        if (IERC20(statics).balanceOf(config.treasury) != TREASURY_ALLOCATION) {
-            revert AllocationMismatch(IERC20(statics).totalSupply(), IERC20(statics).balanceOf(config.treasury));
-        }
+        treasuryVesting.finalizeBootstrap(statics, address(collection.vault), address(collection.genesis));
 
         // Bind the reserve vault and configure the reserve share before the first distributor is
         // accepted so nonzero reserveShareBps can never harvest around an unbound reserve vault.
@@ -198,32 +202,31 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         collection.genesis.transferOwnership(config.governance);
         distributor.transferOwnership(config.governance);
 
-        deployment = StaticsGenesisDeployment({
-            statics: statics,
-            dopplerPoolInitializer: config.modules.poolInitializer,
-            poolId: poolId,
-            feeReceiver: address(receiver),
-            allocationEscrow: address(allocationEscrow),
-            activationRegistry: address(collection.registry),
-            genesis: address(collection.genesis),
-            genesisVault: address(collection.vault),
-            genesisDistributor: address(distributor),
-            genesisRenderer: address(collection.renderer),
-            avatarSVG: address(collection.avatar)
-        });
+        deployment.statics = statics;
+        deployment.dopplerPoolInitializer = config.modules.poolInitializer;
+        deployment.poolId = poolId;
+        deployment.feeReceiver = address(receiver);
+        deployment.treasuryVesting = address(treasuryVesting);
+        deployment.activationRegistry = address(collection.registry);
+        deployment.genesis = address(collection.genesis);
+        deployment.genesisVault = address(collection.vault);
+        deployment.genesisDistributor = address(distributor);
+        deployment.genesisRenderer = address(collection.renderer);
+        deployment.avatarSVG = address(collection.avatar);
     }
 
     function _deployLaunchReceivers(StaticsGenesisDeploymentConfig memory config, address initialOwner)
         private
-        returns (StaticsFeeReceiver receiver, StaticsLaunchAllocationEscrow allocationEscrow)
+        returns (StaticsFeeReceiver receiver, StaticsTreasuryVesting treasuryVesting)
     {
         receiver = new StaticsFeeReceiver(config.modules.poolInitializer, config.numeraire, initialOwner);
-        allocationEscrow = new StaticsLaunchAllocationEscrow(config.treasury, initialOwner);
+        treasuryVesting = new StaticsTreasuryVesting(initialOwner, config.governance, config.treasury);
     }
 
     function _deployGenesisCollection(
         address statics,
         StaticsFeeReceiver receiver,
+        StaticsTreasuryVesting treasuryVesting,
         StaticsGenesisDeploymentConfig memory config,
         address initialOwner
     ) private returns (GenesisCollection memory collection) {
@@ -237,12 +240,14 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             extensionFee: config.creditExtensionFee,
             recoveryCallerShareBps: config.recoveryCallerShareBps
         });
-        collection.vault =
-            new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.genesisEpochEnd, creditConfig);
+        collection.vault = new StaticsGenesisVault(
+            IERC20(statics), address(treasuryVesting), initialOwner, config.genesisEpochEnd, creditConfig
+        );
         collection.avatar = new StaticsAvatarSVG();
         collection.renderer = new StaticsGenesisRenderer(collection.avatar);
         collection.genesis = new StaticsGenesis(
             address(collection.vault),
+            address(treasuryVesting),
             address(collection.registry),
             collection.renderer,
             initialOwner,
@@ -296,9 +301,8 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             abi.encode(
                 STATICS_SUPPLY,
                 DOPPLER_INVENTORY,
-                TREASURY_ALLOCATION,
-                GENESIS_BACKING,
-                GENESIS_MAX_SUPPLY,
+                PROTOCOL_ALLOCATION,
+                _treasuryVestingHash(),
                 POST_EPOCH_NATIVE_ACQUISITION_FEE,
                 GENESIS_CREDIT_MAX_PRINCIPAL,
                 GENESIS_CREDIT_RECOVERY_RESIDUAL,
@@ -352,23 +356,39 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
+    function _treasuryVestingHash() private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                TREASURY_GENESIS_COUNT,
+                TREASURY_GENESIS_FIRST_ID,
+                TREASURY_GENESIS_LAST_ID,
+                GENESIS_BACKING,
+                GENESIS_MAX_SUPPLY,
+                TREASURY_GENESIS_BACKING,
+                TREASURY_STATICS_VESTING_PRINCIPAL,
+                TREASURY_VESTING_DURATION,
+                TREASURY_GENESIS_RELEASE_BATCH
+            )
+        );
+    }
+
     function _createDopplerMarket(
         StaticsGenesisDeploymentConfig memory config,
         StaticsFeeReceiver receiver,
-        StaticsLaunchAllocationEscrow allocationEscrow
+        StaticsTreasuryVesting treasuryVesting
     ) private returns (address statics, bytes32 poolId) {
         IDopplerAirlock airlock = IDopplerAirlock(config.modules.airlock);
-        DopplerLaunchTypes.CreateParams memory params = _dopplerCreateParams(config, receiver, allocationEscrow);
+        DopplerLaunchTypes.CreateParams memory params = _dopplerCreateParams(config, receiver, treasuryVesting);
 
-        statics = _launchThroughAirlock(airlock, params, allocationEscrow);
-        _assertPostLaunchSupply(statics, allocationEscrow);
+        statics = _launchThroughAirlock(airlock, params, treasuryVesting);
+        _assertPostLaunchSupply(statics, treasuryVesting);
         poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer, config.fee);
     }
 
     function _dopplerCreateParams(
         StaticsGenesisDeploymentConfig memory config,
         StaticsFeeReceiver receiver,
-        StaticsLaunchAllocationEscrow allocationEscrow
+        StaticsTreasuryVesting treasuryVesting
     ) private view returns (DopplerLaunchTypes.CreateParams memory params) {
         DopplerLaunchTypes.BeneficiaryData[] memory poolBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](2);
         address dopplerOwner = IDopplerAirlock(config.modules.airlock).owner();
@@ -403,7 +423,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             tokenFactory: config.modules.tokenFactory,
             tokenFactoryData: _tokenFactoryData(),
             governanceFactory: config.modules.governanceFactory,
-            governanceFactoryData: abi.encode(address(allocationEscrow)),
+            governanceFactoryData: abi.encode(address(treasuryVesting)),
             poolInitializer: config.modules.poolInitializer,
             poolInitializerData: poolData,
             liquidityMigrator: config.modules.noOpMigrator,
@@ -416,7 +436,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     function _launchThroughAirlock(
         IDopplerAirlock airlock,
         DopplerLaunchTypes.CreateParams memory params,
-        StaticsLaunchAllocationEscrow allocationEscrow
+        StaticsTreasuryVesting treasuryVesting
     ) private returns (address statics) {
         address pool;
         address governance;
@@ -424,20 +444,20 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         address migrationPool;
         (statics, pool, governance, timelock, migrationPool) = airlock.create(params);
         if (
-            pool != statics || governance != GOVERNANCE_DEAD || timelock != address(allocationEscrow)
+            pool != statics || governance != GOVERNANCE_DEAD || timelock != address(treasuryVesting)
                 || migrationPool != MIGRATION_DEAD
         ) {
             revert UnexpectedDopplerResult(pool, governance, timelock, migrationPool);
         }
     }
 
-    function _assertPostLaunchSupply(address statics, StaticsLaunchAllocationEscrow allocationEscrow) private view {
+    function _assertPostLaunchSupply(address statics, StaticsTreasuryVesting treasuryVesting) private view {
         uint256 totalSupply = IERC20(statics).totalSupply();
-        uint256 escrowBalance = IERC20(statics).balanceOf(address(allocationEscrow));
-        if (totalSupply != STATICS_SUPPLY || escrowBalance < TREASURY_ALLOCATION) {
-            revert AllocationMismatch(totalSupply, escrowBalance);
+        uint256 vestingBalance = IERC20(statics).balanceOf(address(treasuryVesting));
+        if (totalSupply != STATICS_SUPPLY || vestingBalance < PROTOCOL_ALLOCATION) {
+            revert AllocationMismatch(totalSupply, vestingBalance);
         }
-        uint256 residual = escrowBalance - TREASURY_ALLOCATION;
+        uint256 residual = vestingBalance - PROTOCOL_ALLOCATION;
         if (residual > MAX_MULTICURVE_RESIDUAL) {
             revert ExcessiveMulticurveResidual(residual, MAX_MULTICURVE_RESIDUAL);
         }
@@ -552,7 +572,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         console2.log("STATICS_DOPPLER_POOL_ID");
         console2.logBytes32(deployment.poolId);
         console2.log("STATICS_FEE_RECEIVER_ADDRESS", deployment.feeReceiver);
-        console2.log("STATICS_LAUNCH_ALLOCATION_ESCROW_ADDRESS", deployment.allocationEscrow);
+        console2.log("STATICS_TREASURY_VESTING_ADDRESS", deployment.treasuryVesting);
         console2.log("STATICS_GENESIS_ACTIVATION_REGISTRY_ADDRESS", deployment.activationRegistry);
         console2.log("STATICS_GENESIS_NFT_ADDRESS", deployment.genesis);
         console2.log("STATICS_GENESIS_VAULT_ADDRESS", deployment.genesisVault);

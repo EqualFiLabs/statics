@@ -189,6 +189,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(registry),
             renderer,
             address(this),
@@ -197,6 +198,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             "https://statics.finance/genesis/"
         );
         registry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
         distributor = new GenesisLaunchDistributor(receiver, genesis, registry, treasury, address(this), 7_500);
         receiver.proposeDistributor(address(distributor));

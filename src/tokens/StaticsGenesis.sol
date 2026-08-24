@@ -36,6 +36,7 @@ contract StaticsGenesis is
     bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
     address public immutable override vault;
+    address public immutable override treasuryVesting;
     address public immutable override activationRegistry;
     IStaticsGenesisRenderer public immutable renderer;
     address public override protocol;
@@ -46,6 +47,7 @@ contract StaticsGenesis is
     mapping(uint256 genesisId => bool reportedLocked) private reportedLockStatus;
 
     error InvalidVault();
+    error InvalidTreasuryVesting();
     error InvalidActivationRegistry();
     error InvalidRenderer();
     error InvalidProtocol();
@@ -69,6 +71,7 @@ contract StaticsGenesis is
 
     constructor(
         address vault_,
+        address treasuryVesting_,
         address activationRegistry_,
         IStaticsGenesisRenderer renderer_,
         address protocolBinder,
@@ -77,6 +80,7 @@ contract StaticsGenesis is
         string memory externalURLBase_
     ) ERC721("Statics Genesis", "STATICS-GENESIS") Ownable(protocolBinder) {
         if (vault_ == address(0)) revert InvalidVault();
+        if (treasuryVesting_ == address(0) || treasuryVesting_ == vault_) revert InvalidTreasuryVesting();
         if (activationRegistry_ == address(0) || activationRegistry_.code.length == 0) {
             revert InvalidActivationRegistry();
         }
@@ -85,6 +89,7 @@ contract StaticsGenesis is
         if (royaltyReceiver == address(0)) revert InvalidProtocol();
         if (bytes(contractURI_).length == 0 || bytes(externalURLBase_).length == 0) revert InvalidMetadataURI();
         vault = vault_;
+        treasuryVesting = treasuryVesting_;
         activationRegistry = activationRegistry_;
         renderer = renderer_;
         contractURI = contractURI_;
@@ -92,7 +97,7 @@ contract StaticsGenesis is
         _setDefaultRoyalty(royaltyReceiver, DEFAULT_ROYALTY_BPS);
         // Keep each ERC-2309 batch within OpenZeppelin's marketplace-friendly 5,000-token cap.
         _mintConsecutive(vault_, 5_000);
-        _mintConsecutive(vault_, uint96(COLLECTION_SIZE - 5_000));
+        _mintConsecutive(treasuryVesting_, uint96(COLLECTION_SIZE - 5_000));
     }
 
     function finalizeLaunch() external override {

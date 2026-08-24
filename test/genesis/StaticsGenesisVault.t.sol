@@ -143,6 +143,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
                 genesis = new StaticsGenesis(
                     address(vault),
+                    address(this),
                     address(activationRegistry),
                     renderer,
                     governance,
@@ -151,20 +152,22 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                     "https://statics.finance/genesis/"
                 );
                 activationRegistry.bindGenesisCollection(address(genesis));
+                statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
                 vault.finalizeGenesisCollection(address(genesis));
                 statics.transfer(treasury, TREASURY_ALLOCATION);
             }
 
-            function testFullCollectionStartsAsUnbackedVaultInventory() public view {
+            function testCollectionStartsWithBackedProtocolReserve() public view {
                 assertEq(statics.totalSupply(), 1_000_000_000 ether);
                 assertEq(statics.balanceOf(treasury), TREASURY_ALLOCATION);
-                assertEq(statics.balanceOf(address(this)), DOPPLER_INVENTORY);
-                assertEq(statics.balanceOf(address(vault)), 0);
+                assertEq(statics.balanceOf(address(this)), DOPPLER_INVENTORY - vault.INITIAL_TOKEN_BACKING());
+                assertEq(statics.balanceOf(address(vault)), vault.INITIAL_TOKEN_BACKING());
                 assertEq(genesis.mintedSupply(), 5_555);
-                assertEq(genesis.balanceOf(address(vault)), 5_555);
-                assertEq(vault.circulatingGenesis(), 0);
-                assertEq(vault.requiredBacking(), 0);
-                assertEq(vault.tokenBacking(), 0);
+                assertEq(genesis.balanceOf(address(vault)), 5_000);
+                assertEq(genesis.balanceOf(address(this)), 555);
+                assertEq(vault.circulatingGenesis(), 555);
+                assertEq(vault.requiredBacking(), vault.INITIAL_TOKEN_BACKING());
+                assertEq(vault.tokenBacking(), vault.INITIAL_TOKEN_BACKING());
                 assertEq(vault.reserveETH(), 0);
                 assertEq(vault.reserveDenominator(), 5_555);
                 assertEq(5_555 * PRICE, 999_900_000 ether);
@@ -189,7 +192,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 vm.prank(buyer);
                 vault.buyGenesis(1, buyer);
                 assertEq(genesis.ownerOf(1), buyer);
-                assertEq(vault.tokenBacking(), PRICE);
+                assertEq(vault.tokenBacking(), vault.INITIAL_TOKEN_BACKING() + PRICE);
                 assertEq(vault.reserveETH(), 10 ether); // unchanged by epoch acquisition
                 assertEq(buyer.balance, 100 ether); // no native consumed
             }
@@ -352,8 +355,8 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 assertEq(activationRegistry.multiplierBps(1), 12_000);
                 assertEq(statics.totalSupply(), supplyBefore); // no burn
                 assertEq(statics.balanceOf(treasury) - treasuryBefore, payCost); // 100% to treasury
-                assertEq(statics.balanceOf(address(vault)), PRICE); // backing untouched
-                assertEq(vault.requiredBacking(), PRICE);
+                assertEq(statics.balanceOf(address(vault)), vault.INITIAL_TOKEN_BACKING() + PRICE); // backing untouched
+                assertEq(vault.requiredBacking(), vault.INITIAL_TOKEN_BACKING() + PRICE);
             }
 
             function testOwnerChangingTransferResetsActivationButSelfTransferDoesNot() public {
@@ -376,10 +379,10 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 _donate(11_110 ether);
                 GenesisVaultAccounting memory accounting = vault.vaultAccounting();
                 assertEq(accounting.maximumSupply, 5_555);
-                assertEq(accounting.circulatingGenesis, 1);
-                assertEq(accounting.tokenBacking, PRICE);
-                assertEq(accounting.requiredBacking, PRICE);
-                assertEq(accounting.tokenCustody, PRICE);
+                assertEq(accounting.circulatingGenesis, 556);
+                assertEq(accounting.tokenBacking, vault.INITIAL_TOKEN_BACKING() + PRICE);
+                assertEq(accounting.requiredBacking, vault.INITIAL_TOKEN_BACKING() + PRICE);
+                assertEq(accounting.tokenCustody, vault.INITIAL_TOKEN_BACKING() + PRICE);
                 assertEq(accounting.reserveETH, 11_110 ether);
                 assertEq(accounting.nativeCustody, 11_110 ether);
                 assertEq(accounting.genesisEpochEnd, epochEnd);

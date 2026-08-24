@@ -22,8 +22,8 @@ selected by chain ID and reads:
 | Variable | Meaning |
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
-| `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor |
-| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis activation-payment recipient, and royalty receiver |
+| `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor, and immutable admin that may rotate the treasury vesting withdrawal recipient |
+| `STATICS_GENESIS_TREASURY` | Initial recipient of vested STATICS and Genesis, Genesis activation payments, and royalties |
 | `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical address and runtime code hash |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
 | `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
@@ -40,12 +40,15 @@ selected by chain ID and reads:
 
 The deployment:
 
-1. deploys a permanent fee receiver and one-use allocation escrow;
+1. deploys a permanent fee receiver and immutable treasury vesting contract;
 2. creates exactly 1,000,000,000 STATICS through `DopplerERC20V1`;
-3. passes exactly 800,000,000 STATICS to the four-curve Multicurve initializer;
-4. transfers exactly 200,000,000 STATICS to treasury and sends any returned
-   Multicurve rounding dust to the vault as non-liability surplus;
-5. mints all 5,555 Genesis NFTs to the vault with no initial backing liability;
+3. passes exactly 800,000,000 STATICS to the six-curve Multicurve initializer;
+4. commits 99,900,000 STATICS as backing for the protocol's 555 Genesis and
+   vests the remaining 100,100,000-STATICS protocol allocation linearly for 60
+   days; any bounded Multicurve rounding dust goes to the vault as
+   non-liability surplus;
+5. mints Genesis IDs 1..5,000 to the vault and IDs 5,001..5,555 to the treasury
+   vesting contract;
 6. deploys the vault with an immutable future `genesisEpochEnd`, binds the fee
    receiver's permanent reserve vault, and sets `reserveShareBps` before the
    launch distributor is accepted so a nonzero share can never route around an
@@ -53,7 +56,16 @@ The deployment:
 7. deploys and binds the permanent activation registry (with its immutable
    treasury) and temporary launch distributor; and
 8. proposes the configured governance address as the two-step owner of every
-   administered standalone contract.
+   administered standalone contract. The same governance address is the
+   vesting contract's immutable recipient admin.
+
+STATICS and Genesis vest linearly from the launch transaction timestamp. Anyone
+may call `releaseStatics()` or `releaseGenesis(maxCount)`; assets always go to
+the configured withdrawal recipient. Genesis release is ascending by token ID,
+requires a nonzero `maxCount`, and processes at most 50 NFTs per transaction.
+Governance may rotate only the withdrawal recipient. It cannot change the
+schedule, principal, token range, or release assets early. A recipient contract
+must implement ERC-721 receipt before Genesis can be released to it.
 
 Vault purchases require exactly 180,000 STATICS plus, after the immutable
 Genesis Epoch, a native reserve buy-in of `ceil(reserveETH / 5,554)` and the
@@ -115,14 +127,16 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
 
 Airlock creates the live pool in the deployment transaction; there is no later
 graduation or custom Statics initialization. Record the token, PoolKey/PoolId,
-all Doppler modules and source revisions, fee receiver, allocation escrow,
+all Doppler modules and source revisions, fee receiver, treasury vesting,
 activation registry, collection, vault, distributor, metadata contracts, fee
-schedule, and four curves. Before declaring deployment complete, the configured
+schedule, and six curves. Before declaring deployment complete, verify the
+vesting admin, recipient, start and end timestamps, principal custody, and
+Genesis ID endpoints. The configured
 governance must submit one batch containing `acceptOwnership()` to the fee
 receiver, activation registry, vault, Genesis collection, and launch
 distributor. Verify `owner() == governance` and `pendingOwner() == address(0)`
 on all five contracts; until then the broadcaster remains the active owner.
-The four-curve fixture and fee values are not approved production economics.
+The six-curve fixture and fee values are not approved production economics.
 
 ## Full Statics Genesis handoff
 

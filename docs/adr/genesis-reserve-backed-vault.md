@@ -8,7 +8,7 @@
 
 ## Context
 
-The accepted standalone Genesis architecture launches STATICS through Doppler Multicurve with a fixed 1,000,000,000-token supply and mints all 5,555 Genesis NFTs into `StaticsGenesisVault`.
+The accepted standalone Genesis architecture launches STATICS through Doppler Multicurve with a fixed 1,000,000,000-token supply. The later accepted `protocol-treasury-genesis-reserve-and-launch-vesting.md` ADR amends initial custody: IDs 1..5,000 mint to `StaticsGenesisVault`, while IDs 5,001..5,555 mint to immutable treasury vesting with 99,900,000 STATICS of initial Vault backing.
 
 The current Genesis Vault gives each circulating Genesis a fixed claim on 180,018 STATICS. Its native acquisition fee is treated as withdrawable treasury revenue. Doppler WETH revenue is distributed entirely through the active reward distributor. Genesis activation permanently burns STATICS.
 

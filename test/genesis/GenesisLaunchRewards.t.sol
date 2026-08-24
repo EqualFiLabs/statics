@@ -169,6 +169,7 @@ contract GenesisLaunchRewardsTest is Test {
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(activationRegistry),
             renderer,
             governance,
@@ -177,6 +178,7 @@ contract GenesisLaunchRewardsTest is Test {
             "https://statics.finance/genesis/"
         );
         activationRegistry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
 
         distributor =

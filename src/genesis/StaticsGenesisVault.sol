@@ -47,8 +47,11 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     uint16 public constant BPS = 10_000;
     uint16 public constant INITIAL_CREDIT_SERVICE_RESERVE_SHARE_BPS = 1_000;
     uint16 public constant INITIAL_CREDIT_SERVICE_TREASURY_SHARE_BPS = 9_000;
+    uint256 public constant INITIAL_TREASURY_GENESIS = 555;
+    uint256 public constant INITIAL_VAULT_INVENTORY = RESERVE_DENOMINATOR - INITIAL_TREASURY_GENESIS;
+    uint256 public constant INITIAL_TOKEN_BACKING = INITIAL_TREASURY_GENESIS * GENESIS_PRICE;
 
-    IERC20 public immutable statics;
+    IERC20 public immutable override statics;
     IStaticsFeeReceiver public immutable feeReceiver;
     address public immutable treasury;
     /// @notice Immutable Genesis Epoch end. Before this timestamp reserve pricing is dormant.
@@ -159,13 +162,16 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         if (collection == address(0) || collection.code.length == 0) revert InvalidGenesisCollection();
         IStaticsGenesis genesis_ = IStaticsGenesis(collection);
         if (
-            genesis_.vault() != address(this) || genesis_.mintedSupply() != genesis_.COLLECTION_SIZE()
-                || genesis_.balanceOf(address(this)) != genesis_.COLLECTION_SIZE()
+            genesis_.vault() != address(this) || genesis_.treasuryVesting() != msg.sender
+                || genesis_.mintedSupply() != genesis_.COLLECTION_SIZE()
+                || genesis_.balanceOf(address(this)) != INITIAL_VAULT_INVENTORY
+                || genesis_.balanceOf(msg.sender) != INITIAL_TREASURY_GENESIS
                 || genesis_.COLLECTION_SIZE() != RESERVE_DENOMINATOR
         ) revert InvalidGenesisCollection();
 
         genesis = genesis_;
         finalized = true;
+        tokenBacking = INITIAL_TOKEN_BACKING;
         delete bootstrapper;
         genesis_.finalizeLaunch();
         _enforceSolvency();

@@ -132,6 +132,7 @@ contract MockDistributor is IGenesisRecoveryDistributor {
             StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
             StaticsGenesis genesis = new StaticsGenesis(
                 address(vault),
+                address(this),
                 address(registry),
                 renderer,
                 governance,
@@ -140,6 +141,7 @@ contract MockDistributor is IGenesisRecoveryDistributor {
                 "https://statics.finance/genesis/"
             );
             registry.bindGenesisCollection(address(genesis));
+            statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
             vault.finalizeGenesisCollection(address(genesis));
 
             distributor = new MockDistributor(address(vault), address(statics));

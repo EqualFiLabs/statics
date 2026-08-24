@@ -1,6 +1,6 @@
 # ADR: Protocol Treasury Genesis Reserve and Immutable Launch Vesting
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-23
 - Scope: protocol-owned Genesis reserve, launch-allocation custody, immutable STATICS and Genesis vesting, initial Genesis Vault backing, treasury withdrawal-recipient recovery, launch configuration commitments, and formal-verification requirements
 - Extends: standalone Doppler Genesis launch architecture
