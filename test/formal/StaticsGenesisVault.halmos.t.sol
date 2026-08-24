@@ -54,14 +54,16 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
     }
 
     function check_acquisitionAndRedemptionPreserveSolvency(uint88 reserve, uint88 excessNative) public {
+        uint256 backingBefore = vault.tokenBacking();
+        uint256 circulatingBefore = vault.circulatingGenesis();
         _donate(reserve);
         vm.warp(vault.genesisEpochEnd());
         uint256 requiredNative = vault.reserveBuyIn() + vault.nativeAcquisitionFee();
         vm.deal(address(this), requiredNative + excessNative);
         vault.buyGenesis{value: requiredNative + excessNative}(1, alice);
         _assertSolvent();
-        assertEq(vault.tokenBacking(), vault.GENESIS_PRICE());
-        assertEq(vault.circulatingGenesis(), 1);
+        assertEq(vault.tokenBacking(), backingBefore + vault.GENESIS_PRICE());
+        assertEq(vault.circulatingGenesis(), circulatingBefore + 1);
 
         uint256 reserveBefore = vault.reserveETH();
         uint256 expectedPayout = reserveBefore / vault.RESERVE_DENOMINATOR();
@@ -70,20 +72,22 @@ contract StaticsGenesisVaultHalmosTest is SymTest, FormalGenesisEnvironment {
         vault.redeemGenesis(1, alice);
         vm.stopPrank();
         assertEq(vault.reserveETH(), reserveBefore - expectedPayout);
-        assertEq(vault.tokenBacking(), 0);
-        assertEq(vault.circulatingGenesis(), 0);
+        assertEq(vault.tokenBacking(), backingBefore);
+        assertEq(vault.circulatingGenesis(), circulatingBefore);
         _assertSolvent();
     }
 
     function check_directGenesisReturnOnlyOvercollateralizes(uint88 reserve) public {
+        uint256 backingBefore = vault.tokenBacking();
+        uint256 requiredBefore = vault.requiredBacking();
         _donate(reserve);
         _acquire(1, alice);
         assertEq(vault.tokenBacking(), vault.requiredBacking());
         vm.prank(alice);
         genesis.transferFrom(alice, address(vault), 1);
         assertEq(vault.circulatingGenesis(), 0);
-        assertEq(vault.requiredBacking(), 0);
-        assertEq(vault.tokenBacking(), vault.GENESIS_PRICE());
+        assertEq(vault.requiredBacking(), requiredBefore);
+        assertEq(vault.tokenBacking(), backingBefore + vault.GENESIS_PRICE());
         _assertSolvent();
     }
 

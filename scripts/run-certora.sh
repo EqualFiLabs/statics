@@ -22,10 +22,14 @@ case "$TARGET" in
   distributor)
     run_spec GenesisDistributor
     ;;
+  vesting)
+    run_spec TreasuryVesting
+    ;;
   all)
     run_spec GenesisVault
     run_spec FeeReceiver
     run_spec GenesisDistributor
+    run_spec TreasuryVesting
     ;;
   *)
     printf 'unknown Certora target: %s\n' "$TARGET" >&2

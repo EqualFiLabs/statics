@@ -12,13 +12,14 @@ run_halmos() {
   local root="$1"
   local contract="$2"
   local output="$3"
+  local loop_bound="${4:-${HALMOS_LOOP_BOUND:-8}}"
   FOUNDRY_PROFILE=formal "$HALMOS_BIN" \
     --root "$root" \
     --contract "$contract" \
     --solver-timeout-branching 0 \
     --solver-timeout-assertion 0 \
     --solver-threads "${HALMOS_THREADS:-4}" \
-    --loop "${HALMOS_LOOP_BOUND:-8}" \
+    --loop "$loop_bound" \
     --forge-build-out out-formal \
     --json-output "$HALMOS_JSON_DIR/$output.json"
 }
@@ -39,11 +40,11 @@ case "$TARGET" in
   genesis)
     run_halmos "$ROOT" StaticsGenesisHalmosTest genesis
     ;;
-  escrow)
-    run_halmos "$ROOT" StaticsLaunchAllocationEscrowHalmosTest escrow
+  vesting)
+    run_halmos "$ROOT" StaticsTreasuryVestingHalmosTest vesting 51
     ;;
   all)
-    for target in vault fees distributor genesis escrow; do
+    for target in vault fees distributor genesis vesting; do
       "$0" "$target"
     done
     "$0" geometry

@@ -7,6 +7,9 @@ import {Test} from "forge-std/Test.sol";
 import {GenesisActivationRegistry} from "../../../src/genesis/GenesisActivationRegistry.sol";
 import {StaticsFeeReceiver} from "../../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../../../src/genesis/StaticsGenesisVault.sol";
+import {StaticsTreasuryVesting} from "../../../src/genesis/StaticsTreasuryVesting.sol";
+import {IStaticsGenesisProtocol} from "../../../src/interfaces/IStaticsGenesis.sol";
+import {GenesisCreditConfig} from "../../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../../src/tokens/StaticsGenesis.sol";
@@ -97,6 +100,50 @@ contract FormalReserveVault {
     }
 }
 
+contract FormalCreditFeeReceiver {
+    address public immutable statics;
+
+    constructor(address statics_) {
+        statics = statics_;
+    }
+}
+
+contract FormalBootstrapVault {
+    IERC20 public immutable statics;
+    bool public finalized;
+
+    constructor(IERC20 statics_) {
+        statics = statics_;
+    }
+
+    function finalizeGenesisCollection(address) external {
+        finalized = true;
+    }
+}
+
+contract FormalBootstrapGenesis {
+    uint256 public constant COLLECTION_SIZE = 5_555;
+    uint256 public constant mintedSupply = COLLECTION_SIZE;
+    address public immutable vault;
+    address public immutable treasuryVesting;
+
+    constructor(address vault_, address treasuryVesting_) {
+        vault = vault_;
+        treasuryVesting = treasuryVesting_;
+    }
+
+    function balanceOf(address owner) external view returns (uint256) {
+        if (owner == vault) return 5_000;
+        if (owner == treasuryVesting) return 555;
+        return 0;
+    }
+
+    function ownerOf(uint256 genesisId) external view returns (address) {
+        require(genesisId >= 1 && genesisId <= COLLECTION_SIZE, "invalid Genesis");
+        return genesisId >= 5_001 ? treasuryVesting : vault;
+    }
+}
+
 contract FormalDistributorSink {
     function accept(StaticsFeeReceiver receiver) external {
         receiver.acceptDistributor();
@@ -117,6 +164,14 @@ contract FormalGenesisProtocol {
     function linkedPosition(uint256) external pure returns (uint256) {
         return 0;
     }
+
+    function genesisRecoveryCallback() external pure returns (bytes4 acknowledgement) {
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
+
+    function onGenesisRecovery(uint256, address) external pure returns (bytes4 acknowledgement) {
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
 }
 
 abstract contract FormalGenesisEnvironment is Test {
@@ -124,17 +179,29 @@ abstract contract FormalGenesisEnvironment is Test {
     GenesisActivationRegistry internal registry;
     StaticsGenesisVault internal vault;
     StaticsGenesis internal genesis;
+    StaticsTreasuryVesting internal vesting;
     address internal treasury;
 
     function _deployGenesis(uint256 epochEnd) internal {
         treasury = makeAddr("formalTreasury");
         statics = new FormalToken("Formal STATICS", "FSTATICS");
-        statics.mint(address(this), 1_000_000_000 ether);
+        vesting = new StaticsTreasuryVesting(address(this), address(this), treasury);
+        statics.mint(address(vesting), 200_000_000 ether);
+        statics.mint(makeAddr("formalDopplerInventory"), 800_000_000 ether);
         registry = new GenesisActivationRegistry(statics, address(this), address(this), treasury);
-        vault = new StaticsGenesisVault(statics, address(this), address(this), epochEnd);
+        FormalCreditFeeReceiver feeReceiver = new FormalCreditFeeReceiver(address(statics));
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(feeReceiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
+        vault = new StaticsGenesisVault(statics, address(vesting), address(this), epochEnd, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
+            address(vesting),
             address(registry),
             renderer,
             address(this),
@@ -143,7 +210,8 @@ abstract contract FormalGenesisEnvironment is Test {
             "https://statics.finance/genesis/"
         );
         registry.bindGenesisCollection(address(genesis));
-        vault.finalizeGenesisCollection(address(genesis));
+        vesting.finalizeBootstrap(address(statics), address(vault), address(genesis));
+        statics.mint(address(this), 2_000_000 ether);
         statics.approve(address(vault), type(uint256).max);
     }
 
