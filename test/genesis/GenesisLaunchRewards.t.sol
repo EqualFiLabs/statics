@@ -296,6 +296,106 @@ contract GenesisLaunchRewardsTest is Test {
         assertEq(distributor.claimOwnerRewards(address(statics), alice), 1_000 ether);
     }
 
+    function testClaimAllHarvestsBothAssetsAndIncludesPriorOwnerRewards() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(alice, 2);
+        _buyAndRegister(alice, 3);
+        _queue(3_000 ether, 300 ether);
+        distributor.accrue();
+
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 3);
+        _queue(3_000 ether, 300 ether);
+
+        uint256[] memory genesisIds = new uint256[](3);
+        genesisIds[0] = 1;
+        genesisIds[1] = 2;
+        genesisIds[2] = 1;
+        uint256 staticsBefore = statics.balanceOf(carol);
+        uint256 wethBefore = weth.balanceOf(carol);
+        vm.prank(alice);
+        (uint256 staticsAmount, uint256 wethAmount) = distributor.claimAllGenesisRewards(genesisIds, carol);
+
+        assertEq(staticsAmount, 5_000 ether);
+        assertEq(wethAmount, 500 ether);
+        assertEq(statics.balanceOf(carol) - staticsBefore, staticsAmount);
+        assertEq(weth.balanceOf(carol) - wethBefore, wethAmount);
+        assertEq(distributor.ownerClaimable(alice, address(statics)), 0);
+        assertEq(distributor.ownerClaimable(alice, address(weth)), 0);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 0);
+        assertEq(distributor.pendingGenesis(2, address(statics)), 0);
+        assertEq(distributor.pendingGenesis(3, address(statics)), 1_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(statics)), 6_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(weth)), 600 ether);
+    }
+
+    function testClaimAllWithNoGenesisIdsClaimsOnlyPriorOwnerRewards() public {
+        _buyAndRegister(alice, 1);
+        _queue(1_000 ether, 100 ether);
+        distributor.accrue();
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 1);
+
+        uint256[] memory noGenesisIds = new uint256[](0);
+        vm.prank(alice);
+        (uint256 staticsAmount, uint256 wethAmount) = distributor.claimAllGenesisRewards(noGenesisIds, alice);
+
+        assertEq(staticsAmount, 1_000 ether);
+        assertEq(wethAmount, 100 ether);
+    }
+
+    function testClaimAllRejectsMixedOwnershipBeforeHarvest() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(bob, 2);
+        _queue(2_000 ether, 200 ether);
+        uint256[] memory genesisIds = new uint256[](2);
+        genesisIds[0] = 1;
+        genesisIds[1] = 2;
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(GenesisLaunchDistributor.NotGenesisOwner.selector, 2, alice, bob));
+        distributor.claimAllGenesisRewards(genesisIds, alice);
+
+        assertEq(feeReceiver.cumulativeHarvested(address(statics)), 0);
+        assertEq(feeReceiver.cumulativeHarvested(address(weth)), 0);
+    }
+
+    function testClaimAllTreasuryRewardsHarvestsAndTransfersBothAssets() public {
+        vm.prank(governance);
+        distributor.setGenesisRewardShareBps(7_500);
+        _buyAndRegister(alice, 1);
+        _queue(1_000 ether, 100 ether);
+
+        vm.prank(treasury);
+        (uint256 staticsAmount, uint256 wethAmount) = distributor.claimAllGenesisTreasuryRewards(treasury);
+
+        assertEq(staticsAmount, 250 ether);
+        assertEq(wethAmount, 25 ether);
+        assertEq(statics.balanceOf(treasury), 250 ether);
+        assertEq(weth.balanceOf(treasury), 25 ether);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 750 ether);
+        assertEq(distributor.pendingGenesis(1, address(weth)), 75 ether);
+    }
+
+    function testPriorOwnerClaimLazilyHarvestsForCurrentGenesisOwners() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(bob, 2);
+        _queue(2_000 ether, 200 ether);
+        distributor.accrue();
+        vm.prank(alice);
+        genesis.transferFrom(alice, carol, 1);
+        _queue(2_000 ether, 200 ether);
+
+        vm.prank(alice);
+        assertEq(distributor.claimOwnerRewards(address(statics), alice), 1_000 ether);
+
+        assertEq(feeReceiver.cumulativeHarvested(address(statics)), 4_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(weth)), 400 ether);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 1_000 ether);
+        assertEq(distributor.pendingGenesis(2, address(statics)), 2_000 ether);
+        assertEq(distributor.ownerClaimable(alice, address(weth)), 100 ether);
+    }
+
     function testHarvestThenTransferCheckpointsAttributedFeesToPreviousOwner() public {
         _buyAndRegister(alice, 1);
         _buyAndRegister(bob, 2);

@@ -1120,6 +1120,8 @@ positionRewardMultiplierBps(positionId)
 pendingGenesisRewards(genesisId, asset)
 claimGenesisRewards(genesisId, asset, receiver)
 claimGenesisOwnerRewards(asset, receiver)
+claimAllGenesisRewards(genesisIds, receiver)
+claimAllGenesisTreasuryRewards(receiver)
 
 acceptGenesisDistributorRole()
 acceptGenesisConsumerRole()
@@ -1140,6 +1142,12 @@ genesisIntegrationReady()
 ```
 
 Exact ABI organization may differ, but these semantic capabilities are required.
+
+The permanent claim-all path mirrors the launch distributor: one lazy accrual,
+both reward assets, every caller-supplied and caller-owned Genesis NFT, and the
+caller's crystallized prior-owner credits. It performs no owner-wide NFT
+enumeration. Launch-era and permanent claims remain separate because their
+custody and historical liabilities are not migrated during handoff.
 
 ## Views
 

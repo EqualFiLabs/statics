@@ -63,6 +63,12 @@ interface IStaticsGenesisIntegration {
     function claimGenesisRewards(uint256 genesisId, address asset, address receiver) external returns (uint256 amount);
     function claimGenesisOwnerRewards(address asset, address receiver) external returns (uint256 amount);
     function claimGenesisTreasuryRewards(address asset, address receiver) external returns (uint256 amount);
+    function claimAllGenesisRewards(uint256[] calldata genesisIds, address receiver)
+        external
+        returns (uint256 staticsAmount, uint256 numeraireAmount);
+    function claimAllGenesisTreasuryRewards(address receiver)
+        external
+        returns (uint256 staticsAmount, uint256 numeraireAmount);
     function setGenesisRewardShareBps(uint16 newShareBps) external;
     function checkpointGenesisRecovery(uint256 genesisId, address expectedOwner) external;
     function accrueGenesisRecovery(uint256 amount) external;

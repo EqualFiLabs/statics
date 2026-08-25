@@ -281,17 +281,9 @@ contract GenesisLaunchDistributor is
         address tokenOwner = genesis.ownerOf(genesisId);
         if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
         if (!finalized) _accrue();
-        _settle(genesisId, asset);
-        GenesisAssetState storage state = _genesisAssetState[genesisId][asset];
-        amount = state.accrued;
+        amount = _consumeGenesisRewards(genesisId, asset, msg.sender, receiver);
         if (amount == 0) revert NoRewards();
-        state.accrued = 0;
-        RewardBook storage book = _rewardBooks[asset];
-        book.totalClaimable -= amount;
-        book.totalClaimed += amount;
-        accountedCustody[asset] -= amount;
-        IERC20(asset).pushExact(receiver, amount);
-        emit GenesisRewardsClaimed(genesisId, msg.sender, asset, receiver, amount);
+        _releaseGenesisRewards(asset, receiver, amount);
     }
 
     function claimOwnerRewards(address asset, address receiver)
@@ -302,16 +294,10 @@ contract GenesisLaunchDistributor is
     {
         _validateAsset(asset);
         _validateReceiver(receiver);
-        if (!finalized) _pullAttributed(asset);
-        amount = ownerClaimable[msg.sender][asset];
+        if (!finalized) _accrue();
+        amount = _consumeOwnerRewards(msg.sender, asset, receiver);
         if (amount == 0) revert NoRewards();
-        delete ownerClaimable[msg.sender][asset];
-        RewardBook storage book = _rewardBooks[asset];
-        book.totalClaimable -= amount;
-        book.totalClaimed += amount;
-        accountedCustody[asset] -= amount;
-        IERC20(asset).pushExact(receiver, amount);
-        emit OwnerRewardsClaimed(msg.sender, asset, receiver, amount);
+        _releaseGenesisRewards(asset, receiver, amount);
     }
 
     function claimTreasuryRewards(address asset, address receiver)
@@ -331,6 +317,52 @@ contract GenesisLaunchDistributor is
         accountedCustody[asset] -= amount;
         IERC20(asset).pushExact(receiver, amount);
         emit TreasuryRewardsClaimed(asset, receiver, amount);
+    }
+
+    function claimAllGenesisRewards(uint256[] calldata genesisIds, address receiver)
+        external
+        override
+        nonReentrant
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        _validateReceiver(receiver);
+        uint256 count = genesisIds.length;
+        for (uint256 i; i < count; ++i) {
+            uint256 genesisId = genesisIds[i];
+            address tokenOwner = genesis.ownerOf(genesisId);
+            if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
+        }
+        if (!finalized) _accrue();
+        for (uint256 i; i < count; ++i) {
+            uint256 genesisId = genesisIds[i];
+            staticsAmount += _consumeGenesisRewards(genesisId, statics, msg.sender, receiver);
+            numeraireAmount += _consumeGenesisRewards(genesisId, numeraire, msg.sender, receiver);
+        }
+        staticsAmount += _consumeOwnerRewards(msg.sender, statics, receiver);
+        numeraireAmount += _consumeOwnerRewards(msg.sender, numeraire, receiver);
+        if (staticsAmount == 0 && numeraireAmount == 0) revert NoRewards();
+        _releaseGenesisRewards(statics, receiver, staticsAmount);
+        _releaseGenesisRewards(numeraire, receiver, numeraireAmount);
+    }
+
+    function claimAllGenesisTreasuryRewards(address receiver)
+        external
+        override
+        nonReentrant
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        if (msg.sender != treasury) revert UnauthorizedTreasury(msg.sender);
+        _validateReceiver(receiver);
+        if (!finalized) _accrue();
+        RewardBook storage staticsBook = _rewardBooks[statics];
+        RewardBook storage numeraireBook = _rewardBooks[numeraire];
+        staticsAmount = staticsBook.treasuryClaimable;
+        numeraireAmount = numeraireBook.treasuryClaimable;
+        if (staticsAmount == 0 && numeraireAmount == 0) revert NoRewards();
+        staticsBook.treasuryClaimable = 0;
+        numeraireBook.treasuryClaimable = 0;
+        _releaseTreasuryRewards(statics, receiver, staticsAmount);
+        _releaseTreasuryRewards(numeraire, receiver, numeraireAmount);
     }
 
     function setGenesisRewardShareBps(uint16 newShareBps) external override onlyOwner nonReentrant {
@@ -447,6 +479,44 @@ contract GenesisLaunchDistributor is
         book.indexRay += scaled / totalWeight;
         book.indexRemainder = scaled % totalWeight;
         book.indexedAmount += amount;
+    }
+
+    function _consumeGenesisRewards(uint256 genesisId, address asset, address rewardOwner, address receiver)
+        private
+        returns (uint256 amount)
+    {
+        _settle(genesisId, asset);
+        GenesisAssetState storage state = _genesisAssetState[genesisId][asset];
+        amount = state.accrued;
+        if (amount == 0) return 0;
+        state.accrued = 0;
+        emit GenesisRewardsClaimed(genesisId, rewardOwner, asset, receiver, amount);
+    }
+
+    function _consumeOwnerRewards(address rewardOwner, address asset, address receiver)
+        private
+        returns (uint256 amount)
+    {
+        amount = ownerClaimable[rewardOwner][asset];
+        if (amount == 0) return 0;
+        delete ownerClaimable[rewardOwner][asset];
+        emit OwnerRewardsClaimed(rewardOwner, asset, receiver, amount);
+    }
+
+    function _releaseGenesisRewards(address asset, address receiver, uint256 amount) private {
+        if (amount == 0) return;
+        RewardBook storage book = _rewardBooks[asset];
+        book.totalClaimable -= amount;
+        book.totalClaimed += amount;
+        accountedCustody[asset] -= amount;
+        IERC20(asset).pushExact(receiver, amount);
+    }
+
+    function _releaseTreasuryRewards(address asset, address receiver, uint256 amount) private {
+        if (amount == 0) return;
+        accountedCustody[asset] -= amount;
+        IERC20(asset).pushExact(receiver, amount);
+        emit TreasuryRewardsClaimed(asset, receiver, amount);
     }
 
     function _settle(uint256 genesisId, address asset) private {

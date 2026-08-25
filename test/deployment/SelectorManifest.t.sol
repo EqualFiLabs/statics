@@ -26,7 +26,7 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 contract SelectorManifestTest is Test {
     function testGenesisNFTSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.genesisNFT();
-        bytes4[] memory expected = new bytes4[](32);
+        bytes4[] memory expected = new bytes4[](34);
         expected[0] = IStaticsGenesisIntegration.linkGenesis.selector;
         expected[1] = IStaticsGenesisIntegration.unlinkGenesis.selector;
         expected[2] = IStaticsGenesisIntegration.linkedGenesis.selector;
@@ -59,6 +59,8 @@ contract SelectorManifestTest is Test {
         expected[29] = IStaticsGenesisIntegration.genesisRewardShareBps.selector;
         expected[30] = IStaticsGenesisIntegration.genesisOwnerClaimable.selector;
         expected[31] = IStaticsGenesisIntegration.pendingGenesisRecovery.selector;
+        expected[32] = IStaticsGenesisIntegration.claimAllGenesisRewards.selector;
+        expected[33] = IStaticsGenesisIntegration.claimAllGenesisTreasuryRewards.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

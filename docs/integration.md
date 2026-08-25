@@ -110,6 +110,10 @@ settle to `genesisOwnerClaimable(previousOwner, asset)`, activation resets to
 Tier 0, and future direct weight follows the new owner. Use
 `claimGenesisRewards` for rewards still attached to a held token and
 `claimGenesisOwnerRewards` for crystallized prior-owner credits.
+`claimAllGenesisRewards` accepts the caller's currently owned Genesis IDs and
+claims both categories across STATICS and WETH in one transaction. It may be
+called with an empty ID list to claim only prior-owner credits. Every claim
+path lazily harvests before settlement while its distributor is active.
 
 `linkGenesis(positionId, genesisId)` requires the same actual owner for both
 NFTs; approvals do not authorize linking or unlinking. While linked,

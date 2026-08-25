@@ -33,6 +33,12 @@ interface IGenesisLaunchDistributor {
     function claimGenesis(uint256 genesisId, address asset, address receiver) external returns (uint256 amount);
     function claimOwnerRewards(address asset, address receiver) external returns (uint256 amount);
     function claimTreasuryRewards(address asset, address receiver) external returns (uint256 amount);
+    function claimAllGenesisRewards(uint256[] calldata genesisIds, address receiver)
+        external
+        returns (uint256 staticsAmount, uint256 numeraireAmount);
+    function claimAllGenesisTreasuryRewards(address receiver)
+        external
+        returns (uint256 staticsAmount, uint256 numeraireAmount);
     function acceptFeeReceiverRole() external;
     function acceptActivationConsumer() external;
     function setGenesisRewardShareBps(uint16 newShareBps) external;

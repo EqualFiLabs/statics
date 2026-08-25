@@ -149,6 +149,29 @@ contract GenesisLaunchRewardsHandler is Test {
         distributor.claimOwnerRewards(asset, owner);
     }
 
+    function claimAll(uint256 actorSeed) external {
+        address owner = actors[bound(actorSeed, 0, 2)];
+        uint256 count;
+        for (uint256 tokenId = 1; tokenId <= 3; ++tokenId) {
+            if (genesis.ownerOf(tokenId) == owner) ++count;
+        }
+        uint256[] memory genesisIds = new uint256[](count);
+        uint256 cursor;
+        bool hasRewards = distributor.ownerClaimable(owner, address(statics)) != 0
+            || distributor.ownerClaimable(owner, address(weth)) != 0;
+        for (uint256 tokenId = 1; tokenId <= 3; ++tokenId) {
+            if (genesis.ownerOf(tokenId) != owner) continue;
+            genesisIds[cursor++] = tokenId;
+            if (
+                distributor.pendingGenesis(tokenId, address(statics)) != 0
+                    || distributor.pendingGenesis(tokenId, address(weth)) != 0
+            ) hasRewards = true;
+        }
+        if (!hasRewards) return;
+        vm.prank(owner);
+        distributor.claimAllGenesisRewards(genesisIds, owner);
+    }
+
     function donate(uint96 amountSeed, bool toReceiver, bool donateStatics) external {
         uint256 amount = bound(uint256(amountSeed), 0, donateStatics ? 1_000 ether : 1 ether);
         MockDopplerToken token = donateStatics ? statics : weth;

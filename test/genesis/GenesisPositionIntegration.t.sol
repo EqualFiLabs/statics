@@ -345,6 +345,70 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(integration.claimGenesisOwnerRewards(address(stakingAsset), alice), 900 ether);
     }
 
+    function testClaimAllGenesisRewardsHarvestsBothAssetsAndPriorOwnerCredits() external {
+        _buyAndRegister(alice, 20);
+        _buyAndRegister(alice, 21);
+        _buyAndRegister(alice, 22);
+        _queueRewards(3_000 ether, 300 ether);
+        integration.accrueGenesisRewards();
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 22);
+        _queueRewards(3_000 ether, 300 ether);
+
+        uint256[] memory genesisIds = new uint256[](3);
+        genesisIds[0] = 20;
+        genesisIds[1] = 21;
+        genesisIds[2] = 20;
+        uint256 staticsBefore = stakingAsset.balanceOf(bob);
+        uint256 numeraireBefore = numeraire.balanceOf(bob);
+        vm.prank(alice);
+        (uint256 staticsAmount, uint256 numeraireAmount) = integration.claimAllGenesisRewards(genesisIds, bob);
+
+        assertEq(staticsAmount, 4_500 ether);
+        assertEq(numeraireAmount, 450 ether);
+        assertEq(stakingAsset.balanceOf(bob) - staticsBefore, staticsAmount);
+        assertEq(numeraire.balanceOf(bob) - numeraireBefore, numeraireAmount);
+        assertEq(integration.genesisOwnerClaimable(alice, address(stakingAsset)), 0);
+        assertEq(integration.genesisOwnerClaimable(alice, address(numeraire)), 0);
+        assertEq(integration.pendingGenesisRewards(20, address(stakingAsset)), 0);
+        assertEq(integration.pendingGenesisRewards(21, address(stakingAsset)), 0);
+        assertEq(integration.pendingGenesisRewards(22, address(stakingAsset)), 900 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(stakingAsset)), 6_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(numeraire)), 600 ether);
+    }
+
+    function testClaimAllGenesisTreasuryRewardsHarvestsBothAssets() external {
+        _buyAndRegister(alice, 23);
+        _queueRewards(1_000 ether, 100 ether);
+
+        vm.prank(treasury);
+        (uint256 staticsAmount, uint256 numeraireAmount) = integration.claimAllGenesisTreasuryRewards(treasury);
+
+        assertEq(staticsAmount, 100 ether);
+        assertEq(numeraireAmount, 10 ether);
+        assertEq(integration.pendingGenesisRewards(23, address(stakingAsset)), 900 ether);
+        assertEq(integration.pendingGenesisRewards(23, address(numeraire)), 90 ether);
+    }
+
+    function testGenesisOwnerClaimLazilyHarvestsBothAssets() external {
+        _buyAndRegister(alice, 24);
+        _buyAndRegister(bob, 25);
+        _queueRewards(2_000 ether, 200 ether);
+        integration.accrueGenesisRewards();
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 24);
+        _queueRewards(2_000 ether, 200 ether);
+
+        vm.prank(alice);
+        assertEq(integration.claimGenesisOwnerRewards(address(stakingAsset), alice), 900 ether);
+
+        assertEq(feeReceiver.cumulativeHarvested(address(stakingAsset)), 4_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(numeraire)), 400 ether);
+        assertEq(integration.pendingGenesisRewards(24, address(stakingAsset)), 900 ether);
+        assertEq(integration.pendingGenesisRewards(25, address(stakingAsset)), 1_800 ether);
+        assertEq(integration.genesisOwnerClaimable(alice, address(numeraire)), 90 ether);
+    }
+
     function testTransferResetsActivationWithoutResettingRegistration() external {
         _buyAndRegister(alice, 10);
         _activate(alice, 10, 4);

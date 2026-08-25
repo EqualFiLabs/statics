@@ -175,33 +175,19 @@ library LibGenesisRewards {
         address tokenOwner = IERC721(gs.genesis).ownerOf(genesisId);
         if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
         accrue();
-        settle(gs, genesisId, asset);
-        LibGenesisIntegration.GenesisAssetState storage state = gs.genesisAssetState[genesisId][asset];
-        amount = state.accrued;
+        amount = consumeGenesis(gs, genesisId, asset, msg.sender, receiver);
         if (amount == 0) revert NoRewards();
-        state.accrued = 0;
-        LibGenesisIntegration.RewardBook storage book = gs.rewardBooks[asset];
-        book.totalClaimable -= amount;
-        book.totalClaimed += amount;
-        gs.accountedCustody[asset] -= amount;
-        pushExact(asset, receiver, amount);
-        emit GenesisRewardsClaimed(genesisId, msg.sender, asset, receiver, amount);
+        releaseGenesis(gs, asset, receiver, amount);
     }
 
     function claimOwner(address asset, address receiver) internal returns (uint256 amount) {
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         validateAsset(gs, asset);
         validateReceiver(receiver);
-        pullAttributed(gs, asset);
-        amount = gs.ownerClaimable[msg.sender][asset];
+        accrue();
+        amount = consumeOwner(gs, msg.sender, asset, receiver);
         if (amount == 0) revert NoRewards();
-        delete gs.ownerClaimable[msg.sender][asset];
-        LibGenesisIntegration.RewardBook storage book = gs.rewardBooks[asset];
-        book.totalClaimable -= amount;
-        book.totalClaimed += amount;
-        gs.accountedCustody[asset] -= amount;
-        pushExact(asset, receiver, amount);
-        emit GenesisOwnerRewardsClaimed(msg.sender, asset, receiver, amount);
+        releaseGenesis(gs, asset, receiver, amount);
     }
 
     function claimTreasury(address asset, address receiver) internal returns (uint256 amount) {
@@ -216,6 +202,46 @@ library LibGenesisRewards {
         gs.accountedCustody[asset] -= amount;
         pushExact(asset, receiver, amount);
         emit GenesisTreasuryRewardsClaimed(asset, receiver, amount);
+    }
+
+    function claimAllGenesis(uint256[] calldata genesisIds, address receiver)
+        internal
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
+        validateReceiver(receiver);
+        uint256 count = genesisIds.length;
+        for (uint256 i; i < count; ++i) {
+            uint256 genesisId = genesisIds[i];
+            address tokenOwner = IERC721(gs.genesis).ownerOf(genesisId);
+            if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
+        }
+        accrue();
+        for (uint256 i; i < count; ++i) {
+            uint256 genesisId = genesisIds[i];
+            staticsAmount += consumeGenesis(gs, genesisId, gs.statics, msg.sender, receiver);
+            numeraireAmount += consumeGenesis(gs, genesisId, gs.numeraire, msg.sender, receiver);
+        }
+        staticsAmount += consumeOwner(gs, msg.sender, gs.statics, receiver);
+        numeraireAmount += consumeOwner(gs, msg.sender, gs.numeraire, receiver);
+        if (staticsAmount == 0 && numeraireAmount == 0) revert NoRewards();
+        releaseGenesis(gs, gs.statics, receiver, staticsAmount);
+        releaseGenesis(gs, gs.numeraire, receiver, numeraireAmount);
+    }
+
+    function claimAllTreasury(address receiver) internal returns (uint256 staticsAmount, uint256 numeraireAmount) {
+        LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
+        validateReceiver(receiver);
+        accrue();
+        LibGenesisIntegration.RewardBook storage staticsBook = gs.rewardBooks[gs.statics];
+        LibGenesisIntegration.RewardBook storage numeraireBook = gs.rewardBooks[gs.numeraire];
+        staticsAmount = staticsBook.treasuryClaimable;
+        numeraireAmount = numeraireBook.treasuryClaimable;
+        if (staticsAmount == 0 && numeraireAmount == 0) revert NoRewards();
+        staticsBook.treasuryClaimable = 0;
+        numeraireBook.treasuryClaimable = 0;
+        releaseTreasury(gs, gs.statics, receiver, staticsAmount);
+        releaseTreasury(gs, gs.numeraire, receiver, numeraireAmount);
     }
 
     function setRewardShare(uint16 newShareBps) internal {
@@ -301,6 +327,59 @@ library LibGenesisRewards {
         book.indexRay += scaled / gs.totalWeight;
         book.indexRemainder = scaled % gs.totalWeight;
         book.indexedAmount += amount;
+    }
+
+    function consumeGenesis(
+        LibGenesisIntegration.GenesisStorage storage gs,
+        uint256 genesisId,
+        address asset,
+        address rewardOwner,
+        address receiver
+    ) private returns (uint256 amount) {
+        settle(gs, genesisId, asset);
+        LibGenesisIntegration.GenesisAssetState storage state = gs.genesisAssetState[genesisId][asset];
+        amount = state.accrued;
+        if (amount == 0) return 0;
+        state.accrued = 0;
+        emit GenesisRewardsClaimed(genesisId, rewardOwner, asset, receiver, amount);
+    }
+
+    function consumeOwner(
+        LibGenesisIntegration.GenesisStorage storage gs,
+        address rewardOwner,
+        address asset,
+        address receiver
+    ) private returns (uint256 amount) {
+        amount = gs.ownerClaimable[rewardOwner][asset];
+        if (amount == 0) return 0;
+        delete gs.ownerClaimable[rewardOwner][asset];
+        emit GenesisOwnerRewardsClaimed(rewardOwner, asset, receiver, amount);
+    }
+
+    function releaseGenesis(
+        LibGenesisIntegration.GenesisStorage storage gs,
+        address asset,
+        address receiver,
+        uint256 amount
+    ) private {
+        if (amount == 0) return;
+        LibGenesisIntegration.RewardBook storage book = gs.rewardBooks[asset];
+        book.totalClaimable -= amount;
+        book.totalClaimed += amount;
+        gs.accountedCustody[asset] -= amount;
+        pushExact(asset, receiver, amount);
+    }
+
+    function releaseTreasury(
+        LibGenesisIntegration.GenesisStorage storage gs,
+        address asset,
+        address receiver,
+        uint256 amount
+    ) private {
+        if (amount == 0) return;
+        gs.accountedCustody[asset] -= amount;
+        pushExact(asset, receiver, amount);
+        emit GenesisTreasuryRewardsClaimed(asset, receiver, amount);
     }
 
     function settle(LibGenesisIntegration.GenesisStorage storage gs, uint256 genesisId, address asset) internal {

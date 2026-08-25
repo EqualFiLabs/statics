@@ -191,6 +191,24 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         return LibGenesisRewards.claimTreasury(asset, receiver);
     }
 
+    function claimAllGenesisRewards(uint256[] calldata genesisIds, address receiver)
+        external
+        nonReentrant
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        return LibGenesisRewards.claimAllGenesis(genesisIds, receiver);
+    }
+
+    function claimAllGenesisTreasuryRewards(address receiver)
+        external
+        nonReentrant
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        address treasury = LibBasket.basketStorage().treasury;
+        if (msg.sender != treasury) revert UnauthorizedTreasury(msg.sender);
+        return LibGenesisRewards.claimAllTreasury(receiver);
+    }
+
     function setGenesisRewardShareBps(uint16 newShareBps) external nonReentrant {
         LibDiamond.enforceIsContractOwner();
         LibGenesisRewards.setRewardShare(newShareBps);

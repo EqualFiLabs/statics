@@ -196,7 +196,7 @@ library StaticsSelectors {
     }
 
     function genesisNFT() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](32);
+        selectors = new bytes4[](34);
         selectors[0] = IStaticsGenesisIntegration.linkGenesis.selector;
         selectors[1] = IStaticsGenesisIntegration.unlinkGenesis.selector;
         selectors[2] = IStaticsGenesisIntegration.linkedGenesis.selector;
@@ -229,6 +229,8 @@ library StaticsSelectors {
         selectors[29] = IStaticsGenesisIntegration.genesisRewardShareBps.selector;
         selectors[30] = IStaticsGenesisIntegration.genesisOwnerClaimable.selector;
         selectors[31] = IStaticsGenesisIntegration.pendingGenesisRecovery.selector;
+        selectors[32] = IStaticsGenesisIntegration.claimAllGenesisRewards.selector;
+        selectors[33] = IStaticsGenesisIntegration.claimAllGenesisTreasuryRewards.selector;
     }
 
     function basketAdmin() internal pure returns (bytes4[] memory selectors) {

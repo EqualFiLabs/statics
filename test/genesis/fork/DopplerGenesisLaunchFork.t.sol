@@ -533,6 +533,16 @@ contract DopplerGenesisLaunchForkTest is Test {
         assertEq(registry.tierOf(1), 0);
         assertEq(distributor.effectiveWeight(1), 10_000);
         assertGe(distributor.ownerClaimable(owner, rewardAsset), previousOwnerPending);
+
+        address pairedRewardAsset = distributor.numeraire();
+        uint256 staticsBefore = IERC20(rewardAsset).balanceOf(owner);
+        uint256 pairedBefore = IERC20(pairedRewardAsset).balanceOf(owner);
+        uint256[] memory noGenesisIds = new uint256[](0);
+        vm.prank(owner);
+        (uint256 claimedStatics, uint256 claimedPaired) = distributor.claimAllGenesisRewards(noGenesisIds, owner);
+        assertGe(claimedStatics, previousOwnerPending);
+        assertEq(IERC20(rewardAsset).balanceOf(owner) - staticsBefore, claimedStatics);
+        assertEq(IERC20(pairedRewardAsset).balanceOf(owner) - pairedBefore, claimedPaired);
     }
 
     function _expireAndRecover(

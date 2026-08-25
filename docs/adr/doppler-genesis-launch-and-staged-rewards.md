@@ -455,6 +455,14 @@ pull-based claim for the previous owner. A reverting reward token or recipient
 cannot block NFT transfers because settlement writes liabilities and performs
 no reward-token transfer.
 
+Every claim entrypoint is also a lazy accrual trigger while the launch
+distributor is active. A holder may claim all STATICS and WETH rewards for a
+caller-supplied set of Genesis NFTs together with any crystallized prior-owner
+credits. The batch harvests once, requires the caller to own every supplied
+Genesis, updates both reward books before external transfers, and sends each
+reward asset at most once. Treasury has an equivalent two-asset claim. The
+single-NFT and single-asset claim paths remain available.
+
 The receiver maintains a monotonic per-distributor attribution total. If a
 permissionless caller has harvested fees into the receiver but the launch
 distributor has not pulled the tokens yet, an owner-changing transfer advances
