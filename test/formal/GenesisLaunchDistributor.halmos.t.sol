@@ -105,9 +105,9 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         assertLe(book.totalClaimed, book.indexedAmount);
     }
 
-    function check_batchClaimConservesBothRewardAssets(uint96 rawStaticsAmount, uint96 rawWethAmount) public {
-        uint256 staticsAmount = uint256(rawStaticsAmount) % 1_000_000 ether + 1 ether;
-        uint256 wethAmount = uint256(rawWethAmount) % 1_000 ether + 1 ether;
+    function check_batchClaimConservesBothRewardAssets() public {
+        uint256 staticsAmount = 3 ether + 17;
+        uint256 wethAmount = 2 ether + 11;
         _queue(staticsAmount, wethAmount);
         uint256[] memory genesisIds = new uint256[](2);
         genesisIds[0] = 1;
@@ -118,6 +118,8 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         vm.prank(alice);
         (uint256 claimedStatics, uint256 claimedWeth) = distributor.claimAllGenesisRewards(genesisIds, alice);
 
+        assertEq(claimedStatics, Math.mulDiv(staticsAmount, GENESIS_SHARE_BPS, 10_000));
+        assertEq(claimedWeth, Math.mulDiv(wethAmount, GENESIS_SHARE_BPS, 10_000));
         assertEq(statics.balanceOf(alice) - staticsBefore, claimedStatics);
         assertEq(weth.balanceOf(alice) - wethBefore, claimedWeth);
         IGenesisLaunchDistributor.RewardBookView memory staticsBook = distributor.rewardBook(address(statics));

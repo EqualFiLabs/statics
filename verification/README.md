@@ -42,6 +42,7 @@ the symbolic checks.
 | Share changes crystallize pending fees under the old share | `StaticsFeeReceiver` | Halmos plus Foundry fuzz | Pass; zero and approved 50% symbolic boundaries plus general regression |
 | Distributor claimable balances never exceed cumulative attribution | `StaticsFeeReceiver` | Certora invariant | Pass |
 | Claimed, claimable, treasury, indexed, and remainder accounting cannot create rewards | `GenesisLaunchDistributor` | Halmos | Pass |
+| A dual-asset batch claim consumes each Genesis reward once even when its ID is duplicated, pays both exact amounts, and leaves no pending reward | `GenesisLaunchDistributor` | Halmos plus Foundry invariant/regression | Pass |
 | Reward assets remain nonzero and distinct, the governed Genesis share remains bounded, and crystallized rewards equal claimable plus claimed | `GenesisLaunchDistributor` | Certora invariants | Pass |
 | Secured-credit recovery cannot alter numeraire accounting; surplus recovery cannot alter accounted reward quantities | `GenesisLaunchDistributor` | Certora rules | Pass |
 | Transfer checkpoints assign pre-transfer rewards to the old owner and reset activation | `GenesisLaunchDistributor` | Halmos plus Foundry regression | Pass |
@@ -148,7 +149,7 @@ result.
 - Post-epoch division is verified at full `uint256` width in CVL. The adjacent
   Foundry regression decomposes reserves into a `uint64` quotient and bounded
   remainder, covering reserves above 100,000 native ETH.
-- The transfer, activation, claim, and two-Genesis transition proofs use
+- The transfer, activation, single/batch claim, and two-Genesis transition proofs use
   non-round representative rewards to keep symbolic execution tractable. The
   global two-asset conservation proof remains symbolic over `uint96` reward
   amounts. Exact post-transfer ownership has a normal Foundry regression, and
