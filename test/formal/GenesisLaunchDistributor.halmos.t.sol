@@ -105,6 +105,29 @@ contract GenesisLaunchDistributorHalmosTest is SymTest, FormalGenesisEnvironment
         assertLe(book.totalClaimed, book.indexedAmount);
     }
 
+    function check_batchClaimConservesBothRewardAssets(uint96 rawStaticsAmount, uint96 rawWethAmount) public {
+        uint256 staticsAmount = uint256(rawStaticsAmount) % 1_000_000 ether + 1 ether;
+        uint256 wethAmount = uint256(rawWethAmount) % 1_000 ether + 1 ether;
+        _queue(staticsAmount, wethAmount);
+        uint256[] memory genesisIds = new uint256[](2);
+        genesisIds[0] = 1;
+        genesisIds[1] = 1;
+        uint256 staticsBefore = statics.balanceOf(alice);
+        uint256 wethBefore = weth.balanceOf(alice);
+
+        vm.prank(alice);
+        (uint256 claimedStatics, uint256 claimedWeth) = distributor.claimAllGenesisRewards(genesisIds, alice);
+
+        assertEq(statics.balanceOf(alice) - staticsBefore, claimedStatics);
+        assertEq(weth.balanceOf(alice) - wethBefore, claimedWeth);
+        IGenesisLaunchDistributor.RewardBookView memory staticsBook = distributor.rewardBook(address(statics));
+        IGenesisLaunchDistributor.RewardBookView memory wethBook = distributor.rewardBook(address(weth));
+        assertLe(staticsBook.totalClaimed, staticsBook.indexedAmount);
+        assertLe(wethBook.totalClaimed, wethBook.indexedAmount);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 0);
+        assertEq(distributor.pendingGenesis(1, address(weth)), 0);
+    }
+
     function check_twoGenesisRemaindersNeverCreateRewards() public {
         uint256 reward = 1 ether + 5;
         statics.mint(bob, vault.GENESIS_PRICE());
