@@ -31,7 +31,7 @@
     },
     "reentrancy-no-eth": {
       "classification": "INTENTIONAL",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition."
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers."
     },
     "uninitialized-local": {
       "classification": "FALSE POSITIVE",
@@ -43,7 +43,7 @@
     },
     "calls-loop": {
       "classification": "INTENTIONAL",
-      "rationale": "Permissionless Genesis vesting releases are sequential and capped to 50 NFTs per call, allowing progress without an unbounded loop."
+      "rationale": "Genesis vesting is capped to 50 NFTs; batch claims iterate caller-supplied calldata, query only the immutable Genesis contract, and transfer after the loop, so callers bound their own gas without blocking shared progress."
     },
     "missing-zero-check": {
       "classification": "FALSE POSITIVE",
@@ -92,6 +92,10 @@
     "unused-state": {
       "classification": "INTENTIONAL",
       "rationale": "The flagged fields belong to deployment result bundles, immutable configuration surfaces, or inherited compatibility state retained for the composed launch ceremony."
+    },
+    "too-many-digits": {
+      "classification": "INTENTIONAL",
+      "rationale": "The reported literal is a full 32-byte expected creation-code hash whose exact hexadecimal value is required for deployment attestation."
     }
   }
 }

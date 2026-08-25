@@ -2,15 +2,15 @@
   "schema": 1,
   "counts": {
     "High": 13,
-    "Medium": 54,
-    "Low": 58,
-    "Informational": 22
+    "Medium": 56,
+    "Low": 62,
+    "Informational": 23
   },
   "raw_counts": {
     "High": 13,
-    "Medium": 54,
-    "Low": 58,
-    "Informational": 43
+    "Medium": 56,
+    "Low": 62,
+    "Informational": 44
   },
   "findings": [
     {
@@ -89,7 +89,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor._pullAttributed(address) (src/genesis/GenesisLaunchDistributor.sol#387-398):",
+      "summary": "Reentrancy in GenesisLaunchDistributor._pullAttributed(address) (src/genesis/GenesisLaunchDistributor.sol#428-439):",
       "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers.",
       "occurrences": 1
     },
@@ -121,7 +121,7 @@
       "paths": [
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.pullAttributed(LibGenesisIntegration.GenesisStorage,address) (src/libraries/LibGenesisRewards.sol#244-259):",
+      "summary": "Reentrancy in LibGenesisRewards.pullAttributed(LibGenesisIntegration.GenesisStorage,address) (src/libraries/LibGenesisRewards.sol#270-285):",
       "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers.",
       "occurrences": 1
     },
@@ -271,6 +271,22 @@
       "occurrences": 1
     },
     {
+      "id": "39beeb6920ab459d3db3d78a",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#522-551) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
       "id": "3d3152bf2208be7c22d474d2",
       "impact": "Medium",
       "confidence": "High",
@@ -303,22 +319,6 @@
       "occurrences": 1
     },
     {
-      "id": "39beeb6920ab459d3db3d78a",
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "deployment-handoff"
-      ],
-      "paths": [
-        "script/DeployStaticsGenesis.s.sol"
-      ],
-      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#495-523) uses a dangerous strict equality:",
-      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
-      "occurrences": 1
-    },
-    {
       "id": "4f20415d4a69e6915cc21b82",
       "impact": "Medium",
       "confidence": "High",
@@ -330,7 +330,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses a dangerous strict equality:",
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#522-551) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -426,7 +426,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis._requireContract(address) (script/DeployStaticsGenesis.s.sol#556-558) uses a dangerous strict equality:",
+      "summary": "DeployStaticsGenesis._requireContract(address) (script/DeployStaticsGenesis.s.sol#668-670) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -442,7 +442,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses a dangerous strict equality:",
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#522-551) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -490,24 +490,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.claimTreasuryRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#308-325):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
-      "occurrences": 1
-    },
-    {
-      "id": "278296b97d2fdf9dce0d5d88",
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/GenesisLaunchDistributor.sol"
-      ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.claimOwnerRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#288-306):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimTreasuryRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#303-320):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -522,8 +506,24 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.setGenesisRewardShareBps(uint16) (src/genesis/GenesisLaunchDistributor.sol#327-334):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.setGenesisRewardShareBps(uint16) (src/genesis/GenesisLaunchDistributor.sol#368-375):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "4e3498bec6e9c2e2cdc52ebc",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimAllGenesisTreasuryRewards(address) (src/genesis/GenesisLaunchDistributor.sol#348-366):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -539,7 +539,7 @@
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -554,8 +554,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.finalizeLaunchRewards() (src/genesis/GenesisLaunchDistributor.sol#336-343):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.finalizeLaunchRewards() (src/genesis/GenesisLaunchDistributor.sol#377-384):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -570,8 +570,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#215-226):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#224-235):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -587,11 +587,11 @@
         "src/genesis/GenesisActivationRegistry.sol"
       ],
       "summary": "Reentrancy in GenesisActivationRegistry.onGenesisTransfer(uint256,address,address) (src/genesis/GenesisActivationRegistry.sol#124-136):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
-      "id": "780ee4adf4a6dfbbd3afeda5",
+      "id": "8a6f242fc80bbf19c34af0b3",
       "impact": "Medium",
       "confidence": "Medium",
       "check": "reentrancy-no-eth",
@@ -602,8 +602,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#264-286):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#273-287):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -619,7 +619,23 @@
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "Reentrancy in StaticsGenesisVault.recoverGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#306-333):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "a3829d8a4960126791f458da",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimOwnerRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#289-301):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -634,8 +650,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#157-194):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#166-203):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -650,8 +666,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#133-150):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#142-159):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -666,8 +682,8 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#381-385):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "summary": "Reentrancy in GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#422-426):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -683,7 +699,7 @@
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -699,7 +715,23 @@
         "src/genesis/GenesisActivationRegistry.sol"
       ],
       "summary": "Reentrancy in GenesisActivationRegistry.activate(uint256,uint8) (src/genesis/GenesisActivationRegistry.sol#102-122):",
-      "rationale": "Guarded lifecycle callbacks intentionally checkpoint the old owner or old multiplier before applying the transfer, activation, recovery, or handoff state transition.",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
+      "occurrences": 1
+    },
+    {
+      "id": "ed7c71d96a70151acb949dac",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimAllGenesisRewards(uint256[],address) (src/genesis/GenesisLaunchDistributor.sol#322-346):",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers.",
       "occurrences": 1
     },
     {
@@ -730,7 +762,7 @@
       "paths": [
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "LibGenesisRewards.allocate(LibGenesisIntegration.GenesisStorage,address,uint256).genesisAmount (src/libraries/LibGenesisRewards.sol#275) is a local variable never initialized",
+      "summary": "LibGenesisRewards.allocate(LibGenesisIntegration.GenesisStorage,address,uint256).genesisAmount (src/libraries/LibGenesisRewards.sol#301) is a local variable never initialized",
       "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
       "occurrences": 1
     },
@@ -810,7 +842,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "GenesisLaunchDistributor._allocate(address,uint256).genesisAmount (src/genesis/GenesisLaunchDistributor.sol#414) is a local variable never initialized",
+      "summary": "GenesisLaunchDistributor._allocate(address,uint256).genesisAmount (src/genesis/GenesisLaunchDistributor.sol#455) is a local variable never initialized",
       "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
       "occurrences": 1
     },
@@ -842,7 +874,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#381-385) ignores return value by feeReceiver.harvest() (src/genesis/GenesisLaunchDistributor.sol#382)",
+      "summary": "GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#422-426) ignores return value by feeReceiver.harvest() (src/genesis/GenesisLaunchDistributor.sol#423)",
       "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
       "occurrences": 1
     },
@@ -1034,7 +1066,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis.deploy(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#167-212) ignores return value by treasuryVesting.finalizeBootstrap(statics,address(collection.vault),address(collection.genesis)) (script/DeployStaticsGenesis.s.sol#181)",
+      "summary": "DeployStaticsGenesis.deploy(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#175-220) ignores return value by treasuryVesting.finalizeBootstrap(statics,address(collection.vault),address(collection.genesis)) (script/DeployStaticsGenesis.s.sol#189)",
       "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
       "occurrences": 1
     },
@@ -1087,6 +1119,22 @@
       "occurrences": 1
     },
     {
+      "id": "b908b6c3c504a867bf416faa",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "GenesisLaunchDistributor.claimAllGenesisRewards(uint256[],address) (src/genesis/GenesisLaunchDistributor.sol#322-346) has external calls inside a loop: tokenOwner = genesis.ownerOf(genesisId) (src/genesis/GenesisLaunchDistributor.sol#332)",
+      "rationale": "Genesis vesting is capped to 50 NFTs; batch claims iterate caller-supplied calldata, query only the immutable Genesis contract, and transfer after the loop, so callers bound their own gas without blocking shared progress.",
+      "occurrences": 1
+    },
+    {
       "id": "ea80e0b622b9953cd9b813a9",
       "impact": "Low",
       "confidence": "Medium",
@@ -1099,7 +1147,7 @@
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting.releaseGenesis(uint256) (src/genesis/StaticsTreasuryVesting.sol#128-143) has external calls inside a loop: genesis.safeTransferFrom(address(this),recipient,genesisId) (src/genesis/StaticsTreasuryVesting.sol#140)",
-      "rationale": "Permissionless Genesis vesting releases are sequential and capped to 50 NFTs per call, allowing progress without an unbounded loop.",
+      "rationale": "Genesis vesting is capped to 50 NFTs; batch claims iterate caller-supplied calldata, query only the immutable Genesis contract, and transfer after the loop, so callers bound their own gas without blocking shared progress.",
       "occurrences": 1
     },
     {
@@ -1167,6 +1215,22 @@
       "occurrences": 1
     },
     {
+      "id": "1f4de3df27f271d6ace19289",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/GenesisLaunchDistributor.sol"
+      ],
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimOwnerRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#289-301):",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
+      "occurrences": 1
+    },
+    {
       "id": "2bf5a74462ed73e31b277e49",
       "impact": "Low",
       "confidence": "Medium",
@@ -1178,7 +1242,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#133-150):",
+      "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#142-159):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -1210,7 +1274,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#157-194):",
+      "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#166-203):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -1226,7 +1290,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor._pullAttributed(address) (src/genesis/GenesisLaunchDistributor.sol#387-398):",
+      "summary": "Reentrancy in GenesisLaunchDistributor._pullAttributed(address) (src/genesis/GenesisLaunchDistributor.sol#428-439):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -1248,7 +1312,7 @@
       "occurrences": 1
     },
     {
-      "id": "7eaf8cb9b2ecca4b005c9c80",
+      "id": "a63de7802a47865399717f93",
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
@@ -1259,12 +1323,12 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#264-286):",
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#273-287):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
     {
-      "id": "8cd66c5c56040014c230d022",
+      "id": "a73e970de31fdd647eec1d2a",
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
@@ -1275,7 +1339,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.claimOwnerRewards(address,address) (src/genesis/GenesisLaunchDistributor.sol#288-306):",
+      "summary": "Reentrancy in GenesisLaunchDistributor.claimAllGenesisRewards(uint256[],address) (src/genesis/GenesisLaunchDistributor.sol#322-346):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -1307,7 +1371,7 @@
       "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
-      "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#215-226):",
+      "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#224-235):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -1345,6 +1409,40 @@
       "occurrences": 1
     },
     {
+      "id": "073957387226173f5c271349",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#207-230):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "0b5b8ea1bb089f54beea0180",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#171-181):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
       "id": "1217d0c90bbf04a1ec71419d",
       "impact": "Low",
       "confidence": "Medium",
@@ -1357,23 +1455,6 @@
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#168-178):",
-      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
-      "occurrences": 1
-    },
-    {
-      "id": "14f6a49e51b2d5a75e34296b",
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "diamond-integration"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#191-205):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
       "occurrences": 1
     },
@@ -1406,6 +1487,23 @@
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#43-47):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
+      "id": "3c90595dfbf76bde82d6f178",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#183-191):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
       "occurrences": 1
     },
@@ -1454,7 +1552,7 @@
       "paths": [
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.setRewardShare(uint16) (src/libraries/LibGenesisRewards.sol#221-230):",
+      "summary": "Reentrancy in LibGenesisRewards.setRewardShare(uint16) (src/libraries/LibGenesisRewards.sol#247-256):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
       "occurrences": 1
     },
@@ -1507,6 +1605,23 @@
       "occurrences": 1
     },
     {
+      "id": "a56dc8082cf5df40e9fb0012",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimAllTreasury(address) (src/libraries/LibGenesisRewards.sol#232-245):",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
+      "occurrences": 1
+    },
+    {
       "id": "a597a21ae52f29d01a20f550",
       "impact": "Low",
       "confidence": "Medium",
@@ -1519,24 +1634,7 @@
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#207-219):",
-      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
-      "occurrences": 1
-    },
-    {
-      "id": "af637da4dcf1c1f9684dae78",
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "diamond-integration"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#171-189):",
+      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#193-205):",
       "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails.",
       "occurrences": 1
     },
@@ -1730,7 +1828,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis.run() (script/DeployStaticsGenesis.s.sol#122-165) uses timestamp for comparisons",
+      "summary": "DeployStaticsGenesis.run() (script/DeployStaticsGenesis.s.sol#130-173) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -1986,7 +2084,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#489-514) uses timestamp for comparisons",
+      "summary": "DeployStaticsGenesis._validate(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#522-551) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -2358,6 +2456,22 @@
       "occurrences": 1
     },
     {
+      "id": "d15d1ab18b5a47ad6e26c53d",
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis.staticsImplementationHash() (script/DeployStaticsGenesis.s.sol#289-302) uses literals with too many digits:",
+      "rationale": "The reported literal is a full 32-byte expected creation-code hash whose exact hexadecimal value is required for deployment attestation.",
+      "occurrences": 1
+    },
+    {
       "id": "f5b4205a648baa2fa29bd4b5",
       "impact": "Informational",
       "confidence": "High",
@@ -2385,7 +2499,7 @@
       "paths": [
         "script/ConfigureStaticsGenesis.s.sol"
       ],
-      "summary": "CommonBase.UINT256_MAX (lib/forge-std/src/Base.sol#37-38) is never used in ConfigureStaticsGenesis (script/ConfigureStaticsGenesis.s.sol#47-395)",
+      "summary": "CommonBase.UINT256_MAX (lib/forge-std/src/Base.sol#37-38) is never used in ConfigureStaticsGenesis (script/ConfigureStaticsGenesis.s.sol#47-397)",
       "rationale": "The flagged fields belong to deployment result bundles, immutable configuration surfaces, or inherited compatibility state retained for the composed launch ceremony.",
       "occurrences": 9
     },
