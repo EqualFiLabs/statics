@@ -70,8 +70,14 @@ contract DopplerGenesisLaunchForkTest is Test {
             vm.skip(true);
             return;
         }
-        vm.createSelectFork(rpcUrl);
+        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+        uint256 forkBlock = vm.parseJsonUint(manifest, ".forkBlock");
+        bytes32 forkBlockHash = vm.parseJsonBytes32(manifest, ".forkBlockHash");
+        uint256 forkId = vm.createSelectFork(rpcUrl, forkBlock + 1);
+        assertEq(blockhash(forkBlock), forkBlockHash, "Robinhood manifest block hash drift");
+        vm.rollFork(forkId, forkBlock);
         assertEq(block.chainid, 4_663);
+        assertEq(block.number, forkBlock);
         _deployAndAssert();
     }
 
@@ -307,9 +313,9 @@ contract DopplerGenesisLaunchForkTest is Test {
         {
             PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
             uint256 staticsReceived =
-                _swapWethForStatics(key, weth, deployment.statics, modules.poolInitializer, 1 ether);
-            assertGe(staticsReceived, vault.GENESIS_PRICE(), "live pool purchase did not fund one Genesis");
-            assertTrue(IERC20(deployment.statics).transfer(treasury, vault.GENESIS_PRICE()));
+                _swapWethForStatics(key, weth, deployment.statics, modules.poolInitializer, 2 ether);
+            assertGe(staticsReceived, 280_000 ether, "live pool purchase did not fund Genesis lifecycle");
+            assertTrue(IERC20(deployment.statics).transfer(treasury, 280_000 ether));
 
             if (block.chainid == 4_663) {
                 _assertNativeRouterRoutes(key, deployment.statics, address(weth));
@@ -325,7 +331,13 @@ contract DopplerGenesisLaunchForkTest is Test {
             0.1 ether
         );
         _assertReserveHarvest(vault, receiver, distributor, weth);
-        _assertPostEpochReserveFlows(vault, IERC20(deployment.statics), StaticsGenesis(deployment.genesis));
+        _assertPostEpochReserveFlows(
+            vault,
+            IERC20(deployment.statics),
+            StaticsGenesis(deployment.genesis),
+            GenesisActivationRegistry(deployment.activationRegistry),
+            distributor
+        );
     }
 
     function _buyAndRegisterGenesis(
@@ -407,11 +419,23 @@ contract DopplerGenesisLaunchForkTest is Test {
         staticsReceived = IERC20(statics).balanceOf(address(this)) - staticsBefore;
     }
 
-    /// @dev Proves epoch transition, exact floor redemption payout, and ceil post-epoch buy-in.
-    function _assertPostEpochReserveFlows(StaticsGenesisVault vault, IERC20 statics, StaticsGenesis genesis) private {
+    /// @dev Proves reserve, activation, credit, transfer, recovery, and reward-accounting transitions.
+    function _assertPostEpochReserveFlows(
+        StaticsGenesisVault vault,
+        IERC20 statics,
+        StaticsGenesis genesis,
+        GenesisActivationRegistry registry,
+        GenesisLaunchDistributor distributor
+    ) private {
         address treasury = makeAddr("forkTreasury");
+        _redeemAndReacquire(vault, statics, genesis, treasury);
+        _activateRepayAndTransfer(vault, statics, genesis, registry, distributor, treasury);
+        _expireAndRecover(vault, statics, genesis, distributor, makeAddr("forkSuccessor"));
+    }
 
-        // Advance past the immutable epoch end; the accumulated reserve becomes active with no keeper.
+    function _redeemAndReacquire(StaticsGenesisVault vault, IERC20 statics, StaticsGenesis genesis, address treasury)
+        private
+    {
         vm.warp(vault.genesisEpochEnd());
         assertFalse(vault.epochActive());
         uint256 activeReserve = vault.reserveETH();
@@ -422,25 +446,129 @@ contract DopplerGenesisLaunchForkTest is Test {
             (activeReserve + vault.RESERVE_BUY_IN_DENOMINATOR() - 1) / vault.RESERVE_BUY_IN_DENOMINATOR()
         );
 
-        // Post-epoch redemption returns 180,000 STATICS plus the exact reserve share.
         uint256 expectedPayout = vault.reserveRedemptionPayout();
         uint256 treasuryEthBefore = treasury.balance;
         vm.startPrank(treasury);
         genesis.approve(address(vault), 1);
         vault.redeemGenesis(1, treasury);
         vm.stopPrank();
+        assertEq(statics.balanceOf(treasury), 280_000 ether);
         assertEq(treasury.balance - treasuryEthBefore, expectedPayout);
         assertEq(vault.reserveETH(), activeReserve - expectedPayout);
 
-        // Post-epoch acquisition requires the current reserve buy-in and the native fee.
         uint256 required = vault.reserveBuyIn() + vault.nativeAcquisitionFee();
-        vm.deal(treasury, required);
+        vm.deal(treasury, required + 2 * vault.creditOriginationFee() + vault.creditExtensionFee());
         vm.startPrank(treasury);
         statics.approve(address(vault), vault.GENESIS_PRICE());
         vault.buyGenesis{value: required}(1, treasury);
         vm.stopPrank();
         assertEq(genesis.ownerOf(1), treasury);
         assertEq(vault.reserveETH(), activeReserve - expectedPayout + required);
+    }
+
+    function _activateRepayAndTransfer(
+        StaticsGenesisVault vault,
+        IERC20 statics,
+        StaticsGenesis genesis,
+        GenesisActivationRegistry registry,
+        GenesisLaunchDistributor distributor,
+        address treasury
+    ) private {
+        uint256 originationFee = vault.creditOriginationFee();
+        uint256 extensionFee = vault.creditExtensionFee();
+        address owner = makeAddr("forkGenesisOwner");
+        vm.deal(owner, originationFee + extensionFee);
+        vm.prank(treasury);
+        genesis.transferFrom(treasury, owner, 1);
+        vm.prank(treasury);
+        statics.transfer(owner, 30_000 ether);
+
+        uint256 supplyBeforeActivation = statics.totalSupply();
+        uint256 treasuryBeforeActivation = statics.balanceOf(treasury);
+        vm.startPrank(owner);
+        statics.approve(address(registry), 30_000 ether);
+        registry.activate(1, 2);
+        vm.stopPrank();
+        assertEq(statics.totalSupply(), supplyBeforeActivation, "activation burned STATICS");
+        assertEq(statics.balanceOf(treasury) - treasuryBeforeActivation, 30_000 ether);
+        assertEq(registry.multiplierBps(1), 11_500);
+        assertEq(distributor.effectiveWeight(1), 11_500);
+
+        vm.prank(owner);
+        vault.openGenesisCredit{value: originationFee}(1, 100_000 ether);
+        assertEq(vault.totalOutstandingGenesisCredit(), 100_000 ether);
+        assertTrue(genesis.locked(1));
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
+        genesis.transferFrom(owner, makeAddr("lockedRecipient"), 1);
+        vm.startPrank(owner);
+        genesis.approve(address(vault), 1);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditAlreadyActive.selector, 1));
+        vault.redeemGenesis(1, owner);
+        uint40 maturityBefore = vault.credit(1).maturity;
+        vault.extendGenesisCredit{value: extensionFee}(1);
+        assertEq(vault.credit(1).maturity, maturityBefore + 30 days);
+        statics.approve(address(vault), 100_000 ether);
+        vault.repayGenesisCredit(1);
+        vm.stopPrank();
+        assertEq(vault.totalOutstandingGenesisCredit(), 0);
+        assertFalse(genesis.locked(1));
+
+        _transferAndAssertAccounting(vault, genesis, registry, distributor, owner, makeAddr("forkSuccessor"));
+    }
+
+    function _transferAndAssertAccounting(
+        StaticsGenesisVault vault,
+        StaticsGenesis genesis,
+        GenesisActivationRegistry registry,
+        GenesisLaunchDistributor distributor,
+        address owner,
+        address successor
+    ) private {
+        address rewardAsset = address(vault.statics());
+        uint256 previousOwnerPending = distributor.pendingGenesis(1, rewardAsset);
+        vm.prank(owner);
+        genesis.transferFrom(owner, successor, 1);
+        assertEq(genesis.ownerOf(1), successor);
+        assertEq(registry.tierOf(1), 0);
+        assertEq(distributor.effectiveWeight(1), 10_000);
+        assertGe(distributor.ownerClaimable(owner, rewardAsset), previousOwnerPending);
+    }
+
+    function _expireAndRecover(
+        StaticsGenesisVault vault,
+        IERC20 statics,
+        StaticsGenesis genesis,
+        GenesisLaunchDistributor distributor,
+        address successor
+    ) private {
+        uint256 originationFee = vault.creditOriginationFee();
+        uint256 extensionFee = vault.creditExtensionFee();
+        uint256 maximumPrincipal = vault.MAX_CREDIT_PRINCIPAL();
+        vm.deal(successor, 2 * originationFee + extensionFee);
+        vm.prank(successor);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsGenesisVault.InvalidCreditPrincipal.selector, maximumPrincipal + 1)
+        );
+        vault.openGenesisCredit{value: originationFee}(1, maximumPrincipal + 1);
+        vm.prank(successor);
+        vault.openGenesisCredit{value: originationFee}(1, maximumPrincipal);
+        uint40 expiredMaturity = vault.credit(1).maturity;
+        vm.warp(uint256(expiredMaturity) + 1);
+        vm.prank(successor);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditExpired.selector, 1, expiredMaturity));
+        vault.extendGenesisCredit{value: extensionFee}(1);
+
+        address keeper = makeAddr("forkRecoveryKeeper");
+        vm.warp(uint256(vault.creditRecoverableAt(1)) + 1);
+        uint256 keeperBefore = statics.balanceOf(keeper);
+        vm.prank(keeper);
+        vault.recoverGenesisCredit(1);
+        assertEq(statics.balanceOf(keeper) - keeperBefore, 1_800 ether);
+        assertEq(vault.totalOutstandingGenesisCredit(), 0);
+        assertEq(genesis.ownerOf(1), address(vault));
+        assertFalse(genesis.locked(1));
+        assertEq(distributor.effectiveWeight(1), 0);
     }
 
     function _assertNativeRouterRoutes(PoolKey memory key, address statics, address weth) private {
