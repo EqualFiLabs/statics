@@ -23,18 +23,49 @@ invariant allocatedGhostMatchesAttribution(address asset)
 
 /// The constructor rejects an absent or identical launch pair.
 invariant rewardAssetsAreValid()
-    statics() != 0 && numeraire() != 0 && statics() != numeraire();
+    statics() != 0 && numeraire() != 0 && statics() != numeraire()
+    filtered {
+        f -> f.selector != sig:claimAllGenesisRewards(uint256[],address).selector
+    }
 
 /// Governance can never configure more than 100% of attributed revenue as Genesis rewards.
 invariant rewardShareIsBounded()
-    genesisRewardShareBps() <= 10000;
+    genesisRewardShareBps() <= 10000
+    filtered {
+        f -> f.selector != sig:claimAllGenesisRewards(uint256[],address).selector
+    }
 
 /// Every crystallized Genesis reward is either claimable or already claimed.
 invariant crystallizedRewardConservation(address asset)
     asset == statics() || asset == numeraire()
         => to_mathint(currentContract._rewardBooks[asset].crystallizedAmount)
             == to_mathint(currentContract._rewardBooks[asset].totalClaimable)
-                + to_mathint(currentContract._rewardBooks[asset].totalClaimed);
+                + to_mathint(currentContract._rewardBooks[asset].totalClaimed)
+    filtered {
+        f -> f.selector != sig:claimAllGenesisRewards(uint256[],address).selector
+    }
+
+/// A bounded direct check covers the unbounded batch method without optimistic loop unwinding.
+/// Halmos and Foundry cover the production transition beyond this Certora loop bound.
+rule batchClaimPreservesCrystallizedAccounting(
+    env e,
+    uint256[] genesisIds,
+    address receiver,
+    address asset
+) {
+    require genesisIds.length <= 8;
+    require asset == statics() || asset == numeraire();
+    require to_mathint(currentContract._rewardBooks[asset].crystallizedAmount)
+        == to_mathint(currentContract._rewardBooks[asset].totalClaimable)
+            + to_mathint(currentContract._rewardBooks[asset].totalClaimed);
+
+    claimAllGenesisRewards(e, genesisIds, receiver);
+
+    assert to_mathint(currentContract._rewardBooks[asset].crystallizedAmount)
+        == to_mathint(currentContract._rewardBooks[asset].totalClaimable)
+            + to_mathint(currentContract._rewardBooks[asset].totalClaimed),
+        "batch claims must preserve crystallized reward conservation";
+}
 
 /// Secured-credit recovery is STATICS-only and cannot alter any numeraire reward ledger.
 rule recoveryPreservesNumeraireAccounting(env e, uint256 amount) {
