@@ -42,7 +42,7 @@ the symbolic checks.
 | Share changes crystallize pending fees under the old share | `StaticsFeeReceiver` | Halmos plus Foundry fuzz | Pass; zero and approved 50% symbolic boundaries plus general regression |
 | Distributor claimable balances never exceed cumulative attribution | `StaticsFeeReceiver` | Certora invariant | Pass |
 | Claimed, claimable, treasury, indexed, and remainder accounting cannot create rewards | `GenesisLaunchDistributor` | Halmos | Pass |
-| A dual-asset batch claim consumes each Genesis reward once even when its ID is duplicated, pays both exact amounts, and leaves no pending reward | `GenesisLaunchDistributor` | Halmos plus Foundry invariant/regression | Pass |
+| A dual-asset batch claim consumes each Genesis reward once even when its ID is duplicated, pays both exact amounts, and leaves no pending reward | `GenesisLaunchDistributor` | Certora bounded transition plus Halmos and Foundry invariant/regression | Pass |
 | Reward assets remain nonzero and distinct, the governed Genesis share remains bounded, and crystallized rewards equal claimable plus claimed | `GenesisLaunchDistributor` | Certora invariants | Pass |
 | Secured-credit recovery cannot alter numeraire accounting; surplus recovery cannot alter accounted reward quantities | `GenesisLaunchDistributor` | Certora rules | Pass |
 | Transfer checkpoints assign pre-transfer rewards to the old owner and reset activation | `GenesisLaunchDistributor` | Halmos plus Foundry regression | Pass |
@@ -84,7 +84,7 @@ proved with Solidity 0.8.33:
 | --- | --- | --- |
 | `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/7b78bbf5230f4837a3447dda5788fdb2) |
 | `FeeReceiver.conf` | Distributor claimable balances remain within cumulative attribution; surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/9a10ef5901cf47338d7d62728899930f) |
-| `GenesisDistributor.conf` | Reward assets remain nonzero and distinct; the Genesis share remains bounded; crystallized rewards equal claimable plus claimed; recovery is segregated from numeraire accounting; surplus recovery preserves accounted reward quantities | [report](https://prover.certora.com/output/8471858/869cbeb943a7423898e9e7866a342b9d) |
+| `GenesisDistributor.conf` | Reward assets remain nonzero and distinct; the Genesis share remains bounded; crystallized rewards equal claimable plus claimed; batches of up to eight IDs preserve crystallized accounting; recovery is segregated from numeraire accounting; surplus recovery preserves accounted reward quantities | [report](https://prover.certora.com/output/8471858/e187b2a7454a4aebae384b18a05a0d63) |
 | `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation preserves immutable state and released accounting | [report](https://prover.certora.com/output/8471858/3771a239a6264e5aa930d3ea5f8ca16c) |
 
 The transition invariants listed in the table are selected hosted proofs. The
@@ -149,13 +149,18 @@ result.
 - Post-epoch division is verified at full `uint256` width in CVL. The adjacent
   Foundry regression decomposes reserves into a `uint64` quotient and bounded
   remainder, covering reserves above 100,000 native ETH.
-- The transfer, activation, single/batch claim, and two-Genesis transition proofs use
-  non-round representative rewards to keep symbolic execution tractable. The
-  global two-asset conservation proof remains symbolic over `uint96` reward
-  amounts. Exact post-transfer ownership has a normal Foundry regression, and
-  arbitrary reward sizes and action sequences are covered by the adjacent fuzz
-  and invariant suites. These are explicit proof boundaries, not exclusions
-  from protocol behavior.
+- The distributor's unbounded batch method is excluded from Certora's global
+  invariants because the configuration disables optimistic loop unwinding. A
+  direct rule proves crystallized-accounting conservation for batches of up to
+  eight IDs. Halmos and Foundry cover the production transition beyond that
+  bounded Certora execution.
+- The transfer, activation, single/batch claim, and two-Genesis transition
+  proofs use non-round representative rewards to keep symbolic execution
+  tractable. The global two-asset conservation proof remains symbolic over
+  `uint96` reward amounts. Exact post-transfer ownership has a normal Foundry
+  regression, and arbitrary reward sizes and action sequences are covered by
+  the adjacent fuzz and invariant suites. These are explicit proof boundaries,
+  not exclusions from protocol behavior.
 - The approved 50% WETH reserve split is proved with a non-round representative
   harvest, while the zero-share identity remains symbolic over `uint96` WETH
   amounts. The adjacent Foundry fuzz regression covers arbitrary valid shares
