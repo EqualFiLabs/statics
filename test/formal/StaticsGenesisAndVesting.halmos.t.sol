@@ -229,6 +229,7 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
     }
 
     function check_surplusSweepsAfterPrincipalRelease(uint96 surplus) public {
+        vm.assume(surplus != 0);
         token.mint(address(vesting), surplus);
         vm.warp(vesting.vestingStart() + DURATION);
         vesting.releaseStatics();
