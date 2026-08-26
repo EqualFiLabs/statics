@@ -42,8 +42,8 @@ sends exactly:
 200,000,000 STATICS
     -> treasury
 
-sends any bounded Multicurve residual
-    -> Genesis Vault
+sends any balance above the 200,000,000-STATICS allocation
+    -> treasury vesting custody as recoverable surplus
 ```
 
 The current Genesis bootstrap separately mints all 5,555 Genesis NFTs to the Genesis Vault.
@@ -221,12 +221,13 @@ StaticsTreasuryVesting
 
 The exact name may change during implementation.
 
-The contract has four responsibilities:
+The contract has five responsibilities:
 
 1. receive the post-Doppler protocol allocation;
 2. commit exactly 99,900,000 STATICS to initial Genesis backing;
 3. custody and vest exactly 100,100,000 STATICS;
-4. custody and vest exactly 555 Genesis NFTs.
+4. custody and vest exactly 555 Genesis NFTs; and
+5. retain unrelated STATICS surplus until the full fixed STATICS principal has actually been released, then allow the immutable recipient admin to sweep that surplus only to the configured withdrawal recipient.
 
 It must not become a general treasury-management contract.
 
@@ -381,21 +382,21 @@ A treasury wallet may become compromised. Leaving the withdrawal recipient perma
 
 Therefore `withdrawalRecipient` is mutable.
 
-It is the only treasury-asset disposition variable that governance may change.
+`withdrawalRecipient` is the only treasury-asset destination variable that governance may change.
 
 ## Governance authority
 
-Withdrawal-recipient changes are guarded by an immutable `recipientAdmin` set to the configured `STATICS_GENESIS_GOVERNANCE` Safe or multisig at deployment.
+Withdrawal-recipient changes and post-vesting surplus sweeps are guarded by an immutable `recipientAdmin` set to the configured `STATICS_GENESIS_GOVERNANCE` Safe or multisig at deployment.
 
 No vesting-specific timelock, transferable ownership role, or later administrator replacement is introduced. The Safe may evolve its own signers and threshold without changing its address or the vesting contract.
 
-Governance may change `withdrawalRecipient`.
+Governance may change `withdrawalRecipient`. After `releasedStatics == 100,100,000 STATICS`, it may also sweep the remaining STATICS balance only to that current recipient.
 
-Governance may not release unvested assets, alter vesting amounts, alter vesting timestamps, alter vesting formulas, change Genesis IDs, withdraw the 99.9M Genesis backing, or redirect assets except by changing the destination of otherwise-valid vested releases.
+Governance may not release unvested assets, alter vesting amounts, alter vesting timestamps, alter vesting formulas, change Genesis IDs, withdraw the 99.9M Genesis backing, or choose an arbitrary sweep destination.
 
 The security boundary is:
 
-> Governance controls where legitimately vested assets go, but not when they vest or how much vests.
+> Governance controls where legitimately vested assets and post-obligation surplus go, but not when principal vests or how much principal vests.
 
 ## Withdrawal-recipient compromise recovery
 
@@ -414,7 +415,7 @@ withdrawalRecipient = Treasury Safe B
 
 After execution, future releases go to Treasury Safe B.
 
-Assets already released to Safe A cannot be recovered by the vesting contract. Assets still held by the vesting contract remain protected by the immutable schedule.
+Assets already released to Safe A cannot be recovered by the vesting contract. Unreleased principal remains protected by the immutable schedule. Retained surplus remains inaccessible until the full STATICS principal has actually been released; a later authorized sweep follows the current withdrawal recipient.
 
 ## Reward behavior while vested
 
@@ -525,41 +526,27 @@ Therefore the theoretical maximum remains 999,900,000 of 1,000,000,000 STATICS b
 
 Only the initial distribution of that backing changes.
 
-## Doppler residual
+## STATICS surplus
 
-The fixed public Multicurve target remains 800,000,000 STATICS.
+The fixed public Multicurve target remains 800,000,000 STATICS. The vesting contract's raw balance, however, may exceed the 200,000,000-STATICS protocol allocation because the upstream result or an unsolicited transfer can add tokens.
 
-The existing bounded Multicurve rounding residual remains separate from the 200,000,000 STATICS protocol economic allocation.
-
-Any residual above the exact 200,000,000 protocol allocation must not increase treasury vesting principal.
-
-Conceptually:
+Bootstrap therefore requires solvency rather than exact balance:
 
 ```text
-post-Doppler balance
-=
-200,000,000
-+
-bounded residual
+vesting custody >= 200,000,000 STATICS
 ```
 
-The vesting/bootstrap contract must account:
+It transfers exactly 99,900,000 STATICS into accounted Genesis backing and retains:
 
 ```text
-99,900,000
-    -> Genesis backing
+100,100,000 STATICS
+    -> fixed treasury vesting principal
 
-100,100,000
-    -> treasury vesting principal
-
-residual
-    -> Genesis Vault as unaccounted surplus
+anything above 200,000,000 STATICS at bootstrap
+    -> unaccounted vesting-contract surplus
 ```
 
-Residual must not increase `tokenBacking`, treasury vesting principal, or Genesis vesting principal unless separately accounted through an ordinary protocol mechanism.
-
-Direct unsolicited transfers into the vesting contract are unsupported. They do not increase either vesting principal or any released counter and may remain permanently stranded.
-
+Surplus never increases `tokenBacking`, treasury vesting principal, Genesis vesting principal, vested amounts, or released counters. Before the full fixed STATICS principal has actually been released, no caller can withdraw it. After `releasedStatics == STATICS_VESTING_PRINCIPAL`, only `recipientAdmin` may sweep the complete remaining STATICS balance to the current `withdrawalRecipient`; later donations remain recoverable through another sweep.
 ## Bootstrap sequence
 
 The launch ceremony must preserve atomic correctness.
@@ -582,13 +569,14 @@ Conceptually:
        #1-5000    -> Genesis Vault
        #5001-5555 -> StaticsTreasuryVesting
 
-7. StaticsTreasuryVesting verifies expected custody.
+7. StaticsTreasuryVesting verifies collection custody and at least
+   200M STATICS custody.
 
 8. StaticsTreasuryVesting transfers exactly
    99.9M STATICS -> Genesis Vault.
 
-9. Any bounded Doppler residual is transferred
-   to the Genesis Vault as unaccounted surplus.
+9. Any STATICS above the fixed 200M allocation remains
+   in StaticsTreasuryVesting as unaccounted surplus.
 
 10. Genesis Vault records exactly
     99.9M initial tokenBacking.
@@ -608,7 +596,8 @@ Conceptually:
 14. Bootstrap authority is permanently removed.
 
 15. The immutable configured governance Safe becomes the only
-    authority capable of changing withdrawalRecipient.
+    authority capable of changing withdrawalRecipient or sweeping
+    surplus after actual full STATICS-principal release.
 ```
 
 Exact ordering may be adjusted during implementation to accommodate deterministic deployment and constructor dependencies. The required post-condition may not change.
@@ -724,8 +713,8 @@ Implementation and verification must establish at minimum:
 8. Treasury STATICS vesting principal is exactly 100,100,000 STATICS.
 9. `initial tokenBacking == initial requiredBacking == 99,900,000 STATICS`.
 10. No circulating protocol Genesis exists without its required initial backing.
-11. Doppler residual cannot increase treasury vesting principal.
-12. Doppler residual cannot increase `tokenBacking`.
+11. Surplus cannot increase treasury vesting principal.
+12. Surplus cannot increase `tokenBacking`.
 13. Released STATICS never exceeds vested STATICS.
 14. Released Genesis count never exceeds vested Genesis count.
 15. STATICS vesting never exceeds 100,100,000.
@@ -736,12 +725,12 @@ Implementation and verification must establish at minimum:
 20. No Genesis outside IDs 5001-5555 can be released by the vesting contract.
 21. Changing `withdrawalRecipient` cannot alter any vesting accounting.
 22. Changing `withdrawalRecipient` cannot make additional assets immediately vested.
-23. Only the immutable configured governance Safe/multisig may change `withdrawalRecipient`.
+23. Only the immutable configured governance Safe/multisig may change `withdrawalRecipient` or sweep surplus.
 24. Governance cannot withdraw unvested STATICS.
 25. Governance cannot withdraw unvested Genesis.
-26. Governance cannot modify vesting duration.
-27. Governance cannot modify vesting start.
-28. Governance cannot modify vesting principal.
+26. Surplus cannot be swept until `releasedStatics == 100,100,000 STATICS`.
+27. An authorized sweep transfers the complete remaining STATICS balance only to the current `withdrawalRecipient`.
+28. Governance cannot modify vesting duration, start, or principal.
 29. Governance cannot recover the 99.9M Vault backing through the vesting contract.
 30. Permissionless release always pays the current withdrawal recipient.
 31. Repeated release calls cannot double-release assets.
@@ -899,9 +888,20 @@ recipient changed at multiple timestamps
 ```
 
 ```text
-Doppler residual
+arbitrary pre-bootstrap STATICS surplus
+    -> bootstrap succeeds
     -> not included in 100.1M vest
     -> not classified as 99.9M backing
+    -> retained until actual full principal release
+```
+
+```text
+surplus sweep before full principal release
+    -> revert
+
+surplus sweep after full principal release
+    -> only recipientAdmin
+    -> complete balance to current withdrawalRecipient
 ```
 
 ```text
@@ -946,7 +946,7 @@ The launch deployer must be updated to:
 - deploy Genesis with the 5,000 / 555 custody split;
 - seed the Genesis Vault with exactly 99.9M STATICS;
 - initialize Vault backing accordingly;
-- route Multicurve residual to the Genesis Vault as unaccounted surplus;
+- retain all STATICS above the fixed allocation in treasury vesting custody for the gated post-release sweep;
 - begin vesting only after successful bootstrap;
 - remove bootstrap authority permanently;
 - include all fixed treasury-reserve economics in `launchConfigHash`;

@@ -43,10 +43,9 @@ The deployment:
 1. deploys a permanent fee receiver and immutable treasury vesting contract;
 2. creates exactly 1,000,000,000 STATICS through `DopplerERC20V1`;
 3. passes exactly 800,000,000 STATICS to the six-curve Multicurve initializer;
-4. commits 99,900,000 STATICS as backing for the protocol's 555 Genesis and
-   vests the remaining 100,100,000-STATICS protocol allocation linearly for 60
-   days; any bounded Multicurve rounding dust goes to the vault as
-   non-liability surplus;
+4. commits exactly 99,900,000 STATICS as backing for the protocol's 555 Genesis,
+   vests the fixed 100,100,000-STATICS principal linearly for 60 days, and keeps
+   any additional balance in the vesting contract as unaccounted surplus;
 5. mints Genesis IDs 1..5,000 to the vault and IDs 5,001..5,555 to the treasury
    vesting contract;
 6. deploys the vault with an immutable future `genesisEpochEnd`, binds the fee
@@ -63,8 +62,10 @@ STATICS and Genesis vest linearly from the launch transaction timestamp. Anyone
 may call `releaseStatics()` or `releaseGenesis(maxCount)`; assets always go to
 the configured withdrawal recipient. Genesis release is ascending by token ID,
 requires a nonzero `maxCount`, and processes at most 50 NFTs per transaction.
-Governance may rotate only the withdrawal recipient. It cannot change the
-schedule, principal, token range, or release assets early. A recipient contract
+Governance may rotate the withdrawal recipient but cannot change the schedule,
+principal, token range, or release assets early. Only after the full fixed STATICS
+principal has actually been released may governance sweep the complete remaining
+STATICS surplus, always to the current withdrawal recipient. A recipient contract
 must implement ERC-721 receipt before Genesis can be released to it.
 
 Vault purchases always require exactly 180,000 STATICS plus the current native
@@ -120,10 +121,10 @@ submission, reject any stale broadcast artifact, and rerun the checks after any
 delay or dependency-state change. WETH remains governed upstream after
 deployment, so later role or upgrade changes are an explicit continuing
 dependency. The lower-level
-`deploy()` function remains available to unit and fork tests. Deployment also
-rejects more than 100 STATICS of Multicurve rounding residual so an upstream or
-configuration error cannot silently shrink the 800-million-token public
-inventory.
+`deploy()` function remains available to unit and fork tests. Deployment requires
+the treasury vesting contract to hold at least the fixed 200-million-STATICS
+protocol allocation; higher balances do not fail launch and remain outside Vault
+backing and fixed vesting-principal accounting.
 
 ### Production salt and submission ceremony
 

@@ -276,15 +276,18 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 The standalone Genesis entry point is
 `script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It deploys the exact
 one-billion-STATICS Doppler token, four-curve 800-million market allocation,
-exact 200-million treasury allocation, fully minted 5,555-token vault
-inventory, permanent activation registry and fee receiver, and temporary
-Genesis launch distributor. The four curves and fee schedule are explicitly
-nonproduction fixtures pending economic ratification. It does not deploy or
-require the Statics Diamonds.
+and fixed 200-million protocol allocation. Genesis IDs 1..5,000 begin in the
+Vault while IDs 5,001..5,555 and the fixed 100.1-million-STATICS principal begin
+in immutable treasury vesting; exactly 99.9 million STATICS becomes accounted
+Vault backing. Any additional vesting-contract balance remains surplus outside
+both fixed principal and Vault accounting until governance may sweep it after
+actual full STATICS-principal release. The launcher also installs the permanent
+activation registry and fee receiver plus the temporary Genesis launch distributor.
+The four curves and fee schedule are explicitly nonproduction fixtures pending
+economic ratification. It does not deploy or require the Statics Diamonds.
 
 The Robinhood `run()` path is compile-time locked until a follow-up decision
-pins the approved launch-configuration hash. Multicurve residual above 100
-STATICS also reverts instead of silently reducing public market inventory.
+pins the approved launch-configuration hash.
 
 ```shell
 forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \

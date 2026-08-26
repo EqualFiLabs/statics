@@ -109,10 +109,10 @@ accepted `protocol-treasury-genesis-reserve-and-launch-vesting.md` ADR. Its
 treasury-transfer and all-vault-custody details below.
 
 The Doppler Airlock creation path uses the launch governance factory and the
-immutable treasury vesting contract as its remainder recipient. Multicurve
-rounding dust is sent to the Genesis Vault as non-liability surplus. The no-op
-governance factory is unsuitable because it routes excess supply to a dead
-address.
+immutable treasury vesting contract as its remainder recipient. That contract
+commits exactly 99,900,000 STATICS to Genesis backing and retains any additional
+balance as surplus outside both Vault accounting and fixed vesting principal.
+The no-op governance factory is unsuitable because it routes excess supply to a dead address.
 
 ## Genesis inventory and fixed claim
 
@@ -274,9 +274,9 @@ its defaults.
 The canonical Robinhood deployment entry point remains compile-time locked
 while the approved configuration hash is zero. A follow-up economic-parameter
 decision must pin the exact curves, static fee, and Genesis reward share before
-that lock can be removed. The initializer may return at most 100 STATICS of
-rounding residual; a larger return reverts rather than silently shrinking the
-public market allocation.
+that lock can be removed. The initializer's deterministic geometry remains
+verified separately, while the downstream vesting bootstrap accepts any balance
+at or above the fixed 200,000,000-STATICS protocol allocation.
 
 The previous six-band FDV ladder is rejected. Its dollar ranges and inventory
 shares are not accepted economics and must not remain in deployment code as
@@ -535,7 +535,7 @@ Implementation and testing must prove at minimum:
 12. Doppler's configured inventory totals exactly 800 million STATICS.
 13. The four-curve fixture resolves exactly to 50%/25%/24%/1% and 44 positions.
 14. The Robinhood broadcast path cannot run while the production launch hash
-    remains unratified, and Multicurve residual may not exceed 100 STATICS.
+    remains unratified.
 15. External LP adds remain possible under stock Doppler behavior.
 16. Standard Doppler beneficiary accounting applies exactly 5% to its
     Airlock owner and 95% to `StaticsFeeReceiver` for launch-position fees.
