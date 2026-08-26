@@ -3,8 +3,8 @@
   "counts": {
     "High": 13,
     "Medium": 56,
-    "Low": 62,
-    "Informational": 23
+    "Low": 63,
+    "Informational": 22
   },
   "raw_counts": {
     "High": 13,
@@ -316,6 +316,22 @@
       ],
       "summary": "StaticsTreasuryVesting.vestingComplete() (src/genesis/StaticsTreasuryVesting.sol#180-182) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "423607942d8cd9039c787604",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.sweepStaticsSurplus() uses a dangerous strict equality:",
+      "rationale": "The equality is the intentional actual-release gate: surplus remains inaccessible until the immutable fixed STATICS principal has been completely released.",
       "occurrences": 1
     },
     {
@@ -1051,22 +1067,6 @@
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "StaticsFeeReceiver.acceptDistributor() (src/genesis/StaticsFeeReceiver.sol#155-177) ignores return value by IGenesisRecoveryDistributor(previous).migratePendingGenesisRecovery(pending) (src/genesis/StaticsFeeReceiver.sol#172)",
-      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
-      "occurrences": 1
-    },
-    {
-      "id": "d80c4cd87353b20ec0f595ea",
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "deployment-handoff"
-      ],
-      "paths": [
-        "script/DeployStaticsGenesis.s.sol"
-      ],
-      "summary": "DeployStaticsGenesis.deploy(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#175-220) ignores return value by treasuryVesting.finalizeBootstrap(statics,address(collection.vault),address(collection.genesis)) (script/DeployStaticsGenesis.s.sol#189)",
       "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
       "occurrences": 1
     },
@@ -2121,6 +2121,22 @@
       "occurrences": 1
     },
     {
+      "id": "f6aa177dc716b5ec992a6ff7",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.sweepStaticsSurplus() uses timestamp for comparisons",
+      "rationale": "The function does not read time directly; Slither reaches the linear vesting helper through adjacent state. The sweep gate itself requires actual full principal release, not elapsed time.",
+      "occurrences": 1
+    },
+    {
       "id": "18711fe497862acc913e5025",
       "impact": "Informational",
       "confidence": "High",
@@ -2246,22 +2262,6 @@
       ],
       "summary": "LibPositionPortfolio.portfolioStorage() (src/libraries/LibPositionPortfolio.sol#27-32) uses assembly",
       "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
-      "occurrences": 1
-    },
-    {
-      "id": "949e5d4c422972c74c9e344a",
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "cyclomatic-complexity",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsTreasuryVesting.sol"
-      ],
-      "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#65-116) has a high cyclomatic complexity (12).",
-      "rationale": "The flagged deployment and initialization orchestration validates a bounded launch configuration and keeps the trust handoff atomic.",
       "occurrences": 1
     },
     {
