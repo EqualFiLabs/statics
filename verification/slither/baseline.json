@@ -2,13 +2,13 @@
   "schema": 1,
   "counts": {
     "High": 13,
-    "Medium": 56,
-    "Low": 63,
+    "Medium": 57,
+    "Low": 64,
     "Informational": 22
   },
   "raw_counts": {
     "High": 13,
-    "Medium": 56,
+    "Medium": 53,
     "Low": 62,
     "Informational": 44
   },
@@ -395,6 +395,22 @@
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#448-456) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "ef8e4f0f9f15bcf19e8daa5f",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.quoteGenesisCreditAdjustment(uint256,uint256) uses a deliberate exact zero-state equality",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -1881,7 +1897,7 @@
       "occurrences": 1
     },
     {
-      "id": "781343c323cc572999d56f5d",
+      "id": "38547487f2338d97256f0338",
       "impact": "Low",
       "confidence": "Medium",
       "check": "timestamp",
@@ -1892,7 +1908,23 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#275-289) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256,uint256) uses timestamp for comparisons",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
+      "occurrences": 1
+    },
+    {
+      "id": "a1b3523b6992a2bdade0a604",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsGenesisVault.sol"
+      ],
+      "summary": "StaticsGenesisVault.quoteGenesisCreditAdjustment(uint256,uint256) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
