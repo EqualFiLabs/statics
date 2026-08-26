@@ -79,7 +79,7 @@ proved with Solidity 0.8.33:
 
 | Configuration | Proved rules | Hosted report |
 | --- | --- | --- |
-| `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/7b78bbf5230f4837a3447dda5788fdb2) |
+| `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/a29e24d8add743e5bd8ced10ac0d8d72) |
 | `FeeReceiver.conf` | Distributor claimable balances remain within cumulative attribution; surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/9a10ef5901cf47338d7d62728899930f) |
 | `GenesisDistributor.conf` | Reward assets remain nonzero and distinct; the Genesis share remains bounded; crystallized rewards equal claimable plus claimed; batches of up to eight IDs preserve crystallized accounting; recovery is segregated from numeraire accounting; surplus recovery preserves accounted reward quantities | [report](https://prover.certora.com/output/8471858/e187b2a7454a4aebae384b18a05a0d63) |
 | `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation and successful surplus sweep preserve immutable state and released accounting; unauthorized or pre-release sweeps revert | Current run required after surplus implementation |
