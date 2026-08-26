@@ -8,6 +8,7 @@ import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistribut
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IGenesisLaunchDistributor} from "../../src/interfaces/IGenesisLaunchDistributor.sol";
+import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -148,6 +149,29 @@ contract GenesisLaunchRewardsHandler is Test {
         distributor.claimOwnerRewards(asset, owner);
     }
 
+    function claimAll(uint256 actorSeed) external {
+        address owner = actors[bound(actorSeed, 0, 2)];
+        uint256 count;
+        for (uint256 tokenId = 1; tokenId <= 3; ++tokenId) {
+            if (genesis.ownerOf(tokenId) == owner) ++count;
+        }
+        uint256[] memory genesisIds = new uint256[](count);
+        uint256 cursor;
+        bool hasRewards = distributor.ownerClaimable(owner, address(statics)) != 0
+            || distributor.ownerClaimable(owner, address(weth)) != 0;
+        for (uint256 tokenId = 1; tokenId <= 3; ++tokenId) {
+            if (genesis.ownerOf(tokenId) != owner) continue;
+            genesisIds[cursor++] = tokenId;
+            if (
+                distributor.pendingGenesis(tokenId, address(statics)) != 0
+                    || distributor.pendingGenesis(tokenId, address(weth)) != 0
+            ) hasRewards = true;
+        }
+        if (!hasRewards) return;
+        vm.prank(owner);
+        distributor.claimAllGenesisRewards(genesisIds, owner);
+    }
+
     function donate(uint96 amountSeed, bool toReceiver, bool donateStatics) external {
         uint256 amount = bound(uint256(amountSeed), 0, donateStatics ? 1_000 ether : 1 ether);
         MockDopplerToken token = donateStatics ? statics : weth;
@@ -176,11 +200,19 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         feeSource.configure(address(statics), address(weth), address(receiver));
         receiver.bindMarket(address(statics), poolId);
         registry = new GenesisActivationRegistry(statics, address(this), address(this), treasury);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(receiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
         StaticsGenesisVault vault =
-            new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 3650 days);
+            new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 3650 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(registry),
             renderer,
             address(this),
@@ -189,6 +221,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             "https://statics.finance/genesis/"
         );
         registry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
         distributor = new GenesisLaunchDistributor(receiver, genesis, registry, treasury, address(this), 7_500);
         receiver.proposeDistributor(address(distributor));
@@ -201,7 +234,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             vm.deal(actors[i], 1 ether);
             vm.startPrank(actors[i]);
             statics.approve(address(vault), PRICE);
-            vault.buyGenesis(i + 1, actors[i]);
+            vault.buyGenesis{value: vault.quoteGenesisPurchase().requiredNative}(i + 1, actors[i]);
             distributor.registerGenesis(i + 1);
             vm.stopPrank();
         }
@@ -236,7 +269,8 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
         uint256 accounted = distributor.accountedCustody(asset);
         assertGe(IERC20Like(asset).balanceOf(address(distributor)), accounted);
         uint256 deferred = receiver.distributorClaimable(address(distributor), asset);
-        assertGe(accounted + deferred, book.totalClaimable + book.treasuryClaimable);
+        uint256 pendingRecovery = asset == address(statics) ? distributor.pendingGenesisRecovery() : 0;
+        assertGe(accounted + deferred, book.totalClaimable + book.treasuryClaimable + pendingRecovery);
     }
 }
 

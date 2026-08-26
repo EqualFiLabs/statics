@@ -202,6 +202,10 @@ forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
 # Shared PositionNFT behavior
 forge test --match-path test/position/PositionNFT.t.sol -vv
 
+# Full Genesis rewards, Position linkage, recovery, and governed handoff
+forge test --match-path test/genesis/GenesisPositionIntegration.t.sol -vv
+forge test --match-path test/deployment/ConfigureStaticsGenesis.t.sol -vv
+
 # SDK surface
 npm test --prefix sdk
 ```
@@ -272,15 +276,18 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 The standalone Genesis entry point is
 `script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It deploys the exact
 one-billion-STATICS Doppler token, four-curve 800-million market allocation,
-exact 200-million treasury allocation, fully minted 5,555-token vault
-inventory, permanent activation registry and fee receiver, and temporary
-Genesis launch distributor. The four curves and fee schedule are explicitly
-nonproduction fixtures pending economic ratification. It does not deploy or
-require the Statics Diamonds.
+and fixed 200-million protocol allocation. Genesis IDs 1..5,000 begin in the
+Vault while IDs 5,001..5,555 and the fixed 100.1-million-STATICS principal begin
+in immutable treasury vesting; exactly 99.9 million STATICS becomes accounted
+Vault backing. Any additional vesting-contract balance remains surplus outside
+both fixed principal and Vault accounting until governance may sweep it after
+actual full STATICS-principal release. The launcher also installs the permanent
+activation registry and fee receiver plus the temporary Genesis launch distributor.
+The four curves and fee schedule are explicitly nonproduction fixtures pending
+economic ratification. It does not deploy or require the Statics Diamonds.
 
 The Robinhood `run()` path is compile-time locked until a follow-up decision
-pins the approved launch-configuration hash. Multicurve residual above 100
-STATICS also reverts instead of silently reducing public market inventory.
+pins the approved launch-configuration hash.
 
 ```shell
 forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
@@ -298,7 +305,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           29 facets, 218 selectors
+StaticsDiamond:           30 facets, 254 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -389,6 +396,13 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
+A Genesis NFT can be linked to exactly one PositionNFT when both have the same
+actual owner. The link moves neither NFT into custody. It applies the Genesis
+activation multiplier only to the Position's global STATICS reward weight and
+locks owner-changing transfers of both NFTs until voluntary unlinking or credit
+recovery clears the relationship. Recovery leaves the PositionNFT and every
+unrelated ledger item with its owner and removes only the Genesis leg and boost.
+
 Every valid PositionNFT has fully onchain Base64 JSON and a stable Base64 SVG
 showing the Statics logo and Position ID. The image deliberately excludes live
 financial state. Generative SVG identity belongs to the scarce Genesis
@@ -397,6 +411,16 @@ collection, where metadata can also reflect the NFT's future activation tier.
 ### Global rewards
 
 Users stake the configured Statics ERC-20 in a PositionNFT and opt into selected reward assets. Each asset indexes rewards only across positions that selected it. Eligibility begins after the configured delay, so a new selection cannot capture historical fees. Unsupported or temporarily ineligible fee shares fall through to the governed accounting destination rather than remaining unbooked.
+
+Raw staked STATICS remains principal. Reward indexes use effective weight,
+`floor(raw stake * rewardMultiplierBps / 10,000)`. Every multiplier change
+settles the old interval first and preserves pending-stake maturity.
+
+After the governed Genesis handoff, `StaticsDiamond` becomes the permanent
+`StaticsFeeReceiver` distributor and activation consumer. Registered Genesis
+NFTs earn direct STATICS and WETH rewards independently of Position linkage.
+Registration stays with the token across transfers, activation resets to Tier
+0, and rewards earned before transfer crystallize to the prior owner.
 
 Canonical LP rewards are separate: users may stake eligible full-range PositionManager NFTs for active Statics pools, accrue next-block liquidity weight, claim rewards, and unstake the NFT without a cooldown.
 
@@ -550,6 +574,9 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI for standalone Genesis |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Genesis token-page base URL before the appended token ID |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Governed share of harvested WETH routed into the permanent Genesis native reserve |
+| `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native Genesis secured-credit origination fee |
+| `STATICS_GENESIS_CREDIT_EXTENSION_FEE` | Ratified flat native Genesis secured-credit extension fee |
+| `STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS` | Ratified caller share of the fixed recovery residual; must be between 1 and 9,999 bps |
 | `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for the immutable Genesis Epoch end and launch hash |
 | `WETH_ADDRESS` | Verified WETH for the selected chain |
 | `ETH_USD_FEED` | Verified Chainlink-compatible ETH/USD feed |

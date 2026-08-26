@@ -12,14 +12,15 @@ import {GenesisActivationRegistry} from "../src/genesis/GenesisActivationRegistr
 import {GenesisLaunchDistributor} from "../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../src/genesis/StaticsGenesisVault.sol";
-import {StaticsLaunchAllocationEscrow} from "../src/genesis/StaticsLaunchAllocationEscrow.sol";
+import {StaticsTreasuryVesting} from "../src/genesis/StaticsTreasuryVesting.sol";
 import {DopplerLaunchTypes, IDopplerAirlock} from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
+import {StaticsLaunchCurves} from "../src/genesis/doppler/StaticsLaunchCurves.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
-import {LibStaticsTokenMetadata} from "../src/metadata/LibStaticsTokenMetadata.sol";
 import {StaticsAvatarSVG} from "../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../src/tokens/StaticsGenesis.sol";
+import {GenesisCreditConfig} from "../src/interfaces/IStaticsGenesisVault.sol";
 
 struct StaticsGenesisDeploymentConfig {
     address governance;
@@ -31,9 +32,13 @@ struct StaticsGenesisDeploymentConfig {
     uint24 fee;
     uint16 genesisRewardShareBps;
     uint16 reserveShareBps;
+    uint256 creditOriginationFee;
+    uint256 creditExtensionFee;
+    uint16 recoveryCallerShareBps;
     uint256 genesisEpochEnd;
-    /// @dev Retained for lower-level config compatibility. Doppler launch calldata always uses canonical metadata.
+    /// @dev ERC20 token metadata URI passed through to Doppler's token factory.
     string tokenURI;
+    /// @dev ERC-7572 collection metadata URI for the Genesis NFT collection.
     string contractURI;
     string externalURLBase;
 }
@@ -43,7 +48,7 @@ struct StaticsGenesisDeployment {
     address dopplerPoolInitializer;
     bytes32 poolId;
     address feeReceiver;
-    address allocationEscrow;
+    address treasuryVesting;
     address activationRegistry;
     address genesis;
     address genesisVault;
@@ -62,27 +67,47 @@ struct GenesisCollection {
     StaticsGenesis genesis;
 }
 
+interface IProxyAdminOwner {
+    function owner() external view returns (address);
+}
+
 /// @notice Fresh-deployment-only launcher for the standalone Doppler Genesis system.
 contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     using PoolIdLibrary for PoolKey;
 
     uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
     uint256 public constant DOPPLER_INVENTORY = 800_000_000 ether;
-    uint256 public constant TREASURY_ALLOCATION = 200_000_000 ether;
+    uint256 public constant PROTOCOL_ALLOCATION = 200_000_000 ether;
+    uint256 public constant TREASURY_GENESIS_COUNT = 555;
+    uint256 public constant TREASURY_GENESIS_FIRST_ID = 5_001;
+    uint256 public constant TREASURY_GENESIS_LAST_ID = 5_555;
+    uint256 public constant TREASURY_GENESIS_BACKING = 99_900_000 ether;
+    uint256 public constant TREASURY_STATICS_VESTING_PRINCIPAL = 100_100_000 ether;
+    uint256 public constant TREASURY_VESTING_DURATION = 60 days;
+    uint256 public constant TREASURY_GENESIS_RELEASE_BATCH = 50;
     uint256 public constant GENESIS_BACKING = 180_000 ether;
     uint256 public constant GENESIS_MAX_SUPPLY = 5_555;
-    uint256 public constant POST_EPOCH_NATIVE_ACQUISITION_FEE = 0.003 ether;
+    uint256 public constant NATIVE_ACQUISITION_FEE = 0.003 ether;
+    uint256 public constant GENESIS_CREDIT_MAX_PRINCIPAL = 171_000 ether;
+    uint256 public constant GENESIS_CREDIT_RECOVERY_RESIDUAL = 9_000 ether;
+    uint256 public constant GENESIS_CREDIT_TERM = 30 days;
+    uint256 public constant GENESIS_CREDIT_RECOVERY_GRACE = 1 hours;
+    uint16 public constant GENESIS_CREDIT_INITIAL_RESERVE_SHARE_BPS = 1_000;
+    uint16 public constant GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS = 9_000;
     uint96 public constant DOPPLER_OWNER_SHARE = 0.05 ether;
     uint96 public constant STATICS_FEE_SHARE = 0.95 ether;
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
-    uint256 public constant MAX_MULTICURVE_RESIDUAL = 100 ether;
     bytes20 public constant DOPPLER_SOURCE_REVISION = hex"86a5200456b148c156d2eb81a893747dd601c3ca";
+    string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
     /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
-    int24 public constant FAR_TICK = 887_100;
+    int24 public constant FAR_TICK = StaticsLaunchCurves.FAR_TICK;
     address public constant GOVERNANCE_DEAD = address(0xdead);
     address public constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
+    bytes32 private constant ERC1967_IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 private constant ERC1967_ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     error ZeroAddress();
     error InvalidModule(address module);
@@ -90,6 +115,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error InvalidFee(uint256 fee);
     error InvalidRewardShare(uint256 shareBps);
     error InvalidReserveShare(uint256 shareBps);
+    error InvalidRecoveryCallerShare(uint256 shareBps);
     error InvalidEpochEnd(uint256 epochEnd);
     error InvalidRobinhoodWeth(address expected, address actual);
     error InvalidRobinhoodWethCodeHash(bytes32 expected, bytes32 actual);
@@ -98,7 +124,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
     error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
-    error ExcessiveMulticurveResidual(uint256 residual, uint256 maximum);
 
     function run() external returns (StaticsGenesisDeployment memory deployment) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
@@ -106,10 +131,12 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         uint256 fee = vm.envUint("STATICS_DOPPLER_FEE");
         uint256 rewardShare = vm.envUint("STATICS_GENESIS_REWARD_SHARE_BPS");
         uint256 reserveShare = vm.envUint("STATICS_GENESIS_RESERVE_SHARE_BPS");
+        uint256 recoveryCallerShare = vm.envUint("STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS");
         uint256 genesisEpochEnd = vm.envUint("STATICS_GENESIS_EPOCH_END");
         if (fee > type(uint24).max) revert InvalidFee(fee);
         if (rewardShare > type(uint16).max) revert InvalidRewardShare(rewardShare);
         if (reserveShare > type(uint16).max) revert InvalidReserveShare(reserveShare);
+        if (recoveryCallerShare > type(uint16).max) revert InvalidRecoveryCallerShare(recoveryCallerShare);
         if (genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(genesisEpochEnd);
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
             governance: vm.envAddress("STATICS_GENESIS_GOVERNANCE"),
@@ -121,6 +148,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
             reserveShareBps: uint16(reserveShare),
+            creditOriginationFee: vm.envUint("STATICS_GENESIS_CREDIT_ORIGINATION_FEE"),
+            creditExtensionFee: vm.envUint("STATICS_GENESIS_CREDIT_EXTENSION_FEE"),
+            recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
             contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
@@ -131,12 +161,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes =
                 _validateRobinhoodDopplerModules(config.modules);
             bytes32 currentHash = launchConfigHash(config, wethRuntimeCodeHash, moduleCodeHashes);
-            if (
-                APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH == bytes32(0)
-                    || currentHash != APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH
-            ) {
-                revert ProductionLaunchConfigurationNotRatified(currentHash, APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH);
-            }
+            _requireApprovedProductionConfig(currentHash);
         }
 
         vm.startBroadcast(privateKey);
@@ -151,18 +176,15 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     {
         _validate(config, initialOwner);
 
-        (StaticsFeeReceiver receiver, StaticsLaunchAllocationEscrow allocationEscrow) =
+        (StaticsFeeReceiver receiver, StaticsTreasuryVesting treasuryVesting) =
             _deployLaunchReceivers(config, initialOwner);
-        (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, allocationEscrow);
+        (address statics, bytes32 poolId) = _createDopplerMarket(config, receiver, treasuryVesting);
         receiver.bindMarket(statics, poolId);
 
-        GenesisCollection memory collection = _deployGenesisCollection(statics, config, initialOwner);
+        GenesisCollection memory collection =
+            _deployGenesisCollection(statics, receiver, treasuryVesting, config, initialOwner);
         collection.registry.bindGenesisCollection(address(collection.genesis));
-        collection.vault.finalizeGenesisCollection(address(collection.genesis));
-        allocationEscrow.release(IERC20(statics), address(collection.vault));
-        if (IERC20(statics).balanceOf(config.treasury) != TREASURY_ALLOCATION) {
-            revert AllocationMismatch(IERC20(statics).totalSupply(), IERC20(statics).balanceOf(config.treasury));
-        }
+        treasuryVesting.finalizeBootstrap(statics, address(collection.vault), address(collection.genesis));
 
         // Bind the reserve vault and configure the reserve share before the first distributor is
         // accepted so nonzero reserveShareBps can never harvest around an unbound reserve vault.
@@ -182,42 +204,52 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         collection.genesis.transferOwnership(config.governance);
         distributor.transferOwnership(config.governance);
 
-        deployment = StaticsGenesisDeployment({
-            statics: statics,
-            dopplerPoolInitializer: config.modules.poolInitializer,
-            poolId: poolId,
-            feeReceiver: address(receiver),
-            allocationEscrow: address(allocationEscrow),
-            activationRegistry: address(collection.registry),
-            genesis: address(collection.genesis),
-            genesisVault: address(collection.vault),
-            genesisDistributor: address(distributor),
-            genesisRenderer: address(collection.renderer),
-            avatarSVG: address(collection.avatar)
-        });
+        deployment.statics = statics;
+        deployment.dopplerPoolInitializer = config.modules.poolInitializer;
+        deployment.poolId = poolId;
+        deployment.feeReceiver = address(receiver);
+        deployment.treasuryVesting = address(treasuryVesting);
+        deployment.activationRegistry = address(collection.registry);
+        deployment.genesis = address(collection.genesis);
+        deployment.genesisVault = address(collection.vault);
+        deployment.genesisDistributor = address(distributor);
+        deployment.genesisRenderer = address(collection.renderer);
+        deployment.avatarSVG = address(collection.avatar);
     }
 
     function _deployLaunchReceivers(StaticsGenesisDeploymentConfig memory config, address initialOwner)
         private
-        returns (StaticsFeeReceiver receiver, StaticsLaunchAllocationEscrow allocationEscrow)
+        returns (StaticsFeeReceiver receiver, StaticsTreasuryVesting treasuryVesting)
     {
         receiver = new StaticsFeeReceiver(config.modules.poolInitializer, config.numeraire, initialOwner);
-        allocationEscrow = new StaticsLaunchAllocationEscrow(config.treasury, initialOwner);
+        treasuryVesting = new StaticsTreasuryVesting(initialOwner, config.governance, config.treasury);
     }
 
     function _deployGenesisCollection(
         address statics,
+        StaticsFeeReceiver receiver,
+        StaticsTreasuryVesting treasuryVesting,
         StaticsGenesisDeploymentConfig memory config,
         address initialOwner
     ) private returns (GenesisCollection memory collection) {
         collection.registry = new GenesisActivationRegistry(
             IERC20(statics), initialOwner, initialOwner, config.treasury
         );
-        collection.vault = new StaticsGenesisVault(IERC20(statics), initialOwner, initialOwner, config.genesisEpochEnd);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(receiver),
+            treasury: config.treasury,
+            originationFee: config.creditOriginationFee,
+            extensionFee: config.creditExtensionFee,
+            recoveryCallerShareBps: config.recoveryCallerShareBps
+        });
+        collection.vault = new StaticsGenesisVault(
+            IERC20(statics), address(treasuryVesting), initialOwner, config.genesisEpochEnd, creditConfig
+        );
         collection.avatar = new StaticsAvatarSVG();
         collection.renderer = new StaticsGenesisRenderer(collection.avatar);
         collection.genesis = new StaticsGenesis(
             address(collection.vault),
+            address(treasuryVesting),
             address(collection.registry),
             collection.renderer,
             initialOwner,
@@ -239,63 +271,88 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
-    /// @notice Canonical fully onchain URI used for every STATICS Doppler launch path.
+    /// @notice Canonical IPFS metadata URI used for the production STATICS Doppler launch.
     function staticsTokenURI() public pure returns (string memory) {
-        return LibStaticsTokenMetadata.tokenURI();
+        return STATICS_TOKEN_URI;
     }
 
     /// @notice Six-curve Robinhood launch geometry pinned to the committed economics model.
     function defaultCurves() public pure returns (DopplerLaunchTypes.Curve[] memory curves) {
-        curves = new DopplerLaunchTypes.Curve[](6);
-        curves[0] =
-            DopplerLaunchTypes.Curve({tickLower: -168_800, tickUpper: -153_800, numPositions: 11, shares: 0.025 ether});
-        curves[1] =
-            DopplerLaunchTypes.Curve({tickLower: -160_700, tickUpper: -139_900, numPositions: 11, shares: 0.075 ether});
-        curves[2] =
-            DopplerLaunchTypes.Curve({tickLower: -146_900, tickUpper: -123_800, numPositions: 11, shares: 0.125 ether});
-        curves[3] =
-            DopplerLaunchTypes.Curve({tickLower: -130_800, tickUpper: -100_800, numPositions: 11, shares: 0.2 ether});
-        curves[4] =
-            DopplerLaunchTypes.Curve({tickLower: -107_700, tickUpper: -77_800, numPositions: 11, shares: 0.425 ether});
-        curves[5] =
-            DopplerLaunchTypes.Curve({tickLower: -77_800, tickUpper: 887_200, numPositions: 1, shares: 0.15 ether});
+        return StaticsLaunchCurves.defaultCurves();
+    }
+
+    /// @notice Commitment to every Statics contract created by this launcher.
+    /// @dev Creation code binds compiler output and constructor logic; constructor values are
+    ///      committed separately by `launchConfigHash`.
+    function staticsImplementationHash() public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(type(StaticsFeeReceiver).creationCode),
+                keccak256(type(StaticsTreasuryVesting).creationCode),
+                keccak256(type(GenesisActivationRegistry).creationCode),
+                keccak256(type(StaticsGenesisVault).creationCode),
+                keccak256(type(StaticsAvatarSVG).creationCode),
+                keccak256(type(StaticsGenesisRenderer).creationCode),
+                keccak256(type(StaticsGenesis).creationCode),
+                keccak256(type(GenesisLaunchDistributor).creationCode)
+            )
+        );
     }
 
     function launchConfigHash(
         StaticsGenesisDeploymentConfig memory config,
-        bytes32 wethRuntimeCodeHash,
+        bytes32 wethDependencyHash,
         StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes
-    ) public pure returns (bytes32) {
+    ) public view returns (bytes32) {
+        address dopplerOwner = IDopplerAirlock(config.modules.airlock).owner();
         bytes32 provenanceHash = keccak256(abi.encode(ROBINHOOD_MAINNET_CHAIN_ID, DOPPLER_SOURCE_REVISION));
         bytes32 fixedEconomicsHash = keccak256(
             abi.encode(
                 STATICS_SUPPLY,
                 DOPPLER_INVENTORY,
-                TREASURY_ALLOCATION,
-                GENESIS_BACKING,
-                GENESIS_MAX_SUPPLY,
-                POST_EPOCH_NATIVE_ACQUISITION_FEE,
+                PROTOCOL_ALLOCATION,
+                _treasuryVestingHash(),
+                NATIVE_ACQUISITION_FEE,
+                GENESIS_CREDIT_MAX_PRINCIPAL,
+                GENESIS_CREDIT_RECOVERY_RESIDUAL,
+                GENESIS_CREDIT_TERM,
+                GENESIS_CREDIT_RECOVERY_GRACE,
+                GENESIS_CREDIT_INITIAL_RESERVE_SHARE_BPS,
+                GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS,
                 DOPPLER_OWNER_SHARE,
                 STATICS_FEE_SHARE
             )
         );
         bytes32 launchEconomicsHash = keccak256(
-            abi.encode(config.fee, config.genesisRewardShareBps, config.reserveShareBps, config.genesisEpochEnd)
+            abi.encode(
+                config.fee,
+                config.genesisRewardShareBps,
+                config.reserveShareBps,
+                config.creditOriginationFee,
+                config.creditExtensionFee,
+                config.recoveryCallerShareBps,
+                config.genesisEpochEnd
+            )
         );
         bytes32 authorityHash =
-            keccak256(abi.encode(config.governance, config.treasury, config.integrator, config.salt));
+            keccak256(abi.encode(config.governance, config.treasury, config.integrator, dopplerOwner, config.salt));
         bytes32 dependencyHash =
-            keccak256(abi.encode(config.numeraire, wethRuntimeCodeHash, config.modules, moduleCodeHashes));
+            keccak256(abi.encode(config.numeraire, wethDependencyHash, config.modules, moduleCodeHashes));
         bytes32 marketHash = keccak256(
             abi.encode(
-                TICK_SPACING, FAR_TICK, GOVERNANCE_DEAD, MIGRATION_DEAD, keccak256(_tokenFactoryData()), defaultCurves()
+                TICK_SPACING,
+                FAR_TICK,
+                GOVERNANCE_DEAD,
+                MIGRATION_DEAD,
+                keccak256(_tokenFactoryData(config.tokenURI)),
+                defaultCurves()
             )
         );
         bytes32 metadataHash = keccak256(
             abi.encode(
                 keccak256(bytes("Statics")),
                 keccak256(bytes("STATICS")),
-                keccak256(bytes(LibStaticsTokenMetadata.tokenURI())),
+                keccak256(bytes(config.tokenURI)),
                 keccak256(bytes(config.contractURI)),
                 keccak256(bytes(config.externalURLBase))
             )
@@ -303,6 +360,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         return keccak256(
             abi.encode(
                 provenanceHash,
+                staticsImplementationHash(),
                 fixedEconomicsHash,
                 launchEconomicsHash,
                 authorityHash,
@@ -313,23 +371,46 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
+    function _treasuryVestingHash() private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                TREASURY_GENESIS_COUNT,
+                TREASURY_GENESIS_FIRST_ID,
+                TREASURY_GENESIS_LAST_ID,
+                GENESIS_BACKING,
+                GENESIS_MAX_SUPPLY,
+                TREASURY_GENESIS_BACKING,
+                TREASURY_STATICS_VESTING_PRINCIPAL,
+                TREASURY_VESTING_DURATION,
+                TREASURY_GENESIS_RELEASE_BATCH
+            )
+        );
+    }
+
+    function _requireApprovedProductionConfig(bytes32 currentHash) internal pure {
+        bytes32 approvedHash = APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH;
+        if (approvedHash == bytes32(0) || currentHash != approvedHash) {
+            revert ProductionLaunchConfigurationNotRatified(currentHash, approvedHash);
+        }
+    }
+
     function _createDopplerMarket(
         StaticsGenesisDeploymentConfig memory config,
         StaticsFeeReceiver receiver,
-        StaticsLaunchAllocationEscrow allocationEscrow
+        StaticsTreasuryVesting treasuryVesting
     ) private returns (address statics, bytes32 poolId) {
         IDopplerAirlock airlock = IDopplerAirlock(config.modules.airlock);
-        DopplerLaunchTypes.CreateParams memory params = _dopplerCreateParams(config, receiver, allocationEscrow);
+        DopplerLaunchTypes.CreateParams memory params = _dopplerCreateParams(config, receiver, treasuryVesting);
 
-        statics = _launchThroughAirlock(airlock, params, allocationEscrow);
-        _assertPostLaunchSupply(statics, allocationEscrow);
+        statics = _launchThroughAirlock(airlock, params, treasuryVesting);
+        _assertPostLaunchSupply(statics, treasuryVesting);
         poolId = _poolId(statics, config.numeraire, config.modules.poolInitializer, config.fee);
     }
 
     function _dopplerCreateParams(
         StaticsGenesisDeploymentConfig memory config,
         StaticsFeeReceiver receiver,
-        StaticsLaunchAllocationEscrow allocationEscrow
+        StaticsTreasuryVesting treasuryVesting
     ) private view returns (DopplerLaunchTypes.CreateParams memory params) {
         DopplerLaunchTypes.BeneficiaryData[] memory poolBeneficiaries = new DopplerLaunchTypes.BeneficiaryData[](2);
         address dopplerOwner = IDopplerAirlock(config.modules.airlock).owner();
@@ -362,9 +443,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             numTokensToSell: DOPPLER_INVENTORY,
             numeraire: config.numeraire,
             tokenFactory: config.modules.tokenFactory,
-            tokenFactoryData: _tokenFactoryData(),
+            tokenFactoryData: _tokenFactoryData(config.tokenURI),
             governanceFactory: config.modules.governanceFactory,
-            governanceFactoryData: abi.encode(address(allocationEscrow)),
+            governanceFactoryData: abi.encode(address(treasuryVesting)),
             poolInitializer: config.modules.poolInitializer,
             poolInitializerData: poolData,
             liquidityMigrator: config.modules.noOpMigrator,
@@ -377,7 +458,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     function _launchThroughAirlock(
         IDopplerAirlock airlock,
         DopplerLaunchTypes.CreateParams memory params,
-        StaticsLaunchAllocationEscrow allocationEscrow
+        StaticsTreasuryVesting treasuryVesting
     ) private returns (address statics) {
         address pool;
         address governance;
@@ -385,26 +466,22 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         address migrationPool;
         (statics, pool, governance, timelock, migrationPool) = airlock.create(params);
         if (
-            pool != statics || governance != GOVERNANCE_DEAD || timelock != address(allocationEscrow)
+            pool != statics || governance != GOVERNANCE_DEAD || timelock != address(treasuryVesting)
                 || migrationPool != MIGRATION_DEAD
         ) {
             revert UnexpectedDopplerResult(pool, governance, timelock, migrationPool);
         }
     }
 
-    function _assertPostLaunchSupply(address statics, StaticsLaunchAllocationEscrow allocationEscrow) private view {
+    function _assertPostLaunchSupply(address statics, StaticsTreasuryVesting treasuryVesting) private view {
         uint256 totalSupply = IERC20(statics).totalSupply();
-        uint256 escrowBalance = IERC20(statics).balanceOf(address(allocationEscrow));
-        if (totalSupply != STATICS_SUPPLY || escrowBalance < TREASURY_ALLOCATION) {
-            revert AllocationMismatch(totalSupply, escrowBalance);
-        }
-        uint256 residual = escrowBalance - TREASURY_ALLOCATION;
-        if (residual > MAX_MULTICURVE_RESIDUAL) {
-            revert ExcessiveMulticurveResidual(residual, MAX_MULTICURVE_RESIDUAL);
+        uint256 vestingBalance = IERC20(statics).balanceOf(address(treasuryVesting));
+        if (totalSupply != STATICS_SUPPLY || vestingBalance < PROTOCOL_ALLOCATION) {
+            revert AllocationMismatch(totalSupply, vestingBalance);
         }
     }
 
-    function _tokenFactoryData() private pure returns (bytes memory) {
+    function _tokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
         return abi.encode(
             "Statics",
             "STATICS",
@@ -412,7 +489,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             new address[](0),
             new uint256[](0),
             new uint256[](0),
-            LibStaticsTokenMetadata.tokenURI(),
+            tokenURI,
             uint256(0),
             uint48(0),
             address(0),
@@ -451,22 +528,104 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         _requireContract(config.modules.governanceFactory);
         _requireContract(config.modules.poolInitializer);
         _requireContract(config.modules.noOpMigrator);
-        if (bytes(config.contractURI).length == 0 || bytes(config.externalURLBase).length == 0) {
+        if (IDopplerAirlock(config.modules.airlock).owner() == address(0)) revert ZeroAddress();
+        if (
+            bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
+                || bytes(config.externalURLBase).length == 0
+        ) {
             revert InvalidMetadataURI();
         }
         if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);
         if (config.genesisRewardShareBps > 10_000) revert InvalidRewardShare(config.genesisRewardShareBps);
         if (config.reserveShareBps > 10_000) revert InvalidReserveShare(config.reserveShareBps);
+        if (config.recoveryCallerShareBps == 0 || config.recoveryCallerShareBps >= 10_000) {
+            revert InvalidRecoveryCallerShare(config.recoveryCallerShareBps);
+        }
         if (config.genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(config.genesisEpochEnd);
     }
 
-    function _validateRobinhoodWeth(address configuredWeth) private view returns (bytes32 expectedCodeHash) {
+    function _validateRobinhoodWeth(address configuredWeth) private view returns (bytes32 wethDependencyHash) {
         string memory manifest = vm.readFile(_robinhoodManifestPath(ROBINHOOD_MAINNET_CHAIN_ID));
         address expectedWeth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
         if (configuredWeth != expectedWeth) revert InvalidRobinhoodWeth(expectedWeth, configuredWeth);
-        expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
-        bytes32 actualCodeHash = configuredWeth.codehash;
-        if (actualCodeHash != expectedCodeHash) revert InvalidRobinhoodWethCodeHash(expectedCodeHash, actualCodeHash);
+        bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash");
+        bytes32 configuredCodeHash = configuredWeth.codehash;
+        if (configuredCodeHash != expectedCodeHash) {
+            revert InvalidRobinhoodWethCodeHash(expectedCodeHash, configuredCodeHash);
+        }
+
+        address implementation = address(uint160(uint256(vm.load(configuredWeth, ERC1967_IMPLEMENTATION_SLOT))));
+        address expectedImplementation = vm.parseJsonAddress(manifest, ".contracts.weth.implementation.address");
+        if (implementation != expectedImplementation) {
+            revert InvalidRobinhoodDependency(expectedImplementation, implementation);
+        }
+        bytes32 expectedImplementationCodeHash =
+            vm.parseJsonBytes32(manifest, ".contracts.weth.implementation.runtimeCodeHash");
+        _requireRobinhoodCodeHash(implementation, expectedImplementationCodeHash);
+
+        bytes32 authorityHash = _validateRobinhoodWethAuthority(configuredWeth, manifest);
+        wethDependencyHash = keccak256(
+            abi.encode(expectedCodeHash, expectedImplementation, expectedImplementationCodeHash, authorityHash)
+        );
+    }
+
+    function _validateRobinhoodWethAuthority(address configuredWeth, string memory manifest)
+        private
+        view
+        returns (bytes32 authorityHash)
+    {
+        address proxyAdmin = address(uint160(uint256(vm.load(configuredWeth, ERC1967_ADMIN_SLOT))));
+        address expectedProxyAdmin = vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.address");
+        if (proxyAdmin != expectedProxyAdmin) revert InvalidRobinhoodDependency(expectedProxyAdmin, proxyAdmin);
+        bytes32 expectedProxyAdminCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.runtimeCodeHash");
+        _requireRobinhoodCodeHash(proxyAdmin, expectedProxyAdminCodeHash);
+
+        bytes32 ownerHash = _validateRobinhoodProxyAdminOwner(proxyAdmin, manifest);
+        authorityHash = keccak256(abi.encode(expectedProxyAdmin, expectedProxyAdminCodeHash, ownerHash));
+    }
+
+    function _validateRobinhoodProxyAdminOwner(address proxyAdmin, string memory manifest)
+        private
+        view
+        returns (bytes32 ownerHash)
+    {
+        address proxyAdminOwner = IProxyAdminOwner(proxyAdmin).owner();
+        address expectedProxyAdminOwner = vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.owner.address");
+        if (proxyAdminOwner != expectedProxyAdminOwner) {
+            revert InvalidRobinhoodDependency(expectedProxyAdminOwner, proxyAdminOwner);
+        }
+        bytes32 expectedProxyAdminOwnerCodeHash =
+            vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.owner.runtimeCodeHash");
+        _requireRobinhoodCodeHash(proxyAdminOwner, expectedProxyAdminOwnerCodeHash);
+
+        address ownerImplementation = address(uint160(uint256(vm.load(proxyAdminOwner, ERC1967_IMPLEMENTATION_SLOT))));
+        address expectedOwnerImplementation =
+            vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.owner.implementation.address");
+        if (ownerImplementation != expectedOwnerImplementation) {
+            revert InvalidRobinhoodDependency(expectedOwnerImplementation, ownerImplementation);
+        }
+        bytes32 expectedOwnerImplementationCodeHash =
+            vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.owner.implementation.runtimeCodeHash");
+        _requireRobinhoodCodeHash(ownerImplementation, expectedOwnerImplementationCodeHash);
+
+        address ownerProxyAdmin = address(uint160(uint256(vm.load(proxyAdminOwner, ERC1967_ADMIN_SLOT))));
+        if (ownerProxyAdmin != proxyAdmin) revert InvalidRobinhoodDependency(proxyAdmin, ownerProxyAdmin);
+
+        ownerHash = keccak256(
+            abi.encode(
+                expectedProxyAdminOwner,
+                expectedProxyAdminOwnerCodeHash,
+                expectedOwnerImplementation,
+                expectedOwnerImplementationCodeHash
+            )
+        );
+    }
+
+    function _requireRobinhoodCodeHash(address dependency, bytes32 expectedCodeHash) private view {
+        bytes32 actualCodeHash = dependency.codehash;
+        if (actualCodeHash != expectedCodeHash) {
+            revert InvalidRobinhoodDependencyCodeHash(dependency, expectedCodeHash, actualCodeHash);
+        }
     }
 
     function _validateRobinhoodDopplerModules(StaticsDopplerLaunchConfig.Modules memory modules)
@@ -510,7 +669,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         console2.log("STATICS_DOPPLER_POOL_ID");
         console2.logBytes32(deployment.poolId);
         console2.log("STATICS_FEE_RECEIVER_ADDRESS", deployment.feeReceiver);
-        console2.log("STATICS_LAUNCH_ALLOCATION_ESCROW_ADDRESS", deployment.allocationEscrow);
+        console2.log("STATICS_TREASURY_VESTING_ADDRESS", deployment.treasuryVesting);
         console2.log("STATICS_GENESIS_ACTIVATION_REGISTRY_ADDRESS", deployment.activationRegistry);
         console2.log("STATICS_GENESIS_NFT_ADDRESS", deployment.genesis);
         console2.log("STATICS_GENESIS_VAULT_ADDRESS", deployment.genesisVault);

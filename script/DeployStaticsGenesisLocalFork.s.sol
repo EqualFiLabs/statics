@@ -28,10 +28,12 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
         uint256 fee = vm.envOr("STATICS_DOPPLER_FEE", uint256(30_000));
         uint256 rewardShare = vm.envOr("STATICS_GENESIS_REWARD_SHARE_BPS", uint256(5_000));
         uint256 reserveShare = vm.envOr("STATICS_GENESIS_RESERVE_SHARE_BPS", uint256(5_000));
+        uint256 recoveryCallerShare = vm.envOr("STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS", uint256(2_000));
         uint256 genesisEpochEnd = vm.envOr("STATICS_GENESIS_EPOCH_END", block.timestamp + 7 days);
         if (fee > type(uint24).max) revert InvalidFee(fee);
         if (rewardShare > type(uint16).max) revert InvalidRewardShare(rewardShare);
         if (reserveShare > type(uint16).max) revert InvalidReserveShare(reserveShare);
+        if (recoveryCallerShare > type(uint16).max) revert InvalidRecoveryCallerShare(recoveryCallerShare);
         if (genesisEpochEnd <= block.timestamp) revert InvalidEpochEnd(genesisEpochEnd);
 
         StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
@@ -44,6 +46,9 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
             fee: uint24(fee),
             genesisRewardShareBps: uint16(rewardShare),
             reserveShareBps: uint16(reserveShare),
+            creditOriginationFee: vm.envOr("STATICS_GENESIS_CREDIT_ORIGINATION_FEE", uint256(0.003 ether)),
+            creditExtensionFee: vm.envOr("STATICS_GENESIS_CREDIT_EXTENSION_FEE", uint256(0.003 ether)),
+            recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
             contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", string("ipfs://statics-local/genesis-contract.json")),

@@ -158,6 +158,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.StakePosition storage stored = LibGlobalRewards.rewardStorage().positions[positionId];
         position = StakePositionView({
             stakedBalance: stored.balance,
+            rewardMultiplierBps: LibGlobalRewards.effectiveRewardMultiplier(stored),
             claimAssetCount: stored.claimAssetCount,
             optedInAssetCount: stored.optedInAssets.length
         });
@@ -168,7 +169,9 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.RewardBook storage stored = rs.books[asset];
         state = RewardAssetView({
             eligibleStake: LibGlobalRewards.effectiveEligibleStake(stored),
+            eligibleWeight: LibGlobalRewards.effectiveEligibleWeight(stored),
             pendingStake: LibGlobalRewards.effectivePendingStake(stored),
+            pendingWeight: LibGlobalRewards.effectivePendingWeight(stored),
             indexRay: stored.indexRay,
             indexedReserve: stored.indexedAmount,
             totalClaimable: rs.totalClaimable[asset]
@@ -219,7 +222,15 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
-        return LibGlobalRewards.effectiveEligibleStake(LibGlobalRewards.rewardStorage().books[asset]) != 0;
+        return LibGlobalRewards.effectiveEligibleWeight(LibGlobalRewards.rewardStorage().books[asset]) != 0;
+    }
+
+    function checkpointRewardAssets(address[] calldata assets) external {
+        LibGlobalRewards.checkpointRewardAssets(assets);
+    }
+
+    function rewardBookNeedsCheckpoint(address asset) external view returns (bool) {
+        return LibGlobalRewards.rewardBookNeedsCheckpoint(asset);
     }
 
     function _optIn(uint256 positionId, address[] calldata assets) private {

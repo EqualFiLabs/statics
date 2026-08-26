@@ -8,6 +8,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IGenesisActivationConsumer, IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegistry.sol";
 import {IGenesisLaunchDistributor} from "../interfaces/IGenesisLaunchDistributor.sol";
+import {IGenesisRecoveryDistributor} from "../interfaces/IGenesisRecoveryDistributor.sol";
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {IStaticsGenesis} from "../interfaces/IStaticsGenesis.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
@@ -15,6 +16,7 @@ import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 /// @notice Temporary two-asset launch reward index for registered Genesis NFTs.
 contract GenesisLaunchDistributor is
     IGenesisLaunchDistributor,
+    IGenesisRecoveryDistributor,
     IGenesisActivationConsumer,
     Ownable2Step,
     ReentrancyGuard
@@ -51,6 +53,7 @@ contract GenesisLaunchDistributor is
     uint16 public genesisRewardShareBps;
     uint256 public totalWeight;
     bool public finalized;
+    uint256 public override pendingGenesisRecovery;
 
     mapping(uint256 genesisId => bool registered) public registered;
     mapping(uint256 genesisId => uint256 weight) public effectiveWeight;
@@ -63,6 +66,7 @@ contract GenesisLaunchDistributor is
 
     error InvalidContract(address target);
     error InvalidTreasury();
+    error InvalidRewardPair(address statics, address numeraire);
     error InvalidRewardShare(uint256 shareBps);
     error InvalidRewardAsset(address asset);
     error InvalidReceiver(address receiver);
@@ -77,6 +81,11 @@ contract GenesisLaunchDistributor is
     error InconsistentFeeTransfer(address asset, uint256 expected, uint256 received);
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
+    error UnauthorizedRecoveryVault(address caller);
+    error UnauthorizedRecoveryPredecessor(address caller);
+    error InvalidRecoveryAmount();
+    error RecoveryRolesNotActive();
+    error UnexpectedRecoveryOwner(uint256 genesisId, address expectedOwner, address actualOwner);
 
     constructor(
         IStaticsFeeReceiver feeReceiver_,
@@ -100,8 +109,16 @@ contract GenesisLaunchDistributor is
         feeReceiver = feeReceiver_;
         genesis = genesis_;
         activationRegistry = activationRegistry_;
-        statics = feeReceiver_.statics();
-        numeraire = feeReceiver_.numeraire();
+        address statics_ = feeReceiver_.statics();
+        address numeraire_ = feeReceiver_.numeraire();
+        if (
+            statics_ == address(0) || numeraire_ == address(0) || statics_ == numeraire_ || statics_.code.length == 0
+                || numeraire_.code.length == 0
+        ) {
+            revert InvalidRewardPair(statics_, numeraire_);
+        }
+        statics = statics_;
+        numeraire = numeraire_;
         vault = genesis_.vault();
         treasury = treasury_;
         genesisRewardShareBps = genesisRewardShareBps_;
@@ -118,11 +135,13 @@ contract GenesisLaunchDistributor is
 
     function acceptActivationConsumer() external override onlyOwner {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
+        if (feeReceiver.activeDistributor() != address(this)) revert RecoveryRolesNotActive();
         activationRegistry.acceptConsumer();
     }
 
     function registerGenesis(uint256 genesisId) external override nonReentrant {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
+        if (!genesisRecoveryReady()) revert RecoveryRolesNotActive();
         if (registered[genesisId]) revert GenesisAlreadyRegistered(genesisId);
         address tokenOwner = genesis.ownerOf(genesisId);
         if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
@@ -136,6 +155,7 @@ contract GenesisLaunchDistributor is
         _genesisAssetState[genesisId][statics].checkpointRay = _rewardBooks[statics].indexRay;
         _genesisAssetState[genesisId][numeraire].checkpointRay = _rewardBooks[numeraire].indexRay;
         emit GenesisRegistered(genesisId, weight, totalWeight);
+        _flushPendingGenesisRecovery();
     }
 
     function accrue() external override nonReentrant returns (uint256 staticsAmount, uint256 numeraireAmount) {
@@ -179,6 +199,75 @@ contract GenesisLaunchDistributor is
             _rewardBooks[numeraire].indexRemainder = 0;
         }
         emit GenesisWeightChanged(genesisId, previousWeight, nextWeight, totalWeight);
+        _flushPendingGenesisRecovery();
+    }
+
+    function accrueGenesisRecovery(uint256 amount) external override nonReentrant {
+        if (msg.sender != vault) revert UnauthorizedRecoveryVault(msg.sender);
+        if (amount == 0) revert InvalidRecoveryAmount();
+        IERC20 token = IERC20(statics);
+        uint256 balance = token.balanceOf(address(this));
+        uint256 accounted = accountedCustody[statics];
+        uint256 available = balance > accounted ? balance - accounted : 0;
+        if (available < amount) revert InconsistentFeeTransfer(statics, amount, available);
+        accountedCustody[statics] = accounted + amount;
+
+        if (totalWeight == 0) {
+            pendingGenesisRecovery += amount;
+            emit GenesisRecoveryAccrued(amount, pendingGenesisRecovery, _rewardBooks[statics].indexRay);
+            return;
+        }
+        _increaseRecoveryIndex(amount);
+        emit GenesisRecoveryAccrued(amount, pendingGenesisRecovery, _rewardBooks[statics].indexRay);
+    }
+
+    function checkpointGenesisRecovery(uint256 genesisId, address expectedOwner) external override nonReentrant {
+        if (msg.sender != vault) revert UnauthorizedRecoveryVault(msg.sender);
+        if (!genesisRecoveryReady()) revert RecoveryRolesNotActive();
+        address tokenOwner = genesis.ownerOf(genesisId);
+        if (tokenOwner != expectedOwner) revert UnexpectedRecoveryOwner(genesisId, expectedOwner, tokenOwner);
+
+        _accrue();
+        _settle(genesisId, statics);
+        _settle(genesisId, numeraire);
+        _crystallizeToOwner(genesisId, expectedOwner, statics);
+        _crystallizeToOwner(genesisId, expectedOwner, numeraire);
+    }
+
+    function migratePendingGenesisRecovery(address successor) external override nonReentrant returns (uint256 amount) {
+        if (msg.sender != address(feeReceiver)) revert UnauthorizedRecoveryPredecessor(msg.sender);
+        amount = pendingGenesisRecovery;
+        if (amount == 0) return 0;
+        pendingGenesisRecovery = 0;
+        accountedCustody[statics] -= amount;
+        IERC20(statics).pushExact(successor, amount);
+        IGenesisRecoveryDistributor(successor).acceptPendingGenesisRecovery(amount);
+        emit PendingGenesisRecoveryMigrated(successor, amount);
+    }
+
+    function acceptPendingGenesisRecovery(uint256 amount) external override nonReentrant {
+        if (msg.sender != feeReceiver.activeDistributor()) revert UnauthorizedRecoveryPredecessor(msg.sender);
+        if (amount == 0) revert InvalidRecoveryAmount();
+        IERC20 token = IERC20(statics);
+        uint256 balance = token.balanceOf(address(this));
+        uint256 accounted = accountedCustody[statics];
+        uint256 available = balance > accounted ? balance - accounted : 0;
+        if (available < amount) revert InconsistentFeeTransfer(statics, amount, available);
+        accountedCustody[statics] = accounted + amount;
+        pendingGenesisRecovery += amount;
+        emit PendingGenesisRecoveryReceived(msg.sender, amount);
+    }
+
+    function genesisRecoveryVault() external view override returns (address) {
+        return vault;
+    }
+
+    function genesisRecoveryAsset() external view override returns (address) {
+        return statics;
+    }
+
+    function genesisRecoveryReady() public view override returns (bool) {
+        return feeReceiver.activeDistributor() == address(this) && activationRegistry.activeConsumer() == address(this);
     }
 
     function claimGenesis(uint256 genesisId, address asset, address receiver)
@@ -192,17 +281,9 @@ contract GenesisLaunchDistributor is
         address tokenOwner = genesis.ownerOf(genesisId);
         if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
         if (!finalized) _accrue();
-        _settle(genesisId, asset);
-        GenesisAssetState storage state = _genesisAssetState[genesisId][asset];
-        amount = state.accrued;
+        amount = _consumeGenesisRewards(genesisId, asset, msg.sender, receiver);
         if (amount == 0) revert NoRewards();
-        state.accrued = 0;
-        RewardBook storage book = _rewardBooks[asset];
-        book.totalClaimable -= amount;
-        book.totalClaimed += amount;
-        accountedCustody[asset] -= amount;
-        IERC20(asset).pushExact(receiver, amount);
-        emit GenesisRewardsClaimed(genesisId, msg.sender, asset, receiver, amount);
+        _releaseGenesisRewards(asset, receiver, amount);
     }
 
     function claimOwnerRewards(address asset, address receiver)
@@ -213,16 +294,10 @@ contract GenesisLaunchDistributor is
     {
         _validateAsset(asset);
         _validateReceiver(receiver);
-        if (!finalized) _pullAttributed(asset);
-        amount = ownerClaimable[msg.sender][asset];
+        if (!finalized) _accrue();
+        amount = _consumeOwnerRewards(msg.sender, asset, receiver);
         if (amount == 0) revert NoRewards();
-        delete ownerClaimable[msg.sender][asset];
-        RewardBook storage book = _rewardBooks[asset];
-        book.totalClaimable -= amount;
-        book.totalClaimed += amount;
-        accountedCustody[asset] -= amount;
-        IERC20(asset).pushExact(receiver, amount);
-        emit OwnerRewardsClaimed(msg.sender, asset, receiver, amount);
+        _releaseGenesisRewards(asset, receiver, amount);
     }
 
     function claimTreasuryRewards(address asset, address receiver)
@@ -242,6 +317,52 @@ contract GenesisLaunchDistributor is
         accountedCustody[asset] -= amount;
         IERC20(asset).pushExact(receiver, amount);
         emit TreasuryRewardsClaimed(asset, receiver, amount);
+    }
+
+    function claimAllGenesisRewards(uint256[] calldata genesisIds, address receiver)
+        external
+        override
+        nonReentrant
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        _validateReceiver(receiver);
+        uint256 count = genesisIds.length;
+        for (uint256 i; i < count; ++i) {
+            uint256 genesisId = genesisIds[i];
+            address tokenOwner = genesis.ownerOf(genesisId);
+            if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
+        }
+        if (!finalized) _accrue();
+        for (uint256 i; i < count; ++i) {
+            uint256 genesisId = genesisIds[i];
+            staticsAmount += _consumeGenesisRewards(genesisId, statics, msg.sender, receiver);
+            numeraireAmount += _consumeGenesisRewards(genesisId, numeraire, msg.sender, receiver);
+        }
+        staticsAmount += _consumeOwnerRewards(msg.sender, statics, receiver);
+        numeraireAmount += _consumeOwnerRewards(msg.sender, numeraire, receiver);
+        if (staticsAmount == 0 && numeraireAmount == 0) revert NoRewards();
+        _releaseGenesisRewards(statics, receiver, staticsAmount);
+        _releaseGenesisRewards(numeraire, receiver, numeraireAmount);
+    }
+
+    function claimAllGenesisTreasuryRewards(address receiver)
+        external
+        override
+        nonReentrant
+        returns (uint256 staticsAmount, uint256 numeraireAmount)
+    {
+        if (msg.sender != treasury) revert UnauthorizedTreasury(msg.sender);
+        _validateReceiver(receiver);
+        if (!finalized) _accrue();
+        RewardBook storage staticsBook = _rewardBooks[statics];
+        RewardBook storage numeraireBook = _rewardBooks[numeraire];
+        staticsAmount = staticsBook.treasuryClaimable;
+        numeraireAmount = numeraireBook.treasuryClaimable;
+        if (staticsAmount == 0 && numeraireAmount == 0) revert NoRewards();
+        staticsBook.treasuryClaimable = 0;
+        numeraireBook.treasuryClaimable = 0;
+        _releaseTreasuryRewards(statics, receiver, staticsAmount);
+        _releaseTreasuryRewards(numeraire, receiver, numeraireAmount);
     }
 
     function setGenesisRewardShareBps(uint16 newShareBps) external override onlyOwner nonReentrant {
@@ -342,6 +463,60 @@ contract GenesisLaunchDistributor is
             book.indexedAmount += genesisAmount;
         }
         emit RevenueAccrued(asset, amount, genesisAmount, treasuryAmount, book.indexRay);
+    }
+
+    function _flushPendingGenesisRecovery() private {
+        uint256 amount = pendingGenesisRecovery;
+        if (amount == 0 || totalWeight == 0) return;
+        pendingGenesisRecovery = 0;
+        _increaseRecoveryIndex(amount);
+        emit PendingGenesisRecoveryIndexed(amount, _rewardBooks[statics].indexRay);
+    }
+
+    function _increaseRecoveryIndex(uint256 amount) private {
+        RewardBook storage book = _rewardBooks[statics];
+        uint256 scaled = amount * RAY + book.indexRemainder;
+        book.indexRay += scaled / totalWeight;
+        book.indexRemainder = scaled % totalWeight;
+        book.indexedAmount += amount;
+    }
+
+    function _consumeGenesisRewards(uint256 genesisId, address asset, address rewardOwner, address receiver)
+        private
+        returns (uint256 amount)
+    {
+        _settle(genesisId, asset);
+        GenesisAssetState storage state = _genesisAssetState[genesisId][asset];
+        amount = state.accrued;
+        if (amount == 0) return 0;
+        state.accrued = 0;
+        emit GenesisRewardsClaimed(genesisId, rewardOwner, asset, receiver, amount);
+    }
+
+    function _consumeOwnerRewards(address rewardOwner, address asset, address receiver)
+        private
+        returns (uint256 amount)
+    {
+        amount = ownerClaimable[rewardOwner][asset];
+        if (amount == 0) return 0;
+        delete ownerClaimable[rewardOwner][asset];
+        emit OwnerRewardsClaimed(rewardOwner, asset, receiver, amount);
+    }
+
+    function _releaseGenesisRewards(address asset, address receiver, uint256 amount) private {
+        if (amount == 0) return;
+        RewardBook storage book = _rewardBooks[asset];
+        book.totalClaimable -= amount;
+        book.totalClaimed += amount;
+        accountedCustody[asset] -= amount;
+        IERC20(asset).pushExact(receiver, amount);
+    }
+
+    function _releaseTreasuryRewards(address asset, address receiver, uint256 amount) private {
+        if (amount == 0) return;
+        accountedCustody[asset] -= amount;
+        IERC20(asset).pushExact(receiver, amount);
+        emit TreasuryRewardsClaimed(asset, receiver, amount);
     }
 
     function _settle(uint256 genesisId, address asset) private {

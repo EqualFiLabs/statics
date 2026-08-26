@@ -16,6 +16,7 @@ import {DeployStaticsGenesisLocalFork} from "../../script/DeployStaticsGenesisLo
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
+import {StaticsTreasuryVesting} from "../../src/genesis/StaticsTreasuryVesting.sol";
 import {DopplerLaunchTypes, IDopplerAirlock} from "../../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
@@ -71,9 +72,10 @@ contract MockDeploymentInitializer {
 contract MockDeploymentAirlock is IDopplerAirlock {
     address private constant GOVERNANCE_DEAD = address(0xdead);
     address private constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
-    address public immutable override owner;
+    address public override owner;
     MockDeploymentInitializer public immutable initializer;
     uint256 public lastNumTokensToSell;
+    bytes32 public lastTokenFactoryDataHash;
     uint256 public residual = 1 ether;
 
     constructor(address owner_, MockDeploymentInitializer initializer_) {
@@ -85,6 +87,10 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         residual = residual_;
     }
 
+    function setOwner(address owner_) external {
+        owner = owner_;
+    }
+
     function create(DopplerLaunchTypes.CreateParams calldata params)
         external
         returns (address asset, address pool, address governance, address timelock, address migrationPool)
@@ -93,6 +99,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         require(params.initialSupply == token.totalSupply(), "SUPPLY");
         require(params.numTokensToSell == 800_000_000 ether, "INVENTORY");
         lastNumTokensToSell = params.numTokensToSell;
+        lastTokenFactoryDataHash = keccak256(params.tokenFactoryData);
         DopplerLaunchTypes.PoolInitializerData memory poolData =
             abi.decode(params.poolInitializerData, (DopplerLaunchTypes.PoolInitializerData));
         require(poolData.dopplerHook == address(0), "HOOK");
@@ -109,6 +116,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         return (address(token), address(token), GOVERNANCE_DEAD, treasury, MIGRATION_DEAD);
     }
 }
+
+    contract DeployStaticsGenesisHarness is DeployStaticsGenesis {
+        function requireApprovedProductionConfig(bytes32 currentHash) external pure {
+            _requireApprovedProductionConfig(currentHash);
+        }
+    }
 
     contract DeployStaticsGenesisTest is Test {
         DeployStaticsGenesis private deployer;
@@ -132,25 +145,38 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             IERC20 statics = IERC20(deployment.statics);
             StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
             StaticsGenesisVault vault = StaticsGenesisVault(deployment.genesisVault);
+            StaticsTreasuryVesting vesting = StaticsTreasuryVesting(deployment.treasuryVesting);
             StaticsFeeReceiver receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
             GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
             GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
 
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
-            assertEq(statics.balanceOf(treasury), 200_000_000 ether);
+            assertEq(statics.balanceOf(treasury), 0);
             assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
+            assertEq(
+                airlock.lastTokenFactoryDataHash(), keccak256(_expectedTokenFactoryData("ipfs://statics/token.json"))
+            );
             assertEq(statics.balanceOf(address(initializer)), 799_999_999 ether);
-            assertEq(genesis.balanceOf(address(vault)), 5_555);
-            assertEq(vault.requiredBacking(), 0);
-            assertEq(vault.tokenBacking(), 0);
-            assertEq(statics.balanceOf(address(vault)), 1 ether);
-            assertEq(statics.balanceOf(deployment.allocationEscrow), 0);
+            assertEq(genesis.balanceOf(address(vault)), 5_000);
+            assertEq(genesis.balanceOf(address(vesting)), 555);
+            assertEq(genesis.ownerOf(5_001), address(vesting));
+            assertEq(genesis.ownerOf(5_555), address(vesting));
+            assertEq(vault.circulatingGenesis(), 555);
+            assertEq(vault.requiredBacking(), 99_900_000 ether);
+            assertEq(vault.tokenBacking(), 99_900_000 ether);
+            assertEq(statics.balanceOf(address(vault)), 99_900_000 ether);
+            assertEq(statics.balanceOf(address(vesting)), 100_100_001 ether);
+            assertEq(vesting.recipientAdmin(), governance);
+            assertEq(vesting.withdrawalRecipient(), treasury);
+            assertEq(vesting.bootstrapper(), address(0));
+            assertEq(vesting.releasableStatics(), 0);
+            assertEq(vesting.releasableGenesis(), 0);
             assertEq(receiver.statics(), deployment.statics);
             assertEq(receiver.poolId(), deployment.poolId);
             assertEq(receiver.poolInitializer(), address(initializer));
             assertEq(initializer.getShares(deployment.poolId, address(receiver)), 0.95 ether);
             assertEq(initializer.getShares(deployment.poolId, airlock.owner()), 0.05 ether);
-            assertEq(statics.balanceOf(deployment.genesisVault), 1 ether);
+            assertEq(statics.balanceOf(deployment.genesisVault), 99_900_000 ether);
             assertEq(receiver.activeDistributor(), address(distributor));
             assertEq(registry.activeConsumer(), address(distributor));
             assertEq(receiver.reserveVault(), address(vault));
@@ -159,6 +185,13 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(vault.genesisEpochEnd(), block.timestamp + 7 days);
             assertTrue(vault.epochActive());
             assertEq(vault.reserveETH(), 0);
+            assertEq(vault.creditOriginationFee(), 0.003 ether);
+            assertEq(vault.creditExtensionFee(), 0.003 ether);
+            assertEq(vault.recoveryCallerShareBps(), 2_000);
+            assertEq(vault.creditServiceReserveShareBps(), 1_000);
+            assertEq(vault.creditServiceTreasuryShareBps(), 9_000);
+            assertEq(distributor.genesisRecoveryVault(), address(vault));
+            assertEq(distributor.genesisRecoveryAsset(), address(statics));
             assertEq(receiver.pendingOwner(), governance);
             assertEq(registry.pendingOwner(), governance);
             assertEq(vault.pendingOwner(), governance);
@@ -226,6 +259,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(curves[4].tickUpper, curves[5].tickLower);
             assertEq(deployer.FAR_TICK(), 887_100);
             assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
+            assertEq(deployer.GENESIS_CREDIT_MAX_PRINCIPAL(), 171_000 ether);
+            assertEq(deployer.GENESIS_CREDIT_RECOVERY_RESIDUAL(), 9_000 ether);
+            assertEq(deployer.GENESIS_CREDIT_TERM(), 30 days);
+            assertEq(deployer.GENESIS_CREDIT_RECOVERY_GRACE(), 1 hours);
+            assertEq(deployer.GENESIS_CREDIT_INITIAL_RESERVE_SHARE_BPS(), 1_000);
+            assertEq(deployer.GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS(), 9_000);
         }
 
         function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
@@ -234,6 +273,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
             bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
             assertNotEq(launchHash, bytes32(0));
+            assertNotEq(deployer.staticsImplementationHash(), bytes32(0));
 
             config.fee += 1;
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
@@ -244,6 +284,15 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.reserveShareBps += 1;
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.reserveShareBps -= 1;
+            config.creditOriginationFee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.creditOriginationFee -= 1;
+            config.creditExtensionFee += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.creditExtensionFee -= 1;
+            config.recoveryCallerShareBps += 1;
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.recoveryCallerShareBps -= 1;
             config.genesisEpochEnd += 1;
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.genesisEpochEnd -= 1;
@@ -258,26 +307,71 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.integrator = address(0);
             config.salt = bytes32(uint256(config.salt) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.salt = keccak256("STATICS_DOPPLER_TEST");
+            address originalDopplerOwner = airlock.owner();
+            airlock.setOwner(makeAddr("rotatedAirlockOwner"));
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            airlock.setOwner(originalDopplerOwner);
+        }
+
+        function testZeroApprovedHashBlocksProductionRatification() public {
+            DeployStaticsGenesisHarness harness = new DeployStaticsGenesisHarness();
+            bytes32 currentHash = keccak256("unratified Robinhood launch");
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.ProductionLaunchConfigurationNotRatified.selector, currentHash, bytes32(0)
+                )
+            );
+            harness.requireApprovedProductionConfig(currentHash);
         }
 
         function testLaunchManifestHashBindsDependenciesAndMetadata() public {
             StaticsGenesisDeploymentConfig memory config = _config();
             bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
             StaticsDopplerLaunchConfig.RuntimeCodeHashes memory codeHashes = _codeHashes();
+            StaticsDopplerLaunchConfig.Modules memory originalModules = config.modules;
             bytes32 launchHash = deployer.launchConfigHash(config, canonicalWethHash, codeHashes);
 
             config.numeraire = address(uint160(config.numeraire) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.numeraire = address(weth);
-            config.modules.airlock = address(uint160(config.modules.airlock) + 1);
+            config.modules.airlock = address(new MockDeploymentAirlock(makeAddr("differentAirlockOwner"), initializer));
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.modules.airlock = address(airlock);
+            config.modules.tokenFactory = address(uint160(config.modules.tokenFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.tokenFactory = originalModules.tokenFactory;
+            config.modules.governanceFactory = address(uint160(config.modules.governanceFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.governanceFactory = originalModules.governanceFactory;
+            config.modules.poolInitializer = address(uint160(config.modules.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.poolInitializer = address(initializer);
+            config.modules.noOpMigrator = address(uint160(config.modules.noOpMigrator) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.modules.noOpMigrator = originalModules.noOpMigrator;
+
+            codeHashes.airlock = bytes32(uint256(codeHashes.airlock) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            codeHashes.tokenFactory = bytes32(uint256(codeHashes.tokenFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            codeHashes.governanceFactory = bytes32(uint256(codeHashes.governanceFactory) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
             codeHashes.poolInitializer = bytes32(uint256(codeHashes.poolInitializer) + 1);
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            codeHashes = _codeHashes();
+            codeHashes.noOpMigrator = bytes32(uint256(codeHashes.noOpMigrator) + 1);
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             codeHashes = _codeHashes();
             assertNotEq(
                 deployer.launchConfigHash(config, bytes32(uint256(canonicalWethHash) + 1), codeHashes), launchHash
             );
+            config.tokenURI = "ipfs://different-token.json";
+            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
+            config.tokenURI = "ipfs://statics/token.json";
             config.contractURI = "ipfs://different-contract.json";
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.contractURI = "ipfs://statics-genesis/contract.json";
@@ -285,12 +379,22 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
-        function testRejectsExcessiveMulticurveResidual() public {
-            airlock.setResidual(101 ether);
+        function testAcceptsArbitraryMulticurveSurplusWithoutVaultDonation() public {
+            uint256 surplus = 1_000_000 ether;
+            airlock.setResidual(surplus);
+
+            StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
+            IERC20 statics = IERC20(deployment.statics);
+
+            assertEq(statics.balanceOf(deployment.genesisVault), 99_900_000 ether);
+            assertEq(StaticsGenesisVault(deployment.genesisVault).tokenBacking(), 99_900_000 ether);
+            assertEq(statics.balanceOf(deployment.treasuryVesting), 100_100_000 ether + surplus);
+        }
+
+        function testRejectsRenouncedDopplerOwner() public {
+            airlock.setOwner(address(0));
             StaticsGenesisDeploymentConfig memory config = _config();
-            vm.expectRevert(
-                abi.encodeWithSelector(DeployStaticsGenesis.ExcessiveMulticurveResidual.selector, 101 ether, 100 ether)
-            );
+            vm.expectRevert(DeployStaticsGenesis.ZeroAddress.selector);
             deployer.deploy(config, address(deployer));
         }
 
@@ -308,6 +412,21 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config = _config();
             config.genesisEpochEnd = block.timestamp;
             vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidEpochEnd.selector, block.timestamp));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.recoveryCallerShareBps = 0;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidRecoveryCallerShare.selector, 0));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.recoveryCallerShareBps = 10_000;
+            vm.expectRevert(abi.encodeWithSelector(DeployStaticsGenesis.InvalidRecoveryCallerShare.selector, 10_000));
+            deployer.deploy(config, address(deployer));
+
+            config = _config();
+            config.tokenURI = "";
+            vm.expectRevert(DeployStaticsGenesis.InvalidMetadataURI.selector);
             deployer.deploy(config, address(deployer));
 
             config = _config();
@@ -373,6 +492,9 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 fee: 30_000,
                 genesisRewardShareBps: 5_000,
                 reserveShareBps: 5_000,
+                creditOriginationFee: 0.003 ether,
+                creditExtensionFee: 0.003 ether,
+                recoveryCallerShareBps: 2_000,
                 genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
                 contractURI: "ipfs://statics-genesis/contract.json",
@@ -388,5 +510,21 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 poolInitializer: keccak256("poolInitializer"),
                 noOpMigrator: keccak256("noOpMigrator")
             });
+        }
+
+        function _expectedTokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
+            return abi.encode(
+                "Statics",
+                "STATICS",
+                new DopplerLaunchTypes.VestingSchedule[](0),
+                new address[](0),
+                new uint256[](0),
+                new uint256[](0),
+                tokenURI,
+                uint256(0),
+                uint48(0),
+                address(0),
+                new address[](0)
+            );
         }
     }

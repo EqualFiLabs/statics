@@ -22,9 +22,33 @@ contract FeeAccrualHarness {
         require(received == amount, "incompatible token");
         LibGlobalRewards.accrueNonSwapFee(SOURCE_ACCOUNT, asset, amount);
     }
+
+    function transitionPositionWeight(uint256 positionId, uint256 multiplierBps) external {
+        if (multiplierBps > type(uint16).max) revert();
+        LibGlobalRewards.transitionPositionWeight(positionId, uint16(multiplierBps));
+    }
+
+    function emulateLegacyBaseWeight(uint256 positionId, address asset) external {
+        LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
+        LibGlobalRewards.RewardBook storage book = rs.books[asset];
+        LibGlobalRewards.PositionSelection storage selection = rs.positions[positionId].selections[asset];
+        book.eligibleWeight = 0;
+        book.pendingWeight = 0;
+        book.pendingBucketBitmap = 0;
+        book.weightInitialized = false;
+        for (uint256 i; i < LibGlobalRewards.REWARD_BUCKET_COUNT; ++i) {
+            book.pendingWeightBuckets[i] = 0;
+        }
+        selection.eligibleWeight = 0;
+        selection.pendingWeight = 0;
+        selection.weightInitialized = false;
+        rs.positions[positionId].rewardMultiplierBps = 0;
+    }
 }
 
 contract GlobalRewardsTest is StaticsTestBase {
+    uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
+
     function testBasketFeesAccrueAgainstSingleStakingBalanceAndRemainInKind() external {
         address[] memory selectedAssets = _assets(address(assetA), address(assetB));
         stakingAsset.mint(alice, 100 ether);
@@ -449,15 +473,142 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertEq(globalRewards.rewardAsset(address(reward)).pendingStake, 0);
     }
 
+    function testMultiplierTransitionSettlesOldIntervalAndUsesWeightForFutureRewards() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        MockERC20 reward = new MockERC20("Reward", "RWD", 18);
+        address[] memory rewardAssets = _asset(address(reward));
+        stakingAsset.mint(alice, 100 ether);
+        stakingAsset.mint(bob, 100 ether);
+        reward.mint(alice, 42.5 ether);
+
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        reward.approve(address(diamond), 42.5 ether);
+        uint256 alicePosition = globalRewards.createAndStake(100 ether, alice, rewardAssets);
+        vm.stopPrank();
+        vm.startPrank(bob);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 bobPosition = globalRewards.createAndStake(100 ether, bob, rewardAssets);
+        vm.stopPrank();
+
+        _warpEligible(alicePosition, address(reward), alice);
+        vm.startPrank(alice);
+        harness.accrueNonSwapFee(address(reward), 20 ether);
+        harness.transitionPositionWeight(alicePosition, 12_500);
+        harness.accrueNonSwapFee(address(reward), 22.5 ether);
+        vm.stopPrank();
+
+        IStaticsGlobalRewards.RewardAssetView memory book = globalRewards.rewardAsset(address(reward));
+        vm.prank(alice);
+        IStaticsGlobalRewards.StakePositionView memory aliceStake = globalRewards.stakePosition(alicePosition);
+        vm.prank(alice);
+        uint256 aliceRewards = globalRewards.pendingRewards(alicePosition, rewardAssets)[0];
+        vm.prank(bob);
+        uint256 bobRewards = globalRewards.pendingRewards(bobPosition, rewardAssets)[0];
+
+        assertEq(globalRewards.totalStaked(), 200 ether);
+        assertEq(book.eligibleStake, 200 ether);
+        assertEq(book.eligibleWeight, 225 ether);
+        assertEq(aliceStake.rewardMultiplierBps, 12_500);
+        assertEq(aliceRewards, 20.25 ether);
+        assertEq(bobRewards, 18 ether);
+    }
+
+    function testPendingWeightTransitionPreservesRawStakeAndMaturity() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 positionId = globalRewards.createAndStake(100 ether, alice, _asset(address(assetA)));
+        IStaticsGlobalRewards.RewardSelectionView memory beforeTransition =
+            globalRewards.rewardSelection(positionId, address(assetA));
+        harness.transitionPositionWeight(positionId, 12_500);
+        IStaticsGlobalRewards.RewardSelectionView memory afterTransition =
+            globalRewards.rewardSelection(positionId, address(assetA));
+        vm.stopPrank();
+
+        assertEq(afterTransition.eligibleStake, 0);
+        assertEq(afterTransition.eligibleWeight, 0);
+        assertEq(afterTransition.pendingStake, 100 ether);
+        assertEq(afterTransition.pendingWeight, 125 ether);
+        assertEq(afterTransition.eligibleAt, beforeTransition.eligibleAt);
+        assertEq(globalRewards.totalStaked(), 100 ether);
+    }
+
+    function testLegacyV3WeightMigratesLazilyWithoutChangingRewards() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 positionId = globalRewards.createAndStake(100 ether, alice, _asset(address(assetA)));
+        harness.emulateLegacyBaseWeight(positionId, address(assetA));
+        vm.stopPrank();
+
+        assertTrue(globalRewards.rewardBookNeedsCheckpoint(address(assetA)));
+        IStaticsGlobalRewards.RewardAssetView memory beforeCheckpoint = globalRewards.rewardAsset(address(assetA));
+        vm.prank(alice);
+        IStaticsGlobalRewards.RewardSelectionView memory selection =
+            globalRewards.rewardSelection(positionId, address(assetA));
+        assertEq(beforeCheckpoint.pendingStake, 100 ether);
+        assertEq(beforeCheckpoint.pendingWeight, 100 ether);
+        assertEq(selection.pendingWeight, 100 ether);
+
+        globalRewards.checkpointRewardAssets(_asset(address(assetA)));
+        assertFalse(globalRewards.rewardBookNeedsCheckpoint(address(assetA)));
+        harness.transitionPositionWeight(positionId, 12_500);
+        assertEq(globalRewards.rewardAsset(address(assetA)).pendingWeight, 125 ether);
+    }
+
+    function testMultiplierTransitionRequiresCheckpointForMaturedBuckets() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        stakingAsset.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 1 ether);
+        uint256 positionId = globalRewards.createAndStake(1 ether, alice, _asset(address(assetA)));
+        uint40 eligibleAt = globalRewards.rewardSelection(positionId, address(assetA)).eligibleAt;
+        vm.warp(eligibleAt);
+        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardBookNeedsCheckpoint.selector, address(assetA)));
+        harness.transitionPositionWeight(positionId, 12_500);
+        globalRewards.checkpointRewardAssets(_asset(address(assetA)));
+        harness.transitionPositionWeight(positionId, 12_500);
+        vm.stopPrank();
+
+        assertEq(globalRewards.rewardAsset(address(assetA)).eligibleWeight, 1.25 ether);
+    }
+
+    function testMaximumAssetWeightTransitionFitsTransactionGasCap() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        address[] memory rewardAssets = new address[](64);
+        for (uint256 i; i < rewardAssets.length; ++i) {
+            rewardAssets[i] = address(new MockERC20("Reward", "RWD", 18));
+        }
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 positionId = globalRewards.createAndStake(100 ether, alice, rewardAssets);
+        uint256 gasBefore = gasleft();
+        harness.transitionPositionWeight(positionId, 12_500);
+        uint256 transitionGas = gasBefore - gasleft();
+        vm.stopPrank();
+
+        emit log_named_uint("64-asset reward weight transition gas", transitionGas);
+        assertLt(transitionGas, MAX_TRANSACTION_GAS);
+        assertEq(globalRewards.totalStaked(), 100 ether);
+        assertEq(globalRewards.rewardAsset(rewardAssets[63]).pendingWeight, 125 ether);
+    }
+
     function _installFeeAccrualHarness() private returns (FeeAccrualHarness harness) {
-        harness = new FeeAccrualHarness();
-        bytes4[] memory selectors = new bytes4[](1);
+        FeeAccrualHarness implementation = new FeeAccrualHarness();
+        bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = FeeAccrualHarness.accrueNonSwapFee.selector;
+        selectors[1] = FeeAccrualHarness.transitionPositionWeight.selector;
+        selectors[2] = FeeAccrualHarness.emulateLegacyBaseWeight.selector;
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
-            facetAddress: address(harness), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
+            facetAddress: address(implementation), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+        harness = FeeAccrualHarness(address(diamond));
     }
 
     function _asset(address asset) private pure returns (address[] memory assets) {
@@ -475,5 +626,39 @@ contract GlobalRewardsTest is StaticsTestBase {
         vm.prank(owner);
         uint40 eligibleAt = globalRewards.rewardSelection(positionId, asset).eligibleAt;
         vm.warp(eligibleAt);
+    }
+}
+
+contract ColdGlobalRewardCheckpointGasTest is StaticsTestBase {
+    uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
+    address[] private checkpointAssets;
+
+    function setUp() public override {
+        super.setUp();
+        for (uint256 i; i < 8; ++i) {
+            checkpointAssets.push(address(new MockERC20("Reward", "RWD", 18)));
+        }
+        for (uint256 bucket; bucket < 24; ++bucket) {
+            stakingAsset.mint(alice, 1 ether);
+            vm.startPrank(alice);
+            stakingAsset.approve(address(diamond), 1 ether);
+            globalRewards.createAndStake(1 ether, alice, checkpointAssets);
+            vm.stopPrank();
+            if (bucket != 23) vm.warp(block.timestamp + 1 hours);
+        }
+        vm.warp(block.timestamp + 25 hours);
+    }
+
+    function testEightAssetMaximumBucketCheckpointFitsTransactionGasCap() external {
+        address[] memory assets = checkpointAssets;
+        uint256 gasBefore = gasleft();
+        globalRewards.checkpointRewardAssets(assets);
+        uint256 checkpointGas = gasBefore - gasleft();
+
+        emit log_named_uint("8-asset 24-bucket reward checkpoint gas", checkpointGas);
+        assertLt(checkpointGas, MAX_TRANSACTION_GAS);
+        for (uint256 i; i < assets.length; ++i) {
+            assertFalse(globalRewards.rewardBookNeedsCheckpoint(assets[i]));
+        }
     }
 }

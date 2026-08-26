@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IGenesisRecoveryDistributor} from "../interfaces/IGenesisRecoveryDistributor.sol";
 import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
@@ -44,6 +45,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     uint16 public override reserveShareBps;
     address public override activeDistributor;
     address public override pendingDistributor;
+    mapping(address distributor => bool activated) public distributorActivated;
 
     mapping(address asset => uint256 amount) public override cumulativeHarvested;
     mapping(address distributor => mapping(address asset => uint256 amount))
@@ -64,6 +66,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     error ReserveVaultNotBound();
     error InvalidReserveShare(uint16 shareBps);
     error InvalidDistributor(address distributor);
+    error DistributorAlreadyActivated(address distributor);
     error UnauthorizedPendingDistributor(address caller);
     error DistributorNotActive();
     error InvalidReceiver(address receiver);
@@ -74,6 +77,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     error NoDistributorFees(address distributor, address asset);
     error InsufficientSurplus(address asset, uint256 available, uint256 requested);
     error OwnershipRenunciationDisabled();
+    error InvalidRecoveryDistributor(address distributor, address expectedVault, address expectedAsset);
 
     constructor(address poolInitializer_, address numeraire_, address governance) Ownable(governance) {
         if (poolInitializer_ == address(0) || poolInitializer_.code.length == 0) {
@@ -115,6 +119,8 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         if (reserveVault != address(0)) revert ReserveVaultAlreadyBound();
         if (reserveVault_ == address(0) || reserveVault_.code.length == 0) revert InvalidReserveVault();
         if (address(IReserveVault(reserveVault_).statics()) != statics) revert InvalidReserveVault();
+        address distributor = activeDistributor;
+        if (distributor != address(0)) _validateRecoveryDistributor(distributor, reserveVault_);
         reserveVault = reserveVault_;
         emit ReserveVaultBound(reserveVault_);
     }
@@ -141,6 +147,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         if (distributor == address(0) || distributor.code.length == 0 || distributor == activeDistributor) {
             revert InvalidDistributor(distributor);
         }
+        if (distributorActivated[distributor]) revert DistributorAlreadyActivated(distributor);
         pendingDistributor = distributor;
         emit DistributorProposed(activeDistributor, distributor);
     }
@@ -148,17 +155,23 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
     function acceptDistributor() external override nonReentrant {
         address pending = pendingDistributor;
         if (msg.sender != pending) revert UnauthorizedPendingDistributor(msg.sender);
+        if (distributorActivated[pending]) revert DistributorAlreadyActivated(pending);
         if (statics == address(0)) revert MarketNotBound();
+        address vault = reserveVault;
+        if (vault != address(0)) _validateRecoveryDistributor(pending, vault);
         address previous = activeDistributor;
         if (previous == address(0)) {
             activeDistributor = pending;
+            distributorActivated[pending] = true;
             delete pendingDistributor;
             emit DistributorAccepted(address(0), pending);
             _harvest(pending);
             return;
         }
         _harvest(previous);
+        IGenesisRecoveryDistributor(previous).migratePendingGenesisRecovery(pending);
         activeDistributor = pending;
+        distributorActivated[pending] = true;
         delete pendingDistributor;
         emit DistributorAccepted(previous, pending);
     }
@@ -256,5 +269,26 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         distributorClaimable[distributor][asset] += amount;
         totalDistributorLiability[asset] += amount;
         emit FeesHarvested(distributor, asset, amount, cumulativeDistributorAttributed[distributor][asset]);
+    }
+
+    function _validateRecoveryDistributor(address distributor, address expectedVault) private view {
+        try IGenesisRecoveryDistributor(distributor).genesisRecoveryVault() returns (address reportedVault) {
+            if (reportedVault != expectedVault) {
+                revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+            }
+        } catch {
+            revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+        }
+        try IGenesisRecoveryDistributor(distributor).genesisRecoveryAsset() returns (address reportedAsset) {
+            if (reportedAsset != statics) {
+                revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+            }
+        } catch {
+            revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+        }
+        try IGenesisRecoveryDistributor(distributor).genesisRecoveryReady() returns (bool) {}
+        catch {
+            revert InvalidRecoveryDistributor(distributor, expectedVault, statics);
+        }
     }
 }

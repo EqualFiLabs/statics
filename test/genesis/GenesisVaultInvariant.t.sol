@@ -9,7 +9,9 @@ import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
+import {GenesisCreditConfig, GenesisCreditView} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
+import {MockGenesisFeeReceiver, MockGenesisRecoveryDistributor} from "../mocks/MockGenesisCreditDependencies.sol";
 
 contract ForceNativeToGenesisVault {
     constructor(address payable receiver) payable {
@@ -39,7 +41,7 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (statics.balanceOf(address(this)) < PRICE) return;
         uint256 tokenId = (seed % genesis.COLLECTION_SIZE()) + 1;
         if (!vault.isVaultInventory(tokenId)) return;
-        uint256 required = vault.reserveBuyIn() + (vault.epochActive() ? 0 : vault.nativeAcquisitionFee());
+        uint256 required = vault.quoteGenesisPurchase().requiredNative;
         if (address(this).balance < required) return;
         vault.buyGenesis{value: required}(tokenId, address(this));
         acquiredIds.push(tokenId);
@@ -49,6 +51,7 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (acquiredIds.length == 0) return;
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         if (genesis.ownerOf(tokenId) != address(this)) return;
+        if (vault.creditActive(tokenId)) return;
         genesis.approve(address(vault), tokenId);
         vault.redeemGenesis(tokenId, address(this));
     }
@@ -57,6 +60,7 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (acquiredIds.length == 0) return;
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         if (genesis.ownerOf(tokenId) != address(this)) return;
+        if (vault.creditActive(tokenId)) return;
         genesis.transferFrom(address(this), address(0xBEEF), tokenId);
     }
 
@@ -64,7 +68,40 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (acquiredIds.length == 0) return;
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         if (genesis.ownerOf(tokenId) != address(this)) return;
+        if (vault.creditActive(tokenId)) return;
         genesis.safeTransferFrom(address(this), address(vault), tokenId);
+    }
+
+    function openCredit(uint256 seed, uint256 rawPrincipal) external {
+        if (vault.epochActive() || acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        if (genesis.ownerOf(tokenId) != address(this) || vault.creditActive(tokenId)) return;
+        uint256 principal = (rawPrincipal % vault.MAX_CREDIT_PRINCIPAL()) + 1;
+        vault.openGenesisCredit(tokenId, principal);
+    }
+
+    function extendCredit(uint256 seed) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        GenesisCreditView memory state = vault.credit(tokenId);
+        if (!state.active || block.timestamp > state.maturity) return;
+        vault.extendGenesisCredit(tokenId);
+    }
+
+    function repayCredit(uint256 seed) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        GenesisCreditView memory state = vault.credit(tokenId);
+        if (!state.active || statics.balanceOf(address(this)) < state.principal) return;
+        vault.repayGenesisCredit(tokenId);
+    }
+
+    function recoverCredit(uint256 seed) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        GenesisCreditView memory state = vault.credit(tokenId);
+        if (!state.active || block.timestamp <= state.recoverableAt) return;
+        vault.recoverGenesisCredit(tokenId);
     }
 
     function donateReserve(uint256 rawAmount) external {
@@ -123,11 +160,23 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         statics = new MockDopplerToken(address(this));
         GenesisActivationRegistry registry =
             new GenesisActivationRegistry(statics, address(this), address(this), address(0xCAFE));
-        vault = new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 2 days);
+        MockGenesisFeeReceiver feeReceiver = new MockGenesisFeeReceiver(address(statics));
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(feeReceiver),
+            treasury: address(0xCAFE),
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
+        vault = new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 2 days, creditConfig);
+        MockGenesisRecoveryDistributor recoveryDistributor =
+            new MockGenesisRecoveryDistributor(address(vault), address(statics));
+        feeReceiver.setActiveDistributor(address(recoveryDistributor));
         StaticsAvatarSVG avatar = new StaticsAvatarSVG();
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(registry),
             renderer,
             address(this),
@@ -136,11 +185,12 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
             "https://statics.finance/genesis/"
         );
         registry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
 
         handler = new GenesisVaultHandler(statics, genesis, vault);
         statics.transfer(address(handler), 800_000_000 ether);
-        statics.transfer(address(0xCAFE), 200_000_000 ether);
+        statics.transfer(address(0xCAFE), 100_100_000 ether);
         vm.deal(address(handler), 10_000 ether);
         vault.transferOwnership(address(handler));
         vm.prank(address(handler));
@@ -161,7 +211,10 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         assertEq(genesis.mintedSupply(), 5_555);
         assertEq(vault.reserveDenominator(), 5_555);
         assertEq(vault.circulatingGenesis() + vault.vaultInventory(), 5_555);
-        assertEq(vault.requiredBacking(), vault.circulatingGenesis() * 180_000 ether);
+        uint256 grossBacking = vault.circulatingGenesis() * 180_000 ether;
+        assertEq(vault.grossBacking(), grossBacking);
+        assertLe(vault.totalOutstandingGenesisCredit(), grossBacking);
+        assertEq(vault.requiredBacking(), grossBacking - vault.totalOutstandingGenesisCredit());
     }
 
     function invariantStaticsSupplyCanOnlyDecrease() public view {

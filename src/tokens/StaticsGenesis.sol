@@ -14,6 +14,7 @@ import {IGenesisActivationRegistry} from "../interfaces/IGenesisActivationRegist
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IERC7572} from "../interfaces/IERC7572.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../interfaces/IStaticsGenesis.sol";
+import {IStaticsGenesisVault} from "../interfaces/IStaticsGenesisVault.sol";
 import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol";
 
 /// @notice Fixed 5,555-token collection paired one-for-one with 180,000 STATICS claims plus a
@@ -35,6 +36,7 @@ contract StaticsGenesis is
     bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
     address public immutable override vault;
+    address public immutable override treasuryVesting;
     address public immutable override activationRegistry;
     IStaticsGenesisRenderer public immutable renderer;
     address public override protocol;
@@ -45,6 +47,7 @@ contract StaticsGenesis is
     mapping(uint256 genesisId => bool reportedLocked) private reportedLockStatus;
 
     error InvalidVault();
+    error InvalidTreasuryVesting();
     error InvalidActivationRegistry();
     error InvalidRenderer();
     error InvalidProtocol();
@@ -59,12 +62,16 @@ contract StaticsGenesis is
     error OwnershipRenunciationDisabled();
     error InvalidTransferValidator(address validator);
     error GenesisLocked(uint256 genesisId);
+    error UnexpectedGenesisOwner(uint256 genesisId, address expected, address actual);
+    error InvalidRecoveryAcknowledgement(address protocol, bytes4 acknowledgement);
+    error RecoveryLinkNotCleared(address protocol, uint256 genesisId, uint256 positionId);
 
     event DefaultRoyaltyUpdated(address indexed receiver, uint96 royaltyBps);
     event ExternalURLBaseUpdated(string externalURLBase);
 
     constructor(
         address vault_,
+        address treasuryVesting_,
         address activationRegistry_,
         IStaticsGenesisRenderer renderer_,
         address protocolBinder,
@@ -73,6 +80,7 @@ contract StaticsGenesis is
         string memory externalURLBase_
     ) ERC721("Statics Genesis", "STATICS-GENESIS") Ownable(protocolBinder) {
         if (vault_ == address(0)) revert InvalidVault();
+        if (treasuryVesting_ == address(0) || treasuryVesting_ == vault_) revert InvalidTreasuryVesting();
         if (activationRegistry_ == address(0) || activationRegistry_.code.length == 0) {
             revert InvalidActivationRegistry();
         }
@@ -81,6 +89,7 @@ contract StaticsGenesis is
         if (royaltyReceiver == address(0)) revert InvalidProtocol();
         if (bytes(contractURI_).length == 0 || bytes(externalURLBase_).length == 0) revert InvalidMetadataURI();
         vault = vault_;
+        treasuryVesting = treasuryVesting_;
         activationRegistry = activationRegistry_;
         renderer = renderer_;
         contractURI = contractURI_;
@@ -88,7 +97,7 @@ contract StaticsGenesis is
         _setDefaultRoyalty(royaltyReceiver, DEFAULT_ROYALTY_BPS);
         // Keep each ERC-2309 batch within OpenZeppelin's marketplace-friendly 5,000-token cap.
         _mintConsecutive(vault_, 5_000);
-        _mintConsecutive(vault_, uint96(COLLECTION_SIZE - 5_000));
+        _mintConsecutive(treasuryVesting_, uint96(COLLECTION_SIZE - 5_000));
     }
 
     function finalizeLaunch() external override {
@@ -110,6 +119,11 @@ contract StaticsGenesis is
         if (collection != address(this)) revert InvalidProtocol();
         try IStaticsGenesisProtocol(protocol_).linkedPosition(1) returns (uint256) {}
         catch {
+            revert InvalidProtocol();
+        }
+        try IStaticsGenesisProtocol(protocol_).genesisRecoveryCallback() returns (bytes4 acknowledgement) {
+            if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) revert InvalidProtocol();
+        } catch {
             revert InvalidProtocol();
         }
         protocol = protocol_;
@@ -180,6 +194,11 @@ contract StaticsGenesis is
 
     function locked(uint256 genesisId) public view override returns (bool) {
         _requireOwned(genesisId);
+        try IStaticsGenesisVault(vault).creditActive(genesisId) returns (bool active) {
+            if (active) return true;
+        } catch {
+            return true;
+        }
         address protocol_ = protocol;
         if (protocol_ == address(0)) return false;
         try IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId) returns (uint256 positionId) {
@@ -190,7 +209,7 @@ contract StaticsGenesis is
     }
 
     function refreshLockStatus(uint256 genesisId) external override {
-        if (msg.sender != protocol) revert UnauthorizedProtocol(msg.sender);
+        if (msg.sender != protocol && msg.sender != vault) revert UnauthorizedProtocol(msg.sender);
         bool currentStatus = locked(genesisId);
         if (reportedLockStatus[genesisId] == currentStatus) return;
         reportedLockStatus[genesisId] = currentStatus;
@@ -201,6 +220,31 @@ contract StaticsGenesis is
     function refreshMetadata(uint256 genesisId) external override {
         if (msg.sender != protocol && msg.sender != activationRegistry) revert UnauthorizedProtocol(msg.sender);
         _requireOwned(genesisId);
+        emit MetadataUpdate(genesisId);
+    }
+
+    function recoverToVault(uint256 genesisId, address expectedOwner) external override {
+        if (msg.sender != vault) revert UnauthorizedVault(msg.sender);
+        address previousOwner = _ownerOf(genesisId);
+        if (previousOwner != expectedOwner) revert UnexpectedGenesisOwner(genesisId, expectedOwner, previousOwner);
+
+        address protocol_ = protocol;
+        if (protocol_ != address(0)) {
+            uint256 positionId = IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId);
+            if (positionId != 0) {
+                bytes4 acknowledgement = IStaticsGenesisProtocol(protocol_).onGenesisRecovery(genesisId, previousOwner);
+                if (acknowledgement != IStaticsGenesisProtocol.onGenesisRecovery.selector) {
+                    revert InvalidRecoveryAcknowledgement(protocol_, acknowledgement);
+                }
+                uint256 remainingPositionId = IStaticsGenesisProtocol(protocol_).linkedPosition(genesisId);
+                if (remainingPositionId != 0) {
+                    revert RecoveryLinkNotCleared(protocol_, genesisId, remainingPositionId);
+                }
+            }
+        }
+
+        IGenesisActivationRegistry(activationRegistry).onGenesisTransfer(genesisId, previousOwner, vault);
+        super._update(vault, genesisId, address(0));
         emit MetadataUpdate(genesisId);
     }
 

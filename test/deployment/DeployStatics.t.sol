@@ -20,6 +20,7 @@ import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
@@ -129,7 +130,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 29, 218);
+        _assertManifest(diamond, 30, 256);
         _assertBasketRoutes(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
@@ -151,6 +152,8 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolPools).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGenesisIntegration).interfaceId));
+        assertFalse(IStaticsGenesisIntegration(diamond).genesisIntegrationReady());
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IModularPositionNFT).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IPositionOwnerIndex).interfaceId));

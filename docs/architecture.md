@@ -29,6 +29,7 @@ StaticsTimelock
 StaticsDiamond
 ├── EIP-2535 routing, ownership, governance, and custody views
 ├── PositionNFT ERC-721
+├── Genesis direct rewards and optional Genesis-to-Position linkage
 ├── Statics Basket creation, mint, redeem, lending, and flash loans
 ├── global staking and checkpointed multi-asset rewards
 └── Statics Dollar Risk liquidity, pairing, fee routing, recovery, and typed gateway
@@ -63,7 +64,7 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 29 facets and 218 selectors on
+The fresh-deployment launcher installs 30 facets and 254 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -91,6 +92,8 @@ separately namespaced:
 - pegged-profile fee ingress;
 - per-basket backing and collateral;
 - canonical-pool registration, lifecycle, and decommission state;
+- direct Genesis STATICS/WETH indexes, prior-owner credits, registration, and
+  an isolated Genesis reward reservation;
 - one immediately withdrawable global staking balance per PositionNFT, at most
   64 selected reward assets per position, and independent hourly 24-to-25-hour
   eligibility rings for an unlimited set of global asset indexes; and
@@ -113,6 +116,7 @@ reservedByAccount[dollarAccount][token]
 reservedByAccount[basketAccount(basketId)][token]
 reservedByAccount[feeAccount][token]
 reservedByAccount[stakingAccount][token]
+reservedByAccount[genesisRewardAccount][token]
 ```
 
 Every attributed ingress increases both the module account and global total.

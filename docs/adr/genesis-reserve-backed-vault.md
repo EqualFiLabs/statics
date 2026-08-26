@@ -8,7 +8,7 @@
 
 ## Context
 
-The accepted standalone Genesis architecture launches STATICS through Doppler Multicurve with a fixed 1,000,000,000-token supply and mints all 5,555 Genesis NFTs into `StaticsGenesisVault`.
+The accepted standalone Genesis architecture launches STATICS through Doppler Multicurve with a fixed 1,000,000,000-token supply. The later accepted `protocol-treasury-genesis-reserve-and-launch-vesting.md` ADR amends initial custody: IDs 1..5,000 mint to `StaticsGenesisVault`, while IDs 5,001..5,555 mint to immutable treasury vesting with 99,900,000 STATICS of initial Vault backing.
 
 The current Genesis Vault gives each circulating Genesis a fixed claim on 180,018 STATICS. Its native acquisition fee is treated as withdrawable treasury revenue. Doppler WETH revenue is distributed entirely through the active reward distributor. Genesis activation permanently burns STATICS.
 
@@ -24,9 +24,9 @@ Genesis becomes a fixed-supply, dual-backed asset representing:
 
 The ETH reserve is permanently capitalized by protocol revenue and other explicit contributions.
 
-Genesis begins with a finite launch epoch during which the ETH reserve already accumulates but is deliberately excluded from Genesis acquisition and redemption pricing. During that period, a Genesis costs exactly 180,000 STATICS and nothing else. When the epoch ends, the complete accumulated ETH reserve becomes economically active and the normal reserve-backed acquisition and redemption rules begin.
+Genesis begins with a finite launch epoch during which the ETH reserve already accumulates but is deliberately excluded from the reserve buy-in and redemption payout. During that period, a Genesis costs exactly 180,000 STATICS plus the normal native acquisition fee. When the epoch ends, the complete accumulated ETH reserve becomes economically active and the normal reserve-backed acquisition and redemption rules begin.
 
-This asymmetry is intentional. Early participants accept launch and STATICS price risk in exchange for obtaining reserve exposure before that reserve is reflected in the acquisition price.
+This asymmetry is intentional. Early participants accept launch and STATICS price risk in exchange for obtaining reserve exposure before that reserve is reflected in the reserve-NAV component of the acquisition price.
 
 The design also eliminates protocol-directed STATICS burning. Fixed supply, Genesis backing, staking, liquidity, treasury inventory, activation payments, and other protocol utility already create productive competition for STATICS without permanent supply destruction.
 
@@ -191,9 +191,9 @@ block.timestamp >= genesisEpochEnd
 
 The Genesis Epoch creates a finite early-acquisition opportunity.
 
-During the epoch, participants acquire Genesis solely by committing STATICS. They do not pay for the ETH reserve exposure accumulating behind Genesis during that period.
+During the epoch, participants acquire Genesis by committing STATICS and paying the normal native acquisition fee. They do not pay a buy-in for the ETH reserve exposure accumulating behind Genesis during that period; the fee itself permanently capitalizes that reserve.
 
-Participants therefore accept early launch risk in exchange for receiving exposure to reserve growth before that reserve becomes part of the acquisition price.
+Participants therefore accept early launch risk in exchange for receiving exposure to reserve growth before that reserve becomes part of the reserve-NAV component of the acquisition price.
 
 This asymmetry is intentional.
 
@@ -206,10 +206,11 @@ During the Genesis Epoch, `reserveETH` may increase through:
 ```text
 Doppler WETH reserve funding
 permissionless donate()
+native acquisition fees
 future explicitly integrated ETH revenue sources
 ```
 
-The ETH is held and accounted normally inside `StaticsGenesisVault`. However, reserve value is excluded from both acquisition and redemption pricing until the Genesis Epoch ends.
+The ETH is held and accounted normally inside `StaticsGenesisVault`. However, reserve value is excluded from the acquisition buy-in and redemption payout until the Genesis Epoch ends.
 
 Nothing is distributed, checkpointed, or moved at epoch end. The already-accounted `reserveETH` simply becomes active in the normal Genesis pricing formulas.
 
@@ -221,26 +222,24 @@ While:
 block.timestamp < genesisEpochEnd
 ```
 
-a vault-owned Genesis costs exactly:
+a vault-owned Genesis costs:
 
 ```text
-180,000 STATICS
+180,000 STATICS + current native acquisition fee
 ```
 
 There is:
 
 ```text
 no reserve buy-in
-no native acquisition fee
 ```
 
-The phrase "180,000 STATICS" is literal.
-
-A Genesis Epoch acquisition does not modify `reserveETH`. It only:
+A Genesis Epoch acquisition:
 
 1. receives exactly 180,000 STATICS;
-2. increases logical STATICS backing by exactly 180,000 STATICS; and
-3. transfers the selected vault-owned Genesis to the receiver.
+2. increases logical STATICS backing by exactly 180,000 STATICS;
+3. adds the complete native acquisition fee to `reserveETH`; and
+4. transfers the selected vault-owned Genesis to the receiver.
 
 The Genesis Epoch therefore provides the only period during which a participant can acquire exposure to the existing Genesis ETH reserve without paying an ETH reserve buy-in.
 
@@ -302,6 +301,8 @@ For example, an epoch buyer may pay:
 
 ```text
 180,000 STATICS
++
+current native acquisition fee
 ```
 
 while the reserve accumulates. If the epoch ends with:
@@ -409,7 +410,7 @@ reserveBuyIn
 
 The implementation rounds upward so integer truncation cannot dilute the reserve. The complete reserve buy-in is added to `reserveETH`.
 
-## Post-epoch acquisition fee
+## Native acquisition fee
 
 The existing working native acquisition fee remains:
 
@@ -419,15 +420,15 @@ The existing working native acquisition fee remains:
 
 subject to final production-parameter ratification and the existing immutable maximum-fee policy.
 
-The acquisition fee begins applying only after the Genesis Epoch ends. It is no longer treasury revenue.
+The acquisition fee applies during and after the Genesis Epoch. It is no longer treasury revenue.
 
 The entire acquisition fee is added to `reserveETH` and therefore permanently accretes value to the fixed 5,555 Genesis reserve shares.
 
-During the Genesis Epoch the native acquisition fee is zero.
+During the Genesis Epoch the fee applies but the reserve buy-in remains zero.
 
-## Post-epoch purchase slippage
+## Purchase slippage
 
-Post-epoch reserve pricing may change between quote and execution because donations may occur, Doppler fees may be harvested, or other reserve sources may contribute.
+Required native value may change between quote and execution because governance may update the acquisition fee in either epoch state. After the epoch, donations, Doppler harvests, or other reserve contributions may also change the reserve buy-in.
 
 A purchase must therefore not require exact native input from an earlier quote.
 
@@ -837,7 +838,7 @@ Reserve increases include:
 ```text
 Doppler WETH revenue
 post-epoch reserve buy-ins
-post-epoch acquisition fees
+native acquisition fees in both epoch states
 donations
 future Statics revenue integrations
 ```
@@ -894,8 +895,8 @@ genesisEpochEnd is immutable
 
 before genesisEpochEnd:
     acquisition requires exactly 180,000 STATICS
-    acquisition requires zero native ETH
-    acquisition does not modify reserveETH
+    acquisition requires exactly the current native acquisition fee
+    acquisition increases reserveETH by exactly that fee
     redemption returns exactly 180,000 STATICS
     redemption returns zero ETH
     redemption does not modify reserveETH
@@ -913,7 +914,7 @@ post-epoch single-NFT reserve buy-in
 post-epoch redemption ETH payout
     == floor(preRedemptionReserve / 5,555)
 
-post-epoch acquisition fee enters reserveETH
+native acquisition fee enters reserveETH in both epoch states
 
 post-epoch reserve buy-in enters reserveETH
 
@@ -978,7 +979,7 @@ Production configuration must commit to all economically material launch paramet
 180,000 STATICS Genesis backing
 5,555 Genesis maximum supply
 Genesis Epoch duration/end
-post-epoch native acquisition fee
+native acquisition fee
 reserveShareBps
 Genesis direct reward share
 Doppler static LP fee
@@ -1022,8 +1023,9 @@ GenesisVault.donate()
 reserveETH increases
 
 Genesis Epoch acquisition
-    -> costs exactly 180,000 STATICS
-    -> receives no reserve charge
+    -> costs exactly 180,000 STATICS plus the native acquisition fee
+    -> receives no reserve buy-in
+    -> adds the fee to reserveETH
 
 advance to epoch end
 
@@ -1099,7 +1101,7 @@ ceil(reserveETH / 5,554)
 
 Rejected.
 
-After the Genesis Epoch, acquisition fees permanently capitalize Genesis reserve backing.
+During and after the Genesis Epoch, acquisition fees permanently capitalize Genesis reserve backing.
 
 ### Put reserve WETH routing in GenesisLaunchDistributor
 
@@ -1117,7 +1119,7 @@ The standard Doppler fee-beneficiary system already provides a simpler source of
 
 Genesis changes from a fixed STATICS redemption NFT into a fixed-supply, dual-backed asset with a permanent native ETH reserve.
 
-The Genesis Epoch creates a finite launch window where Genesis may be acquired for exactly 180,000 STATICS while the reserve accumulates in the background.
+The Genesis Epoch creates a finite launch window where Genesis may be acquired for exactly 180,000 STATICS plus the normal native acquisition fee while the reserve accumulates in the background. The reserve buy-in is waived, and the fee itself contributes to that accumulation.
 
 At the end of that epoch, the complete accumulated reserve becomes active without migration or settlement.
 

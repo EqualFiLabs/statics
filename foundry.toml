@@ -50,3 +50,10 @@ runs = 256
 runs = 128
 depth = 64
 fail_on_revert = true
+
+# Keep symbolic artifacts separate while preserving the production Cancun EVM.
+[profile.formal]
+src = "src/genesis"
+test = "test/formal"
+script = "verification/formal-script"
+out = "out-formal-genesis"

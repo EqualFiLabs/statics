@@ -14,6 +14,122 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  slither:
+    name: Security / Slither baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize contract dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            lib/halmos-cheatcodes \
+            lib/openzeppelin-contracts \
+            lib/openzeppelin-contracts-upgradeable \
+            lib/v4-periphery
+          git -C lib/v4-periphery submodule sync
+          git -C lib/v4-periphery submodule update --init --depth=1 \
+            lib/v4-core \
+            lib/permit2
+          git -C lib/v4-periphery/lib/v4-core submodule sync
+          git -C lib/v4-periphery/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Slither
+        shell: bash
+        run: |
+          python -m venv .slither-venv
+          .slither-venv/bin/pip install slither-analyzer==0.11.6
+          .slither-venv/bin/slither --version
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.7.1
+      - name: Test baseline tooling
+        run: python test/scripts/test_slither_baseline.py
+      - name: Check reviewed baseline
+        env:
+          SLITHER_BIN: ${{ github.workspace }}/.slither-venv/bin/slither
+        run: scripts/run-slither.sh
+      - name: Upload Slither log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slither-log
+          path: slither-results/run.log
+          if-no-files-found: warn
+
+  formal-verification:
+    name: Formal verification / Halmos
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize formal-verification dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            lib/halmos-cheatcodes \
+            lib/openzeppelin-contracts \
+            lib/openzeppelin-contracts-upgradeable \
+            lib/v4-periphery \
+            verification/doppler/vendor/doppler
+          git -C lib/v4-periphery submodule sync
+          git -C lib/v4-periphery submodule update --init --depth=1 \
+            lib/v4-core \
+            lib/permit2
+          git -C lib/v4-periphery/lib/v4-core submodule sync
+          git -C lib/v4-periphery/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
+          git -C verification/doppler/vendor/doppler submodule sync
+          git -C verification/doppler/vendor/doppler submodule update --init --depth=1 \
+            lib/solady \
+            lib/v4-core \
+            lib/v4-periphery
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Halmos
+        shell: bash
+        run: |
+          python -m venv .halmos-venv
+          .halmos-venv/bin/pip install halmos==0.3.3
+          .halmos-venv/bin/halmos --version
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.7.1
+      - name: Prove Genesis launch invariants
+        env:
+          HALMOS_BIN: ${{ github.workspace }}/.halmos-venv/bin/halmos
+          HALMOS_THREADS: "4"
+          HALMOS_LOOP_BOUND: "8"
+        run: scripts/run-formal.sh all
+      - name: Upload proof results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: halmos-results
+          path: formal-results/
+          if-no-files-found: warn
+
   genesis-economics:
     name: Genesis economics / check
     runs-on: ubuntu-latest
@@ -97,6 +213,7 @@ jobs:
           git submodule sync
           git submodule update --init --depth=1 \
             lib/forge-std \
+            lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
             lib/v4-periphery

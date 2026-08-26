@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "detectors": {
+    "arbitrary-send-erc20": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "The transfer helpers are internal and every caller supplies an authenticated payer or a protocol-controlled source; balance deltas enforce the exact-transfer assumption."
+    },
+    "arbitrary-send-eth": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "Reserve ETH is sent only to the immutable, one-time validated Genesis Vault, whose payable donate entrypoint accounts the exact value received."
+    },
+    "reentrancy-balance": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "All reachable lifecycle entrypoints are guarded, dependencies are immutable or governance-activated, and pre/post balances deliberately verify exact callback transfers."
+    },
+    "reentrancy-eth": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "The native unwrap/donation path and its callers are nonReentrant; post-call writes complete accounting for the already validated immutable reserve destination."
+    },
+    "unprotected-upgrade": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "StaticsProtocolInit is a Diamond delegatecall initializer, not a proxy implementation. Direct calls mutate only the disposable initializer contract; Diamond execution is owner-gated by LibDiamond."
+    },
+    "weak-prng": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "Modulo arithmetic selects deterministic ring-buffer buckets. It is not randomness and cannot influence winner selection or value allocation."
+    },
+    "incorrect-equality": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons."
+    },
+    "reentrancy-no-eth": {
+      "classification": "INTENTIONAL",
+      "rationale": "Reachable entrypoints are nonReentrant; lifecycle callbacks checkpoint old state deliberately, while claim paths clear liabilities and custody before exact token transfers."
+    },
+    "uninitialized-local": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values."
+    },
+    "unused-return": {
+      "classification": "INTENTIONAL",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive."
+    },
+    "calls-loop": {
+      "classification": "INTENTIONAL",
+      "rationale": "Genesis vesting is capped to 50 NFTs; batch claims iterate caller-supplied calldata, query only the immutable Genesis contract, and transfer after the loop, so callers bound their own gas without blocking shared progress."
+    },
+    "missing-zero-check": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "Redemption validates the receiver before the native send; a zero native sender intentionally disables direct native ingress for deployments that do not use that path, while production supplies WETH."
+    },
+    "reentrancy-benign": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence."
+    },
+    "reentrancy-events": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails."
+    },
+    "timestamp": {
+      "classification": "INTENTIONAL",
+      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness."
+    },
+    "assembly": {
+      "classification": "INTENTIONAL",
+      "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms."
+    },
+    "cyclomatic-complexity": {
+      "classification": "INTENTIONAL",
+      "rationale": "The flagged deployment and initialization orchestration validates a bounded launch configuration and keeps the trust handoff atomic."
+    },
+    "low-level-calls": {
+      "classification": "INTENTIONAL",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors."
+    },
+    "missing-inheritance": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "The reported structural interface similarities do not define a required substitutability boundary; Statics uses explicit narrow interfaces at each integration point."
+    },
+    "naming-convention": {
+      "classification": "INTENTIONAL",
+      "rationale": "The retained name follows established deployment/configuration vocabulary and does not create an ambiguous storage or authorization boundary."
+    },
+    "pragma": {
+      "classification": "INTENTIONAL",
+      "rationale": "Owned production contracts pin Solidity 0.8.33; shared Diamond kernel compatibility is intentionally bounded to the audited 0.8.28-or-newer compiler family."
+    },
+    "unindexed-event-address": {
+      "classification": "INTENTIONAL",
+      "rationale": "The event already uses the EVM topic budget for the primary lookup keys; the remaining address stays available in event data."
+    },
+    "unused-state": {
+      "classification": "INTENTIONAL",
+      "rationale": "The flagged fields belong to deployment result bundles, immutable configuration surfaces, or inherited compatibility state retained for the composed launch ceremony."
+    },
+    "too-many-digits": {
+      "classification": "INTENTIONAL",
+      "rationale": "The reported literal is a full 32-byte expected creation-code hash whose exact hexadecimal value is required for deployment attestation."
+    }
+  }
+}

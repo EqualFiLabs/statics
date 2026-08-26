@@ -13,7 +13,9 @@ import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
+import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
+import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {
     IStaticsPosition,
     IStaticsPositionFees,
@@ -22,14 +24,61 @@ import {
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testGenesisNFTSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.genesisNFT();
+        bytes4[] memory expected = new bytes4[](34);
+        expected[0] = IStaticsGenesisIntegration.linkGenesis.selector;
+        expected[1] = IStaticsGenesisIntegration.unlinkGenesis.selector;
+        expected[2] = IStaticsGenesisIntegration.linkedGenesis.selector;
+        expected[3] = IStaticsGenesisIntegration.linkedPosition.selector;
+        expected[4] = IStaticsGenesisIntegration.genesisCollection.selector;
+        expected[5] = IStaticsGenesisIntegration.genesisRecoveryVault.selector;
+        expected[6] = IStaticsGenesisIntegration.genesisRecoveryAsset.selector;
+        expected[7] = IStaticsGenesisIntegration.genesisRecoveryReady.selector;
+        expected[8] = IStaticsGenesisIntegration.genesisIntegrationReady.selector;
+        expected[9] = IStaticsGenesisIntegration.genesisRecoveryCallback.selector;
+        expected[10] = IStaticsGenesisIntegration.onGenesisRecovery.selector;
+        expected[11] = IStaticsGenesisIntegration.onGenesisTransition.selector;
+        expected[12] = IStaticsGenesisIntegration.acceptGenesisDistributorRole.selector;
+        expected[13] = IStaticsGenesisIntegration.acceptGenesisConsumerRole.selector;
+        expected[14] = IStaticsGenesisIntegration.registerGenesis.selector;
+        expected[15] = IStaticsGenesisIntegration.accrueGenesisRewards.selector;
+        expected[16] = IStaticsGenesisIntegration.claimGenesisRewards.selector;
+        expected[17] = IStaticsGenesisIntegration.claimGenesisOwnerRewards.selector;
+        expected[18] = IStaticsGenesisIntegration.claimGenesisTreasuryRewards.selector;
+        expected[19] = IStaticsGenesisIntegration.setGenesisRewardShareBps.selector;
+        expected[20] = IStaticsGenesisIntegration.checkpointGenesisRecovery.selector;
+        expected[21] = IStaticsGenesisIntegration.accrueGenesisRecovery.selector;
+        expected[22] = IStaticsGenesisIntegration.migratePendingGenesisRecovery.selector;
+        expected[23] = IStaticsGenesisIntegration.acceptPendingGenesisRecovery.selector;
+        expected[24] = IStaticsGenesisIntegration.pendingGenesisRewards.selector;
+        expected[25] = IStaticsGenesisIntegration.genesisRewardBook.selector;
+        expected[26] = IStaticsGenesisIntegration.genesisRegistered.selector;
+        expected[27] = IStaticsGenesisIntegration.genesisEffectiveWeight.selector;
+        expected[28] = IStaticsGenesisIntegration.genesisTotalWeight.selector;
+        expected[29] = IStaticsGenesisIntegration.genesisRewardShareBps.selector;
+        expected[30] = IStaticsGenesisIntegration.genesisOwnerClaimable.selector;
+        expected[31] = IStaticsGenesisIntegration.pendingGenesisRecovery.selector;
+        expected[32] = IStaticsGenesisIntegration.claimAllGenesisRewards.selector;
+        expected[33] = IStaticsGenesisIntegration.claimAllGenesisTreasuryRewards.selector;
+        assertEq(actual.length, expected.length);
+        for (uint256 i; i < actual.length; ++i) {
+            assertEq(actual[i], expected[i]);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(actual[i], actual[j]);
+            }
+        }
+    }
+
     function testPositionSelectorManifestIncludesFeesAndOwnerIndex() public pure {
         assertEq(type(IModularPositionNFT).interfaceId, bytes4(0x212b8e93));
         assertEq(type(IPositionOwnerIndex).interfaceId, bytes4(0x7ef5913d));
         bytes4[] memory selectors = StaticsSelectors.position();
-        assertEq(selectors.length, 26);
+        assertEq(selectors.length, 27);
         assertEq(selectors[12], IStaticsPosition.createPosition.selector);
         assertEq(selectors[17], IModularPositionNFT.positionState.selector);
         assertEq(selectors[18], IModularPositionNFT.isLegActive.selector);
+        assertEq(selectors[26], IERC5192.locked.selector);
         assertEq(selectors[19], IModularPositionNFT.isPositionClosable.selector);
         assertEq(selectors[20], IStaticsPositionModule.createPositionForModule.selector);
         assertEq(selectors[21], IStaticsPositionFees.setPositionCreationFee.selector);
@@ -175,7 +224,7 @@ contract SelectorManifestTest is Test {
 
     function testGlobalRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.globalRewards();
-        bytes4[] memory expected = new bytes4[](21);
+        bytes4[] memory expected = new bytes4[](23);
         expected[0] = IStaticsGlobalRewards.createAndStake.selector;
         expected[1] = IStaticsGlobalRewards.stake.selector;
         expected[2] = IStaticsGlobalRewards.unstake.selector;
@@ -197,6 +246,8 @@ contract SelectorManifestTest is Test {
         expected[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
         expected[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
         expected[20] = IStaticsGlobalRewards.routeSwapFees.selector;
+        expected[21] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        expected[22] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

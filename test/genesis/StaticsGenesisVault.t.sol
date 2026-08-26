@@ -10,6 +10,7 @@ import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegi
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IStaticsGenesis, IStaticsGenesisProtocol} from "../../src/interfaces/IStaticsGenesis.sol";
 import {
+    GenesisCreditConfig,
     GenesisPurchaseQuote,
     GenesisRedemptionQuote,
     GenesisVaultAccounting
@@ -18,6 +19,7 @@ import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
 import {MockDopplerToken} from "../mocks/MockDopplerToken.sol";
+import {MockGenesisFeeReceiver, MockGenesisRecoveryDistributor} from "../mocks/MockGenesisCreditDependencies.sol";
 
 contract MockGenesisProtocol is IStaticsGenesisProtocol {
     address public immutable override genesisCollection;
@@ -36,6 +38,21 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         delete linkedPosition[genesisId];
         IStaticsGenesis(genesisCollection).refreshLockStatus(genesisId);
     }
+
+    function genesisRecoveryCallback() external pure override returns (bytes4 acknowledgement) {
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
+
+    function onGenesisRecovery(uint256 genesisId, address _previousOwner)
+        external
+        override
+        returns (bytes4 acknowledgement)
+    {
+        _previousOwner;
+        require(msg.sender == genesisCollection, "ONLY_GENESIS");
+        delete linkedPosition[genesisId];
+        return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+    }
 }
 
     contract RevertingLinkGenesisProtocol is IStaticsGenesisProtocol {
@@ -53,6 +70,14 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
         function linkedPosition(uint256) external view override returns (uint256) {
             require(!revertLinkRead, "LINK_UNAVAILABLE");
             return 0;
+        }
+
+        function genesisRecoveryCallback() external pure override returns (bytes4 acknowledgement) {
+            return IStaticsGenesisProtocol.onGenesisRecovery.selector;
+        }
+
+        function onGenesisRecovery(uint256, address) external pure override returns (bytes4 acknowledgement) {
+            return IStaticsGenesisProtocol.onGenesisRecovery.selector;
         }
     }
 
@@ -92,6 +117,8 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             GenesisActivationRegistry private activationRegistry;
             StaticsGenesis private genesis;
             StaticsGenesisVault private vault;
+            MockGenesisFeeReceiver private feeReceiver;
+            MockGenesisRecoveryDistributor private recoveryDistributor;
 
             function setUp() public {
                 treasury = makeAddr("treasury");
@@ -101,11 +128,22 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
 
                 statics = new MockDopplerToken(address(this));
                 activationRegistry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-                vault = new StaticsGenesisVault(statics, address(this), governance, epochEnd);
+                feeReceiver = new MockGenesisFeeReceiver(address(statics));
+                GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+                    feeReceiver: address(feeReceiver),
+                    treasury: treasury,
+                    originationFee: 0.003 ether,
+                    extensionFee: 0.003 ether,
+                    recoveryCallerShareBps: 2_000
+                });
+                vault = new StaticsGenesisVault(statics, address(this), governance, epochEnd, creditConfig);
+                recoveryDistributor = new MockGenesisRecoveryDistributor(address(vault), address(statics));
+                feeReceiver.setActiveDistributor(address(recoveryDistributor));
                 StaticsAvatarSVG avatar = new StaticsAvatarSVG();
                 StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(avatar);
                 genesis = new StaticsGenesis(
                     address(vault),
+                    address(this),
                     address(activationRegistry),
                     renderer,
                     governance,
@@ -114,54 +152,100 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                     "https://statics.finance/genesis/"
                 );
                 activationRegistry.bindGenesisCollection(address(genesis));
+                statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
                 vault.finalizeGenesisCollection(address(genesis));
                 statics.transfer(treasury, TREASURY_ALLOCATION);
             }
 
-            function testFullCollectionStartsAsUnbackedVaultInventory() public view {
+            function testCollectionStartsWithBackedProtocolReserve() public view {
                 assertEq(statics.totalSupply(), 1_000_000_000 ether);
                 assertEq(statics.balanceOf(treasury), TREASURY_ALLOCATION);
-                assertEq(statics.balanceOf(address(this)), DOPPLER_INVENTORY);
-                assertEq(statics.balanceOf(address(vault)), 0);
+                assertEq(statics.balanceOf(address(this)), DOPPLER_INVENTORY - vault.INITIAL_TOKEN_BACKING());
+                assertEq(statics.balanceOf(address(vault)), vault.INITIAL_TOKEN_BACKING());
                 assertEq(genesis.mintedSupply(), 5_555);
-                assertEq(genesis.balanceOf(address(vault)), 5_555);
-                assertEq(vault.circulatingGenesis(), 0);
-                assertEq(vault.requiredBacking(), 0);
-                assertEq(vault.tokenBacking(), 0);
+                assertEq(genesis.balanceOf(address(vault)), 5_000);
+                assertEq(genesis.balanceOf(address(this)), 555);
+                assertEq(vault.circulatingGenesis(), 555);
+                assertEq(vault.requiredBacking(), vault.INITIAL_TOKEN_BACKING());
+                assertEq(vault.tokenBacking(), vault.INITIAL_TOKEN_BACKING());
                 assertEq(vault.reserveETH(), 0);
                 assertEq(vault.reserveDenominator(), 5_555);
                 assertEq(5_555 * PRICE, 999_900_000 ether);
                 assertEq(statics.totalSupply() - 5_555 * PRICE, 100_000 ether);
             }
 
-            function testGenesisEpochAcquisitionCostsExactlyBackingWithNoNative() public {
+            function testGenesisEpochAcquisitionChargesFeeIntoReserve() public {
                 assertTrue(vault.epochActive());
                 GenesisPurchaseQuote memory quote = vault.quoteGenesisPurchase();
+                uint256 fee = vault.nativeAcquisitionFee();
                 assertEq(quote.staticsPrice, PRICE);
                 assertEq(quote.reserveBuyIn, 0);
-                assertEq(quote.nativeFee, 0);
-                assertEq(quote.requiredNative, 0);
+                assertEq(quote.nativeFee, fee);
+                assertEq(quote.requiredNative, fee);
                 assertTrue(quote.epochActive);
 
-                // Reserve accumulates during the epoch but must not change acquisition pricing.
+                // Reserve accumulation does not introduce a buy-in during the epoch.
                 _donate(10 ether);
                 assertEq(vault.reserveETH(), 10 ether);
-                assertEq(vault.quoteGenesisPurchase().reserveBuyIn, 0);
+                quote = vault.quoteGenesisPurchase();
+                assertEq(quote.reserveBuyIn, 0);
+                assertEq(quote.requiredNative, fee);
+
+                _fundAndApproveBuyer(PRICE);
+                uint256 ethBefore = buyer.balance;
+                vm.prank(buyer);
+                vault.buyGenesis{value: fee}(1, buyer);
+                assertEq(genesis.ownerOf(1), buyer);
+                assertEq(vault.tokenBacking(), vault.INITIAL_TOKEN_BACKING() + PRICE);
+                assertEq(vault.reserveETH(), 10 ether + fee);
+                assertEq(buyer.balance, ethBefore - fee);
+                assertEq(address(vault).balance, vault.reserveETH());
+            }
+
+            function testGenesisEpochPurchaseRevertsWhenNativeBelowFee() public {
+                uint256 required = vault.quoteGenesisPurchase().requiredNative;
+                _fundAndApproveBuyer(PRICE);
+                vm.prank(buyer);
+                vm.expectRevert(
+                    abi.encodeWithSelector(StaticsGenesisVault.InsufficientNative.selector, required - 1, required)
+                );
+                vault.buyGenesis{value: required - 1}(1, buyer);
+            }
+
+            function testGenesisEpochPurchaseRefundsExcessNative() public {
+                uint256 required = vault.quoteGenesisPurchase().requiredNative;
+                _fundAndApproveBuyer(PRICE);
+                uint256 ethBefore = buyer.balance;
+                vm.prank(buyer);
+                vault.buyGenesis{value: required + 3 ether}(1, buyer);
+
+                assertEq(buyer.balance, ethBefore - required);
+                assertEq(vault.reserveETH(), required);
+                assertEq(address(vault).balance, required);
+            }
+
+            function testGenesisEpochGovernanceFeeChangeUpdatesQuoteAndPurchase() public {
+                uint256 newFee = 0.005 ether;
+                vm.prank(governance);
+                vault.setNativeAcquisitionFee(newFee);
+
+                GenesisPurchaseQuote memory quote = vault.quoteGenesisPurchase();
+                assertEq(quote.reserveBuyIn, 0);
+                assertEq(quote.nativeFee, newFee);
+                assertEq(quote.requiredNative, newFee);
 
                 _fundAndApproveBuyer(PRICE);
                 vm.prank(buyer);
-                vault.buyGenesis(1, buyer);
-                assertEq(genesis.ownerOf(1), buyer);
-                assertEq(vault.tokenBacking(), PRICE);
-                assertEq(vault.reserveETH(), 10 ether); // unchanged by epoch acquisition
-                assertEq(buyer.balance, 100 ether); // no native consumed
+                vault.buyGenesis{value: newFee}(1, buyer);
+                assertEq(vault.reserveETH(), newFee);
             }
 
             function testGenesisEpochRedemptionReturnsOnlyStatics() public {
                 _donate(5_555 ether);
                 _fundAndApproveBuyer(PRICE);
+                uint256 required = vault.quoteGenesisPurchase().requiredNative;
                 vm.prank(buyer);
-                vault.buyGenesis(1, buyer);
+                vault.buyGenesis{value: required}(1, buyer);
 
                 uint256 reserveBefore = vault.reserveETH();
                 uint256 ethBefore = buyer.balance;
@@ -227,13 +311,14 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             function testPostEpochRedemptionPaysFloorReserveShare() public {
                 _donate(5_555 ether);
                 _fundAndApproveBuyer(PRICE);
+                uint256 required = vault.quoteGenesisPurchase().requiredNative;
                 vm.prank(buyer);
-                vault.buyGenesis(1, buyer);
+                vault.buyGenesis{value: required}(1, buyer);
                 vm.warp(epochEnd);
 
                 uint256 reserve = vault.reserveETH();
                 uint256 expectedPayout = reserve / 5_555;
-                assertEq(expectedPayout, 1 ether);
+                assertEq(expectedPayout, (5_555 ether + required) / 5_555);
                 uint256 ethBefore = buyer.balance;
 
                 vm.startPrank(buyer);
@@ -250,8 +335,9 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             function testRedemptionThenReacquisitionRestoresReserveShareIgnoringFee() public {
                 _donate(5_555 ether);
                 _fundAndApproveBuyer(2 * PRICE);
+                uint256 required = vault.quoteGenesisPurchase().requiredNative;
                 vm.prank(buyer);
-                vault.buyGenesis(1, buyer);
+                vault.buyGenesis{value: required}(1, buyer);
                 vm.warp(epochEnd);
 
                 uint256 reserveStart = vault.reserveETH();
@@ -315,8 +401,8 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 assertEq(activationRegistry.multiplierBps(1), 12_000);
                 assertEq(statics.totalSupply(), supplyBefore); // no burn
                 assertEq(statics.balanceOf(treasury) - treasuryBefore, payCost); // 100% to treasury
-                assertEq(statics.balanceOf(address(vault)), PRICE); // backing untouched
-                assertEq(vault.requiredBacking(), PRICE);
+                assertEq(statics.balanceOf(address(vault)), vault.INITIAL_TOKEN_BACKING() + PRICE); // backing untouched
+                assertEq(vault.requiredBacking(), vault.INITIAL_TOKEN_BACKING() + PRICE);
             }
 
             function testOwnerChangingTransferResetsActivationButSelfTransferDoesNot() public {
@@ -337,23 +423,24 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             function testVaultAccountingReportsReserveState() public {
                 _buyFor(buyer, 1);
                 _donate(11_110 ether);
+                uint256 expectedReserve = 11_110 ether + vault.nativeAcquisitionFee();
                 GenesisVaultAccounting memory accounting = vault.vaultAccounting();
                 assertEq(accounting.maximumSupply, 5_555);
-                assertEq(accounting.circulatingGenesis, 1);
-                assertEq(accounting.tokenBacking, PRICE);
-                assertEq(accounting.requiredBacking, PRICE);
-                assertEq(accounting.tokenCustody, PRICE);
-                assertEq(accounting.reserveETH, 11_110 ether);
-                assertEq(accounting.nativeCustody, 11_110 ether);
+                assertEq(accounting.circulatingGenesis, 556);
+                assertEq(accounting.tokenBacking, vault.INITIAL_TOKEN_BACKING() + PRICE);
+                assertEq(accounting.requiredBacking, vault.INITIAL_TOKEN_BACKING() + PRICE);
+                assertEq(accounting.tokenCustody, vault.INITIAL_TOKEN_BACKING() + PRICE);
+                assertEq(accounting.reserveETH, expectedReserve);
+                assertEq(accounting.nativeCustody, expectedReserve);
                 assertEq(accounting.genesisEpochEnd, epochEnd);
                 assertTrue(accounting.epochActive);
-                assertEq(accounting.reserveBackingPerGenesis, 11_110 ether / 5_555);
+                assertEq(accounting.reserveBackingPerGenesis, expectedReserve / 5_555);
                 assertEq(vault.reserveBuyIn(), 0); // reserve pricing remains dormant during the epoch
 
                 vm.warp(epochEnd);
                 accounting = vault.vaultAccounting();
                 assertFalse(accounting.epochActive);
-                assertEq(accounting.reserveBackingPerGenesis, 11_110 ether / 5_555);
+                assertEq(accounting.reserveBackingPerGenesis, expectedReserve / 5_555);
             }
 
             function testEpochBoundaryPricingTransition() public {
@@ -385,7 +472,11 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                 _buyFor(buyer, 1);
                 _activateBuyer(1, 1);
                 string memory decoded = _decodeDataURI(genesis.tokenURI(1));
-                assertTrue(_contains(decoded, '"trait_type":"Activation Tier","value":1'));
+                assertTrue(
+                    _contains(
+                        decoded, '{"display_type":"number","trait_type":"Activation Tier","value":1,"max_value":4}'
+                    )
+                );
                 assertTrue(_contains(decoded, "180,000 STATICS"));
                 assertTrue(_contains(decoded, '"external_url":"https://statics.finance/genesis/1"'));
             }
@@ -401,9 +492,10 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
             function _buyFor(address owner, uint256 tokenId) private {
                 statics.transfer(owner, PRICE);
                 vm.deal(owner, 1 ether);
+                uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
                 vm.startPrank(owner);
                 statics.approve(address(vault), PRICE);
-                vault.buyGenesis(tokenId, owner);
+                vault.buyGenesis{value: requiredNative}(tokenId, owner);
                 vm.stopPrank();
             }
 

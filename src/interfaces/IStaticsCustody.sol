@@ -15,4 +15,6 @@ interface IStaticsCustody {
     function feeCustodyAccount() external pure returns (bytes32);
 
     function stakingCustodyAccount() external pure returns (bytes32);
+
+    function genesisRewardCustodyAccount() external pure returns (bytes32);
 }

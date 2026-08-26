@@ -11,6 +11,7 @@ library LibCustody {
     bytes32 internal constant DOLLAR_ACCOUNT = keccak256("statics.custody.account.dollar");
     bytes32 internal constant FEE_ACCOUNT = keccak256("statics.custody.account.fees");
     bytes32 internal constant STAKING_ACCOUNT = keccak256("statics.custody.account.staking");
+    bytes32 internal constant GENESIS_REWARD_ACCOUNT = keccak256("statics.custody.account.genesis.rewards");
     bytes32 internal constant BASKET_ACCOUNT_DOMAIN = keccak256("statics.custody.account.basket");
 
     struct CustodyStorage {
@@ -48,6 +49,10 @@ library LibCustody {
 
     function stakingAccount() internal pure returns (bytes32) {
         return STAKING_ACCOUNT;
+    }
+
+    function genesisRewardAccount() internal pure returns (bytes32) {
+        return GENESIS_REWARD_ACCOUNT;
     }
 
     function globalReserved(address token) internal view returns (uint256) {

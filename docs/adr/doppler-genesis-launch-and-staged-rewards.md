@@ -102,17 +102,17 @@ The genesis allocation is:
 | Doppler public inventory | 80% | 800,000,000 |
 | **Total** | **100%** | **1,000,000,000** |
 
-The treasury allocation will eventually be vested. Vesting mechanics and the
-vesting schedule are explicitly outside this implementation and require a
-later decision. The launch code must not claim that the unvested deployment is
-production-ready.
+The treasury allocation and protocol Genesis reserve are vested under the later
+accepted `protocol-treasury-genesis-reserve-and-launch-vesting.md` ADR. Its
+99,900,000-STATICS backing commitment, 100,100,000-STATICS vesting principal,
+555-Genesis reserve, and immutable 60-day schedule supersede the direct
+treasury-transfer and all-vault-custody details below.
 
-The Doppler Airlock creation path uses the launch governance factory and a
-one-use allocation escrow as its timelock recipient. The escrow transfers
-exactly 200,000,000 STATICS to treasury. Multicurve rounding dust returned by
-the initializer is sent to the Genesis Vault as non-liability surplus rather
-than increasing the treasury allocation. The no-op governance factory is
-unsuitable because it routes excess supply to a dead address.
+The Doppler Airlock creation path uses the launch governance factory and the
+immutable treasury vesting contract as its remainder recipient. That contract
+commits exactly 99,900,000 STATICS to Genesis backing and retains any additional
+balance as surplus outside both Vault accounting and fixed vesting principal.
+The no-op governance factory is unsuitable because it routes excess supply to a dead address.
 
 ## Genesis inventory and fixed claim
 
@@ -274,9 +274,9 @@ its defaults.
 The canonical Robinhood deployment entry point remains compile-time locked
 while the approved configuration hash is zero. A follow-up economic-parameter
 decision must pin the exact curves, static fee, and Genesis reward share before
-that lock can be removed. The initializer may return at most 100 STATICS of
-rounding residual; a larger return reverts rather than silently shrinking the
-public market allocation.
+that lock can be removed. The initializer's deterministic geometry remains
+verified separately, while the downstream vesting bootstrap accepts any balance
+at or above the fixed 200,000,000-STATICS protocol allocation.
 
 The previous six-band FDV ladder is rejected. Its dollar ranges and inventory
 shares are not accepted economics and must not remain in deployment code as
@@ -455,6 +455,14 @@ pull-based claim for the previous owner. A reverting reward token or recipient
 cannot block NFT transfers because settlement writes liabilities and performs
 no reward-token transfer.
 
+Every claim entrypoint is also a lazy accrual trigger while the launch
+distributor is active. A holder may claim all STATICS and WETH rewards for a
+caller-supplied set of Genesis NFTs together with any crystallized prior-owner
+credits. The batch harvests once, requires the caller to own every supplied
+Genesis, updates both reward books before external transfers, and sends each
+reward asset at most once. Treasury has an equivalent two-asset claim. The
+single-NFT and single-asset claim paths remain available.
+
 The receiver maintains a monotonic per-distributor attribution total. If a
 permissionless caller has harvested fees into the receiver but the launch
 distributor has not pulled the tokens yet, an owner-changing transfer advances
@@ -527,7 +535,7 @@ Implementation and testing must prove at minimum:
 12. Doppler's configured inventory totals exactly 800 million STATICS.
 13. The four-curve fixture resolves exactly to 50%/25%/24%/1% and 44 positions.
 14. The Robinhood broadcast path cannot run while the production launch hash
-    remains unratified, and Multicurve residual may not exceed 100 STATICS.
+    remains unratified.
 15. External LP adds remain possible under stock Doppler behavior.
 16. Standard Doppler beneficiary accounting applies exactly 5% to its
     Airlock owner and 95% to `StaticsFeeReceiver` for launch-position fees.

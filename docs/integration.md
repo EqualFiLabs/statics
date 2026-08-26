@@ -9,6 +9,8 @@ Most applications need:
 - `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
   `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
   temporary Genesis rewards;
+- `IStaticsGenesisIntegration` at `StaticsDiamond` for permanent Genesis
+  rewards, Position linkage, and recovery after the governed handoff;
 - `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
   and ordinary Statics Dollar gateway address;
 - `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
@@ -31,6 +33,7 @@ Use compiled ABIs from these sources:
 | Genesis vault | `src/interfaces/IStaticsGenesisVault.sol` | Quote epoch/reserve pricing, buy, redeem, donate native reserve, inspect inventory, and verify dual backing |
 | Genesis activation | `src/interfaces/IGenesisActivationRegistry.sol` | Permanent tiers, treasury-paid activation costs, multipliers, transfer reset, and consumer handoff |
 | Genesis launch fees | `src/interfaces/IStaticsFeeReceiver.sol` and `IGenesisLaunchDistributor.sol` | Authenticated Doppler harvests, permanent WETH reserve funding, reward indexes, claims, and distributor handoff |
+| Full Genesis integration | `src/interfaces/IStaticsGenesisIntegration.sol` | Register, link/unlink, inspect direct and Position weights, claim permanent rewards, and inspect recovery readiness |
 | Static baskets | `src/interfaces/IStaticsBasket.sol` | Create, quote, mint, redeem, and discover |
 | Basket collateral | `src/interfaces/IStaticsBasketCollateral.sol` | Deposit, mint, withdraw, redeem, and inspect PositionNFT collateral |
 | Basket rewards | `src/interfaces/IStaticsBasketRewards.sol` | Inspect and claim BasketToken and constituent rewards |
@@ -52,19 +55,20 @@ All 5,555 Genesis NFTs exist from deployment. Integrators call
 `quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
 token, approve the returned 180,000-STATICS price, and send at least the
 returned `requiredNative` with payable `buyGenesis(tokenId, receiver)`. During
-the immutable Genesis Epoch `requiredNative` is zero; after the epoch it is the
-reserve buy-in `ceil(reserveETH / 5,554)` plus the native acquisition fee, both
-of which permanently enter the reserve. The native `value` is a maximum: any
-excess is refunded on-chain, and insufficient native reverts atomically.
+the immutable Genesis Epoch `requiredNative` is the native acquisition fee and
+the reserve buy-in is waived. After the epoch `requiredNative` is the reserve
+buy-in `ceil(reserveETH / 5,554)` plus that fee. The fee always enters the
+reserve, and the post-epoch buy-in joins it. The native `value` is a maximum:
+any excess is refunded on-chain, and insufficient native reverts atomically.
 `quoteGenesisRedemption()` reports the fixed 180,000-STATICS payout and, after
 the epoch, the additional `floor(reserveETH / 5,555)` native reserve payout;
 `redeemGenesis(tokenId, receiver)` returns both. `donate()` permissionlessly and
 irreversibly capitalizes the reserve. A redeemed token becomes ordinary vault inventory
 and may be purchased again.
 
-Native acquisition fees are not withdrawable revenue. After the Genesis Epoch,
-each fee and reserve buy-in increases accounted `reserveETH`; during the epoch the
-native fee is zero. Integrators must use `reserveETH`, not the vault's raw native
+Native acquisition fees are not withdrawable revenue. Each fee increases
+accounted `reserveETH` in both epoch states; after the Genesis Epoch, each reserve
+buy-in does too. Integrators must use `reserveETH`, not the vault's raw native
 balance, for reserve NAV because forced or accidental ETH does not enter protocol
 accounting. No governance, treasury, or recipient claim function can withdraw the
 accounted reserve.
@@ -74,10 +78,13 @@ transfers. If governance later configures a validator, marketplaces must satisfy
 that policy; the vault has no bypass. After the full protocol is bound,
 `locked(tokenId)` reflects its Genesis-to-Position registry. A locked Genesis
 must be unlinked before either an ordinary transfer or vault redemption.
-The collection uses ERC-2309 consecutive construction for all 5,555 vault-held
-tokens and therefore does not emit 5,555 individual initial `Unlocked` events;
-integrators should read `locked(tokenId)`. Later link-state changes emit the
-standard ERC-5192 `Locked` or `Unlocked` event.
+The collection uses two ERC-2309 consecutive construction batches: IDs 1..5,000
+begin in the Genesis Vault, while treasury-reserve IDs 5,001..5,555 begin in the
+immutable treasury vesting contract. It therefore does not emit 5,555
+individual initial `Unlocked` events; integrators should read
+`locked(tokenId)`. The treasury IDs release in ascending order under the same
+60-day linear schedule as the treasury STATICS principal. Later link-state
+changes emit the standard ERC-5192 `Locked` or `Unlocked` event.
 
 Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
@@ -94,6 +101,27 @@ manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
 swaps. Registered Genesis rewards are indexed only after the permanent receiver
 collects its authenticated 95% beneficiary share from the standard Doppler
 initializer; raw receiver balances are not protocol revenue.
+
+After `genesisIntegrationReady()` becomes true, an actual Genesis owner may
+call `registerGenesis(genesisId)` once for the permanent reward interval.
+Registration does not require Position linkage and follows the token across
+later transfers. On an owner-changing transfer, already attributed rewards
+settle to `genesisOwnerClaimable(previousOwner, asset)`, activation resets to
+Tier 0, and future direct weight follows the new owner. Use
+`claimGenesisRewards` for rewards still attached to a held token and
+`claimGenesisOwnerRewards` for crystallized prior-owner credits.
+`claimAllGenesisRewards` accepts the caller's currently owned Genesis IDs and
+claims both categories across STATICS and WETH in one transaction. It may be
+called with an empty ID list to claim only prior-owner credits. Every claim
+path lazily harvests before settlement while its distributor is active.
+
+`linkGenesis(positionId, genesisId)` requires the same actual owner for both
+NFTs; approvals do not authorize linking or unlinking. While linked,
+`locked()` is true for both NFTs and owner-changing transfer is prohibited.
+The activation multiplier applies only to global STATICS reward weight. It
+does not change raw stake, withdrawable principal, collateral, LP rewards, or
+direct Genesis rewards. Recovery clears the link and boost but preserves the
+PositionNFT, raw stake, pending maturity, claims, and unrelated legs.
 
 ## Basket creation and discovery
 
@@ -202,8 +230,10 @@ full unstake clears selections but preserves settled claims.
 
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
-per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`
-timestamp and pending/eligible split. Fee accrual or the next position action
+per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`,
+raw pending/eligible stake, and pending/eligible effective weight.
+`stakePosition` reports the current `rewardMultiplierBps`; `totalStaked()`
+remains raw principal. Fee accrual or the next position action
 rolls due maturity buckets; no separate activation transaction is required.
 Position-specific views and actions require ERC-721 ownership or approval.
 Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the

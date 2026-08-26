@@ -13,6 +13,7 @@ import {
     IGenesisActivationRegistry
 } from "../../src/interfaces/IGenesisActivationRegistry.sol";
 import {IStaticsFeeReceiver} from "../../src/interfaces/IStaticsFeeReceiver.sol";
+import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -157,10 +158,18 @@ contract GenesisLaunchRewardsTest is Test {
         feeReceiver.bindMarket(address(statics), POOL_ID);
 
         activationRegistry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days);
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(feeReceiver),
+            treasury: treasury,
+            originationFee: 0,
+            extensionFee: 0,
+            recoveryCallerShareBps: 2_000
+        });
+        vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 3650 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
+            address(this),
             address(activationRegistry),
             renderer,
             governance,
@@ -169,6 +178,7 @@ contract GenesisLaunchRewardsTest is Test {
             "https://statics.finance/genesis/"
         );
         activationRegistry.bindGenesisCollection(address(genesis));
+        statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
         vault.finalizeGenesisCollection(address(genesis));
 
         distributor =
@@ -200,6 +210,31 @@ contract GenesisLaunchRewardsTest is Test {
     function testMarketBindingRequiresExactNinetyFivePercentBeneficiaryShare() public view {
         assertEq(feeReceiver.poolInitializer(), address(feeSource));
         assertEq(feeSource.getShares(POOL_ID, address(feeReceiver)), 0.95 ether);
+    }
+
+    function testDistributorRejectsIdenticalRewardAssets() public {
+        vm.mockCall(address(feeReceiver), abi.encodeCall(feeReceiver.statics, ()), abi.encode(address(weth)));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisLaunchDistributor.InvalidRewardPair.selector, address(weth), address(weth))
+        );
+        new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 10_000);
+    }
+
+    function testDistributorRejectsZeroRewardAsset() public {
+        vm.mockCall(address(feeReceiver), abi.encodeCall(feeReceiver.statics, ()), abi.encode(address(0)));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisLaunchDistributor.InvalidRewardPair.selector, address(0), address(weth))
+        );
+        new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 10_000);
+    }
+
+    function testDistributorRejectsRewardAssetWithoutCode() public {
+        address missingAsset = makeAddr("missingRewardAsset");
+        vm.mockCall(address(feeReceiver), abi.encodeCall(feeReceiver.statics, ()), abi.encode(missingAsset));
+        vm.expectRevert(
+            abi.encodeWithSelector(GenesisLaunchDistributor.InvalidRewardPair.selector, missingAsset, address(weth))
+        );
+        new GenesisLaunchDistributor(feeReceiver, genesis, activationRegistry, treasury, governance, 10_000);
     }
 
     function testActivationConsumerObservesPreviousTierDuringCallback() public {
@@ -261,6 +296,106 @@ contract GenesisLaunchRewardsTest is Test {
         assertEq(distributor.claimOwnerRewards(address(statics), alice), 1_000 ether);
     }
 
+    function testClaimAllHarvestsBothAssetsAndIncludesPriorOwnerRewards() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(alice, 2);
+        _buyAndRegister(alice, 3);
+        _queue(3_000 ether, 300 ether);
+        distributor.accrue();
+
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 3);
+        _queue(3_000 ether, 300 ether);
+
+        uint256[] memory genesisIds = new uint256[](3);
+        genesisIds[0] = 1;
+        genesisIds[1] = 2;
+        genesisIds[2] = 1;
+        uint256 staticsBefore = statics.balanceOf(carol);
+        uint256 wethBefore = weth.balanceOf(carol);
+        vm.prank(alice);
+        (uint256 staticsAmount, uint256 wethAmount) = distributor.claimAllGenesisRewards(genesisIds, carol);
+
+        assertEq(staticsAmount, 5_000 ether);
+        assertEq(wethAmount, 500 ether);
+        assertEq(statics.balanceOf(carol) - staticsBefore, staticsAmount);
+        assertEq(weth.balanceOf(carol) - wethBefore, wethAmount);
+        assertEq(distributor.ownerClaimable(alice, address(statics)), 0);
+        assertEq(distributor.ownerClaimable(alice, address(weth)), 0);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 0);
+        assertEq(distributor.pendingGenesis(2, address(statics)), 0);
+        assertEq(distributor.pendingGenesis(3, address(statics)), 1_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(statics)), 6_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(weth)), 600 ether);
+    }
+
+    function testClaimAllWithNoGenesisIdsClaimsOnlyPriorOwnerRewards() public {
+        _buyAndRegister(alice, 1);
+        _queue(1_000 ether, 100 ether);
+        distributor.accrue();
+        vm.prank(alice);
+        genesis.transferFrom(alice, bob, 1);
+
+        uint256[] memory noGenesisIds = new uint256[](0);
+        vm.prank(alice);
+        (uint256 staticsAmount, uint256 wethAmount) = distributor.claimAllGenesisRewards(noGenesisIds, alice);
+
+        assertEq(staticsAmount, 1_000 ether);
+        assertEq(wethAmount, 100 ether);
+    }
+
+    function testClaimAllRejectsMixedOwnershipBeforeHarvest() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(bob, 2);
+        _queue(2_000 ether, 200 ether);
+        uint256[] memory genesisIds = new uint256[](2);
+        genesisIds[0] = 1;
+        genesisIds[1] = 2;
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(GenesisLaunchDistributor.NotGenesisOwner.selector, 2, alice, bob));
+        distributor.claimAllGenesisRewards(genesisIds, alice);
+
+        assertEq(feeReceiver.cumulativeHarvested(address(statics)), 0);
+        assertEq(feeReceiver.cumulativeHarvested(address(weth)), 0);
+    }
+
+    function testClaimAllTreasuryRewardsHarvestsAndTransfersBothAssets() public {
+        vm.prank(governance);
+        distributor.setGenesisRewardShareBps(7_500);
+        _buyAndRegister(alice, 1);
+        _queue(1_000 ether, 100 ether);
+
+        vm.prank(treasury);
+        (uint256 staticsAmount, uint256 wethAmount) = distributor.claimAllGenesisTreasuryRewards(treasury);
+
+        assertEq(staticsAmount, 250 ether);
+        assertEq(wethAmount, 25 ether);
+        assertEq(statics.balanceOf(treasury), 250 ether);
+        assertEq(weth.balanceOf(treasury), 25 ether);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 750 ether);
+        assertEq(distributor.pendingGenesis(1, address(weth)), 75 ether);
+    }
+
+    function testPriorOwnerClaimLazilyHarvestsForCurrentGenesisOwners() public {
+        _buyAndRegister(alice, 1);
+        _buyAndRegister(bob, 2);
+        _queue(2_000 ether, 200 ether);
+        distributor.accrue();
+        vm.prank(alice);
+        genesis.transferFrom(alice, carol, 1);
+        _queue(2_000 ether, 200 ether);
+
+        vm.prank(alice);
+        assertEq(distributor.claimOwnerRewards(address(statics), alice), 1_000 ether);
+
+        assertEq(feeReceiver.cumulativeHarvested(address(statics)), 4_000 ether);
+        assertEq(feeReceiver.cumulativeHarvested(address(weth)), 400 ether);
+        assertEq(distributor.pendingGenesis(1, address(statics)), 1_000 ether);
+        assertEq(distributor.pendingGenesis(2, address(statics)), 2_000 ether);
+        assertEq(distributor.ownerClaimable(alice, address(weth)), 100 ether);
+    }
+
     function testHarvestThenTransferCheckpointsAttributedFeesToPreviousOwner() public {
         _buyAndRegister(alice, 1);
         _buyAndRegister(bob, 2);
@@ -310,9 +445,10 @@ contract GenesisLaunchRewardsTest is Test {
         _queue(1_000 ether, 0);
         distributor.accrue();
         statics.transfer(carol, PRICE);
+        uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
         vm.startPrank(carol);
         statics.approve(address(vault), PRICE);
-        vault.buyGenesis(1, carol);
+        vault.buyGenesis{value: requiredNative}(1, carol);
         vm.stopPrank();
         assertEq(distributor.effectiveWeight(1), 10_000);
         assertEq(distributor.pendingGenesis(1, address(statics)), 0);
@@ -337,10 +473,10 @@ contract GenesisLaunchRewardsTest is Test {
         nextConsumer.accept(activationRegistry);
 
         vm.prank(governance);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsFeeReceiver.DistributorAlreadyActivated.selector, address(distributor))
+        );
         feeReceiver.proposeDistributor(address(distributor));
-        vm.prank(governance);
-        vm.expectRevert(GenesisLaunchDistributor.LaunchRewardsAlreadyFinalized.selector);
-        distributor.acceptFeeReceiverRole();
 
         vm.prank(governance);
         activationRegistry.proposeConsumer(address(distributor));
@@ -386,9 +522,10 @@ contract GenesisLaunchRewardsTest is Test {
 
     function _buyAndRegister(address owner, uint256 tokenId) private {
         statics.transfer(owner, PRICE);
+        uint256 requiredNative = vault.quoteGenesisPurchase().requiredNative;
         vm.startPrank(owner);
         statics.approve(address(vault), PRICE);
-        vault.buyGenesis(tokenId, owner);
+        vault.buyGenesis{value: requiredNative}(tokenId, owner);
         distributor.registerGenesis(tokenId);
         vm.stopPrank();
     }

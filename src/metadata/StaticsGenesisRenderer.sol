@@ -47,7 +47,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
             '","attributes":[',
             _attributes(traits_),
             ",",
-            _numericAttribute("Activation Tier", tier),
+            _numericAttribute("Activation Tier", tier, 4),
             "]}"
         );
         uri = string.concat("data:application/json;base64,", Base64.encode(json));
@@ -77,7 +77,19 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         return string.concat('{"trait_type":"', traitType, '","value":"', value, '"}');
     }
 
-    function _numericAttribute(string memory traitType, uint256 value) private pure returns (string memory) {
-        return string.concat('{"trait_type":"', traitType, '","value":', value.toString(), "}");
+    function _numericAttribute(string memory traitType, uint256 value, uint256 maxValue)
+        private
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            '{"display_type":"number","trait_type":"',
+            traitType,
+            '","value":',
+            value.toString(),
+            ',"max_value":',
+            maxValue.toString(),
+            "}"
+        );
     }
 }

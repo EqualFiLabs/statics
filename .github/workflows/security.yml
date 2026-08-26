@@ -27,6 +27,7 @@ jobs:
           git submodule sync
           git submodule update --init --depth=1 \
             lib/forge-std \
+            lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
             lib/v4-periphery
@@ -99,6 +100,7 @@ jobs:
           git submodule sync
           git submodule update --init --depth=1 \
             lib/forge-std \
+            lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
             lib/v4-periphery

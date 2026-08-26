@@ -22,14 +22,17 @@ selected by chain ID and reads:
 | Variable | Meaning |
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
-| `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor |
-| `STATICS_GENESIS_TREASURY` | Exact 200,000,000-STATICS recipient, Genesis activation-payment recipient, and royalty receiver |
-| `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical address and runtime code hash |
+| `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor, and immutable admin that may rotate the treasury vesting withdrawal recipient |
+| `STATICS_GENESIS_TREASURY` | Initial recipient of vested STATICS and Genesis, Genesis activation payments, and royalties |
+| `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical proxy, implementation, proxy admin, and ownership-controller code |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
-| `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt |
+| `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt; use a cryptographically random 32-byte value and keep the raw salt confidential until the launch transaction reaches the sequencer |
 | `STATICS_DOPPLER_FEE` | Static Uniswap v4 LP fee in millionths |
 | `STATICS_GENESIS_REWARD_SHARE_BPS` | Receiver revenue share indexed to registered Genesis NFTs |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Share (0..10,000) of harvested WETH routed into the permanent Genesis native ETH reserve; the remainder is attributed to the active distributor |
+| `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native fee required to open Genesis secured credit; no protocol default is assumed |
+| `STATICS_GENESIS_CREDIT_EXTENSION_FEE` | Ratified flat native fee quoted when extending Genesis secured credit; no protocol default is assumed |
+| `STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS` | Ratified caller share of the fixed 9,000-STATICS recovery residual; must be greater than 0 and less than 10,000 |
 | `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for immutable `genesisEpochEnd`; it must be future at deployment and is included in the launch hash |
 | `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
 | `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
@@ -37,12 +40,14 @@ selected by chain ID and reads:
 
 The deployment:
 
-1. deploys a permanent fee receiver and one-use allocation escrow;
+1. deploys a permanent fee receiver and immutable treasury vesting contract;
 2. creates exactly 1,000,000,000 STATICS through `DopplerERC20V1`;
-3. passes exactly 800,000,000 STATICS to the four-curve Multicurve initializer;
-4. transfers exactly 200,000,000 STATICS to treasury and sends any returned
-   Multicurve rounding dust to the vault as non-liability surplus;
-5. mints all 5,555 Genesis NFTs to the vault with no initial backing liability;
+3. passes exactly 800,000,000 STATICS to the six-curve Multicurve initializer;
+4. commits exactly 99,900,000 STATICS as backing for the protocol's 555 Genesis,
+   vests the fixed 100,100,000-STATICS principal linearly for 60 days, and keeps
+   any additional balance in the vesting contract as unaccounted surplus;
+5. mints Genesis IDs 1..5,000 to the vault and IDs 5,001..5,555 to the treasury
+   vesting contract;
 6. deploys the vault with an immutable future `genesisEpochEnd`, binds the fee
    receiver's permanent reserve vault, and sets `reserveShareBps` before the
    launch distributor is accepted so a nonzero share can never route around an
@@ -50,11 +55,23 @@ The deployment:
 7. deploys and binds the permanent activation registry (with its immutable
    treasury) and temporary launch distributor; and
 8. proposes the configured governance address as the two-step owner of every
-   administered standalone contract.
+   administered standalone contract. The same governance address is the
+   vesting contract's immutable recipient admin.
 
-Vault purchases require exactly 180,000 STATICS plus, after the immutable
-Genesis Epoch, a native reserve buy-in of `ceil(reserveETH / 5,554)` and the
-current native acquisition fee; during the epoch no native value is charged.
+STATICS and Genesis vest linearly from the launch transaction timestamp. Anyone
+may call `releaseStatics()` or `releaseGenesis(maxCount)`; assets always go to
+the configured withdrawal recipient. Genesis release is ascending by token ID,
+requires a nonzero `maxCount`, and processes at most 50 NFTs per transaction.
+Governance may rotate the withdrawal recipient but cannot change the schedule,
+principal, token range, or release assets early. Only after the full fixed STATICS
+principal has actually been released may governance sweep the complete remaining
+STATICS surplus, always to the current withdrawal recipient. A recipient contract
+must implement ERC-721 receipt before Genesis can be released to it.
+
+Vault purchases always require exactly 180,000 STATICS plus the current native
+acquisition fee. During the immutable Genesis Epoch the reserve buy-in is waived;
+after the epoch, purchases additionally require a native reserve buy-in of
+`ceil(reserveETH / 5,554)`.
 Redemption returns exactly 180,000 STATICS and, after the epoch, an additional
 native reserve payout of `floor(reserveETH / 5,555)`. The buy-in and fee
 permanently enter the reserve, which has no withdrawal path. Activation forwards
@@ -84,14 +101,57 @@ The canonical `run()` path is deliberately locked on Robinhood while
 `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
 curves, static fee, Genesis reward share, and reserve parameters requires a
 reviewed follow-up commit that pins their exact hash. That commitment also binds
-the canonical Robinhood WETH address and runtime code hash recorded in the
-mainnet deployment manifest. Before any simulation or broadcast, the launcher
-rejects a different `WETH_ADDRESS` or runtime bytecode so WETH `withdraw()`
-cannot silently cross the permanent reserve security boundary. The lower-level
-`deploy()` function remains available to unit and fork tests. Deployment also
-rejects more than 100 STATICS of Multicurve rounding residual so an upstream or
-configuration error cannot silently shrink the 800-million-token public
-inventory.
+the creation bytecode of every Statics Genesis contract, the exact
+Doppler/Airlock-owner beneficiary, canonical Robinhood WETH address, proxy
+bytecode, ERC-1967 implementation address and bytecode, proxy-admin address and
+bytecode, and the proxy admin's ownership-controller proxy and implementation
+recorded in the mainnet deployment manifest. The launcher also requires that
+the ownership controller remains administered by that proxy admin. A Statics
+source or compiler-output change, later Airlock ownership rotation, or WETH
+authority/code drift therefore invalidates the reviewed hash instead of
+silently changing deployed protocol logic, the recipient of 5% of
+launch-position fees, or the code that executes `withdraw()`. Before any
+simulation or broadcast, the launcher rejects a renounced Airlock owner, a
+different `WETH_ADDRESS`, or drift at any pinned WETH authority or proxy layer
+so upstream authority and native unwrapping cannot silently cross permanent
+launch security boundaries. These checks bind the state observed during Forge
+script simulation; they are not an atomic onchain guard because the script
+expands into multiple broadcast transactions. Simulate immediately before
+submission, reject any stale broadcast artifact, and rerun the checks after any
+delay or dependency-state change. WETH remains governed upstream after
+deployment, so later role or upgrade changes are an explicit continuing
+dependency. The lower-level
+`deploy()` function remains available to unit and fork tests. Deployment requires
+the treasury vesting contract to hold at least the fixed 200-million-STATICS
+protocol allocation; higher balances do not fail launch and remain outside Vault
+backing and fixed vesting-principal accounting.
+
+### Production salt and submission ceremony
+
+The pinned Doppler token factory deploys a deterministic clone keyed by
+`STATICS_DOPPLER_SALT`, and `Airlock.create()` is permissionless. A party that
+learns the raw salt before the intended creation reaches Robinhood's sequencer
+can consume that deterministic token address first with different initialization
+data. This is a launch denial of service: it forces a new salt and a newly
+reviewed launch hash.
+
+For production:
+
+1. Generate the salt from a cryptographically secure random source. Do not use
+   a phrase, timestamp, repository value, or a hash of predictable text.
+2. Publish only the approved launch hash before launch. Do not publish the raw
+   salt or a deployment manifest containing it until the creation transaction
+   is sequenced.
+3. Do not expose the production salt through simulation calls to an untrusted
+   RPC. Simulate from a local fork or infrastructure trusted for the launch
+   ceremony.
+4. Submit through a trusted, low-latency Robinhood RPC path that forwards
+   directly to the first-come, first-served sequencer. Do not route the launch
+   through a public pending-transaction service or an untrusted relay.
+5. Confirm the creation transaction and expected token address before
+   publishing the raw salt and final manifest. A failed or interrupted
+   multi-transaction broadcast is not a completed launch; resume only after
+   reconciling every included nonce and deployed address.
 
 Simulate first, inspect every address and allocation, then broadcast only with
 explicit deployment authorization:
@@ -112,14 +172,63 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
 
 Airlock creates the live pool in the deployment transaction; there is no later
 graduation or custom Statics initialization. Record the token, PoolKey/PoolId,
-all Doppler modules and source revisions, fee receiver, allocation escrow,
+all Doppler modules and source revisions, fee receiver, treasury vesting,
 activation registry, collection, vault, distributor, metadata contracts, fee
-schedule, and four curves. Before declaring deployment complete, the configured
+schedule, and six curves. Before declaring deployment complete, verify the
+vesting admin, recipient, start and end timestamps, principal custody, and
+Genesis ID endpoints. The configured
 governance must submit one batch containing `acceptOwnership()` to the fee
 receiver, activation registry, vault, Genesis collection, and launch
 distributor. Verify `owner() == governance` and `pendingOwner() == address(0)`
 on all five contracts; until then the broadcaster remains the active owner.
-The four-curve fixture and fee values are not approved production economics.
+The six-curve fixture and fee values are not approved production economics.
+
+## Full Statics Genesis handoff
+
+Full Statics deployment and the standalone Genesis launch remain separate.
+Fresh `StaticsDiamond` deployments install `GenesisNFTFacet` but leave its
+external bindings uninitialized, so registration and linking stay unavailable.
+For an existing pre-feature Diamond, first deploy the replacement facets with
+`PrepareStaticsGenesisUpgrade`; set `STATICS_GENESIS_INSTALL_UPGRADE=true` so
+the same initialization cut replaces the reward, Position, and custody facets
+and adds the Genesis facet without iterating existing Positions.
+
+Deploy the stateless initializer with:
+
+```bash
+forge script script/ConfigureStaticsGenesis.s.sol:ConfigureStaticsGenesis \
+  --sig "runDeployInitializer()" \
+  --rpc-url "$RPC_URL" \
+  --broadcast -vv
+```
+
+`ConfigureStaticsGenesis` validates the canonical Genesis, vault, activation
+registry, fee receiver, treasury, STATICS, WETH, launch distributor, and reward
+share before preparing any handoff. If all administered Genesis contracts are
+owned by the Statics timelock, `runSchedule()` and `runExecute()` perform one
+ordered batch. If Genesis governance remains a separate Safe or controller,
+use `runScheduleInitialization()` and `runExecuteInitialization()` for the
+Diamond-owned cut. The remaining six typed calls must alternate between the
+two authorities in this order:
+
+1. Genesis governance executes `buildGenesisDistributorProposal()`;
+2. Statics governance executes `buildStaticsDistributorAcceptance()`;
+3. Genesis governance executes `buildGenesisConsumerProposal()` to finalize
+   launch rewards and propose the Diamond as activation consumer;
+4. Statics governance executes `buildStaticsConsumerAcceptance()`; and
+5. Genesis governance executes `buildGenesisProtocolBinding()`.
+
+The Diamond role-acceptance wrappers are owner-only. Consumer acceptance also
+requires the Diamond to already be the active fee distributor and any existing
+launch consumer to be finalized, so neither an arbitrary caller nor an
+out-of-order Safe batch can advance the handoff.
+
+The ordered transition initializes the Diamond, proposes and accepts it as fee
+distributor, migrates any pending recovery value, finalizes the launch
+distributor, proposes and accepts the Diamond as activation consumer, and binds
+`StaticsGenesis.protocol()`. Historical launch claims remain in the finalized
+launch distributor. New full-protocol registration and Position linkage are
+enabled only when `genesisIntegrationReady()` is true.
 
 ## Required configuration
 
@@ -153,6 +262,18 @@ canonical launcher reads:
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed JSON manifest for the owner-funded first basket |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding the approvals and atomic basket launch |
+| `STATICS_GENESIS_INTEGRATION_INIT_ADDRESS` | Deployed one-time Diamond initializer used by the Genesis handoff |
+| `STATICS_GENESIS_HANDOFF_TIMELOCK_SALT` | Unique salt binding the Genesis integration initialization or unified handoff |
+| `STATICS_GENESIS_FEE_RECEIVER_ADDRESS` | Permanent standalone fee receiver being handed to the Diamond distributor |
+| `STATICS_GENESIS_ACTIVATION_REGISTRY_ADDRESS` | Permanent activation registry whose consumer rotates to the Diamond |
+| `STATICS_GENESIS_NFT_ADDRESS` | Canonical Genesis collection bound to the Diamond |
+| `STATICS_GENESIS_VAULT_ADDRESS` | Canonical secured-credit and recovery vault |
+| `STATICS_GENESIS_DISTRIBUTOR_ADDRESS` | Temporary launch distributor finalized by the handoff |
+| `STATICS_GENESIS_INSTALL_UPGRADE` | `true` only for an existing Diamond that needs the prepared replacement facets; fresh deployments use `false` |
+| `STATICS_GLOBAL_REWARDS_FACET_ADDRESS` | Prepared replacement facet for an existing-Diamond handoff |
+| `STATICS_POSITION_NFT_FACET_ADDRESS` | Prepared replacement facet for an existing-Diamond handoff |
+| `STATICS_CUSTODY_FACET_ADDRESS` | Prepared replacement facet for an existing-Diamond handoff |
+| `STATICS_GENESIS_NFT_FACET_ADDRESS` | Prepared Genesis facet for an existing-Diamond handoff |
 
 `RPC_URL` is consumed by the Forge command rather than Solidity. Do not infer
 feed addresses, WETH addresses, risk parameters, fee amounts, or metadata from
@@ -502,7 +623,7 @@ The deployment tests establish the expected fresh-launch architecture:
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           29 facets, 218 selectors
+StaticsDiamond:           30 facets, 254 selectors
 gateway == PositionNFT == StaticsDiamond
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

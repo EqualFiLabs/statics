@@ -23,6 +23,7 @@ import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
+import {GenesisNFTFacet} from "../../src/facets/GenesisNFTFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
@@ -66,6 +67,7 @@ abstract contract DeployStaticsProtocol {
         address protocolPoolAdmin;
         address protocolPoolView;
         address protocolRevenue;
+        address genesisNFT;
     }
 
     struct ProtocolDeploymentConfig {
@@ -139,6 +141,7 @@ abstract contract DeployStaticsProtocol {
         parts.protocolPoolAdmin = address(new ProtocolPoolAdminFacet());
         parts.protocolPoolView = address(new ProtocolPoolViewFacet());
         parts.protocolRevenue = address(new ProtocolRevenueFacet());
+        parts.genesisNFT = address(new GenesisNFTFacet());
     }
 
     function _protocolCut(ProtocolParts memory parts, address basketLiquidity, address liquidityRewards)
@@ -146,7 +149,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](29);
+        cut = new IDiamondCut.FacetCut[](30);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -200,6 +203,7 @@ abstract contract DeployStaticsProtocol {
         cut[28] = IDiamondCut.FacetCut(
             parts.protocolRevenue, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolRevenue()
         );
+        cut[29] = IDiamondCut.FacetCut(parts.genesisNFT, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesisNFT());
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {

@@ -1,0 +1,27 @@
+[profile.default]
+src = "harness"
+test = "test"
+out = "out"
+libs = ["vendor/doppler", "vendor/doppler/lib", "../../lib"]
+auto_detect_solc = true
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+bytecode_hash = "none"
+
+additional_compiler_profiles = [
+    { name = "doppler-multicurve", via_ir = true, optimizer_runs = 200 },
+]
+
+compilation_restrictions = [
+    # Pinned upstream Multicurve fails legacy codegen with stack-too-deep; the
+    # Statics harness and shared launch configuration remain on legacy codegen.
+    { paths = "vendor/doppler/src/libraries/Multicurve.sol", via_ir = true },
+]
+
+[fmt]
+line_length = 120
+tab_width = 4
+
+[profile.formal]
+out = "out-formal"
