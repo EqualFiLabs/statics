@@ -7,6 +7,7 @@ import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegi
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsTreasuryVesting} from "../../src/genesis/StaticsTreasuryVesting.sol";
 import {GenesisCreditConfig} from "../../src/interfaces/IStaticsGenesisVault.sol";
+import {IStaticsTreasuryVesting} from "../../src/interfaces/IStaticsTreasuryVesting.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -37,6 +38,8 @@ contract ReentrantGenesisRecipient is IERC721Receiver {
 }
 
 contract StaticsTreasuryVestingTest is Test {
+    uint256 private constant SURPLUS = 1_000_000 ether;
+
     address private governance;
     address private treasury;
     address private successor;
@@ -50,31 +53,7 @@ contract StaticsTreasuryVestingTest is Test {
         governance = makeAddr("governance-safe");
         treasury = makeAddr("treasury-safe");
         successor = makeAddr("successor-safe");
-        vesting = new StaticsTreasuryVesting(address(this), governance, treasury);
-        statics = new MockDopplerToken(address(this));
-        registry = new GenesisActivationRegistry(statics, address(this), governance, treasury);
-        MockGenesisFeeReceiver feeReceiver = new MockGenesisFeeReceiver(address(statics));
-        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
-            feeReceiver: address(feeReceiver),
-            treasury: treasury,
-            originationFee: 0.003 ether,
-            extensionFee: 0.003 ether,
-            recoveryCallerShareBps: 2_000
-        });
-        vault = new StaticsGenesisVault(statics, address(vesting), governance, block.timestamp + 365 days, creditConfig);
-        genesis = new StaticsGenesis(
-            address(vault),
-            address(vesting),
-            address(registry),
-            new StaticsGenesisRenderer(new StaticsAvatarSVG()),
-            governance,
-            treasury,
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
-        );
-        registry.bindGenesisCollection(address(genesis));
-        statics.transfer(address(vesting), vesting.PROTOCOL_ALLOCATION());
-        vesting.finalizeBootstrap(address(statics), address(vault), address(genesis));
+        (vesting, statics, registry, vault, genesis) = _deployVesting(0);
     }
 
     function testBootstrapCommitsExactReserveAndVestingCustody() public view {
@@ -95,42 +74,80 @@ contract StaticsTreasuryVestingTest is Test {
         assertEq(vesting.releasableGenesis(), 0);
     }
 
-    function testBootstrapRoutesResidualAsUnaccountedVaultSurplus() public {
-        StaticsTreasuryVesting residualVesting = new StaticsTreasuryVesting(address(this), governance, treasury);
-        MockDopplerToken residualToken = new MockDopplerToken(address(this));
-        GenesisActivationRegistry residualRegistry =
-            new GenesisActivationRegistry(residualToken, address(this), governance, treasury);
-        MockGenesisFeeReceiver receiver = new MockGenesisFeeReceiver(address(residualToken));
-        GenesisCreditConfig memory config = GenesisCreditConfig({
-            feeReceiver: address(receiver),
-            treasury: treasury,
-            originationFee: 0,
-            extensionFee: 0,
-            recoveryCallerShareBps: 2_000
-        });
-        StaticsGenesisVault residualVault = new StaticsGenesisVault(
-            residualToken, address(residualVesting), governance, block.timestamp + 365 days, config
-        );
-        StaticsGenesis residualGenesis = new StaticsGenesis(
-            address(residualVault),
-            address(residualVesting),
-            address(residualRegistry),
-            new StaticsGenesisRenderer(new StaticsAvatarSVG()),
-            governance,
-            treasury,
-            "ipfs://contract.json",
-            "https://statics.finance/genesis/"
-        );
-        residualRegistry.bindGenesisCollection(address(residualGenesis));
-        residualToken.transfer(address(residualVesting), 200_000_007 ether);
+    function testBootstrapRetainsArbitraryPreBootstrapSurplus() public {
+        (StaticsTreasuryVesting surplusVesting, MockDopplerToken surplusToken,, StaticsGenesisVault surplusVault,) =
+            _deployVesting(SURPLUS);
 
-        uint256 residual =
-            residualVesting.finalizeBootstrap(address(residualToken), address(residualVault), address(residualGenesis));
+        assertEq(surplusToken.balanceOf(address(surplusVesting)), 100_100_000 ether + SURPLUS);
+        assertEq(surplusToken.balanceOf(address(surplusVault)), 99_900_000 ether);
+        assertEq(surplusVault.tokenBacking(), 99_900_000 ether);
+        assertEq(surplusVesting.releasedStatics(), 0);
+        assertEq(surplusVesting.releasedGenesis(), 0);
+    }
 
-        assertEq(residual, 7 ether);
-        assertEq(residualToken.balanceOf(address(residualVesting)), 100_100_000 ether);
-        assertEq(residualToken.balanceOf(address(residualVault)), 99_900_007 ether);
-        assertEq(residualVault.tokenBacking(), 99_900_000 ether);
+    function testNonAdminCannotSweepSurplus() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsTreasuryVesting.UnauthorizedRecipientAdmin.selector, address(this))
+        );
+        vesting.sweepStaticsSurplus();
+    }
+
+    function testElapsedScheduleCannotUnlockSurplusBeforeActualRelease() public {
+        vm.warp(vesting.vestingStart() + 60 days);
+        vm.prank(governance);
+        vm.expectRevert(StaticsTreasuryVesting.VestingNotComplete.selector);
+        vesting.sweepStaticsSurplus();
+    }
+
+    function testSweepRejectsZeroBalanceAfterPrincipalRelease() public {
+        vm.warp(vesting.vestingStart() + 60 days);
+        vesting.releaseStatics();
+
+        vm.prank(governance);
+        vm.expectRevert(StaticsTreasuryVesting.NothingToSweep.selector);
+        vesting.sweepStaticsSurplus();
+    }
+
+    function testSweepTransfersAllSurplusToCurrentRecipientAfterStaticsRelease() public {
+        (StaticsTreasuryVesting surplusVesting, MockDopplerToken surplusToken,, StaticsGenesisVault surplusVault,) =
+            _deployVesting(SURPLUS);
+        uint256 start = surplusVesting.vestingStart();
+        uint256 vaultBalance = surplusToken.balanceOf(address(surplusVault));
+        uint256 tokenBacking = surplusVault.tokenBacking();
+
+        vm.warp(start + 60 days);
+        surplusVesting.releaseStatics();
+        vm.prank(governance);
+        surplusVesting.setWithdrawalRecipient(successor);
+
+        vm.expectEmit(true, false, false, true, address(surplusVesting));
+        emit IStaticsTreasuryVesting.StaticsSurplusSwept(successor, SURPLUS);
+        vm.prank(governance);
+        assertEq(surplusVesting.sweepStaticsSurplus(), SURPLUS);
+
+        assertEq(surplusToken.balanceOf(successor), SURPLUS);
+        assertEq(surplusToken.balanceOf(treasury), surplusVesting.STATICS_VESTING_PRINCIPAL());
+        assertEq(surplusToken.balanceOf(address(surplusVesting)), 0);
+        assertEq(surplusVesting.releasedStatics(), surplusVesting.STATICS_VESTING_PRINCIPAL());
+        assertEq(surplusVesting.releasedGenesis(), 0);
+        assertEq(surplusVesting.vestingStart(), start);
+        assertEq(surplusToken.balanceOf(address(surplusVault)), vaultBalance);
+        assertEq(surplusVault.tokenBacking(), tokenBacking);
+    }
+
+    function testDonationsAfterPrincipalReleaseRemainRecoverable() public {
+        vm.warp(vesting.vestingStart() + 60 days);
+        vesting.releaseStatics();
+        statics.transfer(address(vesting), 7 ether);
+
+        vm.prank(governance);
+        assertEq(vesting.sweepStaticsSurplus(), 7 ether);
+        assertEq(statics.balanceOf(address(vesting)), 0);
+
+        statics.transfer(address(vesting), 9 ether);
+        vm.prank(governance);
+        assertEq(vesting.sweepStaticsSurplus(), 9 ether);
+        assertEq(statics.balanceOf(treasury), vesting.STATICS_VESTING_PRINCIPAL() + 16 ether);
     }
 
     function testVestingBoundariesAndExactStaticsRelease() public {
@@ -238,5 +255,44 @@ contract StaticsTreasuryVestingTest is Test {
         assertTrue(vesting.vestingComplete());
         assertEq(statics.balanceOf(address(vesting)), 0);
         assertEq(genesis.balanceOf(address(vesting)), 0);
+    }
+
+    function _deployVesting(uint256 surplus)
+        private
+        returns (
+            StaticsTreasuryVesting deployedVesting,
+            MockDopplerToken deployedStatics,
+            GenesisActivationRegistry deployedRegistry,
+            StaticsGenesisVault deployedVault,
+            StaticsGenesis deployedGenesis
+        )
+    {
+        deployedVesting = new StaticsTreasuryVesting(address(this), governance, treasury);
+        deployedStatics = new MockDopplerToken(address(this));
+        deployedRegistry = new GenesisActivationRegistry(deployedStatics, address(this), governance, treasury);
+        MockGenesisFeeReceiver feeReceiver = new MockGenesisFeeReceiver(address(deployedStatics));
+        GenesisCreditConfig memory creditConfig = GenesisCreditConfig({
+            feeReceiver: address(feeReceiver),
+            treasury: treasury,
+            originationFee: 0.003 ether,
+            extensionFee: 0.003 ether,
+            recoveryCallerShareBps: 2_000
+        });
+        deployedVault = new StaticsGenesisVault(
+            deployedStatics, address(deployedVesting), governance, block.timestamp + 365 days, creditConfig
+        );
+        deployedGenesis = new StaticsGenesis(
+            address(deployedVault),
+            address(deployedVesting),
+            address(deployedRegistry),
+            new StaticsGenesisRenderer(new StaticsAvatarSVG()),
+            governance,
+            treasury,
+            "ipfs://statics-genesis/contract.json",
+            "https://statics.finance/genesis/"
+        );
+        deployedRegistry.bindGenesisCollection(address(deployedGenesis));
+        deployedStatics.transfer(address(deployedVesting), deployedVesting.PROTOCOL_ALLOCATION() + surplus);
+        deployedVesting.finalizeBootstrap(address(deployedStatics), address(deployedVault), address(deployedGenesis));
     }
 }

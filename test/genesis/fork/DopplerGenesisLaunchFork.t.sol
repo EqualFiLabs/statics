@@ -287,10 +287,9 @@ contract DopplerGenesisLaunchForkTest is Test {
 
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 0);
-            assertEq(statics.balanceOf(address(vesting)), 100_100_000 ether);
+            assertGe(statics.balanceOf(address(vesting)), 100_100_000 ether);
             assertEq(vault.tokenBacking(), 99_900_000 ether);
-            assertGe(statics.balanceOf(address(vault)), vault.tokenBacking());
-            assertLe(statics.balanceOf(address(vault)) - vault.tokenBacking(), deployer.MAX_MULTICURVE_RESIDUAL());
+            assertEq(statics.balanceOf(address(vault)), vault.tokenBacking());
             assertEq(genesis.balanceOf(address(vault)), 5_000);
             assertEq(genesis.balanceOf(address(vesting)), 555);
             assertEq(genesis.ownerOf(5_001), address(vesting));

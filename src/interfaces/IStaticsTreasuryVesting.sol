@@ -7,14 +7,11 @@ import {IStaticsGenesisVault} from "./IStaticsGenesisVault.sol";
 
 interface IStaticsTreasuryVesting {
     event TreasuryVestingBootstrapped(
-        address indexed statics,
-        address indexed genesisVault,
-        address indexed genesis,
-        uint256 vestingStart,
-        uint256 residual
+        address indexed statics, address indexed genesisVault, address indexed genesis, uint256 vestingStart
     );
     event WithdrawalRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
     event StaticsReleased(address indexed caller, address indexed recipient, uint256 amount, uint256 totalReleased);
+    event StaticsSurplusSwept(address indexed recipient, uint256 amount);
     event GenesisReleased(
         address indexed caller,
         address indexed recipient,
@@ -24,10 +21,9 @@ interface IStaticsTreasuryVesting {
         uint256 totalReleased
     );
 
-    function finalizeBootstrap(address statics, address genesisVault, address genesis)
-        external
-        returns (uint256 residual);
+    function finalizeBootstrap(address statics, address genesisVault, address genesis) external;
     function releaseStatics() external returns (uint256 amount);
+    function sweepStaticsSurplus() external returns (uint256 amount);
     function releaseGenesis(uint256 maxCount) external returns (uint256 count);
     function setWithdrawalRecipient(address newRecipient) external;
 

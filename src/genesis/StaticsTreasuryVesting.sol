@@ -22,7 +22,6 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     uint256 public constant LAST_GENESIS_ID = 5_555;
     uint256 public constant VESTING_DURATION = 60 days;
     uint256 public constant MAX_GENESIS_RELEASE_BATCH = 50;
-    uint256 public constant MAX_MULTICURVE_RESIDUAL = 100 ether;
 
     IERC20 public override statics;
     IStaticsGenesisVault public override genesisVault;
@@ -46,10 +45,11 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     error InvalidGenesisCollection();
     error InvalidSupply(uint256 actual, uint256 expected);
     error InsufficientProtocolAllocation(uint256 actual, uint256 required);
-    error ExcessiveMulticurveResidual(uint256 residual, uint256 maximum);
     error InvalidVestingCustody(uint256 actual, uint256 expected);
     error InvalidBatchSize();
     error NothingToRelease();
+    error VestingNotComplete();
+    error NothingToSweep();
 
     constructor(address bootstrapper_, address recipientAdmin_, address withdrawalRecipient_) {
         if (bootstrapper_ == address(0)) revert InvalidBootstrapper();
@@ -66,7 +66,6 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         external
         override
         nonReentrant
-        returns (uint256 residual)
     {
         if (msg.sender != bootstrapper) revert UnauthorizedBootstrapper(msg.sender);
         if (vestingStart != 0) revert AlreadyBootstrapped();
@@ -90,13 +89,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         ) revert InvalidGenesisCollection();
 
         uint256 balance = staticsToken.balanceOf(address(this));
-        if (balance < PROTOCOL_ALLOCATION) {
-            revert InsufficientProtocolAllocation(balance, PROTOCOL_ALLOCATION);
-        }
-        residual = balance - PROTOCOL_ALLOCATION;
-        if (residual > MAX_MULTICURVE_RESIDUAL) {
-            revert ExcessiveMulticurveResidual(residual, MAX_MULTICURVE_RESIDUAL);
-        }
+        if (balance < PROTOCOL_ALLOCATION) revert InsufficientProtocolAllocation(balance, PROTOCOL_ALLOCATION);
 
         statics = staticsToken;
         genesisVault = vault;
@@ -105,14 +98,13 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         delete bootstrapper;
 
         staticsToken.pushExact(genesisVault_, GENESIS_BACKING_COMMITMENT);
-        if (residual != 0) staticsToken.pushExact(genesisVault_, residual);
         vault.finalizeGenesisCollection(genesis_);
 
         uint256 vestingCustody = staticsToken.balanceOf(address(this));
-        if (vestingCustody != STATICS_VESTING_PRINCIPAL) {
+        if (vestingCustody < STATICS_VESTING_PRINCIPAL) {
             revert InvalidVestingCustody(vestingCustody, STATICS_VESTING_PRINCIPAL);
         }
-        emit TreasuryVestingBootstrapped(statics_, genesisVault_, genesis_, block.timestamp, residual);
+        emit TreasuryVestingBootstrapped(statics_, genesisVault_, genesis_, block.timestamp);
     }
 
     function releaseStatics() external override nonReentrant returns (uint256 amount) {
@@ -123,6 +115,16 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         address recipient = withdrawalRecipient;
         statics.pushExact(recipient, amount);
         emit StaticsReleased(msg.sender, recipient, amount, releasedStatics);
+    }
+
+    function sweepStaticsSurplus() external override nonReentrant returns (uint256 amount) {
+        if (msg.sender != recipientAdmin) revert UnauthorizedRecipientAdmin(msg.sender);
+        if (releasedStatics != STATICS_VESTING_PRINCIPAL) revert VestingNotComplete();
+        amount = statics.balanceOf(address(this));
+        if (amount == 0) revert NothingToSweep();
+        address recipient = withdrawalRecipient;
+        statics.pushExact(recipient, amount);
+        emit StaticsSurplusSwept(recipient, amount);
     }
 
     function releaseGenesis(uint256 maxCount) external override nonReentrant returns (uint256 count) {

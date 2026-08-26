@@ -164,8 +164,8 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(vault.circulatingGenesis(), 555);
             assertEq(vault.requiredBacking(), 99_900_000 ether);
             assertEq(vault.tokenBacking(), 99_900_000 ether);
-            assertEq(statics.balanceOf(address(vault)), 99_900_001 ether);
-            assertEq(statics.balanceOf(address(vesting)), 100_100_000 ether);
+            assertEq(statics.balanceOf(address(vault)), 99_900_000 ether);
+            assertEq(statics.balanceOf(address(vesting)), 100_100_001 ether);
             assertEq(vesting.recipientAdmin(), governance);
             assertEq(vesting.withdrawalRecipient(), treasury);
             assertEq(vesting.bootstrapper(), address(0));
@@ -176,7 +176,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(receiver.poolInitializer(), address(initializer));
             assertEq(initializer.getShares(deployment.poolId, address(receiver)), 0.95 ether);
             assertEq(initializer.getShares(deployment.poolId, airlock.owner()), 0.05 ether);
-            assertEq(statics.balanceOf(deployment.genesisVault), 99_900_001 ether);
+            assertEq(statics.balanceOf(deployment.genesisVault), 99_900_000 ether);
             assertEq(receiver.activeDistributor(), address(distributor));
             assertEq(registry.activeConsumer(), address(distributor));
             assertEq(receiver.reserveVault(), address(vault));
@@ -379,13 +379,16 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
-        function testRejectsExcessiveMulticurveResidual() public {
-            airlock.setResidual(101 ether);
-            StaticsGenesisDeploymentConfig memory config = _config();
-            vm.expectRevert(
-                abi.encodeWithSelector(DeployStaticsGenesis.ExcessiveMulticurveResidual.selector, 101 ether, 100 ether)
-            );
-            deployer.deploy(config, address(deployer));
+        function testAcceptsArbitraryMulticurveSurplusWithoutVaultDonation() public {
+            uint256 surplus = 1_000_000 ether;
+            airlock.setResidual(surplus);
+
+            StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
+            IERC20 statics = IERC20(deployment.statics);
+
+            assertEq(statics.balanceOf(deployment.genesisVault), 99_900_000 ether);
+            assertEq(StaticsGenesisVault(deployment.genesisVault).tokenBacking(), 99_900_000 ether);
+            assertEq(statics.balanceOf(deployment.treasuryVesting), 100_100_000 ether + surplus);
         }
 
         function testRejectsRenouncedDopplerOwner() public {

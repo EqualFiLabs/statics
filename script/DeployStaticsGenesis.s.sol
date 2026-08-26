@@ -97,7 +97,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint96 public constant DOPPLER_OWNER_SHARE = 0.05 ether;
     uint96 public constant STATICS_FEE_SHARE = 0.95 ether;
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
-    uint256 public constant MAX_MULTICURVE_RESIDUAL = 100 ether;
     bytes20 public constant DOPPLER_SOURCE_REVISION = hex"86a5200456b148c156d2eb81a893747dd601c3ca";
     string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
     /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
@@ -125,7 +124,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
     error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
-    error ExcessiveMulticurveResidual(uint256 residual, uint256 maximum);
 
     function run() external returns (StaticsGenesisDeployment memory deployment) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
@@ -480,10 +478,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         uint256 vestingBalance = IERC20(statics).balanceOf(address(treasuryVesting));
         if (totalSupply != STATICS_SUPPLY || vestingBalance < PROTOCOL_ALLOCATION) {
             revert AllocationMismatch(totalSupply, vestingBalance);
-        }
-        uint256 residual = vestingBalance - PROTOCOL_ALLOCATION;
-        if (residual > MAX_MULTICURVE_RESIDUAL) {
-            revert ExcessiveMulticurveResidual(residual, MAX_MULTICURVE_RESIDUAL);
         }
     }
 
