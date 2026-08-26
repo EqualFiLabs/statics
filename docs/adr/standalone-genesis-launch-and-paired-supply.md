@@ -907,7 +907,7 @@ The implementation specification and deployment manifest must settle:
 ## References
 
 - [Current Statics swap-fee hook](../../src/liquidity/StaticsSwapFeeHook.sol)
-- [Statics Genesis-tokenomics PR #27](https://github.com/EqualFiLabs/statics/pull/27)
+- [Statics Operators-tokenomics PR #27](https://github.com/EqualFiLabs/statics/pull/27)
 - [Doppler Multicurve paper](https://www.doppler.lol/multicurve.pdf)
 - [Doppler `Multicurve.sol`](https://github.com/whetstoneresearch/doppler/blob/main/src/libraries/Multicurve.sol)
 - [Doppler `NoOpMigrator.sol`](https://github.com/whetstoneresearch/doppler/blob/main/src/migrators/NoOpMigrator.sol)

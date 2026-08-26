@@ -56,6 +56,8 @@ contract StaticsGenesisMetadataTest is Test {
     }
 
     function testCollectionMetadataAndMintBoundaries() public view {
+        assertEq(genesis.name(), "Statics Operators");
+        assertEq(genesis.symbol(), "STATOPS");
         assertEq(genesis.contractURI(), CONTRACT_URI);
         assertEq(genesis.ownerOf(1), VAULT);
         assertEq(genesis.ownerOf(5_000), VAULT);

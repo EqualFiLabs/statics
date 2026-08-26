@@ -50,7 +50,7 @@ contract LaunchGenesisBasketBatchTest is Test {
         LaunchGenesisBasket ceremony = new LaunchGenesisBasket();
         GenesisBasketLaunchConfig memory config = ceremony.loadConfig("script/config/genesis-basket.example.json");
 
-        assertEq(config.basket.name, "Statics Genesis Basket");
+        assertEq(config.basket.name, "Statics Operators Basket");
         assertEq(config.basket.symbol, "sGEN");
         assertEq(config.basket.assets.length, 2);
         assertEq(config.basket.bundleAmounts.length, 2);
@@ -217,7 +217,7 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         maximums[1] = 10 ether;
         config = GenesisBasketLaunchConfig({
             basket: IStaticsBasket.CreateBasketParams({
-                name: "Statics Genesis Basket",
+                name: "Statics Operators Basket",
                 symbol: "sGEN",
                 assets: assets,
                 bundleAmounts: bundleAmounts,

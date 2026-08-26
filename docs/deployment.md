@@ -101,7 +101,7 @@ The canonical `run()` path is deliberately locked on Robinhood while
 `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
 curves, static fee, Genesis reward share, and reserve parameters requires a
 reviewed follow-up commit that pins their exact hash. That commitment also binds
-the creation bytecode of every Statics Genesis contract, the exact
+the creation bytecode of every Statics Operators contract, the exact
 Doppler/Airlock-owner beneficiary, canonical Robinhood WETH address, proxy
 bytecode, ERC-1967 implementation address and bytecode, proxy-admin address and
 bytecode, and the proxy admin's ownership-controller proxy and implementation
@@ -183,7 +183,7 @@ distributor. Verify `owner() == governance` and `pendingOwner() == address(0)`
 on all five contracts; until then the broadcaster remains the active owner.
 The six-curve fixture and fee values are not approved production economics.
 
-## Full Statics Genesis handoff
+## Full Statics Operators handoff
 
 Full Statics deployment and the standalone Genesis launch remain separate.
 Fresh `StaticsDiamond` deployments install `GenesisNFTFacet` but leave its
