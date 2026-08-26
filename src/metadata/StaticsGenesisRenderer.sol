@@ -37,9 +37,9 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         string memory image =
             string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(avatarSVG.renderSVG(seed, traits_, tier))));
         bytes memory json = abi.encodePacked(
-            '{"name":"Statics Genesis #',
+            '{"name":"STATICS Operators #',
             tokenId.toString(),
-            '","description":"A fixed-supply, dual-backed Statics Genesis NFT redeemable for 180,000 STATICS plus a 1/5,555 share of the permanent native ETH reserve after the Genesis Epoch.","image":"',
+            '","description":"A fixed-supply, dual-backed STATICS Operators NFT redeemable for 180,000 STATICS plus a 1/5,555 share of the permanent native ETH reserve after the Genesis Epoch.","image":"',
             image,
             '","external_url":"',
             externalURLBase,

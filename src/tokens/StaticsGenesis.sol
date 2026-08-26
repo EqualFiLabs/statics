@@ -78,7 +78,7 @@ contract StaticsGenesis is
         address royaltyReceiver,
         string memory contractURI_,
         string memory externalURLBase_
-    ) ERC721("Statics Genesis", "STATICS-GENESIS") Ownable(protocolBinder) {
+    ) ERC721("Statics Operators", "STATOPS") Ownable(protocolBinder) {
         if (vault_ == address(0)) revert InvalidVault();
         if (treasuryVesting_ == address(0) || treasuryVesting_ == vault_) revert InvalidTreasuryVesting();
         if (activationRegistry_ == address(0) || activationRegistry_.code.length == 0) {

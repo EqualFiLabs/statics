@@ -1,8 +1,8 @@
-# ADR: Full Statics Genesis integration and staking reward multipliers
+# ADR: Full Statics Operators integration and staking reward multipliers
 
 - Status: Accepted and implemented
 - Date: 2026-08-23
-- Scope: Full Statics Genesis integration, Genesis-to-PositionNFT linkage, mutual transfer locking, permanent Genesis reward distribution, activation callbacks, secured-credit recovery callbacks, and activation-weighted global STATICS staking
+- Scope: Full Statics Operators integration, Genesis-to-PositionNFT linkage, mutual transfer locking, permanent Genesis reward distribution, activation callbacks, secured-credit recovery callbacks, and activation-weighted global STATICS staking
 - Depends on: `genesis-secured-credit.md`
 - Extends: `doppler-genesis-launch-and-staged-rewards.md`
 - Amends: the Shared PositionNFT and Global Staking and Rewards sections of `Statics-Design.md`

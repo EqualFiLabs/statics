@@ -172,7 +172,7 @@ contract ConfigureStaticsGenesisTest is Test {
         uint256 pendingRecovery = launchDistributor.pendingGenesisRecovery();
         assertGt(pendingRecovery, 0);
 
-        bytes32 salt = keccak256("full Statics Genesis handoff");
+        bytes32 salt = keccak256("full Statics Operators handoff");
         bytes32 operationId = ceremony.schedule(address(integration), config, salt);
         assertTrue(timelock.isOperationPending(operationId));
         vm.warp(block.timestamp + timelock.getMinDelay());

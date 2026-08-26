@@ -5,7 +5,7 @@
 - Scope: protocol-owned Genesis reserve, launch-allocation custody, immutable STATICS and Genesis vesting, initial Genesis Vault backing, treasury withdrawal-recipient recovery, launch configuration commitments, and formal-verification requirements
 - Extends: standalone Doppler Genesis launch architecture
 - Amends: current 200,000,000 STATICS direct treasury allocation and all-5,555-Genesis Vault bootstrap
-- Compatible with: Genesis secured credit and full Statics Genesis / PositionNFT integration
+- Compatible with: Genesis secured credit and full Statics Operators / PositionNFT integration
 - Preserves: fixed 1,000,000,000 STATICS supply, 800,000,000 STATICS Doppler inventory, fixed 5,555 Genesis supply, fixed 180,000 STATICS gross backing per circulating Genesis, permanent native ETH reserve denominator, ordinary Genesis ownership semantics, owner-gated reward registration, secured credit, activation, and PositionNFT linkage
 
 ## Context
@@ -667,7 +667,7 @@ Once a Genesis vests and ordinary secured credit is opened against it, the canon
 
 ## Interaction with full Genesis integration
 
-The full Statics Genesis integration introduces direct Genesis reward registration, Genesis <-> PositionNFT linkage, Genesis activation-driven staking multipliers, and permanent StaticsFeeReceiver successor distribution.
+The full Statics Operators integration introduces direct Genesis reward registration, Genesis <-> PositionNFT linkage, Genesis activation-driven staking multipliers, and permanent StaticsFeeReceiver successor distribution.
 
 The treasury vesting reserve remains outside those systems while it owns the 555 Genesis.
 
