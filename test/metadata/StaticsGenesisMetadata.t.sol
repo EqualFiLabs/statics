@@ -107,7 +107,9 @@ contract StaticsGenesisMetadataTest is Test {
         bytes memory encoded = bytes(uri);
         bytes memory prefix = bytes("data:application/json;base64,");
         bytes memory payload = new bytes(encoded.length - prefix.length);
-        for (uint256 i; i < payload.length; ++i) payload[i] = encoded[i + prefix.length];
+        for (uint256 i; i < payload.length; ++i) {
+            payload[i] = encoded[i + prefix.length];
+        }
         return string(Base64.decode(string(payload)));
     }
 
