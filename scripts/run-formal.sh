@@ -58,6 +58,8 @@ case "$TARGET" in
       '^check_openAndRepayAreExactInverses'
     run_halmos "$ROOT" GenesisCreditHalmosTest credit-extension 8 out-formal-genesis \
       '^check_extensionOnlyChangesMaturityAndFeeAccounting'
+    run_halmos "$ROOT" GenesisCreditHalmosTest credit-principal-adjustment 8 out-formal-genesis \
+      '^check_principalAdjustmentConservesAccounting'
     run_halmos "$ROOT" GenesisCreditHalmosTest credit-recovery 8 out-formal-genesis \
       '^check_recoveryConservesResidualAndRemovesWeightBeforeIndexing'
     run_halmos "$ROOT" GenesisCreditHalmosTest credit-fee-split 8 out-formal-genesis \

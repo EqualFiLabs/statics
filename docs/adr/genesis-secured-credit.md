@@ -92,16 +92,16 @@ open
     v
 fixed maturity
     |
-    +--> repay principal
+    +--> repay any principal amount
     |       |
-    |       v
-    |   credit closes
-    |   Genesis unlocks
+    |       +--> remaining principal > 0: credit stays active and locked
+    |       |
+    |       +--> remaining principal = 0: credit closes, Genesis unlocks
     |
-    +--> accept current extension service fee
+    +--> accept current extension service fee and choose target principal
     |       |
     |       v
-    |   maturity += one service term
+    |   maturity += one service term; transfer or pull only the delta
     |       |
     |       +--> may repeat
     |
@@ -188,7 +188,11 @@ There is no floating borrow limit.
 
 The 95% maximum is a property of the 180,000-STATICS backing relationship.
 
-The initial implementation permits one principal amount per active Genesis facility. Increasing an existing principal or implementing a revolving redraw balance is outside this decision and may be added separately if needed.
+Each Genesis still has at most one active facility, but that facility has a mutable
+current principal. The owner may select a new target principal while extending:
+an increase transfers only the difference, while a decrease pulls only the
+difference back into the vault. This keeps the one-facility model without
+introducing recursive loans or a second credit record.
 
 ## Origination
 
@@ -450,12 +454,19 @@ repayment rights
 recovery grace
 ```
 
-It changes only the price at which the owner may purchase a later service term.
+It changes only the price at which the owner may purchase a later service term
+and, optionally, the facility's target principal.
 
-A successful extension performs exactly:
+A successful extension with target principal `N` performs exactly:
 
 ```text
 maturity += 30 days
+
+if N > current principal:
+    vault -> owner: N - current principal
+
+if N < current principal:
+    owner -> vault: current principal - N
 
 reserveETH += current fee reserve portion
 
@@ -463,7 +474,8 @@ current fee treasury portion
     -> canonical Statics treasury
 ```
 
-It does not calculate a fee from:
+The target must remain nonzero and no greater than the fixed maximum. An equal
+target is a fee-only extension. The extension does not calculate a fee from:
 
 ```text
 principal
@@ -501,7 +513,8 @@ until recovery executes but may not purchase another service term.
 
 ## Repayment
 
-Repayment returns exactly the outstanding STATICS principal.
+Repayment returns a caller-selected amount of the outstanding STATICS
+principal.
 
 There is:
 
@@ -514,15 +527,19 @@ no repayment penalty
 
 Repayment may be permissionless because it only reduces risk and always benefits the recorded Genesis owner.
 
-A successful repayment:
+A successful repayment of amount `A`:
 
-1. pulls exactly the stored principal into Genesis Vault;
-2. decreases aggregate outstanding Genesis principal by the same amount;
-3. restores recognized retained backing by the same amount;
-4. closes the credit facility;
-5. removes the credit lock;
+1. pulls exactly `A` into Genesis Vault;
+2. decreases aggregate outstanding Genesis principal by `A`;
+3. restores recognized retained backing by `A`;
+4. updates the facility's remaining principal, deleting it only when zero;
+5. removes the credit lock only when the remaining principal is zero;
 6. preserves activation and reward state; and
 7. leaves the Genesis with its current owner.
+
+Partial repayment therefore keeps the facility active and the Genesis locked.
+The owner may later repay the remainder or extend to a different target
+principal before recovery.
 
 Repayment does not refund previously paid native service fees.
 
@@ -1007,6 +1024,8 @@ creditActive(genesisId)
 creditRecoverableAt(genesisId)
 quoteGenesisCredit(principal)
 quoteGenesisCreditExtension(genesisId)
+quoteGenesisCreditAdjustment(genesisId, newPrincipal)
+creditAvailable(genesisId)
 quoteGenesisCreditRecovery(genesisId)
 totalOutstandingGenesisCredit()
 recoveryCallerShareBps()
@@ -1033,6 +1052,10 @@ maturity
 recoverableAt
 active
 ```
+
+An adjustment quote should additionally report the current and target
+principal, the STATICS delta to the owner or from the owner, and the exact
+extension-fee split.
 
 A recovery quote should report at minimum:
 

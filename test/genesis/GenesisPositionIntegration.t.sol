@@ -292,9 +292,9 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
 
         vm.startPrank(alice);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(7, 100_000 ether);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(7);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(7, 100_000 ether);
         stakingAsset.approve(address(vault), 100_000 ether);
-        vault.repayGenesisCredit(7);
+        vault.repayGenesisCredit(7, 100_000 ether);
         vm.stopPrank();
 
         assertFalse(vault.creditActive(7));

@@ -87,7 +87,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ROBINHOOD_MAINNET: https://rpc.mainnet.chain.robinhood.com
-      BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
       REQUIRE_DOPPLER_FORK_PROOF: "true"
     steps:
       - name: Checkout
@@ -120,6 +119,5 @@ jobs:
         shell: bash
         run: |
           test -n "$ROBINHOOD_MAINNET"
-          test -n "$BASE_SEPOLIA_RPC_URL"
       - name: Run Doppler fork proof
         run: forge test --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol -vv

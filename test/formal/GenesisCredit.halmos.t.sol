@@ -106,6 +106,35 @@ contract GenesisCreditRepresentativeTest is Test {
         check_extensionOnlyChangesMaturityAndFeeAccounting(90_000 ether);
     }
 
+    function testCreditPrincipalAdjustmentRepresentative() public {
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
+        uint256 backingBefore = vault.tokenBacking();
+        uint256 outstandingBefore = vault.totalOutstandingGenesisCredit();
+        uint256 aliceBefore = statics.balanceOf(alice);
+
+        vm.prank(alice);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 120_000 ether);
+        assertEq(vault.credit(1).principal, 120_000 ether);
+        assertEq(vault.tokenBacking(), backingBefore - 20_000 ether);
+        assertEq(vault.totalOutstandingGenesisCredit(), outstandingBefore + 20_000 ether);
+        assertEq(statics.balanceOf(alice), aliceBefore + 20_000 ether);
+
+        vm.startPrank(alice);
+        statics.approve(address(vault), 70_000 ether);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 50_000 ether);
+        vm.stopPrank();
+        assertEq(vault.credit(1).principal, 50_000 ether);
+        assertEq(vault.tokenBacking(), backingBefore + 50_000 ether);
+        assertEq(vault.totalOutstandingGenesisCredit(), outstandingBefore - 50_000 ether);
+
+        vm.prank(alice);
+        statics.approve(address(vault), 50_000 ether);
+        vm.prank(alice);
+        vault.repayGenesisCredit(1, 50_000 ether);
+        assertFalse(vault.creditActive(1));
+    }
+
     function testCreditRecoveryRepresentative() public {
         check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(90_000 ether);
     }
@@ -137,7 +166,7 @@ contract GenesisCreditRepresentativeTest is Test {
         assertEq(treasury.balance - treasuryBefore, ORIGINATION_FEE - reserveFee);
 
         vm.prank(alice);
-        vault.repayGenesisCredit(1);
+        vault.repayGenesisCredit(1, principal);
         assertEq(vault.tokenBacking(), backingBefore);
         assertEq(vault.totalOutstandingGenesisCredit(), 0);
         assertEq(statics.balanceOf(address(vault)), custodyBefore);
@@ -158,7 +187,7 @@ contract GenesisCreditRepresentativeTest is Test {
         uint256 treasuryBefore = treasury.balance;
 
         vm.prank(alice);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, principal);
 
         GenesisCreditView memory afterExtension = vault.credit(1);
         assertEq(afterExtension.owner, beforeExtension.owner);
@@ -255,6 +284,28 @@ contract GenesisCreditHalmosTest is SymTest, Test {
         assertEq(maturity + CREDIT_TERM, 61 days);
         assertEq(backing + outstanding, GENESIS_PRICE);
         assertEq(reserveFee + treasuryFee, EXTENSION_FEE);
+    }
+
+    function check_principalAdjustmentConservesAccounting(uint256 currentSeed, uint256 targetSeed) public pure {
+        uint256 currentPrincipal = currentSeed % (MAX_CREDIT_PRINCIPAL - 1) + 1;
+        uint256 newPrincipal = targetSeed % MAX_CREDIT_PRINCIPAL + 1;
+        uint256 backing = GENESIS_PRICE - currentPrincipal;
+        uint256 outstanding = currentPrincipal;
+
+        if (newPrincipal > currentPrincipal) {
+            uint256 increase = newPrincipal - currentPrincipal;
+            backing -= increase;
+            outstanding += increase;
+        } else {
+            uint256 decrease = currentPrincipal - newPrincipal;
+            backing += decrease;
+            outstanding -= decrease;
+        }
+
+        assertEq(backing + outstanding, GENESIS_PRICE);
+        assertEq(outstanding, newPrincipal);
+        assertLe(newPrincipal, MAX_CREDIT_PRINCIPAL);
+        assertGt(newPrincipal, 0);
     }
 
     function check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(uint256 principalSeed) public pure {
