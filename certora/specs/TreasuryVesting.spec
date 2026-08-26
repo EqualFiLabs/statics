@@ -13,6 +13,7 @@ methods {
     function releasedGenesis() external returns (uint256) envfree;
     function vestedStaticsAt(uint256) external returns (uint256) envfree;
     function vestedGenesisAt(uint256) external returns (uint256) envfree;
+    function sweepStaticsSurplus() external returns (uint256);
 }
 
 /// STATICS vesting is zero before launch, linear by integer floor, and capped at principal.
@@ -94,4 +95,52 @@ rule recipientRotationPreservesVestingState(env e, address nextRecipient) {
         "recipient rotation must preserve released STATICS";
     assert releasedGenesis() == genesisReleasedBefore,
         "recipient rotation must preserve released Genesis";
+}
+
+/// Only the immutable recipient admin may sweep retained STATICS surplus.
+rule nonAdminCannotSweepSurplus(env e) {
+    require e.msg.sender != recipientAdmin();
+
+    sweepStaticsSurplus(e)@withrevert;
+
+    assert lastReverted, "non-admin surplus sweep must revert";
+}
+
+/// Elapsed time alone is insufficient: the full STATICS principal must have been released.
+rule incompletePrincipalCannotSweepSurplus(env e) {
+    require e.msg.sender == recipientAdmin();
+    require releasedStatics() != STATICS_VESTING_PRINCIPAL();
+
+    sweepStaticsSurplus(e)@withrevert;
+
+    assert lastReverted, "surplus sweep must wait for actual principal release";
+}
+
+/// A successful surplus sweep cannot alter vesting bindings, schedule, destination, or release accounting.
+rule successfulSweepPreservesVestingState(env e) {
+    require e.msg.sender == recipientAdmin();
+    require releasedStatics() == STATICS_VESTING_PRINCIPAL();
+
+    address staticsBefore = statics();
+    address vaultBefore = genesisVault();
+    address genesisBefore = genesis();
+    address adminBefore = recipientAdmin();
+    address recipientBefore = withdrawalRecipient();
+    uint256 startBefore = vestingStart();
+    uint256 endBefore = vestingEnd();
+    uint256 staticsReleasedBefore = releasedStatics();
+    uint256 genesisReleasedBefore = releasedGenesis();
+
+    sweepStaticsSurplus(e)@withrevert;
+    require !lastReverted;
+
+    assert statics() == staticsBefore, "sweep must preserve the STATICS binding";
+    assert genesisVault() == vaultBefore, "sweep must preserve the Vault binding";
+    assert genesis() == genesisBefore, "sweep must preserve the Genesis binding";
+    assert recipientAdmin() == adminBefore, "sweep must preserve immutable administration";
+    assert withdrawalRecipient() == recipientBefore, "sweep must preserve its fixed destination";
+    assert vestingStart() == startBefore && vestingEnd() == endBefore,
+        "sweep must preserve the schedule";
+    assert releasedStatics() == staticsReleasedBefore, "sweep must preserve released STATICS";
+    assert releasedGenesis() == genesisReleasedBefore, "sweep must preserve released Genesis";
 }

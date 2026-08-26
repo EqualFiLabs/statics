@@ -52,9 +52,10 @@ the symbolic checks.
 | Genesis/Position links form a bijection without moving either NFT; unlink and recovery clear only the Genesis relationship/leg while preserving Position ownership, raw stake, and unrelated legs | `GenesisNFTFacet`, `LibPosition`, `LibGlobalRewards` | Halmos against production facet plus composed Foundry | Pass |
 | Effective reward weights are derived from raw stake, stepwise multiplier changes equal a direct transition, pending-bucket maturity conserves stake/weight, and lazy 1.00x migration is idempotent | `LibGlobalRewards` | Halmos transition model plus production-source Foundry/invariant suites | Pass |
 | Genesis supply is fixed at 5,555 with one-time bindings and no callable burn path | `StaticsGenesis` | Halmos | Pass |
-| Bootstrap commits exactly 99.9M STATICS to Vault backing, routes at most 100 STATICS residual as unaccounted Vault surplus, retains 100.1M vesting principal, clears bootstrap authority, and cannot repeat | `StaticsTreasuryVesting` | Halmos plus Foundry | Pass |
+| Bootstrap commits exactly 99.9M STATICS to Vault backing, retains arbitrary surplus independently from the fixed 100.1M vesting principal, clears bootstrap authority, and cannot repeat | `StaticsTreasuryVesting` | Halmos plus Foundry | Pass |
 | STATICS and 555 Genesis vest linearly by integer floor over 60 days and cap at their immutable principals | `StaticsTreasuryVesting` | Halmos plus Certora plus Foundry fuzz | Pass |
 | Permissionless releases preserve STATICS custody, transfer sequential Genesis IDs, and bind the immutable 50-NFT cap; recipient rotation preserves schedule, bindings, and released accounting | `StaticsTreasuryVesting` | Halmos plus Certora plus Foundry | Pass |
+| Surplus cannot be swept before actual full STATICS-principal release; afterward only `recipientAdmin` may sweep the complete remaining balance to the current withdrawal recipient without altering vesting or Vault accounting | `StaticsTreasuryVesting` | Halmos plus Certora state proof plus Foundry value-flow regression | Pass |
 | Exact pinned Multicurve produces six curves, 56 nonzero positions, a 120M tail, and residual at most 100 STATICS for both token orders | pinned Doppler `Multicurve` | Halmos plus Foundry | Pass |
 | Launch hash binds economics, exact authorities, Statics creation bytecode, full proxy and ownership-controller dependencies, runtime hashes, geometry, metadata, salt, and epoch | `DeployStaticsGenesis` | Foundry | Pass |
 | Zero approved Robinhood hash blocks production execution | `DeployStaticsGenesis` | Foundry | Pass |
@@ -85,7 +86,7 @@ proved with Solidity 0.8.33:
 | `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/7b78bbf5230f4837a3447dda5788fdb2) |
 | `FeeReceiver.conf` | Distributor claimable balances remain within cumulative attribution; surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/9a10ef5901cf47338d7d62728899930f) |
 | `GenesisDistributor.conf` | Reward assets remain nonzero and distinct; the Genesis share remains bounded; crystallized rewards equal claimable plus claimed; batches of up to eight IDs preserve crystallized accounting; recovery is segregated from numeraire accounting; surplus recovery preserves accounted reward quantities | [report](https://prover.certora.com/output/8471858/e187b2a7454a4aebae384b18a05a0d63) |
-| `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation preserves immutable state and released accounting | [report](https://prover.certora.com/output/8471858/3771a239a6264e5aa930d3ea5f8ca16c) |
+| `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation and successful surplus sweep preserve immutable state and released accounting; unauthorized or pre-release sweeps revert | Current run required after surplus implementation |
 
 The transition invariants listed in the table are selected hosted proofs. The
 distributor's aggregate attribution ghost remains staged because secured-credit

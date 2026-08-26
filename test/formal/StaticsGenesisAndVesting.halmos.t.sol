@@ -134,37 +134,35 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         vesting.finalizeBootstrap(address(token), address(vault), address(genesis));
     }
 
-    function check_bootstrapSplitsBackingVestingAndResidual(uint96 residual) public {
-        vm.assume(residual <= 100 ether);
-        FormalToken residualToken = new FormalToken("Residual STATICS", "RSTATICS");
-        address residualRecipient = makeAddr("formalResidualRecipient");
-        StaticsTreasuryVesting residualVesting =
-            new StaticsTreasuryVesting(address(this), address(this), residualRecipient);
-        FormalBootstrapVault residualVault = new FormalBootstrapVault(residualToken);
-        FormalBootstrapGenesis residualGenesis =
-            new FormalBootstrapGenesis(address(residualVault), address(residualVesting));
-        residualToken.mint(address(residualVesting), PROTOCOL_ALLOCATION + residual);
-        residualToken.mint(makeAddr("formalResidualInventory"), DOPPLER_INVENTORY - residual);
-        uint256 vaultBalanceBefore = residualToken.balanceOf(address(residualVault));
+    function check_bootstrapRetainsArbitrarySurplus(uint96 surplus) public {
+        vm.assume(surplus <= DOPPLER_INVENTORY);
+        FormalToken surplusToken = new FormalToken("Surplus STATICS", "SSTATICS");
+        address surplusRecipient = makeAddr("formalSurplusRecipient");
+        StaticsTreasuryVesting surplusVesting =
+            new StaticsTreasuryVesting(address(this), address(this), surplusRecipient);
+        FormalBootstrapVault surplusVault = new FormalBootstrapVault(surplusToken);
+        FormalBootstrapGenesis surplusGenesis =
+            new FormalBootstrapGenesis(address(surplusVault), address(surplusVesting));
+        surplusToken.mint(address(surplusVesting), PROTOCOL_ALLOCATION + surplus);
+        surplusToken.mint(makeAddr("formalSurplusInventory"), DOPPLER_INVENTORY - surplus);
+        uint256 vaultBalanceBefore = surplusToken.balanceOf(address(surplusVault));
 
-        uint256 reported =
-            residualVesting.finalizeBootstrap(address(residualToken), address(residualVault), address(residualGenesis));
+        surplusVesting.finalizeBootstrap(address(surplusToken), address(surplusVault), address(surplusGenesis));
 
-        assertEq(reported, residual);
-        assertEq(residualToken.balanceOf(address(residualVesting)), STATICS_PRINCIPAL);
-        assertEq(residualToken.balanceOf(address(residualVault)) - vaultBalanceBefore, BACKING_COMMITMENT + residual);
-        assertEq(residualVesting.bootstrapper(), address(0));
-        assertEq(residualVesting.releasedStatics(), 0);
-        assertEq(residualVesting.releasedGenesis(), 0);
-        assertTrue(residualVault.finalized());
+        assertEq(surplusToken.balanceOf(address(surplusVesting)), STATICS_PRINCIPAL + surplus);
+        assertEq(surplusToken.balanceOf(address(surplusVault)) - vaultBalanceBefore, BACKING_COMMITMENT);
+        assertEq(surplusVesting.bootstrapper(), address(0));
+        assertEq(surplusVesting.releasedStatics(), 0);
+        assertEq(surplusVesting.releasedGenesis(), 0);
+        assertTrue(surplusVault.finalized());
 
-        (bool secondBootstrap,) = address(residualVesting)
+        (bool secondBootstrap,) = address(surplusVesting)
             .call(
                 abi.encodeWithSelector(
-                    residualVesting.finalizeBootstrap.selector,
-                    address(residualToken),
-                    address(residualVault),
-                    address(residualGenesis)
+                    surplusVesting.finalizeBootstrap.selector,
+                    address(surplusToken),
+                    address(surplusVault),
+                    address(surplusGenesis)
                 )
             );
         assertFalse(secondBootstrap);
@@ -217,6 +215,34 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         assertEq(genesis.ownerOf(5_004), recipient);
         assertEq(genesis.ownerOf(5_005), address(vesting));
         assertEq(genesis.balanceOf(address(vesting)), GENESIS_PRINCIPAL - 4);
+    }
+
+    function check_surplusCannotBeSweptBeforePrincipalRelease(uint96 surplus) public {
+        token.mint(address(vesting), surplus);
+        vm.warp(vesting.vestingStart() + DURATION);
+
+        (bool swept,) = address(vesting).call(abi.encodeWithSelector(vesting.sweepStaticsSurplus.selector));
+
+        assertFalse(swept);
+        assertEq(token.balanceOf(address(vesting)), STATICS_PRINCIPAL + surplus);
+        assertEq(vesting.releasedStatics(), 0);
+    }
+
+    function check_surplusSweepsAfterPrincipalRelease(uint96 surplus) public {
+        token.mint(address(vesting), surplus);
+        vm.warp(vesting.vestingStart() + DURATION);
+        vesting.releaseStatics();
+        uint256 recipientBefore = token.balanceOf(recipient);
+        uint256 vaultBefore = token.balanceOf(address(vault));
+
+        uint256 swept = vesting.sweepStaticsSurplus();
+
+        assertEq(swept, surplus);
+        assertEq(token.balanceOf(recipient) - recipientBefore, surplus);
+        assertEq(token.balanceOf(address(vesting)), 0);
+        assertEq(token.balanceOf(address(vault)), vaultBefore);
+        assertEq(vesting.releasedStatics(), STATICS_PRINCIPAL);
+        assertEq(vesting.releasedGenesis(), 0);
     }
 
     function check_recipientRotationPreservesImmutableSchedule(address nextRecipient) public {
