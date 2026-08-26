@@ -15,10 +15,10 @@ a pull request, use the repository's CI checks as the release evidence:
 gh pr checks --watch
 ```
 
-The workflow installs Halmos 0.3.3, Foundry, and Slither in clean runners and
-uploads symbolic results as CI artifacts. Local development should use focused
-Foundry tests and, when required, the hosted Certora run; rerunning the full
-Halmos or Slither jobs locally is not required release evidence.
+The workflow runs `scripts/run-formal.sh all` (plus Slither and the full Foundry suite) on clean runners and
+uploads symbolic results as CI artifacts. Local development should use focused Foundry tests and,
+when required, the hosted Certora run; rerunning the full Halmos or Slither jobs locally is not
+required release evidence.
 
 ## Property ledger
 
