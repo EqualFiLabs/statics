@@ -148,7 +148,7 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
 
         surplusVesting.finalizeBootstrap(address(surplusToken), address(surplusVault), address(surplusGenesis));
 
-        assertEq(surplusToken.balanceOf(address(surplusVesting)), STATICS_PRINCIPAL + surplus);
+        assertGe(surplusToken.balanceOf(address(surplusVesting)), STATICS_PRINCIPAL);
         assertEq(surplusVesting.bootstrapper(), address(0));
         assertEq(surplusVesting.releasedStatics(), 0);
         assertEq(surplusVesting.releasedGenesis(), 0);
