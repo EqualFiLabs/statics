@@ -101,7 +101,7 @@ The canonical `run()` path is deliberately locked on Robinhood while
 `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
 curves, static fee, Genesis reward share, and reserve parameters requires a
 reviewed follow-up commit that pins their exact hash. That commitment also binds
-the creation bytecode of every Statics Operators contract, the exact
+the creation bytecode of every Genesis launch contract, including the Statics Operators ERC-721 collection, the exact
 Doppler/Airlock-owner beneficiary, canonical Robinhood WETH address, proxy
 bytecode, ERC-1967 implementation address and bytecode, proxy-admin address and
 bytecode, and the proxy admin's ownership-controller proxy and implementation

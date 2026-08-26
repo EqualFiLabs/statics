@@ -7,6 +7,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ICreatorToken, ICreatorTokenLegacy, ITransferValidator} from "../../src/interfaces/ICreatorToken.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IERC7572} from "../../src/interfaces/IERC7572.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {StaticsAvatarSVG} from "../../src/metadata/StaticsAvatarSVG.sol";
 import {StaticsGenesisRenderer} from "../../src/metadata/StaticsGenesisRenderer.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -66,6 +67,12 @@ contract StaticsGenesisMetadataTest is Test {
         assertEq(genesis.mintedSupply(), 5_555);
     }
 
+    function testTokenMetadataBranding() public view {
+        string memory json = _decodeJson(genesis.tokenURI(1));
+        assertTrue(_contains(json, '"name":"STATICS Operators #1"'));
+        assertTrue(_contains(json, '"description":"A fixed-supply, dual-backed STATICS Operators NFT'));
+    }
+
     function testMarketplaceInterfacesRemainAdvertised() public view {
         assertTrue(genesis.supportsInterface(type(IERC721).interfaceId));
         assertTrue(genesis.supportsInterface(type(IERC2981).interfaceId));
@@ -94,5 +101,30 @@ contract StaticsGenesisMetadataTest is Test {
             if (valueBytes[i] != prefixBytes[i]) return false;
         }
         return true;
+    }
+
+    function _decodeJson(string memory uri) private pure returns (string memory) {
+        bytes memory encoded = bytes(uri);
+        bytes memory prefix = bytes("data:application/json;base64,");
+        bytes memory payload = new bytes(encoded.length - prefix.length);
+        for (uint256 i; i < payload.length; ++i) payload[i] = encoded[i + prefix.length];
+        return string(Base64.decode(string(payload)));
+    }
+
+    function _contains(string memory value, string memory needle) private pure returns (bool) {
+        bytes memory haystack = bytes(value);
+        bytes memory target = bytes(needle);
+        if (target.length == 0 || target.length > haystack.length) return false;
+        for (uint256 i; i <= haystack.length - target.length; ++i) {
+            bool matched = true;
+            for (uint256 j; j < target.length; ++j) {
+                if (haystack[i + j] != target[j]) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) return true;
+        }
+        return false;
     }
 }
