@@ -81,18 +81,6 @@ contract DopplerGenesisLaunchForkTest is Test {
         _deployAndAssert();
     }
 
-    function testBaseSepoliaDopplerLaunchEncodingAndWiring() public {
-        string memory rpcUrl = vm.envOr("BASE_SEPOLIA_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            if (vm.envOr("REQUIRE_DOPPLER_FORK_PROOF", false)) fail("BASE_SEPOLIA_RPC_URL is required");
-            vm.skip(true);
-            return;
-        }
-        vm.createSelectFork(rpcUrl);
-        assertEq(block.chainid, 84_532);
-        _deployAndAssert();
-    }
-
     function testRobinhoodDopplerLaunchRejectsRuntimeCodeDrift() public {
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {

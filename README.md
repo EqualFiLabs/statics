@@ -229,12 +229,11 @@ Robinhood mainnet fork tests read `ROBINHOOD_MAINNET`; testnet fork tests read
 environment-gated tests to skip unless the matching `REQUIRE_*` flag is
 enabled.
 
-The standalone Genesis release has current-network integration proofs for the
-official Robinhood and Base Sepolia Doppler modules:
+The standalone Genesis release has a current-network integration proof for the
+official Robinhood Doppler modules:
 
 ```shell
 ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
-BASE_SEPOLIA_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
 REQUIRE_DOPPLER_FORK_PROOF=true \
   forge test \
   --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol \
