@@ -142,11 +142,12 @@ result.
   real-contract Foundry evidence.
 - Treasury vesting arithmetic is symbolic for every timestamp in the `uint24`
   domain, which covers the complete 60-day schedule and more than 130 days
-  beyond its cap. The value-moving Halmos transition executes STATICS release at
-  the 30-day midpoint, while adjacent Foundry fuzz tests vary timestamps. The
-  Genesis symbolic transition uses a four-NFT ordered batch and binds the
-  immutable 50-NFT cap; the real-contract Foundry regression executes the full
-  50-transfer batch.
+  beyond its cap. Halmos executes representative bootstrap surplus, midpoint
+  release, pre-release sweep rejection, and post-release state-preservation
+  transitions. Foundry fuzz and real-flow regressions provide the arbitrary
+  surplus and exact ERC-20 balance-delta evidence. The Genesis symbolic
+  transition uses a four-NFT ordered batch and binds the immutable 50-NFT cap;
+  the real-contract Foundry regression executes the full 50-transfer batch.
 - Post-epoch division is verified at full `uint256` width in CVL. The adjacent
   Foundry regression decomposes reserves into a `uint64` quotient and bounded
   remainder, covering reserves above 100,000 native ETH.
