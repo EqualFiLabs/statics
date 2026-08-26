@@ -1,10 +1,31 @@
 methods {
     function tokenBacking() external returns (uint256) envfree;
     function reserveETH() external returns (uint256) envfree;
+    function grossBacking() external returns (uint256) envfree;
+    function requiredBacking() external returns (uint256) envfree;
+    function totalOutstandingGenesisCredit() external returns (uint256) envfree;
     function genesisEpochEnd() external returns (uint256) envfree;
+    function creditLimit(uint256 genesisId) external returns (uint256) envfree;
+    function creditAvailable(uint256 genesisId) external returns (uint256) envfree;
     function creditServiceReserveShareBps() external returns (uint16) envfree;
     function creditServiceTreasuryShareBps() external returns (uint16) envfree;
     function owner() external returns (address) envfree;
+}
+
+/// Adjustable principal moves only the recognized backing ledger between
+/// retained custody and outstanding credit; the gross Genesis backing stays
+/// conserved regardless of the current principal.
+rule requiredBackingMatchesCreditLedger() {
+    assert to_mathint(requiredBacking()) + to_mathint(totalOutstandingGenesisCredit())
+            == to_mathint(grossBacking()),
+        "required backing plus outstanding credit must equal gross backing";
+}
+
+/// The available redraw capacity is always bounded by the facility limit,
+/// including inventory and fully repaid states where both values are zero.
+rule availableCreditNeverExceedsLimit(env e, uint256 genesisId) {
+    assert to_mathint(creditAvailable(genesisId)) <= to_mathint(creditLimit(genesisId)),
+        "available principal must not exceed the Genesis credit limit";
 }
 
 /// Governance can select any valid credit-service split, and the stored shares

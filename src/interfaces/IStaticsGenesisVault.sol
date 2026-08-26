@@ -41,6 +41,18 @@ struct GenesisCreditRecoveryQuote {
     uint40 recoverableAt;
 }
 
+struct GenesisCreditAdjustmentQuote {
+    uint256 currentPrincipal;
+    uint256 newPrincipal;
+    uint256 amountToOwner;
+    uint256 amountFromOwner;
+    uint256 totalNativeFee;
+    uint16 reserveShareBps;
+    uint16 treasuryShareBps;
+    uint256 reservePortion;
+    uint256 treasuryPortion;
+}
+
 /// @notice Full snapshot of Genesis Vault STATICS and native ETH reserve accounting.
 struct GenesisVaultAccounting {
     uint256 vaultPrice;
@@ -103,8 +115,20 @@ interface IStaticsGenesisVault {
     event GenesisCreditExtended(
         uint256 indexed genesisId, address indexed owner, uint40 previousMaturity, uint40 newMaturity, uint256 nativeFee
     );
+    event GenesisCreditPrincipalAdjusted(
+        uint256 indexed genesisId,
+        address indexed owner,
+        uint256 previousPrincipal,
+        uint256 newPrincipal,
+        uint256 amountToOwner,
+        uint256 amountFromOwner
+    );
     event GenesisCreditRepaid(
-        uint256 indexed genesisId, address indexed payer, address indexed owner, uint256 principal
+        uint256 indexed genesisId,
+        address indexed payer,
+        address indexed owner,
+        uint256 amount,
+        uint256 remainingPrincipal
     );
     event GenesisCreditRecovered(
         uint256 indexed genesisId,
@@ -133,8 +157,8 @@ interface IStaticsGenesisVault {
     function setNativeAcquisitionFee(uint256 newFee) external;
     function donate() external payable;
     function openGenesisCredit(uint256 genesisId, uint256 principal) external payable;
-    function extendGenesisCredit(uint256 genesisId) external payable;
-    function repayGenesisCredit(uint256 genesisId) external;
+    function extendGenesisCredit(uint256 genesisId, uint256 newPrincipal) external payable;
+    function repayGenesisCredit(uint256 genesisId, uint256 amount) external;
     function recoverGenesisCredit(uint256 genesisId) external;
     function setCreditOriginationFee(uint256 newFee) external;
     function setCreditExtensionFee(uint256 newFee) external;
@@ -161,6 +185,7 @@ interface IStaticsGenesisVault {
     function isVaultInventory(uint256 tokenId) external view returns (bool);
     function vaultAccounting() external view returns (GenesisVaultAccounting memory accounting);
     function creditLimit(uint256 genesisId) external view returns (uint256);
+    function creditAvailable(uint256 genesisId) external view returns (uint256);
     function credit(uint256 genesisId) external view returns (GenesisCreditView memory state);
     function creditActive(uint256 genesisId) external view returns (bool);
     function creditRecoverableAt(uint256 genesisId) external view returns (uint40);
@@ -169,6 +194,10 @@ interface IStaticsGenesisVault {
         external
         view
         returns (GenesisCreditServiceQuote memory quote);
+    function quoteGenesisCreditAdjustment(uint256 genesisId, uint256 newPrincipal)
+        external
+        view
+        returns (GenesisCreditAdjustmentQuote memory quote);
     function quoteGenesisCreditRecovery(uint256 genesisId)
         external
         view

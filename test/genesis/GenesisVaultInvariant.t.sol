@@ -85,15 +85,18 @@ contract GenesisVaultHandler is IERC721Receiver {
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         GenesisCreditView memory state = vault.credit(tokenId);
         if (!state.active || block.timestamp > state.maturity) return;
-        vault.extendGenesisCredit(tokenId);
+        uint256 target = (seed % vault.MAX_CREDIT_PRINCIPAL()) + 1;
+        vault.extendGenesisCredit(tokenId, target);
     }
 
     function repayCredit(uint256 seed) external {
         if (acquiredIds.length == 0) return;
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         GenesisCreditView memory state = vault.credit(tokenId);
-        if (!state.active || statics.balanceOf(address(this)) < state.principal) return;
-        vault.repayGenesisCredit(tokenId);
+        if (!state.active) return;
+        uint256 amount = (seed % state.principal) + 1;
+        if (statics.balanceOf(address(this)) < amount) return;
+        vault.repayGenesisCredit(tokenId, amount);
     }
 
     function recoverCredit(uint256 seed) external {

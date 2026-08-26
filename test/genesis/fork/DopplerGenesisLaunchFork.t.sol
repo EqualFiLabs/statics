@@ -505,10 +505,10 @@ contract DopplerGenesisLaunchForkTest is Test {
         vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditAlreadyActive.selector, 1));
         vault.redeemGenesis(1, owner);
         uint40 maturityBefore = vault.credit(1).maturity;
-        vault.extendGenesisCredit{value: extensionFee}(1);
+        vault.extendGenesisCredit{value: extensionFee}(1, 100_000 ether);
         assertEq(vault.credit(1).maturity, maturityBefore + 30 days);
         statics.approve(address(vault), 100_000 ether);
-        vault.repayGenesisCredit(1);
+        vault.repayGenesisCredit(1, 100_000 ether);
         vm.stopPrank();
         assertEq(vault.totalOutstandingGenesisCredit(), 0);
         assertFalse(genesis.locked(1));
@@ -566,7 +566,7 @@ contract DopplerGenesisLaunchForkTest is Test {
         vm.warp(uint256(expiredMaturity) + 1);
         vm.prank(successor);
         vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditExpired.selector, 1, expiredMaturity));
-        vault.extendGenesisCredit{value: extensionFee}(1);
+        vault.extendGenesisCredit{value: extensionFee}(1, maximumPrincipal);
 
         address keeper = makeAddr("forkRecoveryKeeper");
         vm.warp(uint256(vault.creditRecoverableAt(1)) + 1);

@@ -13,6 +13,7 @@ import {IStaticsFeeReceiver} from "../interfaces/IStaticsFeeReceiver.sol";
 import {IStaticsGenesis} from "../interfaces/IStaticsGenesis.sol";
 import {
     GenesisCredit,
+    GenesisCreditAdjustmentQuote,
     GenesisCreditConfig,
     GenesisCreditRecoveryQuote,
     GenesisCreditServiceQuote,
@@ -110,6 +111,8 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     error CreditExpired(uint256 genesisId, uint40 maturity);
     error CreditNotRecoverable(uint256 genesisId, uint40 recoverableAt);
     error IncorrectNativeFee(uint256 provided, uint256 required);
+    error InvalidRepaymentAmount(uint256 amount, uint256 principal);
+    error InsufficientCreditBacking(uint256 available, uint256 requested);
     error NativeTreasuryTransferFailed(address treasury, uint256 amount);
     error InvalidRecoveryDistributor(address distributor);
 
@@ -272,35 +275,68 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisCreditOpened(genesisId, msg.sender, principal, maturity, creditOriginationFee);
     }
 
-    function extendGenesisCredit(uint256 genesisId) external payable override nonReentrant whenFinalized {
+    function extendGenesisCredit(uint256 genesisId, uint256 newPrincipal)
+        external
+        payable
+        override
+        nonReentrant
+        whenFinalized
+    {
         GenesisCredit storage state = _credit[genesisId];
-        uint256 principal = state.principal;
-        if (principal == 0) revert CreditNotActive(genesisId);
+        uint256 previousPrincipal = state.principal;
+        if (previousPrincipal == 0) revert CreditNotActive(genesisId);
         address tokenOwner = genesis.ownerOf(genesisId);
         if (tokenOwner != msg.sender) revert NotGenesisOwner(genesisId, msg.sender, tokenOwner);
         uint40 previousMaturity = state.maturity;
         if (block.timestamp > previousMaturity) revert CreditExpired(genesisId, previousMaturity);
+        if (newPrincipal == 0 || newPrincipal > MAX_CREDIT_PRINCIPAL) {
+            revert InvalidCreditPrincipal(newPrincipal);
+        }
 
         uint40 newMaturity = (uint256(previousMaturity) + CREDIT_TERM).toUint40();
         state.maturity = newMaturity;
+        state.principal = newPrincipal;
+        uint256 amountToOwner;
+        uint256 amountFromOwner;
+        if (newPrincipal > previousPrincipal) {
+            amountToOwner = newPrincipal - previousPrincipal;
+            if (amountToOwner > tokenBacking) revert InsufficientCreditBacking(tokenBacking, amountToOwner);
+            totalOutstandingGenesisCredit += amountToOwner;
+            tokenBacking -= amountToOwner;
+        } else if (previousPrincipal > newPrincipal) {
+            amountFromOwner = previousPrincipal - newPrincipal;
+            totalOutstandingGenesisCredit -= amountFromOwner;
+            tokenBacking += amountFromOwner;
+        }
         _collectCreditServiceFee(creditExtensionFee);
+        if (amountToOwner != 0) statics.pushExact(msg.sender, amountToOwner);
+        if (amountFromOwner != 0) statics.pullExact(msg.sender, amountFromOwner);
         _enforceSolvency();
+        if (amountToOwner != 0 || amountFromOwner != 0) {
+            emit GenesisCreditPrincipalAdjusted(
+                genesisId, msg.sender, previousPrincipal, newPrincipal, amountToOwner, amountFromOwner
+            );
+        }
         emit GenesisCreditExtended(genesisId, msg.sender, previousMaturity, newMaturity, creditExtensionFee);
     }
 
-    function repayGenesisCredit(uint256 genesisId) external override nonReentrant whenFinalized {
-        GenesisCredit memory state = _credit[genesisId];
+    function repayGenesisCredit(uint256 genesisId, uint256 amount) external override nonReentrant whenFinalized {
+        GenesisCredit storage state = _credit[genesisId];
         uint256 principal = state.principal;
         if (principal == 0) revert CreditNotActive(genesisId);
+        if (amount == 0 || amount > principal) revert InvalidRepaymentAmount(amount, principal);
+        address owner = state.owner;
+        uint256 remainingPrincipal = principal - amount;
 
-        delete _credit[genesisId];
-        totalOutstandingGenesisCredit -= principal;
-        tokenBacking += principal;
+        if (remainingPrincipal == 0) delete _credit[genesisId];
+        else state.principal = remainingPrincipal;
+        totalOutstandingGenesisCredit -= amount;
+        tokenBacking += amount;
 
-        statics.pullExact(msg.sender, principal);
+        statics.pullExact(msg.sender, amount);
         genesis.refreshLockStatus(genesisId);
         _enforceSolvency();
-        emit GenesisCreditRepaid(genesisId, msg.sender, state.owner, principal);
+        emit GenesisCreditRepaid(genesisId, msg.sender, owner, amount, remainingPrincipal);
     }
 
     function recoverGenesisCredit(uint256 genesisId) external override nonReentrant whenFinalized {
@@ -414,6 +450,17 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         }
     }
 
+    function creditAvailable(uint256 genesisId) external view override returns (uint256) {
+        if (!finalized) return 0;
+        try genesis.ownerOf(genesisId) returns (address tokenOwner) {
+            if (tokenOwner == address(this)) return 0;
+            uint256 principal = _credit[genesisId].principal;
+            return MAX_CREDIT_PRINCIPAL - principal;
+        } catch {
+            return 0;
+        }
+    }
+
     function credit(uint256 genesisId) external view override returns (GenesisCreditView memory state) {
         GenesisCredit storage stored = _credit[genesisId];
         uint256 principal = stored.principal;
@@ -453,6 +500,35 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     {
         if (_credit[genesisId].principal == 0) revert CreditNotActive(genesisId);
         return _quoteCreditService(creditExtensionFee);
+    }
+
+    function quoteGenesisCreditAdjustment(uint256 genesisId, uint256 newPrincipal)
+        external
+        view
+        override
+        returns (GenesisCreditAdjustmentQuote memory quote)
+    {
+        uint256 currentPrincipal = _credit[genesisId].principal;
+        if (currentPrincipal == 0) revert CreditNotActive(genesisId);
+        if (newPrincipal == 0 || newPrincipal > MAX_CREDIT_PRINCIPAL) {
+            revert InvalidCreditPrincipal(newPrincipal);
+        }
+        uint256 amountToOwner;
+        uint256 amountFromOwner;
+        if (newPrincipal > currentPrincipal) amountToOwner = newPrincipal - currentPrincipal;
+        else amountFromOwner = currentPrincipal - newPrincipal;
+        GenesisCreditServiceQuote memory service = _quoteCreditService(creditExtensionFee);
+        quote = GenesisCreditAdjustmentQuote({
+            currentPrincipal: currentPrincipal,
+            newPrincipal: newPrincipal,
+            amountToOwner: amountToOwner,
+            amountFromOwner: amountFromOwner,
+            totalNativeFee: service.totalNativeFee,
+            reserveShareBps: service.reserveShareBps,
+            treasuryShareBps: service.treasuryShareBps,
+            reservePortion: service.reservePortion,
+            treasuryPortion: service.treasuryPortion
+        });
     }
 
     function quoteGenesisCreditRecovery(uint256 genesisId)

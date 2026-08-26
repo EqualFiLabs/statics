@@ -8,21 +8,17 @@ reserve value.
 
 ## Reproducing the mandatory proofs
 
-The mandatory local gate uses Halmos 0.3.3, Foundry, Solidity 0.8.33, Cancun
-code generation, and an eight-iteration loop bound:
+The mandatory Halmos, Slither, and full-suite gates run in GitHub Actions. For
+a pull request, use the repository's CI checks as the release evidence:
 
 ```sh
-python3.12 -m venv .halmos-venv
-.halmos-venv/bin/pip install halmos==0.3.3
-HALMOS_BIN="$PWD/.halmos-venv/bin/halmos" scripts/run-formal.sh all
+gh pr checks --watch
 ```
 
-The proof runner writes JSON results to `formal-results/`. Root Genesis targets
-use a scoped artifact directory and separate Halmos invocations; the isolated
-Doppler target retains its own build. The ordinary Foundry suites remain part
-of the gate because full-cap transfers, post-epoch division regressions, and
-other value-moving launch lifecycles are intentionally executable tests beside
-the symbolic checks.
+The workflow installs Halmos 0.3.3, Foundry, and Slither in clean runners and
+uploads symbolic results as CI artifacts. Local development should use focused
+Foundry tests and, when required, the hosted Certora run; rerunning the full
+Halmos or Slither jobs locally is not required release evidence.
 
 ## Property ledger
 
@@ -33,7 +29,7 @@ the symbolic checks.
 | Active-epoch buy-in and redemption payout are zero; acquisition charges and reserves exactly the governed native fee | `StaticsGenesisVault` | Halmos against production source | Pass |
 | Post-epoch buy-in is ceil(reserve / 5,554) and redemption is floor(reserve / 5,555) | `StaticsGenesisVault` | Certora plus Foundry fuzz | Pass |
 | Forced ETH is not classified as reserve; governance configuration cannot withdraw reserve | `StaticsGenesisVault` | Halmos | Pass |
-| Credit opening and repayment are exact principal/backing inverses; extension changes only maturity and fee accounting | `StaticsGenesisVault` | Halmos transition model plus real-contract Foundry fuzz/invariant | Pass |
+| Credit opening, partial repayment, and target-principal extension conserve backing and outstanding principal; extension changes only the selected delta, maturity, and fee accounting | `StaticsGenesisVault` | Halmos transition model plus real-contract Foundry fuzz/invariant | Pass |
 | Credit recovery conserves `unusedCredit + callerIncentive + genesisDistribution = 180,000 - principal`, removes the defaulting weight before indexing, and leaves the Vault solvent | `StaticsGenesisVault`, Genesis reward consumer | Halmos transition model plus real composed Foundry regression | Pass |
 | Every valid governed credit-service fee split stores exact complementary shares; each flat origination or extension fee is allocated exactly between reserve and treasury | `StaticsGenesisVault` | Certora configuration rule plus Halmos arithmetic model plus real-contract Foundry | Pass |
 | Harvested WETH equals reserve plus distributor allocation; STATICS is fully attributed | `StaticsFeeReceiver` | Halmos | Pass |
@@ -83,7 +79,7 @@ proved with Solidity 0.8.33:
 
 | Configuration | Proved rules | Hosted report |
 | --- | --- | --- |
-| `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers | [report](https://prover.certora.com/output/8471858/7b78bbf5230f4837a3447dda5788fdb2) |
+| `GenesisVault.conf` | Full-width post-epoch ceil/floor formulas; governed credit-service shares are exact complements; governance preserves backing ledgers; required backing plus outstanding credit equals gross backing; available credit never exceeds its limit | Current run required after adjustable-principal implementation |
 | `FeeReceiver.conf` | Distributor claimable balances remain within cumulative attribution; surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/9a10ef5901cf47338d7d62728899930f) |
 | `GenesisDistributor.conf` | Reward assets remain nonzero and distinct; the Genesis share remains bounded; crystallized rewards equal claimable plus claimed; batches of up to eight IDs preserve crystallized accounting; recovery is segregated from numeraire accounting; surplus recovery preserves accounted reward quantities | [report](https://prover.certora.com/output/8471858/e187b2a7454a4aebae384b18a05a0d63) |
 | `TreasuryVesting.conf` | Exact capped STATICS and Genesis vesting; recipient rotation and successful surplus sweep preserve immutable state and released accounting; unauthorized or pre-release sweeps revert | Current run required after surplus implementation |
