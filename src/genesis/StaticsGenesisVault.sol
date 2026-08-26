@@ -296,8 +296,8 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         uint40 newMaturity = (uint256(previousMaturity) + CREDIT_TERM).toUint40();
         state.maturity = newMaturity;
         state.principal = newPrincipal;
-        uint256 amountToOwner;
-        uint256 amountFromOwner;
+        uint256 amountToOwner = 0;
+        uint256 amountFromOwner = 0;
         if (newPrincipal > previousPrincipal) {
             amountToOwner = newPrincipal - previousPrincipal;
             if (amountToOwner > tokenBacking) revert InsufficientCreditBacking(tokenBacking, amountToOwner);
@@ -325,7 +325,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         uint256 principal = state.principal;
         if (principal == 0) revert CreditNotActive(genesisId);
         if (amount == 0 || amount > principal) revert InvalidRepaymentAmount(amount, principal);
-        address owner = state.owner;
+        address creditOwner = state.owner;
         uint256 remainingPrincipal = principal - amount;
 
         if (remainingPrincipal == 0) delete _credit[genesisId];
@@ -336,7 +336,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         statics.pullExact(msg.sender, amount);
         genesis.refreshLockStatus(genesisId);
         _enforceSolvency();
-        emit GenesisCreditRepaid(genesisId, msg.sender, owner, amount, remainingPrincipal);
+        emit GenesisCreditRepaid(genesisId, msg.sender, creditOwner, amount, remainingPrincipal);
     }
 
     function recoverGenesisCredit(uint256 genesisId) external override nonReentrant whenFinalized {
@@ -513,8 +513,8 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         if (newPrincipal == 0 || newPrincipal > MAX_CREDIT_PRINCIPAL) {
             revert InvalidCreditPrincipal(newPrincipal);
         }
-        uint256 amountToOwner;
-        uint256 amountFromOwner;
+        uint256 amountToOwner = 0;
+        uint256 amountFromOwner = 0;
         if (newPrincipal > currentPrincipal) amountToOwner = newPrincipal - currentPrincipal;
         else amountFromOwner = currentPrincipal - newPrincipal;
         GenesisCreditServiceQuote memory service = _quoteCreditService(creditExtensionFee);
