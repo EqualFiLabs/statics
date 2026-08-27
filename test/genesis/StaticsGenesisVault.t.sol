@@ -149,7 +149,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                     governance,
                     treasury,
                     "ipfs://statics-genesis/contract.json",
-                    "https://statics.finance/genesis/"
+                    "https://staticsprotocol.com/genesis/"
                 );
                 activationRegistry.bindGenesisCollection(address(genesis));
                 statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());
@@ -478,7 +478,7 @@ contract MockGenesisProtocol is IStaticsGenesisProtocol {
                     )
                 );
                 assertTrue(_contains(decoded, "180,000 STATICS"));
-                assertTrue(_contains(decoded, '"external_url":"https://statics.finance/genesis/1"'));
+                assertTrue(_contains(decoded, '"external_url":"https://staticsprotocol.com/genesis/1"'));
             }
 
             function testFuzzPostEpochBuyInIsCeilOfReserveOverDenominator(uint256 rawReserve) public {

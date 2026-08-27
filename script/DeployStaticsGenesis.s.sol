@@ -98,6 +98,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
     bytes20 public constant DOPPLER_SOURCE_REVISION = hex"86a5200456b148c156d2eb81a893747dd601c3ca";
     string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
+    string public constant STATICS_GENESIS_CONTRACT_URI =
+        "data:application/json;utf8,%7B%22name%22%3A%22STATICS%20Operators%22%2C%22symbol%22%3A%22STATOPS%22%2C%22description%22%3A%225%2C555%20deterministic%20onchain%20Genesis%20identities%20powering%20the%20STATICS%20protocol.%20Each%20STATICS%20Operator%20carries%20a%20180%2C000%20STATICS%20backing%20claim%2C%20evolving%20activation%20tiers%2C%20native%20artwork%2C%20and%20access%20to%20protocol%20reserve%20and%20reward%20flows.%22%2C%22external_link%22%3A%22https%3A%2F%2Fstaticsprotocol.com%22%7D";
+    string public constant STATICS_GENESIS_EXTERNAL_URL_BASE = "https://staticsprotocol.com/genesis/";
     /// @dev Production execution remains disabled until this equals the ratified launch hash.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
@@ -152,8 +155,8 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
-            contractURI: vm.envString("STATICS_GENESIS_CONTRACT_URI"),
-            externalURLBase: vm.envString("STATICS_GENESIS_EXTERNAL_URL_BASE")
+            contractURI: staticsGenesisContractURI(),
+            externalURLBase: staticsGenesisExternalURLBase()
         });
         if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
             bytes32 wethRuntimeCodeHash = _validateRobinhoodWeth(config.numeraire);
@@ -272,6 +275,16 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     /// @notice Canonical IPFS metadata URI used for the production STATICS Doppler launch.
     function staticsTokenURI() public pure returns (string memory) {
         return STATICS_TOKEN_URI;
+    }
+
+    /// @notice Canonical onchain ERC-7572 collection metadata for Statics Operators.
+    function staticsGenesisContractURI() public pure returns (string memory) {
+        return STATICS_GENESIS_CONTRACT_URI;
+    }
+
+    /// @notice Canonical token-page base; the Genesis token ID is appended directly.
+    function staticsGenesisExternalURLBase() public pure returns (string memory) {
+        return STATICS_GENESIS_EXTERNAL_URL_BASE;
     }
 
     /// @notice Six-curve Robinhood launch geometry pinned to the committed economics model.

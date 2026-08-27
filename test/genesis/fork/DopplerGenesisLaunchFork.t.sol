@@ -211,8 +211,8 @@ contract DopplerGenesisLaunchForkTest is Test {
             recoveryCallerShareBps: 2_000,
             genesisEpochEnd: block.timestamp + 30 days,
             tokenURI: deployer.staticsTokenURI(),
-            contractURI: "ipfs://statics-genesis/contract.json",
-            externalURLBase: "https://statics.finance/genesis/"
+            contractURI: deployer.staticsGenesisContractURI(),
+            externalURLBase: deployer.staticsGenesisExternalURLBase()
         });
     }
 
@@ -260,8 +260,8 @@ contract DopplerGenesisLaunchForkTest is Test {
                 recoveryCallerShareBps: 2_000,
                 genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
-                contractURI: "ipfs://statics-genesis/contract.json",
-                externalURLBase: "https://statics.finance/genesis/"
+                contractURI: deployer.staticsGenesisContractURI(),
+                externalURLBase: deployer.staticsGenesisExternalURLBase()
             });
 
             deployment = deployer.deploy(config, address(deployer));
@@ -272,6 +272,8 @@ contract DopplerGenesisLaunchForkTest is Test {
             receiver = StaticsFeeReceiver(payable(deployment.feeReceiver));
             GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
             distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
+            assertEq(genesis.contractURI(), deployer.staticsGenesisContractURI());
+            assertEq(genesis.externalURLBase(), deployer.staticsGenesisExternalURLBase());
 
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 0);
@@ -310,15 +312,11 @@ contract DopplerGenesisLaunchForkTest is Test {
         }
 
         _buyAndRegisterGenesis(vault, StaticsGenesis(deployment.genesis), distributor, treasury, address(weth));
-        _swapWethForStatics(
-            _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000),
-            weth,
-            deployment.statics,
-            modules.poolInitializer,
-            0.1 ether
-        );
+        PoolKey memory launchKey = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
+        _swapWethForStatics(launchKey, weth, deployment.statics, modules.poolInitializer, 0.1 ether);
         _assertReserveHarvest(vault, receiver, distributor, weth);
         _assertPostEpochReserveFlows(
+            launchKey,
             vault,
             IERC20(deployment.statics),
             StaticsGenesis(deployment.genesis),
@@ -408,6 +406,7 @@ contract DopplerGenesisLaunchForkTest is Test {
 
     /// @dev Proves reserve, activation, credit, transfer, recovery, and reward-accounting transitions.
     function _assertPostEpochReserveFlows(
+        PoolKey memory key,
         StaticsGenesisVault vault,
         IERC20 statics,
         StaticsGenesis genesis,
@@ -416,7 +415,7 @@ contract DopplerGenesisLaunchForkTest is Test {
     ) private {
         address treasury = makeAddr("forkTreasury");
         _redeemAndReacquire(vault, statics, genesis, treasury);
-        _activateRepayAndTransfer(vault, statics, genesis, registry, distributor, treasury);
+        _activateRepayAndTransfer(key, vault, statics, genesis, registry, distributor, treasury);
         _expireAndRecover(vault, statics, genesis, distributor, makeAddr("forkSuccessor"));
     }
 
@@ -454,6 +453,7 @@ contract DopplerGenesisLaunchForkTest is Test {
     }
 
     function _activateRepayAndTransfer(
+        PoolKey memory key,
         StaticsGenesisVault vault,
         IERC20 statics,
         StaticsGenesis genesis,
@@ -480,6 +480,8 @@ contract DopplerGenesisLaunchForkTest is Test {
         assertEq(statics.balanceOf(treasury) - treasuryBeforeActivation, 30_000 ether);
         assertEq(registry.multiplierBps(1), 11_500);
         assertEq(distributor.effectiveWeight(1), 11_500);
+        _swapWethForStatics(key, IERC20(distributor.numeraire()), address(statics), address(key.hooks), 0.1 ether);
+        distributor.accrue();
 
         vm.prank(owner);
         vault.openGenesisCredit{value: originationFee}(1, 100_000 ether);

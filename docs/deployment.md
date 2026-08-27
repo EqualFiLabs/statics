@@ -34,9 +34,9 @@ selected by chain ID and reads:
 | `STATICS_GENESIS_CREDIT_EXTENSION_FEE` | Ratified flat native fee quoted when extending Genesis secured credit; no protocol default is assumed |
 | `STATICS_GENESIS_RECOVERY_CALLER_SHARE_BPS` | Ratified caller share of the fixed 9,000-STATICS recovery residual; must be greater than 0 and less than 10,000 |
 | `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for immutable `genesisEpochEnd`; it must be future at deployment and is included in the launch hash |
-| `STATICS_TOKEN_URI` | Doppler ERC-20 metadata URI |
-| `STATICS_GENESIS_CONTRACT_URI` | Durable ERC-7572 collection metadata URI |
-| `STATICS_GENESIS_EXTERNAL_URL_BASE` | Token-page base URL; the Genesis token ID is appended directly |
+| `STATICS_TOKEN_URI` | Canonical Doppler ERC-20 metadata URI fixed by the launcher |
+| `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's fully onchain ERC-7572 collection JSON data URI |
+| `STATICS_GENESIS_EXTERNAL_URL_BASE` | Optional local-fork override; production uses `https://staticsprotocol.com/genesis/` and appends the token ID directly |
 
 The deployment:
 
@@ -77,6 +77,15 @@ native reserve payout of `floor(reserveETH / 5,555)`. The buy-in and fee
 permanently enter the reserve, which has no withdrawal path. Activation forwards
 its exact STATICS cost to the treasury, never burns STATICS, and can never debit
 vault backing.
+
+Genesis token metadata and SVG artwork are generated fully onchain by
+`StaticsGenesisRenderer`. The separate ERC-7572 `contractURI()` is also fixed
+to an onchain JSON data URI for collection-level marketplace metadata. It names
+the collection `STATICS Operators`, uses symbol `STATOPS`, links to
+`https://staticsprotocol.com`, and describes the 5,555 deterministic Genesis
+identities and their protocol rights. The per-token `external_url` uses
+`https://staticsprotocol.com/genesis/<tokenId>`; deploy that route before the
+production launch. Both canonical strings are committed by `launchConfigHash`.
 
 Before simulation or broadcast, execute the official-module integration proof:
 

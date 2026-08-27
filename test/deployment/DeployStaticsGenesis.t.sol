@@ -267,6 +267,14 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(deployer.GENESIS_CREDIT_INITIAL_TREASURY_SHARE_BPS(), 9_000);
         }
 
+        function testCanonicalGenesisCollectionMetadataMatchesApprovedPayload() public view {
+            string memory expectedURI =
+                "data:application/json;utf8,%7B%22name%22%3A%22STATICS%20Operators%22%2C%22symbol%22%3A%22STATOPS%22%2C%22description%22%3A%225%2C555%20deterministic%20onchain%20Genesis%20identities%20powering%20the%20STATICS%20protocol.%20Each%20STATICS%20Operator%20carries%20a%20180%2C000%20STATICS%20backing%20claim%2C%20evolving%20activation%20tiers%2C%20native%20artwork%2C%20and%20access%20to%20protocol%20reserve%20and%20reward%20flows.%22%2C%22external_link%22%3A%22https%3A%2F%2Fstaticsprotocol.com%22%7D";
+
+            assertEq(deployer.staticsGenesisContractURI(), expectedURI);
+            assertEq(deployer.staticsGenesisExternalURLBase(), "https://staticsprotocol.com/genesis/");
+        }
+
         function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
             StaticsGenesisDeploymentConfig memory config = _config();
             bytes32 canonicalWethHash = 0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
