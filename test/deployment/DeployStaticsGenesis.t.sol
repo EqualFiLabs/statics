@@ -809,7 +809,10 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(totalShares, 1 ether);
             assertEq(curves[4].tickUpper, curves[5].tickLower);
             assertEq(deployer.FAR_TICK(), 887_100);
-            assertEq(deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(), bytes32(0));
+            assertEq(
+                deployer.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH(),
+                0xa56443c159762b4470695ee98bd1681fb38202129dbcf474cbffae936b82ce22
+            );
             assertEq(deployer.GENESIS_CREDIT_MAX_PRINCIPAL(), 171_000 ether);
             assertEq(deployer.GENESIS_CREDIT_RECOVERY_RESIDUAL(), 9_000 ether);
             assertEq(deployer.GENESIS_CREDIT_TERM(), 30 days);
@@ -872,12 +875,14 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             airlock.setOwner(originalDopplerOwner);
         }
 
-        function testZeroApprovedHashBlocksProductionRatification() public {
+        function testMismatchedHashBlocksProductionRatification() public {
             DeployStaticsGenesisHarness harness = new DeployStaticsGenesisHarness();
+            bytes32 approvedHash = harness.APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH();
+            harness.requireApprovedProductionConfig(approvedHash);
             bytes32 currentHash = keccak256("unratified Robinhood launch");
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    DeployStaticsGenesis.ProductionLaunchConfigurationNotRatified.selector, currentHash, bytes32(0)
+                    DeployStaticsGenesis.ProductionLaunchConfigurationNotRatified.selector, currentHash, approvedHash
                 )
             );
             harness.requireApprovedProductionConfig(currentHash);
