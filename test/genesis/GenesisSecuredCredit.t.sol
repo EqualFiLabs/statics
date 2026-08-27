@@ -9,7 +9,6 @@ import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {IGenesisLaunchDistributor} from "../../src/interfaces/IGenesisLaunchDistributor.sol";
 import {
-    GenesisCreditAdjustmentQuote,
     GenesisCreditConfig,
     GenesisCreditRecoveryQuote,
     GenesisCreditServiceQuote,
@@ -78,6 +77,21 @@ contract IncompatibleGenesisCreditProtocol {
     }
 }
 
+/// @dev Test-only accounting harness for the economically unreachable low-backing draw branch.
+contract GenesisCreditVaultHarness is StaticsGenesisVault {
+    constructor(
+        IERC20 statics_,
+        address bootstrapper_,
+        address governance_,
+        uint256 genesisEpochEnd_,
+        GenesisCreditConfig memory creditConfig_
+    ) StaticsGenesisVault(statics_, bootstrapper_, governance_, genesisEpochEnd_, creditConfig_) {}
+
+    function setTokenBackingForTest(uint256 backing) external {
+        tokenBacking = backing;
+    }
+}
+
 contract GenesisSecuredCreditTest is Test {
     uint256 private constant PRICE = 180_000 ether;
     uint256 private constant INITIAL_BACKING = 99_900_000 ether;
@@ -99,7 +113,7 @@ contract GenesisSecuredCreditTest is Test {
     CreditDopplerFeeSource private feeSource;
     StaticsFeeReceiver private feeReceiver;
     GenesisActivationRegistry private activationRegistry;
-    StaticsGenesisVault private vault;
+    GenesisCreditVaultHarness private vault;
     StaticsGenesis private genesis;
     GenesisLaunchDistributor private distributor;
 
@@ -127,7 +141,7 @@ contract GenesisSecuredCreditTest is Test {
             extensionFee: EXTENSION_FEE,
             recoveryCallerShareBps: 2_000
         });
-        vault = new StaticsGenesisVault(statics, address(this), governance, epochEnd, creditConfig);
+        vault = new GenesisCreditVaultHarness(statics, address(this), governance, epochEnd, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
             address(vault),
@@ -208,7 +222,7 @@ contract GenesisSecuredCreditTest is Test {
 
         vm.warp(maturityBefore);
         vm.prank(alice);
-        vault.extendGenesisCredit{value: 0.005 ether}(1, 100_000 ether);
+        vault.extendGenesisCredit{value: 0.005 ether}(1);
         assertEq(vault.credit(1).maturity, uint256(maturityBefore) + 30 days);
 
         vm.startPrank(bob);
@@ -283,70 +297,171 @@ contract GenesisSecuredCreditTest is Test {
         vault.repayGenesisCredit(1, 100_000 ether + 1);
     }
 
-    function testCreditAvailableTracksCurrentPrincipal() public {
+    function testCreditAvailableTracksCapacityAndBacking() public {
         _buyGenesis(alice, 1);
-        assertEq(vault.creditAvailable(1), MAX_PRINCIPAL);
+        assertEq(vault.creditAvailable(1), 0);
 
         vm.prank(alice);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
         assertEq(vault.creditAvailable(1), 71_000 ether);
 
-        vm.startPrank(alice);
+        statics.transfer(bob, 40_000 ether);
+        vm.startPrank(bob);
         statics.approve(address(vault), 40_000 ether);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 60_000 ether);
+        vault.repayGenesisCredit(1, 40_000 ether);
         vm.stopPrank();
         assertEq(vault.creditAvailable(1), 111_000 ether);
+
+        vm.prank(alice);
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 20_000 ether);
+        assertEq(vault.creditAvailable(1), 91_000 ether);
     }
 
-    function testExtensionCanIncreasePrincipal() public {
+    function testRepayThenDrawChargesCurrentOriginationFeeWithoutChangingMaturity() public {
         _buyGenesis(alice, 1);
         vm.prank(alice);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
-        uint256 backingBefore = vault.tokenBacking();
-        uint256 balanceBefore = statics.balanceOf(alice);
-        uint40 maturityBefore = vault.credit(1).maturity;
 
-        GenesisCreditAdjustmentQuote memory quote = vault.quoteGenesisCreditAdjustment(1, 150_000 ether);
-        assertEq(quote.currentPrincipal, 100_000 ether);
-        assertEq(quote.newPrincipal, 150_000 ether);
-        assertEq(quote.amountToOwner, 50_000 ether);
-        assertEq(quote.amountFromOwner, 0);
-        assertEq(quote.totalNativeFee, EXTENSION_FEE);
-
-        vm.prank(alice);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 150_000 ether);
-
-        assertEq(statics.balanceOf(alice), balanceBefore + 50_000 ether);
-        assertEq(vault.credit(1).principal, 150_000 ether);
-        assertEq(vault.totalOutstandingGenesisCredit(), 150_000 ether);
-        assertEq(vault.tokenBacking(), backingBefore - 50_000 ether);
-        assertEq(vault.credit(1).maturity, uint256(maturityBefore) + 30 days);
-        assertTrue(genesis.locked(1));
-    }
-
-    function testExtensionCanDecreasePrincipal() public {
-        _buyGenesis(alice, 1);
-        vm.prank(alice);
-        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
-        uint256 backingBefore = vault.tokenBacking();
-        uint256 balanceBefore = statics.balanceOf(alice);
-        uint40 maturityBefore = vault.credit(1).maturity;
-
-        GenesisCreditAdjustmentQuote memory quote = vault.quoteGenesisCreditAdjustment(1, 60_000 ether);
-        assertEq(quote.amountToOwner, 0);
-        assertEq(quote.amountFromOwner, 40_000 ether);
-
-        vm.startPrank(alice);
+        statics.transfer(bob, 40_000 ether);
+        vm.startPrank(bob);
         statics.approve(address(vault), 40_000 ether);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 60_000 ether);
+        vault.repayGenesisCredit(1, 40_000 ether);
         vm.stopPrank();
 
-        assertEq(statics.balanceOf(alice), balanceBefore - 40_000 ether);
-        assertEq(vault.credit(1).principal, 60_000 ether);
-        assertEq(vault.totalOutstandingGenesisCredit(), 60_000 ether);
-        assertEq(vault.tokenBacking(), backingBefore + 40_000 ether);
-        assertEq(vault.credit(1).maturity, uint256(maturityBefore) + 30 days);
+        vm.prank(governance);
+        vault.setCreditOriginationFee(10_001 wei);
+        uint256 backingBefore = vault.tokenBacking();
+        uint256 outstandingBefore = vault.totalOutstandingGenesisCredit();
+        uint256 balanceBefore = statics.balanceOf(alice);
+        uint256 reserveBefore = vault.reserveETH();
+        uint256 treasuryBefore = treasury.balance;
+        uint40 maturityBefore = vault.credit(1).maturity;
+
+        vm.expectEmit(true, true, false, true, address(vault));
+        emit IStaticsGenesisVault.GenesisCreditDrawn(1, alice, 20_000 ether, 80_000 ether, 10_001 wei);
+        vm.prank(alice);
+        vault.drawGenesisCredit{value: 10_001 wei}(1, 20_000 ether);
+
+        assertEq(vault.credit(1).principal, 80_000 ether);
+        assertEq(vault.totalOutstandingGenesisCredit(), outstandingBefore + 20_000 ether);
+        assertEq(vault.tokenBacking(), backingBefore - 20_000 ether);
+        assertEq(vault.credit(1).maturity, maturityBefore);
+        assertEq(statics.balanceOf(alice), balanceBefore + 20_000 ether);
+        assertEq(vault.reserveETH() - reserveBefore, 1_000 wei);
+        assertEq(treasury.balance - treasuryBefore, 9_001 wei);
         assertTrue(genesis.locked(1));
+    }
+
+    function testRepeatedDrawRepayRedrawUsesOnlyCurrentPrincipalCapacity() public {
+        _buyGenesis(alice, 1);
+        vm.startPrank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
+        statics.approve(address(vault), type(uint256).max);
+
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 50_000 ether);
+        assertEq(vault.credit(1).principal, 150_000 ether);
+        vault.repayGenesisCredit(1, 60_000 ether);
+        assertEq(vault.credit(1).principal, 90_000 ether);
+
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 70_000 ether);
+        assertEq(vault.credit(1).principal, 160_000 ether);
+        vault.repayGenesisCredit(1, 100_000 ether);
+        assertEq(vault.credit(1).principal, 60_000 ether);
+
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 111_000 ether);
+        assertEq(vault.credit(1).principal, MAX_PRINCIPAL);
+        assertEq(vault.creditAvailable(1), 0);
+        vault.repayGenesisCredit(1, MAX_PRINCIPAL);
+        vm.stopPrank();
+
+        assertFalse(vault.creditActive(1));
+        assertFalse(genesis.locked(1));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditNotActive.selector, 1));
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 1 ether);
+    }
+
+    function testDrawRejectsInvalidOwnerFeeCapacityAndBacking() public {
+        _buyGenesis(alice, 1);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.NotGenesisOwner.selector, 1, bob, alice));
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsGenesisVault.IncorrectNativeFee.selector, ORIGINATION_FEE - 1, ORIGINATION_FEE
+            )
+        );
+        vault.drawGenesisCredit{value: ORIGINATION_FEE - 1}(1, 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.InvalidCreditDrawAmount.selector, 0, 71_000 ether));
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 0);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsGenesisVault.InvalidCreditDrawAmount.selector, 71_000 ether + 1, 71_000 ether)
+        );
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 71_000 ether + 1);
+
+        vault.setTokenBackingForTest(1 ether);
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsGenesisVault.InsufficientCreditBacking.selector, 1 ether, 2 ether)
+        );
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 2 ether);
+    }
+
+    function testCreditAvailableReturnsZeroWhenPausedOrExpiredAndUsesBackingMinimum() public {
+        _buyGenesis(alice, 1);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
+        uint40 maturity = vault.credit(1).maturity;
+
+        vault.setTokenBackingForTest(10_000 ether);
+        assertEq(vault.creditAvailable(1), 10_000 ether);
+        vm.prank(governance);
+        vault.setCreditIncreasesPaused(true);
+        assertEq(vault.creditAvailable(1), 0);
+        vm.prank(governance);
+        vault.setCreditIncreasesPaused(false);
+        vm.warp(uint256(maturity) + 1);
+        assertEq(vault.creditAvailable(1), 0);
+    }
+
+    function testDrawAtMaturityBoundariesAndExpiredRepaymentRemainsLive() public {
+        _buyGenesis(alice, 1);
+        _buyGenesis(bob, 2);
+        vm.prank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
+        vm.prank(bob);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(2, 100_000 ether);
+        uint40 maturity = vault.credit(1).maturity;
+
+        vm.warp(uint256(maturity) - 1);
+        vm.prank(alice);
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 1 ether);
+        vm.warp(maturity);
+        vm.prank(bob);
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(2, 1 ether);
+
+        vm.warp(uint256(maturity) + 1);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditExpired.selector, 1, maturity));
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 1 ether);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditExpired.selector, 2, maturity));
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(2, 1 ether);
+
+        vm.startPrank(alice);
+        statics.approve(address(vault), 1 ether);
+        vault.repayGenesisCredit(1, 1 ether);
+        vm.stopPrank();
+        assertEq(vault.credit(1).principal, 100_000 ether);
     }
 
     function testCreditLimitReturnsZeroForNonexistentGenesis() public view {
@@ -409,7 +524,7 @@ contract GenesisSecuredCreditTest is Test {
         uint256 treasuryBefore = treasury.balance;
 
         vm.prank(alice);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 1 ether);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(1);
 
         assertEq(vault.reserveETH() - reserveBefore, 0.0003 ether);
         assertEq(treasury.balance - treasuryBefore, 0.0027 ether);
@@ -437,13 +552,13 @@ contract GenesisSecuredCreditTest is Test {
 
         vm.warp(uint256(maturity) - 1);
         vm.prank(bob);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(2, 1 ether);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(2);
         assertEq(vault.credit(2).maturity, uint256(maturity) + 30 days);
 
         vm.warp(uint256(maturity) + 1);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditExpired.selector, 1, maturity));
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, MAX_PRINCIPAL);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(1);
 
         vm.startPrank(alice);
         statics.approve(address(vault), MAX_PRINCIPAL);
@@ -521,6 +636,41 @@ contract GenesisSecuredCreditTest is Test {
         vm.prank(bob);
         distributor.claimGenesis(2, address(statics), bob);
         assertEq(statics.balanceOf(bob) - bobBefore, 7_200 ether);
+    }
+
+    function testRecoveryAfterDrawAndRepayUsesCurrentPrincipalAndExactResidualSplit() public {
+        _buyGenesis(alice, 1);
+        _buyGenesis(bob, 2);
+        vm.prank(alice);
+        distributor.registerGenesis(1);
+        vm.prank(bob);
+        distributor.registerGenesis(2);
+
+        vm.startPrank(alice);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 50_000 ether);
+        statics.approve(address(vault), 30_000 ether);
+        vault.repayGenesisCredit(1, 30_000 ether);
+        vm.stopPrank();
+
+        assertEq(vault.credit(1).principal, 120_000 ether);
+        GenesisCreditRecoveryQuote memory quote = vault.quoteGenesisCreditRecovery(1);
+        assertEq(quote.unusedCredit, 51_000 ether);
+        assertEq(quote.callerIncentive, 1_800 ether);
+        assertEq(quote.genesisDistribution, 7_200 ether);
+        uint256 aliceBefore = statics.balanceOf(alice);
+        uint256 keeperBefore = statics.balanceOf(keeper);
+
+        vm.warp(uint256(quote.recoverableAt) + 1);
+        vm.prank(keeper);
+        vault.recoverGenesisCredit(1);
+
+        assertEq(statics.balanceOf(alice) - aliceBefore, 51_000 ether);
+        assertEq(statics.balanceOf(keeper) - keeperBefore, 1_800 ether);
+        assertEq(distributor.pendingGenesis(2, address(statics)), 7_200 ether);
+        assertEq(vault.tokenBacking(), INITIAL_BACKING + PRICE);
+        assertEq(vault.requiredBacking(), INITIAL_BACKING + PRICE);
+        assertEq(vault.totalOutstandingGenesisCredit(), 0);
     }
 
     function testSmallPrincipalRecoveryReturnsUnusedCapacity() public {
@@ -830,7 +980,7 @@ contract GenesisSecuredCreditTest is Test {
         assertEq(activationRegistry.tierOf(1), 1);
     }
 
-    function testGovernedFeeSplitUsesExactRoundingAndPauseOnlyStopsOpening() public {
+    function testGovernedFeeSplitUsesExactRoundingAndPauseStopsCreditIncreases() public {
         _buyGenesis(alice, 1);
         vm.startPrank(governance);
         vault.setCreditOriginationFee(10_001 wei);
@@ -845,11 +995,14 @@ contract GenesisSecuredCreditTest is Test {
         assertEq(treasury.balance - treasuryBefore, 9_001 wei);
 
         vm.prank(governance);
-        vault.setCreditOriginationsPaused(true);
+        vault.setCreditIncreasesPaused(true);
         _buyGenesis(bob, 2);
         vm.prank(bob);
-        vm.expectRevert(StaticsGenesisVault.CreditOriginationsPaused.selector);
+        vm.expectRevert(StaticsGenesisVault.CreditIncreasesPaused.selector);
         vault.openGenesisCredit{value: 10_001 wei}(2, 1 ether);
+        vm.prank(alice);
+        vm.expectRevert(StaticsGenesisVault.CreditIncreasesPaused.selector);
+        vault.drawGenesisCredit{value: 10_001 wei}(1, 1 ether);
 
         statics.transfer(bob, 10_000 ether);
         vm.startPrank(bob);
@@ -877,7 +1030,7 @@ contract GenesisSecuredCreditTest is Test {
         vm.prank(governance);
         vault.setCreditServiceFeeSplit(10_000, 0);
         vm.prank(alice);
-        vault.extendGenesisCredit{value: 10_001 wei}(1, 1 ether);
+        vault.extendGenesisCredit{value: 10_001 wei}(1);
         assertEq(vault.reserveETH() - reserveBefore, 10_001 wei);
         assertEq(treasury.balance - treasuryBefore, 10_001 wei);
 
@@ -886,7 +1039,7 @@ contract GenesisSecuredCreditTest is Test {
         assertEq(vault.reserveETH() - reserveBefore, 10_124 wei);
     }
 
-    function testPausedOriginationsKeepRepaymentAndRecoveryLive() public {
+    function testPausedCreditIncreasesKeepRepaymentExtensionAndRecoveryLive() public {
         _buyGenesis(alice, 1);
         _buyGenesis(bob, 2);
         vm.prank(alice);
@@ -894,7 +1047,11 @@ contract GenesisSecuredCreditTest is Test {
         vm.prank(bob);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(2, 20_000 ether);
         vm.prank(governance);
-        vault.setCreditOriginationsPaused(true);
+        vault.setCreditIncreasesPaused(true);
+        uint40 maturityBefore = vault.credit(2).maturity;
+        vm.prank(bob);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(2);
+        assertEq(vault.credit(2).maturity, uint256(maturityBefore) + 30 days);
 
         vm.startPrank(alice);
         statics.approve(address(vault), 10_000 ether);

@@ -49,18 +49,6 @@ struct GenesisCreditRecoveryQuote {
     uint40 recoverableAt;
 }
 
-struct GenesisCreditAdjustmentQuote {
-    uint256 currentPrincipal;
-    uint256 newPrincipal;
-    uint256 amountToOwner;
-    uint256 amountFromOwner;
-    uint256 totalNativeFee;
-    uint16 reserveShareBps;
-    uint16 treasuryShareBps;
-    uint256 reservePortion;
-    uint256 treasuryPortion;
-}
-
 /// @notice Full snapshot of Genesis Vault STATICS and native ETH reserve accounting.
 struct GenesisVaultAccounting {
     uint256 vaultPrice;
@@ -124,13 +112,8 @@ interface IStaticsGenesisVault {
     event GenesisCreditExtended(
         uint256 indexed genesisId, address indexed owner, uint40 previousMaturity, uint40 newMaturity, uint256 nativeFee
     );
-    event GenesisCreditPrincipalAdjusted(
-        uint256 indexed genesisId,
-        address indexed owner,
-        uint256 previousPrincipal,
-        uint256 newPrincipal,
-        uint256 amountToOwner,
-        uint256 amountFromOwner
+    event GenesisCreditDrawn(
+        uint256 indexed genesisId, address indexed owner, uint256 amount, uint256 newPrincipal, uint256 nativeFee
     );
     event GenesisCreditRepaid(
         uint256 indexed genesisId,
@@ -157,7 +140,7 @@ interface IStaticsGenesisVault {
         uint16 newReserveShareBps,
         uint16 newTreasuryShareBps
     );
-    event CreditOriginationsPausedSet(bool paused);
+    event CreditIncreasesPausedSet(bool paused);
 
     /// @notice Purchases a vault-held Genesis for the fixed STATICS price.
     /// @dev Excess native value is refunded; the acquisition fee always increases the reserve.
@@ -184,11 +167,15 @@ interface IStaticsGenesisVault {
     /// @param genesisId Genesis token ID.
     /// @param principal Principal advanced in STATICS wei.
     function openGenesisCredit(uint256 genesisId, uint256 principal) external payable;
-    /// @notice Extends or adjusts an active Genesis credit.
+    /// @notice Increases utilization for an active Genesis credit.
+    /// @dev `msg.value` must equal the configured origination fee.
+    /// @param genesisId Genesis token ID.
+    /// @param amount Additional principal in STATICS wei.
+    function drawGenesisCredit(uint256 genesisId, uint256 amount) external payable;
+    /// @notice Extends the maturity of an active Genesis credit.
     /// @dev `msg.value` must equal the configured extension fee.
     /// @param genesisId Genesis token ID.
-    /// @param newPrincipal New principal in STATICS wei.
-    function extendGenesisCredit(uint256 genesisId, uint256 newPrincipal) external payable;
+    function extendGenesisCredit(uint256 genesisId) external payable;
     /// @notice Repays part or all of an active credit; permissionless for the payer.
     /// @param genesisId Genesis token ID.
     /// @param amount Repayment amount in STATICS wei.
@@ -200,7 +187,7 @@ interface IStaticsGenesisVault {
     function setCreditExtensionFee(uint256 newFee) external;
     function setRecoveryCallerShareBps(uint16 newShareBps) external;
     function setCreditServiceFeeSplit(uint16 reserveShareBps, uint16 treasuryShareBps) external;
-    function setCreditOriginationsPaused(bool paused) external;
+    function setCreditIncreasesPaused(bool paused) external;
 
     function quoteGenesisPurchase() external view returns (GenesisPurchaseQuote memory quote);
     function quoteGenesisRedemption() external view returns (GenesisRedemptionQuote memory quote);
@@ -233,10 +220,6 @@ interface IStaticsGenesisVault {
         external
         view
         returns (GenesisCreditServiceQuote memory quote);
-    function quoteGenesisCreditAdjustment(uint256 genesisId, uint256 newPrincipal)
-        external
-        view
-        returns (GenesisCreditAdjustmentQuote memory quote);
     function quoteGenesisCreditRecovery(uint256 genesisId)
         external
         view
@@ -248,5 +231,5 @@ interface IStaticsGenesisVault {
     function recoveryCallerShareBps() external view returns (uint16);
     function creditServiceReserveShareBps() external view returns (uint16);
     function creditServiceTreasuryShareBps() external view returns (uint16);
-    function creditOriginationsPaused() external view returns (bool);
+    function creditIncreasesPaused() external view returns (bool);
 }

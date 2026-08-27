@@ -106,37 +106,31 @@ contract GenesisCreditRepresentativeTest is Test {
         check_extensionOnlyChangesMaturityAndFeeAccounting(90_000 ether);
     }
 
-    function testCreditPrincipalAdjustmentRepresentative() public {
+    function testCreditDrawRepresentative() public {
         vm.prank(alice);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(1, 100_000 ether);
         uint256 backingBefore = vault.tokenBacking();
         uint256 outstandingBefore = vault.totalOutstandingGenesisCredit();
         uint256 aliceBefore = statics.balanceOf(alice);
+        uint256 reserveBefore = vault.reserveETH();
+        uint256 treasuryBefore = treasury.balance;
+        uint40 maturityBefore = vault.credit(1).maturity;
 
         vm.prank(alice);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 120_000 ether);
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, 20_000 ether);
+
         assertEq(vault.credit(1).principal, 120_000 ether);
+        assertEq(vault.credit(1).maturity, maturityBefore);
         assertEq(vault.tokenBacking(), backingBefore - 20_000 ether);
         assertEq(vault.totalOutstandingGenesisCredit(), outstandingBefore + 20_000 ether);
         assertEq(statics.balanceOf(alice), aliceBefore + 20_000 ether);
-
-        vm.startPrank(alice);
-        statics.approve(address(vault), 70_000 ether);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, 50_000 ether);
-        vm.stopPrank();
-        assertEq(vault.credit(1).principal, 50_000 ether);
-        assertEq(vault.tokenBacking(), backingBefore + 50_000 ether);
-        assertEq(vault.totalOutstandingGenesisCredit(), outstandingBefore - 50_000 ether);
-
-        vm.prank(alice);
-        statics.approve(address(vault), 50_000 ether);
-        vm.prank(alice);
-        vault.repayGenesisCredit(1, 50_000 ether);
-        assertFalse(vault.creditActive(1));
+        uint256 reserveFee = Math.mulDiv(ORIGINATION_FEE, 1_000, 10_000);
+        assertEq(vault.reserveETH() - reserveBefore, reserveFee);
+        assertEq(treasury.balance - treasuryBefore, ORIGINATION_FEE - reserveFee);
     }
 
     function testCreditRecoveryRepresentative() public {
-        check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(90_000 ether);
+        check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(90_000 ether, 30_000 ether, 20_000 ether);
     }
 
     function testCreditFeeSplitRepresentative() public {
@@ -187,7 +181,7 @@ contract GenesisCreditRepresentativeTest is Test {
         uint256 treasuryBefore = treasury.balance;
 
         vm.prank(alice);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(1, principal);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(1);
 
         GenesisCreditView memory afterExtension = vault.credit(1);
         assertEq(afterExtension.owner, beforeExtension.owner);
@@ -201,13 +195,29 @@ contract GenesisCreditRepresentativeTest is Test {
         assertEq(treasury.balance - treasuryBefore, EXTENSION_FEE - reserveFee);
     }
 
-    function check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(uint256 principal) public {
-        vm.assume(principal <= type(uint96).max);
-        vm.assume(principal > 0 && principal <= vault.MAX_CREDIT_PRINCIPAL());
+    function check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(
+        uint256 initialPrincipal,
+        uint256 drawAmount,
+        uint256 repayment
+    ) public {
+        vm.assume(initialPrincipal > 0 && initialPrincipal <= vault.MAX_CREDIT_PRINCIPAL());
+        vm.assume(drawAmount <= vault.MAX_CREDIT_PRINCIPAL() - initialPrincipal);
+        vm.assume(repayment > 0 && repayment < initialPrincipal + drawAmount);
         vm.prank(alice);
-        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, principal);
+        vault.openGenesisCredit{value: ORIGINATION_FEE}(1, initialPrincipal);
+        if (drawAmount != 0) {
+            vm.prank(alice);
+            vault.drawGenesisCredit{value: ORIGINATION_FEE}(1, drawAmount);
+        }
+        vm.prank(alice);
+        vault.repayGenesisCredit(1, repayment);
+
+        uint256 currentPrincipal = initialPrincipal + drawAmount - repayment;
+        assertEq(vault.credit(1).principal, currentPrincipal);
         GenesisCreditRecoveryQuote memory quote = vault.quoteGenesisCreditRecovery(1);
-        assertEq(quote.unusedCredit + quote.callerIncentive + quote.genesisDistribution, 180_000 ether - principal);
+        assertEq(
+            quote.unusedCredit + quote.callerIncentive + quote.genesisDistribution, 180_000 ether - currentPrincipal
+        );
         uint256 backingBefore = vault.tokenBacking();
         uint256 custodyBefore = statics.balanceOf(address(vault));
         uint256 grossBefore = vault.grossBacking();
@@ -222,8 +232,8 @@ contract GenesisCreditRepresentativeTest is Test {
         assertFalse(vault.creditActive(1));
         assertEq(vault.totalOutstandingGenesisCredit(), 0);
         assertEq(vault.grossBacking(), grossBefore - vault.GENESIS_PRICE());
-        assertEq(vault.tokenBacking(), backingBefore - (vault.GENESIS_PRICE() - principal));
-        assertEq(statics.balanceOf(address(vault)), custodyBefore - (vault.GENESIS_PRICE() - principal));
+        assertEq(vault.tokenBacking(), backingBefore - (vault.GENESIS_PRICE() - currentPrincipal));
+        assertEq(statics.balanceOf(address(vault)), custodyBefore - (vault.GENESIS_PRICE() - currentPrincipal));
         assertEq(statics.balanceOf(alice) - aliceBefore, quote.unusedCredit);
         assertEq(statics.balanceOf(keeper) - keeperBefore, quote.callerIncentive);
         assertEq(distributor.effectiveWeight(1), 0);
@@ -286,38 +296,45 @@ contract GenesisCreditHalmosTest is SymTest, Test {
         assertEq(reserveFee + treasuryFee, EXTENSION_FEE);
     }
 
-    function check_principalAdjustmentConservesAccounting(uint256 currentSeed, uint256 targetSeed) public pure {
+    function check_repeatedDrawRepayRestoresCapacity(uint256 currentSeed, uint256 drawSeed, uint256 repaymentSeed)
+        public
+        pure
+    {
         uint256 currentPrincipal = currentSeed % (MAX_CREDIT_PRINCIPAL - 1) + 1;
-        uint256 newPrincipal = targetSeed % MAX_CREDIT_PRINCIPAL + 1;
-        uint256 backing = GENESIS_PRICE - currentPrincipal;
-        uint256 outstanding = currentPrincipal;
+        uint256 capacityBeforeDraw = MAX_CREDIT_PRINCIPAL - currentPrincipal;
+        uint256 drawAmount = drawSeed % capacityBeforeDraw + 1;
+        uint256 principalAfterDraw = currentPrincipal + drawAmount;
+        uint256 capacityAfterDraw = MAX_CREDIT_PRINCIPAL - principalAfterDraw;
+        uint256 repayment = repaymentSeed % principalAfterDraw + 1;
+        uint256 principalAfterRepay = principalAfterDraw - repayment;
+        uint256 capacityAfterRepay = MAX_CREDIT_PRINCIPAL - principalAfterRepay;
+        uint256 principalAfterRedraw = principalAfterRepay + repayment;
 
-        if (newPrincipal > currentPrincipal) {
-            uint256 increase = newPrincipal - currentPrincipal;
-            backing -= increase;
-            outstanding += increase;
-        } else {
-            uint256 decrease = currentPrincipal - newPrincipal;
-            backing += decrease;
-            outstanding -= decrease;
-        }
-
-        assertEq(backing + outstanding, GENESIS_PRICE);
-        assertEq(outstanding, newPrincipal);
-        assertLe(newPrincipal, MAX_CREDIT_PRINCIPAL);
-        assertGt(newPrincipal, 0);
+        assertLe(principalAfterDraw, MAX_CREDIT_PRINCIPAL);
+        assertEq(capacityAfterRepay, capacityAfterDraw + repayment);
+        assertEq(principalAfterRedraw, principalAfterDraw);
+        assertLe(principalAfterRedraw, MAX_CREDIT_PRINCIPAL);
     }
 
-    function check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(uint256 principalSeed) public pure {
-        uint256 principal = principalSeed % MAX_CREDIT_PRINCIPAL + 1;
-        uint256 unusedCredit = MAX_CREDIT_PRINCIPAL - principal;
+    function check_recoveryConservesResidualAndRemovesWeightBeforeIndexing(
+        uint256 initialSeed,
+        uint256 drawSeed,
+        uint256 repaymentSeed
+    ) public pure {
+        uint256 initialPrincipal = initialSeed % (MAX_CREDIT_PRINCIPAL - 1) + 1;
+        uint256 drawAmount = drawSeed % (MAX_CREDIT_PRINCIPAL - initialPrincipal + 1);
+        uint256 principalAfterDraw = initialPrincipal + drawAmount;
+        uint256 repayment = repaymentSeed % principalAfterDraw;
+        uint256 currentPrincipal = principalAfterDraw - repayment;
+        uint256 unusedCredit = MAX_CREDIT_PRINCIPAL - currentPrincipal;
         uint256 callerIncentive = Math.mulDiv(RECOVERY_RESIDUAL, 2_000, BPS);
         uint256 genesisDistribution = RECOVERY_RESIDUAL - callerIncentive;
         uint256 totalWeightBefore = 25_000;
         uint256 defaultedWeight = 12_500;
         uint256 totalWeightAtIndexing = totalWeightBefore - defaultedWeight;
 
-        assertEq(unusedCredit + callerIncentive + genesisDistribution, GENESIS_PRICE - principal);
+        assertGt(currentPrincipal, 0);
+        assertEq(unusedCredit + callerIncentive + genesisDistribution, GENESIS_PRICE - currentPrincipal);
         assertEq(totalWeightAtIndexing, 12_500);
         assertEq(genesisDistribution, RECOVERY_RESIDUAL - callerIncentive);
     }

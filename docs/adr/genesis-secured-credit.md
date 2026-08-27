@@ -2,7 +2,8 @@
 
 - Status: Accepted and implemented
 - Date: 2026-08-23
-- Scope: Genesis secured credit, partial access to isolated STATICS backing, reserve-capitalizing native origination and extension service fees, continued Genesis rewards while encumbered, fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
+- Implementation amendment: 2026-08-27 — separates charged principal draws from time-only extensions and makes repaid capacity reusable
+- Scope: Genesis secured credit, reusable current-principal capacity, charged redraws, isolated STATICS backing, reserve-capitalizing native service fees, continued Genesis rewards while encumbered, time-only fixed-term extension, permissionless incentivized recovery, and recovery-surplus distribution
 - Amends: `genesis-reserve-backed-vault.md`
 - Extends: the self-backed credit lifecycle established by Position-owned BasketToken lending
 - Preserves: 5,555 fixed Genesis supply, 180,000 STATICS gross backing per circulating Genesis, fixed 1,000,000,000 STATICS supply, post-epoch native ETH reserve rights, activation multipliers, transfer-reset activation, post-epoch reserve buy-in, permanent reserve accounting, and ordinary Genesis acquisition and redemption
@@ -41,7 +42,7 @@ Principal and backing are denominated in the same asset.
 
 The credit facility is not intended to make Genesis economically inactive. The holder remains the beneficial owner while credit is outstanding and continues receiving the Genesis benefits and privileges that would apply if the credit did not exist.
 
-The protocol charges native service fees for opening and extending this secured-liquidity state. No additional STATICS principal accrues as a function of time.
+The protocol charges native service fees for opening, drawing additional principal, and extending this secured-liquidity state. No additional STATICS principal accrues as a function of time.
 
 ## Decision summary
 
@@ -69,7 +70,7 @@ The owner selects:
 
 and pays the configured native origination service fee.
 
-Each origination and extension service fee uses the current governed split:
+Each opening and draw charges the current origination service fee. Each extension charges the current extension service fee. Every service fee uses the current governed split:
 
 ```text
 10% -> permanent Genesis ETH reserve backing
@@ -90,28 +91,35 @@ The credit lifecycle is:
 open
     |
     v
-fixed maturity
+fixed maturity + current principal
+    |
+    +--> draw within current available capacity
+    |       |
+    |       v
+    |   principal increases; maturity is unchanged
     |
     +--> repay any principal amount
+    |       |
+    |       +--> capacity restores one-for-one
     |       |
     |       +--> remaining principal > 0: credit stays active and locked
     |       |
     |       +--> remaining principal = 0: credit closes, Genesis unlocks
     |
-    +--> accept current extension service fee and choose target principal
+    +--> accept current extension service fee
     |       |
     |       v
-    |   maturity += one service term; transfer or pull only the delta
+    |   maturity += one service term; principal is unchanged
     |       |
     |       +--> may repeat
     |
     +--> maturity + grace expires
             |
             v
-      permissionless recovery
+      permissionless recovery of current principal
 ```
 
-Opening, extending, or repaying secured credit does not reset Genesis activation, remove reward eligibility, remove the activation multiplier, withdraw ETH reserve backing, or transfer ownership.
+Opening, drawing, extending, or repaying secured credit does not reset Genesis activation, remove reward eligibility, remove the activation multiplier, withdraw ETH reserve backing, or transfer ownership.
 
 Recovery ends beneficial ownership. The fixed 9,000-STATICS recovery residual
 pays a configured incentive to the permissionless caller and routes the
@@ -188,11 +196,11 @@ There is no floating borrow limit.
 
 The 95% maximum is a property of the 180,000-STATICS backing relationship.
 
-Each Genesis still has at most one active facility, but that facility has a mutable
-current principal. The owner may select a new target principal while extending:
-an increase transfers only the difference, while a decrease pulls only the
-difference back into the vault. This keeps the one-facility model without
-introducing recursive loans or a second credit record.
+Each Genesis has at most one active facility with mutable current principal and
+fixed maximum current utilization. The owner may draw additional principal
+without changing maturity, and any payer may repay principal to restore the same
+capacity one-for-one. The 171,000-STATICS limit applies to current outstanding
+principal, not cumulative draws during a service term.
 
 ## Origination
 
@@ -401,6 +409,43 @@ Opening a credit facility for principal `B` atomically:
 The transaction reverts atomically if the fee cannot be split exactly, the
 treasury portion cannot be transferred, the reserve portion cannot be
 accounted, or the vault cannot transfer the exact principal.
+## Draw service
+
+At or before maturity, the current Genesis owner may increase an active
+facility's principal by drawing against current available capacity.
+
+Each successful draw is a separate principal-increasing service action. It
+charges exactly the current `creditOriginationFee` and applies the current
+reserve/treasury service-fee split. Integrations quote a draw amount with
+`quoteGenesisCredit(amount)`, `creditOriginationFee()`, and
+`creditAvailable(genesisId)`; there is no redundant draw-quote endpoint.
+
+For current principal `B`, draw amount `A`, and retained `tokenBacking`:
+
+```text
+remaining capacity = 171,000 - B
+creditAvailable = min(remaining capacity, tokenBacking)
+
+0 < A <= remaining capacity
+A <= tokenBacking
+```
+
+A successful draw atomically:
+
+1. records principal `B + A`;
+2. increases aggregate outstanding Genesis principal by `A`;
+3. reduces recognized retained backing by `A`;
+4. accounts and transfers the exact current origination service fee split;
+5. transfers exactly `A` STATICS to the owner; and
+6. verifies post-operation solvency.
+
+Drawing does not change maturity, activation, reward state, protocol links, or
+lock state. The facility is active and locked before and after the draw.
+
+There is no cumulative draw counter. Repayment restores the same current
+capacity one-for-one, and a later redraw may reuse it while current principal
+never exceeds 171,000 STATICS.
+
 
 ## Service term
 
@@ -454,37 +499,24 @@ repayment rights
 recovery grace
 ```
 
-It changes only the price at which the owner may purchase a later service term
-and, optionally, the facility's target principal.
+It changes only the price at which the owner may purchase a later service term.
 
-A successful extension with target principal `N` performs exactly:
+A successful extension performs exactly:
 
 ```text
 maturity += 30 days
 
-if N > current principal:
-    vault -> owner: N - current principal
+reserveETH += current extension fee reserve portion
 
-if N < current principal:
-    owner -> vault: current principal - N
-
-reserveETH += current fee reserve portion
-
-current fee treasury portion
+current extension fee treasury portion
     -> canonical Statics treasury
 ```
 
-The target must remain nonzero and no greater than the fixed maximum. An equal
-target is a fee-only extension. The extension does not calculate a fee from:
+Extension is time-only. It does not transfer STATICS or modify principal,
+aggregate outstanding principal, retained STATICS backing, activation, rewards,
+protocol links, or lock state. Principal changes only through draw, repayment,
+or recovery.
 
-```text
-principal
-STATICS price
-Genesis price
-utilization percentage
-elapsed seconds
-remaining term
-```
 
 The extension fee purchases another full secured-access service term.
 
@@ -538,8 +570,9 @@ A successful repayment of amount `A`:
 7. leaves the Genesis with its current owner.
 
 Partial repayment therefore keeps the facility active and the Genesis locked.
-The owner may later repay the remainder or extend to a different target
-principal before recovery.
+It restores `creditAvailable` by exactly the amount repaid, subject to current
+`tokenBacking`. The owner may later redraw that restored capacity, repay the
+remainder, or extend the maturity before recovery.
 
 Repayment does not refund previously paid native service fees.
 
@@ -860,7 +893,7 @@ capability acknowledgement, and each callback must leave
 
 ## Native service-fee split
 
-Origination and extension payments are service revenue.
+Origination, draw, and extension payments are service revenue.
 
 The initial split is:
 
@@ -945,6 +978,12 @@ During open credit:
 ```text
 reserveETH increases by the origination fee reserve portion
 ```
+During draw:
+
+```text
+reserveETH increases by the origination fee reserve portion
+```
+
 
 During extension:
 
@@ -1000,18 +1039,19 @@ alone cannot fund the next acquisition.
 
 ## Pauses and liveness
 
-Governance may pause new Genesis credit origination.
+Governance may set `creditIncreasesPaused`.
 
-Repayment must remain available while origination is paused.
+While credit increases are paused:
 
-Permissionless recovery and its configured caller incentive must remain
-available while origination is paused.
+```text
+openGenesisCredit -> reverts
+drawGenesisCredit -> reverts
+creditAvailable -> zero
+```
 
-Ordinary Genesis redemption remains unavailable for a credit-locked Genesis until the credit is repaid or recovered.
-
-Extension may have an independent pause if required by the existing protocol pause model, but pausing extension must never prevent principal repayment.
-
-A pause cannot confiscate credit collateral.
+Repayment, permissionless recovery, and time-only extension remain available.
+The pause cannot confiscate collateral, prevent risk reduction, or prevent
+resolution of an expired facility.
 
 ## Views
 
@@ -1022,18 +1062,18 @@ creditLimit(genesisId)
 credit(genesisId)
 creditActive(genesisId)
 creditRecoverableAt(genesisId)
-quoteGenesisCredit(principal)
+quoteGenesisCredit(principalOrDrawAmount)
 quoteGenesisCreditExtension(genesisId)
-quoteGenesisCreditAdjustment(genesisId, newPrincipal)
 creditAvailable(genesisId)
 quoteGenesisCreditRecovery(genesisId)
 totalOutstandingGenesisCredit()
 recoveryCallerShareBps()
 creditServiceReserveShareBps()
 creditServiceTreasuryShareBps()
+creditIncreasesPaused()
 ```
 
-Origination and extension quotes should report at minimum:
+Origination, draw, and extension service quotes report:
 
 ```text
 total native service fee
@@ -1053,9 +1093,13 @@ recoverableAt
 active
 ```
 
-An adjustment quote should additionally report the current and target
-principal, the STATICS delta to the owner or from the owner, and the exact
-extension-fee split.
+`creditAvailable(genesisId)` is zero unless the vault is finalized, the Genesis
+exists outside vault custody, the facility is active and unexpired, and credit
+increases are not paused. Otherwise it returns:
+
+```text
+min(171,000 STATICS - current principal, tokenBacking)
+```
 
 A recovery quote should report at minimum:
 
@@ -1150,6 +1194,24 @@ service fee reserve portion
 
 opening credit increases reserveETH by exactly
 the quoted origination fee reserve portion
+each draw charges exactly the current origination fee
+
+draw increases principal and aggregate outstanding principal
+by exactly the requested amount
+
+draw reduces retained STATICS backing by exactly
+the requested amount
+
+draw does not modify maturity, activation, rewards, links, or lock state
+
+draw is available at block.timestamp == maturity
+
+draw is unavailable when block.timestamp > maturity
+
+repayment restores draw capacity one-for-one
+
+current principal, not cumulative draws, is bounded by 171,000 STATICS
+
 
 extension does not modify principal
 
@@ -1176,9 +1238,9 @@ an extension-fee change does not modify an already-purchased term
 a service-fee split change does not reallocate past payments
 or reduce previously accounted reserveETH
 
-service fees never increase STATICS principal
+service-fee accounting alone never changes STATICS principal
 
-repayment restores exactly stored principal
+repayment reduces principal and restores retained backing exactly
 
 repayment closes credit without resetting activation
 
@@ -1241,18 +1303,36 @@ Real-flow tests must cover at minimum:
 
 ```text
 post-epoch Genesis acquisition
-    -> open small credit
+    -> open 100,000 STATICS credit
     -> 10% of origination fee enters reserveETH
     -> 90% of origination fee reaches treasury
-    -> continue earning rewards
+    -> permissionless payer repays 40,000 STATICS
+    -> available capacity increases by 40,000 STATICS
+    -> owner draws 20,000 STATICS with the current origination fee
+    -> current principal is 80,000 STATICS
+    -> maturity, activation, rewards, links, and lock state remain unchanged
     -> extension fee changes
-    -> current principal and purchased term remain unchanged
     -> exact current extension quote accepted
-    -> extend
+    -> time-only extension adds 30 days
+    -> principal remains 80,000 STATICS
     -> 10% of extension fee enters reserveETH
     -> 90% of extension fee reaches treasury
-    -> repay
+    -> repay remaining principal
     -> transfer Genesis
+
+repeated utilization
+    -> draw within current capacity
+    -> partial repayment restores capacity one-for-one
+    -> redraw restored capacity
+    -> cumulative draws may exceed 171,000 STATICS
+    -> current principal never exceeds 171,000 STATICS
+    -> full repayment closes the facility and unlocks Genesis
+
+draw then partial repayment
+    -> recovery uses resulting current principal
+    -> unused capacity equals 171,000 minus current principal
+    -> caller receives exact quoted incentive
+    -> Genesis holders receive exact residual remainder
 
 governed service-fee split
     -> configure a new valid reserve/treasury pair
@@ -1343,9 +1423,12 @@ credit-active Genesis
     -> reserve donation
     -> reserve donation and service-fee capitalization remain exact
 
-paused origination
+paused credit increases
     -> new credit reverts
+    -> draw reverts
+    -> creditAvailable returns zero
     -> repayment remains live
+    -> time-only extension remains live
     -> mature incentivized recovery remains live
 ```
 
@@ -1353,11 +1436,15 @@ Boundary tests must explicitly cover:
 
 ```text
 block.timestamp == maturity - 1
+    -> draw succeeds
+    -> extension succeeds
 
 block.timestamp == maturity
+    -> draw succeeds
     -> extension succeeds
 
 block.timestamp == maturity + 1
+    -> draw reverts
     -> extension reverts
     -> repayment remains available
 
@@ -1374,6 +1461,7 @@ Fuzz and invariant suites must combine:
 Genesis acquisitions
 Genesis redemptions
 credit originations
+credit draws
 credit extensions
 credit repayments
 credit recoveries
@@ -1397,7 +1485,7 @@ The implementation must preserve the following boundaries:
 - Only the authorized Statics administration/governance path may change the service-fee split.
 - Service-fee governance may change only the reserve/treasury percentages and must preserve a 10,000-bps total.
 - Service-fee governance cannot change the fixed reserve or treasury destinations, reallocate past payments, or withdraw accounted `reserveETH`.
-- Origination and extension atomically account the exact reserve portion and transfer the exact treasury portion before completing credit state changes.
+- Origination, draw, and extension atomically account the exact reserve portion and transfer the exact treasury portion before completing their state changes.
 - Recovery has a fixed NFT destination: `StaticsGenesisVault`.
 - Any privileged foreclosure surface may transfer a recoverable Genesis only to its immutable vault.
 - Recovery cannot select an arbitrary NFT receiver.
@@ -1530,15 +1618,15 @@ External price information adds liquidation and oracle risk without improving so
 
 Rejected.
 
-The stored principal remains constant.
-
-Time is purchased through separate native service fees.
+Stored principal does not increase merely because time passes. Principal changes
+only through draw, repayment, or recovery; time is purchased through a separate
+native extension service fee.
 
 ### Refund service fees after early repayment
 
 Rejected.
 
-Origination and extension fees purchase access to the secured-credit service for the applicable term.
+Origination and draw fees purchase principal-increasing service actions; extension fees purchase additional service time.
 
 Choosing to stop using the service early does not reverse the completed service purchase.
 

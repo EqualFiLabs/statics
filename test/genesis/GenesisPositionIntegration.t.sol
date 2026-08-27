@@ -282,7 +282,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         assertEq(globalRewards.stakePosition(positionId).rewardMultiplierBps, 10_000);
     }
 
-    function testCreditOpenExtendAndRepayPreserveLinkAndMultiplier() external {
+    function testCreditDrawExtensionAndRepayPreserveLinkMultiplierAndRewards() external {
         _buyGenesis(alice, 7);
         _activate(alice, 7, 4);
         uint256 positionId = _createPosition(alice);
@@ -290,11 +290,32 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         integration.linkGenesis(positionId, 7);
         vm.warp(epochEnd);
 
-        vm.startPrank(alice);
+        vm.prank(alice);
         vault.openGenesisCredit{value: ORIGINATION_FEE}(7, 100_000 ether);
-        vault.extendGenesisCredit{value: EXTENSION_FEE}(7, 100_000 ether);
-        stakingAsset.approve(address(vault), 100_000 ether);
-        vault.repayGenesisCredit(7, 100_000 ether);
+        uint40 maturityBefore = vault.credit(7).maturity;
+        uint256 pendingBefore = integration.pendingGenesisRewards(7, address(stakingAsset));
+        vm.prank(alice);
+        IStaticsGlobalRewards.StakePositionView memory stakeBefore = globalRewards.stakePosition(positionId);
+
+        vm.prank(alice);
+        vault.drawGenesisCredit{value: ORIGINATION_FEE}(7, 20_000 ether);
+
+        assertEq(vault.credit(7).principal, 120_000 ether);
+        assertEq(vault.credit(7).maturity, maturityBefore);
+        assertEq(integration.linkedPosition(7), positionId);
+        assertEq(integration.linkedGenesis(positionId), 7);
+        assertEq(integration.pendingGenesisRewards(7, address(stakingAsset)), pendingBefore);
+        assertTrue(genesis.locked(7));
+        assertTrue(IERC5192(address(diamond)).locked(positionId));
+        vm.prank(alice);
+        IStaticsGlobalRewards.StakePositionView memory stakeAfterDraw = globalRewards.stakePosition(positionId);
+        assertEq(stakeAfterDraw.stakedBalance, stakeBefore.stakedBalance);
+        assertEq(stakeAfterDraw.rewardMultiplierBps, stakeBefore.rewardMultiplierBps);
+
+        vm.startPrank(alice);
+        vault.extendGenesisCredit{value: EXTENSION_FEE}(7);
+        stakingAsset.approve(address(vault), 120_000 ether);
+        vault.repayGenesisCredit(7, 120_000 ether);
         vm.stopPrank();
 
         assertFalse(vault.creditActive(7));

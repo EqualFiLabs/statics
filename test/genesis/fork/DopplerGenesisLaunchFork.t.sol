@@ -464,7 +464,7 @@ contract DopplerGenesisLaunchForkTest is Test {
         uint256 originationFee = vault.creditOriginationFee();
         uint256 extensionFee = vault.creditExtensionFee();
         address owner = makeAddr("forkGenesisOwner");
-        vm.deal(owner, originationFee + extensionFee);
+        vm.deal(owner, 2 * originationFee + extensionFee);
         vm.prank(treasury);
         genesis.transferFrom(treasury, owner, 1);
         vm.prank(treasury);
@@ -495,10 +495,13 @@ contract DopplerGenesisLaunchForkTest is Test {
         vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditAlreadyActive.selector, 1));
         vault.redeemGenesis(1, owner);
         uint40 maturityBefore = vault.credit(1).maturity;
-        vault.extendGenesisCredit{value: extensionFee}(1, 100_000 ether);
+        vault.drawGenesisCredit{value: originationFee}(1, 20_000 ether);
+        assertEq(vault.credit(1).principal, 120_000 ether);
+        assertEq(vault.credit(1).maturity, maturityBefore);
+        vault.extendGenesisCredit{value: extensionFee}(1);
         assertEq(vault.credit(1).maturity, maturityBefore + 30 days);
-        statics.approve(address(vault), 100_000 ether);
-        vault.repayGenesisCredit(1, 100_000 ether);
+        statics.approve(address(vault), 120_000 ether);
+        vault.repayGenesisCredit(1, 120_000 ether);
         vm.stopPrank();
         assertEq(vault.totalOutstandingGenesisCredit(), 0);
         assertFalse(genesis.locked(1));
@@ -544,19 +547,25 @@ contract DopplerGenesisLaunchForkTest is Test {
         uint256 originationFee = vault.creditOriginationFee();
         uint256 extensionFee = vault.creditExtensionFee();
         uint256 maximumPrincipal = vault.MAX_CREDIT_PRINCIPAL();
-        vm.deal(successor, 2 * originationFee + extensionFee);
+        vm.deal(successor, 2 * originationFee + 2 * extensionFee);
         vm.prank(successor);
         vm.expectRevert(
             abi.encodeWithSelector(StaticsGenesisVault.InvalidCreditPrincipal.selector, maximumPrincipal + 1)
         );
         vault.openGenesisCredit{value: originationFee}(1, maximumPrincipal + 1);
-        vm.prank(successor);
-        vault.openGenesisCredit{value: originationFee}(1, maximumPrincipal);
+        vm.startPrank(successor);
+        vault.openGenesisCredit{value: originationFee}(1, 100_000 ether);
+        vault.drawGenesisCredit{value: originationFee}(1, 20_000 ether);
+        statics.approve(address(vault), 40_000 ether);
+        vault.repayGenesisCredit(1, 40_000 ether);
+        vault.extendGenesisCredit{value: extensionFee}(1);
+        vm.stopPrank();
+        assertEq(vault.credit(1).principal, 80_000 ether);
         uint40 expiredMaturity = vault.credit(1).maturity;
         vm.warp(uint256(expiredMaturity) + 1);
         vm.prank(successor);
         vm.expectRevert(abi.encodeWithSelector(StaticsGenesisVault.CreditExpired.selector, 1, expiredMaturity));
-        vault.extendGenesisCredit{value: extensionFee}(1, maximumPrincipal);
+        vault.extendGenesisCredit{value: extensionFee}(1);
 
         address keeper = makeAddr("forkRecoveryKeeper");
         vm.warp(uint256(vault.creditRecoverableAt(1)) + 1);
