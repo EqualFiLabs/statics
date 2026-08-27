@@ -117,14 +117,19 @@ hash, the token-factory implementation, the predicted STATICS address and
 PoolId, and the exact `Airlock.create()` calldata.
 
 Prepare checks and commits this state before its two receiver CREATE
-transactions. Launch rechecks the complete artifact, dependency state,
-broadcaster nonce, deterministic addresses, pristine receiver state, and exact
-calldata immediately before its single zero-value Airlock CALL. Finalize accepts
-only that already-live token and pool, rechecks every Airlock asset-data field
-and allocation, and requires the prepared receiver and vesting state to remain
-pristine before broadcasting post-launch wiring. WETH remains governed
-upstream after deployment, so later role or upgrade changes remain an explicit
-continuing dependency.
+transactions. When Forge executes `runLaunch()`, it rechecks the complete
+artifact, dependency state, broadcaster nonce, deterministic addresses,
+pristine receiver state, and exact calldata immediately before the typed
+zero-value Airlock CALL. The direct-sequencer ceremony uses that entrypoint only
+for trusted simulation: the separately signed raw transaction contains the
+Airlock call, not the script preflight. Sign immediately after the same-state
+simulation. If the nonce, dependency state, prepared contracts, or launch timing
+changes before submission, discard the signed transaction and repeat simulation
+and signing. Finalize accepts only that already-live token and pool, rechecks
+every Airlock asset-data field and allocation, and requires the prepared receiver
+and vesting state to remain pristine before broadcasting post-launch wiring.
+WETH remains governed upstream after deployment, so later role or upgrade
+changes remain an explicit continuing dependency.
 
 Finalize is intentionally retry-hostile. A partial Finalize consumes at least
 one broadcaster nonce; rerunning `runFinalize()` then fails before another
