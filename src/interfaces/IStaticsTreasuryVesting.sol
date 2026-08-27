@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IStaticsGenesis} from "./IStaticsGenesis.sol";
 import {IStaticsGenesisVault} from "./IStaticsGenesisVault.sol";
 
+/// @notice Non-upgradeable custody and linear vesting interface for the protocol allocation.
 interface IStaticsTreasuryVesting {
     event TreasuryVestingBootstrapped(
         address indexed statics, address indexed genesisVault, address indexed genesis, uint256 vestingStart
@@ -21,10 +22,20 @@ interface IStaticsTreasuryVesting {
         uint256 totalReleased
     );
 
+    /// @notice Sets the launch assets and starts both vesting schedules once.
+    /// @param statics STATICS token address.
+    /// @param genesisVault Genesis vault holding the initial collection inventory.
+    /// @param genesis Genesis collection holding the treasury NFTs.
     function finalizeBootstrap(address statics, address genesisVault, address genesis) external;
+    /// @notice Permissionlessly releases currently vested STATICS to the configured recipient.
     function releaseStatics() external returns (uint256 amount);
+    /// @notice Sweeps STATICS surplus after the fixed principal is fully released.
     function sweepStaticsSurplus() external returns (uint256 amount);
+    /// @notice Permissionlessly releases up to 50 currently vested Genesis NFTs.
+    /// @param maxCount Maximum number of NFTs to release in this call.
     function releaseGenesis(uint256 maxCount) external returns (uint256 count);
+    /// @notice Changes the recipient of future vesting releases.
+    /// @param newRecipient New ERC-20/ERC-721-compatible recipient.
     function setWithdrawalRecipient(address newRecipient) external;
 
     function statics() external view returns (IERC20);

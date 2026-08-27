@@ -8,6 +8,7 @@ import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol
 import {LibAvatarTraits} from "./LibAvatarTraits.sol";
 import {StaticsAvatarSVG} from "./StaticsAvatarSVG.sol";
 
+/// @notice Stateless renderer for deterministic Genesis SVG and JSON data URIs.
 contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
     using Strings for uint256;
 
@@ -20,6 +21,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         avatarSVG = avatarSVG_;
     }
 
+    /// @inheritdoc IStaticsGenesisRenderer
     function renderTokenURI(
         address collection,
         uint256 tokenId,
