@@ -43,6 +43,22 @@ interface IUniversalRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
 }
 
+interface IPoolManagerBound {
+    function poolManager() external view returns (address);
+}
+
+interface IPermit2Domain {
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+}
+
+contract ForkForceNative {
+    constructor() payable {}
+
+    function force(address payable receiver) external {
+        selfdestruct(receiver);
+    }
+}
+
 /// @notice Current-network integration proof against official Doppler deployments.
 contract DopplerGenesisLaunchForkTest is Test {
     using Planner for Plan;
@@ -223,6 +239,7 @@ contract DopplerGenesisLaunchForkTest is Test {
         _assertCode(modules.governanceFactory);
         _assertCode(modules.poolInitializer);
         _assertCode(modules.noOpMigrator);
+        if (block.chainid == 4_663) _assertRobinhoodIntegrationBindings();
 
         IERC20 weth;
         StaticsGenesisDeployment memory deployment;
@@ -252,7 +269,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 integrator: address(0),
                 modules: modules,
                 salt: keccak256(abi.encode("STATICS_DOPPLER_FORK", block.chainid, block.number)),
-                fee: 30_000,
+                fee: 15_000,
                 genesisRewardShareBps: 5_000,
                 reserveShareBps: 5_000,
                 creditOriginationFee: 0.003 ether,
@@ -298,7 +315,7 @@ contract DopplerGenesisLaunchForkTest is Test {
         }
 
         {
-            PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
+            PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 15_000);
             uint256 staticsReceived =
                 _swapWethForStatics(key, weth, deployment.statics, modules.poolInitializer, 2 ether);
             assertGe(staticsReceived, 280_000 ether, "live pool purchase did not fund Genesis lifecycle");
@@ -308,23 +325,19 @@ contract DopplerGenesisLaunchForkTest is Test {
                 _assertNativeRouterRoutes(key, deployment.statics, address(weth));
             }
         }
-
         _buyAndRegisterGenesis(vault, StaticsGenesis(deployment.genesis), distributor, treasury, address(weth));
-        _swapWethForStatics(
-            _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000),
-            weth,
-            deployment.statics,
-            modules.poolInitializer,
-            0.1 ether
-        );
+        PoolKey memory launchKey = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 15_000);
+        _swapWethForStatics(launchKey, weth, deployment.statics, modules.poolInitializer, 0.1 ether);
         _assertReserveHarvest(vault, receiver, distributor, weth);
         _assertPostEpochReserveFlows(
+            launchKey,
             vault,
             IERC20(deployment.statics),
             StaticsGenesis(deployment.genesis),
             GenesisActivationRegistry(deployment.activationRegistry),
             distributor
         );
+        _assertForcedNativeDoesNotChangeReserve(vault);
     }
 
     function _buyAndRegisterGenesis(
@@ -408,6 +421,7 @@ contract DopplerGenesisLaunchForkTest is Test {
 
     /// @dev Proves reserve, activation, credit, transfer, recovery, and reward-accounting transitions.
     function _assertPostEpochReserveFlows(
+        PoolKey memory key,
         StaticsGenesisVault vault,
         IERC20 statics,
         StaticsGenesis genesis,
@@ -416,7 +430,7 @@ contract DopplerGenesisLaunchForkTest is Test {
     ) private {
         address treasury = makeAddr("forkTreasury");
         _redeemAndReacquire(vault, statics, genesis, treasury);
-        _activateRepayAndTransfer(vault, statics, genesis, registry, distributor, treasury);
+        _activateRepayAndTransfer(key, vault, statics, genesis, registry, distributor, treasury);
         _expireAndRecover(vault, statics, genesis, distributor, makeAddr("forkSuccessor"));
     }
 
@@ -454,6 +468,7 @@ contract DopplerGenesisLaunchForkTest is Test {
     }
 
     function _activateRepayAndTransfer(
+        PoolKey memory key,
         StaticsGenesisVault vault,
         IERC20 statics,
         StaticsGenesis genesis,
@@ -480,6 +495,8 @@ contract DopplerGenesisLaunchForkTest is Test {
         assertEq(statics.balanceOf(treasury) - treasuryBeforeActivation, 30_000 ether);
         assertEq(registry.multiplierBps(1), 11_500);
         assertEq(distributor.effectiveWeight(1), 11_500);
+        _swapWethForStatics(key, IERC20(distributor.numeraire()), address(statics), address(key.hooks), 0.1 ether);
+        distributor.accrue();
 
         vm.prank(owner);
         vault.openGenesisCredit{value: originationFee}(1, 100_000 ether);
@@ -638,7 +655,8 @@ contract DopplerGenesisLaunchForkTest is Test {
         private
     {
         address permit2 = _forkPermit2();
-        uint128 sellAmount = uint128(staticsReceived / 2);
+        if (staticsReceived > type(uint128).max) revert();
+        uint128 sellAmount = uint128(staticsReceived);
         IERC20(statics).approve(permit2, type(uint256).max);
         IAllowanceTransfer(permit2).approve(statics, router, type(uint160).max, type(uint48).max);
 
@@ -653,6 +671,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 );
             minimumSell = uint128((quotedSell * 99) / 100);
         }
+        uint256 staticsBefore = IERC20(statics).balanceOf(address(this));
         uint256 ethBefore = address(this).balance;
 
         Plan memory sellPlan = Planner.init();
@@ -666,7 +685,21 @@ contract DopplerGenesisLaunchForkTest is Test {
         sellInputs[1] = abi.encode(ActionConstants.MSG_SENDER, minimumSell);
         IUniversalRouter(router)
             .execute(abi.encodePacked(V4_SWAP_COMMAND, UNWRAP_WETH_COMMAND), sellInputs, block.timestamp + 1);
+
+        assertEq(staticsBefore - IERC20(statics).balanceOf(address(this)), sellAmount, "Permit2 sold wrong amount");
         assertGe(address(this).balance - ethBefore, minimumSell, "native sell missed quoted minimum");
+    }
+
+    function _assertForcedNativeDoesNotChangeReserve(StaticsGenesisVault vault) private {
+        uint256 reserveBefore = vault.reserveETH();
+        uint256 custodyBefore = address(vault).balance;
+        uint256 forcedAmount = 0.25 ether;
+        ForkForceNative forceNative = new ForkForceNative{value: forcedAmount}();
+        forceNative.force(payable(address(vault)));
+
+        assertEq(vault.reserveETH(), reserveBefore, "forced native changed accounted reserve");
+        assertEq(address(vault).balance, custodyBefore + forcedAmount, "forced native missed vault custody");
+        assertGe(address(vault).balance, vault.reserveETH(), "forced native broke reserve solvency");
     }
 
     function _poolKey(address statics, address numeraire, address initializer, uint24 fee)
@@ -682,6 +715,28 @@ contract DopplerGenesisLaunchForkTest is Test {
             tickSpacing: 100,
             hooks: IHooks(initializer)
         });
+    }
+
+    function _assertRobinhoodIntegrationBindings() private view {
+        string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
+        address poolManager = _assertManifestDependency(manifest, ".contracts.poolManager");
+        address quoter = _assertManifestDependency(manifest, ".contracts.quoter");
+        address router = _assertManifestDependency(manifest, ".contracts.universalRouter");
+        address permit2 = _assertManifestDependency(manifest, ".contracts.permit2");
+
+        assertEq(IPoolManagerBound(quoter).poolManager(), poolManager, "Quoter PoolManager drift");
+        assertEq(IPoolManagerBound(router).poolManager(), poolManager, "Router PoolManager drift");
+        assertTrue(IPermit2Domain(permit2).DOMAIN_SEPARATOR() != bytes32(0), "Permit2 domain unavailable");
+    }
+
+    function _assertManifestDependency(string memory manifest, string memory path)
+        private
+        view
+        returns (address target)
+    {
+        target = vm.parseJsonAddress(manifest, string.concat(path, ".address"));
+        bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, string.concat(path, ".runtimeCodeHash"));
+        assertEq(target.codehash, expectedCodeHash, string.concat(path, " runtime code drift"));
     }
 
     function _assertCode(address target) private view {
