@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "network": {
+    "name": "Robinhood Chain",
+    "chainId": 4663,
+    "explorer": "https://robinhoodchain.blockscout.com",
+    "officialBrowserRpc": "https://rpc.mainnet.chain.robinhood.com",
+    "deploymentStartBlock": 47688979,
+    "launchBlock": 47690074,
+    "finalizeEndBlock": 47690599,
+    "deploymentStartedAt": "2026-08-27T19:22:37Z",
+    "launchedAt": "2026-08-27T19:24:28Z",
+    "finalizedAt": "2026-08-27T19:25:22Z"
+  },
+  "source": {
+    "repository": "https://github.com/EqualFiLabs/statics",
+    "launchSourceCommit": "43018f109006aa2c2eef2808adc2aa74dfc9a6d4",
+    "launchConfigHash": "0xa56443c159762b4470695ee98bd1681fb38202129dbcf474cbffae936b82ce22",
+    "artifactHash": "0x62b18ac6f391ffc9f0bae7c17309994db5b918e2c7c02f64c6a2e4a3ce92e10b",
+    "createCalldataHash": "0x6b7ace963970bac4d7b38460af84b0fcd9152a850a3f558970f445725622df62"
+  },
+  "roles": {
+    "deployer": "0x4CF8e4D37F561815F208565a5b6Ca8a85b143205",
+    "governance": "0x603A8A2f22ac1d61E9c932A4F6Fa23170CEcb9Ff",
+    "treasury": "0x0Ce4140f3Ab03024623a75F248D467912C7E1725",
+    "dopplerIntegrator": "0x4CF8e4D37F561815F208565a5b6Ca8a85b143205"
+  },
+  "launchConfiguration": {
+    "dopplerFeePips": 15000,
+    "genesisRewardShareBps": 4000,
+    "protocolRewardShareBps": 6000,
+    "wethReserveShareBps": 500,
+    "recoveryCallerShareBps": 2000,
+    "creditOriginationFeeWei": "20000000000000000",
+    "creditExtensionFeeWei": "8000000000000000",
+    "genesisEpochEnd": 1789127940,
+    "genesisEpochEndUtc": "2026-09-11T11:59:00Z"
+  },
+  "contracts": {
+    "staticsToken": {
+      "address": "0x2d8d6F4A93AcD7a916A5a654ec8b690bA3B3EAdd",
+      "runtimeCodeHash": "0xf10f86b05965a827a332e6c73086f18026fbe3917f4bffbec3f938b3b5397b56",
+      "deploymentTransaction": "0x4ab656be8c63583735636694b029b43b052a01b3169e674c94adc5ec542ebd8e",
+      "deploymentBlock": 47690074,
+      "indexerStartBlock": 47690074
+    },
+    "operatorsNft": {
+      "address": "0xad5E9F96A91D1A6F550580b157af2068A0e8F0BE",
+      "runtimeCodeHash": "0x4999fbcee14596c8105be151c80a8f7f2ae2c75e48d869cd8f4003a59f7f8085",
+      "deploymentTransaction": "0xa779467c91943105834984beddc28cfa0ac0f90c32af0c18f28b1c8483e33425",
+      "deploymentBlock": 47690440,
+      "indexerStartBlock": 47690440
+    },
+    "genesisVault": {
+      "address": "0x8AAAF9a22f439589987B8f1e69d79ca4f648C297",
+      "runtimeCodeHash": "0x6d027e43d02497d10f651ada60a51f9fbf41b718dd416a1467c3050b99b9bec4",
+      "deploymentTransaction": "0x9ac216560ec73ff17d1dca4e81259c3de7e1fbd3086c438cc928e5dac5024c89",
+      "deploymentBlock": 47690390,
+      "indexerStartBlock": 47690390
+    },
+    "activationRegistry": {
+      "address": "0xfC62e99CaE93878f83801f3d6Bb4f1762E720B30",
+      "runtimeCodeHash": "0xfcbf8ede9f8f15ff097f344c24d0751d9a23d7b49856e16066ab44caa635bffa",
+      "deploymentTransaction": "0x5c35cb5584166ba534d15fee4603cae885d18ad605dd858059d6c4fcf95130cf",
+      "deploymentBlock": 47690385,
+      "indexerStartBlock": 47690385
+    },
+    "feeReceiver": {
+      "address": "0x4aa7237527A120c5aFD8Eb89718b57DaB3EDb6cc",
+      "runtimeCodeHash": "0xb2ab7ae147c05cbf4efd701e89502b859d8fffec27ffe3bb3b56377ae43d8004",
+      "deploymentTransaction": "0xac96c3d6fcafa7fcccb82f433402792ca26b19c1337b6a2b7a5c365e33394ef6",
+      "deploymentBlock": 47688979,
+      "indexerStartBlock": 47688979
+    },
+    "launchDistributor": {
+      "address": "0xB6583f04e8C606e9F07E39e754Aba77B250Dc3FD",
+      "runtimeCodeHash": "0x51c78d838690a5c86008f1ad912ce1ba8fb525c6476da5440c8ef2cc54bc7d22",
+      "deploymentTransaction": "0x6a7f6e4be4cbc862efe4401137ac50e55faddfb2be7e11d8bf80ef421d539818",
+      "deploymentBlock": 47690515,
+      "indexerStartBlock": 47690515
+    },
+    "treasuryVesting": {
+      "address": "0xBcf0e357c359858aB166aEBb74f0E527aAb3d6ee",
+      "runtimeCodeHash": "0x9664a61194930ea499bad99bffd0c69c218953888b5f707b47be52eb1bfbe603",
+      "deploymentTransaction": "0x0e865ca090ee01b656a3f7e646d23cf1f04b6bbe81e0f08fa98ae46b81e8b761",
+      "deploymentBlock": 47688982,
+      "indexerStartBlock": 47688982
+    },
+    "genesisRenderer": {
+      "address": "0xBbF960f837166ab687FA5d69b605c2E70a83a017",
+      "runtimeCodeHash": "0x3ae699e07a0b5ba972410b2198c2a30f1cb551b2a834a55f64c17d4997573987",
+      "deploymentTransaction": "0x0680caa6890b296b1ae829b6212aca5cccabd9ad7fe7e4757b4d43254276ca16",
+      "deploymentBlock": 47690417
+    },
+    "avatarSvg": {
+      "address": "0x39601dFDDad3aa66303E231b0445Cd4Cb2D60204",
+      "runtimeCodeHash": "0x0f68dd8d29303123225778ef519ff922048828d7051fbe7fb2e23e225cc986bd",
+      "deploymentTransaction": "0xcf9bcb5abe15c519126fd6ec6eb427a0dac43af2155009649852eaadf12f0dbd",
+      "deploymentBlock": 47690395
+    }
+  },
+  "externalDependencies": {
+    "weth": {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+    },
+    "poolManager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "runtimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    "stateView": {
+      "address": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+      "runtimeCodeHash": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6"
+    },
+    "quoter": {
+      "address": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+      "runtimeCodeHash": "0xd707b1da8cb165e5ea35a3b4450d971eb562ec171e23492aa117036b78a868f6"
+    },
+    "universalRouter": {
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "runtimeCodeHash": "0x2ce6aaaf9f4151f5e1cbf774668772f17f532ae11b15e9284fd0a072a8b0fbde"
+    },
+    "permit2": {
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "runtimeCodeHash": "0x5208783f52488f7d3493e5e38311ab707c1d75457fe472a19b0b4d57d66a7fca"
+    },
+    "dopplerAirlock": {
+      "address": "0xeb7C034704eF8Dcd2D32324c1545f62fB4aD0862",
+      "runtimeCodeHash": "0x86b37100cbe9841771c452a592985b4e921254b127a380246073b84ec953f7f8"
+    },
+    "dopplerPoolInitializer": {
+      "address": "0x4e3468951D49f2EEa976eD0D6e75fFCb44a9a544",
+      "runtimeCodeHash": "0xc41a91106002f15bf70ae266824317f3f3ac638ac72ca5253bae395fa47ee631"
+    }
+  },
+  "canonicalPool": {
+    "poolId": "0xe79228d6cae086a58bf5b22220b454e5d1ca4f13da767ea5bbe032d5a1e82e8a",
+    "poolKey": {
+      "currency0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "currency1": "0x2d8d6F4A93AcD7a916A5a654ec8b690bA3B3EAdd",
+      "fee": 15000,
+      "tickSpacing": 100,
+      "hooks": "0x4e3468951D49f2EEa976eD0D6e75fFCb44a9a544"
+    }
+  },
+  "transactions": {
+    "prepare": [
+      {
+        "hash": "0xac96c3d6fcafa7fcccb82f433402792ca26b19c1337b6a2b7a5c365e33394ef6",
+        "block": 47688979
+      },
+      {
+        "hash": "0x0e865ca090ee01b656a3f7e646d23cf1f04b6bbe81e0f08fa98ae46b81e8b761",
+        "block": 47688982
+      }
+    ],
+    "launch": {
+      "hash": "0x4ab656be8c63583735636694b029b43b052a01b3169e674c94adc5ec542ebd8e",
+      "block": 47690074,
+      "explorer": "https://robinhoodchain.blockscout.com/tx/0x4ab656be8c63583735636694b029b43b052a01b3169e674c94adc5ec542ebd8e"
+    },
+    "finalize": [
+      { "hash": "0x5ece96401a93d49bfa3444faaec10e0119f70b4b93fbbb83964fa5cfef898804", "block": 47690363, "action": "bindMarket" },
+      { "hash": "0x5c35cb5584166ba534d15fee4603cae885d18ad605dd858059d6c4fcf95130cf", "block": 47690385, "action": "deployActivationRegistry" },
+      { "hash": "0x9ac216560ec73ff17d1dca4e81259c3de7e1fbd3086c438cc928e5dac5024c89", "block": 47690390, "action": "deployGenesisVault" },
+      { "hash": "0xcf9bcb5abe15c519126fd6ec6eb427a0dac43af2155009649852eaadf12f0dbd", "block": 47690395, "action": "deployAvatarSvg" },
+      { "hash": "0x0680caa6890b296b1ae829b6212aca5cccabd9ad7fe7e4757b4d43254276ca16", "block": 47690417, "action": "deployGenesisRenderer" },
+      { "hash": "0xa779467c91943105834984beddc28cfa0ac0f90c32af0c18f28b1c8483e33425", "block": 47690440, "action": "deployOperatorsNft" },
+      { "hash": "0x25d03c1f22519260b9ff150ae7df7a3a130fb4dedbf92470b12b5e1207fa1845", "block": 47690444, "action": "bindGenesisCollection" },
+      { "hash": "0x6b08e12da1fce5fb4a6dc504b84368f30be6c4cda66699084e5112d6518f1c6d", "block": 47690465, "action": "finalizeBootstrap" },
+      { "hash": "0x9e57c05d07933282cd93d43b39801b89ef6647d00331a9206d15b1a0a979a471", "block": 47690469, "action": "bindReserveVault" },
+      { "hash": "0x43ce4afe4634cfccc2706371e044604722e942c21adb8287d545a2dcf58630af", "block": 47690493, "action": "setReserveShare" },
+      { "hash": "0x6a7f6e4be4cbc862efe4401137ac50e55faddfb2be7e11d8bf80ef421d539818", "block": 47690515, "action": "deployLaunchDistributor" },
+      { "hash": "0xd574d0ee4741493ad291d190955727d5a61c581377ebae318407bfc0001c732c", "block": 47690536, "action": "proposeDistributor" },
+      { "hash": "0xa9c6e283c91fa90353e64450788188178844ed9a74b770b4da95930fd6fcdda9", "block": 47690539, "action": "acceptFeeReceiverRole" },
+      { "hash": "0xb555c6fafa70da967903dec206563ee1b59453f6af10e29ece8eb7291d1f4989", "block": 47690544, "action": "proposeConsumer" },
+      { "hash": "0x9acbaf7801ce567da6dbe76248e2d7d036c7f3dcf74795de75674ccfab331c19", "block": 47690565, "action": "acceptActivationConsumer" },
+      { "hash": "0x4f80235d97d89c0cbfaa3e3f9b804a9962a631fcdce829b585154d3b62f57630", "block": 47690586, "action": "proposeFeeReceiverOwnership" },
+      { "hash": "0xeac7e92b0a89f827084181ecf2b55ee45578753de142ba1d690a0da59aae2cdc", "block": 47690589, "action": "proposeActivationRegistryOwnership" },
+      { "hash": "0x5e57cf0f93eb1901fcbb00db8dc7aa4c4026d4a3b51fb8eb239eeb220d126c2f", "block": 47690593, "action": "proposeGenesisVaultOwnership" },
+      { "hash": "0xec54280a495b52d1105a327e6e9f337789af80d64e5fdc40e52ffc6851e74d67", "block": 47690596, "action": "proposeOperatorsNftOwnership" },
+      { "hash": "0x49d5244503df3dc4126b7a84eeb9345dcabc9271b782f531ba2a6d272b59b0ca", "block": 47690599, "action": "proposeLaunchDistributorOwnership" }
+    ]
+  },
+  "postLaunchBuys": [
+    {
+      "buyer": "0x4CF8e4D37F561815F208565a5b6Ca8a85b143205",
+      "amountInWei": "100000000000000000",
+      "transactionHash": "0x83658c612120c8a426a8805f0d08d293ae15e8985a5f33aedb6bbe1fc6cbf050",
+      "block": 47691028,
+      "receivedStaticsWei": "1595744043967906327190410"
+    },
+    {
+      "buyer": "0x13eCF79C2a0f73574345d1a3295f5eb9C718Dd55",
+      "amountInWei": "19000000000000000",
+      "transactionHash": "0xb5821ef061e5c9fc281d6e671dfe508b6ac5cd5e5da5cd06ee1a338f6dcfff3b",
+      "block": 47691049,
+      "receivedStaticsWei": "253934431280040023185597"
+    }
+  ],
+  "finalization": {
+    "genesisVaultFinalized": true,
+    "genesisVaultTokenBackingWei": "99900000000000000000000000",
+    "operatorsMintedSupply": 5555,
+    "marketBindingsFinal": true,
+    "feeReceiverBindingsFinal": true,
+    "activationRegistryBindingsFinal": true,
+    "launchDistributorBindingsFinal": true,
+    "governanceOwnershipAccepted": false,
+    "governanceOwnershipStatus": "pending Safe acceptance on fee receiver, activation registry, Genesis Vault, Operators NFT, and launch distributor"
+  },
+  "rpcProvisioning": {
+    "dedicatedBrowserRpcUrl": null,
+    "dedicatedBrowserRpcStatus": "pending provisioning; officialBrowserRpc is the current public fallback",
+    "historicalLogRpcUrl": null,
+    "historicalLogRpcAllowedIp": "5.104.87.21",
+    "historicalLogRpcStatus": "pending provisioning and IP allowlisting"
+  }
+}
