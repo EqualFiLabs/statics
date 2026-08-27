@@ -9,7 +9,9 @@ import {IStaticsGenesisVault} from "../interfaces/IStaticsGenesisVault.sol";
 import {IStaticsTreasuryVesting} from "../interfaces/IStaticsTreasuryVesting.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
-/// @notice Immutable launch custody for the protocol STATICS allocation and Genesis reserve.
+/// @notice Non-upgradeable launch custody for the protocol STATICS allocation and Genesis reserve.
+/// @dev The withdrawal recipient is mutable only through recipientAdmin; vesting terms and
+///      fixed principal amounts are immutable after bootstrap.
 contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     using LibExactAssetTransfer for IERC20;
 
@@ -62,6 +64,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         withdrawalRecipient = withdrawalRecipient_;
     }
 
+    /// @inheritdoc IStaticsTreasuryVesting
     function finalizeBootstrap(address statics_, address genesisVault_, address genesis_)
         external
         override
@@ -107,6 +110,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         emit TreasuryVestingBootstrapped(statics_, genesisVault_, genesis_, block.timestamp);
     }
 
+    /// @inheritdoc IStaticsTreasuryVesting
     function releaseStatics() external override nonReentrant returns (uint256 amount) {
         _requireBootstrapped();
         amount = releasableStatics();
@@ -117,6 +121,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         emit StaticsReleased(msg.sender, recipient, amount, releasedStatics);
     }
 
+    /// @inheritdoc IStaticsTreasuryVesting
     function sweepStaticsSurplus() external override nonReentrant returns (uint256 amount) {
         if (msg.sender != recipientAdmin) revert UnauthorizedRecipientAdmin(msg.sender);
         if (releasedStatics != STATICS_VESTING_PRINCIPAL) revert VestingNotComplete();
@@ -127,6 +132,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         emit StaticsSurplusSwept(recipient, amount);
     }
 
+    /// @inheritdoc IStaticsTreasuryVesting
     function releaseGenesis(uint256 maxCount) external override nonReentrant returns (uint256 count) {
         _requireBootstrapped();
         if (maxCount == 0) revert InvalidBatchSize();
@@ -144,6 +150,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         emit GenesisReleased(msg.sender, recipient, firstGenesisId, lastGenesisId, count, releasedGenesis);
     }
 
+    /// @inheritdoc IStaticsTreasuryVesting
     function setWithdrawalRecipient(address newRecipient) external override {
         if (msg.sender != recipientAdmin) revert UnauthorizedRecipientAdmin(msg.sender);
         if (newRecipient == address(0) || newRecipient == address(this)) {

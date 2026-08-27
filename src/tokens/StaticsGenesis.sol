@@ -100,12 +100,14 @@ contract StaticsGenesis is
         _mintConsecutive(treasuryVesting_, uint96(COLLECTION_SIZE - 5_000));
     }
 
+    /// @inheritdoc IStaticsGenesis
     function finalizeLaunch() external override {
         if (msg.sender != vault) revert UnauthorizedVault(msg.sender);
         if (launchFinalized) revert LaunchAlreadyFinalized();
         launchFinalized = true;
     }
 
+    /// @inheritdoc IStaticsGenesis
     function bindProtocol(address protocol_) external override onlyOwner {
         if (!launchFinalized) revert LaunchNotFinalized();
         if (protocol != address(0)) revert ProtocolAlreadyBound();
@@ -208,6 +210,7 @@ contract StaticsGenesis is
         }
     }
 
+    /// @inheritdoc IStaticsGenesis
     function refreshLockStatus(uint256 genesisId) external override {
         if (msg.sender != protocol && msg.sender != vault) revert UnauthorizedProtocol(msg.sender);
         bool currentStatus = locked(genesisId);
@@ -217,12 +220,14 @@ contract StaticsGenesis is
         else emit Unlocked(genesisId);
     }
 
+    /// @inheritdoc IStaticsGenesis
     function refreshMetadata(uint256 genesisId) external override {
         if (msg.sender != protocol && msg.sender != activationRegistry) revert UnauthorizedProtocol(msg.sender);
         _requireOwned(genesisId);
         emit MetadataUpdate(genesisId);
     }
 
+    /// @inheritdoc IStaticsGenesis
     function recoverToVault(uint256 genesisId, address expectedOwner) external override {
         if (msg.sender != vault) revert UnauthorizedVault(msg.sender);
         address previousOwner = _ownerOf(genesisId);

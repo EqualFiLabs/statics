@@ -6,6 +6,11 @@ import {LibAvatarTraits} from "./LibAvatarTraits.sol";
 
 /// @notice Stateless SVG assembly helper for the Genesis NFT metadata renderer.
 contract StaticsAvatarSVG {
+    /// @notice Renders deterministic SVG artwork from a trait seed and activation tier.
+    /// @param seed Trait seed derived from chain, collection, and token ID.
+    /// @param traits_ Derived avatar traits.
+    /// @param tier Activation tier displayed by the artwork.
+    /// @return SVG document for the avatar.
     function renderSVG(bytes32 seed, LibAvatarTraits.Traits calldata traits_, uint8 tier)
         external
         pure

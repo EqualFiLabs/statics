@@ -25,7 +25,7 @@ import {
 } from "../interfaces/IStaticsGenesisVault.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
-/// @notice Fixed-supply, dual-backed Genesis vault. Each Genesis is redeemable for exactly
+/// @notice Fixed-supply, dual-backed Genesis vault with secured-credit support. Each Genesis is redeemable for exactly
 ///         180,000 STATICS and, after the immutable Genesis Epoch, a 1/5,555 share of a
 ///         permanent native ETH reserve. The reserve is capitalized by protocol revenue and
 ///         explicit donations; it can never be withdrawn by governance.
@@ -159,6 +159,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         _;
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function finalizeGenesisCollection(address collection) external override nonReentrant {
         if (msg.sender != bootstrapper) revert UnauthorizedBootstrapper(msg.sender);
         if (finalized) revert AlreadyFinalized();
@@ -182,6 +183,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
     }
 
     /// @notice Permissionless reserve capitalization. Increases reserveETH by exactly msg.value.
+    /// @inheritdoc IStaticsGenesisVault
     function donate() external payable override {
         if (msg.value == 0) revert ZeroDonation();
         reserveETH += msg.value;
@@ -189,6 +191,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit ReserveFunded(msg.sender, msg.value, reserveETH);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function buyGenesis(uint256 tokenId, address receiver)
         external
         payable
@@ -207,12 +210,11 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         uint256 requiredNative = buyIn + fee;
         if (msg.value < requiredNative) revert InsufficientNative(msg.value, requiredNative);
 
-        // Effects: the fee always accretes to the reserve; the buy-in joins it after the epoch.
+        // The fee always accretes to the reserve; the buy-in joins it after the epoch.
         statics.pullExact(msg.sender, GENESIS_PRICE);
         tokenBacking += GENESIS_PRICE;
         if (buyIn + fee != 0) reserveETH += buyIn + fee;
 
-        // Interactions.
         genesis.safeTransferFrom(address(this), receiver, tokenId);
         uint256 refund = msg.value - requiredNative;
         if (refund != 0) {
@@ -224,6 +226,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisPurchased(msg.sender, receiver, tokenId, GENESIS_PRICE, buyIn, fee);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function redeemGenesis(uint256 tokenId, address receiver) external override nonReentrant whenFinalized {
         _validateReceiver(receiver);
         if (_credit[tokenId].principal != 0) revert CreditAlreadyActive(tokenId);
@@ -233,11 +236,10 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
 
         uint256 reservePayout = _epochActive() ? 0 : _reserveRedemptionPayout(reserveETH);
 
-        // Effects.
+        // Update accounting before the external NFT and payout transfers.
         tokenBacking -= GENESIS_PRICE;
         if (reservePayout != 0) reserveETH -= reservePayout;
 
-        // Interactions.
         genesis.transferFrom(msg.sender, address(this), tokenId);
         statics.pushExact(receiver, GENESIS_PRICE);
         if (reservePayout != 0) {
@@ -248,6 +250,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisRedeemed(msg.sender, receiver, tokenId, GENESIS_PRICE, reservePayout);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function openGenesisCredit(uint256 genesisId, uint256 principal)
         external
         payable
@@ -275,6 +278,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisCreditOpened(genesisId, msg.sender, principal, maturity, creditOriginationFee);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function extendGenesisCredit(uint256 genesisId, uint256 newPrincipal)
         external
         payable
@@ -320,6 +324,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisCreditExtended(genesisId, msg.sender, previousMaturity, newMaturity, creditExtensionFee);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function repayGenesisCredit(uint256 genesisId, uint256 amount) external override nonReentrant whenFinalized {
         GenesisCredit storage state = _credit[genesisId];
         uint256 principal = state.principal;
@@ -339,6 +344,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit GenesisCreditRepaid(genesisId, msg.sender, creditOwner, amount, remainingPrincipal);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function recoverGenesisCredit(uint256 genesisId) external override nonReentrant whenFinalized {
         GenesisCredit memory state = _credit[genesisId];
         uint256 principal = state.principal;
@@ -368,11 +374,13 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         );
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setPurchasesPaused(bool paused) external override onlyOwner {
         purchasesPaused = paused;
         emit PurchasesPausedSet(paused);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setNativeAcquisitionFee(uint256 newFee) external override onlyOwner {
         if (newFee > MAX_NATIVE_ACQUISITION_FEE) {
             revert NativeFeeExceedsMaximum(newFee, MAX_NATIVE_ACQUISITION_FEE);
@@ -382,18 +390,21 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit NativeAcquisitionFeeSet(previousFee, newFee);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setCreditOriginationFee(uint256 newFee) external override onlyOwner {
         uint256 previousFee = creditOriginationFee;
         creditOriginationFee = newFee;
         emit CreditOriginationFeeSet(previousFee, newFee);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setCreditExtensionFee(uint256 newFee) external override onlyOwner {
         uint256 previousFee = creditExtensionFee;
         creditExtensionFee = newFee;
         emit CreditExtensionFeeSet(previousFee, newFee);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setRecoveryCallerShareBps(uint16 newShareBps) external override onlyOwner {
         _validateRecoveryCallerShare(newShareBps);
         uint16 previousShareBps = recoveryCallerShareBps;
@@ -401,6 +412,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         emit RecoveryCallerShareSet(previousShareBps, newShareBps);
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setCreditServiceFeeSplit(uint16 reserveShareBps, uint16 treasuryShareBps) external override onlyOwner {
         if (uint256(reserveShareBps) + treasuryShareBps != BPS) {
             revert InvalidCreditServiceFeeSplit(reserveShareBps, treasuryShareBps);
@@ -414,6 +426,7 @@ contract StaticsGenesisVault is IStaticsGenesisVault, IERC721Receiver, Ownable2S
         );
     }
 
+    /// @inheritdoc IStaticsGenesisVault
     function setCreditOriginationsPaused(bool paused) external override onlyOwner {
         creditOriginationsPaused = paused;
         emit CreditOriginationsPausedSet(paused);

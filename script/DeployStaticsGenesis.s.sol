@@ -57,8 +57,7 @@ struct StaticsGenesisDeployment {
     address avatarSVG;
 }
 
-/// @dev Internal grouping that keeps the launcher's live-local set within
-/// legacy-codegen stack limits.
+/// @dev Groups the Genesis collection contracts returned by the launcher.
 struct GenesisCollection {
     GenesisActivationRegistry registry;
     StaticsGenesisVault vault;
@@ -99,7 +98,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     uint24 public constant MAX_DOPPLER_LP_FEE = 100_000;
     bytes20 public constant DOPPLER_SOURCE_REVISION = hex"86a5200456b148c156d2eb81a893747dd601c3ca";
     string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
-    /// @dev Remains zero until a follow-up economic-parameter decision ratifies the Robinhood launch.
+    /// @dev Production execution remains disabled until this equals the ratified launch hash.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
     int24 public constant FAR_TICK = StaticsLaunchCurves.FAR_TICK;
@@ -186,8 +185,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         collection.registry.bindGenesisCollection(address(collection.genesis));
         treasuryVesting.finalizeBootstrap(statics, address(collection.vault), address(collection.genesis));
 
-        // Bind the reserve vault and configure the reserve share before the first distributor is
-        // accepted so nonzero reserveShareBps can never harvest around an unbound reserve vault.
+        // Bind reserve accounting before accepting the first distributor.
         receiver.bindReserveVault(address(collection.vault));
         receiver.setReserveShareBps(config.reserveShareBps);
 
