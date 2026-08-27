@@ -24,7 +24,7 @@ selected by chain ID and reads:
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
 | `STATICS_GENESIS_LAUNCH_ARTIFACT` | Confidential ignored Prepare output; use `artifacts/genesis-launch/production.json` and never publish it before Launch confirms |
 | `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor, and immutable admin that may rotate the treasury vesting withdrawal recipient |
-| `STATICS_GENESIS_TREASURY` | Initial recipient of vested STATICS and Genesis, Genesis activation payments, and royalties |
+| `STATICS_GENESIS_TREASURY` | Immutable Doppler-native STATICS vesting beneficiary and initial recipient of vested Genesis, Genesis activation payments, royalties, and recovered bootstrap surplus |
 | `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical proxy, implementation, proxy admin, and ownership-controller code |
 | `STATICS_DOPPLER_INTEGRATOR` | Optional Doppler integrator; zero uses the Airlock owner |
 | `STATICS_DOPPLER_SALT` | Reviewed deterministic token salt; use a cryptographically random 32-byte value and keep the raw salt confidential until the launch transaction reaches the sequencer |
@@ -46,28 +46,32 @@ The phased deployment:
    STATICS address and PoolId, commits the exact `Airlock.create()` calldata, and
    records the next broadcaster nonce in the confidential artifact.
 2. **Launch** submits one zero-value call to the canonical Airlock. That call
-   creates exactly 1,000,000,000 STATICS, passes exactly 800,000,000 STATICS to
-   the six-curve Multicurve initializer, and sends the remaining protocol
-   allocation to treasury vesting. The market is live as soon as this one
-   transaction confirms.
+   creates exactly 1,000,000,000 STATICS, locks 100,100,000 STATICS inside the
+   Doppler token under one zero-cliff 60-day schedule for the configured treasury,
+   passes exactly 800,000,000 STATICS to the six-curve Multicurve initializer,
+   and sends the exact 99,900,000 remainder to the bootstrap contract. The
+   market is live as soon as this one transaction confirms.
 3. **Finalize** binds the market to the receiver; mints Genesis IDs 1..5,000 to
    the vault and IDs 5,001..5,555 to treasury vesting; commits exactly
-   99,900,000 STATICS as backing for the protocol's 555 Genesis; vests the fixed
-   100,100,000-STATICS principal linearly for 60 days; binds the reserve vault,
+   99,900,000 STATICS as backing for the protocol's 555 Genesis; starts the
+   separate 60-day Genesis NFT vest; binds the reserve vault,
    activation registry, and launch distributor; and proposes the configured
    governance address as the two-step owner of all five administered contracts.
    The same governance address is the vesting contract's immutable recipient
-   admin. Any additional vesting balance remains unaccounted surplus.
+   admin. Any additional bootstrap-contract STATICS balance remains recoverable
+   surplus and never increases Vault backing.
 
-STATICS and Genesis vest linearly from the Finalize transaction timestamp. Anyone
-may call `releaseStatics()` or `releaseGenesis(maxCount)`; assets always go to
-the configured withdrawal recipient. Genesis release is ascending by token ID,
+STATICS vest linearly from the Launch timestamp in Doppler's token contract and
+anyone may call `releaseFor(treasury, 0, 0)`; released tokens always go to the
+immutable treasury beneficiary. Genesis vest linearly from the Finalize timestamp,
+and anyone may call `releaseGenesis(maxCount)`; released NFTs go to the configured
+withdrawal recipient. Genesis release is ascending by token ID,
 requires a nonzero `maxCount`, and processes at most 50 NFTs per transaction.
-Governance may rotate the withdrawal recipient but cannot change the schedule,
-principal, token range, or release assets early. Only after the full fixed STATICS
-principal has actually been released may governance sweep the complete remaining
-STATICS surplus, always to the current withdrawal recipient. A recipient contract
-must implement ERC-721 receipt before Genesis can be released to it.
+Governance may rotate the Genesis/surplus withdrawal recipient but cannot change
+either vesting schedule, principal, token range, or release assets early. After
+bootstrap, governance may sweep any STATICS accidentally retained by or donated
+to the bootstrap contract, always to the current withdrawal recipient. A recipient
+contract must implement ERC-721 receipt before Genesis can be released to it.
 
 Vault purchases always require exactly 180,000 STATICS plus the current native
 acquisition fee. During the immutable Genesis Epoch the reserve buy-in is waived;
@@ -102,7 +106,8 @@ The executed pinned-Robinhood path validates module code and the predicted
 CREATE2 STATICS address before Launch. It calls the official Airlock, checks the
 predicted token and PoolId, and executes a real v4 swap while the receiver and
 vesting contracts are still unfinalized. Only then does it Finalize and prove
-supply allocation, the mandatory 5% Doppler/Airlock-owner share, the exact 95%
+the native treasury vesting schedule and exact allocation, the mandatory 5%
+Doppler/Airlock-owner share, the exact 95%
 Statics receiver share, Genesis and treasury custody, fee harvest, secured
 credit, recovery, vesting, and governance wiring.
 
