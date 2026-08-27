@@ -9,11 +9,13 @@ import {
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 
 /// @notice Development-only launcher for a persistent Anvil fork of Robinhood mainnet.
-/// @dev The canonical production `run()` remains configuration-hash gated. This entrypoint
+/// @dev Production phase entrypoints remain configuration-hash gated. This entrypoint
 ///      additionally requires Anvil's private RPC namespace before it will broadcast anything.
 contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
     error InvalidLocalForkChain(uint256 chainId);
     error InvalidLocalForkRpc();
+
+    function _requireApprovedProductionConfig(bytes32) internal pure override {}
 
     function runLocalFork() external returns (StaticsGenesisDeployment memory deployment) {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert InvalidLocalForkChain(block.chainid);

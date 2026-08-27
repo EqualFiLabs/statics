@@ -11,6 +11,7 @@ optimizer_runs = 200
 bytecode_hash = "none"
 fs_permissions = [
     { access = "read-write", path = "./artifacts/diamond-manifests" },
+    { access = "read-write", path = "./artifacts/genesis-launch" },
     { access = "read", path = "./src" },
     { access = "read", path = "./test" },
     { access = "read", path = "./script" },

@@ -18,7 +18,10 @@ import {Plan, Planner} from "@uniswap/v4-periphery/test/shared/Planner.sol";
 import {
     DeployStaticsGenesis,
     StaticsGenesisDeployment,
-    StaticsGenesisDeploymentConfig
+    StaticsGenesisDeploymentConfig,
+    StaticsGenesisLaunchArtifact,
+    StaticsGenesisLaunchCommitments,
+    StaticsGenesisMarket
 } from "../../../script/DeployStaticsGenesis.s.sol";
 import {GenesisActivationRegistry} from "../../../src/genesis/GenesisActivationRegistry.sol";
 import {GenesisLaunchDistributor} from "../../../src/genesis/GenesisLaunchDistributor.sol";
@@ -41,6 +44,29 @@ interface IWETH is IERC20 {
 
 interface IUniversalRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
+}
+
+contract DopplerGenesisLaunchForkHarness is DeployStaticsGenesis {
+    function buildArtifact(
+        StaticsGenesisDeploymentConfig memory config,
+        address deployer,
+        StaticsFeeReceiver receiver,
+        StaticsTreasuryVesting treasuryVesting,
+        uint256 expectedLaunchNonce
+    ) external view returns (StaticsGenesisLaunchArtifact memory artifact) {
+        (bytes32 wethDependencyHash, StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes) =
+            _dependencyCommitments(config);
+        bytes32 currentHash = launchConfigHash(config, wethDependencyHash, moduleCodeHashes);
+        StaticsGenesisLaunchCommitments memory commitments = StaticsGenesisLaunchCommitments({
+            expectedLaunchNonce: expectedLaunchNonce,
+            wethDependencyHash: wethDependencyHash,
+            moduleCodeHashes: moduleCodeHashes,
+            launchConfigHash: currentHash
+        });
+        artifact = _buildLaunchArtifact(config, deployer, receiver, treasuryVesting, commitments);
+    }
+
+    function _requireApprovedProductionConfig(bytes32) internal pure override {}
 }
 
 /// @notice Current-network integration proof against official Doppler deployments.
@@ -93,10 +119,10 @@ contract DopplerGenesisLaunchForkTest is Test {
         StaticsDopplerLaunchConfig.Modules memory modules = StaticsDopplerLaunchConfig.modules(block.chainid);
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
         bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.dopplerPoolInitializer.runtimeCodeHash");
-        vm.etch(modules.poolInitializer, hex"60006000fd");
-
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+        DopplerGenesisLaunchForkHarness deployer = new DopplerGenesisLaunchForkHarness();
         StaticsGenesisDeploymentConfig memory config = _driftConfig(deployer, manifest);
+        StaticsGenesisLaunchArtifact memory artifact = _prepareDriftArtifact(deployer, config);
+        vm.etch(modules.poolInitializer, hex"60006000fd");
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -106,7 +132,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 modules.poolInitializer.codehash
             )
         );
-        deployer.deploy(config, address(deployer));
+        deployer.validatePreparedLaunch(artifact);
     }
 
     function testRobinhoodDopplerLaunchRejectsWethImplementationDrift() public {
@@ -121,10 +147,10 @@ contract DopplerGenesisLaunchForkTest is Test {
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
         address implementation = vm.parseJsonAddress(manifest, ".contracts.weth.implementation.address");
         bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.implementation.runtimeCodeHash");
-        vm.etch(implementation, hex"60006000fd");
-
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+        DopplerGenesisLaunchForkHarness deployer = new DopplerGenesisLaunchForkHarness();
         StaticsGenesisDeploymentConfig memory config = _driftConfig(deployer, manifest);
+        StaticsGenesisLaunchArtifact memory artifact = _prepareDriftArtifact(deployer, config);
+        vm.etch(implementation, hex"60006000fd");
         vm.expectRevert(
             abi.encodeWithSelector(
                 DeployStaticsGenesis.InvalidRobinhoodDependencyCodeHash.selector,
@@ -133,7 +159,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 implementation.codehash
             )
         );
-        deployer.deploy(config, address(deployer));
+        deployer.validatePreparedLaunch(artifact);
     }
 
     function testRobinhoodDopplerLaunchRejectsWethProxyAdminDrift() public {
@@ -148,10 +174,10 @@ contract DopplerGenesisLaunchForkTest is Test {
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
         address proxyAdmin = vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.address");
         bytes32 expectedCodeHash = vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.runtimeCodeHash");
-        vm.etch(proxyAdmin, hex"60006000fd");
-
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+        DopplerGenesisLaunchForkHarness deployer = new DopplerGenesisLaunchForkHarness();
         StaticsGenesisDeploymentConfig memory config = _driftConfig(deployer, manifest);
+        StaticsGenesisLaunchArtifact memory artifact = _prepareDriftArtifact(deployer, config);
+        vm.etch(proxyAdmin, hex"60006000fd");
         vm.expectRevert(
             abi.encodeWithSelector(
                 DeployStaticsGenesis.InvalidRobinhoodDependencyCodeHash.selector,
@@ -160,7 +186,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 proxyAdmin.codehash
             )
         );
-        deployer.deploy(config, address(deployer));
+        deployer.validatePreparedLaunch(artifact);
     }
 
     function testRobinhoodDopplerLaunchRejectsWethAuthorityImplementationDrift() public {
@@ -177,10 +203,10 @@ contract DopplerGenesisLaunchForkTest is Test {
             vm.parseJsonAddress(manifest, ".contracts.weth.proxyAdmin.owner.implementation.address");
         bytes32 expectedCodeHash =
             vm.parseJsonBytes32(manifest, ".contracts.weth.proxyAdmin.owner.implementation.runtimeCodeHash");
-        vm.etch(implementation, hex"60006000fd");
-
-        DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+        DopplerGenesisLaunchForkHarness deployer = new DopplerGenesisLaunchForkHarness();
         StaticsGenesisDeploymentConfig memory config = _driftConfig(deployer, manifest);
+        StaticsGenesisLaunchArtifact memory artifact = _prepareDriftArtifact(deployer, config);
+        vm.etch(implementation, hex"60006000fd");
         vm.expectRevert(
             abi.encodeWithSelector(
                 DeployStaticsGenesis.InvalidRobinhoodDependencyCodeHash.selector,
@@ -189,7 +215,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 implementation.codehash
             )
         );
-        deployer.deploy(config, address(deployer));
+        deployer.validatePreparedLaunch(artifact);
     }
 
     function _driftConfig(DeployStaticsGenesis deployer, string memory manifest)
@@ -214,6 +240,14 @@ contract DopplerGenesisLaunchForkTest is Test {
             contractURI: deployer.staticsGenesisContractURI(),
             externalURLBase: deployer.staticsGenesisExternalURLBase()
         });
+    }
+
+    function _prepareDriftArtifact(
+        DopplerGenesisLaunchForkHarness deployer,
+        StaticsGenesisDeploymentConfig memory config
+    ) private returns (StaticsGenesisLaunchArtifact memory artifact) {
+        (StaticsFeeReceiver receiver, StaticsTreasuryVesting vesting) = deployer.prepare(config, address(deployer));
+        artifact = deployer.buildArtifact(config, address(deployer), receiver, vesting, vm.getNonce(address(deployer)));
     }
 
     function _deployAndAssert() private {
@@ -244,7 +278,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 mockWeth.deposit{value: 10 ether}();
                 weth = IERC20(address(mockWeth));
             }
-            DeployStaticsGenesis deployer = new DeployStaticsGenesis();
+            DopplerGenesisLaunchForkHarness deployer = new DopplerGenesisLaunchForkHarness();
             StaticsGenesisDeploymentConfig memory config = StaticsGenesisDeploymentConfig({
                 governance: governance,
                 treasury: treasury,
@@ -264,7 +298,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 externalURLBase: deployer.staticsGenesisExternalURLBase()
             });
 
-            deployment = deployer.deploy(config, address(deployer));
+            deployment = _launchBeforeFinalize(deployer, config, weth);
             IERC20 statics = IERC20(deployment.statics);
             StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
             vault = StaticsGenesisVault(deployment.genesisVault);
@@ -297,18 +331,12 @@ contract DopplerGenesisLaunchForkTest is Test {
             assertEq(receiver.activeDistributor(), address(distributor));
             assertEq(registry.activeConsumer(), address(distributor));
             assertEq(receiver.pendingOwner(), governance);
+            assertTrue(IERC20(deployment.statics).transfer(treasury, 280_000 ether));
         }
 
-        {
-            PoolKey memory key = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
-            uint256 staticsReceived =
-                _swapWethForStatics(key, weth, deployment.statics, modules.poolInitializer, 2 ether);
-            assertGe(staticsReceived, 280_000 ether, "live pool purchase did not fund Genesis lifecycle");
-            assertTrue(IERC20(deployment.statics).transfer(treasury, 280_000 ether));
-
-            if (block.chainid == 4_663) {
-                _assertNativeRouterRoutes(key, deployment.statics, address(weth));
-            }
+        PoolKey memory immediateLaunchKey = _poolKey(deployment.statics, address(weth), modules.poolInitializer, 30_000);
+        if (block.chainid == 4_663) {
+            _assertNativeRouterRoutes(immediateLaunchKey, deployment.statics, address(weth));
         }
 
         _buyAndRegisterGenesis(vault, StaticsGenesis(deployment.genesis), distributor, treasury, address(weth));
@@ -323,6 +351,38 @@ contract DopplerGenesisLaunchForkTest is Test {
             GenesisActivationRegistry(deployment.activationRegistry),
             distributor
         );
+    }
+
+    function _launchBeforeFinalize(
+        DopplerGenesisLaunchForkHarness deployer,
+        StaticsGenesisDeploymentConfig memory config,
+        IERC20 weth
+    ) private returns (StaticsGenesisDeployment memory deployment) {
+        (StaticsFeeReceiver receiver, StaticsTreasuryVesting vesting) = deployer.prepare(config, address(deployer));
+        StaticsGenesisLaunchArtifact memory artifact =
+            deployer.buildArtifact(config, address(deployer), receiver, vesting, vm.getNonce(address(deployer)));
+        // Robinhood's archive RPC rejects historical reads for absent accounts instead of
+        // returning empty code. Materialize the predicted account as locally empty so the fork
+        // can prove the same CREATE2 precondition without replacing any live dependency state.
+        vm.etch(artifact.expectedStatics, bytes(""));
+        assertEq(artifact.expectedStatics.code.length, 0);
+        deployer.validatePreparedLaunch(artifact);
+
+        StaticsGenesisMarket memory market = deployer.launch(artifact);
+        assertEq(market.statics, artifact.expectedStatics);
+        assertEq(market.pool, artifact.expectedStatics);
+        assertEq(market.poolId, artifact.expectedPoolId);
+        assertGt(artifact.expectedStatics.code.length, 0);
+        assertEq(receiver.statics(), address(0));
+        assertEq(vesting.vestingStart(), 0);
+
+        PoolKey memory key =
+            _poolKey(artifact.expectedStatics, address(weth), config.modules.poolInitializer, config.fee);
+        uint256 staticsReceived =
+            _swapWethForStatics(key, weth, artifact.expectedStatics, config.modules.poolInitializer, 2 ether);
+        assertGe(staticsReceived, 280_000 ether, "isolated launch market was not immediately live");
+
+        deployment = deployer.finalize(artifact);
     }
 
     function _buyAndRegisterGenesis(

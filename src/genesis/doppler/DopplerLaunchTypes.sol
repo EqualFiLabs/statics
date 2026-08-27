@@ -48,10 +48,30 @@ library DopplerLaunchTypes {
     }
 }
 
+interface IDopplerERC20V1Factory {
+    function IMPLEMENTATION() external view returns (address);
+}
+
 interface IDopplerAirlock {
     function owner() external view returns (address);
 
     function create(DopplerLaunchTypes.CreateParams calldata createData)
         external
         returns (address asset, address pool, address governance, address timelock, address migrationPool);
+
+    function getAssetData(address asset)
+        external
+        view
+        returns (
+            address numeraire,
+            address timelock,
+            address governance,
+            address liquidityMigrator,
+            address poolInitializer,
+            address pool,
+            address migrationPool,
+            uint256 numTokensToSell,
+            uint256 totalSupply,
+            address integrator
+        );
 }

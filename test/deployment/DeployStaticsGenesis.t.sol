@@ -2,22 +2,31 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Test} from "forge-std/Test.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 import {
     DeployStaticsGenesis,
     StaticsGenesisDeployment,
-    StaticsGenesisDeploymentConfig
+    StaticsGenesisDeploymentConfig,
+    StaticsGenesisLaunchArtifact,
+    StaticsGenesisLaunchCommitments,
+    StaticsGenesisMarket
 } from "../../script/DeployStaticsGenesis.s.sol";
 import {DeployStaticsGenesisLocalFork} from "../../script/DeployStaticsGenesisLocalFork.s.sol";
 import {GenesisActivationRegistry} from "../../src/genesis/GenesisActivationRegistry.sol";
 import {GenesisLaunchDistributor} from "../../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsTreasuryVesting} from "../../src/genesis/StaticsTreasuryVesting.sol";
-import {DopplerLaunchTypes, IDopplerAirlock} from "../../src/genesis/doppler/DopplerLaunchTypes.sol";
+import {
+    DopplerLaunchTypes,
+    IDopplerAirlock,
+    IDopplerERC20V1Factory
+} from "../../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsGenesisVault} from "../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsGenesis} from "../../src/tokens/StaticsGenesis.sol";
@@ -72,11 +81,29 @@ contract MockDeploymentInitializer {
 contract MockDeploymentAirlock is IDopplerAirlock {
     address private constant GOVERNANCE_DEAD = address(0xdead);
     address private constant MIGRATION_DEAD = 0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD;
+
+    struct AssetData {
+        address numeraire;
+        address timelock;
+        address governance;
+        address liquidityMigrator;
+        address poolInitializer;
+        address pool;
+        address migrationPool;
+        uint256 numTokensToSell;
+        uint256 totalSupply;
+        address integrator;
+    }
+
     address public override owner;
     MockDeploymentInitializer public immutable initializer;
     uint256 public lastNumTokensToSell;
     bytes32 public lastTokenFactoryDataHash;
     uint256 public residual = 1 ether;
+    uint256 public createCalls;
+    address public lastCreateCaller;
+    bytes32 public lastCreateCalldataHash;
+    mapping(address asset => AssetData data) private assetData;
 
     constructor(address owner_, MockDeploymentInitializer initializer_) {
         owner = owner_;
@@ -95,7 +122,11 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         external
         returns (address asset, address pool, address governance, address timelock, address migrationPool)
     {
-        MockDopplerToken token = new MockDopplerToken(address(this));
+        ++createCalls;
+        lastCreateCaller = msg.sender;
+        lastCreateCalldataHash = keccak256(msg.data);
+        asset = MockDeploymentTokenFactory(params.tokenFactory).create(params.initialSupply, address(this), params.salt);
+        MockCloneableDopplerToken token = MockCloneableDopplerToken(asset);
         require(params.initialSupply == token.totalSupply(), "SUPPLY");
         require(params.numTokensToSell == 800_000_000 ether, "INVENTORY");
         lastNumTokensToSell = params.numTokensToSell;
@@ -106,14 +137,61 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         require(poolData.onInitializationDopplerHookCalldata.length == 0, "HOOK_DATA");
         require(poolData.beneficiaries.length == 2, "BENEFICIARIES");
         require(poolData.beneficiaries[0].beneficiary < poolData.beneficiaries[1].beneficiary, "ORDER");
-        initializer.configure(
-            address(token), params.numeraire, poolData.fee, poolData.tickSpacing, poolData.beneficiaries
-        );
+        initializer.configure(asset, params.numeraire, poolData.fee, poolData.tickSpacing, poolData.beneficiaries);
 
-        address treasury = abi.decode(params.governanceFactoryData, (address));
+        timelock = abi.decode(params.governanceFactoryData, (address));
         token.transfer(params.poolInitializer, params.numTokensToSell - residual);
-        token.transfer(treasury, token.balanceOf(address(this)));
-        return (address(token), address(token), GOVERNANCE_DEAD, treasury, MIGRATION_DEAD);
+        token.transfer(timelock, token.balanceOf(address(this)));
+        pool = asset;
+        governance = GOVERNANCE_DEAD;
+        migrationPool = MIGRATION_DEAD;
+        assetData[asset] = AssetData({
+            numeraire: params.numeraire,
+            timelock: timelock,
+            governance: governance,
+            liquidityMigrator: params.liquidityMigrator,
+            poolInitializer: params.poolInitializer,
+            pool: pool,
+            migrationPool: migrationPool,
+            numTokensToSell: params.numTokensToSell,
+            totalSupply: params.initialSupply,
+            integrator: params.integrator == address(0) ? owner : params.integrator
+        });
+    }
+
+    function setAssetPool(address asset, address pool) external {
+        assetData[asset].pool = pool;
+    }
+
+    function getAssetData(address asset)
+        external
+        view
+        returns (
+            address numeraire,
+            address timelock,
+            address governance,
+            address liquidityMigrator,
+            address poolInitializer,
+            address pool,
+            address migrationPool,
+            uint256 numTokensToSell,
+            uint256 totalSupply,
+            address integrator
+        )
+    {
+        AssetData memory data = assetData[asset];
+        return (
+            data.numeraire,
+            data.timelock,
+            data.governance,
+            data.liquidityMigrator,
+            data.poolInitializer,
+            data.pool,
+            data.migrationPool,
+            data.numTokensToSell,
+            data.totalSupply,
+            data.integrator
+        );
     }
 }
 
@@ -121,10 +199,33 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         function requireApprovedProductionConfig(bytes32 currentHash) external pure {
             _requireApprovedProductionConfig(currentHash);
         }
+
+        function buildArtifact(
+            StaticsGenesisDeploymentConfig memory config,
+            address deployer,
+            StaticsFeeReceiver receiver,
+            StaticsTreasuryVesting treasuryVesting,
+            uint256 expectedLaunchNonce
+        ) external view returns (StaticsGenesisLaunchArtifact memory artifact) {
+            (bytes32 wethDependencyHash, StaticsDopplerLaunchConfig.RuntimeCodeHashes memory moduleCodeHashes) =
+                _dependencyCommitments(config);
+            bytes32 currentHash = launchConfigHash(config, wethDependencyHash, moduleCodeHashes);
+            StaticsGenesisLaunchCommitments memory commitments = StaticsGenesisLaunchCommitments({
+                expectedLaunchNonce: expectedLaunchNonce,
+                wethDependencyHash: wethDependencyHash,
+                moduleCodeHashes: moduleCodeHashes,
+                launchConfigHash: currentHash
+            });
+            artifact = _buildLaunchArtifact(config, deployer, receiver, treasuryVesting, commitments);
+        }
+    }
+
+    contract DeployStaticsGenesisBroadcastHarness is DeployStaticsGenesis {
+        function _requireApprovedProductionConfig(bytes32) internal pure override {}
     }
 
     contract DeployStaticsGenesisTest is Test {
-        DeployStaticsGenesis private deployer;
+        DeployStaticsGenesisHarness private deployer;
         MockDopplerToken private weth;
         MockDeploymentInitializer private initializer;
         MockDeploymentAirlock private airlock;
@@ -134,10 +235,422 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         function setUp() public {
             governance = makeAddr("governance");
             treasury = makeAddr("treasury");
-            deployer = new DeployStaticsGenesis();
+            deployer = new DeployStaticsGenesisHarness();
             weth = new MockDopplerToken(address(this));
             initializer = new MockDeploymentInitializer();
             airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), initializer);
+        }
+
+        function testLaunchArtifactRoundTripsWithoutLoss() public {
+            StaticsGenesisDeploymentConfig memory config = _config();
+            (StaticsFeeReceiver receiver, StaticsTreasuryVesting vesting) = deployer.prepare(config, address(deployer));
+            StaticsGenesisLaunchArtifact memory artifact =
+                deployer.buildArtifact(config, address(deployer), receiver, vesting, vm.getNonce(address(deployer)));
+            string memory path = "artifacts/genesis-launch/unit-roundtrip.json";
+            vm.createDir("artifacts/genesis-launch", true);
+
+            deployer.writeLaunchArtifact(path, artifact);
+            StaticsGenesisLaunchArtifact memory loaded = deployer.loadLaunchArtifact(path);
+
+            assertEq(loaded.artifactHash, artifact.artifactHash);
+            assertEq(keccak256(abi.encode(loaded)), keccak256(abi.encode(artifact)));
+            assertEq(loaded.createCalldataHash, keccak256(loaded.createCalldata));
+            deployer.validatePreparedLaunch(loaded);
+        }
+
+        function testPrepareCreatesOnlyPristineReceivers() public {
+            uint256 startingNonce = vm.getNonce(address(deployer));
+            (
+                StaticsGenesisDeploymentConfig memory config,
+                StaticsFeeReceiver receiver,
+                StaticsTreasuryVesting vesting,
+                StaticsGenesisLaunchArtifact memory artifact
+            ) = _prepareArtifact();
+
+            assertEq(address(receiver), vm.computeCreateAddress(address(deployer), startingNonce));
+            assertEq(address(vesting), vm.computeCreateAddress(address(deployer), startingNonce + 1));
+            assertEq(artifact.expectedLaunchNonce, startingNonce + 2);
+            assertEq(vm.getNonce(address(deployer)), startingNonce + 2);
+            assertEq(artifact.expectedStatics.code.length, 0);
+            assertEq(airlock.createCalls(), 0);
+            assertEq(receiver.poolInitializer(), config.modules.poolInitializer);
+            assertEq(receiver.numeraire(), config.numeraire);
+            assertEq(receiver.statics(), address(0));
+            assertEq(receiver.owner(), address(deployer));
+            assertEq(receiver.pendingOwner(), address(0));
+            assertEq(vesting.bootstrapper(), address(deployer));
+            assertEq(vesting.recipientAdmin(), governance);
+            assertEq(vesting.withdrawalRecipient(), treasury);
+            assertEq(vesting.vestingStart(), 0);
+            deployer.validatePreparedLaunch(artifact);
+        }
+
+        function testLaunchCreatesExpectedLiveMarketWithoutFinalization() public {
+            (
+                StaticsGenesisDeploymentConfig memory config,
+                StaticsFeeReceiver receiver,
+                StaticsTreasuryVesting vesting,
+                StaticsGenesisLaunchArtifact memory artifact
+            ) = _prepareArtifact();
+
+            StaticsGenesisMarket memory market = deployer.launch(artifact);
+
+            assertEq(market.statics, artifact.expectedStatics);
+            assertEq(market.pool, artifact.expectedStatics);
+            assertEq(market.poolId, artifact.expectedPoolId);
+            assertEq(market.governance, deployer.GOVERNANCE_DEAD());
+            assertEq(market.timelock, address(vesting));
+            assertEq(market.migrationPool, deployer.MIGRATION_DEAD());
+            assertGt(artifact.expectedStatics.code.length, 0);
+            assertEq(airlock.createCalls(), 1);
+            assertEq(airlock.lastCreateCaller(), address(deployer));
+            assertEq(airlock.lastCreateCalldataHash(), artifact.createCalldataHash);
+            assertEq(receiver.statics(), address(0));
+            assertEq(receiver.owner(), address(deployer));
+            assertEq(vesting.vestingStart(), 0);
+            assertEq(address(vesting.statics()), address(0));
+            assertEq(config.modules.poolInitializer, address(initializer));
+            deployer.validateLaunchedMarket(artifact);
+        }
+
+        function testFinalizeBeforeLaunchRevertsWithoutDeployment() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            uint256 nonceBefore = vm.getNonce(address(deployer));
+
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesis.MarketNotLaunched.selector, artifact.expectedStatics)
+            );
+            deployer.finalize(artifact);
+
+            assertEq(vm.getNonce(address(deployer)), nonceBefore);
+            assertEq(airlock.createCalls(), 0);
+        }
+
+        function testFinalizeCompletesPreparedMarket() public {
+            (
+                StaticsGenesisDeploymentConfig memory config,
+                StaticsFeeReceiver receiver,
+                StaticsTreasuryVesting vesting,
+                StaticsGenesisLaunchArtifact memory artifact
+            ) = _prepareArtifact();
+            deployer.launch(artifact);
+
+            StaticsGenesisDeployment memory deployment = deployer.finalize(artifact);
+
+            assertEq(deployment.statics, artifact.expectedStatics);
+            assertEq(receiver.statics(), artifact.expectedStatics);
+            assertEq(receiver.poolId(), artifact.expectedPoolId);
+            assertEq(receiver.reserveVault(), deployment.genesisVault);
+            assertEq(receiver.activeDistributor(), deployment.genesisDistributor);
+            assertEq(vesting.bootstrapper(), address(0));
+            assertEq(vesting.vestingStart(), block.timestamp);
+            assertEq(address(vesting.statics()), artifact.expectedStatics);
+            assertEq(address(vesting.genesisVault()), deployment.genesisVault);
+            assertEq(address(vesting.genesis()), deployment.genesis);
+            assertEq(
+                GenesisActivationRegistry(deployment.activationRegistry).activeConsumer(), deployment.genesisDistributor
+            );
+            assertEq(StaticsGenesisVault(deployment.genesisVault).creditOriginationFee(), config.creditOriginationFee);
+            assertEq(StaticsGenesisVault(deployment.genesisVault).creditExtensionFee(), config.creditExtensionFee);
+            assertEq(
+                StaticsGenesisVault(deployment.genesisVault).recoveryCallerShareBps(), config.recoveryCallerShareBps
+            );
+            assertEq(receiver.pendingOwner(), governance);
+            assertEq(StaticsGenesis(deployment.genesis).pendingOwner(), governance);
+        }
+
+        function testPreparedValidationRejectsLiveReceiverDrift() public {
+            (, StaticsFeeReceiver receiver,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            vm.prank(address(deployer));
+            receiver.transferOwnership(makeAddr("unexpectedReceiverOwner"));
+
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesis.InvalidPreparedReceiver.selector, address(receiver))
+            );
+            deployer.validatePreparedLaunch(artifact);
+        }
+
+        function testPreparedValidationRejectsLiveVestingDrift() public {
+            (,, StaticsTreasuryVesting vesting, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            vm.prank(governance);
+            vesting.setWithdrawalRecipient(makeAddr("unexpectedVestingRecipient"));
+
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesis.InvalidPreparedVesting.selector, address(vesting))
+            );
+            deployer.validatePreparedLaunch(artifact);
+        }
+
+        function testFinalizeRejectsMismatchedMarketWithoutNewDeployment() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            deployer.launch(artifact);
+            airlock.setAssetPool(artifact.expectedStatics, makeAddr("unexpectedPool"));
+            uint256 nonceBefore = vm.getNonce(address(deployer));
+
+            vm.expectRevert(
+                abi.encodeWithSelector(DeployStaticsGenesis.UnexpectedLaunchState.selector, artifact.expectedStatics)
+            );
+            deployer.finalize(artifact);
+
+            assertEq(vm.getNonce(address(deployer)), nonceBefore);
+        }
+
+        function testRunLaunchBroadcastsOnlyCanonicalAirlockCall() public {
+            (address signer, uint256 privateKey) = makeAddrAndKey("launchSigner");
+            StaticsGenesisDeploymentConfig memory config = _config();
+            (StaticsFeeReceiver receiver, StaticsTreasuryVesting vesting) = deployer.prepare(config, signer);
+            StaticsGenesisLaunchArtifact memory artifact =
+                deployer.buildArtifact(config, signer, receiver, vesting, vm.getNonce(signer));
+            string memory path = "artifacts/genesis-launch/run-launch-unit.json";
+            vm.createDir("artifacts/genesis-launch", true);
+            deployer.writeLaunchArtifact(path, artifact);
+            vm.setEnv("PRIVATE_KEY", vm.toString(privateKey));
+            vm.setEnv("STATICS_GENESIS_LAUNCH_ARTIFACT", path);
+
+            vm.startStateDiffRecording();
+            StaticsGenesisMarket memory market = deployer.runLaunch();
+            VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+
+            uint256 signerAccesses;
+            for (uint256 i; i < accesses.length; ++i) {
+                VmSafe.AccountAccess memory access = accesses[i];
+                if (access.accessor != signer || !_isStateChangingAccess(access.kind)) continue;
+                ++signerAccesses;
+                assertEq(uint256(access.kind), uint256(VmSafe.AccountAccessKind.Call));
+                assertEq(access.account, config.modules.airlock);
+                assertEq(access.value, 0);
+                assertEq(keccak256(access.data), artifact.createCalldataHash);
+            }
+            assertEq(signerAccesses, 1);
+            assertEq(market.statics, artifact.expectedStatics);
+            assertEq(airlock.createCalls(), 1);
+            assertEq(airlock.lastCreateCaller(), signer);
+            assertEq(airlock.lastCreateCalldataHash(), artifact.createCalldataHash);
+        }
+
+        function testRunFinalizeRejectsNonceDriftBeforeBroadcast() public {
+            (address signer, uint256 privateKey) = makeAddrAndKey("finalizeSigner");
+            StaticsGenesisDeploymentConfig memory config = _config();
+            (StaticsFeeReceiver receiver, StaticsTreasuryVesting vesting) = deployer.prepare(config, signer);
+            StaticsGenesisLaunchArtifact memory artifact =
+                deployer.buildArtifact(config, signer, receiver, vesting, vm.getNonce(signer));
+            string memory path = "artifacts/genesis-launch/run-finalize-nonce.json";
+            vm.createDir("artifacts/genesis-launch", true);
+            deployer.writeLaunchArtifact(path, artifact);
+            vm.setEnv("PRIVATE_KEY", vm.toString(privateKey));
+            vm.setEnv("STATICS_GENESIS_LAUNCH_ARTIFACT", path);
+            deployer.runLaunch();
+            uint64 driftedNonce = uint64(artifact.expectedLaunchNonce + 2);
+            vm.setNonce(signer, driftedNonce);
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    DeployStaticsGenesis.UnexpectedDeployerNonce.selector,
+                    artifact.expectedLaunchNonce + 1,
+                    driftedNonce
+                )
+            );
+            deployer.runFinalize();
+        }
+
+        function testLaunchArtifactRejectsIdentityAndNonceDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+
+            artifact.artifactHash = bytes32(uint256(artifact.artifactHash) + 1);
+            vm.expectPartialRevert(DeployStaticsGenesis.InvalidLaunchArtifactHash.selector);
+            deployer.validatePreparedLaunch(artifact);
+
+            artifact.chainId += 1;
+            _expectPreparedFailure(artifact);
+            artifact.chainId -= 1;
+
+            address originalDeployer = artifact.deployer;
+            artifact.deployer = makeAddr("differentPreparedDeployer");
+            _expectPreparedFailure(artifact);
+            artifact.deployer = originalDeployer;
+
+            artifact.expectedLaunchNonce += 1;
+            _expectPreparedFailure(artifact);
+            artifact.expectedLaunchNonce -= 1;
+
+            artifact.transactionValue = 1;
+            _expectPreparedFailure(artifact);
+            artifact.transactionValue = 0;
+
+            artifact.launchScriptCodeHash = bytes32(uint256(artifact.launchScriptCodeHash) + 1);
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsEconomicDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+
+            artifact.config.fee += 1;
+            _expectPreparedFailure(artifact);
+            artifact.config.fee -= 1;
+            artifact.config.genesisRewardShareBps += 1;
+            _expectPreparedFailure(artifact);
+            artifact.config.genesisRewardShareBps -= 1;
+            artifact.config.reserveShareBps += 1;
+            _expectPreparedFailure(artifact);
+            artifact.config.reserveShareBps -= 1;
+            artifact.config.creditOriginationFee += 1;
+            _expectPreparedFailure(artifact);
+            artifact.config.creditOriginationFee -= 1;
+            artifact.config.creditExtensionFee += 1;
+            _expectPreparedFailure(artifact);
+            artifact.config.creditExtensionFee -= 1;
+            artifact.config.recoveryCallerShareBps += 1;
+            _expectPreparedFailure(artifact);
+            artifact.config.recoveryCallerShareBps -= 1;
+            artifact.config.genesisEpochEnd += 1;
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsDependencyDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+
+            artifact.wethDependencyHash = bytes32(uint256(artifact.wethDependencyHash) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.wethDependencyHash = _localWethCommitment(artifact.config.numeraire);
+
+            artifact.moduleCodeHashes.airlock = bytes32(uint256(artifact.moduleCodeHashes.airlock) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.moduleCodeHashes.airlock = artifact.config.modules.airlock.codehash;
+            artifact.moduleCodeHashes.tokenFactory = bytes32(uint256(artifact.moduleCodeHashes.tokenFactory) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.moduleCodeHashes.tokenFactory = artifact.config.modules.tokenFactory.codehash;
+            artifact.moduleCodeHashes.governanceFactory = bytes32(
+                uint256(artifact.moduleCodeHashes.governanceFactory) + 1
+            );
+            _expectPreparedFailure(artifact);
+            artifact.moduleCodeHashes.governanceFactory = artifact.config.modules.governanceFactory.codehash;
+            artifact.moduleCodeHashes.poolInitializer = bytes32(uint256(artifact.moduleCodeHashes.poolInitializer) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.moduleCodeHashes.poolInitializer = artifact.config.modules.poolInitializer.codehash;
+            artifact.moduleCodeHashes.noOpMigrator = bytes32(uint256(artifact.moduleCodeHashes.noOpMigrator) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.moduleCodeHashes.noOpMigrator = artifact.config.modules.noOpMigrator.codehash;
+            artifact.tokenImplementationCodeHash = bytes32(uint256(artifact.tokenImplementationCodeHash) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.tokenImplementationCodeHash = artifact.tokenImplementation.codehash;
+            artifact.tokenImplementation = address(new MockCloneableDopplerToken());
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsEveryModuleAddressDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            StaticsDopplerLaunchConfig.Modules memory original = artifact.config.modules;
+
+            artifact.config.modules.airlock =
+                address(new MockDeploymentAirlock(makeAddr("driftAirlockOwner"), initializer));
+            _expectPreparedFailure(artifact);
+            artifact.config.modules.airlock = original.airlock;
+            artifact.config.modules.tokenFactory = address(new MockDeploymentTokenFactory());
+            _expectPreparedFailure(artifact);
+            artifact.config.modules.tokenFactory = original.tokenFactory;
+            artifact.config.modules.governanceFactory = original.noOpMigrator;
+            _expectPreparedFailure(artifact);
+            artifact.config.modules.governanceFactory = original.governanceFactory;
+            artifact.config.modules.poolInitializer = address(new MockDeploymentInitializer());
+            _expectPreparedFailure(artifact);
+            artifact.config.modules.poolInitializer = original.poolInitializer;
+            artifact.config.modules.noOpMigrator = original.governanceFactory;
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsRecipientAndAuthorityDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+
+            address originalGovernance = artifact.config.governance;
+            artifact.config.governance = makeAddr("artifactGovernanceDrift");
+            _expectPreparedFailure(artifact);
+            artifact.config.governance = originalGovernance;
+            address originalTreasury = artifact.config.treasury;
+            artifact.config.treasury = makeAddr("artifactTreasuryDrift");
+            _expectPreparedFailure(artifact);
+            artifact.config.treasury = originalTreasury;
+            address originalReceiver = artifact.feeReceiver;
+            artifact.feeReceiver = artifact.treasuryVesting;
+            _expectPreparedFailure(artifact);
+            artifact.feeReceiver = originalReceiver;
+            address originalVesting = artifact.treasuryVesting;
+            artifact.treasuryVesting = artifact.feeReceiver;
+            _expectPreparedFailure(artifact);
+            artifact.treasuryVesting = originalVesting;
+            artifact.config.salt = bytes32(uint256(artifact.config.salt) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.config.salt = bytes32(uint256(artifact.config.salt) - 1);
+            artifact.dopplerOwner = makeAddr("artifactDopplerOwnerDrift");
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsBeneficiaryOrderAndCurveDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            artifact = _withBeneficiaryOrderDrift(artifact);
+            _expectPreparedFailure(artifact);
+
+            (,,, artifact) = _prepareArtifact();
+            artifact = _withCurveDrift(artifact);
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsCanonicalPayloadDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+
+            artifact.dopplerOwnerShare += 1;
+            _expectPreparedFailure(artifact);
+            artifact.dopplerOwnerShare -= 1;
+            artifact.staticsFeeShare -= 1;
+            _expectPreparedFailure(artifact);
+            artifact.staticsFeeShare += 1;
+            artifact.config.tokenURI = "ipfs://artifact-token-drift";
+            _expectPreparedFailure(artifact);
+            artifact.config.tokenURI = "ipfs://statics/token.json";
+            artifact.config.contractURI = "ipfs://artifact-contract-drift";
+            _expectPreparedFailure(artifact);
+            artifact.config.contractURI = "ipfs://statics-genesis/contract.json";
+            artifact.config.externalURLBase = "https://artifact-drift.invalid/";
+            _expectPreparedFailure(artifact);
+        }
+
+        function testLaunchArtifactRejectsExpectedMarketAndRawPayloadDrift() public {
+            (,,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+
+            artifact.expectedStatics = address(uint160(artifact.expectedStatics) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.expectedStatics = address(uint160(artifact.expectedStatics) - 1);
+            artifact.expectedPoolId = bytes32(uint256(artifact.expectedPoolId) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.expectedPoolId = bytes32(uint256(artifact.expectedPoolId) - 1);
+            artifact.marketCommitment = bytes32(uint256(artifact.marketCommitment) + 1);
+            _expectPreparedFailure(artifact);
+            artifact.marketCommitment = bytes32(uint256(artifact.marketCommitment) - 1);
+            artifact.createParams = abi.encodePacked(artifact.createParams, bytes1(0));
+            _expectPreparedFailure(artifact);
+
+            (,,, artifact) = _prepareArtifact();
+            artifact.createCalldata = abi.encodePacked(artifact.createCalldata, bytes1(0));
+            _expectPreparedFailure(artifact);
+
+            (,,, artifact) = _prepareArtifact();
+            artifact.createCalldataHash = bytes32(uint256(artifact.createCalldataHash) + 1);
+            _expectPreparedFailure(artifact);
+        }
+
+        function testPhasedDeploymentMatchesMonolithicState() public {
+            StaticsGenesisDeployment memory monolithic = deployer.deploy(_config(), address(deployer));
+
+            MockDeploymentInitializer phasedInitializer = new MockDeploymentInitializer();
+            MockDeploymentAirlock phasedAirlock =
+                new MockDeploymentAirlock(makeAddr("phasedAirlockOwner"), phasedInitializer);
+            StaticsGenesisDeploymentConfig memory config = _configFor(phasedAirlock, phasedInitializer);
+            (StaticsFeeReceiver receiver, StaticsTreasuryVesting vesting) = deployer.prepare(config, address(deployer));
+            StaticsGenesisLaunchArtifact memory artifact =
+                deployer.buildArtifact(config, address(deployer), receiver, vesting, vm.getNonce(address(deployer)));
+            deployer.launch(artifact);
+            StaticsGenesisDeployment memory phased = deployer.finalize(artifact);
+
+            _assertEquivalentDeployments(monolithic, phased);
         }
 
         function testDeploysDopplerGenesisStackWithExactAllocations() public {
@@ -480,8 +993,131 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             localForkDeployer.runLocalFork();
         }
 
+        function _withBeneficiaryOrderDrift(StaticsGenesisLaunchArtifact memory artifact)
+            private
+            view
+            returns (StaticsGenesisLaunchArtifact memory)
+        {
+            DopplerLaunchTypes.CreateParams memory params =
+                abi.decode(artifact.createParams, (DopplerLaunchTypes.CreateParams));
+            DopplerLaunchTypes.PoolInitializerData memory poolData =
+                abi.decode(params.poolInitializerData, (DopplerLaunchTypes.PoolInitializerData));
+            DopplerLaunchTypes.BeneficiaryData memory first = poolData.beneficiaries[0];
+            poolData.beneficiaries[0] = poolData.beneficiaries[1];
+            poolData.beneficiaries[1] = first;
+            params.poolInitializerData = abi.encode(poolData);
+            return _withCommittedParams(artifact, params);
+        }
+
+        function _withCurveDrift(StaticsGenesisLaunchArtifact memory artifact)
+            private
+            view
+            returns (StaticsGenesisLaunchArtifact memory)
+        {
+            DopplerLaunchTypes.CreateParams memory params =
+                abi.decode(artifact.createParams, (DopplerLaunchTypes.CreateParams));
+            DopplerLaunchTypes.PoolInitializerData memory poolData =
+                abi.decode(params.poolInitializerData, (DopplerLaunchTypes.PoolInitializerData));
+            poolData.curves[0].shares += 1;
+            params.poolInitializerData = abi.encode(poolData);
+            return _withCommittedParams(artifact, params);
+        }
+
+        function _withCommittedParams(
+            StaticsGenesisLaunchArtifact memory artifact,
+            DopplerLaunchTypes.CreateParams memory params
+        ) private view returns (StaticsGenesisLaunchArtifact memory) {
+            artifact.createParams = abi.encode(params);
+            artifact.createCalldata = abi.encodeCall(IDopplerAirlock.create, (params));
+            artifact.createCalldataHash = keccak256(artifact.createCalldata);
+            artifact.marketCommitment = keccak256(abi.encode(params, artifact.expectedStatics, artifact.expectedPoolId));
+            artifact.artifactHash = deployer.launchArtifactHash(artifact);
+            return artifact;
+        }
+
+        function _expectPreparedFailure(StaticsGenesisLaunchArtifact memory artifact) private {
+            artifact.artifactHash = deployer.launchArtifactHash(artifact);
+            vm.expectRevert();
+            deployer.validatePreparedLaunch(artifact);
+        }
+
+        function _localWethCommitment(address numeraire) private view returns (bytes32) {
+            return keccak256(abi.encode(numeraire, numeraire.codehash));
+        }
+
+        function _isStateChangingAccess(VmSafe.AccountAccessKind kind) private pure returns (bool) {
+            return kind == VmSafe.AccountAccessKind.Call || kind == VmSafe.AccountAccessKind.DelegateCall
+                || kind == VmSafe.AccountAccessKind.CallCode || kind == VmSafe.AccountAccessKind.Create
+                || kind == VmSafe.AccountAccessKind.SelfDestruct;
+        }
+
+        function _prepareArtifact()
+            private
+            returns (
+                StaticsGenesisDeploymentConfig memory config,
+                StaticsFeeReceiver receiver,
+                StaticsTreasuryVesting vesting,
+                StaticsGenesisLaunchArtifact memory artifact
+            )
+        {
+            config = _config();
+            (receiver, vesting) = deployer.prepare(config, address(deployer));
+            artifact = deployer.buildArtifact(
+                config, address(deployer), receiver, vesting, vm.getNonce(address(deployer))
+            );
+        }
+
+        function _assertEquivalentDeployments(
+            StaticsGenesisDeployment memory monolithic,
+            StaticsGenesisDeployment memory phased
+        ) private view {
+            IERC20 monolithicStatics = IERC20(monolithic.statics);
+            IERC20 phasedStatics = IERC20(phased.statics);
+            StaticsGenesisVault monolithicVault = StaticsGenesisVault(monolithic.genesisVault);
+            StaticsGenesisVault phasedVault = StaticsGenesisVault(phased.genesisVault);
+            assertEq(monolithicStatics.totalSupply(), phasedStatics.totalSupply());
+            assertEq(monolithicVault.tokenBacking(), phasedVault.tokenBacking());
+            assertEq(monolithicStatics.balanceOf(monolithic.genesisVault), phasedStatics.balanceOf(phased.genesisVault));
+            assertEq(
+                monolithicStatics.balanceOf(monolithic.treasuryVesting), phasedStatics.balanceOf(phased.treasuryVesting)
+            );
+            assertEq(monolithicVault.creditOriginationFee(), phasedVault.creditOriginationFee());
+            assertEq(monolithicVault.creditExtensionFee(), phasedVault.creditExtensionFee());
+            assertEq(monolithicVault.recoveryCallerShareBps(), phasedVault.recoveryCallerShareBps());
+            _assertEquivalentBindings(monolithic, phased);
+        }
+
+        function _assertEquivalentBindings(
+            StaticsGenesisDeployment memory monolithic,
+            StaticsGenesisDeployment memory phased
+        ) private view {
+            StaticsFeeReceiver monolithicReceiver = StaticsFeeReceiver(payable(monolithic.feeReceiver));
+            StaticsFeeReceiver phasedReceiver = StaticsFeeReceiver(payable(phased.feeReceiver));
+            StaticsGenesis monolithicGenesis = StaticsGenesis(monolithic.genesis);
+            StaticsGenesis phasedGenesis = StaticsGenesis(phased.genesis);
+            assertEq(monolithicReceiver.reserveShareBps(), phasedReceiver.reserveShareBps());
+            assertEq(monolithicReceiver.statics(), monolithic.statics);
+            assertEq(phasedReceiver.statics(), phased.statics);
+            assertEq(monolithicReceiver.reserveVault(), monolithic.genesisVault);
+            assertEq(phasedReceiver.reserveVault(), phased.genesisVault);
+            assertEq(monolithicReceiver.activeDistributor(), monolithic.genesisDistributor);
+            assertEq(phasedReceiver.activeDistributor(), phased.genesisDistributor);
+            assertEq(monolithicGenesis.balanceOf(monolithic.genesisVault), phasedGenesis.balanceOf(phased.genesisVault));
+            assertEq(
+                monolithicGenesis.balanceOf(monolithic.treasuryVesting), phasedGenesis.balanceOf(phased.treasuryVesting)
+            );
+            assertEq(monolithicGenesis.pendingOwner(), phasedGenesis.pendingOwner());
+        }
+
         function _config() private returns (StaticsGenesisDeploymentConfig memory config) {
-            DeploymentModule tokenFactory = new DeploymentModule();
+            return _configFor(airlock, initializer);
+        }
+
+        function _configFor(MockDeploymentAirlock configuredAirlock, MockDeploymentInitializer configuredInitializer)
+            private
+            returns (StaticsGenesisDeploymentConfig memory config)
+        {
+            MockDeploymentTokenFactory tokenFactory = new MockDeploymentTokenFactory();
             DeploymentModule governanceFactory = new DeploymentModule();
             DeploymentModule noOpMigrator = new DeploymentModule();
             config = StaticsGenesisDeploymentConfig({
@@ -490,10 +1126,10 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 numeraire: address(weth),
                 integrator: address(0),
                 modules: StaticsDopplerLaunchConfig.Modules({
-                    airlock: address(airlock),
+                    airlock: address(configuredAirlock),
                     tokenFactory: address(tokenFactory),
                     governanceFactory: address(governanceFactory),
-                    poolInitializer: address(initializer),
+                    poolInitializer: address(configuredInitializer),
                     noOpMigrator: address(noOpMigrator)
                 }),
                 salt: keccak256("STATICS_DOPPLER_TEST"),
@@ -534,5 +1170,37 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 address(0),
                 new address[](0)
             );
+        }
+    }
+
+    contract MockCloneableDopplerToken is ERC20 {
+        bool private initialized;
+
+        constructor() ERC20("Statics", "STATICS") {}
+
+        function initialize(uint256 initialSupply, address recipient) external {
+            require(!initialized, "INITIALIZED");
+            initialized = true;
+            _mint(recipient, initialSupply);
+        }
+    }
+
+    contract MockDeploymentTokenFactory is IDopplerERC20V1Factory {
+        bytes20 private constant CLONE_INIT_CODE_PREFIX = hex"602c3d8160093d39f33d3d3d3d363d3d37363d73";
+        bytes13 private constant CLONE_INIT_CODE_SUFFIX = hex"5af43d3d93803e602a57fd5bf3";
+
+        address public immutable override IMPLEMENTATION;
+
+        constructor() {
+            IMPLEMENTATION = address(new MockCloneableDopplerToken());
+        }
+
+        function create(uint256 initialSupply, address recipient, bytes32 salt) external returns (address asset) {
+            bytes memory initCode = abi.encodePacked(CLONE_INIT_CODE_PREFIX, IMPLEMENTATION, CLONE_INIT_CODE_SUFFIX);
+            assembly {
+                asset := create2(0, add(initCode, 0x20), mload(initCode), salt)
+            }
+            require(asset != address(0), "CREATE2");
+            MockCloneableDopplerToken(asset).initialize(initialSupply, recipient);
         }
     }
