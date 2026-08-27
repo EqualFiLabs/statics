@@ -15,7 +15,9 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
     error InvalidLocalForkChain(uint256 chainId);
     error InvalidLocalForkRpc();
 
-    function _requireApprovedProductionConfig(bytes32) internal pure override {}
+    function launchScriptCodeHash() public view override returns (bytes32) {
+        return keccak256(vm.getDeployedCode("script/DeployStaticsGenesisLocalFork.s.sol:DeployStaticsGenesisLocalFork"));
+    }
 
     function runLocalFork() external returns (StaticsGenesisDeployment memory deployment) {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert InvalidLocalForkChain(block.chainid);

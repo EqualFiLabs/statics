@@ -200,6 +200,12 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             _requireApprovedProductionConfig(currentHash);
         }
 
+        function launchScriptCodeHash() public view override returns (bytes32) {
+            return keccak256(
+                vm.getDeployedCode("test/deployment/DeployStaticsGenesis.t.sol:DeployStaticsGenesisHarness")
+            );
+        }
+
         function buildArtifact(
             StaticsGenesisDeploymentConfig memory config,
             address deployer,
@@ -221,6 +227,19 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     }
 
     contract DeployStaticsGenesisBroadcastHarness is DeployStaticsGenesis {
+        error InvalidBroadcastProofRpc();
+
+        function launchScriptCodeHash() public view override returns (bytes32) {
+            return keccak256(
+                vm.getDeployedCode("test/deployment/DeployStaticsGenesis.t.sol:DeployStaticsGenesisBroadcastHarness")
+            );
+        }
+
+        function _beforeProductionEntryPoint() internal override {
+            bytes memory nodeInfo = vm.rpc("anvil_nodeInfo", "[]");
+            if (nodeInfo.length == 0) revert InvalidBroadcastProofRpc();
+        }
+
         function _requireApprovedProductionConfig(bytes32) internal pure override {}
     }
 
@@ -239,6 +258,17 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             weth = new MockDopplerToken(address(this));
             initializer = new MockDeploymentInitializer();
             airlock = new MockDeploymentAirlock(makeAddr("airlockOwner"), initializer);
+        }
+
+        function testLaunchScriptRevisionBindsExactRuntime() public {
+            DeployStaticsGenesisBroadcastHarness broadcastHarness = new DeployStaticsGenesisBroadcastHarness();
+            DeployStaticsGenesisLocalFork localFork = new DeployStaticsGenesisLocalFork();
+
+            assertEq(deployer.launchScriptCodeHash(), address(deployer).codehash);
+            assertEq(broadcastHarness.launchScriptCodeHash(), address(broadcastHarness).codehash);
+            assertEq(localFork.launchScriptCodeHash(), address(localFork).codehash);
+            assertNotEq(deployer.launchScriptCodeHash(), broadcastHarness.launchScriptCodeHash());
+            assertNotEq(deployer.launchScriptCodeHash(), localFork.launchScriptCodeHash());
         }
 
         function testLaunchArtifactRoundTripsWithoutLoss() public {

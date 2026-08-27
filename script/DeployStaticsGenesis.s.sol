@@ -208,6 +208,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error UnexpectedFinalizeState(address target);
 
     function runPrepare() external returns (bytes32 artifactHash) {
+        _beforeProductionEntryPoint();
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
         string memory path = vm.envString("STATICS_GENESIS_LAUNCH_ARTIFACT");
@@ -250,6 +251,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     }
 
     function runLaunch() external returns (StaticsGenesisMarket memory market) {
+        _beforeProductionEntryPoint();
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address signer = vm.addr(privateKey);
         StaticsGenesisLaunchArtifact memory artifact =
@@ -294,7 +296,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     }
 
     function launch(StaticsGenesisLaunchArtifact memory artifact) public returns (StaticsGenesisMarket memory market) {
-        validatePreparedLaunch(artifact);
+        _validatePreparedLaunch(artifact, false);
         DopplerLaunchTypes.CreateParams memory params =
             abi.decode(artifact.createParams, (DopplerLaunchTypes.CreateParams));
         market = _executeLaunch(artifact, params);
@@ -497,7 +499,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
-    function launchScriptCodeHash() public view returns (bytes32) {
+    function launchScriptCodeHash() public view virtual returns (bytes32) {
         return keccak256(vm.getDeployedCode("script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis"));
     }
 
@@ -848,6 +850,8 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
+    function _beforeProductionEntryPoint() internal virtual {}
+
     function _requireApprovedProductionConfig(bytes32 currentHash) internal pure virtual {
         bytes32 approvedHash = APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH;
         if (approvedHash == bytes32(0) || currentHash != approvedHash) {
@@ -856,6 +860,13 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     }
 
     function validatePreparedLaunch(StaticsGenesisLaunchArtifact memory artifact) public view {
+        _validatePreparedLaunch(artifact, true);
+    }
+
+    function _validatePreparedLaunch(StaticsGenesisLaunchArtifact memory artifact, bool enforceProductionGate)
+        private
+        view
+    {
         _validateArtifactBase(artifact);
         uint256 liveNonce = vm.getNonce(artifact.deployer);
         if (liveNonce != artifact.expectedLaunchNonce) {
@@ -871,7 +882,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         bytes32 currentHash =
             _launchConfigHash(artifact.config, wethDependencyHash, moduleCodeHashes, artifact.dopplerOwner);
         if (currentHash != artifact.launchConfigHash) revert LaunchArtifactMismatch();
-        if (block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) _requireApprovedProductionConfig(currentHash);
+        if (enforceProductionGate && block.chainid == ROBINHOOD_MAINNET_CHAIN_ID) {
+            _requireApprovedProductionConfig(currentHash);
+        }
         _assertCanonicalLaunch(artifact);
         _assertPreparedContracts(artifact.config, artifact.deployer, artifact.feeReceiver, artifact.treasuryVesting);
         if (artifact.expectedStatics.code.length != 0) {

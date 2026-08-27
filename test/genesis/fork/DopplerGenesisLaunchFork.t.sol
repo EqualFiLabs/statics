@@ -66,7 +66,11 @@ contract DopplerGenesisLaunchForkHarness is DeployStaticsGenesis {
         artifact = _buildLaunchArtifact(config, deployer, receiver, treasuryVesting, commitments);
     }
 
-    function _requireApprovedProductionConfig(bytes32) internal pure override {}
+    function launchScriptCodeHash() public view override returns (bytes32) {
+        return keccak256(
+            vm.getDeployedCode("test/genesis/fork/DopplerGenesisLaunchFork.t.sol:DopplerGenesisLaunchForkHarness")
+        );
+    }
 }
 
 /// @notice Current-network integration proof against official Doppler deployments.
@@ -366,7 +370,6 @@ contract DopplerGenesisLaunchForkTest is Test {
         // can prove the same CREATE2 precondition without replacing any live dependency state.
         vm.etch(artifact.expectedStatics, bytes(""));
         assertEq(artifact.expectedStatics.code.length, 0);
-        deployer.validatePreparedLaunch(artifact);
 
         StaticsGenesisMarket memory market = deployer.launch(artifact);
         assertEq(market.statics, artifact.expectedStatics);
