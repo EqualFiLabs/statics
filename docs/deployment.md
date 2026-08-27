@@ -37,7 +37,6 @@ selected by chain ID and reads:
 | `STATICS_GENESIS_EPOCH_END` | Reviewed absolute Unix timestamp for immutable `genesisEpochEnd`; it must be future at deployment and is included in the launch hash |
 | `STATICS_TOKEN_URI` | Canonical Doppler ERC-20 metadata URI fixed by the launcher |
 | `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's fully onchain ERC-7572 collection JSON data URI |
-| `STATICS_GENESIS_EXTERNAL_URL_BASE` | Optional local-fork override; production uses `https://staticsprotocol.com/genesis/` and appends the token ID directly |
 
 The phased deployment:
 
@@ -88,9 +87,9 @@ Genesis token metadata and SVG artwork are generated fully onchain by
 to an onchain JSON data URI for collection-level marketplace metadata. It names
 the collection `STATICS Operators`, uses symbol `STATOPS`, links to
 `https://staticsprotocol.com`, and describes the 5,555 deterministic Genesis
-identities and their protocol rights. The per-token `external_url` uses
-`https://staticsprotocol.com/genesis/<tokenId>`; deploy that route before the
-production launch. Both canonical strings are committed by `launchConfigHash`.
+identities and their protocol rights. Per-token JSON and SVG metadata remain
+self-contained onchain with no token-specific website dependency. The canonical
+collection metadata is committed by `launchConfigHash`.
 
 Before simulation or broadcast, execute the official-module integration proof:
 

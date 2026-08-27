@@ -252,8 +252,7 @@ contract StaticsTreasuryVestingTest is Test {
             new StaticsGenesisRenderer(new StaticsAvatarSVG()),
             governance,
             treasury,
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://statics-genesis/contract.json"
         );
         deployedRegistry.bindGenesisCollection(address(deployedGenesis));
         deployedStatics.transfer(address(deployedVesting), deployedVesting.GENESIS_BACKING_COMMITMENT() + surplus);

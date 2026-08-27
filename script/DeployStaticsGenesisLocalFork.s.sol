@@ -55,8 +55,7 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
             recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
-            contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", staticsGenesisContractURI()),
-            externalURLBase: vm.envOr("STATICS_GENESIS_EXTERNAL_URL_BASE", staticsGenesisExternalURLBase())
+            contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", staticsGenesisContractURI())
         });
 
         vm.startBroadcast(privateKey);

@@ -28,12 +28,11 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
     }
 
     /// @inheritdoc IStaticsGenesisRenderer
-    function renderTokenURI(
-        address collection,
-        uint256 tokenId,
-        address activationRegistry,
-        string calldata externalURLBase
-    ) external view returns (string memory uri) {
+    function renderTokenURI(address collection, uint256 tokenId, address activationRegistry)
+        external
+        view
+        returns (string memory uri)
+    {
         uint8 tier;
         if (activationRegistry != address(0)) {
             try IGenesisActivationRegistry(activationRegistry).tierOf(tokenId) returns (uint8 reportedTier) {
@@ -49,9 +48,6 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
             tokenId.toString(),
             '","description":"A fixed-supply, dual-backed STATICS Operators NFT redeemable for 180,000 STATICS plus a 1/5,555 share of the permanent native ETH reserve after the Genesis Epoch.","image":"',
             image,
-            '","external_url":"',
-            externalURLBase,
-            tokenId.toString(),
             '","attributes":[',
             _attributes(traits_),
             ",",

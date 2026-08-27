@@ -209,8 +209,7 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
             renderer,
             address(this),
             address(this),
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://statics-genesis/contract.json"
         );
         registry.bindGenesisCollection(address(genesis));
         statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());

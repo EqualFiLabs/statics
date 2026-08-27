@@ -48,7 +48,6 @@ contract StaticsGenesis is
     address public override protocol;
     bool public override launchFinalized;
     string public override contractURI;
-    string public externalURLBase;
     address private transferValidator;
     mapping(uint256 genesisId => bool reportedLocked) private reportedLockStatus;
 
@@ -73,7 +72,6 @@ contract StaticsGenesis is
     error RecoveryLinkNotCleared(address protocol, uint256 genesisId, uint256 positionId);
 
     event DefaultRoyaltyUpdated(address indexed receiver, uint96 royaltyBps);
-    event ExternalURLBaseUpdated(string externalURLBase);
 
     constructor(
         address vault_,
@@ -82,8 +80,7 @@ contract StaticsGenesis is
         IStaticsGenesisRenderer renderer_,
         address protocolBinder,
         address royaltyReceiver,
-        string memory contractURI_,
-        string memory externalURLBase_
+        string memory contractURI_
     ) ERC721("Statics Operators", "STATOPS") Ownable(protocolBinder) {
         if (vault_ == address(0)) revert InvalidVault();
         if (treasuryVesting_ == address(0) || treasuryVesting_ == vault_) revert InvalidTreasuryVesting();
@@ -93,13 +90,12 @@ contract StaticsGenesis is
         if (address(renderer_) == address(0)) revert InvalidRenderer();
         if (protocolBinder == address(0)) revert InvalidProtocol();
         if (royaltyReceiver == address(0)) revert InvalidProtocol();
-        if (bytes(contractURI_).length == 0 || bytes(externalURLBase_).length == 0) revert InvalidMetadataURI();
+        if (bytes(contractURI_).length == 0) revert InvalidMetadataURI();
         vault = vault_;
         treasuryVesting = treasuryVesting_;
         activationRegistry = activationRegistry_;
         renderer = renderer_;
         contractURI = contractURI_;
-        externalURLBase = externalURLBase_;
         _setDefaultRoyalty(royaltyReceiver, DEFAULT_ROYALTY_BPS);
         // Keep each ERC-2309 batch within OpenZeppelin's marketplace-friendly 5,000-token cap.
         _mintConsecutive(vault_, 5_000);
@@ -166,13 +162,6 @@ contract StaticsGenesis is
         if (bytes(contractURI_).length == 0) revert InvalidMetadataURI();
         contractURI = contractURI_;
         emit ContractURIUpdated();
-    }
-
-    function setExternalURLBase(string calldata externalURLBase_) external onlyOwner {
-        if (bytes(externalURLBase_).length == 0) revert InvalidMetadataURI();
-        externalURLBase = externalURLBase_;
-        emit ExternalURLBaseUpdated(externalURLBase_);
-        emit BatchMetadataUpdate(1, COLLECTION_SIZE);
     }
 
     function renounceOwnership() public pure override {
@@ -261,7 +250,7 @@ contract StaticsGenesis is
 
     function tokenURI(uint256 genesisId) public view override returns (string memory) {
         _requireOwned(genesisId);
-        return renderer.renderTokenURI(address(this), genesisId, activationRegistry, externalURLBase);
+        return renderer.renderTokenURI(address(this), genesisId, activationRegistry);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981, IERC165) returns (bool) {

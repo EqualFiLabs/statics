@@ -150,8 +150,7 @@ contract GenesisSecuredCreditTest is Test {
             renderer,
             governance,
             treasury,
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://statics-genesis/contract.json"
         );
         activationRegistry.bindGenesisCollection(address(genesis));
         statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());

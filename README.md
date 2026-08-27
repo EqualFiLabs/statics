@@ -581,7 +581,6 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
 | `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; zero disables permissionless creation (owner-only) and is not free public creation |
 | `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's onchain ERC-7572 collection metadata URI |
-| `STATICS_GENESIS_EXTERNAL_URL_BASE` | Optional local-fork override; production uses `https://staticsprotocol.com/genesis/` before the appended token ID |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Governed share of harvested WETH routed into the permanent Genesis native reserve |
 | `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native Genesis secured-credit origination fee |
 | `STATICS_GENESIS_CREDIT_EXTENSION_FEE` | Ratified flat native Genesis secured-credit extension fee |

@@ -9,12 +9,9 @@ interface IStaticsGenesisRenderer {
     /// @param collection Genesis collection address used in seed derivation.
     /// @param tokenId Genesis token ID.
     /// @param activationRegistry Registry queried for the activation tier; zero disables lookup.
-    /// @param externalURLBase URL prefix to which `tokenId` is appended.
     /// @return uri Base64-encoded JSON data URI.
-    function renderTokenURI(
-        address collection,
-        uint256 tokenId,
-        address activationRegistry,
-        string calldata externalURLBase
-    ) external view returns (string memory uri);
+    function renderTokenURI(address collection, uint256 tokenId, address activationRegistry)
+        external
+        view
+        returns (string memory uri);
 }

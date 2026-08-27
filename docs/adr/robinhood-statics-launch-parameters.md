@@ -720,10 +720,6 @@ STATICS_GENESIS_CONTRACT_URI
     collection: STATICS Operators / STATOPS
     external link: https://staticsprotocol.com
 
-STATICS_GENESIS_EXTERNAL_URL_BASE
-    selected: https://staticsprotocol.com/genesis/
-    requirement: deploy the /genesis/<tokenId> route before production launch
-
 MULTICURVE_PERMANENT_TAIL
     proposed: 120,000,000 STATICS / 15% of Doppler inventory
     modeled start: $1B FDV

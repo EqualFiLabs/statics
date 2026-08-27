@@ -211,14 +211,7 @@ contract GenesisLaunchRewardsInvariantTest is StdInvariant, Test {
             new StaticsGenesisVault(statics, address(this), address(this), block.timestamp + 3650 days, creditConfig);
         StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
         genesis = new StaticsGenesis(
-            address(vault),
-            address(this),
-            address(registry),
-            renderer,
-            address(this),
-            treasury,
-            "ipfs://contract.json",
-            "https://statics.finance/genesis/"
+            address(vault), address(this), address(registry), renderer, address(this), treasury, "ipfs://contract.json"
         );
         registry.bindGenesisCollection(address(genesis));
         statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());

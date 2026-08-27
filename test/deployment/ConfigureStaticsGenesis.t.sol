@@ -120,8 +120,7 @@ contract ConfigureStaticsGenesisTest is Test {
             new StaticsGenesisRenderer(new StaticsAvatarSVG()),
             address(timelock),
             treasury,
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://statics-genesis/contract.json"
         );
         registry.bindGenesisCollection(address(genesis));
         statics.mint(address(vault), vault.INITIAL_TOKEN_BACKING());

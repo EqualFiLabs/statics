@@ -135,8 +135,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
             new StaticsGenesisRenderer(new StaticsAvatarSVG()),
             address(this),
             treasury,
-            "ipfs://statics-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://statics-genesis/contract.json"
         );
         activationRegistry.bindGenesisCollection(address(genesis));
         stakingAsset.mint(address(vault), vault.INITIAL_TOKEN_BACKING());
