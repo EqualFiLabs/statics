@@ -22,6 +22,7 @@ selected by chain ID and reads:
 | Variable | Meaning |
 | --- | --- |
 | `PRIVATE_KEY` | Broadcaster key; load locally and never commit it |
+| `STATICS_GENESIS_LAUNCH_ARTIFACT` | Confidential ignored Prepare output; use `artifacts/genesis-launch/production.json` and never publish it before Launch confirms |
 | `STATICS_GENESIS_GOVERNANCE` | Pending two-step owner of the receiver, activation registry, vault, collection, and launch distributor, and immutable admin that may rotate the treasury vesting withdrawal recipient |
 | `STATICS_GENESIS_TREASURY` | Initial recipient of vested STATICS and Genesis, Genesis activation payments, and royalties |
 | `WETH_ADDRESS` | Verified WETH paired with STATICS; on Robinhood mainnet it must match the manifest-pinned canonical proxy, implementation, proxy admin, and ownership-controller code |
@@ -38,27 +39,27 @@ selected by chain ID and reads:
 | `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's fully onchain ERC-7572 collection JSON data URI |
 | `STATICS_GENESIS_EXTERNAL_URL_BASE` | Optional local-fork override; production uses `https://staticsprotocol.com/genesis/` and appends the token ID directly |
 
-The deployment:
+The phased deployment:
 
-1. deploys a permanent fee receiver and immutable treasury vesting contract;
-2. creates exactly 1,000,000,000 STATICS through `DopplerERC20V1`;
-3. passes exactly 800,000,000 STATICS to the six-curve Multicurve initializer;
-4. commits exactly 99,900,000 STATICS as backing for the protocol's 555 Genesis,
-   vests the fixed 100,100,000-STATICS principal linearly for 60 days, and keeps
-   any additional balance in the vesting contract as unaccounted surplus;
-5. mints Genesis IDs 1..5,000 to the vault and IDs 5,001..5,555 to the treasury
-   vesting contract;
-6. deploys the vault with an immutable future `genesisEpochEnd`, binds the fee
-   receiver's permanent reserve vault, and sets `reserveShareBps` before the
-   launch distributor is accepted so a nonzero share can never route around an
-   unbound reserve vault;
-7. deploys and binds the permanent activation registry (with its immutable
-   treasury) and temporary launch distributor; and
-8. proposes the configured governance address as the two-step owner of every
-   administered standalone contract. The same governance address is the
-   vesting contract's immutable recipient admin.
+1. **Prepare** deploys only the permanent fee receiver and immutable treasury
+   vesting contract, verifies every launch dependency, predicts the deterministic
+   STATICS address and PoolId, commits the exact `Airlock.create()` calldata, and
+   records the next broadcaster nonce in the confidential artifact.
+2. **Launch** submits one zero-value call to the canonical Airlock. That call
+   creates exactly 1,000,000,000 STATICS, passes exactly 800,000,000 STATICS to
+   the six-curve Multicurve initializer, and sends the remaining protocol
+   allocation to treasury vesting. The market is live as soon as this one
+   transaction confirms.
+3. **Finalize** binds the market to the receiver; mints Genesis IDs 1..5,000 to
+   the vault and IDs 5,001..5,555 to treasury vesting; commits exactly
+   99,900,000 STATICS as backing for the protocol's 555 Genesis; vests the fixed
+   100,100,000-STATICS principal linearly for 60 days; binds the reserve vault,
+   activation registry, and launch distributor; and proposes the configured
+   governance address as the two-step owner of all five administered contracts.
+   The same governance address is the vesting contract's immutable recipient
+   admin. Any additional vesting balance remains unaccounted surplus.
 
-STATICS and Genesis vest linearly from the launch transaction timestamp. Anyone
+STATICS and Genesis vest linearly from the Finalize transaction timestamp. Anyone
 may call `releaseStatics()` or `releaseGenesis(maxCount)`; assets always go to
 the configured withdrawal recipient. Genesis release is ascending by token ID,
 requires a nonzero `maxCount`, and processes at most 50 NFTs per transaction.
@@ -91,49 +92,49 @@ Before simulation or broadcast, execute the official-module integration proof:
 
 ```bash
 ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
-BASE_SEPOLIA_RPC_URL="$BASE_SEPOLIA_RPC_URL" \
 REQUIRE_DOPPLER_FORK_PROOF=true \
   forge test \
   --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol \
   -vv
 ```
 
-An executed network path validates module code, official Airlock creation,
-supply allocation, pool initialization, the mandatory 5% Doppler/Airlock-owner
-share of launch-position LP fees, the exact 95% Statics receiver share, and
-standalone wiring. It then executes a real v4 swap, harvests fees through the
-standard initializer, and proves both Genesis and treasury accrual. Both
-Robinhood and Base Sepolia provide this live integration proof against their
-official standard Multicurve initializers.
+The executed pinned-Robinhood path validates module code and the predicted
+CREATE2 STATICS address before Launch. It calls the official Airlock, checks the
+predicted token and PoolId, and executes a real v4 swap while the receiver and
+vesting contracts are still unfinalized. Only then does it Finalize and prove
+supply allocation, the mandatory 5% Doppler/Airlock-owner share, the exact 95%
+Statics receiver share, Genesis and treasury custody, fee harvest, secured
+credit, recovery, vesting, and governance wiring.
 
-The canonical `run()` path is deliberately locked on Robinhood while
-`APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying the production
-curves, static fee, Genesis reward share, and reserve parameters requires a
-reviewed follow-up commit that pins their exact hash. That commitment also binds
-the creation bytecode of every Genesis launch contract, including the Statics Operators ERC-721 collection, the exact
-Doppler/Airlock-owner beneficiary, canonical Robinhood WETH address, proxy
-bytecode, ERC-1967 implementation address and bytecode, proxy-admin address and
-bytecode, and the proxy admin's ownership-controller proxy and implementation
-recorded in the mainnet deployment manifest. The launcher also requires that
-the ownership controller remains administered by that proxy admin. A Statics
-source or compiler-output change, later Airlock ownership rotation, or WETH
-authority/code drift therefore invalidates the reviewed hash instead of
-silently changing deployed protocol logic, the recipient of 5% of
-launch-position fees, or the code that executes `withdraw()`. Before any
-simulation or broadcast, the launcher rejects a renounced Airlock owner, a
-different `WETH_ADDRESS`, or drift at any pinned WETH authority or proxy layer
-so upstream authority and native unwrapping cannot silently cross permanent
-launch security boundaries. These checks bind the state observed during Forge
-script simulation; they are not an atomic onchain guard because the script
-expands into multiple broadcast transactions. Simulate immediately before
-submission, reject any stale broadcast artifact, and rerun the checks after any
-delay or dependency-state change. WETH remains governed upstream after
-deployment, so later role or upgrade changes are an explicit continuing
-dependency. The lower-level
-`deploy()` function remains available to unit and fork tests. Deployment requires
-the treasury vesting contract to hold at least the fixed 200-million-STATICS
-protocol allocation; higher balances do not fail launch and remain outside Vault
-backing and fixed vesting-principal accounting.
+The production `runPrepare()` and `runLaunch()` paths are deliberately locked
+on Robinhood while `APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH` is zero. Ratifying
+the production curves, static fee, Genesis reward share, reserve parameters,
+and credit configuration requires a reviewed follow-up commit that pins their
+exact hash. The commitment also binds every Genesis launch contract's creation
+code, the Statics Operators metadata, the exact Doppler beneficiary, canonical
+Robinhood WETH proxy and authority chain, every Doppler module and runtime code
+hash, the token-factory implementation, the predicted STATICS address and
+PoolId, and the exact `Airlock.create()` calldata.
+
+Prepare checks and commits this state before its two receiver CREATE
+transactions. Launch rechecks the complete artifact, dependency state,
+broadcaster nonce, deterministic addresses, pristine receiver state, and exact
+calldata immediately before its single zero-value Airlock CALL. Finalize accepts
+only that already-live token and pool, rechecks every Airlock asset-data field
+and allocation, and requires the prepared receiver and vesting state to remain
+pristine before broadcasting post-launch wiring. WETH remains governed
+upstream after deployment, so later role or upgrade changes remain an explicit
+continuing dependency.
+
+Finalize is intentionally retry-hostile. A partial Finalize consumes at least
+one broadcaster nonce; rerunning `runFinalize()` then fails before another
+transaction. Reconcile every receipt, included nonce, and deployed address, then
+review a separate recovery action. Never add address discovery, conditional
+skips, or an automatic retry to the production ceremony. The lower-level
+`deploy()` function remains available only for unit, fork, and guarded local
+Anvil flows. Treasury vesting must hold at least the fixed 200-million-STATICS
+protocol allocation; surplus stays outside Vault backing and fixed-principal
+vesting accounting.
 
 ### Production salt and submission ceremony
 
@@ -144,53 +145,106 @@ can consume that deterministic token address first with different initialization
 data. This is a launch denial of service: it forces a new salt and a newly
 reviewed launch hash.
 
-For production:
+Use this exact boundary:
 
 1. Generate the salt from a cryptographically secure random source. Do not use
-   a phrase, timestamp, repository value, or a hash of predictable text.
-2. Publish only the approved launch hash before launch. Do not publish the raw
-   salt or a deployment manifest containing it until the creation transaction
-   is sequenced.
-3. Do not expose the production salt through simulation calls to an untrusted
-   RPC. Simulate from a local fork or infrastructure trusted for the launch
+   a phrase, timestamp, repository value, or hash of predictable text.
+2. Set a restrictive process umask and keep the artifact under the ignored
+   directory. Do not publish, back up, paste into logs, or copy the artifact
+   before sequencing; it contains the raw salt and complete launch calldata.
+3. Run Prepare through the normal public RPC. Its two transactions contain no
+   salt and cannot create the market:
+
+   ```bash
+   umask 077
+   mkdir -p artifacts/genesis-launch
+   export STATICS_GENESIS_LAUNCH_ARTIFACT=artifacts/genesis-launch/production.json
+
+   forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+     --sig "runPrepare()" \
+     --rpc-url "$RPC_URL" \
+     --broadcast \
+     -vv
+   ```
+
+4. Confirm both Prepare receipts, the prepared receiver and vesting addresses,
+   and the artifact hash. The artifact's `expectedLaunchNonce` must equal the
+   broadcaster's current nonce. Any intervening transaction invalidates the
    ceremony.
-4. Submit through a trusted, low-latency Robinhood RPC path that forwards
-   directly to the first-come, first-served sequencer. Do not route the launch
-   through a public pending-transaction service or an untrusted relay.
-5. Confirm the creation transaction and expected token address before
-   publishing the raw salt and final manifest. A failed or interrupted
-   multi-transaction broadcast is not a completed launch; resume only after
-   reconciling every included nonce and deployed address.
+5. Simulate the exact committed Launch against a trusted local fork or trusted
+   launch RPC. Never send salt-bearing Launch calldata to an untrusted
+   simulation provider, and never use `--broadcast` for this production check:
 
-Simulate first, inspect every address and allocation, then broadcast only with
-explicit deployment authorization:
+   ```bash
+   forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+     --sig "runLaunch()" \
+     --rpc-url "$TRUSTED_SIMULATION_RPC" \
+     -vv
+   ```
 
-```bash
-forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
-  --rpc-url "$RPC_URL" \
-  -vv
+6. Read `airlock`, `deployer`, `expectedLaunchNonce`, `createCalldata`, and
+   `createCalldataHash` locally from the artifact. Select gas and EIP-1559 fee
+   values from the trusted simulation and current fee state immediately before
+   signing; these envelope fields are intentionally outside the artifact
+   commitment. Sign the exact zero-value Airlock call locally:
 
-forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
-  --rpc-url "$RPC_URL" \
-  --broadcast \
-  --verify \
-  --verifier blockscout \
-  --verifier-url "$ROBINHOOD_TESTNET_VERIFIER_URL" \
-  -vv
-```
+   ```bash
+   AIRLOCK=$(jq -r .airlock "$STATICS_GENESIS_LAUNCH_ARTIFACT")
+   DEPLOYER=$(jq -r .deployer "$STATICS_GENESIS_LAUNCH_ARTIFACT")
+   EXPECTED_LAUNCH_NONCE=$(jq -r .expectedLaunchNonce "$STATICS_GENESIS_LAUNCH_ARTIFACT")
+   CALLDATA=$(jq -r .createCalldata "$STATICS_GENESIS_LAUNCH_ARTIFACT")
 
-Airlock creates the live pool in the deployment transaction; there is no later
-graduation or custom Statics initialization. Record the token, PoolKey/PoolId,
-all Doppler modules and source revisions, fee receiver, treasury vesting,
-activation registry, collection, vault, distributor, metadata contracts, fee
-schedule, and six curves. Before declaring deployment complete, verify the
-vesting admin, recipient, start and end timestamps, principal custody, and
-Genesis ID endpoints. The configured
-governance must submit one batch containing `acceptOwnership()` to the fee
-receiver, activation registry, vault, Genesis collection, and launch
-distributor. Verify `owner() == governance` and `pendingOwner() == address(0)`
-on all five contracts; until then the broadcaster remains the active owner.
-The six-curve fixture and fee values are not approved production economics.
+   GAS_LIMIT=$(cast estimate "$AIRLOCK" "$CALLDATA" \
+     --from "$DEPLOYER" --rpc-url "$TRUSTED_SIMULATION_RPC")
+   RAW_TX=$(cast mktx "$AIRLOCK" "$CALLDATA" \
+     --chain 4663 --nonce "$EXPECTED_LAUNCH_NONCE" --gas-limit "$GAS_LIMIT" \
+     --gas-price "$MAX_FEE_PER_GAS" --priority-gas-price "$MAX_PRIORITY_FEE_PER_GAS" \
+     --keystore "$KEYSTORE" --password-file "$PASSWORD_FILE")
+   cast decode-transaction "$RAW_TX" --json
+   ```
+
+   Before submission, independently compare the decoded chain ID, recovered
+   signer, nonce, Airlock target, zero value, and input hash against the
+   artifact. Record the decoded signed transaction locally under the same
+   restrictive handling; do not paste it into chat or hosted tooling.
+7. Submit only the signed Launch transaction directly to Robinhood's sequencer:
+
+   ```bash
+   cast rpc --rpc-url https://sequencer.mainnet.chain.robinhood.com \
+     eth_sendRawTransaction "$RAW_TX"
+   ```
+
+   `cast publish "$RAW_TX" --rpc-url
+   https://sequencer.mainnet.chain.robinhood.com` is equivalent, but the literal
+   `eth_sendRawTransaction` call above is the canonical ceremony. Confirm the
+   returned transaction hash and expected STATICS address through the normal
+   public RPC before proceeding.
+8. Run Finalize through the normal RPC:
+
+   ```bash
+   forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+     --sig "runFinalize()" \
+     --rpc-url "$RPC_URL" \
+     --broadcast \
+     -vv
+   ```
+
+Airlock creates the live pool in the single Launch transaction; there is no
+later graduation or custom Statics initialization. Record the token,
+PoolKey/PoolId, all Doppler modules and source revisions, fee receiver, treasury
+vesting, activation registry, collection, vault, distributor, metadata
+contracts, fee schedule, and six curves in the public deployment manifest.
+Only after Launch is confirmed and the final public manifest is recorded may
+the confidential artifact be moved to an approved secure archive or deleted.
+Before declaring deployment complete, verify vesting admin, recipient, start
+and end timestamps, principal custody, and Genesis ID endpoints.
+
+Configured governance must submit one batch containing `acceptOwnership()` to
+the fee receiver, activation registry, vault, Genesis collection, and launch
+distributor. Verify `owner() == governance` and
+`pendingOwner() == address(0)` on all five contracts; until then the broadcaster
+remains active owner. The six-curve fixture and fee values are not approved
+production economics.
 
 ## Full Statics Operators handoff
 

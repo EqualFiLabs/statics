@@ -272,31 +272,41 @@ This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and 
 
 ## Deploy
 
-The standalone Genesis entry point is
-`script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It deploys the exact
-one-billion-STATICS Doppler token, four-curve 800-million market allocation,
-and fixed 200-million protocol allocation. Genesis IDs 1..5,000 begin in the
-Vault while IDs 5,001..5,555 and the fixed 100.1-million-STATICS principal begin
-in immutable treasury vesting; exactly 99.9 million STATICS becomes accounted
-Vault backing. Any additional vesting-contract balance remains surplus outside
-both fixed principal and Vault accounting until governance may sweep it after
-actual full STATICS-principal release. The launcher also installs the permanent
-activation registry and fee receiver plus the temporary Genesis launch distributor.
-The four curves and fee schedule are explicitly nonproduction fixtures pending
-economic ratification. It does not deploy or require the Statics Diamonds.
+The standalone Genesis launcher is
+`script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis`. It commits an explicit
+Prepare -> Launch -> Finalize ceremony. Prepare deploys only the permanent fee
+receiver and immutable treasury vesting contract. Launch is one zero-value,
+canonical `Airlock.create()` transaction that creates the one-billion-STATICS
+token and live six-curve market with 800 million STATICS of inventory. Finalize
+installs the activation registry, vault, Statics Operators collection, and
+temporary launch distributor; accounts for exactly 99.9 million STATICS of Vault
+backing; and starts immutable vesting for the 100.1-million-STATICS principal.
+It does not deploy or require the Statics Diamonds.
 
-The Robinhood `run()` path is compile-time locked until a follow-up decision
-pins the approved launch-configuration hash.
+Robinhood `runPrepare()` and `runLaunch()` remain compile-time locked until a
+follow-up decision pins the approved launch-configuration hash. Production
+operators Prepare through the normal RPC, simulate the exact committed Launch
+without `--broadcast`, sign and inspect its artifact calldata locally, submit
+that raw transaction directly to Robinhood's sequencer, then Finalize through
+the normal RPC:
 
 ```shell
 forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
-  --rpc-url "$RPC_URL" \
-  --broadcast \
-  -vv
+  --sig "runPrepare()" --rpc-url "$RPC_URL" --broadcast -vv
+
+forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+  --sig "runLaunch()" --rpc-url "$TRUSTED_SIMULATION_RPC" -vv
+
+# Sign and submit the artifact's exact Airlock calldata as documented below.
+
+forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
+  --sig "runFinalize()" --rpc-url "$RPC_URL" --broadcast -vv
 ```
 
 See the [deployment guide](./docs/deployment.md#standalone-genesis-release) for
-configuration and verification requirements.
+confidential artifact handling, nonce discipline, local transaction inspection,
+direct `eth_sendRawTransaction` submission, and complete verification
+requirements.
 
 The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
 
