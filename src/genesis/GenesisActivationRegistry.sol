@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -83,6 +89,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         return _tierCost[tier];
     }
 
+    /// @inheritdoc IGenesisActivationRegistry
     function bindGenesisCollection(address collection) external override {
         if (msg.sender != bootstrapper) revert UnauthorizedBootstrapper(msg.sender);
         if (genesisCollection != address(0)) revert GenesisCollectionAlreadyBound();
@@ -99,6 +106,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
 
     /// @notice Activate a Genesis to a higher tier. The exact cumulative STATICS cost is transferred to
     ///         the Statics treasury. STATICS totalSupply is never reduced and Genesis backing is untouched.
+    /// @inheritdoc IGenesisActivationRegistry
     function activate(uint256 genesisId, uint8 targetTier) external override nonReentrant returns (uint256 paid) {
         address collection = genesisCollection;
         if (collection == address(0)) revert InvalidGenesisCollection();
@@ -121,6 +129,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         IStaticsGenesis(collection).refreshMetadata(genesisId);
     }
 
+    /// @inheritdoc IGenesisActivationRegistry
     function onGenesisTransfer(uint256 genesisId, address previousOwner, address nextOwner)
         external
         override
@@ -135,6 +144,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         }
     }
 
+    /// @inheritdoc IGenesisActivationRegistry
     function setTierCost(uint8 tier, uint256 newCost) external override onlyOwner {
         if (tier == 0 || tier > MAX_TIER) revert InvalidTier(tier);
         if (newCost < MIN_TIER_COST || newCost > MAX_TIER_COST) {
@@ -145,6 +155,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         emit TierCostUpdated(tier, previousCost, newCost);
     }
 
+    /// @inheritdoc IGenesisActivationRegistry
     function proposeConsumer(address consumer) external override onlyOwner {
         if (consumer == address(0) || consumer.code.length == 0 || consumer == activeConsumer) {
             revert InvalidConsumer(consumer);
@@ -153,6 +164,7 @@ contract GenesisActivationRegistry is IGenesisActivationRegistry, Ownable2Step, 
         emit ConsumerProposed(activeConsumer, consumer);
     }
 
+    /// @inheritdoc IGenesisActivationRegistry
     function acceptConsumer() external override {
         address pending = pendingConsumer;
         if (msg.sender != pending) revert UnauthorizedPendingConsumer(msg.sender);

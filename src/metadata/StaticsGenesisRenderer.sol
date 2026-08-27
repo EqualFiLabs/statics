@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
@@ -8,6 +14,7 @@ import {IStaticsGenesisRenderer} from "../interfaces/IStaticsGenesisRenderer.sol
 import {LibAvatarTraits} from "./LibAvatarTraits.sol";
 import {StaticsAvatarSVG} from "./StaticsAvatarSVG.sol";
 
+/// @notice Stateless renderer for deterministic Genesis SVG and JSON data URIs.
 contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
     using Strings for uint256;
 
@@ -20,6 +27,7 @@ contract StaticsGenesisRenderer is IStaticsGenesisRenderer {
         avatarSVG = avatarSVG_;
     }
 
+    /// @inheritdoc IStaticsGenesisRenderer
     function renderTokenURI(
         address collection,
         uint256 tokenId,

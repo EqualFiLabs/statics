@@ -4,16 +4,24 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 struct GenesisCreditConfig {
+    /// @dev Fee receiver used for recovery-distributor validation.
     address feeReceiver;
+    /// @dev Treasury receiving the treasury share of native credit fees.
     address treasury;
+    /// @dev Native origination fee in wei.
     uint256 originationFee;
+    /// @dev Native extension fee in wei.
     uint256 extensionFee;
+    /// @dev Recovery caller incentive in basis points.
     uint16 recoveryCallerShareBps;
 }
 
 struct GenesisCredit {
+    /// @dev Current Genesis owner responsible for repayment.
     address owner;
+    /// @dev Outstanding principal in STATICS wei.
     uint256 principal;
+    /// @dev Unix timestamp at which recovery becomes eligible after grace.
     uint40 maturity;
 }
 
@@ -39,18 +47,6 @@ struct GenesisCreditRecoveryQuote {
     uint256 callerIncentive;
     uint256 genesisDistribution;
     uint40 recoverableAt;
-}
-
-struct GenesisCreditAdjustmentQuote {
-    uint256 currentPrincipal;
-    uint256 newPrincipal;
-    uint256 amountToOwner;
-    uint256 amountFromOwner;
-    uint256 totalNativeFee;
-    uint16 reserveShareBps;
-    uint16 treasuryShareBps;
-    uint256 reservePortion;
-    uint256 treasuryPortion;
 }
 
 /// @notice Full snapshot of Genesis Vault STATICS and native ETH reserve accounting.
@@ -88,6 +84,7 @@ struct GenesisRedemptionQuote {
     bool epochActive;
 }
 
+/// @notice Fixed-price Genesis custody, reserve, and secured-credit interface.
 interface IStaticsGenesisVault {
     event GenesisPurchased(
         address indexed payer,
@@ -115,13 +112,8 @@ interface IStaticsGenesisVault {
     event GenesisCreditExtended(
         uint256 indexed genesisId, address indexed owner, uint40 previousMaturity, uint40 newMaturity, uint256 nativeFee
     );
-    event GenesisCreditPrincipalAdjusted(
-        uint256 indexed genesisId,
-        address indexed owner,
-        uint256 previousPrincipal,
-        uint256 newPrincipal,
-        uint256 amountToOwner,
-        uint256 amountFromOwner
+    event GenesisCreditDrawn(
+        uint256 indexed genesisId, address indexed owner, uint256 amount, uint256 newPrincipal, uint256 nativeFee
     );
     event GenesisCreditRepaid(
         uint256 indexed genesisId,
@@ -148,23 +140,54 @@ interface IStaticsGenesisVault {
         uint16 newReserveShareBps,
         uint16 newTreasuryShareBps
     );
-    event CreditOriginationsPausedSet(bool paused);
+    event CreditIncreasesPausedSet(bool paused);
 
+    /// @notice Purchases a vault-held Genesis for the fixed STATICS price.
+    /// @dev Excess native value is refunded; the acquisition fee always increases the reserve.
+    /// @param tokenId Vault-held Genesis token ID.
+    /// @param receiver Recipient of the purchased Genesis.
     function buyGenesis(uint256 tokenId, address receiver) external payable;
+    /// @notice Redeems a caller-owned Genesis for STATICS and, after the epoch, its reserve share.
+    /// @param tokenId Genesis token ID.
+    /// @param receiver Recipient of the redemption assets.
     function redeemGenesis(uint256 tokenId, address receiver) external;
+    /// @notice Finalizes the collection binding and opens the launch lifecycle.
+    /// @param collection Genesis ERC-721 collection address.
     function finalizeGenesisCollection(address collection) external;
+    /// @notice Pauses or resumes Genesis purchases.
+    /// @param paused Whether purchases should be paused.
     function setPurchasesPaused(bool paused) external;
+    /// @notice Sets the native acquisition fee, subject to its configured maximum.
+    /// @param newFee New fee in wei.
     function setNativeAcquisitionFee(uint256 newFee) external;
+    /// @notice Permissionless reserve capitalization by native ETH.
     function donate() external payable;
+    /// @notice Opens secured credit against a caller-owned Genesis.
+    /// @dev `msg.value` must equal the configured origination fee.
+    /// @param genesisId Genesis token ID.
+    /// @param principal Principal advanced in STATICS wei.
     function openGenesisCredit(uint256 genesisId, uint256 principal) external payable;
-    function extendGenesisCredit(uint256 genesisId, uint256 newPrincipal) external payable;
+    /// @notice Increases utilization for an active Genesis credit.
+    /// @dev `msg.value` must equal the configured origination fee.
+    /// @param genesisId Genesis token ID.
+    /// @param amount Additional principal in STATICS wei.
+    function drawGenesisCredit(uint256 genesisId, uint256 amount) external payable;
+    /// @notice Extends the maturity of an active Genesis credit.
+    /// @dev `msg.value` must equal the configured extension fee.
+    /// @param genesisId Genesis token ID.
+    function extendGenesisCredit(uint256 genesisId) external payable;
+    /// @notice Repays part or all of an active credit; permissionless for the payer.
+    /// @param genesisId Genesis token ID.
+    /// @param amount Repayment amount in STATICS wei.
     function repayGenesisCredit(uint256 genesisId, uint256 amount) external;
+    /// @notice Recovers an expired credit after its maturity grace period.
+    /// @param genesisId Genesis token ID.
     function recoverGenesisCredit(uint256 genesisId) external;
     function setCreditOriginationFee(uint256 newFee) external;
     function setCreditExtensionFee(uint256 newFee) external;
     function setRecoveryCallerShareBps(uint16 newShareBps) external;
     function setCreditServiceFeeSplit(uint16 reserveShareBps, uint16 treasuryShareBps) external;
-    function setCreditOriginationsPaused(bool paused) external;
+    function setCreditIncreasesPaused(bool paused) external;
 
     function quoteGenesisPurchase() external view returns (GenesisPurchaseQuote memory quote);
     function quoteGenesisRedemption() external view returns (GenesisRedemptionQuote memory quote);
@@ -189,15 +212,14 @@ interface IStaticsGenesisVault {
     function credit(uint256 genesisId) external view returns (GenesisCreditView memory state);
     function creditActive(uint256 genesisId) external view returns (bool);
     function creditRecoverableAt(uint256 genesisId) external view returns (uint40);
+    /// @notice Returns the native fee split for a prospective credit origination.
+    /// @param principal Prospective principal in STATICS wei.
+    /// @return quote Fee and reserve/treasury split snapshot; not an execution guarantee.
     function quoteGenesisCredit(uint256 principal) external view returns (GenesisCreditServiceQuote memory quote);
     function quoteGenesisCreditExtension(uint256 genesisId)
         external
         view
         returns (GenesisCreditServiceQuote memory quote);
-    function quoteGenesisCreditAdjustment(uint256 genesisId, uint256 newPrincipal)
-        external
-        view
-        returns (GenesisCreditAdjustmentQuote memory quote);
     function quoteGenesisCreditRecovery(uint256 genesisId)
         external
         view
@@ -209,5 +231,5 @@ interface IStaticsGenesisVault {
     function recoveryCallerShareBps() external view returns (uint16);
     function creditServiceReserveShareBps() external view returns (uint16);
     function creditServiceTreasuryShareBps() external view returns (uint16);
-    function creditOriginationsPaused() external view returns (bool);
+    function creditIncreasesPaused() external view returns (bool);
 }

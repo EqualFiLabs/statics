@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-23
-- Scope: protocol-owned Genesis reserve, launch-allocation custody, immutable STATICS and Genesis vesting, initial Genesis Vault backing, treasury withdrawal-recipient recovery, launch configuration commitments, and formal-verification requirements
+- Scope: protocol-owned Genesis reserve, Doppler-native STATICS vesting, immutable Genesis vesting, initial Genesis Vault backing, treasury withdrawal-recipient recovery, launch configuration commitments, and formal-verification requirements
 - Extends: standalone Doppler Genesis launch architecture
 - Amends: current 200,000,000 STATICS direct treasury allocation and all-5,555-Genesis Vault bootstrap
 - Compatible with: Genesis secured credit and full Statics Operators / PositionNFT integration
@@ -29,22 +29,10 @@ STATICS backing per circulating Genesis:
 180,000
 ```
 
-The existing Doppler launch path mints the initial STATICS supply through Airlock, supplies the configured 800,000,000 STATICS inventory to the Multicurve initializer, and sends the remaining launch allocation to one downstream recipient.
-
-The current downstream recipient is `StaticsLaunchAllocationEscrow`.
-
-That escrow currently:
-
-```text
-receives the post-Doppler STATICS remainder
-
-sends exactly:
-200,000,000 STATICS
-    -> treasury
-
-sends any balance above the 200,000,000-STATICS allocation
-    -> treasury vesting custody as recoverable surplus
-```
+The Doppler token factory can mint scheduled allocations into the token contract
+itself while minting the non-vested supply to Airlock. Airlock then supplies the
+configured inventory to the Multicurve initializer and sends its exact remaining
+balance to the configured downstream recipient.
 
 The current Genesis bootstrap separately mints all 5,555 Genesis NFTs to the Genesis Vault.
 
@@ -102,7 +90,9 @@ The existing 200,000,000 STATICS protocol allocation becomes:
 
 The total economic protocol allocation remains exactly 200,000,000 STATICS. No additional STATICS are created or reassigned from the 800,000,000 STATICS Doppler inventory.
 
-The 555 protocol Genesis NFTs and the remaining 100,100,000 liquid STATICS allocation are held by a dedicated immutable vesting contract.
+The 555 protocol Genesis NFTs are held by a dedicated immutable vesting/bootstrap
+contract. The remaining 100,100,000 liquid STATICS allocation is held and vested
+by the pinned `DopplerERC20V1` token itself for the immutable treasury beneficiary.
 
 Conceptually:
 
@@ -110,29 +100,23 @@ Conceptually:
 1,000,000,000 STATICS
         |
         v
-   Doppler Airlock
+ DopplerERC20V1 initialization
         |
-        +--------------------------+
-        |                          |
-        v                          v
-800,000,000                  ~200,000,000
-Multicurve inventory         post-Doppler remainder
-                                   |
-                                   v
-                        StaticsTreasuryVesting
-                                   |
-                    +--------------+--------------+
-                    |                             |
-                    v                             v
-             99,900,000                     100,100,000
-               STATICS                         STATICS
-                    |                             |
-                    v                             |
-             Genesis Vault                       |
-             initial backing                     |
-                                                  |
-                                              vested
-                                              60 days
+        +-------------------------------+
+        |                               |
+        v                               v
+100,100,000                        899,900,000
+token-held native vest             Airlock balance
+for treasury                           |
+        |                               +------------------+
+        |                               |                  |
+        v                               v                  v
+60-day release                  800,000,000          99,900,000
+directly to treasury            Multicurve           bootstrap contract
+                                                         |
+                                                         v
+                                                   Genesis Vault
+                                                   initial backing
 ```
 
 Genesis custody becomes:
@@ -211,7 +195,7 @@ After commitment they are governed entirely by ordinary Genesis Vault economics 
 
 The treasury vesting contract has no withdrawal claim over this backing.
 
-## Treasury vesting contract
+## Treasury Genesis vesting and bootstrap contract
 
 Replace the current one-use `StaticsLaunchAllocationEscrow` with a dedicated contract conceptually named:
 
@@ -221,13 +205,14 @@ StaticsTreasuryVesting
 
 The exact name may change during implementation.
 
-The contract has five responsibilities:
+The contract has four responsibilities:
 
-1. receive the post-Doppler protocol allocation;
+1. receive the exact post-Doppler 99,900,000-STATICS remainder;
 2. commit exactly 99,900,000 STATICS to initial Genesis backing;
-3. custody and vest exactly 100,100,000 STATICS;
-4. custody and vest exactly 555 Genesis NFTs; and
-5. retain unrelated STATICS surplus until the full fixed STATICS principal has actually been released, then allow the immutable recipient admin to sweep that surplus only to the configured withdrawal recipient.
+3. custody and vest exactly 555 Genesis NFTs; and
+4. allow the immutable recipient admin to recover any STATICS accidentally
+   retained by or donated to the contract after bootstrap, only to the configured
+   withdrawal recipient.
 
 It must not become a general treasury-management contract.
 
@@ -238,7 +223,7 @@ The vesting economics are immutable after successful initialization.
 At minimum, the following values are fixed:
 
 ```text
-STATICS_VESTING_PRINCIPAL = 100,100,000 STATICS
+DOPPLER_NATIVE_STATICS_VESTING_PRINCIPAL = 100,100,000 STATICS
 GENESIS_VESTING_PRINCIPAL = 555
 GENESIS_FIRST_ID = 5001
 GENESIS_LAST_ID = 5555
@@ -246,27 +231,41 @@ GENESIS_BACKING_COMMITMENT = 99,900,000 STATICS
 VESTING_DURATION = 60 days
 ```
 
-The contract must not expose governance functions capable of changing vesting principal, Genesis count, Genesis ID range, vesting start, vesting duration, vesting formula, amount already released, Genesis release count, or initial backing commitment.
+Neither the Doppler token nor the bootstrap contract may expose governance
+functions capable of changing vesting principal, Genesis count, Genesis ID range,
+vesting start, vesting duration, vesting formula, amount already released, Genesis
+release count, beneficiary, or initial backing commitment.
 
 There is no `accelerate`, `cancel`, `clawback`, `emergencyWithdraw`, `recoverVestedAssetsEarly`, `changeDuration`, `changePrincipal`, or semantic equivalent.
 
 ## Vesting start
 
-The vesting period begins only after successful launch initialization.
-
-The implementation must prevent elapsed vesting time from accruing merely because the vesting contract was deployed before the Doppler launch.
+The STATICS vesting period begins when Doppler initializes the token during Launch.
+The Genesis vesting period begins when the bootstrap contract successfully commits
+backing and finalizes the Genesis collection during Finalize.
 
 Conceptually:
 
 ```text
-vestingStart = successful bootstrap/finalization timestamp
+STATICS vestingStart = successful Doppler token initialization timestamp
+Genesis vestingStart = successful bootstrap/finalization timestamp
 ```
 
 The start is set once and may never be changed.
 
 ## STATICS vesting
 
-The liquid treasury STATICS allocation vests linearly over 60 days.
+The liquid treasury STATICS allocation uses one native `DopplerERC20V1` schedule:
+
+```text
+beneficiary = configured treasury
+scheduleId = 0
+cliff = 0
+duration = 60 days
+amount = 100,100,000 STATICS
+```
+
+The Doppler token mints this principal to itself and vests it linearly over 60 days.
 
 For:
 
@@ -289,7 +288,8 @@ timestamp >= S + D:
     vested = P
 ```
 
-The releasable amount is:
+The releasable amount and released accounting are implemented by the pinned
+Doppler token:
 
 ```text
 releasableSTATICS
@@ -346,9 +346,12 @@ The caller does not select arbitrary Genesis IDs.
 
 Release operations should be permissionless.
 
-Any caller may trigger `releaseStatics()` and `releaseGenesis(...)`, or semantic equivalents.
+Any caller may trigger Doppler `releaseFor(treasury, 0, amount)` and
+`releaseGenesis(...)`.
 
-The caller never selects the destination. Released assets always go to the currently configured `withdrawalRecipient`.
+The caller never selects the destination. Doppler always sends STATICS to the
+immutable treasury beneficiary. The bootstrap contract sends Genesis to its
+currently configured `withdrawalRecipient`.
 
 Permissionless release prevents treasury operational availability from becoming a vesting liveness dependency. Calling the release function provides no economic privilege to the caller.
 
@@ -382,21 +385,26 @@ A treasury wallet may become compromised. Leaving the withdrawal recipient perma
 
 Therefore `withdrawalRecipient` is mutable.
 
-`withdrawalRecipient` is the only treasury-asset destination variable that governance may change.
+`withdrawalRecipient` is the only bootstrap-contract destination variable that
+governance may change. It affects Genesis releases and STATICS surplus recovery;
+it does not alter Doppler's immutable STATICS beneficiary.
 
 ## Governance authority
 
-Withdrawal-recipient changes and post-vesting surplus sweeps are guarded by an immutable `recipientAdmin` set to the configured `STATICS_GENESIS_GOVERNANCE` Safe or multisig at deployment.
+Withdrawal-recipient changes and post-bootstrap surplus sweeps are guarded by an immutable `recipientAdmin` set to the configured `STATICS_GENESIS_GOVERNANCE` Safe or multisig at deployment.
 
 No vesting-specific timelock, transferable ownership role, or later administrator replacement is introduced. The Safe may evolve its own signers and threshold without changing its address or the vesting contract.
 
-Governance may change `withdrawalRecipient`. After `releasedStatics == 100,100,000 STATICS`, it may also sweep the remaining STATICS balance only to that current recipient.
+Governance may change `withdrawalRecipient`. After bootstrap, it may also sweep
+the bootstrap contract's complete remaining STATICS balance only to that current
+recipient.
 
 Governance may not release unvested assets, alter vesting amounts, alter vesting timestamps, alter vesting formulas, change Genesis IDs, withdraw the 99.9M Genesis backing, or choose an arbitrary sweep destination.
 
 The security boundary is:
 
-> Governance controls where legitimately vested assets and post-obligation surplus go, but not when principal vests or how much principal vests.
+> Governance controls where vested Genesis and bootstrap-contract surplus go,
+> but cannot redirect or accelerate Doppler-native STATICS vesting.
 
 ## Withdrawal-recipient compromise recovery
 
@@ -413,9 +421,10 @@ executes withdrawal-recipient change
 withdrawalRecipient = Treasury Safe B
 ```
 
-After execution, future releases go to Treasury Safe B.
-
-Assets already released to Safe A cannot be recovered by the vesting contract. Unreleased principal remains protected by the immutable schedule. Retained surplus remains inaccessible until the full STATICS principal has actually been released; a later authorized sweep follows the current withdrawal recipient.
+After execution, future Genesis releases and bootstrap-contract surplus recovery
+go to Treasury Safe B. The Doppler-native STATICS beneficiary remains Treasury
+Safe A because it is committed in the token initialization payload; changing it
+would require a different, explicitly ratified launch design.
 
 ## Reward behavior while vested
 
@@ -486,7 +495,7 @@ The protocol treasury therefore receives at launch:
 
 ```text
 100,100,000 STATICS
-    subject to vesting
+    subject to Doppler-native vesting directly to treasury
 
 555 Genesis
     subject to vesting
@@ -528,25 +537,19 @@ Only the initial distribution of that backing changes.
 
 ## STATICS surplus
 
-The fixed public Multicurve target remains 800,000,000 STATICS. The vesting contract's raw balance, however, may exceed the 200,000,000-STATICS protocol allocation because the upstream result or an unsolicited transfer can add tokens.
+Launch execution verifies in the same transaction that Airlock sent exactly
+99,900,000 STATICS to the bootstrap contract, retained zero STATICS, and left
+exactly 100,100,000 STATICS inside the token's native vesting custody. This binds
+the intended split without relying on a later balance observation.
 
-Bootstrap therefore requires solvency rather than exact balance:
-
-```text
-vesting custody >= 200,000,000 STATICS
-```
-
-It transfers exactly 99,900,000 STATICS into accounted Genesis backing and retains:
-
-```text
-100,100,000 STATICS
-    -> fixed treasury vesting principal
-
-anything above 200,000,000 STATICS at bootstrap
-    -> unaccounted vesting-contract surplus
-```
-
-Surplus never increases `tokenBacking`, treasury vesting principal, Genesis vesting principal, vested amounts, or released counters. Before the full fixed STATICS principal has actually been released, no caller can withdraw it. After `releasedStatics == STATICS_VESTING_PRINCIPAL`, only `recipientAdmin` may sweep the complete remaining STATICS balance to the current `withdrawalRecipient`; later donations remain recoverable through another sweep.
+Finalization accepts bootstrap custody greater than or equal to 99,900,000
+STATICS so an unsolicited donation cannot block the launch. It transfers exactly
+99,900,000 STATICS into accounted Genesis backing and leaves any excess as
+unaccounted surplus. Surplus never increases `tokenBacking`, either vesting
+principal, vested amounts, or released counters. After bootstrap, only
+`recipientAdmin` may sweep the complete remaining bootstrap-contract balance to
+the current `withdrawalRecipient`; later donations remain recoverable through
+another sweep.
 ## Bootstrap sequence
 
 The launch ceremony must preserve atomic correctness.
@@ -558,30 +561,34 @@ Conceptually:
 
 2. Launch STATICS through Doppler Airlock.
 
-3. Airlock initializes the 800M Multicurve inventory.
+3. DopplerERC20V1 mints 100.1M STATICS to itself under the immutable
+   treasury schedule and 899.9M STATICS to Airlock.
 
-4. Airlock transfers the post-Doppler remainder
-   to StaticsTreasuryVesting.
+4. Airlock transfers exactly 800M STATICS to the Multicurve initializer
+   and the exact 99.9M remainder to StaticsTreasuryVesting.
 
-5. Deploy Genesis Vault and permanent Genesis infrastructure.
+5. Launch execution verifies the native schedule, exact token and bootstrap
+   custody, and zero Airlock balance before returning.
 
-6. Deploy StaticsGenesis:
+6. Deploy Genesis Vault and permanent Genesis infrastructure.
+
+7. Deploy StaticsGenesis:
        #1-5000    -> Genesis Vault
        #5001-5555 -> StaticsTreasuryVesting
 
-7. StaticsTreasuryVesting verifies collection custody and at least
-   200M STATICS custody.
+8. StaticsTreasuryVesting verifies collection custody and at least
+   99.9M STATICS custody.
 
-8. StaticsTreasuryVesting transfers exactly
+9. StaticsTreasuryVesting transfers exactly
    99.9M STATICS -> Genesis Vault.
 
-9. Any STATICS above the fixed 200M allocation remains
+10. Any STATICS above the fixed 99.9M backing commitment remains
    in StaticsTreasuryVesting as unaccounted surplus.
 
-10. Genesis Vault records exactly
+11. Genesis Vault records exactly
     99.9M initial tokenBacking.
 
-11. Genesis Vault verifies:
+12. Genesis Vault verifies:
         mintedSupply == 5555
         vault inventory == 5000
         circulating == 555
@@ -589,15 +596,16 @@ Conceptually:
         tokenBacking == 99.9M
         custody >= tokenBacking
 
-12. Genesis launch finalizes.
+13. Genesis launch finalizes.
 
-13. Treasury vesting start becomes immutable.
+14. Genesis vesting start becomes immutable; Doppler-native STATICS vesting
+    has already started at Launch.
 
-14. Bootstrap authority is permanently removed.
+15. Bootstrap authority is permanently removed.
 
-15. The immutable configured governance Safe becomes the only
+16. The immutable configured governance Safe becomes the only
     authority capable of changing withdrawalRecipient or sweeping
-    surplus after actual full STATICS-principal release.
+    bootstrap-contract surplus.
 ```
 
 Exact ordering may be adjusted during implementation to accommodate deterministic deployment and constructor dependencies. The required post-condition may not change.
@@ -688,7 +696,9 @@ TREASURY_GENESIS_COUNT = 555
 TREASURY_GENESIS_FIRST_ID = 5001
 TREASURY_GENESIS_LAST_ID = 5555
 TREASURY_GENESIS_BACKING = 99,900,000 STATICS
-TREASURY_STATICS_VESTING_PRINCIPAL = 100,100,000 STATICS
+DOPPLER_NATIVE_STATICS_VESTING_PRINCIPAL = 100,100,000 STATICS
+DOPPLER_NATIVE_STATICS_VESTING_BENEFICIARY = treasury
+DOPPLER_NATIVE_STATICS_VESTING_CLIFF = 0
 TREASURY_VESTING_DURATION = 60 days
 withdrawal recipient
 immutable governance Safe / multisig authority
@@ -710,29 +720,30 @@ Implementation and verification must establish at minimum:
 5. Initial public Vault inventory is exactly 5,000 Genesis.
 6. Protocol Genesis IDs are exactly 5001 through 5555.
 7. Initial Genesis backing commitment is exactly 99,900,000 STATICS.
-8. Treasury STATICS vesting principal is exactly 100,100,000 STATICS.
+8. Doppler-native treasury STATICS vesting principal is exactly 100,100,000 STATICS.
 9. `initial tokenBacking == initial requiredBacking == 99,900,000 STATICS`.
 10. No circulating protocol Genesis exists without its required initial backing.
-11. Surplus cannot increase treasury vesting principal.
+11. Bootstrap-contract surplus cannot increase native treasury vesting principal.
 12. Surplus cannot increase `tokenBacking`.
-13. Released STATICS never exceeds vested STATICS.
+13. Doppler-released STATICS never exceeds Doppler-vested STATICS.
 14. Released Genesis count never exceeds vested Genesis count.
 15. STATICS vesting never exceeds 100,100,000.
 16. Genesis vesting never exceeds 555.
-17. At vest completion exactly 100,100,000 STATICS are releasable/released in aggregate.
+17. At native vest completion exactly 100,100,000 STATICS are releasable/released in aggregate.
 18. At vest completion exactly 555 Genesis are releasable/released in aggregate.
 19. Genesis are released only in deterministic ascending order.
 20. No Genesis outside IDs 5001-5555 can be released by the vesting contract.
-21. Changing `withdrawalRecipient` cannot alter any vesting accounting.
-22. Changing `withdrawalRecipient` cannot make additional assets immediately vested.
+21. Changing `withdrawalRecipient` cannot alter Genesis or Doppler vesting accounting.
+22. Changing `withdrawalRecipient` cannot redirect native STATICS or make additional assets immediately vested.
 23. Only the immutable configured governance Safe/multisig may change `withdrawalRecipient` or sweep surplus.
-24. Governance cannot withdraw unvested STATICS.
+24. Governance has no path to withdraw unvested native STATICS.
 25. Governance cannot withdraw unvested Genesis.
-26. Surplus cannot be swept until `releasedStatics == 100,100,000 STATICS`.
+26. Bootstrap-contract surplus cannot be swept before successful bootstrap.
 27. An authorized sweep transfers the complete remaining STATICS balance only to the current `withdrawalRecipient`.
 28. Governance cannot modify vesting duration, start, or principal.
 29. Governance cannot recover the 99.9M Vault backing through the vesting contract.
-30. Permissionless release always pays the current withdrawal recipient.
+30. Permissionless native STATICS release always pays the immutable treasury;
+    permissionless Genesis release always pays the current withdrawal recipient.
 31. Repeated release calls cannot double-release assets.
 32. Genesis held by the vesting contract remain unregistered for direct rewards.
 33. Genesis held by the vesting contract cannot originate secured credit through the vesting contract.
@@ -752,18 +763,19 @@ The current escrow proof becomes obsolete because the former property:
 
 is intentionally removed.
 
-The replacement formal target should prove the new vesting contract and initial Vault state.
+The replacement formal targets should prove the Genesis vesting/bootstrap
+contract and initial Vault state. The pinned Doppler implementation's native
+vesting behavior is exercised by the official-module fork proof rather than
+duplicated as a local custom vesting model.
 
 ### Vesting conservation
 
 Prove:
 
 ```text
-releasedSTATICS
-+
-remainingVestingSTATICS
-=
-100,100,000 STATICS
+Doppler vestedTotalAmount == 100,100,000 STATICS
+Doppler totalAllocatedOf(treasury) == 100,100,000 STATICS
+Doppler vestingOf(treasury, 0).totalAmount == 100,100,000 STATICS
 ```
 
 subject only to explicit exact-transfer assumptions.
@@ -785,7 +797,7 @@ before considering impossible or explicitly unmodeled unsolicited NFT behavior.
 For arbitrary timestamp:
 
 ```text
-releasedSTATICS <= vestedSTATICS(timestamp)
+Doppler releasedSTATICS <= Doppler vestedSTATICS(timestamp)
 releasedGenesis <= vestedGenesis(timestamp)
 ```
 
@@ -832,27 +844,29 @@ At minimum, add real-flow coverage for:
 ```text
 fresh launch
     -> 800M Multicurve inventory
+    -> exact 99.9M bootstrap balance
     -> 99.9M Vault backing
-    -> 100.1M vesting principal
+    -> exact 100.1M Doppler-native vesting principal for treasury
+    -> zero Airlock balance
     -> 5000 Genesis Vault
     -> 555 Genesis vesting
 ```
 
 ```text
-timestamp == vestingStart
-    -> 0 STATICS releasable
+timestamp == each vestingStart
+    -> 0 Doppler-native STATICS releasable
     -> 0 Genesis releasable
 ```
 
 ```text
 mid-vesting
-    -> exact expected STATICS vested
+    -> exact expected Doppler-native STATICS vested
     -> exact floor Genesis count vested
 ```
 
 ```text
 timestamp == vestingEnd
-    -> full 100.1M STATICS vested
+    -> full 100.1M Doppler-native STATICS vested
     -> all 555 Genesis vested
 ```
 
@@ -873,7 +887,8 @@ request batch > releasable
 
 ```text
 governance Safe changes withdrawalRecipient
-    -> future release goes to new recipient
+    -> future Genesis release and surplus recovery go to new recipient
+    -> Doppler-native STATICS beneficiary remains treasury
     -> previously released accounting unchanged
 ```
 
@@ -892,14 +907,14 @@ arbitrary pre-bootstrap STATICS surplus
     -> bootstrap succeeds
     -> not included in 100.1M vest
     -> not classified as 99.9M backing
-    -> retained until actual full principal release
+    -> retained for post-bootstrap admin recovery
 ```
 
 ```text
-surplus sweep before full principal release
+surplus sweep before bootstrap
     -> revert
 
-surplus sweep after full principal release
+surplus sweep after bootstrap
     -> only recipientAdmin
     -> complete balance to current withdrawalRecipient
 ```
@@ -942,12 +957,13 @@ The launch deployer must be updated to:
 - replace `StaticsLaunchAllocationEscrow` with the treasury vesting/bootstrap contract;
 - bind the immutable configured governance Safe/multisig as `recipientAdmin`;
 - bind the initial withdrawal recipient;
-- route the Doppler post-sale allocation to the vesting contract;
+- encode one zero-cliff 60-day Doppler-native allocation of 100.1M STATICS to treasury;
+- route the exact 99.9M Airlock post-sale remainder to the bootstrap contract;
 - deploy Genesis with the 5,000 / 555 custody split;
 - seed the Genesis Vault with exactly 99.9M STATICS;
 - initialize Vault backing accordingly;
-- retain all STATICS above the fixed allocation in treasury vesting custody for the gated post-release sweep;
-- begin vesting only after successful bootstrap;
+- retain any donated STATICS above the backing commitment for post-bootstrap recovery;
+- start native STATICS vesting at Launch and Genesis vesting after successful bootstrap;
 - remove bootstrap authority permanently;
 - include all fixed treasury-reserve economics in `launchConfigHash`;
 - expose the vesting contract in deployment manifests and SDK/configuration surfaces where appropriate.
@@ -965,7 +981,9 @@ Escrow release sends exactly 200M STATICS
 to treasury and cannot repeat
 ```
 
-with the new properties covering initial 99.9M Vault commitment, 100.1M STATICS vesting conservation, 555 Genesis vesting conservation, time-bounded release, recipient-rotation isolation, and initial Vault solvency.
+with the new properties covering initial 99.9M Vault commitment, the exact
+Doppler-native 100.1M treasury schedule, 555 Genesis vesting conservation,
+time-bounded release, recipient-rotation isolation, and initial Vault solvency.
 
 Any existing proof whose assumptions rely on:
 
@@ -995,7 +1013,10 @@ Safe-guarded withdrawal-recipient recovery
 
 Public-facing language should distinguish `protocol allocation` from `immediately liquid treasury tokens` because the protocol does not receive 200M freely transferable STATICS at launch under this design.
 
-After all 100.1M STATICS and all 555 Genesis have been released, the vesting contract is economically inert. It remains onchain as a permanent record and has no destruction or decommissioning transition.
+After all 555 Genesis have been released and no surplus remains, the bootstrap
+contract is economically inert except that later accidental STATICS donations
+remain recoverable. Doppler's token contract independently completes the 100.1M
+native STATICS vest.
 
 ## Security rationale
 

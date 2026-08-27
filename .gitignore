@@ -12,6 +12,7 @@ __pycache__/
 .env
 .DS_Store
 artifacts/diamond-manifests/
+/artifacts/genesis-launch/
 audits/
 x-ray/
 /.c

@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -98,6 +104,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         revert OwnershipRenunciationDisabled();
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function bindMarket(address statics_, bytes32 poolId_) external override onlyOwner {
         if (statics != address(0)) revert MarketAlreadyBound();
         if (statics_ == address(0) || statics_.code.length == 0 || statics_ == numeraire) revert InvalidMarket();
@@ -114,6 +121,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
 
     /// @notice One-time permanent reserve-vault binding. Must occur before the first distributor is
     ///         accepted so nonzero reserveShareBps can never silently route around an unbound vault.
+    /// @inheritdoc IStaticsFeeReceiver
     function bindReserveVault(address reserveVault_) external override onlyOwner {
         if (statics == address(0)) revert MarketNotBound();
         if (reserveVault != address(0)) revert ReserveVaultAlreadyBound();
@@ -125,6 +133,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         emit ReserveVaultBound(reserveVault_);
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function setReserveShareBps(uint16 newShareBps) external override onlyOwner nonReentrant {
         if (newShareBps > BPS) revert InvalidReserveShare(newShareBps);
         if (newShareBps != 0 && reserveVault == address(0)) revert ReserveVaultNotBound();
@@ -137,12 +146,14 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         emit ReserveShareUpdated(previous, newShareBps);
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function harvest() external override nonReentrant returns (uint256 staticsAmount, uint256 numeraireAmount) {
         address distributor = activeDistributor;
         if (distributor == address(0)) revert DistributorNotActive();
         return _harvest(distributor);
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function proposeDistributor(address distributor) external override onlyOwner {
         if (distributor == address(0) || distributor.code.length == 0 || distributor == activeDistributor) {
             revert InvalidDistributor(distributor);
@@ -152,6 +163,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         emit DistributorProposed(activeDistributor, distributor);
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function acceptDistributor() external override nonReentrant {
         address pending = pendingDistributor;
         if (msg.sender != pending) revert UnauthorizedPendingDistributor(msg.sender);
@@ -176,6 +188,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         emit DistributorAccepted(previous, pending);
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function claimDistributorFees(address asset, address receiver)
         external
         override
@@ -191,6 +204,7 @@ contract StaticsFeeReceiver is IStaticsFeeReceiver, Ownable2Step, ReentrancyGuar
         emit DistributorFeesClaimed(msg.sender, asset, receiver, amount);
     }
 
+    /// @inheritdoc IStaticsFeeReceiver
     function recoverSurplus(address asset, address receiver, uint256 amount) external override onlyOwner nonReentrant {
         if (receiver == address(0) || receiver == address(this)) revert InvalidReceiver(receiver);
         uint256 balance = IERC20(asset).balanceOf(address(this));

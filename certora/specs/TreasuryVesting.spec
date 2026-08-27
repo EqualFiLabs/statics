@@ -1,5 +1,4 @@
 methods {
-    function STATICS_VESTING_PRINCIPAL() external returns (uint256) envfree;
     function GENESIS_VESTING_PRINCIPAL() external returns (uint256) envfree;
     function VESTING_DURATION() external returns (uint256) envfree;
     function statics() external returns (address) envfree;
@@ -9,37 +8,12 @@ methods {
     function withdrawalRecipient() external returns (address) envfree;
     function vestingStart() external returns (uint256) envfree;
     function vestingEnd() external returns (uint256) envfree;
-    function releasedStatics() external returns (uint256) envfree;
     function releasedGenesis() external returns (uint256) envfree;
-    function vestedStaticsAt(uint256) external returns (uint256) envfree;
     function vestedGenesisAt(uint256) external returns (uint256) envfree;
     function sweepStaticsSurplus() external returns (uint256);
 }
 
-/// STATICS vesting is zero before launch, linear by integer floor, and capped at principal.
-rule staticsVestingIsExact(uint256 timestamp) {
-    uint256 start = vestingStart();
-    uint256 duration = VESTING_DURATION();
-    uint256 principal = STATICS_VESTING_PRINCIPAL();
-    uint256 vested = vestedStaticsAt(timestamp);
-
-    if (start == 0 || timestamp <= start) {
-        assert vested == 0, "STATICS must not vest before the launch timestamp";
-    } else if (to_mathint(timestamp) - to_mathint(start) >= to_mathint(duration)) {
-        assert vested == principal, "STATICS vesting must cap at principal";
-    } else {
-        mathint elapsed = to_mathint(timestamp) - to_mathint(start);
-        assert to_mathint(vested) * to_mathint(duration)
-            <= to_mathint(principal) * elapsed,
-            "STATICS vested amount cannot exceed the linear quotient";
-        assert to_mathint(principal) * elapsed
-                - to_mathint(vested) * to_mathint(duration)
-            < to_mathint(duration),
-            "STATICS vested amount must be the floored linear quotient";
-    }
-}
-
-/// Genesis vesting follows the same exact linear schedule and caps at 555 NFTs.
+/// Genesis vesting is linear by integer floor and caps at 555 NFTs.
 rule genesisVestingIsExact(uint256 timestamp) {
     uint256 start = vestingStart();
     uint256 duration = VESTING_DURATION();
@@ -74,7 +48,6 @@ rule recipientRotationPreservesVestingState(env e, address nextRecipient) {
     address adminBefore = recipientAdmin();
     uint256 startBefore = vestingStart();
     uint256 endBefore = vestingEnd();
-    uint256 staticsReleasedBefore = releasedStatics();
     uint256 genesisReleasedBefore = releasedGenesis();
 
     setWithdrawalRecipient(e, nextRecipient);
@@ -91,8 +64,6 @@ rule recipientRotationPreservesVestingState(env e, address nextRecipient) {
         "recipient rotation must preserve immutable administration";
     assert vestingStart() == startBefore && vestingEnd() == endBefore,
         "recipient rotation must preserve the schedule";
-    assert releasedStatics() == staticsReleasedBefore,
-        "recipient rotation must preserve released STATICS";
     assert releasedGenesis() == genesisReleasedBefore,
         "recipient rotation must preserve released Genesis";
 }
@@ -106,20 +77,20 @@ rule nonAdminCannotSweepSurplus(env e) {
     assert lastReverted, "non-admin surplus sweep must revert";
 }
 
-/// Elapsed time alone is insufficient: the full STATICS principal must have been released.
-rule incompletePrincipalCannotSweepSurplus(env e) {
+/// Bootstrap must bind the STATICS token before surplus recovery is enabled.
+rule unbootstrappedCannotSweepSurplus(env e) {
     require e.msg.sender == recipientAdmin();
-    require releasedStatics() != STATICS_VESTING_PRINCIPAL();
+    require vestingStart() == 0;
 
     sweepStaticsSurplus(e)@withrevert;
 
-    assert lastReverted, "surplus sweep must wait for actual principal release";
+    assert lastReverted, "surplus sweep must wait for bootstrap";
 }
 
-/// A successful surplus sweep cannot alter vesting bindings, schedule, destination, or release accounting.
+/// A successful surplus sweep cannot alter vesting bindings, schedule, destination, or NFT accounting.
 rule successfulSweepPreservesVestingState(env e) {
     require e.msg.sender == recipientAdmin();
-    require releasedStatics() == STATICS_VESTING_PRINCIPAL();
+    require vestingStart() != 0;
 
     address staticsBefore = statics();
     address vaultBefore = genesisVault();
@@ -128,7 +99,6 @@ rule successfulSweepPreservesVestingState(env e) {
     address recipientBefore = withdrawalRecipient();
     uint256 startBefore = vestingStart();
     uint256 endBefore = vestingEnd();
-    uint256 staticsReleasedBefore = releasedStatics();
     uint256 genesisReleasedBefore = releasedGenesis();
 
     sweepStaticsSurplus(e)@withrevert;
@@ -141,6 +111,5 @@ rule successfulSweepPreservesVestingState(env e) {
     assert withdrawalRecipient() == recipientBefore, "sweep must preserve its fixed destination";
     assert vestingStart() == startBefore && vestingEnd() == endBefore,
         "sweep must preserve the schedule";
-    assert releasedStatics() == staticsReleasedBefore, "sweep must preserve released STATICS";
     assert releasedGenesis() == genesisReleasedBefore, "sweep must preserve released Genesis";
 }

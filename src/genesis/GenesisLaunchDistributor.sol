@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
+// ============================================================================
+//                              STATICS PROTOCOL
+//                         Markets that work for you.
+//                       https://staticsprotocol.com
+//                              EqualFi Labs
+// ============================================================================
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,6 +20,7 @@ import {IStaticsGenesis} from "../interfaces/IStaticsGenesis.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
 /// @notice Temporary two-asset launch reward index for registered Genesis NFTs.
+/// @dev Finalization stops launch accrual and parameter changes; outstanding claims remain payable.
 contract GenesisLaunchDistributor is
     IGenesisLaunchDistributor,
     IGenesisRecoveryDistributor,
@@ -128,17 +135,20 @@ contract GenesisLaunchDistributor is
         revert OwnershipRenunciationDisabled();
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function acceptFeeReceiverRole() external override onlyOwner {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
         feeReceiver.acceptDistributor();
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function acceptActivationConsumer() external override onlyOwner {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
         if (feeReceiver.activeDistributor() != address(this)) revert RecoveryRolesNotActive();
         activationRegistry.acceptConsumer();
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function registerGenesis(uint256 genesisId) external override nonReentrant {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
         if (!genesisRecoveryReady()) revert RecoveryRolesNotActive();
@@ -158,6 +168,7 @@ contract GenesisLaunchDistributor is
         _flushPendingGenesisRecovery();
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function accrue() external override nonReentrant returns (uint256 staticsAmount, uint256 numeraireAmount) {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
         return _accrue();
@@ -270,6 +281,7 @@ contract GenesisLaunchDistributor is
         return feeReceiver.activeDistributor() == address(this) && activationRegistry.activeConsumer() == address(this);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function claimGenesis(uint256 genesisId, address asset, address receiver)
         external
         override
@@ -286,6 +298,7 @@ contract GenesisLaunchDistributor is
         _releaseGenesisRewards(asset, receiver, amount);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function claimOwnerRewards(address asset, address receiver)
         external
         override
@@ -300,6 +313,7 @@ contract GenesisLaunchDistributor is
         _releaseGenesisRewards(asset, receiver, amount);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function claimTreasuryRewards(address asset, address receiver)
         external
         override
@@ -319,6 +333,7 @@ contract GenesisLaunchDistributor is
         emit TreasuryRewardsClaimed(asset, receiver, amount);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function claimAllGenesisRewards(uint256[] calldata genesisIds, address receiver)
         external
         override
@@ -345,6 +360,7 @@ contract GenesisLaunchDistributor is
         _releaseGenesisRewards(numeraire, receiver, numeraireAmount);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function claimAllGenesisTreasuryRewards(address receiver)
         external
         override
@@ -365,6 +381,7 @@ contract GenesisLaunchDistributor is
         _releaseTreasuryRewards(numeraire, receiver, numeraireAmount);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function setGenesisRewardShareBps(uint16 newShareBps) external override onlyOwner nonReentrant {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
         if (newShareBps > BPS) revert InvalidRewardShare(newShareBps);
@@ -374,6 +391,7 @@ contract GenesisLaunchDistributor is
         emit GenesisRewardShareUpdated(previous, newShareBps);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function finalizeLaunchRewards() external override onlyOwner nonReentrant {
         if (finalized) revert LaunchRewardsAlreadyFinalized();
         if (feeReceiver.activeDistributor() == address(this)) revert FeeReceiverStillActive();
@@ -383,6 +401,7 @@ contract GenesisLaunchDistributor is
         emit LaunchRewardsFinalized(_rewardBooks[statics].indexRay, _rewardBooks[numeraire].indexRay);
     }
 
+    /// @inheritdoc IGenesisLaunchDistributor
     function recoverSurplus(address asset, address receiver, uint256 amount) external override onlyOwner nonReentrant {
         _validateAsset(asset);
         _validateReceiver(receiver);

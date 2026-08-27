@@ -215,7 +215,8 @@ abstract contract FormalGenesisEnvironment is Test {
         treasury = makeAddr("formalTreasury");
         statics = new FormalToken("Formal STATICS", "FSTATICS");
         vesting = new StaticsTreasuryVesting(address(this), address(this), treasury);
-        statics.mint(address(vesting), 200_000_000 ether);
+        statics.mint(address(vesting), 99_900_000 ether);
+        statics.mint(makeAddr("formalNativeVesting"), 100_100_000 ether);
         statics.mint(makeAddr("formalDopplerInventory"), 800_000_000 ether);
         registry = new GenesisActivationRegistry(statics, address(this), address(this), treasury);
         FormalCreditFeeReceiver feeReceiver = new FormalCreditFeeReceiver(address(statics));

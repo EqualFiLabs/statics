@@ -9,11 +9,15 @@ import {
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 
 /// @notice Development-only launcher for a persistent Anvil fork of Robinhood mainnet.
-/// @dev The canonical production `run()` remains configuration-hash gated. This entrypoint
+/// @dev Production phase entrypoints remain configuration-hash gated. This entrypoint
 ///      additionally requires Anvil's private RPC namespace before it will broadcast anything.
 contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
     error InvalidLocalForkChain(uint256 chainId);
     error InvalidLocalForkRpc();
+
+    function launchScriptCodeHash() public view override returns (bytes32) {
+        return keccak256(vm.getDeployedCode("script/DeployStaticsGenesisLocalFork.s.sol:DeployStaticsGenesisLocalFork"));
+    }
 
     function runLocalFork() external returns (StaticsGenesisDeployment memory deployment) {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert InvalidLocalForkChain(block.chainid);
@@ -51,8 +55,8 @@ contract DeployStaticsGenesisLocalFork is DeployStaticsGenesis {
             recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
-            contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", string("ipfs://statics-local/genesis-contract.json")),
-            externalURLBase: vm.envOr("STATICS_GENESIS_EXTERNAL_URL_BASE", string("http://127.0.0.1:3000/app/genesis/"))
+            contractURI: vm.envOr("STATICS_GENESIS_CONTRACT_URI", staticsGenesisContractURI()),
+            externalURLBase: vm.envOr("STATICS_GENESIS_EXTERNAL_URL_BASE", staticsGenesisExternalURLBase())
         });
 
         vm.startBroadcast(privateKey);

@@ -2,13 +2,13 @@
   "schema": 1,
   "counts": {
     "High": 13,
-    "Medium": 57,
-    "Low": 64,
-    "Informational": 22
+    "Medium": 71,
+    "Low": 62,
+    "Informational": 23
   },
   "raw_counts": {
     "High": 13,
-    "Medium": 53,
+    "Medium": 71,
     "Low": 62,
     "Informational": 44
   },
@@ -319,22 +319,6 @@
       "occurrences": 1
     },
     {
-      "id": "423607942d8cd9039c787604",
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsTreasuryVesting.sol"
-      ],
-      "summary": "StaticsTreasuryVesting.sweepStaticsSurplus() uses a dangerous strict equality:",
-      "rationale": "The equality is the intentional actual-release gate: surplus remains inaccessible until the immutable fixed STATICS principal has been completely released.",
-      "occurrences": 1
-    },
-    {
       "id": "4f20415d4a69e6915cc21b82",
       "impact": "Medium",
       "confidence": "High",
@@ -395,22 +379,6 @@
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#448-456) uses a dangerous strict equality:",
-      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
-      "occurrences": 1
-    },
-    {
-      "id": "ef8e4f0f9f15bcf19e8daa5f",
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsGenesisVault.sol"
-      ],
-      "summary": "StaticsGenesisVault.quoteGenesisCreditAdjustment(uint256,uint256) uses a deliberate exact zero-state equality",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -507,6 +475,246 @@
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "StaticsFeeReceiver._fundReserve(uint256) (src/genesis/StaticsFeeReceiver.sol#235-264) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "01a78ada1a37dfee909ec19f",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._assertArtifactIntegrity(StaticsGenesisLaunchArtifact) (script/DeployStaticsGenesis.s.sol#829-842) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "076460a3b2d5c761a423560d",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._assetDataIsEmpty(DopplerAssetData) (script/DeployStaticsGenesis.s.sol#1093-1098) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "0c7abdf04597cefbff70479f",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis.expectedStaticsAddress(StaticsGenesisDeploymentConfig) (script/DeployStaticsGenesis.s.sol#514-532) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "210356923d89976153b02c97",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validateArtifactBase(StaticsGenesisLaunchArtifact) (script/DeployStaticsGenesis.s.sol#997-1018) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "2f49778d3bb51f0a05c27d80",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._assertFinalized(StaticsGenesisLaunchArtifact,StaticsGenesisDeployment) (script/DeployStaticsGenesis.s.sol#1127-1207) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "3719e1fef7c3e44804b0d8b9",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._assertNativeTreasuryVesting(address,address,bool) (script/DeployStaticsGenesis.s.sol#1228-1242) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "423607942d8cd9039c787604",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.sweepStaticsSurplus() (src/genesis/StaticsTreasuryVesting.sol#112-120) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "5f4d8131b2591bb049bb219c",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validateArtifactBase(StaticsGenesisLaunchArtifact) (script/DeployStaticsGenesis.s.sol#997-1018) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "81256b2f9dd2b2c2fce71e20",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._assertFinalized(StaticsGenesisLaunchArtifact,StaticsGenesisDeployment) (script/DeployStaticsGenesis.s.sol#1127-1207) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "907a4311bdc6bc52dc30a7d6",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._assetData(address,address) (script/DeployStaticsGenesis.s.sol#1086-1091) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "b9990ccce387409d61b07bcf",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validateWithoutDopplerOwner(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#1288-1319) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "bafa340c38a477b48b65b8c7",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.vestingComplete() (src/genesis/StaticsTreasuryVesting.sol#168-170) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "e87f19ada54fc085e43b3459",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis.validateLaunchedMarket(StaticsGenesisLaunchArtifact) (script/DeployStaticsGenesis.s.sol#905-919) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "f2533767d79e6369c063f505",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validateWithoutDopplerOwner(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#1288-1319) uses a dangerous strict equality:",
+      "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
+      "occurrences": 1
+    },
+    {
+      "id": "f5e15a40a2519f65d0e33204",
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis._validateWithoutDopplerOwner(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#1288-1319) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -1083,6 +1291,22 @@
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "StaticsFeeReceiver.acceptDistributor() (src/genesis/StaticsFeeReceiver.sol#155-177) ignores return value by IGenesisRecoveryDistributor(previous).migratePendingGenesisRecovery(pending) (src/genesis/StaticsFeeReceiver.sol#172)",
+      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
+      "occurrences": 1
+    },
+    {
+      "id": "d80c4cd87353b20ec0f595ea",
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "deployment-handoff"
+      ],
+      "paths": [
+        "script/DeployStaticsGenesis.s.sol"
+      ],
+      "summary": "DeployStaticsGenesis.deploy(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#175-220) ignores return value by treasuryVesting.finalizeBootstrap(statics,address(collection.vault),address(collection.genesis)) (script/DeployStaticsGenesis.s.sol#189)",
       "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive.",
       "occurrences": 1
     },
@@ -1897,7 +2121,7 @@
       "occurrences": 1
     },
     {
-      "id": "38547487f2338d97256f0338",
+      "id": "781343c323cc572999d56f5d",
       "impact": "Low",
       "confidence": "Medium",
       "check": "timestamp",
@@ -1908,23 +2132,7 @@
       "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256,uint256) uses timestamp for comparisons",
-      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
-      "occurrences": 1
-    },
-    {
-      "id": "a1b3523b6992a2bdade0a604",
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsGenesisVault.sol"
-      ],
-      "summary": "StaticsGenesisVault.quoteGenesisCreditAdjustment(uint256,uint256) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.extendGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#275-289) uses timestamp for comparisons",
       "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness.",
       "occurrences": 1
     },
@@ -2153,22 +2361,6 @@
       "occurrences": 1
     },
     {
-      "id": "f6aa177dc716b5ec992a6ff7",
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "standalone-launch"
-      ],
-      "paths": [
-        "src/genesis/StaticsTreasuryVesting.sol"
-      ],
-      "summary": "StaticsTreasuryVesting.sweepStaticsSurplus() uses timestamp for comparisons",
-      "rationale": "The function does not read time directly; Slither reaches the linear vesting helper through adjacent state. The sweep gate itself requires actual full principal release, not elapsed time.",
-      "occurrences": 1
-    },
-    {
       "id": "18711fe497862acc913e5025",
       "impact": "Informational",
       "confidence": "High",
@@ -2294,6 +2486,22 @@
       ],
       "summary": "LibPositionPortfolio.portfolioStorage() (src/libraries/LibPositionPortfolio.sol#27-32) uses assembly",
       "rationale": "Memory-safe fixed-slot access and the EIP-2535 fallback delegatecall are the reviewed Diamond storage and dispatch mechanisms.",
+      "occurrences": 1
+    },
+    {
+      "id": "949e5d4c422972c74c9e344a",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "cyclomatic-complexity",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "standalone-launch"
+      ],
+      "paths": [
+        "src/genesis/StaticsTreasuryVesting.sol"
+      ],
+      "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#65-116) has a high cyclomatic complexity (12).",
+      "rationale": "The flagged deployment and initialization orchestration validates a bounded launch configuration and keeps the trust handoff atomic.",
       "occurrences": 1
     },
     {

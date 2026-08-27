@@ -27,6 +27,8 @@ contract GenesisVaultHandler is IERC721Receiver {
     StaticsGenesisVault public immutable vault;
     uint256 public donatedReserve;
     uint256[] private acquiredIds;
+    uint256 public maximumObservedPrincipal;
+    bool public creditAccountingConserved = true;
 
     constructor(MockDopplerToken statics_, StaticsGenesis genesis_, StaticsGenesisVault vault_) {
         statics = statics_;
@@ -77,7 +79,12 @@ contract GenesisVaultHandler is IERC721Receiver {
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         if (genesis.ownerOf(tokenId) != address(this) || vault.creditActive(tokenId)) return;
         uint256 principal = (rawPrincipal % vault.MAX_CREDIT_PRINCIPAL()) + 1;
+        uint256 accountingBefore = vault.tokenBacking() + vault.totalOutstandingGenesisCredit();
         vault.openGenesisCredit(tokenId, principal);
+        if (vault.tokenBacking() + vault.totalOutstandingGenesisCredit() != accountingBefore) {
+            creditAccountingConserved = false;
+        }
+        if (principal > maximumObservedPrincipal) maximumObservedPrincipal = principal;
     }
 
     function extendCredit(uint256 seed) external {
@@ -85,8 +92,22 @@ contract GenesisVaultHandler is IERC721Receiver {
         uint256 tokenId = acquiredIds[seed % acquiredIds.length];
         GenesisCreditView memory state = vault.credit(tokenId);
         if (!state.active || block.timestamp > state.maturity) return;
-        uint256 target = (seed % vault.MAX_CREDIT_PRINCIPAL()) + 1;
-        vault.extendGenesisCredit(tokenId, target);
+        vault.extendGenesisCredit(tokenId);
+    }
+
+    function drawCredit(uint256 seed, uint256 rawAmount) external {
+        if (acquiredIds.length == 0) return;
+        uint256 tokenId = acquiredIds[seed % acquiredIds.length];
+        uint256 available = vault.creditAvailable(tokenId);
+        if (available == 0) return;
+        uint256 amount = (rawAmount % available) + 1;
+        uint256 accountingBefore = vault.tokenBacking() + vault.totalOutstandingGenesisCredit();
+        vault.drawGenesisCredit(tokenId, amount);
+        if (vault.tokenBacking() + vault.totalOutstandingGenesisCredit() != accountingBefore) {
+            creditAccountingConserved = false;
+        }
+        uint256 principal = vault.credit(tokenId).principal;
+        if (principal > maximumObservedPrincipal) maximumObservedPrincipal = principal;
     }
 
     function repayCredit(uint256 seed) external {
@@ -96,7 +117,11 @@ contract GenesisVaultHandler is IERC721Receiver {
         if (!state.active) return;
         uint256 amount = (seed % state.principal) + 1;
         if (statics.balanceOf(address(this)) < amount) return;
+        uint256 accountingBefore = vault.tokenBacking() + vault.totalOutstandingGenesisCredit();
         vault.repayGenesisCredit(tokenId, amount);
+        if (vault.tokenBacking() + vault.totalOutstandingGenesisCredit() != accountingBefore) {
+            creditAccountingConserved = false;
+        }
     }
 
     function recoverCredit(uint256 seed) external {
@@ -218,6 +243,8 @@ contract GenesisVaultInvariantTest is StdInvariant, Test {
         assertEq(vault.grossBacking(), grossBacking);
         assertLe(vault.totalOutstandingGenesisCredit(), grossBacking);
         assertEq(vault.requiredBacking(), grossBacking - vault.totalOutstandingGenesisCredit());
+        assertTrue(handler.creditAccountingConserved());
+        assertLe(handler.maximumObservedPrincipal(), vault.MAX_CREDIT_PRINCIPAL());
     }
 
     function invariantStaticsSupplyCanOnlyDecrease() public view {
