@@ -131,14 +131,7 @@ contract MockDistributor is IGenesisRecoveryDistributor {
             vault = new StaticsGenesisVault(statics, address(this), governance, block.timestamp + 30 days, creditConfig);
             StaticsGenesisRenderer renderer = new StaticsGenesisRenderer(new StaticsAvatarSVG());
             StaticsGenesis genesis = new StaticsGenesis(
-                address(vault),
-                address(this),
-                address(registry),
-                renderer,
-                governance,
-                treasury,
-                "ipfs://contract.json",
-                "https://statics.finance/genesis/"
+                address(vault), address(this), address(registry), renderer, governance, treasury, "ipfs://contract.json"
             );
             registry.bindGenesisCollection(address(genesis));
             statics.transfer(address(vault), vault.INITIAL_TOKEN_BACKING());

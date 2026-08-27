@@ -639,8 +639,6 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             artifact.config.contractURI = "ipfs://artifact-contract-drift";
             _expectPreparedFailure(artifact);
             artifact.config.contractURI = "ipfs://statics-genesis/contract.json";
-            artifact.config.externalURLBase = "https://artifact-drift.invalid/";
-            _expectPreparedFailure(artifact);
         }
 
         function testLaunchArtifactRejectsExpectedMarketAndRawPayloadDrift() public {
@@ -825,7 +823,6 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 "data:application/json;utf8,%7B%22name%22%3A%22STATICS%20Operators%22%2C%22symbol%22%3A%22STATOPS%22%2C%22description%22%3A%225%2C555%20deterministic%20onchain%20Genesis%20identities%20powering%20the%20STATICS%20protocol.%20Each%20STATICS%20Operator%20carries%20a%20180%2C000%20STATICS%20backing%20claim%2C%20evolving%20activation%20tiers%2C%20native%20artwork%2C%20and%20access%20to%20protocol%20reserve%20and%20reward%20flows.%22%2C%22external_link%22%3A%22https%3A%2F%2Fstaticsprotocol.com%22%7D";
 
             assertEq(deployer.staticsGenesisContractURI(), expectedURI);
-            assertEq(deployer.staticsGenesisExternalURLBase(), "https://staticsprotocol.com/genesis/");
         }
 
         function testLaunchManifestHashBindsEconomicsAndAuthorities() public {
@@ -936,8 +933,6 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             config.contractURI = "ipfs://different-contract.json";
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
             config.contractURI = "ipfs://statics-genesis/contract.json";
-            config.externalURLBase = "https://example.com/genesis/";
-            assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
         function testFinalizeToleratesDonationWithoutIncreasingVaultBacking() public {
@@ -1201,8 +1196,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
                 recoveryCallerShareBps: 2_000,
                 genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
-                contractURI: "ipfs://statics-genesis/contract.json",
-                externalURLBase: "https://statics.finance/genesis/"
+                contractURI: "ipfs://statics-genesis/contract.json"
             });
         }
 

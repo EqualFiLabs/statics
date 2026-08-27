@@ -242,8 +242,7 @@ contract DopplerGenesisLaunchForkTest is Test {
             recoveryCallerShareBps: 2_000,
             genesisEpochEnd: block.timestamp + 30 days,
             tokenURI: deployer.staticsTokenURI(),
-            contractURI: deployer.staticsGenesisContractURI(),
-            externalURLBase: deployer.staticsGenesisExternalURLBase()
+            contractURI: deployer.staticsGenesisContractURI()
         });
     }
 
@@ -299,8 +298,7 @@ contract DopplerGenesisLaunchForkTest is Test {
                 recoveryCallerShareBps: 2_000,
                 genesisEpochEnd: block.timestamp + 7 days,
                 tokenURI: "ipfs://statics/token.json",
-                contractURI: deployer.staticsGenesisContractURI(),
-                externalURLBase: deployer.staticsGenesisExternalURLBase()
+                contractURI: deployer.staticsGenesisContractURI()
             });
 
             deployment = _launchBeforeFinalize(deployer, config, weth);
@@ -312,7 +310,6 @@ contract DopplerGenesisLaunchForkTest is Test {
             GenesisActivationRegistry registry = GenesisActivationRegistry(deployment.activationRegistry);
             distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
             assertEq(genesis.contractURI(), deployer.staticsGenesisContractURI());
-            assertEq(genesis.externalURLBase(), deployer.staticsGenesisExternalURLBase());
 
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 0);

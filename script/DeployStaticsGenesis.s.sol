@@ -45,7 +45,6 @@ struct StaticsGenesisDeploymentConfig {
     string tokenURI;
     /// @dev ERC-7572 collection metadata URI for the Genesis NFT collection.
     string contractURI;
-    string externalURLBase;
 }
 
 struct StaticsGenesisLaunchArtifact {
@@ -166,7 +165,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
     string public constant STATICS_GENESIS_CONTRACT_URI =
         "data:application/json;utf8,%7B%22name%22%3A%22STATICS%20Operators%22%2C%22symbol%22%3A%22STATOPS%22%2C%22description%22%3A%225%2C555%20deterministic%20onchain%20Genesis%20identities%20powering%20the%20STATICS%20protocol.%20Each%20STATICS%20Operator%20carries%20a%20180%2C000%20STATICS%20backing%20claim%2C%20evolving%20activation%20tiers%2C%20native%20artwork%2C%20and%20access%20to%20protocol%20reserve%20and%20reward%20flows.%22%2C%22external_link%22%3A%22https%3A%2F%2Fstaticsprotocol.com%22%7D";
-    string public constant STATICS_GENESIS_EXTERNAL_URL_BASE = "https://staticsprotocol.com/genesis/";
     /// @dev Production execution remains disabled until this equals the ratified launch hash.
     bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
     int24 public constant TICK_SPACING = 100;
@@ -411,8 +409,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             recoveryCallerShareBps: uint16(recoveryCallerShare),
             genesisEpochEnd: genesisEpochEnd,
             tokenURI: staticsTokenURI(),
-            contractURI: staticsGenesisContractURI(),
-            externalURLBase: staticsGenesisExternalURLBase()
+            contractURI: staticsGenesisContractURI()
         });
     }
 
@@ -445,8 +442,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             collection.renderer,
             initialOwner,
             config.treasury,
-            config.contractURI,
-            config.externalURLBase
+            config.contractURI
         );
     }
 
@@ -470,11 +466,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     /// @notice Canonical onchain ERC-7572 collection metadata for Statics Operators.
     function staticsGenesisContractURI() public pure returns (string memory) {
         return STATICS_GENESIS_CONTRACT_URI;
-    }
-
-    /// @notice Canonical token-page base; the Genesis token ID is appended directly.
-    function staticsGenesisExternalURLBase() public pure returns (string memory) {
-        return STATICS_GENESIS_EXTERNAL_URL_BASE;
     }
 
     /// @notice Six-curve Robinhood launch geometry pinned to the committed economics model.
@@ -651,8 +642,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
                 keccak256(bytes("Statics")),
                 keccak256(bytes("STATICS")),
                 keccak256(bytes(config.tokenURI)),
-                keccak256(bytes(config.contractURI)),
-                keccak256(bytes(config.externalURLBase))
+                keccak256(bytes(config.contractURI))
             )
         );
         return keccak256(
@@ -717,7 +707,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         _requireSerialized(vm.serializeUint(objectKey, "genesisEpochEnd", artifact.config.genesisEpochEnd));
         _requireSerialized(vm.serializeString(objectKey, "tokenURI", artifact.config.tokenURI));
         _requireSerialized(vm.serializeString(objectKey, "contractURI", artifact.config.contractURI));
-        _requireSerialized(vm.serializeString(objectKey, "externalURLBase", artifact.config.externalURLBase));
         _requireSerialized(vm.serializeAddress(objectKey, "feeReceiver", artifact.feeReceiver));
         _requireSerialized(vm.serializeAddress(objectKey, "treasuryVesting", artifact.treasuryVesting));
         _requireSerialized(
@@ -805,7 +794,6 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         artifact.config.genesisEpochEnd = vm.parseJsonUint(json, ".genesisEpochEnd");
         artifact.config.tokenURI = vm.parseJsonString(json, ".tokenURI");
         artifact.config.contractURI = vm.parseJsonString(json, ".contractURI");
-        artifact.config.externalURLBase = vm.parseJsonString(json, ".externalURLBase");
         artifact.feeReceiver = vm.parseJsonAddress(json, ".feeReceiver");
         artifact.treasuryVesting = vm.parseJsonAddress(json, ".treasuryVesting");
         artifact.feeReceiverRuntimeCodeHash = vm.parseJsonBytes32(json, ".feeReceiverRuntimeCodeHash");
@@ -858,8 +846,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         }
         if (
             bytes(artifact.config.tokenURI).length == 0 || bytes(artifact.config.contractURI).length == 0
-                || bytes(artifact.config.externalURLBase).length == 0 || artifact.createParams.length == 0
-                || artifact.createCalldata.length == 0
+                || artifact.createParams.length == 0 || artifact.createCalldata.length == 0
         ) revert LaunchArtifactMismatch();
         bytes32 expectedHash = launchArtifactHash(artifact);
         if (artifact.artifactHash != expectedHash) {
@@ -1329,10 +1316,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         _requireContract(config.modules.governanceFactory);
         _requireContract(config.modules.poolInitializer);
         _requireContract(config.modules.noOpMigrator);
-        if (
-            bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0
-                || bytes(config.externalURLBase).length == 0
-        ) {
+        if (bytes(config.tokenURI).length == 0 || bytes(config.contractURI).length == 0) {
             revert InvalidMetadataURI();
         }
         if (config.fee == 0 || config.fee > MAX_DOPPLER_LP_FEE) revert InvalidFee(config.fee);

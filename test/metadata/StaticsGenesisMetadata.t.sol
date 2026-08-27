@@ -24,7 +24,6 @@ contract StaticsGenesisMetadataTest is Test {
     address private constant VAULT = address(0x1001);
     address private constant TREASURY_VESTING = address(0x1002);
     string private constant CONTRACT_URI = "ipfs://statics-genesis-collection";
-    string private constant EXTERNAL_URL_BASE = "https://staticsprotocol.com/genesis/";
 
     GenesisMetadataRegistryMock private registry;
     StaticsGenesisRenderer private renderer;
@@ -35,14 +34,7 @@ contract StaticsGenesisMetadataTest is Test {
         registry = new GenesisMetadataRegistryMock();
         renderer = new StaticsGenesisRenderer(avatar);
         genesis = new StaticsGenesis(
-            VAULT,
-            TREASURY_VESTING,
-            address(registry),
-            renderer,
-            address(this),
-            address(this),
-            CONTRACT_URI,
-            EXTERNAL_URL_BASE
+            VAULT, TREASURY_VESTING, address(registry), renderer, address(this), address(this), CONTRACT_URI
         );
     }
 

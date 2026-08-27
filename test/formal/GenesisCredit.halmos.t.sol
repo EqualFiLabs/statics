@@ -70,8 +70,7 @@ contract GenesisCreditRepresentativeTest is Test {
             new StaticsGenesisRenderer(new StaticsAvatarSVG()),
             address(this),
             treasury,
-            "ipfs://formal-credit/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://formal-credit/contract.json"
         );
         registry.bindGenesisCollection(address(genesis));
         vesting.finalizeBootstrap(address(statics), address(vault), address(genesis));

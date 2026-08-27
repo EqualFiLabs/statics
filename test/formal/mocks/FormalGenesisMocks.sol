@@ -236,8 +236,7 @@ abstract contract FormalGenesisEnvironment is Test {
             renderer,
             address(this),
             treasury,
-            "ipfs://formal-genesis/contract.json",
-            "https://statics.finance/genesis/"
+            "ipfs://formal-genesis/contract.json"
         );
         registry.bindGenesisCollection(address(genesis));
         vesting.finalizeBootstrap(address(statics), address(vault), address(genesis));
