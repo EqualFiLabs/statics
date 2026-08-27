@@ -56,12 +56,12 @@ contract StaticsTreasuryVestingTest is Test {
         (vesting, statics, registry, vault, genesis) = _deployVesting(0);
     }
 
-    function testBootstrapCommitsExactReserveAndVestingCustody() public view {
+    function testBootstrapCommitsExactReserveAndGenesisCustody() public view {
         assertEq(address(vesting.statics()), address(statics));
         assertEq(address(vesting.genesisVault()), address(vault));
         assertEq(address(vesting.genesis()), address(genesis));
         assertEq(vesting.bootstrapper(), address(0));
-        assertEq(statics.balanceOf(address(vesting)), 100_100_000 ether);
+        assertEq(statics.balanceOf(address(vesting)), 0);
         assertEq(statics.balanceOf(address(vault)), 99_900_000 ether);
         assertEq(vault.tokenBacking(), 99_900_000 ether);
         assertEq(vault.requiredBacking(), 99_900_000 ether);
@@ -70,7 +70,6 @@ contract StaticsTreasuryVestingTest is Test {
         assertEq(genesis.balanceOf(address(vesting)), 555);
         assertEq(genesis.ownerOf(5_001), address(vesting));
         assertEq(genesis.ownerOf(5_555), address(vesting));
-        assertEq(vesting.releasableStatics(), 0);
         assertEq(vesting.releasableGenesis(), 0);
     }
 
@@ -78,10 +77,9 @@ contract StaticsTreasuryVestingTest is Test {
         (StaticsTreasuryVesting surplusVesting, MockDopplerToken surplusToken,, StaticsGenesisVault surplusVault,) =
             _deployVesting(SURPLUS);
 
-        assertEq(surplusToken.balanceOf(address(surplusVesting)), 100_100_000 ether + SURPLUS);
+        assertEq(surplusToken.balanceOf(address(surplusVesting)), SURPLUS);
         assertEq(surplusToken.balanceOf(address(surplusVault)), 99_900_000 ether);
         assertEq(surplusVault.tokenBacking(), 99_900_000 ether);
-        assertEq(surplusVesting.releasedStatics(), 0);
         assertEq(surplusVesting.releasedGenesis(), 0);
     }
 
@@ -92,31 +90,26 @@ contract StaticsTreasuryVestingTest is Test {
         vesting.sweepStaticsSurplus();
     }
 
-    function testElapsedScheduleCannotUnlockSurplusBeforeActualRelease() public {
-        vm.warp(vesting.vestingStart() + 60 days);
+    function testCannotSweepBeforeBootstrap() public {
+        StaticsTreasuryVesting unbootstrapped = new StaticsTreasuryVesting(address(this), governance, treasury);
         vm.prank(governance);
-        vm.expectRevert(StaticsTreasuryVesting.VestingNotComplete.selector);
-        vesting.sweepStaticsSurplus();
+        vm.expectRevert(StaticsTreasuryVesting.NotBootstrapped.selector);
+        unbootstrapped.sweepStaticsSurplus();
     }
 
-    function testSweepRejectsZeroBalanceAfterPrincipalRelease() public {
-        vm.warp(vesting.vestingStart() + 60 days);
-        vesting.releaseStatics();
-
+    function testSweepRejectsZeroBalanceAfterBootstrap() public {
         vm.prank(governance);
         vm.expectRevert(StaticsTreasuryVesting.NothingToSweep.selector);
         vesting.sweepStaticsSurplus();
     }
 
-    function testSweepTransfersAllSurplusToCurrentRecipientAfterStaticsRelease() public {
+    function testSweepTransfersAllSurplusToCurrentRecipientAfterBootstrap() public {
         (StaticsTreasuryVesting surplusVesting, MockDopplerToken surplusToken,, StaticsGenesisVault surplusVault,) =
             _deployVesting(SURPLUS);
         uint256 start = surplusVesting.vestingStart();
         uint256 vaultBalance = surplusToken.balanceOf(address(surplusVault));
         uint256 tokenBacking = surplusVault.tokenBacking();
 
-        vm.warp(start + 60 days);
-        surplusVesting.releaseStatics();
         vm.prank(governance);
         surplusVesting.setWithdrawalRecipient(successor);
 
@@ -126,18 +119,15 @@ contract StaticsTreasuryVestingTest is Test {
         assertEq(surplusVesting.sweepStaticsSurplus(), SURPLUS);
 
         assertEq(surplusToken.balanceOf(successor), SURPLUS);
-        assertEq(surplusToken.balanceOf(treasury), surplusVesting.STATICS_VESTING_PRINCIPAL());
+        assertEq(surplusToken.balanceOf(treasury), 0);
         assertEq(surplusToken.balanceOf(address(surplusVesting)), 0);
-        assertEq(surplusVesting.releasedStatics(), surplusVesting.STATICS_VESTING_PRINCIPAL());
         assertEq(surplusVesting.releasedGenesis(), 0);
         assertEq(surplusVesting.vestingStart(), start);
         assertEq(surplusToken.balanceOf(address(surplusVault)), vaultBalance);
         assertEq(surplusVault.tokenBacking(), tokenBacking);
     }
 
-    function testDonationsAfterPrincipalReleaseRemainRecoverable() public {
-        vm.warp(vesting.vestingStart() + 60 days);
-        vesting.releaseStatics();
+    function testDonationsAfterBootstrapRemainRecoverable() public {
         statics.transfer(address(vesting), 7 ether);
 
         vm.prank(governance);
@@ -147,42 +137,18 @@ contract StaticsTreasuryVestingTest is Test {
         statics.transfer(address(vesting), 9 ether);
         vm.prank(governance);
         assertEq(vesting.sweepStaticsSurplus(), 9 ether);
-        assertEq(statics.balanceOf(treasury), vesting.STATICS_VESTING_PRINCIPAL() + 16 ether);
+        assertEq(statics.balanceOf(treasury), 16 ether);
     }
 
-    function testVestingBoundariesAndExactStaticsRelease() public {
+    function testGenesisVestingBoundaries() public {
         uint256 start = vesting.vestingStart();
-        assertEq(vesting.vestedStaticsAt(start), 0);
         assertEq(vesting.vestedGenesisAt(start), 0);
 
         vm.warp(start + 30 days);
-        assertEq(vesting.vestedStaticsAt(block.timestamp), 50_050_000 ether);
         assertEq(vesting.vestedGenesisAt(block.timestamp), 277);
-        uint256 released = vesting.releaseStatics();
-        assertEq(released, 50_050_000 ether);
-        assertEq(statics.balanceOf(treasury), released);
-        vm.expectRevert(StaticsTreasuryVesting.NothingToRelease.selector);
-        vesting.releaseStatics();
 
         vm.warp(start + 60 days);
-        assertEq(vesting.vestedStaticsAt(block.timestamp), 100_100_000 ether);
         assertEq(vesting.vestedGenesisAt(block.timestamp), 555);
-        assertEq(vesting.releaseStatics(), 50_050_000 ether);
-        assertEq(statics.balanceOf(treasury), 100_100_000 ether);
-    }
-
-    function testFuzzStaticsReleaseMatchesVesting(uint256 elapsed) public {
-        elapsed = bound(elapsed, 1, 120 days);
-        vm.warp(vesting.vestingStart() + elapsed);
-        uint256 expected = vesting.vestedStaticsAt(block.timestamp);
-        uint256 recipientBefore = statics.balanceOf(treasury);
-
-        uint256 released = vesting.releaseStatics();
-
-        assertEq(released, expected);
-        assertEq(vesting.releasedStatics(), expected);
-        assertEq(statics.balanceOf(treasury) - recipientBefore, expected);
-        assertEq(statics.balanceOf(address(vesting)), vesting.STATICS_VESTING_PRINCIPAL() - expected);
     }
 
     function testGenesisReleaseClampsToFiftyAndUsesAscendingIds() public {
@@ -247,10 +213,8 @@ contract StaticsTreasuryVestingTest is Test {
 
     function testAllScheduledAssetsCanBeReleasedAfterEnd() public {
         vm.warp(vesting.vestingStart() + 60 days);
-        vesting.releaseStatics();
         while (vesting.releasableGenesis() != 0) vesting.releaseGenesis(50);
 
-        assertEq(vesting.releasedStatics(), 100_100_000 ether);
         assertEq(vesting.releasedGenesis(), 555);
         assertTrue(vesting.vestingComplete());
         assertEq(statics.balanceOf(address(vesting)), 0);
@@ -292,7 +256,7 @@ contract StaticsTreasuryVestingTest is Test {
             "https://statics.finance/genesis/"
         );
         deployedRegistry.bindGenesisCollection(address(deployedGenesis));
-        deployedStatics.transfer(address(deployedVesting), deployedVesting.PROTOCOL_ALLOCATION() + surplus);
+        deployedStatics.transfer(address(deployedVesting), deployedVesting.GENESIS_BACKING_COMMITMENT() + surplus);
         deployedVesting.finalizeBootstrap(address(deployedStatics), address(deployedVault), address(deployedGenesis));
     }
 }

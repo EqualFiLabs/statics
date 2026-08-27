@@ -15,16 +15,14 @@ import {IStaticsGenesisVault} from "../interfaces/IStaticsGenesisVault.sol";
 import {IStaticsTreasuryVesting} from "../interfaces/IStaticsTreasuryVesting.sol";
 import {LibExactAssetTransfer} from "./LibExactAssetTransfer.sol";
 
-/// @notice Non-upgradeable launch custody for the protocol STATICS allocation and Genesis reserve.
-/// @dev The withdrawal recipient is mutable only through recipientAdmin; vesting terms and
-///      fixed principal amounts are immutable after bootstrap.
+/// @notice Non-upgradeable launch bootstrap custody and treasury Genesis NFT vesting.
+/// @dev Doppler's token contract vests treasury STATICS directly. This contract receives only
+///      the fixed Genesis backing commitment plus any unsolicited STATICS surplus.
 contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     using LibExactAssetTransfer for IERC20;
 
     uint256 public constant STATICS_SUPPLY = 1_000_000_000 ether;
-    uint256 public constant PROTOCOL_ALLOCATION = 200_000_000 ether;
     uint256 public constant GENESIS_BACKING_COMMITMENT = 99_900_000 ether;
-    uint256 public constant STATICS_VESTING_PRINCIPAL = 100_100_000 ether;
     uint256 public constant GENESIS_VESTING_PRINCIPAL = 555;
     uint256 public constant FIRST_GENESIS_ID = 5_001;
     uint256 public constant LAST_GENESIS_ID = 5_555;
@@ -38,7 +36,6 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     address public override withdrawalRecipient;
     address public override bootstrapper;
     uint256 public override vestingStart;
-    uint256 public override releasedStatics;
     uint256 public override releasedGenesis;
 
     error InvalidBootstrapper();
@@ -52,11 +49,9 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     error InvalidGenesisVault();
     error InvalidGenesisCollection();
     error InvalidSupply(uint256 actual, uint256 expected);
-    error InsufficientProtocolAllocation(uint256 actual, uint256 required);
-    error InvalidVestingCustody(uint256 actual, uint256 expected);
+    error InsufficientGenesisBacking(uint256 actual, uint256 required);
     error InvalidBatchSize();
     error NothingToRelease();
-    error VestingNotComplete();
     error NothingToSweep();
 
     constructor(address bootstrapper_, address recipientAdmin_, address withdrawalRecipient_) {
@@ -98,7 +93,9 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         ) revert InvalidGenesisCollection();
 
         uint256 balance = staticsToken.balanceOf(address(this));
-        if (balance < PROTOCOL_ALLOCATION) revert InsufficientProtocolAllocation(balance, PROTOCOL_ALLOCATION);
+        if (balance < GENESIS_BACKING_COMMITMENT) {
+            revert InsufficientGenesisBacking(balance, GENESIS_BACKING_COMMITMENT);
+        }
 
         statics = staticsToken;
         genesisVault = vault;
@@ -108,29 +105,13 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
 
         staticsToken.pushExact(genesisVault_, GENESIS_BACKING_COMMITMENT);
         vault.finalizeGenesisCollection(genesis_);
-
-        uint256 vestingCustody = staticsToken.balanceOf(address(this));
-        if (vestingCustody < STATICS_VESTING_PRINCIPAL) {
-            revert InvalidVestingCustody(vestingCustody, STATICS_VESTING_PRINCIPAL);
-        }
         emit TreasuryVestingBootstrapped(statics_, genesisVault_, genesis_, block.timestamp);
-    }
-
-    /// @inheritdoc IStaticsTreasuryVesting
-    function releaseStatics() external override nonReentrant returns (uint256 amount) {
-        _requireBootstrapped();
-        amount = releasableStatics();
-        if (amount == 0) revert NothingToRelease();
-        releasedStatics += amount;
-        address recipient = withdrawalRecipient;
-        statics.pushExact(recipient, amount);
-        emit StaticsReleased(msg.sender, recipient, amount, releasedStatics);
     }
 
     /// @inheritdoc IStaticsTreasuryVesting
     function sweepStaticsSurplus() external override nonReentrant returns (uint256 amount) {
         if (msg.sender != recipientAdmin) revert UnauthorizedRecipientAdmin(msg.sender);
-        if (releasedStatics != STATICS_VESTING_PRINCIPAL) revert VestingNotComplete();
+        _requireBootstrapped();
         amount = statics.balanceOf(address(this));
         if (amount == 0) revert NothingToSweep();
         address recipient = withdrawalRecipient;
@@ -172,16 +153,8 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
         return start == 0 ? 0 : start + VESTING_DURATION;
     }
 
-    function vestedStaticsAt(uint256 timestamp) public view override returns (uint256) {
-        return _vestedAt(STATICS_VESTING_PRINCIPAL, timestamp);
-    }
-
     function vestedGenesisAt(uint256 timestamp) public view override returns (uint256) {
         return _vestedAt(GENESIS_VESTING_PRINCIPAL, timestamp);
-    }
-
-    function releasableStatics() public view override returns (uint256) {
-        return vestedStaticsAt(block.timestamp) - releasedStatics;
     }
 
     function releasableGenesis() public view override returns (uint256) {
@@ -193,7 +166,7 @@ contract StaticsTreasuryVesting is IStaticsTreasuryVesting, ReentrancyGuard {
     }
 
     function vestingComplete() external view override returns (bool) {
-        return releasedStatics == STATICS_VESTING_PRINCIPAL && releasedGenesis == GENESIS_VESTING_PRINCIPAL;
+        return releasedGenesis == GENESIS_VESTING_PRINCIPAL;
     }
 
     function _vestedAt(uint256 principal, uint256 timestamp) private view returns (uint256) {

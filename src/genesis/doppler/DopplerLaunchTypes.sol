@@ -52,6 +52,21 @@ interface IDopplerERC20V1Factory {
     function IMPLEMENTATION() external view returns (address);
 }
 
+interface IDopplerERC20V1 {
+    function vestingStart() external view returns (uint256);
+    function vestedTotalAmount() external view returns (uint256);
+    function vestingScheduleCount() external view returns (uint256);
+    function vestingSchedules(uint256 scheduleId) external view returns (uint64 cliff, uint64 duration);
+    function vestingOf(address beneficiary, uint256 scheduleId)
+        external
+        view
+        returns (uint256 totalAmount, uint256 releasedAmount);
+    function totalAllocatedOf(address beneficiary) external view returns (uint256);
+    function getScheduleIdsOf(address beneficiary) external view returns (uint256[] memory);
+    function computeAvailableVestedAmount(address beneficiary, uint256 scheduleId) external view returns (uint256);
+    function releaseFor(address beneficiary, uint256 scheduleId, uint256 amount) external;
+}
+
 interface IDopplerAirlock {
     function owner() external view returns (address);
 

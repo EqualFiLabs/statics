@@ -25,6 +25,7 @@ import {StaticsTreasuryVesting} from "../../src/genesis/StaticsTreasuryVesting.s
 import {
     DopplerLaunchTypes,
     IDopplerAirlock,
+    IDopplerERC20V1,
     IDopplerERC20V1Factory
 } from "../../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
@@ -99,7 +100,6 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     MockDeploymentInitializer public immutable initializer;
     uint256 public lastNumTokensToSell;
     bytes32 public lastTokenFactoryDataHash;
-    uint256 public residual = 1 ether;
     uint256 public createCalls;
     address public lastCreateCaller;
     bytes32 public lastCreateCalldataHash;
@@ -108,10 +108,6 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     constructor(address owner_, MockDeploymentInitializer initializer_) {
         owner = owner_;
         initializer = initializer_;
-    }
-
-    function setResidual(uint256 residual_) external {
-        residual = residual_;
     }
 
     function setOwner(address owner_) external {
@@ -125,7 +121,8 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         ++createCalls;
         lastCreateCaller = msg.sender;
         lastCreateCalldataHash = keccak256(msg.data);
-        asset = MockDeploymentTokenFactory(params.tokenFactory).create(params.initialSupply, address(this), params.salt);
+        asset = MockDeploymentTokenFactory(params.tokenFactory)
+            .create(params.initialSupply, address(this), params.salt, params.tokenFactoryData);
         MockCloneableDopplerToken token = MockCloneableDopplerToken(asset);
         require(params.initialSupply == token.totalSupply(), "SUPPLY");
         require(params.numTokensToSell == 800_000_000 ether, "INVENTORY");
@@ -140,7 +137,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
         initializer.configure(asset, params.numeraire, poolData.fee, poolData.tickSpacing, poolData.beneficiaries);
 
         timelock = abi.decode(params.governanceFactoryData, (address));
-        token.transfer(params.poolInitializer, params.numTokensToSell - residual);
+        token.transfer(params.poolInitializer, params.numTokensToSell);
         token.transfer(timelock, token.balanceOf(address(this)));
         pool = asset;
         governance = GOVERNANCE_DEAD;
@@ -393,6 +390,7 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             (, StaticsFeeReceiver receiver,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
             vm.prank(address(deployer));
             receiver.transferOwnership(makeAddr("unexpectedReceiverOwner"));
+            vm.setNonce(address(deployer), uint64(artifact.expectedLaunchNonce));
 
             vm.expectRevert(
                 abi.encodeWithSelector(DeployStaticsGenesis.InvalidPreparedReceiver.selector, address(receiver))
@@ -697,9 +695,11 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(statics.balanceOf(treasury), 0);
             assertEq(airlock.lastNumTokensToSell(), 800_000_000 ether);
             assertEq(
-                airlock.lastTokenFactoryDataHash(), keccak256(_expectedTokenFactoryData("ipfs://statics/token.json"))
+                airlock.lastTokenFactoryDataHash(),
+                keccak256(_expectedTokenFactoryData("ipfs://statics/token.json", treasury))
             );
-            assertEq(statics.balanceOf(address(initializer)), 799_999_999 ether);
+            assertEq(statics.balanceOf(address(initializer)), 800_000_000 ether);
+            assertEq(statics.balanceOf(deployment.statics), 100_100_000 ether);
             assertEq(genesis.balanceOf(address(vault)), 5_000);
             assertEq(genesis.balanceOf(address(vesting)), 555);
             assertEq(genesis.ownerOf(5_001), address(vesting));
@@ -708,12 +708,20 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertEq(vault.requiredBacking(), 99_900_000 ether);
             assertEq(vault.tokenBacking(), 99_900_000 ether);
             assertEq(statics.balanceOf(address(vault)), 99_900_000 ether);
-            assertEq(statics.balanceOf(address(vesting)), 100_100_001 ether);
+            assertEq(statics.balanceOf(address(vesting)), 0);
             assertEq(vesting.recipientAdmin(), governance);
             assertEq(vesting.withdrawalRecipient(), treasury);
             assertEq(vesting.bootstrapper(), address(0));
-            assertEq(vesting.releasableStatics(), 0);
             assertEq(vesting.releasableGenesis(), 0);
+            IDopplerERC20V1 nativeVesting = IDopplerERC20V1(deployment.statics);
+            assertEq(nativeVesting.vestedTotalAmount(), 100_100_000 ether);
+            assertEq(nativeVesting.vestingScheduleCount(), 1);
+            (uint64 cliff, uint64 duration) = nativeVesting.vestingSchedules(0);
+            assertEq(cliff, 0);
+            assertEq(duration, 60 days);
+            (uint256 totalAmount, uint256 releasedAmount) = nativeVesting.vestingOf(treasury, 0);
+            assertEq(totalAmount, 100_100_000 ether);
+            assertEq(releasedAmount, 0);
             assertEq(receiver.statics(), deployment.statics);
             assertEq(receiver.poolId(), deployment.poolId);
             assertEq(receiver.poolInitializer(), address(initializer));
@@ -930,16 +938,36 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             assertNotEq(deployer.launchConfigHash(config, canonicalWethHash, codeHashes), launchHash);
         }
 
-        function testAcceptsArbitraryMulticurveSurplusWithoutVaultDonation() public {
+        function testFinalizeToleratesDonationWithoutIncreasingVaultBacking() public {
             uint256 surplus = 1_000_000 ether;
-            airlock.setResidual(surplus);
+            (,, StaticsTreasuryVesting vesting, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
+            deployer.launch(artifact);
+            vm.prank(address(initializer));
+            IERC20(artifact.expectedStatics).transfer(address(vesting), surplus);
 
-            StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
+            StaticsGenesisDeployment memory deployment = deployer.finalize(artifact);
             IERC20 statics = IERC20(deployment.statics);
 
             assertEq(statics.balanceOf(deployment.genesisVault), 99_900_000 ether);
             assertEq(StaticsGenesisVault(deployment.genesisVault).tokenBacking(), 99_900_000 ether);
-            assertEq(statics.balanceOf(deployment.treasuryVesting), 100_100_000 ether + surplus);
+            assertEq(statics.balanceOf(deployment.treasuryVesting), surplus);
+
+            vm.prank(governance);
+            assertEq(vesting.sweepStaticsSurplus(), surplus);
+            assertEq(statics.balanceOf(treasury), surplus);
+        }
+
+        function testNativeTreasuryVestingReleasesDirectlyToTreasury() public {
+            StaticsGenesisDeployment memory deployment = deployer.deploy(_config(), address(deployer));
+            IDopplerERC20V1 token = IDopplerERC20V1(deployment.statics);
+            uint256 start = token.vestingStart();
+
+            vm.warp(start + 30 days);
+            token.releaseFor(treasury, 0, 0);
+
+            assertEq(IERC20(deployment.statics).balanceOf(treasury), 50_050_000 ether);
+            (, uint256 releasedAmount) = token.vestingOf(treasury, 0);
+            assertEq(releasedAmount, 50_050_000 ether);
         }
 
         function testRejectsRenouncedDopplerOwner() public {
@@ -1186,14 +1214,25 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             });
         }
 
-        function _expectedTokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
+        function _expectedTokenFactoryData(string memory tokenURI, address beneficiary)
+            private
+            pure
+            returns (bytes memory)
+        {
+            DopplerLaunchTypes.VestingSchedule[] memory schedules = new DopplerLaunchTypes.VestingSchedule[](1);
+            schedules[0] = DopplerLaunchTypes.VestingSchedule({cliff: 0, duration: 60 days});
+            address[] memory beneficiaries = new address[](1);
+            beneficiaries[0] = beneficiary;
+            uint256[] memory scheduleIds = new uint256[](1);
+            uint256[] memory amounts = new uint256[](1);
+            amounts[0] = 100_100_000 ether;
             return abi.encode(
                 "Statics",
                 "STATICS",
-                new DopplerLaunchTypes.VestingSchedule[](0),
-                new address[](0),
-                new uint256[](0),
-                new uint256[](0),
+                schedules,
+                beneficiaries,
+                scheduleIds,
+                amounts,
                 tokenURI,
                 uint256(0),
                 uint48(0),
@@ -1204,14 +1243,86 @@ contract MockDeploymentAirlock is IDopplerAirlock {
     }
 
     contract MockCloneableDopplerToken is ERC20 {
+        struct VestingData {
+            uint256 totalAmount;
+            uint256 releasedAmount;
+        }
+
+        struct TokenFactoryData {
+            DopplerLaunchTypes.VestingSchedule[] schedules;
+            address[] beneficiaries;
+            uint256[] scheduleIds;
+            uint256[] amounts;
+        }
+
         bool private initialized;
+        uint256 public vestingStart;
+        uint256 public vestedTotalAmount;
+        DopplerLaunchTypes.VestingSchedule[] public vestingSchedules;
+        mapping(address beneficiary => mapping(uint256 scheduleId => VestingData)) public vestingOf;
+        mapping(address beneficiary => uint256 amount) public totalAllocatedOf;
+        mapping(address beneficiary => uint256[] scheduleIds) private scheduleIdsOf;
 
         constructor() ERC20("Statics", "STATICS") {}
 
-        function initialize(uint256 initialSupply, address recipient) external {
+        function initialize(uint256 initialSupply, address recipient, bytes calldata tokenFactoryData) external {
             require(!initialized, "INITIALIZED");
             initialized = true;
-            _mint(recipient, initialSupply);
+            TokenFactoryData memory data = _decodeTokenFactoryData(tokenFactoryData);
+            require(data.schedules.length == 1 && data.beneficiaries.length == 1, "VESTING_LENGTH");
+            require(data.scheduleIds.length == 1 && data.amounts.length == 1, "ALLOCATION_LENGTH");
+            require(data.scheduleIds[0] == 0, "SCHEDULE_ID");
+            vestingStart = block.timestamp;
+            vestingSchedules.push(data.schedules[0]);
+            address beneficiary = data.beneficiaries[0];
+            uint256 amount = data.amounts[0];
+            vestingOf[beneficiary][0] = VestingData({totalAmount: amount, releasedAmount: 0});
+            totalAllocatedOf[beneficiary] = amount;
+            scheduleIdsOf[beneficiary].push(0);
+            vestedTotalAmount = amount;
+            _mint(address(this), amount);
+            _mint(recipient, initialSupply - amount);
+        }
+
+        function _decodeTokenFactoryData(bytes calldata encoded) private pure returns (TokenFactoryData memory data) {
+            (,, data.schedules, data.beneficiaries, data.scheduleIds, data.amounts,,,,,) = abi.decode(
+                encoded,
+                (
+                    string,
+                    string,
+                    DopplerLaunchTypes.VestingSchedule[],
+                    address[],
+                    uint256[],
+                    uint256[],
+                    string,
+                    uint256,
+                    uint48,
+                    address,
+                    address[]
+                )
+            );
+        }
+
+        function vestingScheduleCount() external view returns (uint256) {
+            return vestingSchedules.length;
+        }
+
+        function getScheduleIdsOf(address beneficiary) external view returns (uint256[] memory) {
+            return scheduleIdsOf[beneficiary];
+        }
+
+        function releaseFor(address beneficiary, uint256 scheduleId, uint256 amount) external {
+            require(scheduleId == 0, "SCHEDULE_ID");
+            VestingData storage data = vestingOf[beneficiary][scheduleId];
+            DopplerLaunchTypes.VestingSchedule memory schedule = vestingSchedules[scheduleId];
+            uint256 elapsed = block.timestamp - vestingStart;
+            uint256 vested =
+                elapsed >= schedule.duration ? data.totalAmount : data.totalAmount * elapsed / schedule.duration;
+            uint256 available = vested - data.releasedAmount;
+            uint256 released = amount == 0 ? available : amount;
+            require(released != 0 && released <= available, "RELEASE");
+            data.releasedAmount += released;
+            _transfer(address(this), beneficiary, released);
         }
     }
 
@@ -1225,12 +1336,15 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             IMPLEMENTATION = address(new MockCloneableDopplerToken());
         }
 
-        function create(uint256 initialSupply, address recipient, bytes32 salt) external returns (address asset) {
+        function create(uint256 initialSupply, address recipient, bytes32 salt, bytes calldata tokenFactoryData)
+            external
+            returns (address asset)
+        {
             bytes memory initCode = abi.encodePacked(CLONE_INIT_CODE_PREFIX, IMPLEMENTATION, CLONE_INIT_CODE_SUFFIX);
             assembly {
                 asset := create2(0, add(initCode, 0x20), mload(initCode), salt)
             }
             require(asset != address(0), "CREATE2");
-            MockCloneableDopplerToken(asset).initialize(initialSupply, recipient);
+            MockCloneableDopplerToken(asset).initialize(initialSupply, recipient, tokenFactoryData);
         }
     }

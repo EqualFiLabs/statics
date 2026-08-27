@@ -27,6 +27,7 @@ import {GenesisActivationRegistry} from "../../../src/genesis/GenesisActivationR
 import {GenesisLaunchDistributor} from "../../../src/genesis/GenesisLaunchDistributor.sol";
 import {StaticsFeeReceiver} from "../../../src/genesis/StaticsFeeReceiver.sol";
 import {StaticsTreasuryVesting} from "../../../src/genesis/StaticsTreasuryVesting.sol";
+import {IDopplerERC20V1} from "../../../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../../../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
 import {StaticsGenesisVault} from "../../../src/genesis/StaticsGenesisVault.sol";
 import {StaticsGenesis} from "../../../src/tokens/StaticsGenesis.sol";
@@ -315,7 +316,7 @@ contract DopplerGenesisLaunchForkTest is Test {
 
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 0);
-            assertGe(statics.balanceOf(address(vesting)), 100_100_000 ether);
+            assertEq(statics.balanceOf(address(vesting)), 0);
             assertEq(vault.tokenBacking(), 99_900_000 ether);
             assertEq(statics.balanceOf(address(vault)), vault.tokenBacking());
             assertEq(genesis.balanceOf(address(vault)), 5_000);
@@ -355,6 +356,7 @@ contract DopplerGenesisLaunchForkTest is Test {
             GenesisActivationRegistry(deployment.activationRegistry),
             distributor
         );
+        _assertNativeTreasuryRelease(IERC20(deployment.statics), treasury);
     }
 
     function _launchBeforeFinalize(
@@ -378,6 +380,7 @@ contract DopplerGenesisLaunchForkTest is Test {
         assertGt(artifact.expectedStatics.code.length, 0);
         assertEq(receiver.statics(), address(0));
         assertEq(vesting.vestingStart(), 0);
+        _assertNativeVestingAtLaunch(artifact, config.treasury);
 
         PoolKey memory key =
             _poolKey(artifact.expectedStatics, address(weth), config.modules.poolInitializer, config.fee);
@@ -386,6 +389,38 @@ contract DopplerGenesisLaunchForkTest is Test {
         assertGe(staticsReceived, 280_000 ether, "isolated launch market was not immediately live");
 
         deployment = deployer.finalize(artifact);
+    }
+
+    function _assertNativeVestingAtLaunch(StaticsGenesisLaunchArtifact memory artifact, address treasury) private view {
+        IERC20 statics = IERC20(artifact.expectedStatics);
+        IDopplerERC20V1 token = IDopplerERC20V1(artifact.expectedStatics);
+        assertEq(statics.balanceOf(artifact.treasuryVesting), 99_900_000 ether);
+        assertEq(statics.balanceOf(artifact.airlock), 0);
+        assertEq(statics.balanceOf(artifact.expectedStatics), 100_100_000 ether);
+        assertEq(token.vestedTotalAmount(), 100_100_000 ether);
+        assertEq(token.vestingScheduleCount(), 1);
+        (uint64 cliff, uint64 duration) = token.vestingSchedules(0);
+        assertEq(cliff, 0);
+        assertEq(duration, 60 days);
+        (uint256 totalAmount, uint256 releasedAmount) = token.vestingOf(treasury, 0);
+        assertEq(totalAmount, 100_100_000 ether);
+        assertEq(releasedAmount, 0);
+        assertEq(token.totalAllocatedOf(treasury), 100_100_000 ether);
+        uint256[] memory scheduleIds = token.getScheduleIdsOf(treasury);
+        assertEq(scheduleIds.length, 1);
+        assertEq(scheduleIds[0], 0);
+    }
+
+    function _assertNativeTreasuryRelease(IERC20 statics, address treasury) private {
+        IDopplerERC20V1 token = IDopplerERC20V1(address(statics));
+        uint256 treasuryBefore = statics.balanceOf(treasury);
+
+        token.releaseFor(treasury, 0, 0);
+
+        assertEq(statics.balanceOf(treasury) - treasuryBefore, 100_100_000 ether);
+        (, uint256 releasedAmount) = token.vestingOf(treasury, 0);
+        assertEq(releasedAmount, 100_100_000 ether);
+        assertEq(statics.balanceOf(address(statics)), 0);
     }
 
     function _buyAndRegisterGenesis(

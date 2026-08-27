@@ -16,6 +16,7 @@ import {StaticsTreasuryVesting} from "../src/genesis/StaticsTreasuryVesting.sol"
 import {
     DopplerLaunchTypes,
     IDopplerAirlock,
+    IDopplerERC20V1,
     IDopplerERC20V1Factory
 } from "../src/genesis/doppler/DopplerLaunchTypes.sol";
 import {StaticsDopplerLaunchConfig} from "../src/genesis/doppler/StaticsDopplerLaunchConfig.sol";
@@ -193,7 +194,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     error InvalidRobinhoodDependencyCodeHash(address dependency, bytes32 expected, bytes32 actual);
     error ProductionLaunchConfigurationNotRatified(bytes32 currentHash, bytes32 approvedHash);
     error UnexpectedDopplerResult(address pool, address governance, address timelock, address migrationPool);
-    error AllocationMismatch(uint256 totalSupply, uint256 treasuryBalance);
+    error AllocationMismatch(uint256 totalSupply, uint256 bootstrapBalance);
 
     error InvalidLaunchArtifactSchema(uint256 expected, uint256 actual);
     error InvalidLaunchArtifactHash(bytes32 expected, bytes32 actual);
@@ -644,16 +645,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             keccak256(abi.encode(config.governance, config.treasury, config.integrator, dopplerOwner, config.salt));
         bytes32 dependencyHash =
             keccak256(abi.encode(config.numeraire, wethDependencyHash, config.modules, moduleCodeHashes));
-        bytes32 marketHash = keccak256(
-            abi.encode(
-                TICK_SPACING,
-                FAR_TICK,
-                GOVERNANCE_DEAD,
-                MIGRATION_DEAD,
-                keccak256(_tokenFactoryData(config.tokenURI)),
-                defaultCurves()
-            )
-        );
+        bytes32 marketHash = _marketHash(config.tokenURI, config.treasury);
         bytes32 metadataHash = keccak256(
             abi.encode(
                 keccak256(bytes("Statics")),
@@ -677,66 +669,81 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         );
     }
 
+    function _marketHash(string memory tokenURI, address treasury) private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                TICK_SPACING,
+                FAR_TICK,
+                GOVERNANCE_DEAD,
+                MIGRATION_DEAD,
+                keccak256(_tokenFactoryData(tokenURI, treasury)),
+                defaultCurves()
+            )
+        );
+    }
+
     function writeLaunchArtifact(string memory path, StaticsGenesisLaunchArtifact memory artifact) public {
         artifact.artifactHash = launchArtifactHash(artifact);
         _assertArtifactIntegrity(artifact);
         string memory objectKey = "statics-genesis-launch";
-        vm.serializeUint(objectKey, "schemaVersion", artifact.schemaVersion);
-        vm.serializeUint(objectKey, "chainId", artifact.chainId);
-        vm.serializeAddress(objectKey, "deployer", artifact.deployer);
-        vm.serializeAddress(objectKey, "airlock", artifact.airlock);
-        vm.serializeUint(objectKey, "transactionValue", artifact.transactionValue);
-        vm.serializeUint(objectKey, "expectedLaunchNonce", artifact.expectedLaunchNonce);
-        vm.serializeAddress(objectKey, "governance", artifact.config.governance);
-        vm.serializeAddress(objectKey, "treasury", artifact.config.treasury);
-        vm.serializeAddress(objectKey, "numeraire", artifact.config.numeraire);
-        vm.serializeAddress(objectKey, "integrator", artifact.config.integrator);
-        vm.serializeAddress(objectKey, "moduleAirlock", artifact.config.modules.airlock);
-        vm.serializeAddress(objectKey, "moduleTokenFactory", artifact.config.modules.tokenFactory);
-        vm.serializeAddress(objectKey, "moduleGovernanceFactory", artifact.config.modules.governanceFactory);
-        vm.serializeAddress(objectKey, "modulePoolInitializer", artifact.config.modules.poolInitializer);
-        vm.serializeAddress(objectKey, "moduleNoOpMigrator", artifact.config.modules.noOpMigrator);
-        vm.serializeBytes32(objectKey, "salt", artifact.config.salt);
-        vm.serializeUint(objectKey, "fee", artifact.config.fee);
-        vm.serializeUint(objectKey, "genesisRewardShareBps", artifact.config.genesisRewardShareBps);
-        vm.serializeUint(objectKey, "reserveShareBps", artifact.config.reserveShareBps);
-        vm.serializeUint(objectKey, "creditOriginationFee", artifact.config.creditOriginationFee);
-        vm.serializeUint(objectKey, "creditExtensionFee", artifact.config.creditExtensionFee);
-        vm.serializeUint(objectKey, "recoveryCallerShareBps", artifact.config.recoveryCallerShareBps);
-        vm.serializeUint(objectKey, "genesisEpochEnd", artifact.config.genesisEpochEnd);
-        vm.serializeString(objectKey, "tokenURI", artifact.config.tokenURI);
-        vm.serializeString(objectKey, "contractURI", artifact.config.contractURI);
-        vm.serializeString(objectKey, "externalURLBase", artifact.config.externalURLBase);
-        vm.serializeAddress(objectKey, "feeReceiver", artifact.feeReceiver);
-        vm.serializeAddress(objectKey, "treasuryVesting", artifact.treasuryVesting);
-        vm.serializeBytes32(objectKey, "feeReceiverRuntimeCodeHash", artifact.feeReceiverRuntimeCodeHash);
-        vm.serializeBytes32(objectKey, "treasuryVestingRuntimeCodeHash", artifact.treasuryVestingRuntimeCodeHash);
-        vm.serializeBytes32(objectKey, "wethDependencyHash", artifact.wethDependencyHash);
-        vm.serializeBytes32(objectKey, "moduleAirlockRuntimeCodeHash", artifact.moduleCodeHashes.airlock);
-        vm.serializeBytes32(objectKey, "moduleTokenFactoryRuntimeCodeHash", artifact.moduleCodeHashes.tokenFactory);
-        vm.serializeBytes32(
+        string memory json = vm.serializeUint(objectKey, "schemaVersion", artifact.schemaVersion);
+        json = vm.serializeUint(objectKey, "chainId", artifact.chainId);
+        json = vm.serializeAddress(objectKey, "deployer", artifact.deployer);
+        json = vm.serializeAddress(objectKey, "airlock", artifact.airlock);
+        json = vm.serializeUint(objectKey, "transactionValue", artifact.transactionValue);
+        json = vm.serializeUint(objectKey, "expectedLaunchNonce", artifact.expectedLaunchNonce);
+        json = vm.serializeAddress(objectKey, "governance", artifact.config.governance);
+        json = vm.serializeAddress(objectKey, "treasury", artifact.config.treasury);
+        json = vm.serializeAddress(objectKey, "numeraire", artifact.config.numeraire);
+        json = vm.serializeAddress(objectKey, "integrator", artifact.config.integrator);
+        json = vm.serializeAddress(objectKey, "moduleAirlock", artifact.config.modules.airlock);
+        json = vm.serializeAddress(objectKey, "moduleTokenFactory", artifact.config.modules.tokenFactory);
+        json = vm.serializeAddress(objectKey, "moduleGovernanceFactory", artifact.config.modules.governanceFactory);
+        json = vm.serializeAddress(objectKey, "modulePoolInitializer", artifact.config.modules.poolInitializer);
+        json = vm.serializeAddress(objectKey, "moduleNoOpMigrator", artifact.config.modules.noOpMigrator);
+        json = vm.serializeBytes32(objectKey, "salt", artifact.config.salt);
+        json = vm.serializeUint(objectKey, "fee", artifact.config.fee);
+        json = vm.serializeUint(objectKey, "genesisRewardShareBps", artifact.config.genesisRewardShareBps);
+        json = vm.serializeUint(objectKey, "reserveShareBps", artifact.config.reserveShareBps);
+        json = vm.serializeUint(objectKey, "creditOriginationFee", artifact.config.creditOriginationFee);
+        json = vm.serializeUint(objectKey, "creditExtensionFee", artifact.config.creditExtensionFee);
+        json = vm.serializeUint(objectKey, "recoveryCallerShareBps", artifact.config.recoveryCallerShareBps);
+        json = vm.serializeUint(objectKey, "genesisEpochEnd", artifact.config.genesisEpochEnd);
+        json = vm.serializeString(objectKey, "tokenURI", artifact.config.tokenURI);
+        json = vm.serializeString(objectKey, "contractURI", artifact.config.contractURI);
+        json = vm.serializeString(objectKey, "externalURLBase", artifact.config.externalURLBase);
+        json = vm.serializeAddress(objectKey, "feeReceiver", artifact.feeReceiver);
+        json = vm.serializeAddress(objectKey, "treasuryVesting", artifact.treasuryVesting);
+        json = vm.serializeBytes32(objectKey, "feeReceiverRuntimeCodeHash", artifact.feeReceiverRuntimeCodeHash);
+        json = vm.serializeBytes32(objectKey, "treasuryVestingRuntimeCodeHash", artifact.treasuryVestingRuntimeCodeHash);
+        json = vm.serializeBytes32(objectKey, "wethDependencyHash", artifact.wethDependencyHash);
+        json = vm.serializeBytes32(objectKey, "moduleAirlockRuntimeCodeHash", artifact.moduleCodeHashes.airlock);
+        json =
+            vm.serializeBytes32(objectKey, "moduleTokenFactoryRuntimeCodeHash", artifact.moduleCodeHashes.tokenFactory);
+        json = vm.serializeBytes32(
             objectKey, "moduleGovernanceFactoryRuntimeCodeHash", artifact.moduleCodeHashes.governanceFactory
         );
-        vm.serializeBytes32(
+        json = vm.serializeBytes32(
             objectKey, "modulePoolInitializerRuntimeCodeHash", artifact.moduleCodeHashes.poolInitializer
         );
-        vm.serializeBytes32(objectKey, "moduleNoOpMigratorRuntimeCodeHash", artifact.moduleCodeHashes.noOpMigrator);
-        vm.serializeAddress(objectKey, "dopplerOwner", artifact.dopplerOwner);
-        vm.serializeUint(objectKey, "dopplerOwnerShare", artifact.dopplerOwnerShare);
-        vm.serializeUint(objectKey, "staticsFeeShare", artifact.staticsFeeShare);
-        vm.serializeBytes32(objectKey, "dopplerSourceRevision", artifact.dopplerSourceRevision);
-        vm.serializeBytes32(objectKey, "launchScriptCodeHash", artifact.launchScriptCodeHash);
-        vm.serializeBytes32(objectKey, "staticsImplementationHash", artifact.staticsImplementationHash);
-        vm.serializeBytes32(objectKey, "launchConfigHash", artifact.launchConfigHash);
-        vm.serializeBytes32(objectKey, "marketCommitment", artifact.marketCommitment);
-        vm.serializeAddress(objectKey, "tokenImplementation", artifact.tokenImplementation);
-        vm.serializeBytes32(objectKey, "tokenImplementationCodeHash", artifact.tokenImplementationCodeHash);
-        vm.serializeAddress(objectKey, "expectedStatics", artifact.expectedStatics);
-        vm.serializeBytes32(objectKey, "expectedPoolId", artifact.expectedPoolId);
-        vm.serializeBytes(objectKey, "createParams", artifact.createParams);
-        vm.serializeBytes(objectKey, "createCalldata", artifact.createCalldata);
-        vm.serializeBytes32(objectKey, "createCalldataHash", artifact.createCalldataHash);
-        string memory json = vm.serializeBytes32(objectKey, "artifactHash", artifact.artifactHash);
+        json =
+            vm.serializeBytes32(objectKey, "moduleNoOpMigratorRuntimeCodeHash", artifact.moduleCodeHashes.noOpMigrator);
+        json = vm.serializeAddress(objectKey, "dopplerOwner", artifact.dopplerOwner);
+        json = vm.serializeUint(objectKey, "dopplerOwnerShare", artifact.dopplerOwnerShare);
+        json = vm.serializeUint(objectKey, "staticsFeeShare", artifact.staticsFeeShare);
+        json = vm.serializeBytes32(objectKey, "dopplerSourceRevision", artifact.dopplerSourceRevision);
+        json = vm.serializeBytes32(objectKey, "launchScriptCodeHash", artifact.launchScriptCodeHash);
+        json = vm.serializeBytes32(objectKey, "staticsImplementationHash", artifact.staticsImplementationHash);
+        json = vm.serializeBytes32(objectKey, "launchConfigHash", artifact.launchConfigHash);
+        json = vm.serializeBytes32(objectKey, "marketCommitment", artifact.marketCommitment);
+        json = vm.serializeAddress(objectKey, "tokenImplementation", artifact.tokenImplementation);
+        json = vm.serializeBytes32(objectKey, "tokenImplementationCodeHash", artifact.tokenImplementationCodeHash);
+        json = vm.serializeAddress(objectKey, "expectedStatics", artifact.expectedStatics);
+        json = vm.serializeBytes32(objectKey, "expectedPoolId", artifact.expectedPoolId);
+        json = vm.serializeBytes(objectKey, "createParams", artifact.createParams);
+        json = vm.serializeBytes(objectKey, "createCalldata", artifact.createCalldata);
+        json = vm.serializeBytes32(objectKey, "createCalldataHash", artifact.createCalldataHash);
+        json = vm.serializeBytes32(objectKey, "artifactHash", artifact.artifactHash);
         vm.writeJson(json, path);
     }
 
@@ -925,7 +932,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         ) {
             revert UnexpectedDopplerResult(market.pool, market.governance, market.timelock, market.migrationPool);
         }
-        _assertPostLaunchSupply(market.statics, StaticsTreasuryVesting(artifact.treasuryVesting));
+        _assertImmediatePostLaunchAllocations(artifact);
         _assertLaunchedMarketState(artifact);
     }
 
@@ -975,7 +982,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             numTokensToSell: DOPPLER_INVENTORY,
             numeraire: config.numeraire,
             tokenFactory: config.modules.tokenFactory,
-            tokenFactoryData: _tokenFactoryData(config.tokenURI),
+            tokenFactoryData: _tokenFactoryData(config.tokenURI, config.treasury),
             governanceFactory: config.modules.governanceFactory,
             governanceFactoryData: abi.encode(address(treasuryVesting)),
             poolInitializer: config.modules.poolInitializer,
@@ -1072,8 +1079,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
             vesting.bootstrapper() != deployer || vesting.recipientAdmin() != config.governance
                 || vesting.withdrawalRecipient() != config.treasury || vesting.vestingStart() != 0
                 || address(vesting.statics()) != address(0) || address(vesting.genesisVault()) != address(0)
-                || address(vesting.genesis()) != address(0) || vesting.releasedStatics() != 0
-                || vesting.releasedGenesis() != 0
+                || address(vesting.genesis()) != address(0) || vesting.releasedGenesis() != 0
         ) revert InvalidPreparedVesting(vestingAddress);
     }
 
@@ -1115,7 +1121,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
                 || initializer.getShares(artifact.expectedPoolId, artifact.feeReceiver) != STATICS_FEE_SHARE
                 || initializer.getShares(artifact.expectedPoolId, artifact.dopplerOwner) != DOPPLER_OWNER_SHARE
         ) revert UnexpectedLaunchState(artifact.expectedStatics);
-        _assertPostLaunchSupply(artifact.expectedStatics, StaticsTreasuryVesting(artifact.treasuryVesting));
+        _assertDelayedPostLaunchAllocations(artifact);
     }
 
     function _assertFinalized(StaticsGenesisLaunchArtifact memory artifact, StaticsGenesisDeployment memory deployment)
@@ -1142,10 +1148,10 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         StaticsGenesis genesis = StaticsGenesis(deployment.genesis);
         GenesisLaunchDistributor distributor = GenesisLaunchDistributor(deployment.genesisDistributor);
 
-        if (
-            statics.totalSupply() != STATICS_SUPPLY || statics.balanceOf(address(vault)) != TREASURY_GENESIS_BACKING
-                || statics.balanceOf(address(vesting)) < TREASURY_STATICS_VESTING_PRINCIPAL
-        ) revert UnexpectedFinalizeState(artifact.expectedStatics);
+        if (statics.totalSupply() != STATICS_SUPPLY || statics.balanceOf(address(vault)) != TREASURY_GENESIS_BACKING) {
+            revert UnexpectedFinalizeState(artifact.expectedStatics);
+        }
+        _assertNativeTreasuryVesting(artifact.expectedStatics, artifact.config.treasury, false);
         if (
             receiver.statics() != artifact.expectedStatics || receiver.poolId() != artifact.expectedPoolId
                 || receiver.reserveVault() != address(vault)
@@ -1200,22 +1206,56 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         ) revert UnexpectedFinalizeState(address(distributor));
     }
 
-    function _assertPostLaunchSupply(address statics, StaticsTreasuryVesting treasuryVesting) private view {
-        uint256 totalSupply = IERC20(statics).totalSupply();
-        uint256 vestingBalance = IERC20(statics).balanceOf(address(treasuryVesting));
-        if (totalSupply != STATICS_SUPPLY || vestingBalance < PROTOCOL_ALLOCATION) {
-            revert AllocationMismatch(totalSupply, vestingBalance);
-        }
+    function _assertImmediatePostLaunchAllocations(StaticsGenesisLaunchArtifact memory artifact) private view {
+        IERC20 statics = IERC20(artifact.expectedStatics);
+        uint256 bootstrapBalance = statics.balanceOf(artifact.treasuryVesting);
+        if (
+            statics.totalSupply() != STATICS_SUPPLY || bootstrapBalance != TREASURY_GENESIS_BACKING
+                || statics.balanceOf(artifact.airlock) != 0
+        ) revert AllocationMismatch(statics.totalSupply(), bootstrapBalance);
+        _assertNativeTreasuryVesting(artifact.expectedStatics, artifact.config.treasury, true);
     }
 
-    function _tokenFactoryData(string memory tokenURI) private pure returns (bytes memory) {
+    function _assertDelayedPostLaunchAllocations(StaticsGenesisLaunchArtifact memory artifact) private view {
+        IERC20 statics = IERC20(artifact.expectedStatics);
+        uint256 bootstrapBalance = statics.balanceOf(artifact.treasuryVesting);
+        if (statics.totalSupply() != STATICS_SUPPLY || bootstrapBalance < TREASURY_GENESIS_BACKING) {
+            revert AllocationMismatch(statics.totalSupply(), bootstrapBalance);
+        }
+        _assertNativeTreasuryVesting(artifact.expectedStatics, artifact.config.treasury, false);
+    }
+
+    function _assertNativeTreasuryVesting(address statics, address treasury, bool requireUnreleased) private view {
+        IDopplerERC20V1 token = IDopplerERC20V1(statics);
+        (uint64 cliff, uint64 duration) = token.vestingSchedules(0);
+        (uint256 totalAmount, uint256 releasedAmount) = token.vestingOf(treasury, 0);
+        uint256[] memory scheduleIds = token.getScheduleIdsOf(treasury);
+        if (
+            token.vestingStart() == 0 || token.vestedTotalAmount() != TREASURY_STATICS_VESTING_PRINCIPAL
+                || token.vestingScheduleCount() != 1 || cliff != 0 || duration != TREASURY_VESTING_DURATION
+                || token.totalAllocatedOf(treasury) != TREASURY_STATICS_VESTING_PRINCIPAL
+                || totalAmount != TREASURY_STATICS_VESTING_PRINCIPAL || releasedAmount > totalAmount
+                || scheduleIds.length != 1 || scheduleIds[0] != 0
+                || IERC20(statics).balanceOf(statics) < totalAmount - releasedAmount
+                || (requireUnreleased && (releasedAmount != 0 || IERC20(statics).balanceOf(statics) != totalAmount))
+        ) revert UnexpectedLaunchState(statics);
+    }
+
+    function _tokenFactoryData(string memory tokenURI, address treasury) private pure returns (bytes memory) {
+        DopplerLaunchTypes.VestingSchedule[] memory schedules = new DopplerLaunchTypes.VestingSchedule[](1);
+        schedules[0] = DopplerLaunchTypes.VestingSchedule({cliff: 0, duration: uint64(TREASURY_VESTING_DURATION)});
+        address[] memory beneficiaries = new address[](1);
+        beneficiaries[0] = treasury;
+        uint256[] memory scheduleIds = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = TREASURY_STATICS_VESTING_PRINCIPAL;
         return abi.encode(
             "Statics",
             "STATICS",
-            new DopplerLaunchTypes.VestingSchedule[](0),
-            new address[](0),
-            new uint256[](0),
-            new uint256[](0),
+            schedules,
+            beneficiaries,
+            scheduleIds,
+            amounts,
             tokenURI,
             uint256(0),
             uint48(0),

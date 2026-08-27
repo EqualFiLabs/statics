@@ -110,10 +110,9 @@ contract StaticsGenesisHalmosTest is SymTest, FormalGenesisEnvironment {
 }
 
 contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
-    uint256 private constant PROTOCOL_ALLOCATION = 200_000_000 ether;
     uint256 private constant DOPPLER_INVENTORY = 800_000_000 ether;
     uint256 private constant BACKING_COMMITMENT = 99_900_000 ether;
-    uint256 private constant STATICS_PRINCIPAL = 100_100_000 ether;
+    uint256 private constant NATIVE_VESTING_PRINCIPAL = 100_100_000 ether;
     uint256 private constant GENESIS_PRINCIPAL = 555;
     uint256 private constant DURATION = 60 days;
 
@@ -129,7 +128,8 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         vesting = new StaticsTreasuryVesting(address(this), address(this), recipient);
         vault = new FormalBootstrapVault(token);
         genesis = new FormalBootstrapGenesis(address(vault), address(vesting));
-        token.mint(address(vesting), PROTOCOL_ALLOCATION);
+        token.mint(address(vesting), BACKING_COMMITMENT);
+        token.mint(makeAddr("formalNativeVesting"), NATIVE_VESTING_PRINCIPAL);
         token.mint(makeAddr("formalVestingInventory"), DOPPLER_INVENTORY);
         vesting.finalizeBootstrap(address(token), address(vault), address(genesis));
     }
@@ -143,14 +143,14 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         FormalBootstrapVault surplusVault = new FormalBootstrapVault(surplusToken);
         FormalBootstrapGenesis surplusGenesis =
             new FormalBootstrapGenesis(address(surplusVault), address(surplusVesting));
-        surplusToken.mint(address(surplusVesting), PROTOCOL_ALLOCATION + surplus);
+        surplusToken.mint(address(surplusVesting), BACKING_COMMITMENT + surplus);
+        surplusToken.mint(makeAddr("formalSurplusNativeVesting"), NATIVE_VESTING_PRINCIPAL);
         surplusToken.mint(makeAddr("formalSurplusInventory"), DOPPLER_INVENTORY - surplus);
 
         surplusVesting.finalizeBootstrap(address(surplusToken), address(surplusVault), address(surplusGenesis));
 
-        assertGe(surplusToken.balanceOf(address(surplusVesting)), STATICS_PRINCIPAL);
+        assertEq(surplusToken.balanceOf(address(surplusVesting)), surplus);
         assertEq(surplusVesting.bootstrapper(), address(0));
-        assertEq(surplusVesting.releasedStatics(), 0);
         assertEq(surplusVesting.releasedGenesis(), 0);
         assertTrue(surplusVault.finalized());
 
@@ -170,28 +170,10 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
     ///      130 days after its cap while keeping symbolic multiplication tractable.
     function check_vestingFormulaIsLinearAndCapped(uint24 elapsed) public view {
         uint256 timestamp = vesting.vestingStart() + elapsed;
-        uint256 expectedStatics =
-            elapsed >= DURATION ? STATICS_PRINCIPAL : Math.mulDiv(STATICS_PRINCIPAL, elapsed, DURATION);
         uint256 expectedGenesis =
             elapsed >= DURATION ? GENESIS_PRINCIPAL : Math.mulDiv(GENESIS_PRINCIPAL, elapsed, DURATION);
-        assertEq(vesting.vestedStaticsAt(timestamp), expectedStatics);
         assertEq(vesting.vestedGenesisAt(timestamp), expectedGenesis);
-        assertLe(vesting.vestedStaticsAt(timestamp), STATICS_PRINCIPAL);
         assertLe(vesting.vestedGenesisAt(timestamp), GENESIS_PRINCIPAL);
-    }
-
-    /// @dev Exact per-second vesting is proved above and in CVL. This transition
-    ///      exercises the accounting state change at the schedule midpoint;
-    ///      adjacent Foundry tests verify exact ERC-20 balance deltas.
-    function check_staticsReleaseEqualsMidpointVesting() public {
-        vm.warp(vesting.vestingStart() + 30 days);
-        uint256 vested = vesting.vestedStaticsAt(block.timestamp);
-
-        uint256 amount = vesting.releaseStatics();
-
-        assertEq(amount, vested);
-        assertEq(vesting.releasedStatics(), vested);
-        assertLe(vesting.releasedStatics(), STATICS_PRINCIPAL);
     }
 
     /// @dev The adjacent real-contract Foundry regression executes the full
@@ -212,21 +194,16 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         assertEq(genesis.balanceOf(address(vesting)), GENESIS_PRINCIPAL - 4);
     }
 
-    function check_surplusCannotBeSweptBeforePrincipalRelease() public {
+    function check_nonAdminCannotSweepSurplus() public {
         token.mint(address(vesting), 1_000_000 ether);
-        vm.warp(vesting.vestingStart() + DURATION);
-
+        vm.prank(makeAddr("formalUnauthorizedSweeper"));
         (bool swept,) = address(vesting).call(abi.encodeWithSelector(vesting.sweepStaticsSurplus.selector));
 
         assertFalse(swept);
-        assertEq(vesting.releasedStatics(), 0);
     }
 
     function check_surplusSweepPreservesVestingState() public {
         token.mint(address(vesting), 1_000_000 ether);
-        vm.warp(vesting.vestingStart() + DURATION);
-        vesting.releaseStatics();
-        uint256 staticsReleasedBefore = vesting.releasedStatics();
         uint256 genesisReleasedBefore = vesting.releasedGenesis();
         address staticsBefore = address(vesting.statics());
         address vaultBefore = address(vesting.genesisVault());
@@ -234,7 +211,6 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
 
         vesting.sweepStaticsSurplus();
 
-        assertEq(vesting.releasedStatics(), staticsReleasedBefore);
         assertEq(vesting.releasedGenesis(), genesisReleasedBefore);
         assertEq(address(vesting.statics()), staticsBefore);
         assertEq(address(vesting.genesisVault()), vaultBefore);
@@ -245,7 +221,6 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         vm.assume(nextRecipient != address(0) && nextRecipient != address(vesting));
         uint256 start = vesting.vestingStart();
         uint256 end = vesting.vestingEnd();
-        uint256 staticsReleased = vesting.releasedStatics();
         uint256 genesisReleased = vesting.releasedGenesis();
 
         vesting.setWithdrawalRecipient(nextRecipient);
@@ -254,7 +229,6 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
         assertEq(vesting.recipientAdmin(), address(this));
         assertEq(vesting.vestingStart(), start);
         assertEq(vesting.vestingEnd(), end);
-        assertEq(vesting.releasedStatics(), staticsReleased);
         assertEq(vesting.releasedGenesis(), genesisReleased);
         assertEq(address(vesting.statics()), address(token));
         assertEq(address(vesting.genesisVault()), address(vault));
@@ -263,11 +237,8 @@ contract StaticsTreasuryVestingHalmosTest is SymTest, Test {
 
     function check_noReleaseAtVestingStart() public {
         vm.warp(vesting.vestingStart());
-        (bool staticsReleased,) = address(vesting).call(abi.encodeWithSelector(vesting.releaseStatics.selector));
         (bool genesisReleased,) = address(vesting).call(abi.encodeWithSelector(vesting.releaseGenesis.selector, 1));
-        assertFalse(staticsReleased);
         assertFalse(genesisReleased);
-        assertEq(vesting.releasedStatics(), 0);
         assertEq(vesting.releasedGenesis(), 0);
     }
 }
