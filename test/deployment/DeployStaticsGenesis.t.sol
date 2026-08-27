@@ -390,7 +390,9 @@ contract MockDeploymentAirlock is IDopplerAirlock {
             (, StaticsFeeReceiver receiver,, StaticsGenesisLaunchArtifact memory artifact) = _prepareArtifact();
             vm.prank(address(deployer));
             receiver.transferOwnership(makeAddr("unexpectedReceiverOwner"));
-            vm.setNonce(address(deployer), uint64(artifact.expectedLaunchNonce));
+            // Isolate the receiver-state validation after the authorized owner
+            // call consumes a nonce; nonce drift has a separate regression.
+            vm.setNonceUnsafe(address(deployer), uint64(artifact.expectedLaunchNonce));
 
             vm.expectRevert(
                 abi.encodeWithSelector(DeployStaticsGenesis.InvalidPreparedReceiver.selector, address(receiver))

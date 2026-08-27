@@ -686,65 +686,91 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         artifact.artifactHash = launchArtifactHash(artifact);
         _assertArtifactIntegrity(artifact);
         string memory objectKey = "statics-genesis-launch";
-        string memory json = vm.serializeUint(objectKey, "schemaVersion", artifact.schemaVersion);
-        json = vm.serializeUint(objectKey, "chainId", artifact.chainId);
-        json = vm.serializeAddress(objectKey, "deployer", artifact.deployer);
-        json = vm.serializeAddress(objectKey, "airlock", artifact.airlock);
-        json = vm.serializeUint(objectKey, "transactionValue", artifact.transactionValue);
-        json = vm.serializeUint(objectKey, "expectedLaunchNonce", artifact.expectedLaunchNonce);
-        json = vm.serializeAddress(objectKey, "governance", artifact.config.governance);
-        json = vm.serializeAddress(objectKey, "treasury", artifact.config.treasury);
-        json = vm.serializeAddress(objectKey, "numeraire", artifact.config.numeraire);
-        json = vm.serializeAddress(objectKey, "integrator", artifact.config.integrator);
-        json = vm.serializeAddress(objectKey, "moduleAirlock", artifact.config.modules.airlock);
-        json = vm.serializeAddress(objectKey, "moduleTokenFactory", artifact.config.modules.tokenFactory);
-        json = vm.serializeAddress(objectKey, "moduleGovernanceFactory", artifact.config.modules.governanceFactory);
-        json = vm.serializeAddress(objectKey, "modulePoolInitializer", artifact.config.modules.poolInitializer);
-        json = vm.serializeAddress(objectKey, "moduleNoOpMigrator", artifact.config.modules.noOpMigrator);
-        json = vm.serializeBytes32(objectKey, "salt", artifact.config.salt);
-        json = vm.serializeUint(objectKey, "fee", artifact.config.fee);
-        json = vm.serializeUint(objectKey, "genesisRewardShareBps", artifact.config.genesisRewardShareBps);
-        json = vm.serializeUint(objectKey, "reserveShareBps", artifact.config.reserveShareBps);
-        json = vm.serializeUint(objectKey, "creditOriginationFee", artifact.config.creditOriginationFee);
-        json = vm.serializeUint(objectKey, "creditExtensionFee", artifact.config.creditExtensionFee);
-        json = vm.serializeUint(objectKey, "recoveryCallerShareBps", artifact.config.recoveryCallerShareBps);
-        json = vm.serializeUint(objectKey, "genesisEpochEnd", artifact.config.genesisEpochEnd);
-        json = vm.serializeString(objectKey, "tokenURI", artifact.config.tokenURI);
-        json = vm.serializeString(objectKey, "contractURI", artifact.config.contractURI);
-        json = vm.serializeString(objectKey, "externalURLBase", artifact.config.externalURLBase);
-        json = vm.serializeAddress(objectKey, "feeReceiver", artifact.feeReceiver);
-        json = vm.serializeAddress(objectKey, "treasuryVesting", artifact.treasuryVesting);
-        json = vm.serializeBytes32(objectKey, "feeReceiverRuntimeCodeHash", artifact.feeReceiverRuntimeCodeHash);
-        json = vm.serializeBytes32(objectKey, "treasuryVestingRuntimeCodeHash", artifact.treasuryVestingRuntimeCodeHash);
-        json = vm.serializeBytes32(objectKey, "wethDependencyHash", artifact.wethDependencyHash);
-        json = vm.serializeBytes32(objectKey, "moduleAirlockRuntimeCodeHash", artifact.moduleCodeHashes.airlock);
-        json =
-            vm.serializeBytes32(objectKey, "moduleTokenFactoryRuntimeCodeHash", artifact.moduleCodeHashes.tokenFactory);
-        json = vm.serializeBytes32(
-            objectKey, "moduleGovernanceFactoryRuntimeCodeHash", artifact.moduleCodeHashes.governanceFactory
+        _requireSerialized(vm.serializeUint(objectKey, "schemaVersion", artifact.schemaVersion));
+        _requireSerialized(vm.serializeUint(objectKey, "chainId", artifact.chainId));
+        _requireSerialized(vm.serializeAddress(objectKey, "deployer", artifact.deployer));
+        _requireSerialized(vm.serializeAddress(objectKey, "airlock", artifact.airlock));
+        _requireSerialized(vm.serializeUint(objectKey, "transactionValue", artifact.transactionValue));
+        _requireSerialized(vm.serializeUint(objectKey, "expectedLaunchNonce", artifact.expectedLaunchNonce));
+        _requireSerialized(vm.serializeAddress(objectKey, "governance", artifact.config.governance));
+        _requireSerialized(vm.serializeAddress(objectKey, "treasury", artifact.config.treasury));
+        _requireSerialized(vm.serializeAddress(objectKey, "numeraire", artifact.config.numeraire));
+        _requireSerialized(vm.serializeAddress(objectKey, "integrator", artifact.config.integrator));
+        _requireSerialized(vm.serializeAddress(objectKey, "moduleAirlock", artifact.config.modules.airlock));
+        _requireSerialized(vm.serializeAddress(objectKey, "moduleTokenFactory", artifact.config.modules.tokenFactory));
+        _requireSerialized(
+            vm.serializeAddress(objectKey, "moduleGovernanceFactory", artifact.config.modules.governanceFactory)
         );
-        json = vm.serializeBytes32(
-            objectKey, "modulePoolInitializerRuntimeCodeHash", artifact.moduleCodeHashes.poolInitializer
+        _requireSerialized(
+            vm.serializeAddress(objectKey, "modulePoolInitializer", artifact.config.modules.poolInitializer)
         );
-        json =
-            vm.serializeBytes32(objectKey, "moduleNoOpMigratorRuntimeCodeHash", artifact.moduleCodeHashes.noOpMigrator);
-        json = vm.serializeAddress(objectKey, "dopplerOwner", artifact.dopplerOwner);
-        json = vm.serializeUint(objectKey, "dopplerOwnerShare", artifact.dopplerOwnerShare);
-        json = vm.serializeUint(objectKey, "staticsFeeShare", artifact.staticsFeeShare);
-        json = vm.serializeBytes32(objectKey, "dopplerSourceRevision", artifact.dopplerSourceRevision);
-        json = vm.serializeBytes32(objectKey, "launchScriptCodeHash", artifact.launchScriptCodeHash);
-        json = vm.serializeBytes32(objectKey, "staticsImplementationHash", artifact.staticsImplementationHash);
-        json = vm.serializeBytes32(objectKey, "launchConfigHash", artifact.launchConfigHash);
-        json = vm.serializeBytes32(objectKey, "marketCommitment", artifact.marketCommitment);
-        json = vm.serializeAddress(objectKey, "tokenImplementation", artifact.tokenImplementation);
-        json = vm.serializeBytes32(objectKey, "tokenImplementationCodeHash", artifact.tokenImplementationCodeHash);
-        json = vm.serializeAddress(objectKey, "expectedStatics", artifact.expectedStatics);
-        json = vm.serializeBytes32(objectKey, "expectedPoolId", artifact.expectedPoolId);
-        json = vm.serializeBytes(objectKey, "createParams", artifact.createParams);
-        json = vm.serializeBytes(objectKey, "createCalldata", artifact.createCalldata);
-        json = vm.serializeBytes32(objectKey, "createCalldataHash", artifact.createCalldataHash);
-        json = vm.serializeBytes32(objectKey, "artifactHash", artifact.artifactHash);
+        _requireSerialized(vm.serializeAddress(objectKey, "moduleNoOpMigrator", artifact.config.modules.noOpMigrator));
+        _requireSerialized(vm.serializeBytes32(objectKey, "salt", artifact.config.salt));
+        _requireSerialized(vm.serializeUint(objectKey, "fee", artifact.config.fee));
+        _requireSerialized(vm.serializeUint(objectKey, "genesisRewardShareBps", artifact.config.genesisRewardShareBps));
+        _requireSerialized(vm.serializeUint(objectKey, "reserveShareBps", artifact.config.reserveShareBps));
+        _requireSerialized(vm.serializeUint(objectKey, "creditOriginationFee", artifact.config.creditOriginationFee));
+        _requireSerialized(vm.serializeUint(objectKey, "creditExtensionFee", artifact.config.creditExtensionFee));
+        _requireSerialized(
+            vm.serializeUint(objectKey, "recoveryCallerShareBps", artifact.config.recoveryCallerShareBps)
+        );
+        _requireSerialized(vm.serializeUint(objectKey, "genesisEpochEnd", artifact.config.genesisEpochEnd));
+        _requireSerialized(vm.serializeString(objectKey, "tokenURI", artifact.config.tokenURI));
+        _requireSerialized(vm.serializeString(objectKey, "contractURI", artifact.config.contractURI));
+        _requireSerialized(vm.serializeString(objectKey, "externalURLBase", artifact.config.externalURLBase));
+        _requireSerialized(vm.serializeAddress(objectKey, "feeReceiver", artifact.feeReceiver));
+        _requireSerialized(vm.serializeAddress(objectKey, "treasuryVesting", artifact.treasuryVesting));
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "feeReceiverRuntimeCodeHash", artifact.feeReceiverRuntimeCodeHash)
+        );
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "treasuryVestingRuntimeCodeHash", artifact.treasuryVestingRuntimeCodeHash)
+        );
+        _requireSerialized(vm.serializeBytes32(objectKey, "wethDependencyHash", artifact.wethDependencyHash));
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "moduleAirlockRuntimeCodeHash", artifact.moduleCodeHashes.airlock)
+        );
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "moduleTokenFactoryRuntimeCodeHash", artifact.moduleCodeHashes.tokenFactory)
+        );
+        _requireSerialized(
+            vm.serializeBytes32(
+                objectKey, "moduleGovernanceFactoryRuntimeCodeHash", artifact.moduleCodeHashes.governanceFactory
+            )
+        );
+        _requireSerialized(
+            vm.serializeBytes32(
+                objectKey, "modulePoolInitializerRuntimeCodeHash", artifact.moduleCodeHashes.poolInitializer
+            )
+        );
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "moduleNoOpMigratorRuntimeCodeHash", artifact.moduleCodeHashes.noOpMigrator)
+        );
+        _requireSerialized(vm.serializeAddress(objectKey, "dopplerOwner", artifact.dopplerOwner));
+        _requireSerialized(vm.serializeUint(objectKey, "dopplerOwnerShare", artifact.dopplerOwnerShare));
+        _requireSerialized(vm.serializeUint(objectKey, "staticsFeeShare", artifact.staticsFeeShare));
+        _requireSerialized(vm.serializeBytes32(objectKey, "dopplerSourceRevision", artifact.dopplerSourceRevision));
+        _requireSerialized(vm.serializeBytes32(objectKey, "launchScriptCodeHash", artifact.launchScriptCodeHash));
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "staticsImplementationHash", artifact.staticsImplementationHash)
+        );
+        _requireSerialized(vm.serializeBytes32(objectKey, "launchConfigHash", artifact.launchConfigHash));
+        _requireSerialized(vm.serializeBytes32(objectKey, "marketCommitment", artifact.marketCommitment));
+        _requireSerialized(vm.serializeAddress(objectKey, "tokenImplementation", artifact.tokenImplementation));
+        _requireSerialized(
+            vm.serializeBytes32(objectKey, "tokenImplementationCodeHash", artifact.tokenImplementationCodeHash)
+        );
+        _requireSerialized(vm.serializeAddress(objectKey, "expectedStatics", artifact.expectedStatics));
+        _requireSerialized(vm.serializeBytes32(objectKey, "expectedPoolId", artifact.expectedPoolId));
+        _requireSerialized(vm.serializeBytes(objectKey, "createParams", artifact.createParams));
+        _requireSerialized(vm.serializeBytes(objectKey, "createCalldata", artifact.createCalldata));
+        _requireSerialized(vm.serializeBytes32(objectKey, "createCalldataHash", artifact.createCalldataHash));
+        string memory json = vm.serializeBytes32(objectKey, "artifactHash", artifact.artifactHash);
         vm.writeJson(json, path);
+    }
+
+    function _requireSerialized(string memory serialized) private pure {
+        if (bytes(serialized).length < 1) revert LaunchArtifactMismatch();
     }
 
     function loadLaunchArtifact(string memory path) public view returns (StaticsGenesisLaunchArtifact memory artifact) {
