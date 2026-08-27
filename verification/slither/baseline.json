@@ -479,7 +479,7 @@
       "occurrences": 1
     },
     {
-      "id": "01a78ada1a37dfee909ec19f",
+      "id": "ebffed156d76b9314c87d774",
       "impact": "Medium",
       "confidence": "High",
       "check": "incorrect-equality",
@@ -490,7 +490,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis._assertArtifactIntegrity(StaticsGenesisLaunchArtifact) (script/DeployStaticsGenesis.s.sol#829-842) uses a dangerous strict equality:",
+      "summary": "DeployStaticsGenesis._assertArtifactIntegrity(StaticsGenesisLaunchArtifact) (script/DeployStaticsGenesis.s.sol#843-855) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
@@ -687,7 +687,7 @@
       "occurrences": 1
     },
     {
-      "id": "f2533767d79e6369c063f505",
+      "id": "cac0a48e513050e922ae3720",
       "impact": "Medium",
       "confidence": "High",
       "check": "incorrect-equality",
@@ -698,7 +698,7 @@
       "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
-      "summary": "DeployStaticsGenesis._validateWithoutDopplerOwner(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#1288-1319) uses a dangerous strict equality:",
+      "summary": "DeployStaticsGenesis._validateWithoutDopplerOwner(StaticsGenesisDeploymentConfig,address) (script/DeployStaticsGenesis.s.sol#1301-1329) uses a dangerous strict equality:",
       "rationale": "The reported equalities are deliberate zero-state, exact-accounting, fixed-cap, code-existence, and configuration validations rather than price or oracle comparisons.",
       "occurrences": 1
     },
