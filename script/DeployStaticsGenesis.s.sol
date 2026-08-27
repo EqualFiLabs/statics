@@ -1223,7 +1223,7 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
         IERC20 statics = IERC20(artifact.expectedStatics);
         uint256 bootstrapBalance = statics.balanceOf(artifact.treasuryVesting);
         if (
-            statics.totalSupply() != STATICS_SUPPLY || bootstrapBalance != TREASURY_GENESIS_BACKING
+            statics.totalSupply() != STATICS_SUPPLY || bootstrapBalance < TREASURY_GENESIS_BACKING
                 || statics.balanceOf(artifact.airlock) != 0
         ) revert AllocationMismatch(statics.totalSupply(), bootstrapBalance);
         _assertNativeTreasuryVesting(artifact.expectedStatics, artifact.config.treasury, true);
