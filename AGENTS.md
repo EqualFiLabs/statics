@@ -24,8 +24,8 @@ file names, function names, test names, or commit messages.
 
 ## Solidity Guidance
 
-Refer to `ETHSKILLS.md` before writing or changing Solidity. Select and load the
-relevant skill described there, then apply it to the change.
+Refer to the repository's security and testing guidance before writing or
+changing Solidity, and apply the relevant guidance to the change.
 
 ## Compiling and Testing
 

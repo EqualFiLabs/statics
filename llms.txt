@@ -65,7 +65,7 @@ Critical interpretation rules:
 
 ## Deployment and Verification
 
-- [Deployment Guide](https://raw.githubusercontent.com/EqualFiLabs/statics/master/docs/deployment.md): Deployment order, configuration, rehearsals, broadcasts, genesis launch, verification, and post-deployment checks.
+- [Repository Deployment Section](https://raw.githubusercontent.com/EqualFiLabs/statics/master/README.md#deploy): Deployment entrypoints, launch architecture, and release evidence.
 - [Current Robinhood Chain Testnet Record](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployment.md): Human-readable addresses, governance, operations, fixtures, and verification summary for the current chain-46630 deployment.
 - [Robinhood Chain Testnet Deployment](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-testnet-46630-statics.json): Recorded chain-46630 protocol contracts, roles, configuration, artifacts, operations, verification, fixtures, and genesis basket.
 - [Robinhood Chain Testnet Dependencies](https://raw.githubusercontent.com/EqualFiLabs/statics/master/deployments/robinhood-chain-testnet-46630.json): Pinned v4, Permit2, WETH, fee calibration, code hashes, and fork reference for chain 46630.

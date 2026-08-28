@@ -12,7 +12,6 @@ and [worked examples](./docs/examples.md). The repository also publishes an
 and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the
 [architecture guide](./docs/architecture.md), and the
 [integration guide](./docs/integration.md). See the
-[deployment guide](./docs/deployment.md) for procedures, the
 [current deployment record](./deployment.md) for a human-readable summary, and
 the [Robinhood testnet manifest](./deployments/robinhood-testnet-46630-statics.json)
 for the canonical machine-readable integration-beta state.
@@ -303,10 +302,8 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
   --sig "runFinalize()" --rpc-url "$RPC_URL" --broadcast -vv
 ```
 
-See the [deployment guide](./docs/deployment.md#standalone-genesis-release) for
-confidential artifact handling, nonce discipline, local transaction inspection,
-direct `eth_sendRawTransaction` submission, and complete verification
-requirements.
+The reviewed deployment manifest and transaction records provide the canonical
+release evidence for an already completed launch.
 
 The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
 
@@ -387,7 +384,7 @@ forge script script/DeployStatics.s.sol:DeployStatics \
   -vv
 ```
 
-Do not treat a successful broadcast as complete release evidence. Verify every standalone contract and facet, preserve transaction receipts outside version control, and update the reviewed deployment manifest. See [`docs/deployment.md`](./docs/deployment.md) for the complete configuration, governance ceremonies, genesis basket, and post-deployment checklist.
+Do not treat a successful broadcast as complete release evidence. Verify every standalone contract and facet, preserve transaction receipts outside version control, and update the reviewed deployment manifest.
 
 ---
 
@@ -613,7 +610,7 @@ Runtime protocol state is available through the Diamond loupe, basket, position,
 ## Conventions & Contributing
 
 - **Project name**: use Statics in contracts, interfaces, events, documentation, deployments, SDKs, and commits.
-- **Solidity guidance**: read `ETHSKILLS.md` before changing Solidity and apply the relevant security and testing guidance.
+- **Solidity guidance**: follow the security and testing guidance in `SECURITY.md` and `verification/README.md` when changing Solidity.
 - **Build discipline**: avoid full clean rebuilds; use incremental compilation and `forge test --match-path …`.
 - **Test fidelity**: prove value-moving behavior with real flows; use fuzz and invariant tests to broaden coverage.
 - **Harness resilience**: prefer `uint256` external helper parameters with explicit bounds checks and internal narrowing casts in broad test harnesses.
