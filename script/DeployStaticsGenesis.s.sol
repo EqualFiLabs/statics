@@ -165,8 +165,9 @@ contract DeployStaticsGenesis is Script, RobinhoodDeploymentConfig {
     string public constant STATICS_TOKEN_URI = "ipfs://Qmb9a5F2iNCBc2kCveJaDY7rPw5ycZNt7W6tVDX9uuunFR";
     string public constant STATICS_GENESIS_CONTRACT_URI =
         "data:application/json;utf8,%7B%22name%22%3A%22STATICS%20Operators%22%2C%22symbol%22%3A%22STATOPS%22%2C%22description%22%3A%225%2C555%20deterministic%20onchain%20Genesis%20identities%20powering%20the%20STATICS%20protocol.%20Each%20STATICS%20Operator%20carries%20a%20180%2C000%20STATICS%20backing%20claim%2C%20evolving%20activation%20tiers%2C%20native%20artwork%2C%20and%20access%20to%20protocol%20reserve%20and%20reward%20flows.%22%2C%22external_link%22%3A%22https%3A%2F%2Fstaticsprotocol.com%22%7D";
-    /// @dev Production execution remains disabled until this equals the ratified launch hash.
-    bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH = bytes32(0);
+    /// @dev Ratified against the production configuration and Robinhood dependencies.
+    bytes32 public constant APPROVED_ROBINHOOD_LAUNCH_CONFIG_HASH =
+        0xa56443c159762b4470695ee98bd1681fb38202129dbcf474cbffae936b82ce22;
     int24 public constant TICK_SPACING = 100;
     int24 public constant FAR_TICK = StaticsLaunchCurves.FAR_TICK;
     address public constant GOVERNANCE_DEAD = address(0xdead);
