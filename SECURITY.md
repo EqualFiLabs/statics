@@ -1,9 +1,10 @@
 # Statics security model
 
-Statics holds user assets and should not carry production value before
-independent review, testnet operation, and verified contract publication. The
-repository test suite is not an external audit. The repository records a public
-Robinhood Chain testnet integration beta, but no production deployment.
+Statics holds user assets. The standalone Genesis release is deployed on
+Robinhood Chain with source-verified contracts; the broader multi-asset and
+Statics Dollar Diamonds remain subject to independent review before production
+use. The repository test suite is not an external audit. The repository also
+records a public Robinhood Chain testnet integration beta.
 
 ## Permissionless constituent risk
 

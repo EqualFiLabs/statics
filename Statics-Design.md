@@ -3,7 +3,9 @@
 ## Static Multi-Asset Baskets, Statics Dollar, Position-Owned Finance, and Permanent Liquidity
 
 **Status:** Living implementation design; current Solidity and deployment
-manifests remain authoritative; no production Statics deployment is recorded
+manifests remain authoritative. The standalone Genesis production deployment is
+recorded in `deployments/robinhood-mainnet-genesis.json`; the broader
+multi-asset and Statics Dollar protocol remains a pre-production surface.
 
 ---
 
@@ -1212,7 +1214,9 @@ The target chain must support Cancun/EIP-1153. The launcher selects
 runtime-hash, and calibration evidence; neither is a Statics address manifest.
 Mainnet fork tests read `ROBINHOOD_MAINNET`, while the dependency-only testnet fork reads
 `ROBINHOOD_TESTNET_RPC_URL`. Checked-in chain-31337 broadcasts are local
-rehearsal records. No Robinhood mainnet Statics address manifest is recorded.
+rehearsal records. The standalone Genesis deployment is recorded in
+`deployments/robinhood-mainnet-genesis.json`; no full-stack Robinhood mainnet
+Statics address manifest is recorded.
 
 ### Recorded Robinhood Chain testnet deployment
 
