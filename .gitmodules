@@ -19,3 +19,9 @@
 [submodule "verification/doppler/vendor/doppler"]
 	path = verification/doppler/vendor/doppler
 	url = https://github.com/whetstoneresearch/doppler.git
+[submodule "verification/morpho/vendor/morpho-blue"]
+	path = verification/morpho/vendor/morpho-blue
+	url = https://github.com/morpho-org/morpho-blue
+[submodule "verification/morpho/vendor/morpho-blue-irm"]
+	path = verification/morpho/vendor/morpho-blue-irm
+	url = https://github.com/morpho-org/morpho-blue-irm

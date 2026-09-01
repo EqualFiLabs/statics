@@ -14,6 +14,7 @@ __pycache__/
 artifacts/diamond-manifests/
 /artifacts/genesis-launch/
 /artifacts/genesis-testnet/
+/artifacts/morpho-testnet/
 audits/
 x-ray/
 /.c
@@ -23,3 +24,5 @@ x-ray/
 /verification/doppler/cache/
 /verification/doppler/out/
 /verification/doppler/out-formal/
+/verification/morpho/cache/
+/verification/morpho/out/
