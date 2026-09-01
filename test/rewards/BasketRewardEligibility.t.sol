@@ -14,6 +14,8 @@ contract BasketRewardEligibilityTest is StaticsTestBase {
         vm.prank(alice);
         (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, inputs);
 
+        vm.warp(block.timestamp + 25 hours);
+
         vm.prank(alice);
         lending.borrow(positionId, basketId, 5 ether, alice);
 
@@ -28,6 +30,7 @@ contract BasketRewardEligibilityTest is StaticsTestBase {
         _fundAndApprove(alice, inputs[0], inputs[1]);
         vm.prank(alice);
         (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, inputs);
+        vm.warp(block.timestamp + 25 hours);
         vm.prank(alice);
         (uint256 loanId, uint256[] memory principals) = lending.borrow(positionId, basketId, 5 ether, alice);
 
@@ -47,6 +50,7 @@ contract BasketRewardEligibilityTest is StaticsTestBase {
         _fundAndApprove(alice, inputs[0], inputs[1]);
         vm.prank(alice);
         (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, inputs);
+        vm.warp(block.timestamp + 25 hours);
         vm.prank(alice);
         (uint256 loanId,) = lending.borrow(positionId, basketId, 10 ether, alice);
 

@@ -9,4 +9,3 @@ contract StaticsMorphoAccount {
         IMorphoBlue(morpho).setAuthorization(diamond, true);
     }
 }
-

@@ -94,4 +94,3 @@ contract MorphoViewFacet {
         return (ms.performanceFeeRouter, ms.performanceFeeBps, ms.operatorShareBps);
     }
 }
-

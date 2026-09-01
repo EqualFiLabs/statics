@@ -72,4 +72,3 @@ interface IMorphoBlue {
     function market(MorphoMarketId id) external view returns (MorphoMarket memory);
     function idToMarketParams(MorphoMarketId id) external view returns (MorphoMarketParams memory);
 }
-

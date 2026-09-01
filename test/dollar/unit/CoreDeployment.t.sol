@@ -91,7 +91,7 @@ contract CoreDeploymentTest is Test {
         assertEq(MockETHUSDOracle(deployment.oracle).priceWad(), 2_500e18);
 
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(deployment.diamond, 30, 256);
+        _assertManifest(deployment.diamond, 33, 281);
     }
 
     function test_LocalBroadcastEntrypointUsesDeployerForAddressPredictions() public {

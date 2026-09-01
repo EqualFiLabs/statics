@@ -16,6 +16,7 @@ import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol"
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {
     IStaticsPosition,
     IStaticsPositionFees,
@@ -177,13 +178,14 @@ contract SelectorManifestTest is Test {
 
     function testPositionPortfolioSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.positionPortfolio();
-        bytes4[] memory expected = new bytes4[](6);
+        bytes4[] memory expected = new bytes4[](7);
         expected[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
         expected[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
         expected[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
         expected[3] = IStaticsPositionPortfolio.liquidityPositionIdsOfPosition.selector;
         expected[4] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
         expected[5] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+        expected[6] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);
@@ -191,6 +193,33 @@ contract SelectorManifestTest is Test {
                 assertNotEq(actual[i], actual[j]);
             }
         }
+    }
+
+    function testMorphoSelectorManifestsAreExactAndCollisionFree() public pure {
+        bytes4[] memory admin = StaticsSelectors.morphoAdmin();
+        bytes4[] memory actions = StaticsSelectors.morphoActions();
+        bytes4[] memory views = StaticsSelectors.morphoView();
+        assertEq(admin.length, 5);
+        assertEq(actions.length, 10);
+        assertEq(views.length, 9);
+        bytes4[] memory all = new bytes4[](24);
+        for (uint256 i; i < admin.length; ++i) {
+            all[i] = admin[i];
+        }
+        for (uint256 i; i < actions.length; ++i) {
+            all[admin.length + i] = actions[i];
+        }
+        for (uint256 i; i < views.length; ++i) {
+            all[admin.length + actions.length + i] = views[i];
+        }
+        for (uint256 i; i < all.length; ++i) {
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(all[i], all[j]);
+            }
+        }
+        assertEq(admin[0], IStaticsMorpho.initializeMorphoIntegration.selector);
+        assertEq(actions[0], IStaticsMorpho.deployMorphoCollateral.selector);
+        assertEq(views[0], IStaticsMorpho.morpho.selector);
     }
 
     function testBorrowLiquiditySelectorManifestIsExact() public pure {
