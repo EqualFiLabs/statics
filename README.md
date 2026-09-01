@@ -360,6 +360,31 @@ the ignored `artifacts/genesis-testnet/` directory. The command refuses to run
 if the canonical launch sources differ from mainnet commit `43018f1` or if the
 testnet chain dependencies no longer match their checked-in runtime hashes.
 
+Robinhood testnet also has one shared Morpho Blue deployment for repeatable
+Statics lending rehearsals. Unlike the disposable Genesis replica, the Morpho
+singleton and its AdaptiveCurveIRM are deployed once and reused; each future
+Basket/USDstx rehearsal creates a separate immutable market on that shared
+infrastructure.
+
+```shell
+PRIVATE_KEY="$PRIVATE_KEY" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  scripts/deploy-morpho-testnet.sh --broadcast
+
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  scripts/deploy-morpho-testnet.sh --check
+```
+
+The command pins the Morpho Blue and AdaptiveCurveIRM sources and exact
+Robinhood mainnet compiler profile, deploys through the canonical CREATE2
+factory, enables the production IRM and LLTV set, and refuses a different
+chain, owner, dependency revision, compiler configuration, or runtime hash.
+After the first deployment, `--broadcast` performs the same read-only manifest
+validation as `--check` and sends no transactions. The shared addresses and
+live evidence are recorded in
+[`deployments/robinhood-testnet-46630-morpho.json`](./deployments/robinhood-testnet-46630-morpho.json).
+No oracle or Morpho market is created by this infrastructure command.
+
 The release sequence is intentionally explicit:
 
 1. Deploy and verify the fixed-supply Statics staking token, or use the token from the standalone Genesis release.

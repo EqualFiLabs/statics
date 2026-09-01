@@ -12,6 +12,7 @@ optimizer_runs = 999999
 bytecode_hash = "none"
 fs_permissions = [
     { access = "read-write", path = "../../artifacts/morpho-testnet" },
+    { access = "read", path = "../../deployments" },
 ]
 
 [fmt]
