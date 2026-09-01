@@ -340,6 +340,26 @@ integration beta in [`deployment.md`](./deployment.md), with canonical
 machine-readable state in
 [`deployments/robinhood-testnet-46630-statics.json`](./deployments/robinhood-testnet-46630-statics.json).
 
+For a disposable rehearsal baseline that mirrors the standalone mainnet Genesis
+launch without deploying either Diamond, use the repeatable replica command. It
+deploys fresh pinned Doppler modules and a fresh Genesis environment on every
+invocation while reusing Robinhood testnet's verified PoolManager and WETH:
+
+```shell
+PRIVATE_KEY="$PRIVATE_KEY" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+STATICS_GENESIS_EPOCH_END="$FUTURE_UNIX_TIMESTAMP" \
+  scripts/deploy-genesis-testnet-replica.sh --broadcast
+```
+
+Governance, treasury, Doppler's 5% fee recipient, and integrator default to the
+broadcaster and may be overridden with `STATICS_GENESIS_GOVERNANCE`,
+`STATICS_GENESIS_TREASURY`, `DOPPLER_FEE_RECIPIENT`, and
+`STATICS_DOPPLER_INTEGRATOR`. Each run writes its addresses and pool ID under
+the ignored `artifacts/genesis-testnet/` directory. The command refuses to run
+if the canonical launch sources differ from mainnet commit `43018f1` or if the
+testnet chain dependencies no longer match their checked-in runtime hashes.
+
 The release sequence is intentionally explicit:
 
 1. Deploy and verify the fixed-supply Statics staking token, or use the token from the standalone Genesis release.
