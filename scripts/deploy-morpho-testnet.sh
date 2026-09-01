@@ -192,13 +192,15 @@ artifact_dir="$repo_root/artifacts/morpho-testnet/$run_id"
 mkdir -p "$artifact_dir"
 export MORPHO_TESTNET_ARTIFACT="$artifact_dir/deployment.json"
 
-forge script \
-  --root verification/morpho \
-  script/DeployMorphoTestnet.s.sol:DeployMorphoTestnet \
-  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
-  --broadcast \
-  --slow \
-  -vv
+(
+  cd verification/morpho
+  forge script \
+    script/DeployMorphoTestnet.s.sol:DeployMorphoTestnet \
+    --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" \
+    --broadcast \
+    --slow \
+    -vv
+)
 
 validate_deployment "$MORPHO_TESTNET_ARTIFACT"
 
@@ -206,33 +208,34 @@ morpho="$(jq -er '.morpho' "$MORPHO_TESTNET_ARTIFACT")"
 irm="$(jq -er '.adaptiveCurveIrm' "$MORPHO_TESTNET_ARTIFACT")"
 verifier_url="${ROBINHOOD_TESTNET_VERIFIER_URL:-$DEFAULT_VERIFIER_URL}"
 
-forge verify-contract \
-  --root verification/morpho \
-  --watch \
-  --chain-id "$ROBINHOOD_TESTNET_CHAIN_ID" \
-  --verifier blockscout \
-  --verifier-url "$verifier_url" \
-  --compiler-version 0.8.19 \
-  --num-of-optimizations 999999 \
-  --via-ir \
-  --evm-version paris \
-  --constructor-args "$(cast abi-encode 'constructor(address)' "$deployer")" \
-  "$morpho" \
-  vendor/morpho-blue/src/Morpho.sol:Morpho
+(
+  cd verification/morpho
+  forge verify-contract \
+    --watch \
+    --chain-id "$ROBINHOOD_TESTNET_CHAIN_ID" \
+    --verifier blockscout \
+    --verifier-url "$verifier_url" \
+    --compiler-version 0.8.19 \
+    --num-of-optimizations 999999 \
+    --via-ir \
+    --evm-version paris \
+    --constructor-args "$(cast abi-encode 'constructor(address)' "$deployer")" \
+    "$morpho" \
+    vendor/morpho-blue/src/Morpho.sol:Morpho
 
-forge verify-contract \
-  --root verification/morpho \
-  --watch \
-  --chain-id "$ROBINHOOD_TESTNET_CHAIN_ID" \
-  --verifier blockscout \
-  --verifier-url "$verifier_url" \
-  --compiler-version 0.8.19 \
-  --num-of-optimizations 999999 \
-  --via-ir \
-  --evm-version paris \
-  --constructor-args "$(cast abi-encode 'constructor(address)' "$morpho")" \
-  "$irm" \
-  vendor/morpho-blue-irm/src/AdaptiveCurveIrm.sol:AdaptiveCurveIrm
+  forge verify-contract \
+    --watch \
+    --chain-id "$ROBINHOOD_TESTNET_CHAIN_ID" \
+    --verifier blockscout \
+    --verifier-url "$verifier_url" \
+    --compiler-version 0.8.19 \
+    --num-of-optimizations 999999 \
+    --via-ir \
+    --evm-version paris \
+    --constructor-args "$(cast abi-encode 'constructor(address)' "$morpho")" \
+    "$irm" \
+    vendor/morpho-blue-irm/src/AdaptiveCurveIrm.sol:AdaptiveCurveIrm
+)
 
 echo "Reusable Robinhood testnet Morpho deployment complete"
 echo "Deployment artifact: $MORPHO_TESTNET_ARTIFACT"
