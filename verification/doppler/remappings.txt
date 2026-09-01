@@ -1,5 +1,6 @@
 @solady/=vendor/doppler/lib/solady/src/
-@openzeppelin/=vendor/doppler/lib/v4-core/lib/openzeppelin-contracts/contracts/
+@openzeppelin/=../../lib/v4-periphery/lib/v4-core/lib/openzeppelin-contracts/contracts/
+@solmate/=../../lib/v4-periphery/lib/v4-core/lib/solmate/src/
 @statics/=../../src/
 @uniswap/v4-core/=vendor/doppler/lib/v4-core/
 @v4-core/=vendor/doppler/lib/v4-core/src/
