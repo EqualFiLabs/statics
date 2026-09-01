@@ -36,6 +36,9 @@ import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.so
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
+import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
+import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
+import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 
 abstract contract DeployStaticsProtocol {
     struct ProtocolParts {
@@ -68,6 +71,9 @@ abstract contract DeployStaticsProtocol {
         address protocolPoolView;
         address protocolRevenue;
         address genesisNFT;
+        address morphoActions;
+        address morphoAdmin;
+        address morphoView;
     }
 
     struct ProtocolDeploymentConfig {
@@ -142,6 +148,9 @@ abstract contract DeployStaticsProtocol {
         parts.protocolPoolView = address(new ProtocolPoolViewFacet());
         parts.protocolRevenue = address(new ProtocolRevenueFacet());
         parts.genesisNFT = address(new GenesisNFTFacet());
+        parts.morphoActions = address(new MorphoFacet());
+        parts.morphoAdmin = address(new MorphoAdminFacet());
+        parts.morphoView = address(new MorphoViewFacet());
     }
 
     function _protocolCut(ProtocolParts memory parts, address basketLiquidity, address liquidityRewards)
@@ -149,7 +158,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](30);
+        cut = new IDiamondCut.FacetCut[](33);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -204,6 +213,11 @@ abstract contract DeployStaticsProtocol {
             parts.protocolRevenue, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolRevenue()
         );
         cut[29] = IDiamondCut.FacetCut(parts.genesisNFT, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesisNFT());
+        cut[30] =
+            IDiamondCut.FacetCut(parts.morphoAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoAdmin());
+        cut[31] =
+            IDiamondCut.FacetCut(parts.morphoActions, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoActions());
+        cut[32] = IDiamondCut.FacetCut(parts.morphoView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoView());
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {

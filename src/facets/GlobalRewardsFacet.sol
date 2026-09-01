@@ -10,6 +10,7 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 
 contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error InvalidAmount();
@@ -49,10 +50,12 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
         uint256 balance = position.balance;
-        if (amount > balance) revert InsufficientStake(amount, balance);
+        uint256 available = balance - LibMorpho.morphoStorage().staticsCollateral[positionId];
+        if (amount > available) revert InsufficientStake(amount, available);
         LibGlobalRewards.decreaseStake(positionId, amount);
         position.balance = balance - amount;
         rs.totalStaked -= amount;
@@ -67,6 +70,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     function optInRewardAssets(uint256 positionId, address[] calldata assets) external nonReentrant {
         if (assets.length == 0) revert InvalidRewardAssets();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         _optIn(positionId, assets);
         LibGlobalRewards.activateStakingLeg(positionId);
     }
@@ -74,6 +78,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     function optOutRewardAssets(uint256 positionId, address[] calldata assets) external nonReentrant {
         if (assets.length == 0) revert InvalidRewardAssets();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
             LibGlobalRewards.optOut(positionId, assets[i]);
@@ -90,6 +95,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         if (receiver == address(0)) revert InvalidReceiver();
         if (assets.length != minAmountsOut.length) revert InvalidAmountsLength();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
         uint256 length = assets.length;

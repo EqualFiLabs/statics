@@ -7,6 +7,7 @@ import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract BasketRewardsFacet is IStaticsBasketRewards, ReentrancyGuard {
@@ -35,6 +36,7 @@ contract BasketRewardsFacet is IStaticsBasketRewards, ReentrancyGuard {
     {
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.Basket storage configured = _basket(basketId);
         LibBasketRewards.settle(positionId, basketId, configured);
         assets = LibBasketRewards.rewardAssets(configured);
@@ -62,7 +64,7 @@ contract BasketRewardsFacet is IStaticsBasketRewards, ReentrancyGuard {
         LibBasketRewards.RewardStorage storage rs = LibBasketRewards.rewardStorage();
         LibBasketRewards.RewardBook storage book = rs.books[basketId][asset];
         state = BasketRewardState({
-            totalEligibleShares: rs.totalEligibleShares[basketId],
+            totalEligibleShares: LibBasketRewards.effectiveEligibleShares(basketId),
             indexRay: book.indexRay,
             indexedReserve: book.indexedAmount,
             crystallizedReserve: book.crystallizedAmount,

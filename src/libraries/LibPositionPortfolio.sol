@@ -19,6 +19,7 @@ library LibPositionPortfolio {
         mapping(uint256 positionId => UintIndex index) loans;
         mapping(uint256 positionId => UintIndex index) liquidityPositions;
         mapping(uint256 positionId => AddressIndex index) globalRewardAssets;
+        mapping(uint256 positionId => UintIndex index) morphoMarkets;
     }
 
     error PositionPortfolioIndexCorrupted(uint256 positionId, uint256 value);
@@ -78,6 +79,14 @@ library LibPositionPortfolio {
         }
         values.values.pop();
         delete values.indexPlusOne[asset];
+    }
+
+    function addMorphoMarket(uint256 positionId, uint256 marketId_) internal {
+        _add(portfolioStorage().morphoMarkets[positionId], marketId_);
+    }
+
+    function removeMorphoMarket(uint256 positionId, uint256 marketId_) internal {
+        _remove(portfolioStorage().morphoMarkets[positionId], positionId, marketId_);
     }
 
     function _add(UintIndex storage index, uint256 value) private {

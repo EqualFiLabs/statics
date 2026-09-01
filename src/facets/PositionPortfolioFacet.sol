@@ -17,7 +17,8 @@ contract PositionPortfolioFacet is IStaticsPositionPortfolio {
             loanCount: ps.loans[positionId].values.length,
             liquidityPositionCount: ps.liquidityPositions[positionId].values.length,
             globalRewardAssetCount: ps.globalRewardAssets[positionId].values.length,
-            riskSeriesCount: LibPeriphery.s().positionSeries[positionId].length
+            riskSeriesCount: LibPeriphery.s().positionSeries[positionId].length,
+            morphoMarketCount: ps.morphoMarkets[positionId].values.length
         });
     }
 
@@ -74,6 +75,21 @@ contract PositionPortfolioFacet is IStaticsPositionPortfolio {
     {
         _requirePosition(positionId);
         return _uintPage(LibPeriphery.s().positionSeries[positionId], cursor, limit);
+    }
+
+    function morphoMarketIdsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)
+        external
+        view
+        returns (bytes32[] memory marketIds, uint256 nextCursor)
+    {
+        _requirePosition(positionId);
+        (uint256[] memory values, uint256 next) =
+            _uintPage(LibPositionPortfolio.portfolioStorage().morphoMarkets[positionId].values, cursor, limit);
+        marketIds = new bytes32[](values.length);
+        for (uint256 i; i < values.length; ++i) {
+            marketIds[i] = bytes32(values[i]);
+        }
+        nextCursor = next;
     }
 
     function _uintPage(uint256[] storage values, uint256 cursor, uint256 limit)

@@ -13,6 +13,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibPositionSVG} from "../metadata/LibPositionSVG.sol";
 import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "./LibPosition.sol";
 
 contract PositionNFTFacet is
@@ -116,6 +117,7 @@ contract PositionNFTFacet is
 
     function closePosition(uint256 positionId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibPosition.PackedPositionState storage state = LibPosition.positionStorage().state[positionId];
         if (state.initializing) revert PositionInitializing(positionId);
         if (state.activeLegCount != 0) revert PositionHasActiveLegs(positionId, state.activeLegCount);

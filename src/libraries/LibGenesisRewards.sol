@@ -59,6 +59,10 @@ library LibGenesisRewards {
         gs.totalWeight += weight;
         gs.genesisAssetState[genesisId][gs.statics].checkpointRay = gs.rewardBooks[gs.statics].indexRay;
         gs.genesisAssetState[genesisId][gs.numeraire].checkpointRay = gs.rewardBooks[gs.numeraire].indexRay;
+        if (gs.lenderRewardAsset != address(0)) {
+            gs.genesisAssetState[genesisId][gs.lenderRewardAsset].checkpointRay =
+            gs.rewardBooks[gs.lenderRewardAsset].indexRay;
+        }
         emit GenesisRegistered(genesisId, weight, gs.totalWeight);
         flushPendingRecovery(gs);
     }
@@ -85,9 +89,13 @@ library LibGenesisRewards {
         }
         settle(gs, genesisId, gs.statics);
         settle(gs, genesisId, gs.numeraire);
+        if (gs.lenderRewardAsset != address(0)) settle(gs, genesisId, gs.lenderRewardAsset);
         if (previousOwner != nextOwner) {
             crystallizeToOwner(gs, genesisId, previousOwner, gs.statics);
             crystallizeToOwner(gs, genesisId, previousOwner, gs.numeraire);
+            if (gs.lenderRewardAsset != address(0)) {
+                crystallizeToOwner(gs, genesisId, previousOwner, gs.lenderRewardAsset);
+            }
         }
 
         uint256 previousWeight = gs.effectiveWeight[genesisId];
@@ -106,8 +114,12 @@ library LibGenesisRewards {
         checkpointAttributed(gs, gs.numeraire);
         settle(gs, genesisId, gs.statics);
         settle(gs, genesisId, gs.numeraire);
+        if (gs.lenderRewardAsset != address(0)) settle(gs, genesisId, gs.lenderRewardAsset);
         crystallizeToOwner(gs, genesisId, previousOwner, gs.statics);
         crystallizeToOwner(gs, genesisId, previousOwner, gs.numeraire);
+        if (gs.lenderRewardAsset != address(0)) {
+            crystallizeToOwner(gs, genesisId, previousOwner, gs.lenderRewardAsset);
+        }
         uint256 previousWeight = gs.effectiveWeight[genesisId];
         if (previousWeight != 0) {
             gs.totalWeight -= previousWeight;
@@ -127,8 +139,12 @@ library LibGenesisRewards {
         accrue();
         settle(gs, genesisId, gs.statics);
         settle(gs, genesisId, gs.numeraire);
+        if (gs.lenderRewardAsset != address(0)) settle(gs, genesisId, gs.lenderRewardAsset);
         crystallizeToOwner(gs, genesisId, expectedOwner, gs.statics);
         crystallizeToOwner(gs, genesisId, expectedOwner, gs.numeraire);
+        if (gs.lenderRewardAsset != address(0)) {
+            crystallizeToOwner(gs, genesisId, expectedOwner, gs.lenderRewardAsset);
+        }
     }
 
     function accrueRecovery(uint256 amount) internal {
@@ -313,6 +329,32 @@ library LibGenesisRewards {
         emit GenesisRevenueAccrued(asset, amount, genesisAmount, treasuryAmount, book.indexRay);
     }
 
+    function configureLenderRewardAsset(address asset) internal {
+        LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
+        address current = gs.lenderRewardAsset;
+        if (current == asset) return;
+        if (current != address(0) || gs.totalWeight != 0) {
+            revert LibGenesisIntegration.LenderRewardAssetAlreadyActive(current);
+        }
+        gs.lenderRewardAsset = asset;
+    }
+
+    function allocateLenderPerformanceFee(address asset, uint256 amount, uint256 requestedOperatorAmount) internal {
+        LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
+        validateAsset(gs, asset);
+        LibGenesisIntegration.RewardBook storage book = gs.rewardBooks[asset];
+        uint256 operatorAmount = gs.totalWeight == 0 ? 0 : requestedOperatorAmount;
+        uint256 treasuryAmount = amount - operatorAmount;
+        book.treasuryClaimable += treasuryAmount;
+        if (operatorAmount != 0) {
+            uint256 scaled = operatorAmount * RAY + book.indexRemainder;
+            book.indexRay += scaled / gs.totalWeight;
+            book.indexRemainder = scaled % gs.totalWeight;
+            book.indexedAmount += operatorAmount;
+        }
+        emit GenesisRevenueAccrued(asset, amount, operatorAmount, treasuryAmount, book.indexRay);
+    }
+
     function flushPendingRecovery(LibGenesisIntegration.GenesisStorage storage gs) internal {
         uint256 amount = gs.pendingGenesisRecovery;
         if (amount == 0 || gs.totalWeight == 0) return;
@@ -443,10 +485,14 @@ library LibGenesisRewards {
         if (gs.totalWeight != 0) return;
         gs.rewardBooks[gs.statics].indexRemainder = 0;
         gs.rewardBooks[gs.numeraire].indexRemainder = 0;
+        if (gs.lenderRewardAsset != address(0)) gs.rewardBooks[gs.lenderRewardAsset].indexRemainder = 0;
     }
 
     function validateAsset(LibGenesisIntegration.GenesisStorage storage gs, address asset) internal view {
-        if (asset != gs.statics && asset != gs.numeraire) revert InvalidRewardAsset(asset);
+        bool isLenderReward = gs.lenderRewardAsset != address(0) && asset == gs.lenderRewardAsset;
+        if (asset != gs.statics && asset != gs.numeraire && !isLenderReward) {
+            revert InvalidRewardAsset(asset);
+        }
     }
 
     function validateReceiver(address receiver) internal view {

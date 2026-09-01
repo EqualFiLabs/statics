@@ -28,6 +28,7 @@ import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
+import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
 
 library StaticsSelectors {
@@ -101,13 +102,50 @@ library StaticsSelectors {
     }
 
     function positionPortfolio() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](7);
         selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
         selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
         selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
         selectors[3] = IStaticsPositionPortfolio.liquidityPositionIdsOfPosition.selector;
         selectors[4] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
         selectors[5] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+        selectors[6] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
+    }
+
+    function morphoAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsMorpho.initializeMorphoIntegration.selector;
+        selectors[1] = IStaticsMorpho.registerMorphoMarket.selector;
+        selectors[2] = IStaticsMorpho.setMorphoMarketMode.selector;
+        selectors[3] = IStaticsMorpho.setMorphoSyncBountyBps.selector;
+        selectors[4] = IStaticsMorpho.setMorphoPerformanceFeeConfig.selector;
+    }
+
+    function morphoActions() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](10);
+        selectors[0] = IStaticsMorpho.deployMorphoCollateral.selector;
+        selectors[1] = IStaticsMorpho.recallMorphoCollateral.selector;
+        selectors[2] = IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector;
+        selectors[3] = IStaticsMorpho.borrowMorphoUsd.selector;
+        selectors[4] = IStaticsMorpho.repayMorphoUsd.selector;
+        selectors[5] = IStaticsMorpho.syncMorpho.selector;
+        selectors[6] = IStaticsMorpho.syncMorphoForModule.selector;
+        selectors[7] = IStaticsMorpho.liquidateMorphoAndSync.selector;
+        selectors[8] = IStaticsMorpho.claimMorphoSyncBounties.selector;
+        selectors[9] = IStaticsMorpho.routeMorphoPerformanceFee.selector;
+    }
+
+    function morphoView() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](9);
+        selectors[0] = IStaticsMorpho.morpho.selector;
+        selectors[1] = IStaticsMorpho.morphoUsdStx.selector;
+        selectors[2] = IStaticsMorpho.morphoAccount.selector;
+        selectors[3] = IStaticsMorpho.morphoMarket.selector;
+        selectors[4] = IStaticsMorpho.morphoPositionMarket.selector;
+        selectors[5] = IStaticsMorpho.morphoSyncBountyBps.selector;
+        selectors[6] = IStaticsMorpho.morphoSyncBounty.selector;
+        selectors[7] = IStaticsMorpho.quoteMorphoPerformanceFee.selector;
+        selectors[8] = IStaticsMorpho.morphoPerformanceFeeConfig.selector;
     }
 
     function custody() internal pure returns (bytes4[] memory selectors) {

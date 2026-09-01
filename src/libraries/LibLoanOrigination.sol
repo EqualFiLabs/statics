@@ -13,6 +13,7 @@ import {LibGovernance} from "./LibGovernance.sol";
 import {LibLending} from "./LibLending.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
+import {LibMorpho} from "./LibMorpho.sol";
 
 library LibLoanOrigination {
     error BasketNotFound(uint256 basketId);
@@ -48,6 +49,7 @@ library LibLoanOrigination {
         }
         if (request.eventReceiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(request.positionId, request.operator);
+        LibMorpho.syncIfInitialized(request.positionId, request.operator);
 
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = basket(bs, request.basketId);

@@ -12,7 +12,7 @@ The live Genesis contracts cannot be changed. The Statics Diamond and its Genesi
 
 ## Decision
 
-Each PNFT has one deterministic minimal Morpho account. The account authorizes the Diamond once at construction and can be reused across at most sixteen registered markets. Markets are registered by their exact Morpho `MarketParams` and classified as Basket or staked-STATICS collateral. A market can be Active, ExitOnly, or Disabled. ExitOnly permits repayment, recall, withdrawal of surplus, liquidation, and synchronization, but no new collateral or borrowing.
+Each PNFT has one deterministic minimal Morpho account. The account authorizes the Diamond once at construction and can be reused across at most sixteen registered markets. Markets are registered by their exact Morpho `MarketParams` and classified as Basket or staked-STATICS collateral. Registered markets are Active or ExitOnly; Disabled is only the unregistered enum default. ExitOnly permits repayment, recall, withdrawal of surplus, liquidation, and synchronization, but no new collateral or borrowing.
 
 The Diamond tracks only the collateral moved from Statics custody for a PNFT. Direct transfers or direct Morpho deposits into the account are untracked surplus, earn no Statics rewards, absorb liquidation losses before tracked collateral, and can be withdrawn by the PNFT owner only to the extent they exceed tracked collateral.
 
@@ -40,4 +40,3 @@ Oracle implementation and Morpho market creation are outside this change. Regist
 - Reconciliation: `syncMorpho`, `liquidateMorphoAndSync`, and `claimMorphoSyncBounties`.
 - Administration: exact market registration, market-mode changes, sync-bounty configuration, and performance-fee configuration.
 - Views: deterministic account address, market configuration, per-position allocation, tracked-market pagination, and performance-fee quote.
-
