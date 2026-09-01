@@ -286,7 +286,7 @@ library LibGlobalRewards {
         _ensureSelectionWeight(selection);
         _activateForMorphoLoss(positionId, asset, selection, book);
         uint256 eligibleLoss = Math.mulDiv(context.amount, selection.eligibleStake, context.balance);
-        uint256 accrued;
+        uint256 accrued = 0;
         if (selection.eligibleWeight != 0 && book.indexRay > selection.checkpointRay) {
             accrued = Math.mulDiv(selection.eligibleWeight, book.indexRay - selection.checkpointRay, RAY);
         }

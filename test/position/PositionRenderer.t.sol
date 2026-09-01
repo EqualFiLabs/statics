@@ -50,7 +50,7 @@ contract PositionRendererTest is Test {
 
     function test_PositionFacetRetainsEip170Headroom() public {
         PositionNFTFacet facet = new PositionNFTFacet();
-        assertLt(address(facet).code.length, 12_100);
+        assertLt(address(facet).code.length, 12_000);
     }
 
     function _startsWith(string memory value, string memory prefix) private pure returns (bool) {
