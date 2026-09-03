@@ -18,20 +18,21 @@ contract DeployStaticsTestnetFaucet is Script {
         if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) revert UnsupportedChain(block.chainid);
 
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        address[5] memory assets = loadAssets();
+        address[6] memory assets = loadAssets();
 
         vm.startBroadcast(privateKey);
         faucet = deploy(assets);
         vm.stopBroadcast();
     }
 
-    function deploy(address[5] memory assets) public returns (StaticsTestnetFaucet faucet) {
+    function deploy(address[6] memory assets) public returns (StaticsTestnetFaucet faucet) {
         faucet = new StaticsTestnetFaucet(assets);
     }
 
-    function loadAssets() public view returns (address[5] memory assets) {
+    function loadAssets() public view returns (address[6] memory assets) {
         assets = [
             vm.envAddress("STATICS_FAUCET_USDG"),
+            vm.envAddress("STATICS_FAUCET_USDSTX"),
             vm.envAddress("STATICS_FAUCET_STATICS"),
             vm.envAddress("STATICS_FAUCET_TSLA"),
             vm.envAddress("STATICS_FAUCET_PLTR"),

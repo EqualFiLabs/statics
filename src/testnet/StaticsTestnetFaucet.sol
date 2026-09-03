@@ -11,12 +11,13 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 contract StaticsTestnetFaucet is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    uint256 public constant ASSET_COUNT = 5;
+    uint256 public constant ASSET_COUNT = 6;
     uint256 public constant COOLDOWN = 1 days;
 
-    uint256 public constant USDG_AMOUNT = 10_000e6;
-    uint256 public constant STATICS_AMOUNT = 10_000e18;
-    uint256 public constant STOCK_AMOUNT = 0.1e18;
+    uint256 public constant USDG_AMOUNT = 5_000e6;
+    uint256 public constant USDSTX_AMOUNT = 5_000e18;
+    uint256 public constant STATICS_AMOUNT = 1_000e18;
+    uint256 public constant STOCK_AMOUNT = 0.001e18;
 
     IERC20[ASSET_COUNT] private _assets;
 
@@ -70,7 +71,8 @@ contract StaticsTestnetFaucet is ReentrancyGuard {
 
     function _claimAmount(uint256 index) private pure returns (uint256) {
         if (index == 0) return USDG_AMOUNT;
-        if (index == 1) return STATICS_AMOUNT;
+        if (index == 1) return USDSTX_AMOUNT;
+        if (index == 2) return STATICS_AMOUNT;
         return STOCK_AMOUNT;
     }
 }

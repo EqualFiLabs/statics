@@ -397,7 +397,28 @@ The release sequence is intentionally explicit:
 8. Link the standalone Genesis deployment through the split-governance handoff.
 9. Deploy the two adjustable testnet Morpho oracles, create both markets, then schedule and execute `ConfigureStaticsMorpho`.
 10. Mint USDstx through the pegged profile and seed both markets with `runSeedLiquidity()`.
-11. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
+11. Deploy and fully fund the six-asset public rehearsal faucet.
+12. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, faucet inventory, and deployment runtime hashes.
+
+The faucet command consumes the recorded rehearsal addresses, prepares 100
+complete USDG, USDstx, STATICS, TSLA, PLTR, and AMD bundles through the real
+testnet token paths, and refuses to deploy until every non-mintable asset is
+available:
+
+```shell
+STATICS_REHEARSAL_MANIFEST=deployments/robinhood-testnet-46630-rehearsal-YYYYMMDDTHHMMSSZ.json \
+PRIVATE_KEY="$PRIVATE_KEY" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  scripts/deploy-rehearsal-faucet.sh --broadcast
+
+STATICS_REHEARSAL_MANIFEST=deployments/robinhood-testnet-46630-rehearsal-YYYYMMDDTHHMMSSZ.json \
+STATICS_FAUCET_ADDRESS="$STATICS_FAUCET_ADDRESS" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  scripts/deploy-rehearsal-faucet.sh --check
+```
+
+Each wallet may claim once per day. A bundle contains 5,000 USDG, 5,000
+USDstx, 1,000 STATICS, and 0.001 of each stock fixture.
 
 Focused deployment proofs:
 

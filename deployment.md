@@ -23,6 +23,11 @@ shared Robinhood testnet Morpho deployment.
 | TPA1 basket | `0xf6aC2b2B59133f3691C63e99Cb7b3ac507F7528B` |
 | Genesis replica | `0x6c9197347161FC140a209175849d443FeaAF509c` |
 
+The public rehearsal faucet is deployed as a separate final ceremony step so
+every disposable shot binds and funds only its own fresh token addresses. Its
+address and funding evidence are stored in the machine-readable rehearsal
+record below.
+
 | Morpho market | Market ID |
 | --- | --- |
 | Staked STATICS / USDstx | `0xe33389dd66e032400d80cc014ef2364a74e0f75d0bbce938d27155d62680227b` |
