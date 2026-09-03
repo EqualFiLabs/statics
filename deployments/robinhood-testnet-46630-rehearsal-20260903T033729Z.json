@@ -111,7 +111,7 @@
       "currency1": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86",
       "fee": 15000,
       "tickSpacing": 100,
-      "hooks": "0x7510991d7C64f6a0A58261D82f8B94604D13d434"
+      "hooks": "0x751099991d86c43d8DB540f1e5757A629663e544"
     },
     "statics": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86",
     "genesisCollection": "0x6c9197347161FC140a209175849d443FeaAF509c",
@@ -120,19 +120,19 @@
     "activationRegistry": "0x8cE462A801726FA030e06264f3423Be2Ae8d6414",
     "feeReceiver": "0x2410284D5Af2Ee9DC92e4f62f6ec99C8445C6a2B",
     "treasuryVesting": {
-      "address": "0x738CD9B5d40Cf4A6009d5921062f4b2dc8ec5Aa1",
+      "address": "0x738CD7fedc25e5DbABF17C9625f87F7385EF379B",
       "runtimeCodeHash": "0xaaff92821a8483c81f7b12ba1277008f891ae99eca79a5da572e4dece782b5bd"
     },
     "genesisRenderer": {
-      "address": "0x67Ea6949cE6c8d4f98679369aA77301e1F3c2796",
+      "address": "0x67Ea65ceaC50551c773e655Dddece1466d0A89aF",
       "runtimeCodeHash": "0x79d595216ab3f318555d22aedc95fe3423ac418fa3dc7ccc33e7989cfa132d6a"
     },
     "avatarSvg": {
-      "address": "0x37587C1ca44004fBC27EB81aF915701607369Aa9",
+      "address": "0x37587c0bd19196d0bf135b801B909BD6f3492F41",
       "runtimeCodeHash": "0x0f68dd8d29303123225778ef519ff922048828d7051fbe7fb2e23e225cc986bd"
     },
     "dopplerPoolInitializer": {
-      "address": "0x7510991d7C64f6a0A58261D82f8B94604D13d434",
+      "address": "0x751099991d86c43d8DB540f1e5757A629663e544",
       "runtimeCodeHash": "0x448c3d9b291f9e2aed85cbb5bc3df947a4b21f2b09f7959e7239587778307cd9"
     },
     "contractRuntimeCodeHashes": {
