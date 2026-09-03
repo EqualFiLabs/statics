@@ -37,6 +37,7 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
+import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 
@@ -72,6 +73,7 @@ abstract contract DeployStaticsProtocol {
         address protocolRevenue;
         address genesisNFT;
         address morphoActions;
+        address morphoSettlement;
         address morphoAdmin;
         address morphoView;
     }
@@ -149,6 +151,7 @@ abstract contract DeployStaticsProtocol {
         parts.protocolRevenue = address(new ProtocolRevenueFacet());
         parts.genesisNFT = address(new GenesisNFTFacet());
         parts.morphoActions = address(new MorphoFacet());
+        parts.morphoSettlement = address(new MorphoSettlementFacet());
         parts.morphoAdmin = address(new MorphoAdminFacet());
         parts.morphoView = address(new MorphoViewFacet());
     }
@@ -158,7 +161,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](33);
+        cut = new IDiamondCut.FacetCut[](34);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -217,7 +220,10 @@ abstract contract DeployStaticsProtocol {
             IDiamondCut.FacetCut(parts.morphoAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoAdmin());
         cut[31] =
             IDiamondCut.FacetCut(parts.morphoActions, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoActions());
-        cut[32] = IDiamondCut.FacetCut(parts.morphoView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoView());
+        cut[32] = IDiamondCut.FacetCut(
+            parts.morphoSettlement, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoSettlement()
+        );
+        cut[33] = IDiamondCut.FacetCut(parts.morphoView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoView());
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {

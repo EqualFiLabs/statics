@@ -6,12 +6,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IMorphoBlue, MorphoPosition} from "../interfaces/IMorphoBlue.sol";
 import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
-import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
-import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
-import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibMorphoSync} from "../libraries/LibMorphoSync.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -28,7 +25,6 @@ contract MorphoFacet is ReentrancyGuard {
     error RepaySlippage(uint256 assetsRepaid, uint256 maximum);
     error LiquidationSlippage(uint256 assetsSeized, uint256 minimum, uint256 assetsRepaid, uint256 maximum);
     error IncompatibleTokenTransfer(address token, uint256 expected, uint256 actual);
-    error UnauthorizedPerformanceFeeRouter(address caller, address expected);
 
     struct LiquidationResult {
         uint256 assetsSeized;
@@ -77,14 +73,17 @@ contract MorphoFacet is ReentrancyGuard {
         if (assets > tracked.trackedCollateral) {
             revert InsufficientTrackedCollateral(assets, tracked.trackedCollateral);
         }
+        uint256 beforeBalance = IERC20(config.params.collateralToken).balanceOf(address(this));
         IMorphoBlue(ms.morpho)
             .withdrawCollateral(config.params, assets, LibMorpho.accountAddress(positionId), address(this));
+        uint256 received = IERC20(config.params.collateralToken).balanceOf(address(this)) - beforeBalance;
+        if (received != assets) revert IncompatibleTokenTransfer(config.params.collateralToken, assets, received);
         tracked.trackedCollateral -= assets;
         _decreaseSourceAllocation(ms, config, positionId, assets);
         LibCustody.reserve(_custodyAccount(config), config.params.collateralToken, assets);
         MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
         LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
-        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual.borrowShares);
+        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
         emit IStaticsMorpho.MorphoCollateralRecalled(positionId, marketId_, assets);
     }
 
@@ -93,16 +92,22 @@ contract MorphoFacet is ReentrancyGuard {
         nonReentrant
     {
         if (assets == 0) revert InvalidAmount();
-        if (receiver == address(0)) revert InvalidReceiver(receiver);
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.MarketConfig storage config = LibMorpho.requireMarket(marketId_);
+        LibMorpho.MorphoStorage storage ms = _storage();
+        _enforceReceiver(ms, receiver);
         LibMorphoSync.syncOne(positionId, marketId_, msg.sender);
-        LibMorpho.PositionMarket storage tracked = _storage().positions[positionId].positions[marketId_];
+        LibMorpho.PositionMarket storage tracked = ms.positions[positionId].positions[marketId_];
         MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
         uint256 surplus = uint256(actual.collateral) - tracked.trackedCollateral;
         if (assets > surplus) revert InsufficientUntrackedCollateral(assets, surplus);
-        IMorphoBlue(_storage().morpho)
-            .withdrawCollateral(config.params, assets, LibMorpho.accountAddress(positionId), receiver);
+        uint256 beforeBalance = IERC20(config.params.collateralToken).balanceOf(receiver);
+        IMorphoBlue(ms.morpho).withdrawCollateral(config.params, assets, LibMorpho.accountAddress(positionId), receiver);
+        uint256 received = IERC20(config.params.collateralToken).balanceOf(receiver) - beforeBalance;
+        if (received != assets) revert IncompatibleTokenTransfer(config.params.collateralToken, assets, received);
+        actual = LibMorpho.actualPosition(positionId, marketId_);
+        LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
+        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
         emit IStaticsMorpho.MorphoSurplusWithdrawn(positionId, marketId_, receiver, assets);
     }
 
@@ -114,14 +119,19 @@ contract MorphoFacet is ReentrancyGuard {
         address receiver
     ) external nonReentrant returns (uint256 assetsBorrowed, uint256 sharesBorrowed) {
         if (assets == 0) revert InvalidAmount();
-        if (receiver == address(0)) revert InvalidReceiver(receiver);
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.MarketConfig storage config = LibMorpho.requireActiveMarket(marketId_);
+        LibMorpho.MorphoStorage storage ms = _storage();
         address account = LibMorpho.ensureAccount(positionId);
+        _enforceReceiver(ms, receiver);
         LibMorpho.trackMarket(positionId, marketId_);
-        (assetsBorrowed, sharesBorrowed) =
-            IMorphoBlue(_storage().morpho).borrow(config.params, assets, 0, account, receiver);
+        uint256 receiverBefore = IERC20(ms.usdStx).balanceOf(receiver);
+        (assetsBorrowed, sharesBorrowed) = IMorphoBlue(ms.morpho).borrow(config.params, assets, 0, account, receiver);
         if (sharesBorrowed > maxBorrowShares) revert BorrowSlippage(sharesBorrowed, maxBorrowShares);
+        uint256 receiverReceived = IERC20(ms.usdStx).balanceOf(receiver) - receiverBefore;
+        if (receiverReceived != assetsBorrowed) {
+            revert IncompatibleTokenTransfer(ms.usdStx, assetsBorrowed, receiverReceived);
+        }
         MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
         LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
         emit IStaticsMorpho.MorphoBorrowed(positionId, marketId_, receiver, assetsBorrowed, sharesBorrowed);
@@ -144,11 +154,11 @@ contract MorphoFacet is ReentrancyGuard {
         IERC20(ms.usdStx).forceApprove(ms.morpho, 0);
         if (assetsRepaid > maxAssets) revert RepaySlippage(assetsRepaid, maxAssets);
         if (maxAssets > assetsRepaid) {
-            LibCustody.pushUnreserved(ms.usdStx, msg.sender, maxAssets - assetsRepaid, maxAssets - assetsRepaid);
+            _pushExactUnreserved(ms.usdStx, msg.sender, maxAssets - assetsRepaid);
         }
         MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
         LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
-        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual.borrowShares);
+        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
         emit IStaticsMorpho.MorphoRepaid(positionId, marketId_, assetsRepaid, sharesRepaid);
     }
 
@@ -171,9 +181,9 @@ contract MorphoFacet is ReentrancyGuard {
         address receiver
     ) external nonReentrant returns (uint256 assetsSeized, uint256 assetsRepaid) {
         if ((seizedAssets == 0) == (repaidShares == 0) || maxRepayAssets == 0) revert InvalidAmount();
-        if (receiver == address(0)) revert InvalidReceiver(receiver);
         LibMorpho.requireMarket(marketId_);
         LibMorpho.MorphoStorage storage ms = _storage();
+        _enforceReceiver(ms, receiver);
         uint256 received = LibCustody.pull(ms.usdStx, msg.sender, maxRepayAssets);
         if (received != maxRepayAssets) revert IncompatibleTokenTransfer(ms.usdStx, maxRepayAssets, received);
         LiquidationResult memory result =
@@ -184,58 +194,16 @@ contract MorphoFacet is ReentrancyGuard {
             revert LiquidationSlippage(assetsSeized, minSeizedAssets, assetsRepaid, maxRepayAssets);
         }
         if (maxRepayAssets > assetsRepaid) {
-            LibCustody.pushUnreserved(
-                ms.usdStx, msg.sender, maxRepayAssets - assetsRepaid, maxRepayAssets - assetsRepaid
-            );
+            _pushExactUnreserved(ms.usdStx, msg.sender, maxRepayAssets - assetsRepaid);
         }
         address collateralToken = LibMorpho.requireMarket(marketId_).params.collateralToken;
         if (result.collateralReceived != assetsSeized) {
             revert IncompatibleTokenTransfer(collateralToken, assetsSeized, result.collateralReceived);
         }
-        LibCustody.pushUnreserved(collateralToken, receiver, assetsSeized, assetsSeized);
+        _pushExactUnreserved(collateralToken, receiver, assetsSeized);
         LibMorphoSync.syncOne(positionId, marketId_, msg.sender);
         emit IStaticsMorpho.MorphoLiquidatedAndSynchronized(
             positionId, marketId_, msg.sender, assetsSeized, assetsRepaid
-        );
-    }
-
-    function claimMorphoSyncBounties(address[] calldata assets, address receiver)
-        external
-        nonReentrant
-        returns (uint256[] memory amounts)
-    {
-        if (receiver == address(0)) revert InvalidReceiver(receiver);
-        LibMorpho.MorphoStorage storage ms = _storage();
-        amounts = new uint256[](assets.length);
-        for (uint256 i; i < assets.length; ++i) {
-            address asset = assets[i];
-            uint256 amount = ms.syncBounties[msg.sender][asset];
-            if (amount == 0) continue;
-            delete ms.syncBounties[msg.sender][asset];
-            ms.totalSyncBounties[asset] -= amount;
-            LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
-            amounts[i] = amount;
-            emit IStaticsMorpho.MorphoSyncBountyClaimed(msg.sender, asset, receiver, amount);
-        }
-    }
-
-    function routeMorphoPerformanceFee(uint256 realizedYield) external nonReentrant returns (uint256 feeAmount) {
-        LibMorpho.MorphoStorage storage ms = _storage();
-        address router = ms.performanceFeeRouter;
-        if (router == address(0) || msg.sender != router) {
-            revert UnauthorizedPerformanceFeeRouter(msg.sender, router);
-        }
-        uint256 operatorAmount;
-        uint256 treasuryAmount;
-        (feeAmount, operatorAmount, treasuryAmount) = _quotePerformanceFee(ms, realizedYield);
-        if (feeAmount == 0) return 0;
-        uint256 received =
-            LibCustody.pullAndReserve(LibCustody.genesisRewardAccount(), ms.usdStx, msg.sender, feeAmount);
-        if (received != feeAmount) revert IncompatibleTokenTransfer(ms.usdStx, feeAmount, received);
-        LibGenesisIntegration.genesisStorage().accountedCustody[ms.usdStx] += feeAmount;
-        LibGenesisRewards.allocateLenderPerformanceFee(ms.usdStx, feeAmount, operatorAmount);
-        emit IStaticsMorpho.MorphoPerformanceFeeRouted(
-            msg.sender, realizedYield, feeAmount, operatorAmount, treasuryAmount
         );
     }
 
@@ -270,19 +238,15 @@ contract MorphoFacet is ReentrancyGuard {
         result.collateralReceived = IERC20(collateralToken).balanceOf(address(this)) - beforeBalance;
     }
 
-    function _quotePerformanceFee(LibMorpho.MorphoStorage storage ms, uint256 realizedYield)
-        private
-        view
-        returns (uint256 feeAmount, uint256 operatorAmount, uint256 treasuryAmount)
-    {
-        if (ms.performanceFeeRouter == address(0)) return (0, 0, 0);
-        feeAmount = realizedYield * ms.performanceFeeBps / LibBasket.BPS;
-        operatorAmount = feeAmount * ms.operatorShareBps / LibBasket.BPS;
-        treasuryAmount = feeAmount - operatorAmount;
-        if (LibGenesisIntegration.genesisStorage().totalWeight == 0) {
-            treasuryAmount += operatorAmount;
-            operatorAmount = 0;
+    function _enforceReceiver(LibMorpho.MorphoStorage storage ms, address receiver) private view {
+        if (receiver == address(0) || receiver == address(this) || ms.isAccount[receiver]) {
+            revert InvalidReceiver(receiver);
         }
+    }
+
+    function _pushExactUnreserved(address token, address receiver, uint256 amount) private {
+        (uint256 spent, uint256 received) = LibCustody.pushUnreserved(token, receiver, amount, amount);
+        if (spent != amount || received != amount) revert IncompatibleTokenTransfer(token, amount, received);
     }
 
     function _custodyAccount(LibMorpho.MarketConfig storage config) private view returns (bytes32) {

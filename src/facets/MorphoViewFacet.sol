@@ -18,7 +18,8 @@ contract MorphoViewFacet {
 
     function morphoAccount(uint256 positionId) external view returns (address account, bool deployed) {
         LibMorpho.MorphoStorage storage ms = LibMorpho.morphoStorage();
-        return (LibMorpho.accountAddress(positionId), ms.accountDeployed[positionId]);
+        account = LibMorpho.accountAddress(positionId);
+        deployed = ms.accounts[positionId] != address(0);
     }
 
     function morphoMarket(bytes32 marketId_) external view returns (IStaticsMorpho.MarketConfigView memory view_) {
@@ -42,23 +43,8 @@ contract MorphoViewFacet {
         );
     }
 
-    function morphoMarketIdsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)
-        external
-        view
-        returns (bytes32[] memory ids, uint256 nextCursor)
-    {
-        if (limit == 0 || limit > LibMorpho.MAX_MARKETS_PER_POSITION) {
-            revert LibMorpho.MarketPositionLimit(positionId);
-        }
-        bytes32[] storage values = LibMorpho.morphoStorage().positions[positionId].ids;
-        if (cursor >= values.length) return (new bytes32[](0), values.length);
-        uint256 length = values.length - cursor;
-        if (length > limit) length = limit;
-        ids = new bytes32[](length);
-        for (uint256 i; i < length; ++i) {
-            ids[i] = values[cursor + i];
-        }
-        nextCursor = cursor + length;
+    function enforceMorphoAccountEmpty(uint256 positionId) external view {
+        LibMorpho.enforceAccountEmpty(positionId);
     }
 
     function morphoSyncBountyBps() external view returns (uint16) {

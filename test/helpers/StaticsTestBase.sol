@@ -45,6 +45,7 @@ import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.so
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
+import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
@@ -57,7 +58,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](27);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](28);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -84,7 +85,8 @@ contract StaticsTestDeployer {
         cut[23] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
         cut[24] = _cut(address(new MorphoAdminFacet()), StaticsSelectors.morphoAdmin());
         cut[25] = _cut(address(new MorphoFacet()), StaticsSelectors.morphoActions());
-        cut[26] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
+        cut[26] = _cut(address(new MorphoSettlementFacet()), StaticsSelectors.morphoSettlement());
+        cut[27] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,

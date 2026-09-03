@@ -79,6 +79,7 @@ contract MockMorphoBlue is IMorphoBlue {
         uint256 repaidShares,
         bytes memory
     ) external override returns (uint256 assetsSeized, uint256 assetsRepaid) {
+        require((seizedAssets == 0) != (repaidShares == 0), "INCONSISTENT_INPUT");
         bytes32 id = keccak256(abi.encode(params));
         uint256 repayAmount = repaidShares == 0 ? seizedAssets : repaidShares;
         IERC20(params.loanToken).safeTransferFrom(msg.sender, address(this), repayAmount);

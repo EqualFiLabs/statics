@@ -41,6 +41,9 @@ interface IStaticsMorpho {
     );
     event MorphoMarketModeChanged(bytes32 indexed marketId, MarketMode previousMode, MarketMode newMode);
     event MorphoAccountDeployed(uint256 indexed positionId, address indexed account);
+    event MorphoAccountTokenRecovered(
+        uint256 indexed positionId, address indexed token, address indexed receiver, uint256 amount, uint256 received
+    );
     event MorphoCollateralDeployed(uint256 indexed positionId, bytes32 indexed marketId, uint256 assets);
     event MorphoCollateralRecalled(uint256 indexed positionId, bytes32 indexed marketId, uint256 assets);
     event MorphoSurplusWithdrawn(
@@ -115,6 +118,13 @@ interface IStaticsMorpho {
     function claimMorphoSyncBounties(address[] calldata assets, address receiver)
         external
         returns (uint256[] memory amounts);
+    function recoverMorphoAccountToken(
+        uint256 positionId,
+        address token,
+        uint256 amount,
+        address receiver,
+        uint256 minReceived
+    ) external returns (uint256 received);
     function routeMorphoPerformanceFee(uint256 realizedYield) external returns (uint256 feeAmount);
     function quoteMorphoPerformanceFee(uint256 realizedYield)
         external
@@ -133,6 +143,7 @@ interface IStaticsMorpho {
         external
         view
         returns (bytes32[] memory marketIds, uint256 nextCursor);
+    function enforceMorphoAccountEmpty(uint256 positionId) external view;
     function morphoSyncBountyBps() external view returns (uint16);
     function morphoSyncBounty(address keeper, address asset) external view returns (uint256);
     function morphoPerformanceFeeConfig() external view returns (address router, uint16 feeBps, uint16 operatorShareBps);

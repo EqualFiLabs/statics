@@ -24,6 +24,7 @@ library LibMorpho {
     struct PositionMarket {
         uint256 trackedCollateral;
         bool debtActive;
+        bool active;
     }
 
     struct PositionMarkets {
@@ -38,7 +39,8 @@ library LibMorpho {
         uint16 syncBountyBps;
         bool initialized;
         mapping(bytes32 marketId => MarketConfig config) markets;
-        mapping(uint256 positionId => bool deployed) accountDeployed;
+        mapping(uint256 positionId => address account) accounts;
+        mapping(address account => bool known) isAccount;
         mapping(uint256 positionId => PositionMarkets markets) positions;
         mapping(uint256 positionId => mapping(uint256 basketId => uint256 amount)) basketCollateral;
         mapping(uint256 positionId => uint256 amount) staticsCollateral;
@@ -60,6 +62,7 @@ library LibMorpho {
     error MarketNotActive(bytes32 marketId);
     error MarketPositionLimit(uint256 positionId);
     error AccountDeploymentFailed(uint256 positionId);
+    error MorphoPositionNotEmpty(uint256 positionId, bytes32 marketId);
     error InvalidPerformanceFee(uint256 feeBps);
     error InvalidOperatorShare(uint256 shareBps);
 
@@ -76,6 +79,9 @@ library LibMorpho {
 
     function accountAddress(uint256 positionId) internal view returns (address account) {
         MorphoStorage storage ms = morphoStorage();
+        account = ms.accounts[positionId];
+        if (account != address(0)) return account;
+        if (!ms.initialized) revert MorphoNotInitialized();
         bytes32 salt = bytes32(positionId);
         bytes32 initCodeHash =
             keccak256(abi.encodePacked(type(StaticsMorphoAccount).creationCode, abi.encode(ms.morpho, address(this))));
@@ -85,13 +91,15 @@ library LibMorpho {
 
     function ensureAccount(uint256 positionId) internal returns (address account) {
         MorphoStorage storage ms = morphoStorage();
+        account = ms.accounts[positionId];
+        if (account != address(0)) return account;
         account = accountAddress(positionId);
-        if (ms.accountDeployed[positionId]) return account;
         address deployed = address(new StaticsMorphoAccount{salt: bytes32(positionId)}(ms.morpho, address(this)));
         if (deployed != account || !IMorphoBlue(ms.morpho).isAuthorized(account, address(this))) {
             revert AccountDeploymentFailed(positionId);
         }
-        ms.accountDeployed[positionId] = true;
+        ms.accounts[positionId] = account;
+        ms.isAccount[account] = true;
         emit IStaticsMorpho.MorphoAccountDeployed(positionId, account);
     }
 
@@ -107,10 +115,14 @@ library LibMorpho {
 
     function trackMarket(uint256 positionId, bytes32 id) internal {
         PositionMarkets storage position = morphoStorage().positions[positionId];
-        if (position.indexPlusOne[id] != 0) return;
-        if (position.ids.length == MAX_MARKETS_PER_POSITION) revert MarketPositionLimit(positionId);
-        position.ids.push(id);
-        position.indexPlusOne[id] = position.ids.length;
+        if (position.indexPlusOne[id] == 0) {
+            if (position.ids.length == MAX_MARKETS_PER_POSITION) revert MarketPositionLimit(positionId);
+            position.ids.push(id);
+            position.indexPlusOne[id] = position.ids.length;
+        }
+        PositionMarket storage marketPosition = position.positions[id];
+        if (marketPosition.active) return;
+        marketPosition.active = true;
         LibPositionPortfolio.addMorphoMarket(positionId, uint256(id));
         bytes32 key = LibPosition.morphoLegKey(id);
         if (!LibPosition.positionStorage().activeLeg[positionId][key]) {
@@ -127,21 +139,15 @@ library LibMorpho {
         else LibPosition.decrementObligation(positionId);
     }
 
-    function deactivateIfEmpty(uint256 positionId, bytes32 id, uint256 borrowShares) internal {
+    function deactivateIfEmpty(uint256 positionId, bytes32 id, MorphoPosition memory actual) internal {
         MorphoStorage storage ms = morphoStorage();
         PositionMarkets storage position = ms.positions[positionId];
-        if (position.positions[id].trackedCollateral != 0 || borrowShares != 0) return;
-        uint256 indexPlusOne = position.indexPlusOne[id];
-        if (indexPlusOne == 0) return;
-        uint256 index = indexPlusOne - 1;
-        uint256 last = position.ids.length - 1;
-        if (index != last) {
-            bytes32 moved = position.ids[last];
-            position.ids[index] = moved;
-            position.indexPlusOne[moved] = indexPlusOne;
-        }
-        position.ids.pop();
-        delete position.indexPlusOne[id];
+        PositionMarket storage marketPosition = position.positions[id];
+        if (
+            marketPosition.trackedCollateral != 0 || actual.collateral != 0 || actual.borrowShares != 0
+                || !marketPosition.active
+        ) return;
+        marketPosition.active = false;
         LibPositionPortfolio.removeMorphoMarket(positionId, uint256(id));
         bytes32 key = LibPosition.morphoLegKey(id);
         if (LibPosition.positionStorage().activeLeg[positionId][key]) LibPosition.deactivateLeg(positionId, key);
@@ -149,8 +155,23 @@ library LibMorpho {
 
     function actualPosition(uint256 positionId, bytes32 id) internal view returns (MorphoPosition memory) {
         MorphoStorage storage ms = morphoStorage();
-        if (!ms.accountDeployed[positionId]) return MorphoPosition(0, 0, 0);
-        return IMorphoBlue(ms.morpho).position(MorphoMarketId.wrap(id), accountAddress(positionId));
+        address account = ms.accounts[positionId];
+        if (account == address(0)) return MorphoPosition(0, 0, 0);
+        return IMorphoBlue(ms.morpho).position(MorphoMarketId.wrap(id), account);
+    }
+
+    function enforceAccountEmpty(uint256 positionId) internal view {
+        MorphoStorage storage ms = morphoStorage();
+        if (ms.accounts[positionId] == address(0)) return;
+        PositionMarkets storage position = ms.positions[positionId];
+        for (uint256 i; i < position.ids.length; ++i) {
+            bytes32 id = position.ids[i];
+            PositionMarket storage tracked = position.positions[id];
+            MorphoPosition memory actual = actualPosition(positionId, id);
+            if (tracked.trackedCollateral != 0 || actual.collateral != 0 || actual.borrowShares != 0) {
+                revert MorphoPositionNotEmpty(positionId, id);
+            }
+        }
     }
 
     function syncIfInitialized(uint256 positionId, address keeper) internal {

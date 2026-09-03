@@ -12,9 +12,11 @@ The live Genesis contracts cannot be changed. The Statics Diamond and its Genesi
 
 ## Decision
 
-Each PNFT has one deterministic minimal Morpho account. The account authorizes the Diamond once at construction and can be reused across at most sixteen registered markets. Markets are registered by their exact Morpho `MarketParams` and classified as Basket or staked-STATICS collateral. Registered markets are Active or ExitOnly; Disabled is only the unregistered enum default. ExitOnly permits repayment, recall, withdrawal of surplus, liquidation, and synchronization, but no new collateral or borrowing.
+Each PNFT has one deterministic minimal Morpho account. The account authorizes the Diamond once at construction, records the Diamond as its immutable token-recovery authority, and can be reused across at most sixteen registered markets. The Diamond stores the deployed account address so later facet or compiler changes cannot redirect an existing position. Markets are registered by their exact Morpho `MarketParams` and classified as Basket or staked-STATICS collateral. Registered markets are Active or ExitOnly; Disabled is only the unregistered enum default. ExitOnly permits repayment, recall, withdrawal of surplus, liquidation, synchronization, and raw-token recovery, but no new collateral or borrowing.
 
-The Diamond tracks only the collateral moved from Statics custody for a PNFT. Direct transfers or direct Morpho deposits into the account are untracked surplus, earn no Statics rewards, absorb liquidation losses before tracked collateral, and can be withdrawn by the PNFT owner only to the extent they exceed tracked collateral.
+The Diamond tracks only the collateral moved from Statics custody for a PNFT. A direct Morpho deposit into an already tracked market is untracked surplus: it earns no Statics rewards, absorbs liquidation losses before tracked collateral, and can be withdrawn by the PNFT owner only to the extent it exceeds tracked collateral. The owner must synchronize any direct deposit so the market remains visible in the PNFT lifecycle. Direct deposits into markets that the PNFT has never tracked are unsupported.
+
+Raw ERC-20 transfers to an already deployed account are not Morpho collateral. The PNFT owner may recover them through the Diamond with a minimum-receipt bound and must do so before closing the PNFT. Pre-deployment transfers to a predicted address are unsupported because an undeployed prediction may change before account creation. Protocol payouts reject the Diamond and every known Morpho account as receivers. A PNFT cannot close while any historically tracked Morpho market still has tracked collateral, actual collateral, or debt.
 
 Basket deposits use the same 24-hour eligibility delay and hourly maturation buckets as global STATICS staking. Moving eligible or pending Basket shares to Morpho does not change their reward state. Staked STATICS likewise keeps its opted-in assets and Operator NFT multiplier while supplied as collateral. Collateral moved to Morpho is unavailable for native Basket borrowing or local unstaking.
 
@@ -36,7 +38,7 @@ Oracle implementation and Morpho market creation are outside this change. Regist
 
 ## Public surface
 
-- Collateral and debt: `deployMorphoCollateral`, `recallMorphoCollateral`, `withdrawUntrackedMorphoCollateral`, `borrowMorphoUsd`, and `repayMorphoUsd`.
+- Collateral and debt: `deployMorphoCollateral`, `recallMorphoCollateral`, `withdrawUntrackedMorphoCollateral`, `borrowMorphoUsd`, `repayMorphoUsd`, and `recoverMorphoAccountToken`.
 - Reconciliation: `syncMorpho`, `liquidateMorphoAndSync`, and `claimMorphoSyncBounties`.
 - Administration: exact market registration, market-mode changes, sync-bounty configuration, and performance-fee configuration.
 - Views: deterministic account address, market configuration, per-position allocation, tracked-market pagination, and performance-fee quote.

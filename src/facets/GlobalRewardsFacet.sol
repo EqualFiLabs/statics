@@ -43,6 +43,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     function stake(uint256 positionId, uint256 amount) external nonReentrant {
         if (amount == 0) revert InvalidAmount();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         _increaseStake(positionId, amount);
     }
 

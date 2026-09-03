@@ -14,6 +14,10 @@ library LibMorphoSync {
         LibMorpho.MorphoStorage storage ms = LibMorpho.morphoStorage();
         LibMorpho.PositionMarket storage tracked = ms.positions[positionId].positions[marketId];
         MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId);
+        if (
+            ms.positions[positionId].indexPlusOne[marketId] != 0
+                && (tracked.trackedCollateral != 0 || actual.collateral != 0 || actual.borrowShares != 0)
+        ) LibMorpho.trackMarket(positionId, marketId);
         uint256 previous = tracked.trackedCollateral;
         if (uint256(actual.collateral) < previous) {
             trackedLoss = previous - uint256(actual.collateral);
@@ -34,7 +38,7 @@ library LibMorphoSync {
             }
         }
         LibMorpho.syncDebtObligation(positionId, marketId, actual.borrowShares);
-        LibMorpho.deactivateIfEmpty(positionId, marketId, actual.borrowShares);
+        LibMorpho.deactivateIfEmpty(positionId, marketId, actual);
         emit IStaticsMorpho.MorphoSynchronized(positionId, marketId, keeper, previous, actual.collateral, trackedLoss);
     }
 

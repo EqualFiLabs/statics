@@ -13,6 +13,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibPositionSVG} from "../metadata/LibPositionSVG.sol";
 import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
+import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {LibPosition} from "./LibPosition.sol";
 
 contract PositionNFTFacet is
@@ -122,6 +123,7 @@ contract PositionNFTFacet is
         if (state.unresolvedObligationCount != 0) {
             revert PositionHasUnresolvedObligations(positionId, state.unresolvedObligationCount);
         }
+        IStaticsMorpho(address(this)).enforceMorphoAccountEmpty(positionId);
         LibPosition.incrementNonce(positionId);
         _burn(positionId);
         LibPosition.emitStateChanged(positionId);

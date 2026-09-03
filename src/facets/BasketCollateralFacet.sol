@@ -54,6 +54,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         if (shares == 0) revert InvalidShares();
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibBasketRewards.decreasePosition(positionId, basketId, configured, shares);
         LibCustody.pushReserved(LibCustody.basketAccount(basketId), configured.token, receiver, shares, shares);
