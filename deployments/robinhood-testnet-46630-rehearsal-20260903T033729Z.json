@@ -32,8 +32,20 @@
     "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
     "positionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
     "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "stateView": "0xF3334192D15450cdD385c8B70E03f9a6Bd9E673B",
+    "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+    "universalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
     "morpho": "0xC0dd6aB9E1e59F9dF696cc90Ba947B4E6C74E6A9",
-    "adaptiveCurveIrm": "0x6e8555DAbbAe94aDfA5b606E3eaF35246E346332"
+    "adaptiveCurveIrm": "0x6e8555DAbbAe94aDfA5b606E3eaF35246E346332",
+    "runtimeCodeHashes": {
+      "weth": "0x55f8ac53c64450f01880d8249fc5cb0c69c064e4bcb097ea80a02fff40485a7c",
+      "poolManager": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "positionManager": "0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d",
+      "permit2": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259",
+      "stateView": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6",
+      "quoter": "0xd707b1da8cb165e5ea35a3b4450d971eb562ec171e23492aa117036b78a868f6",
+      "universalRouter": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f"
+    }
   },
   "oracleFixtures": {
     "ethUsdFeed": "0x6Fc88Cd74Fdb99a06430fcE32F3aCb382D790B5f",
