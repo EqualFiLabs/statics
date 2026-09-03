@@ -1,5 +1,6 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "deploymentId": "robinhood-testnet-20260903-a37016d1",
   "chainId": 46630,
   "deployer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
   "network": {
@@ -90,12 +91,46 @@
     "debtCeiling": "1000000000000000000000000"
   },
   "genesisReplica": {
+    "deploymentStartBlock": 110897601,
+    "deploymentEndBlock": 110897643,
+    "poolId": "0xefa89ba41bec4594215ce1f1fab70ee2685bb415ffc7edf5d543c1f9bf6ae95d",
+    "poolKey": {
+      "currency0": "0x33e4191705c386532ba27cBF171Db86919200B94",
+      "currency1": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86",
+      "fee": 15000,
+      "tickSpacing": 100,
+      "hooks": "0x7510991d7C64f6a0A58261D82f8B94604D13d434"
+    },
     "statics": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86",
     "genesisCollection": "0x6c9197347161FC140a209175849d443FeaAF509c",
     "vault": "0x8D3a32ddF8bD529EC847457eC79620D2870FFdc4",
     "launchDistributor": "0x9dac0e56b1cB829F1012f3A3CE8488451Adb76A4",
     "activationRegistry": "0x8cE462A801726FA030e06264f3423Be2Ae8d6414",
     "feeReceiver": "0x2410284D5Af2Ee9DC92e4f62f6ec99C8445C6a2B",
+    "treasuryVesting": {
+      "address": "0x738CD9B5d40Cf4A6009d5921062f4b2dc8ec5Aa1",
+      "runtimeCodeHash": "0xaaff92821a8483c81f7b12ba1277008f891ae99eca79a5da572e4dece782b5bd"
+    },
+    "genesisRenderer": {
+      "address": "0x67Ea6949cE6c8d4f98679369aA77301e1F3c2796",
+      "runtimeCodeHash": "0x79d595216ab3f318555d22aedc95fe3423ac418fa3dc7ccc33e7989cfa132d6a"
+    },
+    "avatarSvg": {
+      "address": "0x37587C1ca44004fBC27EB81aF915701607369Aa9",
+      "runtimeCodeHash": "0x0f68dd8d29303123225778ef519ff922048828d7051fbe7fb2e23e225cc986bd"
+    },
+    "dopplerPoolInitializer": {
+      "address": "0x7510991d7C64f6a0A58261D82f8B94604D13d434",
+      "runtimeCodeHash": "0x448c3d9b291f9e2aed85cbb5bc3df947a4b21f2b09f7959e7239587778307cd9"
+    },
+    "contractRuntimeCodeHashes": {
+      "statics": "0xe548428d65bf2a8cee29a63e8dfaaeda0b4d44294d80f67f7626e1da8b89be69",
+      "genesisCollection": "0xec224f66ecfa265dd306c54b2b683ba96395cd8f822dd2d51f84a2bac9d62afa",
+      "vault": "0x34641b08c85d3dc3e9b94551cb3b7b8d3a664dd773504849aec07499db5bb660",
+      "launchDistributor": "0x7c8d95a041b0ca08b981941c708497f2ebd88029b96f9f0f35c26998083cccdb",
+      "activationRegistry": "0xc4bf24efb6c99c95060186a30200b7ee952604d77b917d0dae2cde87e6419e82",
+      "feeReceiver": "0xed7b3cb5a9b71c24015ba251673d906668135f5dfd69b9d76ec71701b9b077fa"
+    },
     "integrationInitializer": "0x810f543831A9Ca08E602395204AEe0B69C941F3f",
     "genesisRewardShareBps": 4000,
     "protocol": "0xA37016d1d5daA516c2E9cE32d335048D11FeA395",
@@ -226,6 +261,41 @@
     "bindProtocolTransaction": "0xc9a9ca3f1c5e90cf9e4b6d483c1f402bd279e4e54319911141a73a241d495eb9",
     "bindProtocolBlock": 112082580
   },
+  "rehearsalBlocks": {
+    "basketLaunch": 112080517,
+    "morphoConfiguration": 112081541,
+    "genesisHandoff": 112082580,
+    "faucetDeployment": 112099700
+  },
+  "faucet": {
+    "address": "0xb80f88145315a772829B42c0Efb6F79ee8A55645",
+    "runtimeCodeHash": "0xf1a50b46e5f92e4810b948af60eca78a4d1a4dffc54140ea27153b8d916d9da2",
+    "deploymentTransaction": "0xe2f9a0de53e42328e090a767ed9dfb20649319b5df7567589c4b5ea107a8f57d",
+    "deploymentBlock": 112099700,
+    "claimBundles": 100,
+    "cooldownSeconds": 86400,
+    "assets": [
+      { "symbol": "USDG", "token": "0x3c9dCe3FD17f3FC8A1929B1614b2c99124129Da1", "claimAmount": "5000000000" },
+      { "symbol": "USDstx", "token": "0x1d86aA03bC74eE3582Cc23e0818f3c2f8f533491", "claimAmount": "5000000000000000000000" },
+      { "symbol": "STATICS", "token": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86", "claimAmount": "1000000000000000000000" },
+      { "symbol": "TSLA", "token": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", "claimAmount": "1000000000000000" },
+      { "symbol": "PLTR", "token": "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0", "claimAmount": "1000000000000000" },
+      { "symbol": "AMD", "token": "0x71178BAc73cBeb415514eB542a8995b82669778d", "claimAmount": "1000000000000000" }
+    ],
+    "mintTransactions": {
+      "usdg": "0x9cc4d8b1418f4c74fbbc38779be75334d1470ee3482e188b705aba8cb1bacd9c",
+      "usdStx": "0x93048bb10a7505706801b257543d18df016751da4ac5b39e504ac0f3023dc2b9",
+      "staticsRelease": "0x7a5a5da3f205c97c42ee428cd3b65c401b2639280185390f14c1fae79fc4b871"
+    },
+    "fundingTransactions": [
+      "0x5440cc622ccf66a7ff6e885c839e32013b2eeed2c3d510268ff0d75a51f10e6b",
+      "0xa79492b3b5a009a7cdcca7fe82ef5520dc3c3c46c3e5bc20d50fa296e6510534",
+      "0x9d52b81e02fcb96e5c0f3f14ee90d2e04c24dd83720b96e27bfddaa5c475b822",
+      "0x7aa5ecf2f4b8cd9fd24f0eb0fb971d0cdc1d396d62d37fba92b0e4583bdfda8e",
+      "0xb07f634c7a40da4fdf353e031c3aa7a05e92db06fa9aedcb4127a63c335b50f9",
+      "0x9946c611d857e90380558e62fce3a841354fc6d7ba7e0bf9b64b1baed381ab7e"
+    ]
+  },
   "validation": {
     "broadcastReceiptsSuccessful": 81,
     "genesisHandoffReceiptsSuccessful": 8,
@@ -236,6 +306,7 @@
     "basketPoolsVerified": true,
     "morphoMarketsVerified": true,
     "runtimeCodeHashesCaptured": true,
+    "faucetFundingVerified": true,
     "sourceVerificationAttempted": false
   }
 }
