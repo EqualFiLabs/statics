@@ -259,6 +259,25 @@ ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
 
 This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and hooked canonical pools. Treat an executed pass separately from local-only coverage or an environment-gated skip.
 
+### Standalone Genesis faucet
+
+A fresh standalone Genesis replica can use a separate ownerless faucet that
+dispenses 200,000 STATICS per wallet every 24 hours. The funding command quotes
+an exact-output purchase from that replica's Doppler pool, permits at most 1%
+input slippage, refuses to spend more than 0.012 testnet ETH, and funds exactly
+one initial claim. Anyone may refill the faucet later, including from released
+Treasury vesting.
+
+```bash
+export STATICS_GENESIS_TESTNET_ARTIFACT=artifacts/genesis-testnet/<run>/genesis.json
+export ROBINHOOD_TESTNET_RPC_URL=...
+export PRIVATE_KEY=...
+scripts/deploy-genesis-testnet-faucet.sh --broadcast
+
+export STATICS_GENESIS_FAUCET_ADDRESS=0x...
+scripts/deploy-genesis-testnet-faucet.sh --check
+```
+
 ### Testing guidance
 
 - Use unit harnesses for narrow branches, storage checks, and otherwise-unreachable edges.
