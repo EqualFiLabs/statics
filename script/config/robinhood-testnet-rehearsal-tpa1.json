@@ -1,0 +1,49 @@
+{
+  "name": "Tesla-Palantir-AMD-1",
+  "symbol": "TPA1",
+  "assets": [
+    "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+    "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+    "0x71178BAc73cBeb415514eB542a8995b82669778d"
+  ],
+  "bundleAmounts": [
+    250000000000000,
+    250000000000000,
+    250000000000000
+  ],
+  "mintFeeMinimumShares": [
+    0
+  ],
+  "mintFeeShares": [
+    1000000000000000
+  ],
+  "redemptionFeeMinimumShares": [
+    0
+  ],
+  "redemptionFeeShares": [
+    1000000000000000
+  ],
+  "flashFeeBps": 5,
+  "originationFeeBps": 25,
+  "extensionFeeBps": 10,
+  "ltvBps": 9000,
+  "recoveryPenaltyBps": 500,
+  "loanDuration": 2592000,
+  "sqrtPriceAssetPerBasketX96": [
+    13329683863520542233013926863,
+    20752461044033890070869785699,
+    11193748057180772345572136906
+  ],
+  "pairedAssetAmounts": [
+    250000000000000000,
+    250000000000000000,
+    250000000000000000
+  ],
+  "maxAmountsIn": [
+    500250000000000000,
+    500250000000000000,
+    500250000000000000
+  ],
+  "expectedBasketId": 0,
+  "launchDeadline": 1893456000
+}
