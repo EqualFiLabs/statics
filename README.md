@@ -311,7 +311,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           30 facets, 254 selectors
+StaticsDiamond:           34 facets, 283 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -394,7 +394,10 @@ The release sequence is intentionally explicit:
 5. Schedule and execute the timelocked canonical-liquidity installation.
 6. Configure the pegged Mock USDG profile.
 7. Schedule and execute the owner-funded genesis basket launch.
-8. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
+8. Link the standalone Genesis deployment through the split-governance handoff.
+9. Deploy the two adjustable testnet Morpho oracles, create both markets, then schedule and execute `ConfigureStaticsMorpho`.
+10. Mint USDstx through the pegged profile and seed both markets with `runSeedLiquidity()`.
+11. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
 
 Focused deployment proofs:
 
@@ -403,6 +406,8 @@ forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
 forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
 forge test --match-path test/deployment/LaunchGenesisBasket.t.sol -vv
+forge test --match-path test/deployment/ConfigureStaticsMorpho.t.sol -vv
+forge test --match-path test/testnet/TestnetMorphoOracle.t.sol -vv
 ```
 
 The pinned read-only testnet dependency check is:
@@ -642,6 +647,14 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |
+| `STATICS_MORPHO_ADDRESS` | Reusable chain-local Morpho Blue deployment |
+| `STATICS_MORPHO_IRM_ADDRESS` | Enabled AdaptiveCurveIRM used by rehearsal markets |
+| `STATICS_MORPHO_LLTV` | Enabled Morpho LLTV shared by the rehearsal markets |
+| `STATICS_MORPHO_SYNC_BOUNTY_BPS` | Share of forfeited rewards paid to the first successful synchronizer |
+| `STATICS_MORPHO_TIMELOCK_SALT` | Unique salt binding Morpho initialization and both market registrations |
+| `STATICS_MORPHO_LIQUIDITY_PER_MARKET` | USDstx minted through the real pegged profile and supplied to each market |
+| `TESTNET_MORPHO_STATICS_PRICE` | Initial owner-published STATICS price in Morpho scale |
+| `TESTNET_MORPHO_BASKET_PRICE` | Initial owner-published Basket price in Morpho scale |
 | `ROBINHOOD_MAINNET` | Robinhood mainnet fork RPC; defaults to `https://rpc.mainnet.chain.robinhood.com` and may be overridden |
 | `ROBINHOOD_TESTNET_RPC_URL` | Robinhood testnet RPC for simulation and authorized broadcast |
 | `ROBINHOOD_TESTNET_VERIFIER_URL` | Blockscout verification endpoint |

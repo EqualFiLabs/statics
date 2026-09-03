@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "chainId": 46630,
+  "deployer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+  "network": {
+    "name": "Robinhood Chain Testnet",
+    "explorer": "https://explorer.testnet.chain.robinhood.com",
+    "deploymentTimestamp": "2026-09-03T03:37:29Z",
+    "deploymentStartBlock": 112077962,
+    "deploymentEndBlock": 112082580
+  },
+  "source": {
+    "repository": "https://github.com/EqualFiLabs/statics",
+    "protocolCommit": "0be136bd43b7ae94c776857e0cfa0bee3752c9f7",
+    "deploymentToolingCommit": "da14dd26a7ae7aa4749ff4c379a44dcd480cec53",
+    "genesisReplicaCommit": "43018f109006aa2c2eef2808adc2aa74dfc9a6d4b",
+    "genesisReplicaArtifact": "artifacts/genesis-testnet/20260901T023749Z-1657/genesis.json",
+    "basketConfig": "script/config/robinhood-testnet-rehearsal-tpa1.json"
+  },
+  "governance": {
+    "timelock": "0x6E34079786d6C6B53814070544f9aC77d6b36518",
+    "minimumDelaySeconds": 120,
+    "diamondOwner": "0x6E34079786d6C6B53814070544f9aC77d6b36518",
+    "coreOwner": "0x6E34079786d6C6B53814070544f9aC77d6b36518",
+    "proposer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "canceller": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+    "executorOpen": true
+  },
+  "dependencies": {
+    "weth": "0x33e4191705c386532ba27cBF171Db86919200B94",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "positionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "morpho": "0xC0dd6aB9E1e59F9dF696cc90Ba947B4E6C74E6A9",
+    "adaptiveCurveIrm": "0x6e8555DAbbAe94aDfA5b606E3eaF35246E346332"
+  },
+  "oracleFixtures": {
+    "ethUsdFeed": "0x6Fc88Cd74Fdb99a06430fcE32F3aCb382D790B5f",
+    "sequencerUptimeFeed": "0x4AFcFfec888b990B89A83Ab64E288a07C984cd00",
+    "usdgOracle": "0x00DfE3A9DfdAc81A62b1Ee8BECBd041323601948",
+    "ethUsdPrice": "250000000000",
+    "usdgPriceWad": "1000000000000000000",
+    "maxPriceStalenessSeconds": 2592000,
+    "sequencerGracePeriodSeconds": 3600
+  },
+  "protocol": {
+    "staticsDiamond": {
+      "address": "0xA37016d1d5daA516c2E9cE32d335048D11FeA395",
+      "runtimeCodeHash": "0x08cbb2c91a8234ea0230b30a485dbf9b8bc8ce76a39cec8c939a89d12036262f",
+      "facetCount": 34,
+      "selectorCount": 283,
+      "deploymentTransaction": "0x0992a55d67be5b42b20d13a89a8f055710daa381413f37174a17939357945c7e"
+    },
+    "coreDiamond": {
+      "address": "0x800dd1E86595575Cd0938a08ceF51244Db39eceB",
+      "runtimeCodeHash": "0x72810196580906ac0fc8d16b411950723966d1df291936c60b0ce445470efd4e",
+      "deploymentTransaction": "0xe72f47f92e3336ae479cd04f31a46c534e87e8d565b424dd407365e500119550"
+    },
+    "usdStx": {
+      "address": "0x1d86aA03bC74eE3582Cc23e0818f3c2f8f533491",
+      "runtimeCodeHash": "0xab27fb3f1aca8cefba7c8838cdaab717341d7effcf4d134ef1afec5827d005d4",
+      "deploymentTransaction": "0x12dbf2c8345385ad1bacad0bebd2afcec2d61f25b15f63ef4b82d329d36c633c"
+    },
+    "riskShares": "0x054Ce0D82A7178a0Cf4b63901B98c91337419973",
+    "coreEthUsdOracle": "0x01aE5d9555109129d2235ed0Eeea3C22f3D25849",
+    "swapFeeHook": {
+      "address": "0x8afD614Eb367Ed71d19568511C141847bbBc10EC",
+      "runtimeCodeHash": "0xe299906f90bf7da54602153e227ba9e0883c8399f4435c9f297c7ef0c7964330",
+      "deploymentTransaction": "0xdec240363d5cd86f5924386da488af5455599ecbc4f1b98b8df14aa9289e6000"
+    },
+    "liquidityManager": {
+      "address": "0x5BbBC16824a84192781aE26B88C61a058A73f10e",
+      "runtimeCodeHash": "0xbf4083335c5af68e367c999931fa6e450ec1a3ec6c99bd411df9e0c59930cbf0",
+      "deploymentTransaction": "0xfd6ed899329560c636b1507cbb4c40038ba29a60e42f85eeacc8b5917c7ca62d"
+    },
+    "bootstrapFinalized": true
+  },
+  "peggedProfile": {
+    "profileId": 2,
+    "collateralToken": "0x3c9dCe3FD17f3FC8A1929B1614b2c99124129Da1",
+    "oracle": "0x00DfE3A9DfdAc81A62b1Ee8BECBd041323601948",
+    "decimals": 6,
+    "mode": "Active",
+    "mintFeeBps": 5,
+    "redemptionFeeBps": 7,
+    "pegMinPriceWad": "950000000000000000",
+    "pegMaxPriceWad": "1050000000000000000",
+    "accountedCollateral": "200000000000",
+    "seniorOutstanding": "200000000000000000000000",
+    "debtCeiling": "1000000000000000000000000"
+  },
+  "genesisReplica": {
+    "statics": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86",
+    "genesisCollection": "0x6c9197347161FC140a209175849d443FeaAF509c",
+    "vault": "0x8D3a32ddF8bD529EC847457eC79620D2870FFdc4",
+    "launchDistributor": "0x9dac0e56b1cB829F1012f3A3CE8488451Adb76A4",
+    "activationRegistry": "0x8cE462A801726FA030e06264f3423Be2Ae8d6414",
+    "feeReceiver": "0x2410284D5Af2Ee9DC92e4f62f6ec99C8445C6a2B",
+    "integrationInitializer": "0x810f543831A9Ca08E602395204AEe0B69C941F3f",
+    "genesisRewardShareBps": 4000,
+    "protocol": "0xA37016d1d5daA516c2E9cE32d335048D11FeA395",
+    "activeFeeDistributor": "0xA37016d1d5daA516c2E9cE32d335048D11FeA395",
+    "activeActivationConsumer": "0xA37016d1d5daA516c2E9cE32d335048D11FeA395",
+    "launchDistributorFinalized": true,
+    "integrationReady": true,
+    "recoveryReady": true
+  },
+  "basket": {
+    "basketId": 0,
+    "name": "Tesla-Palantir-AMD-1",
+    "symbol": "TPA1",
+    "token": "0xf6aC2b2B59133f3691C63e99Cb7b3ac507F7528B",
+    "runtimeCodeHash": "0x0be74a7e7c8417be229281b410506fb541ff94d4cc890bbdd8fa9c75494c5f22",
+    "status": "Active",
+    "totalSupply": "24999999999999999997",
+    "assets": [
+      {
+        "symbol": "TSLA",
+        "token": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "bundleAmount": "250000000000000",
+        "pairedAssetAmount": "250000000000000000",
+        "poolId": "0xc2d50d56d5512b37fac44b2abf1cf47f2c41813c93f5fe727483da91bbbde5a6",
+        "spotTick": 35648,
+        "lockedLiquidity": "1485934762696974293"
+      },
+      {
+        "symbol": "PLTR",
+        "token": "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+        "bundleAmount": "250000000000000",
+        "pairedAssetAmount": "250000000000000000",
+        "poolId": "0x0707f0772dd9b64139acdb303baafaa86b9d16ad4b6d4b9041d10c8fbda515b4",
+        "spotTick": 26794,
+        "lockedLiquidity": "954442973608684166"
+      },
+      {
+        "symbol": "AMD",
+        "token": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        "bundleAmount": "250000000000000",
+        "pairedAssetAmount": "250000000000000000",
+        "poolId": "0xe48d562aaead051042f3ff58d1241e913124ccc45622d4d43e66f53e08659c5b",
+        "spotTick": 39141,
+        "lockedLiquidity": "1769473506763438183"
+      }
+    ]
+  },
+  "morphoIntegration": {
+    "morpho": "0xC0dd6aB9E1e59F9dF696cc90Ba947B4E6C74E6A9",
+    "usdStx": "0x1d86aA03bC74eE3582Cc23e0818f3c2f8f533491",
+    "irm": "0x6e8555DAbbAe94aDfA5b606E3eaF35246E346332",
+    "lltv": "770000000000000000",
+    "syncBountyBps": 500,
+    "performanceFeeRouter": "0x0000000000000000000000000000000000000000",
+    "performanceFeeBps": 0,
+    "operatorShareBps": 0,
+    "liquidityPerMarket": "100000000000000000000000",
+    "staticsMarket": {
+      "marketId": "0xe33389dd66e032400d80cc014ef2364a74e0f75d0bbce938d27155d62680227b",
+      "collateralToken": "0xb6Cc79B2d892798d8e469A1efBF0713Fc2e51f86",
+      "oracle": "0x8AA8Ef1F26Cb3d420E1ce7fD99250179Ef023261",
+      "oracleRuntimeCodeHash": "0x3e16f1ac8c263723b3c0014fabf823cf12d6ce1984f52bdaa7d03c747ebf499b",
+      "oraclePrice": "1000000000000000000000000000000000000",
+      "kind": "StakedStatics",
+      "mode": "Active",
+      "totalSupplyAssets": "100000000000000000000000"
+    },
+    "basketMarket": {
+      "marketId": "0xb9e6cd50636f45bd8b73a15b0b15168bcc44b3b1b5a42c2e23d997bdc0651040",
+      "collateralToken": "0xf6aC2b2B59133f3691C63e99Cb7b3ac507F7528B",
+      "oracle": "0xcA0558c3a9Eaf54569cb4643D808df09f5839940",
+      "oracleRuntimeCodeHash": "0x3e16f1ac8c263723b3c0014fabf823cf12d6ce1984f52bdaa7d03c747ebf499b",
+      "oraclePrice": "1000000000000000000000000000000000000",
+      "kind": "Basket",
+      "basketId": 0,
+      "mode": "Active",
+      "totalSupplyAssets": "100000000000000000000000"
+    }
+  },
+  "governanceOperations": [
+    {
+      "action": "installLiquidityIntegration",
+      "operationId": "0x906ad4959097375d2ef4bc66fca5cb4541c0f265246009f2f14d9ad810741f6e",
+      "scheduleTransaction": "0x1e8f42874d31fadc7220080eed8cf030666bfb6dff4d64916a839b1742b9dc87",
+      "executeTransaction": "0xe02214be7c19547138f33b73da61115a5dd60ec32b4161f51019cce385cf819c"
+    },
+    {
+      "action": "configureUsdGProfile",
+      "operationId": "0xbb113e6d5772f89cb5dbb71f67091113397b678b12cd53b905e01ab14d6e2d91",
+      "scheduleTransaction": "0xcfdeb0d0797bd6b64a99d649d61635e9ab9c51744701efa10ddad8370db83795",
+      "executeTransaction": "0x0e78f1208ca76a4c571c65913ef3c7411df1c8246dabf2124e87f310ad111a84"
+    },
+    {
+      "action": "initializeGenesisIntegration",
+      "operationId": "0xae66f71f8a0f01f6c18e36c89ea83478b736cdc3244ae2e5699b8aebc19c3b99",
+      "scheduleTransaction": "0x41b1284dbd5b0d7a9e85a787d383000d229f4bd2cb949b0917d5cb3befcc35a5",
+      "executeTransaction": "0x73e89e7bd665e003bad2215e73ece4d141dd89f7192f9ad24309acfd2eb74341"
+    },
+    {
+      "action": "launchBasket",
+      "operationId": "0x6661162e30e447edea168830ac774669e824d26888c285256aef1da6c85f7429",
+      "scheduleTransaction": "0xf7053f6e5db5f0d4e367218033efb48f551df76db13d1a5c60c35cae54739037",
+      "executeTransaction": "0xdf4cbb0a0380d2e8bd3421b9e3d822570559cb670d591908ba616a046af8682d"
+    },
+    {
+      "action": "configureMorphoIntegration",
+      "operationId": "0x666ab8965971a0fc6ac6dab3093c20fbabc89ea0344645fed64a4de20031f6e8",
+      "scheduleTransaction": "0x6cef59d3b83b5165b1895e51db75376c2f69e9ba28d65969cefddee0dd04dbb3",
+      "executeTransaction": "0xae3f4d37532d772292b23a9baf0e3499e0d4cd614335899da526d587003f14c5"
+    },
+    {
+      "action": "acceptGenesisDistributor",
+      "operationId": "0xcaf9e685e7a9f6b6a34a065742ffeba64f1099d2e84dad94093bf4e468e06794",
+      "scheduleTransaction": "0x9e7a0915384e52014ffbd05d59e12efdb7d0d7a891586182ac7b4e05f7c45894",
+      "executeTransaction": "0x926b10e97cc386fa13c2151b90c57f5a7206d4aa963ced3b2d644c600843e46c"
+    },
+    {
+      "action": "acceptGenesisConsumer",
+      "operationId": "0xfa9f214dcfec10cb3b5eac3a034554c0cecfb310bf512ea67df602869d2facfc",
+      "scheduleTransaction": "0xe96a5b56aec8ef07d8e42540da2e2b507cf02fe878c1f4ef9a00ae736e2904fc",
+      "executeTransaction": "0xd458a7188cb156958352dede848cf0cbe07cc78ba77dd1c80ded924b9a0a1e07"
+    }
+  ],
+  "genesisHandoff": {
+    "proposeDistributorTransaction": "0x5e56525b2d6cecf7c3efea5935ed9c53b473f03c2deef2b690b465ac85faeac1",
+    "finalizeDistributorTransaction": "0x1ecd3af3f7a4e2f0a78829dfdb4434b7516a05afbb65ea1cb1e28d907333cacd",
+    "proposeConsumerTransaction": "0x0d031cced98f6ee4099fd23ed3b1b799545197f0c3705dffd0313ba735709529",
+    "bindProtocolTransaction": "0xc9a9ca3f1c5e90cf9e4b6d483c1f402bd279e4e54319911141a73a241d495eb9",
+    "bindProtocolBlock": 112082580
+  },
+  "validation": {
+    "broadcastReceiptsSuccessful": 81,
+    "genesisHandoffReceiptsSuccessful": 8,
+    "ownersAndTimelockRolesVerified": true,
+    "liquidityIntegrationVerified": true,
+    "peggedProfileVerified": true,
+    "genesisIntegrationVerified": true,
+    "basketPoolsVerified": true,
+    "morphoMarketsVerified": true,
+    "runtimeCodeHashesCaptured": true,
+    "sourceVerificationAttempted": false
+  }
+}

@@ -62,6 +62,28 @@ contract LaunchGenesisBasketBatchTest is Test {
         assertEq(config.launchDeadline, 2_000_000_000);
     }
 
+    function testRobinhoodRehearsalPreservesGeometryWithBoundedInventory() public {
+        LaunchGenesisBasket ceremony = new LaunchGenesisBasket();
+        GenesisBasketLaunchConfig memory config =
+            ceremony.loadConfig("script/config/robinhood-testnet-rehearsal-tpa1.json");
+        GenesisBasketLaunchConfig memory referenceConfig =
+            ceremony.loadConfig("script/config/robinhood-testnet-tpa1.json");
+
+        assertEq(config.basket.name, "Tesla-Palantir-AMD-1");
+        assertEq(config.basket.symbol, "TPA1");
+        assertEq(config.basket.assets.length, 3);
+        assertEq(config.pools.length, 3);
+        assertEq(config.maxAmountsIn.length, 3);
+        for (uint256 i; i < 3; ++i) {
+            assertEq(config.basket.bundleAmounts[i], 0.00025 ether);
+            assertEq(config.pools[i].pairedAssetAmount, 0.25 ether);
+            assertEq(config.pools[i].sqrtPriceAssetPerBasketX96, referenceConfig.pools[i].sqrtPriceAssetPerBasketX96);
+            assertEq(config.maxAmountsIn[i], 0.50025 ether);
+        }
+        assertEq(config.expectedBasketId, 0);
+        assertGt(config.launchDeadline, 1_800_000_000);
+    }
+
     function _config(address assetA, address assetB) private pure returns (GenesisBasketLaunchConfig memory config) {
         address[] memory assets = new address[](2);
         assets[0] = assetA;

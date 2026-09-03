@@ -1,7 +1,50 @@
 # Statics — Robinhood Chain Testnet Deployment
 
-This is the current Statics testnet release. It replaces all previous Robinhood
-testnet deployments.
+The newest full-stack rehearsal is recorded first. The earlier public testnet
+release remains documented below so existing integrations retain a stable
+reference while rehearsal deployments are discarded and repeated.
+
+## Full-stack rehearsal — September 2, 2026
+
+This rehearsal deployed a fresh Statics and USDstx stack from merged `master`,
+attached the existing mainnet-faithful Genesis replica, launched a fresh TPA1
+basket with the same pool geometry, and configured two isolated markets on the
+shared Robinhood testnet Morpho deployment.
+
+| Contract | Address |
+| --- | --- |
+| StaticsDiamond / Position NFT | `0xA37016d1d5daA516c2E9cE32d335048D11FeA395` |
+| StaticsDollarCoreDiamond | `0x800dd1E86595575Cd0938a08ceF51244Db39eceB` |
+| Statics Dollar (`USDstx`) | `0x1d86aA03bC74eE3582Cc23e0818f3c2f8f533491` |
+| Dollar risk shares | `0x054Ce0D82A7178a0Cf4b63901B98c91337419973` |
+| Governance timelock | `0x6E34079786d6C6B53814070544f9aC77d6b36518` |
+| Swap-fee hook | `0x8afD614Eb367Ed71d19568511C141847bbBc10EC` |
+| Liquidity manager | `0x5BbBC16824a84192781aE26B88C61a058A73f10e` |
+| TPA1 basket | `0xf6aC2b2B59133f3691C63e99Cb7b3ac507F7528B` |
+| Genesis replica | `0x6c9197347161FC140a209175849d443FeaAF509c` |
+
+| Morpho market | Market ID |
+| --- | --- |
+| Staked STATICS / USDstx | `0xe33389dd66e032400d80cc014ef2364a74e0f75d0bbce938d27155d62680227b` |
+| TPA1 / USDstx | `0xb9e6cd50636f45bd8b73a15b0b15168bcc44b3b1b5a42c2e23d997bdc0651040` |
+
+Both markets use the shared Morpho Blue and AdaptiveCurveIRM deployment, a 77%
+LLTV, disposable owner-adjustable testnet oracles initialized to `1e36`, and
+`100,000 USDstx` of supplied liquidity. The Morpho performance-fee router is
+intentionally unset because the lender reward router remains out of scope.
+
+Live readback confirmed timelock ownership, all 34 Diamond facets and 283
+selectors, the active pegged profile, all three initialized and permanently
+locked TPA1 pools, both active Morpho registrations, and the completed Genesis
+fee-distributor, activation-consumer, and irreversible protocol handoff. The
+handoff completed in transaction
+`0xc9a9ca3f1c5e90cf9e4b6d483c1f402bd279e4e54319911141a73a241d495eb9`.
+
+The complete machine-readable record, including runtime hashes, governance
+operation IDs, transaction hashes, pool IDs, and validation results, is
+[`deployments/robinhood-testnet-46630-rehearsal-20260903T033729Z.json`](deployments/robinhood-testnet-46630-rehearsal-20260903T033729Z.json).
+
+## Previous public release
 
 ## Release
 

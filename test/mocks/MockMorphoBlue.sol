@@ -29,6 +29,18 @@ contract MockMorphoBlue is IMorphoBlue {
         isAuthorized[msg.sender][authorized] = newIsAuthorized;
     }
 
+    function supply(MorphoMarketParams memory params, uint256 assets, uint256, address onBehalf, bytes memory)
+        external
+        returns (uint256 assetsSupplied, uint256 sharesSupplied)
+    {
+        bytes32 id = keccak256(abi.encode(params));
+        IERC20(params.loanToken).safeTransferFrom(msg.sender, address(this), assets);
+        _markets[id].totalSupplyAssets += uint128(assets);
+        _markets[id].totalSupplyShares += uint128(assets);
+        _positions[id][onBehalf].supplyShares += assets;
+        return (assets, assets);
+    }
+
     function supplyCollateral(MorphoMarketParams memory params, uint256 assets, address onBehalf, bytes memory)
         external
         override
