@@ -8,6 +8,7 @@ import {LibBasket} from "./LibBasket.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
+import {LibMorpho} from "./LibMorpho.sol";
 
 library LibGlobalRewards {
     using SafeCast for uint256;
@@ -68,6 +69,14 @@ library LibGlobalRewards {
         mapping(uint256 positionId => StakePosition position) positions;
         mapping(address asset => uint256 amount) totalClaimable;
         mapping(address asset => uint256 amount) treasuryAccrued;
+    }
+
+    struct MorphoLossContext {
+        uint256 amount;
+        uint256 balance;
+        address keeper;
+        uint16 bountyBps;
+        uint16 multiplierBps;
     }
 
     error InvalidStakingToken();
@@ -242,6 +251,78 @@ library LibGlobalRewards {
             }
             _routeDustIfEmpty(rs, asset, book);
         }
+    }
+
+    function applyMorphoLoss(uint256 positionId, uint256 amount, address keeper, uint16 bountyBps) internal {
+        if (amount == 0) return;
+        RewardStorage storage rs = rewardStorage();
+        StakePosition storage position = rs.positions[positionId];
+        uint256 balance = position.balance;
+        MorphoLossContext memory context = MorphoLossContext({
+            amount: amount,
+            balance: balance,
+            keeper: keeper,
+            bountyBps: bountyBps,
+            multiplierBps: effectiveRewardMultiplier(position)
+        });
+        uint256 length = position.optedInAssets.length;
+        for (uint256 i; i < length; ++i) {
+            _applyMorphoAssetLoss(rs, position, positionId, position.optedInAssets[i], context);
+        }
+        position.balance = balance - amount;
+        rs.totalStaked -= amount;
+    }
+
+    function _applyMorphoAssetLoss(
+        RewardStorage storage rs,
+        StakePosition storage position,
+        uint256 positionId,
+        address asset,
+        MorphoLossContext memory context
+    ) private {
+        RewardBook storage book = rs.books[asset];
+        _rollMatured(asset, book);
+        PositionSelection storage selection = position.selections[asset];
+        _ensureSelectionWeight(selection);
+        _activateForMorphoLoss(positionId, asset, selection, book);
+        uint256 eligibleLoss = Math.mulDiv(context.amount, selection.eligibleStake, context.balance);
+        uint256 accrued = 0;
+        if (selection.eligibleWeight != 0 && book.indexRay > selection.checkpointRay) {
+            accrued = Math.mulDiv(selection.eligibleWeight, book.indexRay - selection.checkpointRay, RAY);
+        }
+        uint256 forfeited =
+            selection.eligibleStake == 0 ? 0 : Math.mulDiv(accrued, eligibleLoss, selection.eligibleStake);
+        uint256 survivorAccrued = accrued - forfeited;
+        _increaseClaimable(rs, position, asset, survivorAccrued);
+        book.crystallizedAmount += survivorAccrued;
+        selection.checkpointRay = book.indexRay;
+        _applyLossToSelection(selection, book, context.amount - eligibleLoss, eligibleLoss, context.multiplierBps);
+        _redistributeForfeiture(rs, asset, selection, book, forfeited, context.keeper, context.bountyBps);
+        _routeDustIfEmpty(rs, asset, book);
+    }
+
+    function _activateForMorphoLoss(
+        uint256 positionId,
+        address asset,
+        PositionSelection storage selection,
+        RewardBook storage book
+    ) private {
+        uint256 pendingStake = selection.pendingStake;
+        if (pendingStake == 0) return;
+        uint40 eligibleAt = selection.eligibleAt;
+        uint40 epoch = uint40(uint256(eligibleAt) / REWARD_BUCKET_SIZE);
+        if (!book.activationRecorded[epoch]) return;
+        uint256 pendingWeight = selection.pendingWeight;
+        selection.eligibleStake += pendingStake;
+        selection.eligibleWeight += pendingWeight;
+        selection.pendingStake = 0;
+        selection.pendingWeight = 0;
+        selection.pendingStartTime = 0;
+        selection.eligibleAt = 0;
+        selection.checkpointRay = book.activationIndexRay[epoch];
+        emit IStaticsGlobalRewards.PositionRewardEligibilityActivated(
+            positionId, asset, pendingStake, pendingWeight, eligibleAt, book.activationIndexRay[epoch]
+        );
     }
 
     function transitionPositionWeight(uint256 positionId, uint16 newMultiplierBps) internal {
@@ -442,6 +523,66 @@ library LibGlobalRewards {
         if (dust == 0) return;
         rs.treasuryAccrued[asset] += dust;
         emit IStaticsGlobalRewards.RewardAssetDustRouted(asset, dust);
+    }
+
+    function _applyLossToSelection(
+        PositionSelection storage selection,
+        RewardBook storage book,
+        uint256 pendingLoss,
+        uint256 eligibleLoss,
+        uint16 multiplierBps
+    ) private {
+        if (pendingLoss != 0) {
+            uint256 priorPending = selection.pendingStake;
+            uint256 priorPendingWeight = selection.pendingWeight;
+            _removePendingBucket(book, selection.eligibleAt, priorPending, priorPendingWeight);
+            uint256 remainingPending = priorPending - pendingLoss;
+            uint256 remainingPendingWeight = _weight(remainingPending, multiplierBps);
+            selection.pendingStake = remainingPending;
+            selection.pendingWeight = remainingPendingWeight;
+            book.pendingStake -= pendingLoss;
+            book.pendingWeight = book.pendingWeight - priorPendingWeight + remainingPendingWeight;
+            if (remainingPending == 0) {
+                selection.pendingStartTime = 0;
+                selection.eligibleAt = 0;
+            } else {
+                _addPendingBucket(book, selection.eligibleAt, remainingPending, remainingPendingWeight);
+            }
+        }
+        if (eligibleLoss != 0) {
+            uint256 priorWeight = selection.eligibleWeight;
+            selection.eligibleStake -= eligibleLoss;
+            selection.eligibleWeight = _weight(selection.eligibleStake, multiplierBps);
+            book.eligibleStake -= eligibleLoss;
+            book.eligibleWeight = book.eligibleWeight - priorWeight + selection.eligibleWeight;
+        }
+    }
+
+    function _redistributeForfeiture(
+        RewardStorage storage rs,
+        address asset,
+        PositionSelection storage selection,
+        RewardBook storage book,
+        uint256 forfeited,
+        address keeper,
+        uint16 bountyBps
+    ) private {
+        if (forfeited == 0) return;
+        uint256 bounty = Math.mulDiv(forfeited, bountyBps, LibBasket.BPS);
+        if (bounty != 0) {
+            LibMorpho.creditSyncBounty(keeper, asset, bounty);
+            book.indexedAmount -= bounty;
+        }
+        uint256 remainder = forfeited - bounty;
+        uint256 otherWeight = book.eligibleWeight - selection.eligibleWeight;
+        if (remainder == 0) return;
+        if (otherWeight == 0) {
+            rs.treasuryAccrued[asset] += remainder;
+            book.indexedAmount -= remainder;
+            return;
+        }
+        book.indexRay += Math.mulDiv(remainder, RAY, otherWeight);
+        selection.checkpointRay = book.indexRay;
     }
 
     function _increaseIndex(RewardBook storage book, uint256 amount, uint256 denominator) private {

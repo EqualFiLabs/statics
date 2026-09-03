@@ -50,6 +50,7 @@ library LibGenesisIntegration {
         address feeReceiver;
         address statics;
         address numeraire;
+        address lenderRewardAsset;
         bool initialized;
         mapping(uint256 genesisId => uint256 positionId) linkedPosition;
         mapping(uint256 positionId => uint256 genesisId) linkedGenesis;
@@ -73,6 +74,7 @@ library LibGenesisIntegration {
     error InvalidActivationRegistryConfiguration();
     error InvalidFeeReceiverConfiguration();
     error InvalidRewardShare(uint256 shareBps);
+    error LenderRewardAssetAlreadyActive(address asset);
 
     function genesisStorage() internal pure returns (GenesisStorage storage gs) {
         bytes32 position = STORAGE_POSITION;

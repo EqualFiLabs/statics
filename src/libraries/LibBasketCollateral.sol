@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
+import {LibMorpho} from "./LibMorpho.sol";
 
 library LibBasketCollateral {
     bytes32 internal constant COLLATERAL_STORAGE_POSITION = keccak256("statics.storage.basket.collateral.v1");
@@ -10,7 +11,6 @@ library LibBasketCollateral {
     struct PositionBasketCollateral {
         uint256 depositedShares;
         uint256 lockedShares;
-        uint256 lastDepositBlock;
     }
 
     struct CollateralStorage {
@@ -21,7 +21,6 @@ library LibBasketCollateral {
     error PositionSharesLocked(uint256 requested, uint256 unlocked);
     error InsufficientLockedShares(uint256 requested, uint256 locked);
     error BurnSharesExceedCollateral(uint256 burnShares, uint256 collateralShares);
-    error PositionDepositTooRecent(uint256 positionId, uint256 basketId, uint256 withdrawableAfterBlock);
 
     function collateralStorage() internal pure returns (CollateralStorage storage cs) {
         bytes32 position = COLLATERAL_STORAGE_POSITION;
@@ -40,19 +39,15 @@ library LibBasketCollateral {
         // Position creation can attach the initial basket leg before collateral is recorded.
         LibPositionPortfolio.addBasket(positionId, basketId);
         position.depositedShares += shares;
-        position.lastDepositBlock = block.number;
     }
 
     function decreasePosition(uint256 positionId, uint256 basketId, uint256 shares) internal {
         PositionBasketCollateral storage position = collateralStorage().positions[positionId][basketId];
         uint256 deposited = position.depositedShares;
         if (shares > deposited) revert InsufficientPositionShares(shares, deposited);
-        uint256 unlocked = deposited - position.lockedShares;
+        uint256 unlocked =
+            deposited - position.lockedShares - LibMorpho.morphoStorage().basketCollateral[positionId][basketId];
         if (shares > unlocked) revert PositionSharesLocked(shares, unlocked);
-        uint256 withdrawableAfterBlock = position.lastDepositBlock + 1;
-        if (block.number < withdrawableAfterBlock) {
-            revert PositionDepositTooRecent(positionId, basketId, withdrawableAfterBlock);
-        }
         position.depositedShares = deposited - shares;
     }
 
@@ -65,7 +60,8 @@ library LibBasketCollateral {
     ) internal {
         PositionBasketCollateral storage position = collateralStorage().positions[positionId][basketId];
         uint256 deposited = position.depositedShares;
-        uint256 unlocked = deposited - position.lockedShares;
+        uint256 unlocked =
+            deposited - position.lockedShares - LibMorpho.morphoStorage().basketCollateral[positionId][basketId];
         if (sharesIn > unlocked) revert PositionSharesLocked(sharesIn, unlocked);
         position.depositedShares = deposited - feeShares;
         position.lockedShares += collateralShares;

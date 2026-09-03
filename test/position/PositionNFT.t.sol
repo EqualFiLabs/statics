@@ -17,6 +17,7 @@ import {DiamondCutFacet} from "src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {BasketAdminFacet} from "src/facets/BasketAdminFacet.sol";
+import {MorphoViewFacet} from "src/facets/MorphoViewFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
@@ -128,8 +129,9 @@ contract PositionNFTTest is Test {
         PositionNFTFacet positionFacet = new PositionNFTFacet();
         PositionModuleHarnessFacet harnessFacet = new PositionModuleHarnessFacet();
         BasketAdminFacet basketAdminFacet = new BasketAdminFacet();
+        MorphoViewFacet morphoViewFacet = new MorphoViewFacet();
 
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](6);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](7);
         cut[0] = _cut(address(cutFacet), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(loupeFacet), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(ownershipFacet), StaticsSelectors.ownership());
@@ -143,6 +145,7 @@ contract PositionNFTTest is Test {
         harnessSelectors[5] = PositionModuleHarnessFacet.clearOwnerIndexForMigration.selector;
         cut[4] = _cut(address(harnessFacet), harnessSelectors);
         cut[5] = _cut(address(basketAdminFacet), StaticsSelectors.basketAdmin());
+        cut[6] = _cut(address(morphoViewFacet), StaticsSelectors.morphoView());
 
         StaticsProtocolInit init = new StaticsProtocolInit();
         PositionReceiver stakingToken = new PositionReceiver(address(0));

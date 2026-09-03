@@ -44,6 +44,10 @@ import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFa
 import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
+import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
+import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
+import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
+import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -54,7 +58,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](24);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](28);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -79,6 +83,10 @@ contract StaticsTestDeployer {
         cut[21] = _cut(address(new ProtocolPoolAdminFacet()), StaticsSelectors.protocolPoolAdmin());
         cut[22] = _cut(address(new ProtocolPoolViewFacet()), StaticsSelectors.protocolPoolView());
         cut[23] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
+        cut[24] = _cut(address(new MorphoAdminFacet()), StaticsSelectors.morphoAdmin());
+        cut[25] = _cut(address(new MorphoFacet()), StaticsSelectors.morphoActions());
+        cut[26] = _cut(address(new MorphoSettlementFacet()), StaticsSelectors.morphoSettlement());
+        cut[27] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,

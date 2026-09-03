@@ -10,6 +10,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract BasketMintFacet is ReentrancyGuard {
@@ -47,6 +48,7 @@ contract BasketMintFacet is ReentrancyGuard {
         returns (uint256[] memory amountsIn)
     {
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibCustody.reserve(LibCustody.basketAccount(basketId), configured.token, shares);

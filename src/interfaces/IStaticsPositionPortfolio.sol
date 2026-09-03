@@ -10,6 +10,7 @@ interface IStaticsPositionPortfolio {
         uint256 liquidityPositionCount;
         uint256 globalRewardAssetCount;
         uint256 riskSeriesCount;
+        uint256 morphoMarketCount;
     }
 
     error InvalidPortfolioPageSize(uint256 requested, uint256 maximum);
@@ -40,4 +41,9 @@ interface IStaticsPositionPortfolio {
         external
         view
         returns (uint256[] memory seriesIds, uint256 nextCursor);
+
+    function morphoMarketIdsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)
+        external
+        view
+        returns (bytes32[] memory marketIds, uint256 nextCursor);
 }
