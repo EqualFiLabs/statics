@@ -105,6 +105,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
 
         vm.roll(block.number + 1);
         liquidityRewards.activateLiquidityPosition(tokenId);
+        vm.warp(block.timestamp + 25 hours);
         _swapConstituentIntoPool(0.001 ether);
 
         vm.prank(alice);
@@ -239,6 +240,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
 
     function testPoolOverrideRoutesBasketTokenAndConstituentFeesToBasketPosition() public {
         _mintDirectFullRangePositionToAlice(5 ether);
+        vm.warp(block.timestamp + 25 hours);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, basketAssets[0]);
         assertTrue(liquidityRewards.canAccrueBasketRewards(pool.poolId));
         basketLiquidity.setCanonicalPoolFeeConfiguration(
@@ -300,6 +302,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
                 treasuryShareBps: 0
             })
         );
+        vm.warp(block.timestamp + 25 hours);
         _swapConstituentIntoPool(0.001 ether);
 
         (, uint256[] memory pending) = basketRewards.getBasketRewards(basketPositionId, basketId);

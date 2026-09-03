@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "chainId": 46630,
+  "deployer": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+  "owner": "0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316",
+  "create2Deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+  "create2DeployerRuntimeCodeHash": "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989",
+  "morphoSalt": "0x08f689127e8c35a22781857d0c2451f054ea7ac22719e2519635d105eea4afe4",
+  "adaptiveCurveIrmSalt": "0x1f5cba45c191eb2a2019e2d7784faf33156893b42ce559906644313c356b7646",
+  "morpho": "0xC0dd6aB9E1e59F9dF696cc90Ba947B4E6C74E6A9",
+  "morphoRuntimeCodeHash": "0x05b1f72824e35c509e745c951bc13a7375b0e6affa3ee668bd52e55962741ce7",
+  "adaptiveCurveIrm": "0x6e8555DAbbAe94aDfA5b606E3eaF35246E346332",
+  "adaptiveCurveIrmRuntimeCodeHash": "0x678e72ec2a2edafb6f4a25063d27db3afb3e36d081f556f3908775e400173fdf",
+  "feeRecipient": "0x0000000000000000000000000000000000000000",
+  "adaptiveCurveIrmEnabled": true,
+  "zeroIrmEnabled": true,
+  "enabledLltvs": [
+    0,
+    385000000000000000,
+    625000000000000000,
+    770000000000000000,
+    860000000000000000,
+    915000000000000000,
+    945000000000000000,
+    965000000000000000,
+    980000000000000000
+  ],
+  "network": {
+    "name": "Robinhood Chain Testnet",
+    "explorer": "https://explorer.testnet.chain.robinhood.com",
+    "deploymentTimestamp": "2026-09-01T12:26:09Z",
+    "deploymentStartBlock": 111138899,
+    "deploymentEndBlock": 111138919
+  },
+  "source": {
+    "repository": "https://github.com/EqualFiLabs/statics",
+    "branch": "feat/morpho-testnet-deployment",
+    "deploymentSourceCommit": "f5f8939d75f0cd426213e605b8e8e9f1a7ed52fa",
+    "morphoBlueCommit": "731e3f7ed97cf15f8fe00b86e4be5365eb3802ac",
+    "adaptiveCurveIrmCommit": "a7d9cce3451b4a106bfd40933ac57a785b5228f3",
+    "adaptiveCurveIrmMorphoBlueCommit": "55d2d99304fb3fb930c688462ae2ccabb1d533ad",
+    "compiler": {
+      "version": "0.8.19",
+      "evmVersion": "paris",
+      "viaIr": true,
+      "optimizerRuns": 999999,
+      "bytecodeHash": "none"
+    },
+    "mainnetReference": {
+      "morpho": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
+      "adaptiveCurveIrm": "0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1"
+    }
+  },
+  "verification": {
+    "morpho": true,
+    "adaptiveCurveIrm": true
+  },
+  "transactions": [
+    {
+      "action": "deployMorpho",
+      "hash": "0x088d80fdde039f008f7a53aa61db52243d2b92ec6cbf60ed3be9c9411737c296",
+      "block": 111138899
+    },
+    {
+      "action": "deployAdaptiveCurveIrm",
+      "hash": "0x75bf7ca4499a6b469eb3da25241a0491ff5aad3616ec5ed70e4b9e41cfcaecee",
+      "block": 111138901
+    },
+    {
+      "action": "enableAdaptiveCurveIrm",
+      "hash": "0xf9669e05ad824bd921f570f67310e36e05fa70df452f4e6daa384625ff43cf35",
+      "block": 111138903
+    },
+    {
+      "action": "enableZeroIrm",
+      "hash": "0xd6a15ee62cb3a0d15f49dbf455623081fe0557ae3f51b843a7bc22650b363405",
+      "block": 111138904
+    },
+    {
+      "action": "enableLltv0",
+      "hash": "0x6473a5fba5f66d83b2e7301716098bf69abf7f130decd3b39105aa1d4c682844",
+      "block": 111138906
+    },
+    {
+      "action": "enableLltv385000000000000000",
+      "hash": "0xafd78175f311f21b61ea1a23437659305afb78e54478409ce3408d86afab0e70",
+      "block": 111138909
+    },
+    {
+      "action": "enableLltv625000000000000000",
+      "hash": "0xa110b874f5064eaf45a028d3d61889a755ac3cd07587768f81cf71f7c96fa2f9",
+      "block": 111138911
+    },
+    {
+      "action": "enableLltv770000000000000000",
+      "hash": "0x672fcf2e6eea162698ffe2c9a4503ad9faad722703f579a156c5214a01401ac1",
+      "block": 111138912
+    },
+    {
+      "action": "enableLltv860000000000000000",
+      "hash": "0xaa42a3ba3443e1611d171c104fa05798ffe6f229e31a15094ea1c8d7dbc198d2",
+      "block": 111138913
+    },
+    {
+      "action": "enableLltv915000000000000000",
+      "hash": "0x818570ccf7e7dd8f7b290d3fa60712c1f1eb37877d0c096a6b14bc09ae6d9728",
+      "block": 111138914
+    },
+    {
+      "action": "enableLltv945000000000000000",
+      "hash": "0x99858ce0f05be5850828167b00c2b31ec4de5a7258b013b8199f70cb065f1e82",
+      "block": 111138917
+    },
+    {
+      "action": "enableLltv965000000000000000",
+      "hash": "0x6cd05d2e2aefe40f4212847c1db22707f75d70d45e0450eb71c3df3169bf20bb",
+      "block": 111138918
+    },
+    {
+      "action": "enableLltv980000000000000000",
+      "hash": "0x0b9b3f651682530796de5d5717655761308dd183fd83ca9e5054268bcad0d16a",
+      "block": 111138919
+    }
+  ]
+}

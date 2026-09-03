@@ -2,7 +2,6 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {LibBasketCollateral} from "../../src/libraries/LibBasketCollateral.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 
 contract BasketCollateralTest is StaticsTestBase {
@@ -14,17 +13,12 @@ contract BasketCollateralTest is StaticsTestBase {
         vm.prank(alice);
         (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 10 ether, alice, quote);
         assertEq(basketCollateral.basketCollateralPosition(positionId, basketId).depositedShares, 10 ether);
-        assertEq(basketRewards.basketRewardState(basketId, token).totalEligibleShares, 10 ether);
+        assertEq(basketRewards.basketRewardState(basketId, token).totalEligibleShares, 0);
         assertEq(globalRewards.totalStaked(), 0);
         assertEq(IERC20(token).balanceOf(address(diamond)), 10 ether);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(LibBasketCollateral.PositionDepositTooRecent.selector, positionId, basketId, 2)
-        );
-        vm.prank(alice);
-        basketCollateral.withdrawBasketCollateral(positionId, basketId, 10 ether, alice);
-
-        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 25 hours);
+        assertEq(basketRewards.basketRewardState(basketId, token).totalEligibleShares, 10 ether);
         vm.prank(alice);
         basketCollateral.withdrawBasketCollateral(positionId, basketId, 10 ether, alice);
         assertEq(IERC20(token).balanceOf(alice), 10 ether);

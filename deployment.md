@@ -153,5 +153,30 @@ All reused dependencies passed live runtime-code checks. All fresh Statics
 contracts, fixtures, the basket token, and the faucet are source verified.
 Broadcast artifacts and signing configuration remain local and ignored.
 
+## Reusable Morpho Blue infrastructure
+
+The shared lending base for repeatable Statics rehearsals was deployed on
+September 1, 2026. Future Basket/USDstx attempts reuse these contracts while
+creating isolated markets for each rehearsal. This deployment intentionally
+does not create an oracle or a Morpho market.
+
+| Field | Value |
+| --- | --- |
+| Morpho Blue | `0xC0dd6aB9E1e59F9dF696cc90Ba947B4E6C74E6A9` |
+| AdaptiveCurveIRM | `0x6e8555DAbbAe94aDfA5b606E3eaF35246E346332` |
+| Owner | `0x6Ae2aD9905FEDC8270b828294D4b9CEC7CBBE316` |
+| Fee recipient | `0x0000000000000000000000000000000000000000` |
+| Deployment blocks | `111138899`–`111138919` |
+| Deployment source commit | `f5f8939d75f0cd426213e605b8e8e9f1a7ed52fa` |
+
+The AdaptiveCurveIRM and zero-address IRM are enabled. The enabled LLTV set is
+`0`, `38.5%`, `62.5%`, `77%`, `86%`, `91.5%`, `94.5%`, `96.5%`, and `98%`,
+matching the Robinhood mainnet Morpho configuration inspected for this replica.
+Both contracts are source verified, and live readback confirmed the owner,
+fee recipient, IRM binding, runtime hashes, and every enabled LLTV.
+
 The machine-readable companion record is
+[`deployments/robinhood-testnet-46630-morpho.json`](deployments/robinhood-testnet-46630-morpho.json).
+
+The broader Statics deployment remains recorded in
 [`deployments/robinhood-testnet-46630-statics.json`](deployments/robinhood-testnet-46630-statics.json).

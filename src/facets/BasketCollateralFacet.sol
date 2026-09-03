@@ -9,6 +9,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract BasketCollateralFacet is ReentrancyGuard {
@@ -38,6 +39,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
     function depositBasketCollateral(uint256 positionId, uint256 basketId, uint256 shares) external nonReentrant {
         if (shares == 0) revert InvalidShares();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibBasket.enforceActive(configured, basketId);
         _pullBasketToken(configured, basketId, shares);
@@ -52,6 +54,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         if (shares == 0) revert InvalidShares();
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
         LibBasketRewards.decreasePosition(positionId, basketId, configured, shares);
         LibCustody.pushReserved(LibCustody.basketAccount(basketId), configured.token, receiver, shares, shares);
@@ -71,7 +74,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         result = IStaticsBasketCollateral.BasketCollateralPosition({
             depositedShares: position.depositedShares,
             lockedShares: position.lockedShares,
-            withdrawableAfterBlock: position.lastDepositBlock + 1
+            rewardEligibleAt: LibBasketRewards.rewardStorage().positions[positionId][basketId].eligibleAt
         });
     }
 

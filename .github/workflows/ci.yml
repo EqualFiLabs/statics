@@ -145,6 +145,32 @@ jobs:
       - name: Check generated reports
         run: npm --prefix tools/genesis-economics run check
 
+  morpho-deployment:
+    name: Morpho / deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Initialize Morpho dependencies
+        shell: bash
+        run: |
+          git submodule sync
+          git submodule update --init --depth=1 \
+            lib/forge-std \
+            verification/morpho/vendor/morpho-blue \
+            verification/morpho/vendor/morpho-blue-irm
+          git -C verification/morpho/vendor/morpho-blue-irm submodule sync
+          git -C verification/morpho/vendor/morpho-blue-irm submodule update --init --depth=1 \
+            lib/morpho-blue
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.7.1
+      - name: Test reusable deployment
+        run: forge test --root verification/morpho --match-path test/DeployMorphoTestnet.t.sol -vv
+
   format:
     name: Solidity / format
     runs-on: ubuntu-latest

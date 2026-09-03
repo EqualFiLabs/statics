@@ -13,6 +13,7 @@ import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
 import {LibLoanOrigination} from "../libraries/LibLoanOrigination.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 
@@ -52,6 +53,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
     function repay(uint256 loanId) external nonReentrant {
         LibLending.LendingStorage storage ls = LibLending.lendingStorage();
         LibLending.Loan memory current = _getLoan(ls, loanId);
+        LibMorpho.syncIfInitialized(current.positionId, msg.sender);
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, current.basketId);
         bytes32 custodyAccount = LibCustody.basketAccount(current.basketId);
@@ -118,6 +120,7 @@ contract LendingFacet is IStaticsLending, ReentrancyGuard {
     function recover(uint256 loanId) external nonReentrant {
         LibLending.LendingStorage storage ls = LibLending.lendingStorage();
         LibLending.Loan memory current = _getLoan(ls, loanId);
+        LibMorpho.syncIfInitialized(current.positionId, msg.sender);
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, current.basketId);
         RecoveryQuote memory quoted = _quoteRecovery(ls, loanId, current, configured);

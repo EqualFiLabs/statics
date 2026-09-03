@@ -5,7 +5,7 @@ interface IStaticsBasketCollateral {
     struct BasketCollateralPosition {
         uint256 depositedShares;
         uint256 lockedShares;
-        uint256 withdrawableAfterBlock;
+        uint256 rewardEligibleAt;
     }
 
     event BasketCollateralDeposited(

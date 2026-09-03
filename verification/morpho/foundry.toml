@@ -1,0 +1,20 @@
+[profile.default]
+src = "harness"
+test = "test"
+script = "script"
+out = "out"
+libs = ["vendor/morpho-blue", "vendor/morpho-blue-irm", "../../lib"]
+solc_version = "0.8.19"
+evm_version = "paris"
+via_ir = true
+optimizer = true
+optimizer_runs = 999999
+bytecode_hash = "none"
+fs_permissions = [
+    { access = "read-write", path = "../../artifacts/morpho-testnet" },
+    { access = "read", path = "../../deployments" },
+]
+
+[fmt]
+line_length = 120
+tab_width = 4

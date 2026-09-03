@@ -11,6 +11,7 @@ import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract BasketRedemptionFacet is ReentrancyGuard {
@@ -69,6 +70,7 @@ contract BasketRedemptionFacet is ReentrancyGuard {
         if (shares == 0) revert InvalidShares();
         if (receiver == address(0)) revert InvalidReceiver();
         LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         LibBasket.Basket storage configured = _getBasket(bs, basketId);
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {

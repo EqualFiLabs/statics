@@ -14,6 +14,7 @@ import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
@@ -44,6 +45,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
 
         uint16 multiplierBps = IGenesisActivationRegistry(gs.activationRegistry).multiplierBps(genesisId);
         if (multiplierBps != LibGlobalRewards.BASE_REWARD_MULTIPLIER_BPS) {
+            LibMorpho.syncIfInitialized(positionId, msg.sender);
             LibGlobalRewards.transitionPositionWeight(positionId, multiplierBps);
         }
         gs.linkedPosition[genesisId] = positionId;
@@ -104,6 +106,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         if (previousOwner != nextOwner || positionOwner != nextOwner) {
             revert LinkedOwnerMismatch(genesisId, positionId, nextOwner, positionOwner);
         }
+        LibMorpho.syncIfInitialized(positionId, nextOwner);
         LibGlobalRewards.transitionPositionWeight(positionId, nextMultiplierBps);
     }
 
@@ -278,6 +281,7 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
         private
     {
         _enforceLink(gs, positionId, genesisId);
+        LibMorpho.syncIfInitialized(positionId, msg.sender);
         LibGlobalRewards.transitionPositionWeight(positionId, LibGlobalRewards.BASE_REWARD_MULTIPLIER_BPS);
         delete gs.linkedPosition[genesisId];
         delete gs.linkedGenesis[positionId];
