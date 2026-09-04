@@ -22,6 +22,14 @@ shared Robinhood testnet Morpho deployment.
 | Liquidity manager | `0x5BbBC16824a84192781aE26B88C61a058A73f10e` |
 | TPA1 basket | `0xf6aC2b2B59133f3691C63e99Cb7b3ac507F7528B` |
 | Genesis replica | `0x6c9197347161FC140a209175849d443FeaAF509c` |
+| Public rehearsal faucet | `0xb80f88145315a772829B42c0Efb6F79ee8A55645` |
+
+The public rehearsal faucet was deployed as the separate final ceremony step,
+so this disposable shot binds and funds only its own fresh token addresses. It
+contains 100 daily claim bundles. Each bundle provides `5,000 USDG`, `5,000
+USDstx`, `1,000 STATICS`, and `0.001` each of TSLA, PLTR, and AMD. Deployment,
+mint, release, and funding transactions are recorded in the machine-readable
+rehearsal record below.
 
 | Morpho market | Market ID |
 | --- | --- |

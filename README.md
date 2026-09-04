@@ -259,6 +259,25 @@ ROBINHOOD_MAINNET="$ROBINHOOD_MAINNET" \
 
 This path exercises Robinhood's deployed Quoter, Universal Router, Permit2, and hooked canonical pools. Treat an executed pass separately from local-only coverage or an environment-gated skip.
 
+### Standalone Genesis faucet
+
+A fresh standalone Genesis replica can use a separate ownerless faucet that
+dispenses 200,000 STATICS per wallet every 24 hours. The funding command quotes
+an exact-output purchase from that replica's Doppler pool, permits at most 1%
+input slippage, refuses to spend more than 0.012 testnet ETH, and funds exactly
+one initial claim. Anyone may refill the faucet later, including from released
+Treasury vesting.
+
+```bash
+export STATICS_GENESIS_TESTNET_ARTIFACT=artifacts/genesis-testnet/<run>/genesis.json
+export ROBINHOOD_TESTNET_RPC_URL=...
+export PRIVATE_KEY=...
+scripts/deploy-genesis-testnet-faucet.sh --broadcast
+
+export STATICS_GENESIS_FAUCET_ADDRESS=0x...
+scripts/deploy-genesis-testnet-faucet.sh --check
+```
+
 ### Testing guidance
 
 - Use unit harnesses for narrow branches, storage checks, and otherwise-unreachable edges.
@@ -397,7 +416,28 @@ The release sequence is intentionally explicit:
 8. Link the standalone Genesis deployment through the split-governance handoff.
 9. Deploy the two adjustable testnet Morpho oracles, create both markets, then schedule and execute `ConfigureStaticsMorpho`.
 10. Mint USDstx through the pegged profile and seed both markets with `runSeedLiquidity()`.
-11. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, and deployment runtime hashes.
+11. Deploy and fully fund the six-asset public rehearsal faucet.
+12. Verify both Diamond manifests, ownership, selector routing, immutable bindings, pool state, fee configuration, faucet inventory, and deployment runtime hashes.
+
+The faucet command consumes the recorded rehearsal addresses, prepares 100
+complete USDG, USDstx, STATICS, TSLA, PLTR, and AMD bundles through the real
+testnet token paths, and refuses to deploy until every non-mintable asset is
+available:
+
+```shell
+STATICS_REHEARSAL_MANIFEST=deployments/robinhood-testnet-46630-rehearsal-YYYYMMDDTHHMMSSZ.json \
+PRIVATE_KEY="$PRIVATE_KEY" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  scripts/deploy-rehearsal-faucet.sh --broadcast
+
+STATICS_REHEARSAL_MANIFEST=deployments/robinhood-testnet-46630-rehearsal-YYYYMMDDTHHMMSSZ.json \
+STATICS_FAUCET_ADDRESS="$STATICS_FAUCET_ADDRESS" \
+ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
+  scripts/deploy-rehearsal-faucet.sh --check
+```
+
+Each wallet may claim once per day. A bundle contains 5,000 USDG, 5,000
+USDstx, 1,000 STATICS, and 0.001 of each stock fixture.
 
 Focused deployment proofs:
 
