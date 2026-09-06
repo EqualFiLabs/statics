@@ -13,19 +13,10 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
-    event CanonicalPoolFeeConfigurationSet(
-        uint256 indexed basketId,
-        address indexed asset,
-        bytes32 indexed poolId,
-        uint16 inputFeeBps,
-        uint16 outputFeeBps,
-        uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
-        uint16 basketStakerShareBps,
-        uint16 staticsStakerShareBps,
-        uint16 treasuryShareBps
+    event CanonicalPoolFeeRateSet(
+        uint256 indexed basketId, address indexed asset, bytes32 indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps
     );
-    event CanonicalPoolFeeConfigurationCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
+    event CanonicalPoolFeeRateCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
 
     function testLaunchHelpersRejectDirectCalls() public {
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](0);
@@ -74,37 +65,18 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
     function testCanonicalPoolFeeOverrideIsOwnerControlledAndUsesRegisteredPool() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
-        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
-            inputFeeBps: 40,
-            outputFeeBps: 60,
-            polShareBps: 1_000,
-            liquidityProviderShareBps: 2_500,
-            basketStakerShareBps: 2_500,
-            staticsStakerShareBps: 1_500,
-            treasuryShareBps: 2_000
-        });
-
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
-        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
+        basketLiquidity.setCanonicalPoolFeeRate(basketId, assets[0], 40, 60);
 
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit CanonicalPoolFeeConfigurationSet(
-            basketId, assets[0], PoolId.unwrap(pool.poolId), 40, 60, 1_000, 2_500, 2_500, 1_500, 2_000
-        );
-        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
+        emit CanonicalPoolFeeRateSet(basketId, assets[0], PoolId.unwrap(pool.poolId), 40, 60);
+        basketLiquidity.setCanonicalPoolFeeRate(basketId, assets[0], 40, 60);
 
-        IStaticsBasketLiquidity.PoolFeeConfigurationView memory effective =
-            basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
+        IStaticsBasketLiquidity.PoolFeeRateView memory effective =
+            basketLiquidity.canonicalPoolFeeRate(basketId, assets[0]);
         assertEq(effective.inputFeeBps, 40);
         assertEq(effective.outputFeeBps, 60);
-        // Allocation is the global basket profile (creator carved separately); only the rate is
-        // PoolId-local under the permissionless-pool model.
-        assertEq(effective.polShareBps, 1_000);
-        assertEq(effective.liquidityProviderShareBps, 2_500);
-        assertEq(effective.basketStakerShareBps, 2_500);
-        assertEq(effective.staticsStakerShareBps, 1_500);
-        assertEq(effective.treasuryShareBps, 2_000);
         assertTrue(effective.overridden);
         IStaticsSwapFeeHook.PoolFeeRate memory hookRate = swapFeeHook.poolFeeRate(pool.poolId);
         assertEq(hookRate.inputFeeBps, effective.inputFeeBps);
@@ -113,63 +85,28 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
-        basketLiquidity.clearCanonicalPoolFeeConfiguration(basketId, assets[0]);
+        basketLiquidity.clearCanonicalPoolFeeRate(basketId, assets[0]);
 
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit CanonicalPoolFeeConfigurationCleared(basketId, assets[0], PoolId.unwrap(pool.poolId));
-        basketLiquidity.clearCanonicalPoolFeeConfiguration(basketId, assets[0]);
-        effective = basketLiquidity.canonicalPoolFeeConfiguration(basketId, assets[0]);
+        emit CanonicalPoolFeeRateCleared(basketId, assets[0], PoolId.unwrap(pool.poolId));
+        basketLiquidity.clearCanonicalPoolFeeRate(basketId, assets[0]);
+        effective = basketLiquidity.canonicalPoolFeeRate(basketId, assets[0]);
         assertEq(effective.inputFeeBps, 25);
         assertEq(effective.outputFeeBps, 25);
-        assertEq(effective.polShareBps, 1_000);
-        assertEq(effective.liquidityProviderShareBps, 2_500);
-        assertEq(effective.basketStakerShareBps, 2_500);
-        assertEq(effective.staticsStakerShareBps, 1_500);
-        assertEq(effective.treasuryShareBps, 2_000);
         assertFalse(effective.overridden);
     }
 
-    function testCanonicalPoolFeeOverrideRejectsAllocationMismatchWithoutChangingRate() public {
-        (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
-        IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
-        IStaticsSwapFeeHook.PoolFeeRate memory rateBefore = swapFeeHook.poolFeeRate(pool.poolId);
-        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = basketLiquidity.swapFeeConfiguration();
-        configuration.inputFeeBps = 40;
-        configuration.outputFeeBps = 60;
-        configuration.polShareBps += 1;
-        configuration.treasuryShareBps -= 1;
-
-        vm.expectRevert(
-            abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolFeeAllocationMismatch.selector, pool.poolId)
-        );
-        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, assets[0], configuration);
-
-        IStaticsSwapFeeHook.PoolFeeRate memory rateAfter = swapFeeHook.poolFeeRate(pool.poolId);
-        assertEq(rateAfter.inputFeeBps, rateBefore.inputFeeBps);
-        assertEq(rateAfter.outputFeeBps, rateBefore.outputFeeBps);
-        assertEq(rateAfter.overridden, rateBefore.overridden);
-    }
-
-    function testCanonicalPoolFeeConfigurationRejectsUnconfiguredIdentifier() public {
+    function testCanonicalPoolFeeRateRejectsUnconfiguredIdentifier() public {
         (uint256 basketId,) = _createBasketWithAssets(1);
-        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
-            inputFeeBps: 40,
-            outputFeeBps: 60,
-            polShareBps: 0,
-            liquidityProviderShareBps: 0,
-            basketStakerShareBps: 0,
-            staticsStakerShareBps: 8_000,
-            treasuryShareBps: 2_000
-        });
         address unconfigured = makeAddr("unconfigured");
         vm.expectRevert(
             abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, unconfigured)
         );
-        basketLiquidity.setCanonicalPoolFeeConfiguration(basketId, unconfigured, configuration);
+        basketLiquidity.setCanonicalPoolFeeRate(basketId, unconfigured, 40, 60);
         vm.expectRevert(
             abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, unconfigured)
         );
-        basketLiquidity.clearCanonicalPoolFeeConfiguration(basketId, unconfigured);
+        basketLiquidity.clearCanonicalPoolFeeRate(basketId, unconfigured);
     }
 
     function testIntegrationIdentityCanOnlyBeInstalledOnce() public {

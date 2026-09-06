@@ -108,9 +108,9 @@ contract SelectorManifestTest is Test {
         expected[8] = IStaticsBasketLiquidity.canonicalPool.selector;
         expected[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
         expected[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        expected[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
-        expected[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
-        expected[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+        expected[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
+        expected[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
+        expected[13] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
 
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {

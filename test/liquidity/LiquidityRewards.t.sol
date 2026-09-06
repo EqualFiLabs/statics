@@ -212,10 +212,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
     }
 
     function _setCanonicalPoolRate(uint256 configuredBasketId, address asset) private {
-        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = basketLiquidity.swapFeeConfiguration();
-        configuration.inputFeeBps = 40;
-        configuration.outputFeeBps = 60;
-        basketLiquidity.setCanonicalPoolFeeConfiguration(configuredBasketId, asset, configuration);
+        basketLiquidity.setCanonicalPoolFeeRate(configuredBasketId, asset, 40, 60);
     }
 
     function _snapshotPoolLegs(IStaticsBasketLiquidity.CanonicalPoolView memory pool)

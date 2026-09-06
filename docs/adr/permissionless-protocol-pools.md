@@ -452,7 +452,7 @@ Governance may update the basket and general allocation profiles independently, 
 
 Changing a global allocation profile does not change any PoolId's fee rate. Changing a PoolId's fee rate does not change the applicable allocation profile.
 
-For compatibility, `setCanonicalPoolFeeConfiguration` retains the legacy combined rate-and-allocation ABI. Its allocation fields are assertions, not PoolId-local settings: every supplied allocation field must exactly match the active global basket profile or the call reverts. A successful call changes only the PoolId-local rate, and its event records the effective global allocation.
+Canonical pools expose the rate-only `setCanonicalPoolFeeRate`, `clearCanonicalPoolFeeRate`, and `canonicalPoolFeeRate` API. Allocation remains exclusively in the global basket profile, so the PoolId-local API cannot imply or validate a second allocation source.
 
 The fallback policy remains explicit:
 

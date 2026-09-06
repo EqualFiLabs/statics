@@ -302,9 +302,9 @@ library StaticsSelectors {
         selectors[8] = IStaticsBasketLiquidity.canonicalPool.selector;
         selectors[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
         selectors[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
-        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
-        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
+        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
+        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
     }
 
     function protocolPoolCreation() internal pure returns (bytes4[] memory selectors) {
