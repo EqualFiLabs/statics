@@ -51,6 +51,14 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         pools.createPool(other, "");
     }
 
+    function testZeroCreationFeeRejectsPublicDirectCreator() public {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), bob);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        pools.createPool(params, "");
+    }
+
     function testNonzeroFeeEnablesPublicCreationWithExactPaymentToTreasury() public {
         pools.setPoolCreationFee(CREATION_FEE);
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), bob);
@@ -126,6 +134,20 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
             abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidFeeRate.selector, uint16(150), uint16(100))
         );
         pools.quotePool(params);
+    }
+
+    function testQuoteAndCreationRejectZeroCreator() public {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidCreator.selector, address(0)));
+        pools.quotePool(params);
+
+        pools.setPoolCreationFee(CREATION_FEE);
+        vm.deal(bob, CREATION_FEE);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidCreator.selector, address(0)));
+        pools.createPool{value: CREATION_FEE}(params, "");
+        assertFalse(pools.isPoolCreationNonceUsed(address(0), params.nonce));
     }
 
     function testDeterministicQuoteMatchesCreatedPool() public {

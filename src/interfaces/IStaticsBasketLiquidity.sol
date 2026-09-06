@@ -79,6 +79,8 @@ interface IStaticsBasketLiquidity {
     function installCanonicalPoolIntegration(address poolManager, address hook) external;
     function installLiquidityManager(address manager) external;
     function setSwapFeeConfiguration(SwapFeeConfiguration calldata configuration) external;
+    /// @notice Overrides one canonical pool's fee rate using the legacy combined configuration ABI.
+    /// @dev Allocation fields must equal the active global basket allocation and are not stored per pool.
     function setCanonicalPoolFeeConfiguration(
         uint256 basketId,
         address asset,

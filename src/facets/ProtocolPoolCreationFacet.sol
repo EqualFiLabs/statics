@@ -50,6 +50,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     error ActionPaused(uint256 action);
     error IncorrectCreationFee(uint256 expected, uint256 provided);
     error CreationFeeTransferFailed(address treasury, uint256 amount);
+    error InvalidCreator(address creator);
     error InvalidCreatorAuthorization(address creator);
     error PoolCreationNonceAlreadyUsed(address creator, uint256 nonce);
 
@@ -133,6 +134,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         if (!LibProtocolPoolFee.isValidFeeRate(params.feeRate.inputFeeBps, params.feeRate.outputFeeBps)) {
             revert InvalidFeeRate(params.feeRate.inputFeeBps, params.feeRate.outputFeeBps);
         }
+        if (params.creator == address(0)) revert InvalidCreator(params.creator);
         quote.sqrtPriceX96 = _sortedSqrtPrice(params.tokenA, params.tokenB, params.sqrtPriceBPerAX96);
         quote.key = PoolKey({
             currency0: params.tokenA < params.tokenB ? Currency.wrap(params.tokenA) : Currency.wrap(params.tokenB),
@@ -188,20 +190,19 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         );
     }
 
-    /// @dev Resolves the direct, governed, or signed creator-authorization path. Nonce consumption
-    /// occurs before external interactions so any later revert restores the nonce atomically.
+    /// @dev Resolves the direct, governed, or signed creator-authorization path. Signed authorization
+    /// validates first, then consumes the nonce before fee transfer and protocol registration.
     function _authorizeCreator(
         IStaticsProtocolPools.CreatePoolParams calldata params,
         bytes32 digest,
         bytes calldata creatorAuthorization
     ) private {
-        if (params.creator == msg.sender) return;
-
         uint256 creationFee = LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount;
         if (creationFee == 0) {
             LibDiamond.enforceIsContractOwner();
             return;
         }
+        if (params.creator == msg.sender) return;
 
         LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
         if (ps.poolCreationNonceUsed[params.creator][params.nonce]) {

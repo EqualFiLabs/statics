@@ -55,6 +55,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     error InvalidPoolLaunchPrice(address asset, uint160 sqrtPriceAssetPerBasketX96);
     error InvalidPoolLaunchLiquidity(address asset, uint256 pairedAssetAmount);
     error CanonicalPoolAlreadyAssociated(PoolId poolId, uint256 basketId, address asset);
+    error CanonicalPoolFeeAllocationMismatch(PoolId poolId);
     error LaunchInputExceedsMaximum(address asset, uint256 required, uint256 maximum);
     error InsufficientLaunchAssetReceived(address asset, uint256 required, uint256 received);
     error LaunchDebitExceedsMaximum(address asset, uint256 actualDebit, uint256 maximum);
@@ -268,18 +269,27 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         PoolId poolId = stored.key.toId();
-        IStaticsSwapFeeHook(ls.hook).setPoolFeeRate(poolId, configuration.inputFeeBps, configuration.outputFeeBps);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();
+        if (
+            configuration.polShareBps != allocation.polShareBps
+                || configuration.liquidityProviderShareBps != allocation.liquidityProviderShareBps
+                || configuration.basketStakerShareBps != allocation.basketStakerShareBps
+                || configuration.staticsStakerShareBps != allocation.staticsStakerShareBps
+                || configuration.treasuryShareBps != allocation.treasuryShareBps
+        ) revert CanonicalPoolFeeAllocationMismatch(poolId);
+        hook.setPoolFeeRate(poolId, configuration.inputFeeBps, configuration.outputFeeBps);
         emit CanonicalPoolFeeConfigurationSet(
             basketId,
             asset,
             poolId,
             configuration.inputFeeBps,
             configuration.outputFeeBps,
-            configuration.polShareBps,
-            configuration.liquidityProviderShareBps,
-            configuration.basketStakerShareBps,
-            configuration.staticsStakerShareBps,
-            configuration.treasuryShareBps
+            allocation.polShareBps,
+            allocation.liquidityProviderShareBps,
+            allocation.basketStakerShareBps,
+            allocation.staticsStakerShareBps,
+            allocation.treasuryShareBps
         );
     }
 
