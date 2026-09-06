@@ -5,10 +5,15 @@ import {Script} from "forge-std/Script.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.sol";
+import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {StaticsLaunchLiquidityHook} from "../src/liquidity/StaticsLaunchLiquidityHook.sol";
@@ -18,14 +23,13 @@ interface ILaunchPositionManagerBindings {
     function permit2() external view returns (address);
 }
 
-/// @notice Deploys the standalone temporary launch hook and a dedicated administration timelock.
-/// The governance Safe executes the artifact's `registerAndInitializeCalldata` after reviewing the
-/// explicit tick spacing and initial price. No full-protocol or Genesis contract is deployed here.
+/// @notice Deploys the standalone launch fee hook and prepares one externally owned, single-sided
+/// PositionManager launch. The same hook can register additional PoolKeys after deployment.
 contract DeployStaticsLaunchLiquidity is Script {
+    using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
 
     uint256 public constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
-    uint24 public constant NATIVE_LP_FEE = 3_000;
     address public constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
     uint160 public constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
@@ -36,18 +40,26 @@ contract DeployStaticsLaunchLiquidity is Script {
         address positionManager;
         address permit2;
         address statics;
-        address weth;
+        address pairedToken;
         address governance;
         address feeReceiver;
-        address liquidityReceiver;
-        address liquidityAdmin;
+        address positionOwner;
+        uint24 nativeLpFee;
         int24 tickSpacing;
         uint160 sqrtPriceX96;
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+        uint128 amount0Max;
+        uint128 amount1Max;
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
+        uint256 positionDeadline;
         bytes32 poolManagerCodeHash;
         bytes32 positionManagerCodeHash;
         bytes32 permit2CodeHash;
         bytes32 staticsCodeHash;
-        bytes32 wethCodeHash;
+        bytes32 pairedTokenCodeHash;
     }
 
     struct Deployment {
@@ -60,6 +72,7 @@ contract DeployStaticsLaunchLiquidity is Script {
 
     error InvalidChain(uint256 expected, uint256 actual);
     error InvalidConfig();
+    error InvalidSingleSidedPosition();
     error InvalidV4Contract(address target);
     error InvalidCodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
@@ -89,19 +102,17 @@ contract DeployStaticsLaunchLiquidity is Script {
 
         bytes memory args = abi.encode(
             IPoolManager(config.poolManager),
+            IPositionManager(config.positionManager),
             address(deployment.timelock),
-            config.feeReceiver,
-            config.liquidityReceiver,
-            config.liquidityAdmin
+            config.feeReceiver
         );
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsLaunchLiquidityHook).creationCode, args);
         deployment.hook = new StaticsLaunchLiquidityHook{salt: salt}(
             IPoolManager(config.poolManager),
+            IPositionManager(config.positionManager),
             address(deployment.timelock),
-            config.feeReceiver,
-            config.liquidityReceiver,
-            config.liquidityAdmin
+            config.feeReceiver
         );
         if (address(deployment.hook) != expectedHook) {
             revert HookAddressMismatch(expectedHook, address(deployment.hook));
@@ -109,18 +120,19 @@ contract DeployStaticsLaunchLiquidity is Script {
         uint160 actualFlags = uint160(address(deployment.hook)) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert HookPermissionMismatch(REQUIRED_HOOK_FLAGS, actualFlags);
 
-        (Currency currency0, Currency currency1) = config.weth < config.statics
-            ? (Currency.wrap(config.weth), Currency.wrap(config.statics))
-            : (Currency.wrap(config.statics), Currency.wrap(config.weth));
+        (Currency currency0, Currency currency1) = config.pairedToken < config.statics
+            ? (Currency.wrap(config.pairedToken), Currency.wrap(config.statics))
+            : (Currency.wrap(config.statics), Currency.wrap(config.pairedToken));
         deployment.key = PoolKey({
             currency0: currency0,
             currency1: currency1,
-            fee: NATIVE_LP_FEE,
+            fee: config.nativeLpFee,
             tickSpacing: config.tickSpacing,
             hooks: IHooks(deployment.hook)
         });
         deployment.poolId = deployment.key.toId();
         deployment.create2Salt = salt;
+        _validateSingleSided(config, deployment.key);
     }
 
     function loadRobinhoodConfig() public view returns (Config memory config) {
@@ -130,34 +142,74 @@ contract DeployStaticsLaunchLiquidity is Script {
         uint256 genesisChainId = vm.parseJsonUint(genesisManifest, ".network.chainId");
         if (v4ChainId != genesisChainId) revert InvalidChain(v4ChainId, genesisChainId);
         if (v4ChainId != ROBINHOOD_MAINNET_CHAIN_ID) revert InvalidChain(ROBINHOOD_MAINNET_CHAIN_ID, v4ChainId);
-        int256 configuredTickSpacing = vm.envInt("STATICS_LAUNCH_TICK_SPACING");
-        uint256 configuredSqrtPriceX96 = vm.envUint("STATICS_LAUNCH_SQRT_PRICE_X96");
-        if (
-            configuredTickSpacing < TickMath.MIN_TICK_SPACING || configuredTickSpacing > TickMath.MAX_TICK_SPACING
-                || configuredSqrtPriceX96 > type(uint160).max
-        ) revert InvalidConfig();
+        config.chainId = v4ChainId;
+        config.poolManager = vm.parseJsonAddress(v4Manifest, ".contracts.poolManager.address");
+        config.positionManager = vm.parseJsonAddress(v4Manifest, ".contracts.positionManager.address");
+        config.permit2 = vm.parseJsonAddress(v4Manifest, ".contracts.permit2.address");
+        config.statics = vm.parseJsonAddress(genesisManifest, ".contracts.staticsToken.address");
+        config.governance = vm.parseJsonAddress(genesisManifest, ".roles.governance");
+        config.poolManagerCodeHash = vm.parseJsonBytes32(v4Manifest, ".contracts.poolManager.runtimeCodeHash");
+        config.positionManagerCodeHash = vm.parseJsonBytes32(v4Manifest, ".contracts.positionManager.runtimeCodeHash");
+        config.permit2CodeHash = vm.parseJsonBytes32(v4Manifest, ".contracts.permit2.runtimeCodeHash");
+        config.staticsCodeHash = vm.parseJsonBytes32(genesisManifest, ".contracts.staticsToken.runtimeCodeHash");
+        return _loadLaunchEnvironment(config);
+    }
 
-        address treasury = vm.parseJsonAddress(genesisManifest, ".roles.treasury");
-        address governance = vm.parseJsonAddress(genesisManifest, ".roles.governance");
-        config = Config({
-            chainId: v4ChainId,
-            poolManager: vm.parseJsonAddress(v4Manifest, ".contracts.poolManager.address"),
-            positionManager: vm.parseJsonAddress(v4Manifest, ".contracts.positionManager.address"),
-            permit2: vm.parseJsonAddress(v4Manifest, ".contracts.permit2.address"),
-            statics: vm.parseJsonAddress(genesisManifest, ".contracts.staticsToken.address"),
-            weth: vm.parseJsonAddress(v4Manifest, ".contracts.weth.address"),
-            governance: governance,
-            feeReceiver: treasury,
-            liquidityReceiver: treasury,
-            liquidityAdmin: governance,
-            tickSpacing: int24(configuredTickSpacing),
-            sqrtPriceX96: uint160(configuredSqrtPriceX96),
-            poolManagerCodeHash: vm.parseJsonBytes32(v4Manifest, ".contracts.poolManager.runtimeCodeHash"),
-            positionManagerCodeHash: vm.parseJsonBytes32(v4Manifest, ".contracts.positionManager.runtimeCodeHash"),
-            permit2CodeHash: vm.parseJsonBytes32(v4Manifest, ".contracts.permit2.runtimeCodeHash"),
-            staticsCodeHash: vm.parseJsonBytes32(genesisManifest, ".contracts.staticsToken.runtimeCodeHash"),
-            wethCodeHash: vm.parseJsonBytes32(v4Manifest, ".contracts.weth.runtimeCodeHash")
-        });
+    function _loadLaunchEnvironment(Config memory config) private view returns (Config memory) {
+        config.pairedToken = vm.envAddress("STATICS_LAUNCH_PAIRED_TOKEN");
+        config.feeReceiver = vm.envAddress("STATICS_LAUNCH_FEE_RECEIVER");
+        config.positionOwner = vm.envAddress("STATICS_LAUNCH_POSITION_OWNER");
+        config.nativeLpFee = _toUint24(vm.envUint("STATICS_LAUNCH_NATIVE_LP_FEE"));
+        config.tickSpacing = _toInt24(vm.envInt("STATICS_LAUNCH_TICK_SPACING"));
+        config.sqrtPriceX96 = _toUint160(vm.envUint("STATICS_LAUNCH_SQRT_PRICE_X96"));
+        config.tickLower = _toInt24(vm.envInt("STATICS_LAUNCH_TICK_LOWER"));
+        config.tickUpper = _toInt24(vm.envInt("STATICS_LAUNCH_TICK_UPPER"));
+        config.liquidity = _toUint128(vm.envUint("STATICS_LAUNCH_LIQUIDITY"));
+        config.amount0Max = _toUint128(vm.envUint("STATICS_LAUNCH_AMOUNT0_MAX"));
+        config.amount1Max = _toUint128(vm.envUint("STATICS_LAUNCH_AMOUNT1_MAX"));
+        config.inputFeeBps = _toUint16(vm.envUint("STATICS_LAUNCH_INPUT_FEE_BPS"));
+        config.outputFeeBps = _toUint16(vm.envUint("STATICS_LAUNCH_OUTPUT_FEE_BPS"));
+        config.positionDeadline = vm.envUint("STATICS_LAUNCH_POSITION_DEADLINE");
+        config.pairedTokenCodeHash = vm.envOr("STATICS_LAUNCH_PAIRED_TOKEN_CODE_HASH", bytes32(0));
+        return config;
+    }
+
+    function registrationCalldata(Config memory config, Deployment memory deployment)
+        public
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodeCall(
+            StaticsLaunchLiquidityHook.registerPool,
+            (deployment.key, config.sqrtPriceX96, config.inputFeeBps, config.outputFeeBps)
+        );
+    }
+
+    function positionManagerMulticall(Config memory config, Deployment memory deployment)
+        public
+        pure
+        returns (bytes memory)
+    {
+        bytes memory actions =
+            abi.encodePacked(bytes1(uint8(Actions.MINT_POSITION)), bytes1(uint8(Actions.SETTLE_PAIR)));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(
+            deployment.key,
+            config.tickLower,
+            config.tickUpper,
+            config.liquidity,
+            config.amount0Max,
+            config.amount1Max,
+            config.positionOwner,
+            bytes("")
+        );
+        params[1] = abi.encode(deployment.key.currency0, deployment.key.currency1);
+        bytes[] memory calls = new bytes[](2);
+        calls[0] =
+            abi.encodeWithSelector(IPoolInitializer_v4.initializePool.selector, deployment.key, config.sqrtPriceX96);
+        calls[1] =
+            abi.encodeCall(IPositionManager.modifyLiquidities, (abi.encode(actions, params), config.positionDeadline));
+        return abi.encodeCall(IMulticall_v4.multicall, (calls));
     }
 
     function writeArtifact(string memory path, Config memory config, Deployment memory deployment, address deployer)
@@ -173,46 +225,55 @@ contract DeployStaticsLaunchLiquidity is Script {
         vm.serializeAddress(objectKey, "positionManager", config.positionManager);
         vm.serializeAddress(objectKey, "permit2", config.permit2);
         vm.serializeAddress(objectKey, "statics", config.statics);
-        vm.serializeAddress(objectKey, "weth", config.weth);
+        vm.serializeAddress(objectKey, "pairedToken", config.pairedToken);
         vm.serializeAddress(objectKey, "governance", config.governance);
         vm.serializeAddress(objectKey, "feeReceiver", config.feeReceiver);
-        vm.serializeAddress(objectKey, "liquidityReceiver", config.liquidityReceiver);
-        vm.serializeAddress(objectKey, "liquidityAdmin", config.liquidityAdmin);
+        vm.serializeAddress(objectKey, "positionOwner", config.positionOwner);
         vm.serializeBytes32(objectKey, "poolId", PoolId.unwrap(deployment.poolId));
         vm.serializeBytes32(objectKey, "create2Salt", deployment.create2Salt);
         vm.serializeBytes32(objectKey, "poolManagerRuntimeCodeHash", config.poolManagerCodeHash);
         vm.serializeBytes32(objectKey, "positionManagerRuntimeCodeHash", config.positionManagerCodeHash);
         vm.serializeBytes32(objectKey, "permit2RuntimeCodeHash", config.permit2CodeHash);
         vm.serializeBytes32(objectKey, "staticsRuntimeCodeHash", config.staticsCodeHash);
-        vm.serializeBytes32(objectKey, "wethRuntimeCodeHash", config.wethCodeHash);
+        vm.serializeBytes32(objectKey, "pairedTokenRuntimeCodeHash", config.pairedTokenCodeHash);
         vm.serializeBytes32(objectKey, "hookRuntimeCodeHash", address(deployment.hook).codehash);
         vm.serializeUint(objectKey, "hookPermissionMask", REQUIRED_HOOK_FLAGS);
-        vm.serializeUint(objectKey, "nativeLpFeePips", NATIVE_LP_FEE);
-        vm.serializeUint(objectKey, "inputFeeBps", deployment.hook.INPUT_FEE_BPS());
-        vm.serializeUint(objectKey, "outputFeeBps", deployment.hook.OUTPUT_FEE_BPS());
-        vm.serializeUint(objectKey, "polShareBps", deployment.hook.POL_SHARE_BPS());
+        vm.serializeUint(objectKey, "nativeLpFeePips", config.nativeLpFee);
+        vm.serializeUint(objectKey, "inputFeeBps", config.inputFeeBps);
+        vm.serializeUint(objectKey, "outputFeeBps", config.outputFeeBps);
         vm.serializeInt(objectKey, "tickSpacing", config.tickSpacing);
+        vm.serializeInt(objectKey, "tickLower", config.tickLower);
+        vm.serializeInt(objectKey, "tickUpper", config.tickUpper);
         vm.serializeUint(objectKey, "sqrtPriceX96", config.sqrtPriceX96);
-        bytes memory initializeCalldata =
-            abi.encodeCall(StaticsLaunchLiquidityHook.registerAndInitialize, (deployment.key, config.sqrtPriceX96));
-        string memory json = vm.serializeBytes(objectKey, "registerAndInitializeCalldata", initializeCalldata);
+        vm.serializeUint(objectKey, "liquidity", config.liquidity);
+        vm.serializeUint(objectKey, "amount0Max", config.amount0Max);
+        vm.serializeUint(objectKey, "amount1Max", config.amount1Max);
+        vm.serializeUint(objectKey, "positionDeadline", config.positionDeadline);
+        vm.serializeBytes(objectKey, "registerPoolCalldata", registrationCalldata(config, deployment));
+        string memory json = vm.serializeBytes(
+            objectKey, "positionManagerMulticallCalldata", positionManagerMulticall(config, deployment)
+        );
         vm.writeJson(json, path);
     }
 
     function _validate(Config memory config) private view {
         if (block.chainid != config.chainId) revert InvalidChain(config.chainId, block.chainid);
         if (
-            config.governance == address(0) || config.feeReceiver == address(0)
-                || config.liquidityReceiver == address(0) || config.liquidityAdmin == address(0)
-                || config.statics == config.weth || config.tickSpacing < TickMath.MIN_TICK_SPACING
+            config.governance == address(0) || config.feeReceiver == address(0) || config.positionOwner == address(0)
+                || config.statics == address(0) || config.pairedToken == address(0)
+                || config.statics == config.pairedToken || config.tickSpacing < TickMath.MIN_TICK_SPACING
                 || config.tickSpacing > TickMath.MAX_TICK_SPACING || config.sqrtPriceX96 < TickMath.MIN_SQRT_PRICE
-                || config.sqrtPriceX96 >= TickMath.MAX_SQRT_PRICE
+                || config.sqrtPriceX96 >= TickMath.MAX_SQRT_PRICE || config.tickLower >= config.tickUpper
+                || config.tickLower % config.tickSpacing != 0 || config.tickUpper % config.tickSpacing != 0
+                || config.liquidity == 0 || config.inputFeeBps > 1_000 || config.outputFeeBps > 1_000
+                || config.positionDeadline < block.timestamp || config.nativeLpFee.isDynamicFee()
+                || !config.nativeLpFee.isValid()
         ) revert InvalidConfig();
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
         _validateContract(config.statics, config.staticsCodeHash);
-        _validateContract(config.weth, config.wethCodeHash);
+        _validateContract(config.pairedToken, config.pairedTokenCodeHash);
         address boundManager = ILaunchPositionManagerBindings(config.positionManager).poolManager();
         if (boundManager != config.poolManager) {
             revert InvalidV4Binding(config.positionManager, config.poolManager, boundManager);
@@ -221,6 +282,44 @@ contract DeployStaticsLaunchLiquidity is Script {
         if (boundPermit2 != config.permit2) {
             revert InvalidV4Binding(config.positionManager, config.permit2, boundPermit2);
         }
+    }
+
+    function _validateSingleSided(Config memory config, PoolKey memory key) private pure {
+        uint160 sqrtPriceLowerX96 = TickMath.getSqrtPriceAtTick(config.tickLower);
+        uint160 sqrtPriceUpperX96 = TickMath.getSqrtPriceAtTick(config.tickUpper);
+        bool staticsIsCurrency0 = Currency.unwrap(key.currency0) == config.statics;
+        if (staticsIsCurrency0) {
+            if (config.sqrtPriceX96 > sqrtPriceLowerX96 || config.amount0Max == 0 || config.amount1Max != 0) {
+                revert InvalidSingleSidedPosition();
+            }
+        } else if (config.sqrtPriceX96 < sqrtPriceUpperX96 || config.amount0Max != 0 || config.amount1Max == 0) {
+            revert InvalidSingleSidedPosition();
+        }
+    }
+
+    function _toUint16(uint256 value) private pure returns (uint16) {
+        if (value > type(uint16).max) revert InvalidConfig();
+        return uint16(value);
+    }
+
+    function _toUint24(uint256 value) private pure returns (uint24) {
+        if (value > type(uint24).max) revert InvalidConfig();
+        return uint24(value);
+    }
+
+    function _toUint128(uint256 value) private pure returns (uint128) {
+        if (value > type(uint128).max) revert InvalidConfig();
+        return uint128(value);
+    }
+
+    function _toUint160(uint256 value) private pure returns (uint160) {
+        if (value > type(uint160).max) revert InvalidConfig();
+        return uint160(value);
+    }
+
+    function _toInt24(int256 value) private pure returns (int24) {
+        if (value < type(int24).min || value > type(int24).max) revert InvalidConfig();
+        return int24(value);
     }
 
     function _validateContract(address target, bytes32 expectedHash) private view {

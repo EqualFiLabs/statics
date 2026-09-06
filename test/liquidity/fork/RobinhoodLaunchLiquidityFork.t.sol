@@ -10,23 +10,26 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {LiquidityOperations} from "@uniswap/v4-periphery/test/shared/LiquidityOperations.sol";
+import {Plan, Planner} from "@uniswap/v4-periphery/test/shared/Planner.sol";
 import {PositionConfig} from "@uniswap/v4-periphery/test/shared/PositionConfig.sol";
 import {StaticsLaunchLiquidityHook} from "../../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
-/// @notice Pinned-fork proof against the deployed Robinhood v4 core, PositionManager, and Permit2.
-/// Local tokens avoid depending on whale balances while exercising the deployed dependency revisions.
+/// @notice Fork proof against the deployed Robinhood v4 core, PositionManager, and Permit2. The
+/// latest-state mode additionally exercises the deployed STATICS and NVDA token contracts.
 contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
-    using PoolIdLibrary for PoolKey;
+    using Planner for Plan;
 
     string private constant MANIFEST_PATH = "deployments/robinhood-chain-4663.json";
+    address private constant STATICS = 0x2d8d6F4A93AcD7a916A5a654ec8b690bA3B3EAdd;
+    address private constant NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
     uint160 private constant SQRT_PRICE_1_1 = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
@@ -37,15 +40,19 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
     StaticsLaunchLiquidityHook private hook;
     PoolSwapTest private swapRouter;
     PoolKey private key;
-    PoolId private poolId;
     Currency private currency0;
     Currency private currency1;
-    PositionConfig private externalPosition;
-    uint256 private externalTokenId;
+    Currency private staticsCurrency;
+    address private feeReceiver = makeAddr("feeReceiver");
+    address private positionOwner = makeAddr("positionOwner");
+    PositionConfig private launchPosition;
+    PositionConfig private activePosition;
+    uint256 private launchTokenId;
+    uint256 private activeTokenId;
 
     function setUp() public {
         string memory manifest = vm.readFile(MANIFEST_PATH);
-        _selectFork(manifest);
+        bool latest = _selectFork(manifest);
         _deadline = block.timestamp + 1 hours;
         poolManager = IPoolManager(vm.parseJsonAddress(manifest, ".contracts.poolManager.address"));
         positionManager = IPositionManager(vm.parseJsonAddress(manifest, ".contracts.positionManager.address"));
@@ -59,59 +66,120 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
         lpm = positionManager;
         swapRouter = new PoolSwapTest(poolManager);
 
-        MockERC20 tokenA = new MockERC20("Launch A", "LA", 18);
-        MockERC20 tokenB = new MockERC20("Launch B", "LB", 18);
-        tokenA.mint(address(this), 1_000 ether);
-        tokenB.mint(address(this), 1_000 ether);
-        (currency0, currency1) = address(tokenA) < address(tokenB)
-            ? (Currency.wrap(address(tokenA)), Currency.wrap(address(tokenB)))
-            : (Currency.wrap(address(tokenB)), Currency.wrap(address(tokenA)));
+        address statics;
+        address pairedToken;
+        if (latest) {
+            assertGt(STATICS.code.length, 0);
+            assertGt(NVDA.code.length, 0);
+            statics = STATICS;
+            pairedToken = NVDA;
+            deal(statics, address(this), 100_000_000 ether, true);
+            deal(pairedToken, address(this), 100_000_000 ether, true);
+        } else {
+            MockERC20 staticsMock = new MockERC20("STATICS", "STATICS", 18);
+            MockERC20 pairedMock = new MockERC20("Stock", "STOCK", 18);
+            staticsMock.mint(address(this), 100_000_000 ether);
+            pairedMock.mint(address(this), 100_000_000 ether);
+            statics = address(staticsMock);
+            pairedToken = address(pairedMock);
+        }
+        (currency0, currency1) = statics < pairedToken
+            ? (Currency.wrap(statics), Currency.wrap(pairedToken))
+            : (Currency.wrap(pairedToken), Currency.wrap(statics));
+        staticsCurrency = Currency.wrap(statics);
 
         hook = _deployHook();
         key = PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
-        poolId = hook.registerAndInitialize(key, SQRT_PRICE_1_1);
+        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50);
         _approvePositionManager(currency0);
         _approvePositionManager(currency1);
         IERC20(Currency.unwrap(currency0)).approve(address(swapRouter), type(uint256).max);
         IERC20(Currency.unwrap(currency1)).approve(address(swapRouter), type(uint256).max);
-        IERC20(Currency.unwrap(currency0)).approve(address(hook), type(uint256).max);
-        IERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
 
-        externalPosition = PositionConfig({poolKey: key, tickLower: -120, tickUpper: 120});
-        externalTokenId = lpm.nextTokenId();
-        mint(externalPosition, 2 ether, address(this), "");
-        hook.seedPOL(key, 1 ether, type(uint256).max, type(uint256).max);
+        bool staticsIsCurrency0 = Currency.unwrap(currency0) == statics;
+        launchPosition = PositionConfig({
+            poolKey: key,
+            tickLower: staticsIsCurrency0 ? int24(60) : int24(-600),
+            tickUpper: staticsIsCurrency0 ? int24(600) : int24(-60)
+        });
+        launchTokenId = lpm.nextTokenId();
+        _initializeAndMintSingleSided(staticsIsCurrency0);
+        activePosition = PositionConfig({poolKey: key, tickLower: -600, tickUpper: 600});
+        activeTokenId = lpm.nextTokenId();
+        mint(activePosition, 1e25, positionOwner, "");
     }
 
-    function testPinnedRobinhoodDependenciesSupportFullLaunchLifecycle() public {
-        assertEq(IERC721(address(positionManager)).ownerOf(externalTokenId), address(this));
-        assertEq(lpm.getPositionLiquidity(externalTokenId), 2 ether);
+    function testDeployedDependenciesSupportExternalLaunchAndHundredThousandVolume() public {
+        assertEq(IERC721(address(positionManager)).ownerOf(launchTokenId), positionOwner);
+        assertEq(IERC721(address(positionManager)).ownerOf(activeTokenId), positionOwner);
+        assertEq(lpm.getPositionLiquidity(launchTokenId), 1e25);
+        assertEq(lpm.getPositionLiquidity(activeTokenId), 1e25);
+        assertEq(currency0.balanceOf(address(hook)), 0);
+        assertEq(currency1.balanceOf(address(hook)), 0);
 
+        uint256 totalInput;
+        for (uint256 i; i < 20; ++i) {
+            bool zeroForOne = i % 2 == 0;
+            swapRouter.swap(
+                key,
+                SwapParams({
+                    zeroForOne: zeroForOne,
+                    amountSpecified: -int256(5_000 ether),
+                    sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+                }),
+                PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+                ""
+            );
+            totalInput += 5_000 ether;
+        }
+        assertEq(totalInput, 100_000 ether);
+        assertGt(currency0.balanceOf(feeReceiver), 0);
+        assertGt(currency1.balanceOf(feeReceiver), 0);
+        assertEq(currency0.balanceOf(address(hook)), 0);
+        assertEq(currency1.balanceOf(address(hook)), 0);
+
+        vm.prank(positionOwner);
+        positionManager.modifyLiquidities(
+            getDecreaseEncoded(launchTokenId, launchPosition, 5e24, ""), block.timestamp + 1
+        );
+        assertEq(lpm.getPositionLiquidity(launchTokenId), 5e24);
+
+        uint256 staticsBefore = staticsCurrency.balanceOf(feeReceiver);
+        bool staticsIsCurrency0 = Currency.unwrap(currency0) == Currency.unwrap(staticsCurrency);
         swapRouter.swap(
             key,
             SwapParams({
-                zeroForOne: true, amountSpecified: -int256(0.001 ether), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+                zeroForOne: staticsIsCurrency0,
+                amountSpecified: -int256(1_000 ether),
+                sqrtPriceLimitX96: staticsIsCurrency0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         );
-        uint256 receiver0Before = currency0.balanceOf(address(this));
-        uint256 receiver1Before = currency1.balanceOf(address(this));
-        collect(externalTokenId, externalPosition, "");
-        assertTrue(
-            currency0.balanceOf(address(this)) > receiver0Before
-                || currency1.balanceOf(address(this)) > receiver1Before,
-            "external PositionManager NFT earned no native fees"
+        assertGt(staticsCurrency.balanceOf(feeReceiver), staticsBefore);
+    }
+
+    function _initializeAndMintSingleSided(bool staticsIsCurrency0) private {
+        Plan memory plan = Planner.init();
+        plan.add(
+            Actions.MINT_POSITION,
+            abi.encode(
+                key,
+                launchPosition.tickLower,
+                launchPosition.tickUpper,
+                uint128(1e25),
+                staticsIsCurrency0 ? type(uint128).max : 0,
+                staticsIsCurrency0 ? 0 : type(uint128).max,
+                positionOwner,
+                bytes("")
+            )
         );
-
-        hook.harvestPOLFees(key);
-        hook.retireAndReleasePOL(key);
-        assertEq(hook.polLiquidity(poolId), 0);
-        assertEq(hook.pendingPOL(poolId, currency0), 0);
-        assertEq(hook.pendingPOL(poolId, currency1), 0);
-
-        decreaseLiquidity(externalTokenId, externalPosition, 2 ether, "");
-        burn(externalTokenId, externalPosition, "");
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(positionManager.initializePool, (key, SQRT_PRICE_1_1));
+        calls[1] = abi.encodeCall(
+            positionManager.modifyLiquidities, (plan.finalizeModifyLiquidityWithSettlePair(key), block.timestamp + 1)
+        );
+        positionManager.multicall(calls);
     }
 
     function _approvePositionManager(Currency currency) private {
@@ -121,37 +189,31 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
     }
 
     function _deployHook() private returns (StaticsLaunchLiquidityHook deployed) {
-        bytes memory args = abi.encode(poolManager, address(this), address(this), address(this), address(this));
+        bytes memory args = abi.encode(poolManager, positionManager, address(this), feeReceiver);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsLaunchLiquidityHook).creationCode, args);
-        deployed = new StaticsLaunchLiquidityHook{salt: salt}(
-            poolManager, address(this), address(this), address(this), address(this)
-        );
+        deployed = new StaticsLaunchLiquidityHook{salt: salt}(poolManager, positionManager, address(this), feeReceiver);
         assertEq(address(deployed), expected);
     }
 
-    function _selectFork(string memory manifest) private {
+    function _selectFork(string memory manifest) private returns (bool latest) {
         uint256 chainId = vm.parseJsonUint(manifest, ".chainId");
         uint256 forkBlock = vm.parseJsonUint(manifest, ".forkBlock");
-        uint256 requestedBlock = vm.envOr("ROBINHOOD_FORK_BLOCK", forkBlock);
-        assertEq(requestedBlock, forkBlock, "fork block differs from manifest");
-        if (block.chainid == chainId) {
-            assertEq(block.number, forkBlock, "selected fork is not pinned");
-            return;
-        }
+        if (block.chainid == chainId) return vm.envOr("ROBINHOOD_FORK_LATEST", false);
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
             vm.skip(true, "ROBINHOOD_MAINNET is not configured");
-            return;
+            return false;
         }
-        if (vm.envOr("ROBINHOOD_FORK_LATEST", false)) {
+        latest = vm.envOr("ROBINHOOD_FORK_LATEST", false);
+        if (latest) {
             vm.createSelectFork(rpcUrl);
             assertEq(block.chainid, chainId);
-            return;
+        } else {
+            vm.createSelectFork(rpcUrl, forkBlock);
+            assertEq(block.chainid, chainId);
+            assertEq(block.number, forkBlock);
         }
-        vm.createSelectFork(rpcUrl, forkBlock);
-        assertEq(block.chainid, chainId);
-        assertEq(block.number, forkBlock);
     }
 }
