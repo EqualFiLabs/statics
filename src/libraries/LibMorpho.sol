@@ -63,13 +63,26 @@ library LibMorpho {
     error MarketPositionLimit(uint256 positionId);
     error AccountDeploymentFailed(uint256 positionId);
     error MorphoPositionNotEmpty(uint256 positionId, bytes32 marketId);
+    error NotMorphoRecoveryBeneficiary(uint256 positionId, address caller, address beneficiary);
     error InvalidPerformanceFee(uint256 feeBps);
     error InvalidOperatorShare(uint256 shareBps);
+    error InvalidReceiver(address receiver);
 
     function morphoStorage() internal pure returns (MorphoStorage storage ms) {
         bytes32 slot = STORAGE_POSITION;
         assembly ("memory-safe") {
             ms.slot := slot
+        }
+    }
+
+    function requireInitialized() internal view returns (MorphoStorage storage ms) {
+        ms = morphoStorage();
+        if (!ms.initialized) revert MorphoNotInitialized();
+    }
+
+    function enforceReceiver(MorphoStorage storage ms, address receiver) internal view {
+        if (receiver == address(0) || receiver == address(this) || ms.isAccount[receiver]) {
+            revert InvalidReceiver(receiver);
         }
     }
 
@@ -171,6 +184,18 @@ library LibMorpho {
             if (tracked.trackedCollateral != 0 || actual.collateral != 0 || actual.borrowShares != 0) {
                 revert MorphoPositionNotEmpty(positionId, id);
             }
+        }
+    }
+
+    function enforceRecoveryAuthorized(uint256 positionId, address actor) internal view returns (bool closedPosition) {
+        MorphoStorage storage ms = morphoStorage();
+        address beneficiary = LibPosition.positionStorage().morphoRecoveryBeneficiary[positionId];
+        if (ms.accounts[positionId] == address(0) || beneficiary == address(0)) {
+            LibPosition.enforceAuthorized(positionId, actor);
+        } else if (actor != beneficiary) {
+            revert NotMorphoRecoveryBeneficiary(positionId, actor, beneficiary);
+        } else {
+            closedPosition = true;
         }
     }
 

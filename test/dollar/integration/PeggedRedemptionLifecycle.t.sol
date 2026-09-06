@@ -107,6 +107,19 @@ contract PeggedRedemptionLifecycleTest is Test {
         );
     }
 
+    function test_PeggedRedemptionRejectsRoundedZeroCollateralOutputWithoutBurningDollar() public {
+        _mintPegged(alice, 1);
+        uint256 dollarBalance = staticsDollar.balanceOf(alice);
+        uint256 collateralBalance = viewFacet.collateralProfile(profileId).accountedCollateral;
+
+        vm.prank(alice);
+        vm.expectRevert(CoreMintFacet.RedemptionTooSmall.selector);
+        mintFacet.redeemPegged(profileId, 1, 0, alice);
+
+        assertEq(staticsDollar.balanceOf(alice), dollarBalance);
+        assertEq(viewFacet.collateralProfile(profileId).accountedCollateral, collateralBalance);
+    }
+
     function test_RedemptionAllowsReduceOnlyAndRetired() public {
         _mintPegged(alice, 100e18);
         vm.prank(profileGuardian);

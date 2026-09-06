@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {
     CoreBootstrapConfig,
@@ -15,6 +16,7 @@ import {DiamondKernel} from "src/diamond/DiamondKernel.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
+import {IERC173} from "src/interfaces/IERC173.sol";
 import {StaticsDollarRiskShares} from "src/dollar/StaticsDollarRiskShares.sol";
 import {StaticsDollar} from "src/dollar/StaticsDollar.sol";
 import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
@@ -141,6 +143,11 @@ contract CoreUpgradeRehearsalTest is Test {
         for (uint256 i; i < ownershipMutations.length; i++) {
             _assertMissingSelector(ownershipMutations[i]);
         }
+        IERC165 interfaces = IERC165(deployment.core);
+        assertFalse(interfaces.supportsInterface(type(IDiamondCut).interfaceId));
+        assertTrue(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IERC173).interfaceId));
+        assertFalse(interfaces.supportsInterface(0xffffffff));
         assertEq(viewFacet.seniorLiabilities(), minted);
         assertEq(weth.balanceOf(deployment.core), 1e18);
 

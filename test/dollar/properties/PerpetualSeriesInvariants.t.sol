@@ -183,4 +183,21 @@ contract PerpetualSeriesInvariants is StdInvariant, Test {
     function invariant_AllTrackedCollateralIsActuallyHeld() public view {
         assertEq(weth.balanceOf(core), viewFacet.totalCollateral(address(weth)));
     }
+
+    function invariant_AllStoredSeriesHaveNonzeroPairGeometry() public view {
+        uint256 lastSeries = viewFacet.nextSeriesId() - 1;
+        for (uint256 seriesId = 1; seriesId <= lastSeries; ++seriesId) {
+            IStaticsDollarCoreTypes.RiskSeries memory series = viewFacet.riskSeries(seriesId);
+            assertGt(series.collateralPerPairWad, 0);
+            assertEq(series.collateralPerPairWad, series.seniorCollateralPerUnitWad + series.juniorCollateralPerUnitWad);
+        }
+    }
+
+    function invariant_FinalizedSeriesRemainTransferFrozen() public view {
+        uint256 lastSeries = viewFacet.nextSeriesId() - 1;
+        for (uint256 seriesId = 1; seriesId <= lastSeries; ++seriesId) {
+            IStaticsDollarCoreTypes.RiskSeries memory series = viewFacet.riskSeries(seriesId);
+            if (series.successorSeriesId != 0) assertTrue(staticsDollarRisk.transfersFrozen(seriesId));
+        }
+    }
 }

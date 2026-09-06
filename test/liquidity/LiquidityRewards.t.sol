@@ -192,20 +192,6 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         uint16 basketStakerShareBps,
         uint16 treasuryShareBps
     ) private {
-        // PoolId-local rate override.
-        basketLiquidity.setCanonicalPoolFeeConfiguration(
-            overriddenBasketId,
-            asset,
-            IStaticsBasketLiquidity.SwapFeeConfiguration({
-                inputFeeBps: 40,
-                outputFeeBps: 60,
-                polShareBps: 0,
-                liquidityProviderShareBps: 0,
-                basketStakerShareBps: 0,
-                staticsStakerShareBps: 0,
-                treasuryShareBps: 0
-            })
-        );
         // Global basket allocation: callers express intent as shares of 10,000; the configurable
         // budget is 9,500 (the fixed 500-bps creator share is carved separately). Scale accordingly.
         uint16 lp = uint16(uint256(lpShareBps) * 9_500 / 10_000);
@@ -222,6 +208,11 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
                 treasuryShareBps: treasury
             })
         );
+        _setCanonicalPoolRate(overriddenBasketId, asset);
+    }
+
+    function _setCanonicalPoolRate(uint256 configuredBasketId, address asset) private {
+        basketLiquidity.setCanonicalPoolFeeRate(configuredBasketId, asset, 40, 60);
     }
 
     function _snapshotPoolLegs(IStaticsBasketLiquidity.CanonicalPoolView memory pool)
@@ -243,19 +234,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         vm.warp(block.timestamp + 25 hours);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, basketAssets[0]);
         assertTrue(liquidityRewards.canAccrueBasketRewards(pool.poolId));
-        basketLiquidity.setCanonicalPoolFeeConfiguration(
-            basketId,
-            basketAssets[0],
-            IStaticsBasketLiquidity.SwapFeeConfiguration({
-                inputFeeBps: 40,
-                outputFeeBps: 60,
-                polShareBps: 0,
-                liquidityProviderShareBps: 0,
-                basketStakerShareBps: 10_000,
-                staticsStakerShareBps: 0,
-                treasuryShareBps: 0
-            })
-        );
+        _setCanonicalPoolRate(basketId, basketAssets[0]);
 
         _swapConstituentIntoPool(0.001 ether);
         (address[] memory assets, uint256[] memory pending) = basketRewards.getBasketRewards(basketPositionId, basketId);
@@ -289,19 +268,7 @@ contract LiquidityRewardsTest is BorrowLiquidityTestBase {
         assets[0] = address(taxedAsset);
         _createReadyBasket(assets);
 
-        basketLiquidity.setCanonicalPoolFeeConfiguration(
-            basketId,
-            address(taxedAsset),
-            IStaticsBasketLiquidity.SwapFeeConfiguration({
-                inputFeeBps: 40,
-                outputFeeBps: 60,
-                polShareBps: 0,
-                liquidityProviderShareBps: 0,
-                basketStakerShareBps: 10_000,
-                staticsStakerShareBps: 0,
-                treasuryShareBps: 0
-            })
-        );
+        _setCanonicalPoolRate(basketId, address(taxedAsset));
         vm.warp(block.timestamp + 25 hours);
         _swapConstituentIntoPool(0.001 ether);
 

@@ -27,6 +27,27 @@ interface IStaticsDollarRiskLiquidity {
         uint256 staticsDollarAmount,
         uint256 staticsAmount
     );
+    event RiskProceedsAccrued(
+        uint256 indexed seriesId, uint64 indexed epoch, address indexed token, uint256 amount, bytes32 source
+    );
+    event RiskProceedsSettled(
+        uint256 indexed positionId,
+        uint256 indexed seriesId,
+        uint256 collateralAdded,
+        uint256 staticsDollarAdded,
+        uint256 staticsAdded,
+        uint256 accruedCollateral,
+        uint256 accruedStaticsDollar,
+        uint256 accruedStatics
+    );
+    event RiskProceedsResidueAssigned(
+        uint256 indexed positionId,
+        uint256 indexed seriesId,
+        uint64 indexed epoch,
+        uint256 collateralAmount,
+        uint256 staticsDollarAmount,
+        uint256 staticsAmount
+    );
 
     function createAndStakeRiskShares(uint256 seriesId, uint256 amount, address receiver)
         external

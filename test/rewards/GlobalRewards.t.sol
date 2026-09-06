@@ -344,7 +344,7 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertTrue(positions.isLegActive(positionId, LibPosition.stakingLegKey(address(diamond))));
     }
 
-    function testZeroStakeOptInChurnCannotChangeIndexRounding() external {
+    function testZeroStakeOptInChurnCannotChangeRemainderCarry() external {
         _installFeeAccrualHarness();
         MockERC20 churnedReward = new MockERC20("Churned Reward", "CR", 0);
         MockERC20 controlReward = new MockERC20("Control Reward", "CTR", 0);
@@ -383,12 +383,12 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertEq(churned.indexRay, control.indexRay);
         assertEq(churned.indexedReserve, control.indexedReserve);
         assertEq(pending[0], pending[1]);
-        assertEq(pending[0], 0);
+        assertEq(pending[0], 2);
 
         vm.prank(alice);
         globalRewards.optOutRewardAssets(stakerPosition, selectedAssets);
-        assertEq(globalRewards.treasuryAccrued(address(churnedReward)), 4);
-        assertEq(globalRewards.treasuryAccrued(address(controlReward)), 4);
+        assertEq(globalRewards.treasuryAccrued(address(churnedReward)), 2);
+        assertEq(globalRewards.treasuryAccrued(address(controlReward)), 2);
     }
 
     function testEligibilityRoundsUpAndNeverBeginsBeforeTwentyFourHours() external {

@@ -150,7 +150,7 @@ contract CoreDiamondLifecycleTest is Test {
         assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(usdc)), preview.feeAmount);
     }
 
-    function test_PeggedProfileSolvencyUsesProfileReserveWithoutRiskSeries() public {
+    function test_PeggedProfileTopUpAddsDirectlyToRedeemableCollateral() public {
         (uint256 profileId, MockUSDC usdc, MockETHUSDOracle oracle) = _activatePeggedProfile();
         uint256 amount = 100e18;
         IStaticsDollarCoreTypes.PeggedMintPreview memory preview = mintFacet.previewPeggedMint(profileId, amount);
@@ -168,7 +168,8 @@ contract CoreDiamondLifecycleTest is Test {
         vm.prank(alice);
         insuranceFacet.topUpInsurance(profileId, 10e6);
         assertTrue(health.profileSolvency(profileId).healthy);
-        assertEq(viewFacet.collateralProfile(profileId).insuranceReserve, 10e6);
+        assertEq(viewFacet.collateralProfile(profileId).insuranceReserve, 0);
+        assertEq(viewFacet.collateralProfile(profileId).accountedCollateral, preview.principalCollateral + 10e6);
         assertEq(viewFacet.profileSeriesCount(profileId), 0);
         health.syncGlobalHealth();
         (IStaticsDollarCoreTypes.GlobalHealthPhase phase,,, uint256 recoveryAvailableAt) = health.globalImpairment();
@@ -259,6 +260,123 @@ contract CoreDiamondLifecycleTest is Test {
             IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(usdc)), preview.feeAmount - stakerReward
         );
         assertEq(FeeRouterFacet(deployment.diamond).pendingInsurance(profileId), 0);
+    }
+
+    function test_RetirementAtomicallyFlushesPendingInsuranceLikeExplicitRouting() public {
+        _setVolatileFees(100, 0);
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+        weth.deposit{value: 1 ether}();
+        weth.approve(deployment.core, 1 ether);
+        IStaticsDollarCoreTypes.DepositPreview memory preview = mintFacet.previewDeposit(1, 1 ether);
+        mintFacet.depositCollateral(1, 1 ether, preview.staticsDollarMinted, preview.sharesMinted, alice, alice);
+        vm.stopPrank();
+
+        FeeRouterFacet router = FeeRouterFacet(deployment.diamond);
+        uint256 pending = router.pendingInsurance(1);
+        assertGt(pending, 0);
+        uint256 state = vm.snapshotState();
+
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(1);
+        router.routePendingInsurance(1);
+        vm.prank(owner);
+        governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory explicitlyRoutedProfile = viewFacet.collateralProfile(1);
+        IStaticsDollarCoreTypes.RiskSeries memory explicitlyRoutedSeries = viewFacet.riskSeries(1);
+        uint256 explicitlyRoutedCoreBalance = weth.balanceOf(deployment.core);
+        uint256 explicitlyRoutedDiamondBalance = weth.balanceOf(deployment.diamond);
+        uint256 explicitlyRoutedTreasury = IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth));
+
+        assertTrue(vm.revertToState(state));
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(1);
+        vm.prank(owner);
+        governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory atomicallyRoutedProfile = viewFacet.collateralProfile(1);
+        IStaticsDollarCoreTypes.RiskSeries memory atomicallyRoutedSeries = viewFacet.riskSeries(1);
+        assertEq(router.pendingInsurance(1), 0);
+        assertEq(atomicallyRoutedProfile.insuranceReserve, explicitlyRoutedProfile.insuranceReserve);
+        assertEq(atomicallyRoutedProfile.accountedCollateral, explicitlyRoutedProfile.accountedCollateral);
+        assertEq(atomicallyRoutedSeries.accountedCollateral, explicitlyRoutedSeries.accountedCollateral);
+        assertEq(uint256(atomicallyRoutedSeries.status), uint256(explicitlyRoutedSeries.status));
+        assertEq(weth.balanceOf(deployment.core), explicitlyRoutedCoreBalance);
+        assertEq(weth.balanceOf(deployment.diamond), explicitlyRoutedDiamondBalance);
+        assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth)), explicitlyRoutedTreasury);
+    }
+
+    function test_RetiredSurplusIngressRejectsNonCoreCallers() public {
+        FeeRouterFacet router = FeeRouterFacet(deployment.diamond);
+        vm.expectRevert(abi.encodeWithSelector(FeeRouterFacet.OnlyPool.selector, address(this)));
+        router.onRetiredSurplus(1, address(weth), 1);
+    }
+
+    function test_RetiredRecombinationFeeRoutesDirectlyToGlobalRewards() public {
+        _setVolatileFees(0, 100);
+        vm.deal(alice, 1 ether);
+        vm.startPrank(alice);
+        weth.deposit{value: 1 ether}();
+        weth.approve(deployment.core, 1 ether);
+        IStaticsDollarCoreTypes.DepositPreview memory depositPreview = mintFacet.previewDeposit(1, 1 ether);
+        (, uint256 minted,) = mintFacet.depositCollateral(
+            1, 1 ether, depositPreview.staticsDollarMinted, depositPreview.sharesMinted, alice, alice
+        );
+        vm.stopPrank();
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(1);
+        vm.prank(owner);
+        governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        IStaticsDollarCoreTypes.RedemptionPreview memory redemption = mintFacet.previewRecombine(1, minted);
+        uint256 treasuryBefore = IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth));
+        vm.prank(alice);
+        mintFacet.recombine(1, minted, minted, redemption.collateralOut, alice);
+
+        assertEq(FeeRouterFacet(deployment.diamond).pendingInsurance(1), 0);
+        assertEq(
+            IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth)) - treasuryBefore,
+            redemption.feeAmount
+        );
+    }
+
+    function test_EmptyVolatileProfileRetiresInsuranceIntoGlobalRewards() public {
+        uint256 donation = 0.2 ether;
+        vm.deal(alice, donation);
+        vm.startPrank(alice);
+        weth.deposit{value: donation}();
+        weth.approve(deployment.core, donation);
+        insuranceFacet.topUpInsurance(1, donation);
+        vm.stopPrank();
+
+        uint256 treasuryBefore = IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth));
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(1);
+        vm.prank(owner);
+        governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory retired = viewFacet.collateralProfile(1);
+        assertEq(retired.insuranceReserve, 0);
+        assertEq(retired.accountedCollateral, 0);
+        assertEq(weth.balanceOf(deployment.core), 0);
+        assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth)) - treasuryBefore, donation);
+    }
+
+    function _setVolatileFees(uint256 mintFeeBps, uint256 redemptionFeeBps) private {
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = viewFacet.collateralProfile(1);
+        CoreGovernanceFacet.ProfileRiskConfig memory risk = CoreGovernanceFacet.ProfileRiskConfig({
+            collateralRatioBps: profile.collateralRatioBps,
+            priceBandBps: profile.priceBandBps,
+            mintFeeBps: mintFeeBps,
+            redemptionFeeBps: redemptionFeeBps,
+            insuranceTargetBps: profile.insuranceTargetBps,
+            insuranceFeeBps: profile.insuranceFeeBps,
+            pegMinPriceWad: profile.pegMinPriceWad,
+            pegMaxPriceWad: profile.pegMaxPriceWad,
+            debtCeiling: profile.debtCeiling
+        });
+        vm.prank(owner);
+        governance.setProfileRiskConfig(1, risk);
     }
 
     function _activatePeggedProfile() private returns (uint256 profileId, MockUSDC usdc, MockETHUSDOracle oracle) {

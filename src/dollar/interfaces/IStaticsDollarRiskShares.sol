@@ -6,6 +6,9 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 interface IStaticsDollarRiskShares is IERC1155 {
     error ZeroAddress();
     error NotPool(address caller);
+    error FrozenSeriesTransfer(uint256 seriesId);
+
+    event SeriesTransfersFrozen(uint256 indexed seriesId);
 
     function coreTokenKind() external pure returns (bytes32);
 
@@ -14,6 +17,10 @@ interface IStaticsDollarRiskShares is IERC1155 {
     function name() external view returns (string memory);
 
     function symbol() external view returns (string memory);
+
+    function transfersFrozen(uint256 seriesId) external view returns (bool);
+
+    function freezeTransfers(uint256 seriesId) external;
 
     function mint(address to, uint256 id, uint256 amount) external;
 

@@ -10,7 +10,6 @@ import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
 import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {StaticsMorphoAccount} from "../morpho/StaticsMorphoAccount.sol";
-import {LibPosition} from "../position/LibPosition.sol";
 
 contract MorphoSettlementFacet is ReentrancyGuard {
     error InvalidAmount();
@@ -25,8 +24,8 @@ contract MorphoSettlementFacet is ReentrancyGuard {
         nonReentrant
         returns (uint256[] memory amounts)
     {
-        LibMorpho.MorphoStorage storage ms = _storage();
-        _enforceReceiver(ms, receiver);
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
+        LibMorpho.enforceReceiver(ms, receiver);
         amounts = new uint256[](assets.length);
         for (uint256 i; i < assets.length; ++i) {
             address asset = assets[i];
@@ -48,9 +47,9 @@ contract MorphoSettlementFacet is ReentrancyGuard {
         uint256 minReceived
     ) external nonReentrant returns (uint256 received) {
         if (token == address(0) || amount == 0) revert InvalidAmount();
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibMorpho.MorphoStorage storage ms = _storage();
-        _enforceReceiver(ms, receiver);
+        LibMorpho.enforceRecoveryAuthorized(positionId, msg.sender);
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
+        LibMorpho.enforceReceiver(ms, receiver);
         address account = ms.accounts[positionId];
         if (account == address(0)) revert MorphoAccountNotDeployed(positionId);
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
@@ -62,7 +61,7 @@ contract MorphoSettlementFacet is ReentrancyGuard {
     }
 
     function routeMorphoPerformanceFee(uint256 realizedYield) external nonReentrant returns (uint256 feeAmount) {
-        LibMorpho.MorphoStorage storage ms = _storage();
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
         address router = ms.performanceFeeRouter;
         if (router == address(0) || msg.sender != router) {
             revert UnauthorizedPerformanceFeeRouter(msg.sender, router);
@@ -96,20 +95,9 @@ contract MorphoSettlementFacet is ReentrancyGuard {
         }
     }
 
-    function _enforceReceiver(LibMorpho.MorphoStorage storage ms, address receiver) private view {
-        if (receiver == address(0) || receiver == address(this) || ms.isAccount[receiver]) {
-            revert InvalidReceiver(receiver);
-        }
-    }
-
     function _pushExactReserved(address token, address receiver, uint256 amount) private {
         (uint256 spent, uint256 received) =
             LibCustody.pushReserved(LibCustody.feeAccount(), token, receiver, amount, amount);
         if (spent != amount || received != amount) revert IncompatibleTokenTransfer(token, amount, received);
-    }
-
-    function _storage() private view returns (LibMorpho.MorphoStorage storage ms) {
-        ms = LibMorpho.morphoStorage();
-        if (!ms.initialized) revert LibMorpho.MorphoNotInitialized();
     }
 }

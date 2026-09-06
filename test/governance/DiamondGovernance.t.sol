@@ -74,13 +74,14 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 34);
+        assertEq(loupe.facetAddresses().length, 36);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondLoupe).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IERC173).interfaceId));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IStaticsGovernance).interfaceId));
+        assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
     }
 
     function testUpgradeCannotBypassTwoMinuteTimelock() public {

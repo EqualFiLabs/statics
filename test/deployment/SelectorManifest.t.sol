@@ -108,9 +108,9 @@ contract SelectorManifestTest is Test {
         expected[8] = IStaticsBasketLiquidity.canonicalPool.selector;
         expected[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
         expected[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        expected[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
-        expected[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
-        expected[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+        expected[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
+        expected[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
+        expected[13] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
 
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
@@ -199,10 +199,12 @@ contract SelectorManifestTest is Test {
         bytes4[] memory admin = StaticsSelectors.morphoAdmin();
         bytes4[] memory actions = StaticsSelectors.morphoActions();
         bytes4[] memory settlement = StaticsSelectors.morphoSettlement();
+        bytes4[] memory recovery = StaticsSelectors.morphoRecovery();
         bytes4[] memory views = StaticsSelectors.morphoView();
         assertEq(admin.length, 5);
-        assertEq(actions.length, 8);
+        assertEq(actions.length, 7);
         assertEq(settlement.length, 3);
+        assertEq(recovery.length, 1);
         assertEq(views.length, 10);
         bytes4[] memory all = new bytes4[](26);
         for (uint256 i; i < admin.length; ++i) {
@@ -214,8 +216,11 @@ contract SelectorManifestTest is Test {
         for (uint256 i; i < settlement.length; ++i) {
             all[admin.length + actions.length + i] = settlement[i];
         }
+        for (uint256 i; i < recovery.length; ++i) {
+            all[admin.length + actions.length + settlement.length + i] = recovery[i];
+        }
         for (uint256 i; i < views.length; ++i) {
-            all[admin.length + actions.length + settlement.length + i] = views[i];
+            all[admin.length + actions.length + settlement.length + recovery.length + i] = views[i];
         }
         for (uint256 i; i < all.length; ++i) {
             for (uint256 j; j < i; ++j) {
@@ -225,6 +230,7 @@ contract SelectorManifestTest is Test {
         assertEq(admin[0], IStaticsMorpho.initializeMorphoIntegration.selector);
         assertEq(actions[0], IStaticsMorpho.deployMorphoCollateral.selector);
         assertEq(settlement[2], IStaticsMorpho.recoverMorphoAccountToken.selector);
+        assertEq(recovery[0], IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector);
         assertEq(views[0], IStaticsMorpho.morpho.selector);
         assertEq(views[9], IStaticsMorpho.enforceMorphoAccountEmpty.selector);
     }

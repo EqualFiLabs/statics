@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IStaticsDollarCoreTypes} from "../../interfaces/IStaticsDollarCoreTypes.sol";
 import {IUsdOracle} from "../../interfaces/IUsdOracle.sol";
@@ -13,11 +12,16 @@ import {LibCoreAccounting} from "../libraries/LibCoreAccounting.sol";
 import {LibCorePeggedRedemption} from "../libraries/LibCorePeggedRedemption.sol";
 import {LibCoreStorage} from "../libraries/LibCoreStorage.sol";
 
+interface ICoreInsuranceRouter {
+    function routePendingInsurance(uint256 profileId) external returns (uint256 amount);
+}
+
 contract CoreGovernanceFacet is ReentrancyGuard {
     uint256 internal constant WAD = 1e18;
     uint256 internal constant BPS = 10_000;
     uint256 internal constant MAX_PROFILE_ID = 255;
     uint256 internal constant MAX_FEE_BPS = BPS;
+    uint256 internal constant MAX_REDEMPTION_FEE_BPS = 1_000;
     uint256 internal constant PAUSE_MINTING = 1 << 0;
     uint256 internal constant PAUSE_ROLLOVER = 1 << 1;
     uint256 internal constant PAUSE_PAIRING_FILLS = 1 << 2;
@@ -264,6 +268,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         ) revert InvalidProfileMode(profileId, mode);
         IStaticsDollarCoreTypes.ProfileMode previous = profile.mode;
         if (mode == IStaticsDollarCoreTypes.ProfileMode.Retired) {
+            _flushPendingInsurance(cs, profileId);
             _retireProfile(cs, profileId, profile);
         } else {
             profile.mode = mode;
@@ -326,8 +331,8 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         uint256 ratioBps,
         uint256 bandBps
     ) private {
-        uint256 collateralPerPairWad = Math.mulDiv(Math.mulDiv(WAD, ratioBps, BPS), WAD, priceWad);
-        uint256 seniorCollateralPerUnitWad = Math.mulDiv(WAD, WAD, priceWad);
+        (uint256 collateralPerPairWad, uint256 seniorCollateralPerUnitWad, uint256 juniorCollateralPerUnitWad) =
+            LibCoreAccounting.seriesGeometry(priceWad, ratioBps);
         cs.riskSeries[seriesId] = IStaticsDollarCoreTypes.RiskSeries({
             profileId: profileId,
             collateralToken: collateralToken,
@@ -337,7 +342,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
             startPriceWad: priceWad,
             collateralPerPairWad: collateralPerPairWad,
             seniorCollateralPerUnitWad: seniorCollateralPerUnitWad,
-            juniorCollateralPerUnitWad: collateralPerPairWad - seniorCollateralPerUnitWad,
+            juniorCollateralPerUnitWad: juniorCollateralPerUnitWad,
             collateralRatioBps: ratioBps,
             priceBandBps: bandBps,
             startedAt: block.timestamp,
@@ -355,8 +360,14 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile
     ) private {
         if (profile.kind == IStaticsDollarCoreTypes.ProfileKind.Pegged) {
+            uint256 peggedTerminalSurplus;
+            if (profile.seniorOutstanding == 0) {
+                peggedTerminalSurplus = profile.accountedCollateral;
+                profile.accountedCollateral = 0;
+            }
             profile.mode = IStaticsDollarCoreTypes.ProfileMode.Retired;
             emit PeggedProfilePermanentlyRetired(profileId);
+            LibCoreAccounting.routeRetiredSurplus(cs, profileId, 0, peggedTerminalSurplus);
             return;
         }
         uint256 seriesId = profile.activeSeriesId;
@@ -364,13 +375,26 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         if (series.status == IStaticsDollarCoreTypes.SeriesStatus.RecoveryPending) {
             revert SeriesTransitionPending(profileId, seriesId);
         }
-        uint256 allocated;
-        if (profile.insuranceReserve != 0 && series.seniorOutstanding != 0) {
-            allocated = profile.insuranceReserve;
+        uint256 insurance = profile.insuranceReserve;
+        uint256 insuranceAllocated;
+        uint256 terminalSurplus;
+        if (insurance != 0) {
             profile.insuranceReserve = 0;
-            profile.accountedCollateral += allocated;
-            series.accountedCollateral += allocated;
-            LibCoreAccounting.updateSeriesIndex(cs, seriesId);
+            if (
+                series.seniorOutstanding != 0 && series.riskSharesOutstanding != 0
+                    && profile.seniorOutstanding == series.seniorOutstanding
+            ) {
+                insuranceAllocated = insurance;
+                profile.accountedCollateral += insurance;
+                series.accountedCollateral += insurance;
+            } else {
+                terminalSurplus = insurance;
+            }
+        }
+        if (series.seniorOutstanding == 0 && series.riskSharesOutstanding == 0 && series.accountedCollateral != 0) {
+            terminalSurplus += series.accountedCollateral;
+            profile.accountedCollateral -= series.accountedCollateral;
+            series.accountedCollateral = 0;
         }
         series.status = series.seniorOutstanding == 0 && series.riskSharesOutstanding == 0
             && series.accountedCollateral == 0
@@ -379,7 +403,13 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         series.retiredAt = block.timestamp;
         series.successorSeriesId = 0;
         profile.mode = IStaticsDollarCoreTypes.ProfileMode.Retired;
-        emit ProfilePermanentlyRetired(profileId, seriesId, allocated);
+        LibCoreAccounting.updateSeriesIndex(cs, seriesId);
+        emit ProfilePermanentlyRetired(profileId, seriesId, insuranceAllocated);
+        LibCoreAccounting.routeRetiredSurplus(cs, profileId, seriesId, terminalSurplus);
+    }
+
+    function _flushPendingInsurance(LibCoreStorage.CS storage cs, uint256 profileId) private {
+        ICoreInsuranceRouter(cs.periphery).routePendingInsurance(profileId);
     }
 
     function _validateVolatileConfig(
@@ -398,7 +428,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         if (ratioBps <= BPS || ratioBps > 30_000) revert InvalidCollateralRatio(ratioBps);
         if (bandBps <= BPS || bandBps > 30_000 || bandBps > ratioBps) revert InvalidPriceBand(bandBps);
         _validateFee(mintFeeBps);
-        _validateFee(redemptionFeeBps);
+        _validateRedemptionFee(redemptionFeeBps);
         if (debtCeiling == 0) revert InvalidDebtCeiling(debtCeiling, 0);
         uint8 decimals = IERC20Metadata(collateralToken).decimals();
         if (decimals > 18) revert InvalidCollateralDecimals(decimals);
@@ -421,7 +451,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
             revert InvalidPegBounds(pegMinPriceWad, pegMaxPriceWad);
         }
         _validateFee(mintFeeBps);
-        _validateFee(redemptionFeeBps);
+        _validateRedemptionFee(redemptionFeeBps);
         if (debtCeiling == 0) revert InvalidDebtCeiling(debtCeiling, 0);
         uint8 decimals = IERC20Metadata(collateralToken).decimals();
         if (decimals > 18) revert InvalidCollateralDecimals(decimals);
@@ -435,7 +465,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
             revert InvalidDebtCeiling(config.debtCeiling, profile.seniorOutstanding);
         }
         _validateFee(config.mintFeeBps);
-        _validateFee(config.redemptionFeeBps);
+        _validateRedemptionFee(config.redemptionFeeBps);
         if (config.insuranceTargetBps > BPS) revert InvalidInsuranceBps(config.insuranceTargetBps);
         if (config.insuranceFeeBps > BPS) revert InvalidInsuranceBps(config.insuranceFeeBps);
         if (profile.kind == IStaticsDollarCoreTypes.ProfileKind.Volatile) {
@@ -476,6 +506,10 @@ contract CoreGovernanceFacet is ReentrancyGuard {
 
     function _validateFee(uint256 feeBps) private pure {
         if (feeBps > MAX_FEE_BPS) revert InvalidFeeBps(feeBps);
+    }
+
+    function _validateRedemptionFee(uint256 feeBps) private pure {
+        if (feeBps > MAX_REDEMPTION_FEE_BPS) revert InvalidFeeBps(feeBps);
     }
 
     function _validateOperations(uint256 operations) private pure {

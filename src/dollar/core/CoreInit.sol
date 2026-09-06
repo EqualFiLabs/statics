@@ -3,21 +3,18 @@ pragma solidity ^0.8.28;
 
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IDiamondCut} from "../../interfaces/IDiamondCut.sol";
-import {IDiamondLoupe} from "../../interfaces/IDiamondLoupe.sol";
 import {LibDiamond} from "../../libraries/LibDiamond.sol";
 import {IStaticsDollarRiskShares} from "../interfaces/IStaticsDollarRiskShares.sol";
 import {IStaticsDollar} from "../interfaces/IStaticsDollar.sol";
 import {IStaticsDollarCoreTypes} from "../interfaces/IStaticsDollarCoreTypes.sol";
 import {IUsdOracle} from "../interfaces/IUsdOracle.sol";
 import {LibCore} from "./libraries/LibCore.sol";
+import {LibCoreAccounting} from "./libraries/LibCoreAccounting.sol";
 import {LibCoreStorage} from "./libraries/LibCoreStorage.sol";
 
 contract CoreInit {
-    uint256 internal constant WAD = 1e18;
     uint256 internal constant BPS = 10_000;
     bytes32 internal constant STATICS_DOLLAR_KIND = keccak256("STATICS_DOLLAR_TOKEN_V1");
     bytes32 internal constant STATICS_DOLLAR_RISK_KIND = keccak256("STATICS_DOLLAR_RISK_V1");
@@ -114,8 +111,8 @@ contract CoreInit {
         uint8 collateralDecimals = IERC20Metadata(args.initialCollateralToken).decimals();
         if (collateralDecimals > 18) revert InvalidCollateralDecimals(collateralDecimals);
         uint256 priceWad = IUsdOracle(args.initialOracle).priceWad();
-        uint256 collateralPerPairWad = Math.mulDiv(Math.mulDiv(WAD, args.collateralRatioBps, BPS), WAD, priceWad);
-        uint256 seniorCollateralPerUnitWad = Math.mulDiv(WAD, WAD, priceWad);
+        (uint256 collateralPerPairWad, uint256 seniorCollateralPerUnitWad, uint256 juniorCollateralPerUnitWad) =
+            LibCoreAccounting.seriesGeometry(priceWad, args.collateralRatioBps);
         cs.collateralProfiles[1] = IStaticsDollarCoreTypes.StableCollateralProfile({
             collateralToken: args.initialCollateralToken,
             oracle: args.initialOracle,
@@ -145,7 +142,7 @@ contract CoreInit {
             startPriceWad: priceWad,
             collateralPerPairWad: collateralPerPairWad,
             seniorCollateralPerUnitWad: seniorCollateralPerUnitWad,
-            juniorCollateralPerUnitWad: collateralPerPairWad - seniorCollateralPerUnitWad,
+            juniorCollateralPerUnitWad: juniorCollateralPerUnitWad,
             collateralRatioBps: args.collateralRatioBps,
             priceBandBps: args.priceBandBps,
             startedAt: block.timestamp,
@@ -160,9 +157,6 @@ contract CoreInit {
         emit SeriesOpened(1, 1, priceWad);
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        ds.supportedInterfaces[type(IERC165).interfaceId] = true;
-        ds.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
-        ds.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
         ds.supportedInterfaces[type(IERC1155Receiver).interfaceId] = true;
     }
 }

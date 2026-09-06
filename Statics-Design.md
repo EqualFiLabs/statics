@@ -179,7 +179,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **30 facets / 254 selectors** on `StaticsDiamond`; and
+- **36 facets / 283 selectors** on `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -268,10 +268,12 @@ unrelated Position ledger state unchanged.
 The Diamond implements the pre-ERC Modular Position NFT reporting interface
 (`0x212b8e93`). `positionState` reports current existence, a structural nonce,
 active-leg count, and unresolved-loan-obligation count. `isLegActive` provides
-constant-time membership and `isPositionClosable` applies every aggregate plus
-the mint-initialization guard. The nonce starts at one on mint and increments
-for Leg attachment, Leg detachment, loan-obligation changes, and Closure. It
-does not change for transfer, approval, reward settlement, or loan extension.
+constant-time membership and `isPositionClosable` applies every aggregate, the
+mint-initialization guard, and the bounded historically tracked Morpho-account
+emptiness check used by `closePosition`. The nonce starts at one on mint and
+increments for Leg attachment, Leg detachment, loan-obligation changes, and
+Closure. It does not change for transfer, approval, reward settlement, or loan
+extension.
 Position identity remains the qualified `(chain ID, Diamond, token ID)` tuple;
 Statics does not expose a redundant Position Key hash.
 
@@ -291,17 +293,26 @@ logo-and-ID SVG assembled internally without a mutable renderer. It includes no
 live status, achievement, yield, debt, health, or rarity semantics. Generative
 and tier-aware onchain SVG identity belongs to the scarce Genesis collection.
 
-`closePosition` succeeds only after all balances, claims, collateral, loans,
-Dollar legs, custodied LP NFTs, and LP claims are empty. Externally held
-Uniswap v4 NFTs are not PositionNFT legs and do not move with a PositionNFT
-transfer.
+`closePosition` succeeds only after all enumerable balances, claims, collateral,
+loans, Dollar legs, custodied LP NFTs, LP claims, and historically tracked
+Morpho collateral and debt positions are empty. Morpho loan-token
+`supplyShares` are not a supported PNFT-account asset, are not checked at close,
+and have no Statics withdrawal path in this release; lenders must supply under
+an address they control rather than on behalf of a PNFT account. Native assets,
+NFTs, arbitrary raw tokens, and surplus deposited directly into a registered but
+never-tracked Morpho market likewise cannot all be enumerated. If the Morpho
+account was already deployed, closure therefore preserves the actual final owner
+as its permanent recovery beneficiary. That beneficiary retains only raw ERC-20
+token and registered-market untracked-collateral withdrawal authority; NFT
+approvals and all operating authority end on burn. Externally held Uniswap v4
+NFTs are not PositionNFT legs and do not move with a PositionNFT transfer.
 
 ### Reward eligibility comparison
 
 | Reward rail | Weight | Eligibility | Exit behavior |
 | --- | --- | --- | --- |
-| Basket position rewards | Deposited BasketTokens in one basket | Immediate on deposit; fixed BasketToken-plus-constituents asset set | Entire position-and-basket leg waits until the block after its latest deposit; locked loan collateral stays eligible |
-| Global Statics rewards | Configured ERC-20 stake selected into one reward asset | Initial stake, new selections, and top-up deltas mature at an hourly boundary 24–25 hours later | Stake is always withdrawable; withdrawal consumes pending before eligible stake |
+| Basket position rewards | Deposited BasketTokens in one basket | Initial deposits and top-up deltas mature at an hourly boundary 24–25 hours later; fixed BasketToken-plus-constituents asset set | Unlocked, undeployed shares have no cooldown; withdrawal consumes pending before eligible shares, while loan-locked or Morpho-deployed shares remain unavailable |
+| Global Statics rewards | Configured ERC-20 stake selected into one reward asset | Initial stake, new selections, and top-up deltas mature at an hourly boundary 24–25 hours later | Undeployed stake has no cooldown and withdrawal consumes pending first; Morpho collateral must be recalled before withdrawal |
 | Canonical LP rewards | Full-range liquidity in a voluntarily custodied v4 NFT | Initial and increased liquidity deltas activate in the next block | NFT can leave immediately in any basket lifecycle state; claims remain attached to the PositionNFT |
 | Dollar Risk liquidity | Supplied series Risk Shares | No passive eligibility: staking makes shares immediately consumable | Unconsumed effective shares remain withdrawable; pairing consumption creates junior, fee, and proportional funded-incentive proceeds; recovery may create migration credits |
 
@@ -407,16 +418,17 @@ and select reward assets to enter their global eligible-stake denominators.
 Every basket has a separate position-reward denominator. Depositing
 BasketTokens through `createAndDepositBasketCollateral`,
 `depositBasketCollateral`, `createAndMintBasketCollateral`, or
-`mintBasketCollateral` immediately adds the deposited shares to that basket's
-eligible denominator. The fixed reward-asset set is the BasketToken plus every
+`mintBasketCollateral` adds the deposited shares to that basket's pending
+eligibility ring. The fixed reward-asset set is the BasketToken plus every
 constituent, so a sixteen-asset basket has at most seventeen reward books and
 requires no reward-asset opt-in loop.
 
-Each deposit first settles the position's existing basket rewards and records
-the current block. No shares from that position-and-basket leg may be withdrawn
-or redeemed until the next block; a top-up restarts this one-block exit gate
-for the complete leg. The gate prevents same-block reward entry and exit. It
-does not delay reward eligibility beyond the deposit transaction.
+Each deposit first settles the position's existing basket rewards. Initial
+deposits and top-up deltas mature at the next hourly boundary at least 24 hours
+later, using weighted pending age so a top-up does not reset already accrued
+waiting time. Unlocked shares have no separate withdrawal-time gate, and exits
+consume pending shares before eligible shares. Loan-locked or Morpho-deployed
+shares remain unavailable until unlocked or recalled.
 
 Borrowing locks deposited shares without removing them from the reward
 denominator. Only the origination-fee shares burned at loan creation stop
@@ -455,9 +467,10 @@ pending stake bucket's maturity.
 `createAndStake` creates a PositionNFT, selects its initial reward assets, and
 stakes in one call. `stake` increases an existing authorized position.
 `optInRewardAssets` and `optOutRewardAssets` manage that position's selections.
-Stake is always withdrawable. Initial stake, new selections, and top-ups enter
-a per-asset pending tranche that matures at the next hourly boundary at least
-24 hours later. Mature stake remains eligible when a position is increased.
+Undeployed stake has no cooldown; stake supplied to Morpho must first be
+recalled. Initial stake, new selections, and top-ups enter a per-asset pending
+tranche that matures at the next hourly boundary at least 24 hours later. Mature
+stake remains eligible when a position is increased.
 Fee accrual and position interactions roll the affected asset's bounded
 maturity ring before updating its index. Each matured bucket records its
 activation index so pending stake cannot capture historical fees. `unstake`
@@ -480,10 +493,12 @@ treasury amount = gross fee - staker amount
 
 If the asset has no eligible selected stake, no new staker liability is created
 and the entire fee accrues to treasury. The 90/10 allocation remainder belongs
-to treasury. Index division floors `staker amount * 1e27 / eligibleStake`, while
-`indexedAmount` records the complete staker allocation; whole-token value that
-never crystallizes to a position is routed to treasury only when that asset's
-eligible stake returns to zero.
+to treasury. Index division floors `staker amount * 1e27 / eligibleWeight`, while
+`indexedAmount` records the complete staker allocation. Before the denominator
+or multiplier cohort changes, whole-token value still held in numerator carry
+is routed to treasury and the remaining numerator residue is cleared. Indexed
+whole-token value that never crystallizes to a position is also routed to
+treasury when that asset's eligible weight returns to zero.
 
 ### Reward indexes and claims
 
@@ -644,10 +659,11 @@ attribution uses EIP-712 authorization (domain `name = "Statics Protocol
 Pools"`, `version = "1"`, current chain, `verifyingContract = StaticsDiamond`)
 validated for EOA and ERC-1271 creators through `SignatureChecker`. The signed
 digest binds the PoolId, normalized price, input and output fee, creator,
-unordered nonce, and deadline. A direct creator (`creator == msg.sender`) may
-pass empty authorization and consumes no nonce; while creation is disabled the
-owner may designate a creator without a signature; otherwise the named creator
-must supply a valid authorization whose nonce is consumed. A creator can cancel
+unordered nonce, and deadline. When the creation fee is nonzero, a direct
+creator (`creator == msg.sender`) may pass empty authorization and consumes no
+nonce; while creation is disabled the owner may designate any nonzero creator
+without a signature; otherwise the named creator must supply a valid
+authorization whose nonce is consumed. A creator can cancel
 an unused authorization with `invalidatePoolCreationNonce`. Relayed
 authorization does not bind `msg.sender`, so a copied transaction can pay the
 fee and initialize the pool first but cannot replace the creator or change the
@@ -947,15 +963,35 @@ Core state.
 For an active volatile series in an eligible profile mode, the configured
 insurance portion routes to insurance and the complete remaining reward share
 enters the global Statics non-swap fee ledger. Risk Share positions receive no
-mint-fee, ordinary-recombination-fee, donation, or passive allocation. When the
-series or profile mode is ineligible, the would-be global reward share routes
-to insurance instead.
+mint-fee, ordinary-recombination-fee, donation, or passive allocation. When a
+non-retired series or profile mode is ineligible, the would-be global reward
+share routes to insurance instead. Fees received after permanent retirement
+enter the global non-swap ledger directly.
 
 The current launcher initializes this active-series split to 70% global
 non-swap rewards and 30% insurance. It separately initializes pairing
 redemption to a 50-BPS fee with 80% of that fee assigned to consumed Risk
 suppliers and 20% to insurance. Both configurations remain timelock-controlled
 while the Diamonds are upgradeable.
+
+Insurance top-ups accept non-retired profiles. Volatile top-ups remain in the
+profile-level reserve while the profile is `Inactive`, `Active`, or
+`ReduceOnly`; pegged top-ups immediately increase its proportional redemption
+collateral. Unassigned volatile reserve is contingent transition capital: it is
+excluded from present solvency backing and projected issuance until assigned by
+a transition or retirement. Retirement first flushes pending periphery
+insurance. It allocates reserve to the current live paired series only when that
+series is the profile's sole senior generation; otherwise the non-claimant
+reserve enters the global non-swap reward ledger. Fixed historical recovery
+books never gain later reserve. An empty pegged profile routes its terminal
+surplus globally. Retirement never depends on a claimant clearing reserve
+first, and later top-ups are rejected.
+
+Transition finalization freezes ordinary transfers of the predecessor's
+freeze-capable `STATICS_DOLLAR_RISK_V1` ID while preserving Core mint and burn
+for runoff and successor rollover. Deployment creates the Risk Shares token,
+Core, and `StaticsDiamond` together as one coordinated stack. This does not
+change the later one-shot binding of a separately deployed Genesis contract.
 
 This coexistence does not merge Dollar collateral held by Core with Diamond
 custody. Only fees explicitly transferred to the periphery enter shared
@@ -975,8 +1011,11 @@ minimum collateral-per-Dollar rate, and deadline. The fixed senior allocation
 goes to the redeemer. Consumed suppliers receive their complete junior
 collateral residual plus 80% of the pairing fee; the remaining 20% tops up
 insurance. A series-and-epoch index records only proceeds created by an actual
-fill, preventing a later supplier from claiming earlier proceeds without
-looping over PositionNFTs.
+fill. New suppliers checkpoint at the current index and therefore cannot claim
+already indexed proceeds without looping over PositionNFTs. Numerator carry
+remains strictly below the current denominator and may cross a liquidity-cohort
+change; exact terminal accounting assigns every still-uncrystallized raw-token
+unit to the final stored leg settled for that closed epoch.
 
 Anyone may fund a currently active series under an `Active` or `ReduceOnly`
 volatile profile through one of three typed entrypoints:
@@ -993,6 +1032,10 @@ consumed receive the corresponding pro-rata fraction of all three reserves;
 a complete fill drains the remaining rounding residue. `claimRiskProceeds`
 returns collateral, Statics Dollar, and STATICS independently and aggregates
 transfers safely if configured token roles coincide.
+
+Every proceeds index records total funding and crystallized claims. When an
+epoch closes, the final stored leg receives every raw-token unit not already
+crystallized, so rounding residue cannot remain stranded in protocol custody.
 
 Unused incentives do not become stranded historical rewards.
 `finalizeRiskIncentives` is permissionless and idempotent after a series is
@@ -1109,10 +1152,12 @@ action and requires no governance admission or retirement.
 Diamond cuts are the sole implementation upgrade mechanism. Facets share the
 common OpenZeppelin persistent reentrancy slot under delegatecall. Flash loans
 add a separate transient guard domain and acquire the persistent slot only for
-their transfer/accounting phases. Selector routing and ERC-165 declarations
-must be updated together. Dollar Core bootstrap finalization validates wiring,
-pins the periphery as the initial managed recovery holder, and clears bootstrap
-authority. The Core owner may explicitly add or revoke other managed recovery
+their transfer/accounting phases. Cuts automatically synchronize the
+selector-derived IERC-165, DiamondCut, DiamondLoupe, and ownership interface
+IDs; protocol-specific interface declarations remain governed metadata. Dollar
+Core bootstrap finalization validates wiring, pins the periphery as the initial
+managed recovery holder, and clears bootstrap authority. The Core owner may
+explicitly add or revoke other managed recovery
 holders; revocation returns the holder's expired positions to ordinary
 permissionless recovery. Finalization does not make either Diamond immutable.
 
@@ -1175,7 +1220,10 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Dollar gateway | `IStaticsDollarGateway` |
 | Dollar Risk liquidity | `IStaticsDollarRiskLiquidity` |
 | Dollar Risk incentives | `IStaticsDollarRiskIncentives` |
+| Dollar Risk Shares | `IStaticsDollarRiskShares` |
+| Dollar series migration | `IStaticsDollarSeriesMigration` |
 | Dollar Core | `IStaticsDollarCore` |
+| Morpho integration | `IStaticsMorpho` |
 
 Integrators should quote immediately before submission, provide explicit
 maximum inputs and minimum outputs, scope approvals to the typed next action,
@@ -1190,7 +1238,7 @@ except the Diamond itself and should not be exposed as user launch actions.
 
 `script/DeployStatics.s.sol:DeployStatics` is the canonical full-stack
 launcher. It deploys the timelock, Dollar oracle adapter, Core facets and
-Diamond, Dollar tokens, 23 unified facets and `StaticsDiamond`, and the
+Diamond, Dollar tokens, the unified facets and `StaticsDiamond`, and the
 immutable v4 hook and manager. A separate timelock ceremony installs the hook
 and manager into the Diamond. Basket creation is valid only after that
 installation because every basket must launch all of its canonical pools and
@@ -1274,7 +1322,7 @@ integration flows, fuzz tests, stateful invariants, deployment rehearsals,
 canonical Uniswap v4 tests, and a pinned Robinhood Chain fork shape.
 
 The repository contains focused source coverage for custody, rewards, lending,
-recovery, Dollar profiles, canonical and governed pools, permits, deployment,
+recovery, Dollar profiles, canonical and general pools, permits, deployment,
 selector routing, and testnet fixtures. Test counts and pass totals are release
 evidence rather than protocol design and are intentionally not frozen here.
 
@@ -1296,8 +1344,8 @@ does not substitute for that complete qualification.
 - position-owned self-backed vector lending and debt-proportional recovery;
 - composable constituent-vector flash loans;
 - atomic creator-funded launch of every basket and canonical constituent pool;
-- canonical zero-native-fee v4 pools with bilateral hook fees and governed
-  per-pool allocation overrides;
+- canonical zero-native-fee v4 pools with bilateral hook fees, governed
+  per-pool fee rates, and globally configured allocation shares;
 - hook-owned full-range permanent liquidity and ExitOnly unwind;
 - isolated BasketToken reward indexes, canonical LP NFT reward custody, and
   typed borrow-to-external or PositionNFT-owned liquidity;
@@ -1358,39 +1406,47 @@ redeem output_i = redeem base_i - fee_i
 
 ### Global non-swap fee
 
-For reward asset `a`, when `eligibleStake[a] > 0`:
+For reward asset `a`, when `eligibleWeight[a] > 0`:
 
 ```text
 staker = floor(grossFee * 9,000 / D)
 treasury = grossFee - staker
-indexDelta[a] = floor(staker * RAY / eligibleStake[a])
+numerator[a] = staker * RAY + priorIndexRemainder[a]
+indexDelta[a] = floor(numerator[a] / eligibleWeight[a])
+indexRemainder[a] = numerator[a] mod eligibleWeight[a]
 indexRay[a] += indexDelta[a]
 indexedAmount[a] += staker
-position accrual = floor(positionEligibleStake * indexDelta / RAY)
+position accrual = floor(positionEligibleWeight * indexDelta / RAY)
 ```
 
-Otherwise `staker = 0` and `treasury = grossFee`. Each accrual floors
-independently; there is no carried division remainder. If eligible stake later
-reaches zero, indexed whole-token value that never crystallized to positions is
-routed to treasury. Pending selection stake is excluded. When its hourly bucket
-matures, the bucket's then-current index becomes its activation checkpoint, and
-that stake accrues only from later index growth.
+Otherwise `staker = 0` and `treasury = grossFee`. Accruals carry their division
+remainder while the denominator is unchanged. Before an eligibility or weight
+change, whole raw-token value in that carry is removed from indexed liability
+and routed to treasury; the remaining numerator residue is cleared so a new
+cohort cannot inherit it. If eligible weight later reaches zero, indexed whole-token value that never
+crystallized to positions is also routed to treasury. Pending selection stake is
+excluded. When its hourly bucket matures, the bucket's then-current index becomes
+its activation checkpoint, and that stake accrues only from later index growth.
 
 ### Basket position rewards
 
 For basket `k`, reward asset `a`, and a routed basket-staker hook allocation:
 
 ```text
+basketNumerator[k][a]
+    = basketStakerAmount * RAY + priorBasketIndexRemainder[k][a]
 basketIndexDelta[k][a]
-    = floor(basketStakerAmount * RAY / totalDepositedShares[k])
+    = floor(basketNumerator[k][a] / totalEligibleShares[k])
+basketIndexRemainder[k][a]
+    = basketNumerator[k][a] mod totalEligibleShares[k]
 basketIndexRay[k][a] += basketIndexDelta[k][a]
 position accrual
-    = floor(positionDepositedShares[k] * basketIndexDelta[k][a] / RAY)
+    = floor(positionEligibleShares[k] * basketIndexDelta[k][a] / RAY)
 ```
 
-If `totalDepositedShares[k]` is zero when the hook routes the fee, the
+If `totalEligibleShares[k]` is zero when the hook routes the fee, the
 basket-staker allocation redirects to POL instead of entering an index. Locked
-loan collateral remains in `positionDepositedShares`; only burned or withdrawn
+loan collateral remains in `positionEligibleShares`; only burned or withdrawn
 shares leave the denominator.
 
 ### Borrow and extension
@@ -1512,7 +1568,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 13. No staker liability is created unless that asset has nonzero matured eligible stake.
 14. Reward opt-in and top-ups wait until an hourly boundary at least 24 hours later.
 15. Every matured bucket records its activation index and cannot receive historical accrual.
-16. Global stake is always withdrawable; pending stake is removed before eligible stake.
+16. Undeployed global stake has no cooldown and pending stake is removed before eligible stake; Morpho-deployed stake must first be recalled.
 17. Treasury distribution has a fixed configured recipient even though triggering is permissionless.
 18. Basket collateral cannot be withdrawn or redeemed while locked.
 19. Every loan tranche retains an independent principal vector and maturity.
@@ -1536,21 +1592,21 @@ remainder. Clearing the override restores the latest global rates and shares.
 37. Volatile Dollar insurance and reward routing remain profile- and series-state aware.
 38. Dollar Core collateral remains outside Diamond custody reservations.
 39. PositionNFT transfer moves control of attached protocol legs and voluntarily custodied v4 NFTs, but not externally held v4 NFTs.
-40. Diamond cuts and ERC-165 declarations remain synchronized.
+40. Diamond cuts synchronize selector-derived standard ERC-165 declarations; protocol-specific interface IDs remain governed metadata.
 41. Newly staked or increased LP liquidity cannot earn before the next block.
 42. Existing activated LP liquidity keeps earning while an increase delta waits for activation.
 43. LP NFTs can always exit custody; earned claims remain attached to their PositionNFT.
 44. Pool eligible liquidity equals the activated liquidity recorded for its custodied NFTs.
 45. Mature-loan recovery burns only debt plus the creator-configured penalty, clears principal, unlocks remaining collateral, and splits penalty backing 20% to the caller and 80% to protocol fees.
 46. A failed gateway permit never substitutes another owner: the typed action still pulls only from `msg.sender` under ordinary allowance rules, while a successful permit may deliberately preserve allowance above the current action input.
-47. Complete pool fee overrides change only future input/output charges and routing, preserve the 200-BPS combined-rate cap, preserve unavailable-LP and unavailable-basket-staker fallbacks to POL, and preserve the unavailable-Statics-staker fallback to treasury.
+47. PoolId-local canonical fee overrides change only future input/output rates and preserve the 200-BPS combined-rate cap; routing changes only through the global allocation profile, which preserves unavailable-LP and unavailable-basket-staker fallbacks to POL and the unavailable-Statics-staker fallback to treasury.
 48. Guardian quarantine contains an active basket but neither releases quarantine nor adjudicates a black-swan physical deficit.
 49. Core bootstrap finalization clears bootstrap authority but does not remove Diamond-cut authority.
 50. Final V1 immutability requires explicit removal of implementation-upgrade authority; later dependency replacement uses terminal V1 wind-down and a separate V2 rather than live migration.
 51. Canonical LP custody entry requires the LP NFT and PositionNFT to have the same current owner.
 52. Dollar expired-risk recovery includes its quoted keeper bounty; basket-loan recovery pays its own fixed 20% share of configured penalty backing.
 53. `borrowAndStakeLiquidity` keeps borrowed BasketToken collateral basket-reward eligible while activating its newly custodied full-range LP weight no earlier than the next block.
-54. Deposited BasketTokens enter their basket denominator immediately but cannot leave before the block after the most recent deposit into that position-and-basket leg.
+54. Deposited BasketTokens mature into their basket denominator at an hourly boundary 24–25 hours later; unlocked and undeployed shares have no separate withdrawal-time gate and pending shares leave first.
 55. Basket reward assets are bounded to the BasketToken plus its constituents, and an unavailable basket-staker allocation redirects to POL before creating a claim.
 56. A PositionNFT cannot close while it controls a custodied LP NFT or an outstanding LP reward claim.
 57. Supplied Dollar Risk Shares are immediately consumable; unconsumed effective principal remains withdrawable, no passive reward exists, and only pairing consumption releases junior, fee, and funded-incentive proceeds.

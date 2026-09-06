@@ -2,15 +2,19 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {StaticsDiamond} from "src/diamond/StaticsDiamond.sol";
 import {StaticsGenesisCut} from "src/diamond/StaticsGenesisCut.sol";
+import {StaticsInterfaceInit} from "src/diamond/StaticsInterfaceInit.sol";
+import {StaticsProtocolInit} from "src/diamond/StaticsProtocolInit.sol";
 import {DiamondKernel} from "src/diamond/DiamondKernel.sol";
 import {DiamondCutFacet} from "src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
+import {IERC173} from "src/interfaces/IERC173.sol";
 import {LibDiamond} from "src/libraries/LibDiamond.sol";
 
 contract DiamondValueFacetV1 {
@@ -56,6 +60,12 @@ contract DiamondInitializerFacet {
         assembly {
             result := sload(slot)
         }
+    }
+}
+
+contract DiamondInterfaceOverrideInitializer {
+    function setInterface(bytes4 interfaceId, bool supported) external {
+        LibDiamond.diamondStorage().supportedInterfaces[interfaceId] = supported;
     }
 }
 
@@ -231,6 +241,12 @@ contract DiamondCutTest is Test {
         finalCut[1] = IDiamondCut.FacetCut(address(0), IDiamondCut.FacetCutAction.Remove, ownershipMutations);
         cut.diamondCut(finalCut, address(0), "");
 
+        IERC165 interfaces = IERC165(address(diamond));
+        assertFalse(interfaces.supportsInterface(type(IDiamondCut).interfaceId));
+        assertTrue(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IERC173).interfaceId));
+        assertFalse(interfaces.supportsInterface(0xffffffff));
+
         DiamondAddedFacet addedFacet = new DiamondAddedFacet();
         vm.expectRevert(
             abi.encodeWithSelector(DiamondKernel.FunctionNotFound.selector, IDiamondCut.diamondCut.selector)
@@ -240,6 +256,95 @@ contract DiamondCutTest is Test {
             address(0),
             ""
         );
+    }
+
+    function test_InterfaceMetadataTracksPartialStandardSelectorRemoval() public {
+        IERC165 interfaces = IERC165(address(diamond));
+        assertTrue(interfaces.supportsInterface(type(IERC165).interfaceId));
+        assertTrue(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+
+        cut.diamondCut(
+            _singleCut(address(0), IDiamondCut.FacetCutAction.Remove, IDiamondLoupe.facetAddresses.selector),
+            address(0),
+            ""
+        );
+
+        assertTrue(interfaces.supportsInterface(type(IERC165).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+    }
+
+    function test_InterfaceSyncOverridesInitializerAfterSelectorRemoval() public {
+        DiamondInterfaceOverrideInitializer initializer = new DiamondInterfaceOverrideInitializer();
+
+        cut.diamondCut(
+            _singleCut(address(0), IDiamondCut.FacetCutAction.Remove, IDiamondCut.diamondCut.selector),
+            address(initializer),
+            abi.encodeCall(DiamondInterfaceOverrideInitializer.setInterface, (type(IDiamondCut).interfaceId, true))
+        );
+
+        assertFalse(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
+    }
+
+    function test_StandardInterfacesCannotBeSetAsGovernedMetadata() public {
+        StaticsInterfaceInit initializer = new StaticsInterfaceInit();
+        bytes4[] memory interfaceIds = new bytes4[](1);
+        interfaceIds[0] = type(IDiamondCut).interfaceId;
+        bool[] memory supported = new bool[](1);
+        supported[0] = false;
+        IDiamondCut.FacetCut[] memory emptyCut = new IDiamondCut.FacetCut[](0);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsInterfaceInit.StandardInterfaceManaged.selector, type(IDiamondCut).interfaceId
+            )
+        );
+        cut.diamondCut(
+            emptyCut,
+            address(initializer),
+            abi.encodeCall(StaticsInterfaceInit.setInterfaces, (interfaceIds, supported))
+        );
+        assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
+    }
+
+    function test_InvalidInterfaceIdCannotBeAdvertised() public {
+        StaticsInterfaceInit initializer = new StaticsInterfaceInit();
+        bytes4[] memory interfaceIds = new bytes4[](1);
+        interfaceIds[0] = 0xffffffff;
+        bool[] memory supported = new bool[](1);
+        supported[0] = true;
+        IDiamondCut.FacetCut[] memory emptyCut = new IDiamondCut.FacetCut[](0);
+
+        vm.expectRevert(abi.encodeWithSelector(StaticsInterfaceInit.InvalidInterfaceId.selector, bytes4(0xffffffff)));
+        cut.diamondCut(
+            emptyCut,
+            address(initializer),
+            abi.encodeCall(StaticsInterfaceInit.setInterfaces, (interfaceIds, supported))
+        );
+        assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
+    }
+
+    function test_ProtocolGenesisCannotAdvertiseMissingStandardSelectors() public {
+        DiamondLoupeFacet loupeFacet = new DiamondLoupeFacet();
+        IDiamondCut.FacetCut[] memory genesisCut = _singleCut(
+            address(loupeFacet), IDiamondCut.FacetCutAction.Add, DiamondLoupeFacet.supportsInterface.selector
+        );
+        StaticsProtocolInit initializer = new StaticsProtocolInit();
+        StaticsDiamond partialDiamond = new StaticsDiamond(
+            address(this),
+            address(0),
+            address(initializer),
+            abi.encodeCall(
+                StaticsProtocolInit.genesisInitialize,
+                (genesisCut, makeAddr("partialGuardian"), makeAddr("partialTreasury"), address(initializer), 0, 0, 0)
+            )
+        );
+
+        IERC165 interfaces = IERC165(address(partialDiamond));
+        assertTrue(interfaces.supportsInterface(type(IERC165).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IDiamondCut).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IERC173).interfaceId));
+        assertFalse(interfaces.supportsInterface(0xffffffff));
     }
 
     function test_SelectorManifestIsExact() public view {

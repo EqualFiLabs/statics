@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {DiamondKernel} from "src/diamond/DiamondKernel.sol";
 import {StaticsGenesisCut} from "src/diamond/StaticsGenesisCut.sol";
@@ -10,6 +11,7 @@ import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
+import {IERC173} from "src/interfaces/IERC173.sol";
 
 contract CoreKernelHarness is DiamondKernel {
     constructor(address owner, address init, bytes memory initData) DiamondKernel(owner, init, initData) {}
@@ -48,6 +50,12 @@ contract CoreDiamondCutTest is Test {
         for (uint256 i; i < mutations.length; i++) {
             assertEq(loupe.facetAddress(mutations[i]), address(0));
         }
+        IERC165 interfaces = IERC165(address(core));
+        assertTrue(interfaces.supportsInterface(type(IERC165).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IDiamondCut).interfaceId));
+        assertTrue(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+        assertTrue(interfaces.supportsInterface(type(IERC173).interfaceId));
+        assertFalse(interfaces.supportsInterface(0xffffffff));
     }
 
     function _deploy(address owner)

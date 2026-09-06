@@ -74,7 +74,13 @@ value to the Dollar amount consumed. They tolerate a pre-submitted permit but
 still require the subsequent `transferFrom` to succeed. Exit availability is
 checkpointed before permit execution, and any later failure rolls back the
 permit with the rest of the transaction. Series risk shares remain governed by
-separate ERC-1155 operator approval.
+separate ERC-1155 operator approval. Successful transition finalization
+irreversibly freezes ordinary transfers for the predecessor's recoverable
+series ID so a holder cannot reshuffle an expired full-balance recovery; Core
+mint and burn operations, including direct Core recombination, remain available
+for runoff and successor rollover. A series retired directly with its profile
+remains transferable and ordinary-recombinable via Core (and the gateway for
+profile 1) during runoff.
 
 ## Authority
 
@@ -93,6 +99,21 @@ separate ERC-1155 operator approval.
   Dollar Core governance. Core configuration derives directly from the Core
   Diamond owner, which is the same timelock; there is no second protocol
   governor or internal proposal queue.
+- Dollar redemption fees are capped at 1,000 basis points independently from
+  mint fees, and redemption rejects raw-unit rounding that would produce zero
+  collateral output.
+- Dollar Core binds to the freeze-capable `STATICS_DOLLAR_RISK_V1` token kind.
+  Deploy the Risk Shares token, Core, and `StaticsDiamond` as one coordinated
+  stack. Per-series transfer freezes preserve Core minting and burning so users
+  can always roll predecessor claims into the active successor series.
+- Insurance top-ups accept non-retired profiles. Pegged top-ups become
+  immediately redeemable profile collateral; volatile top-ups remain
+  profile-level transition reserve through `ReduceOnly`. Unassigned volatile
+  reserve is not current solvency backing and cannot authorize issuance.
+  Retirement first flushes pending periphery insurance, then assigns reserve to
+  a live current series only when it is the profile's sole senior generation;
+  otherwise it routes the non-claimant reserve globally without blocking
+  retirement. Fixed historical recovery books never gain later reserve.
 - Anyone may trigger global treasury fee distribution, but the recipient is
   fixed to the configured treasury. Dollar insurance and opt-in routing remain
   governed by their isolated Dollar books; eligible Dollar fees can also enter
@@ -109,12 +130,14 @@ BasketTokens, including collateral locked for a basket loan, enter the isolated
 basket reward denominator. Global rewards separately require staking the
 deployment-configured ERC-20 in a PositionNFT. Position owners or approved
 operators must claim rewards through transactions; nothing runs in the
-background. Global stake is always withdrawable, but initial stake,
-reward-asset selections, and top-ups mature through a per-asset hourly ring no
-earlier than 24 hours after scheduling. Fee and position interactions roll due
-buckets. A newly deposited basket-collateral leg cannot withdraw until the next
-block. Dollar passive Risk Share reward eligibility uses its separate 24-hour
-gate.
+background. Undeployed global stake has no cooldown, but stake supplied to
+Morpho must first be recalled. Initial stake, reward-asset selections, and
+top-ups mature through a per-asset hourly ring no earlier than 24 hours after
+scheduling. Basket collateral uses the same delayed hourly eligibility model,
+but unlocked and undeployed shares have no separate withdrawal-time gate. Fee
+and position interactions roll due buckets. Dollar passive Risk Share reward
+eligibility does not exist: supplied Risk Shares are immediately consumable by
+the pairing vault and earn only through actual consumption.
 
 Canonical pools use zero native LP fee and separate input/output hook fees.
 Their permanent full-range liquidity is owned by the hook, not by a protocol
@@ -123,12 +146,14 @@ Full-range user PositionManager NFTs may be voluntarily held by the Diamond to
 earn a separate LP hook allocation. New and increased liquidity waits one block
 for eligibility but has no withdrawal cooldown; exit settles claims before
 returning the NFT. If an LP or global-staker hook allocation cannot be routed,
-it redirects to permanent liquidity. Basket and governed-pool creation each
-initialize and seed their pools atomically, with no separate pool activation or
-warmup. Governance controls governed-pool creation, fee configuration, and
-decommissioning. Permanent-liquidity compounding and eligible post-decommission
-unwind are permissionless; LP reward activation remains a separate next-block
-position action.
+it redirects to permanent liquidity. Basket creation initializes and seeds its
+canonical pools atomically. General-pool creation registers and initializes the
+pool but does not require a liquidity seed: it is owner-only while the creation
+fee is zero and permissionless with exact payment while the fee is nonzero.
+Governance controls the creation gate, fee configuration, and irreversible
+general-pool decommissioning. Permanent-liquidity compounding and eligible
+post-decommission unwind are permissionless; LP reward activation remains a
+separate next-block position action.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every
@@ -141,7 +166,14 @@ caller.
 the installed facets. Timelocked Diamond upgradeability means governance can
 still replace those rules.
 
-Interface-changing cuts must keep selector routing and ERC-165 declarations in
-sync. The deployment and governance tests verify exact live selector manifests;
-recorded runtime hashes remain offchain release metadata rather than live
+Shared Diamond kernel code built from this source recomputes the standard
+IERC-165, IDiamondCut, IDiamondLoupe, and IERC-173 declarations from final
+selector routing after every successful cut, including after its initializer.
+The invalid `0xffffffff` interface ID always remains false. Protocol-specific
+interface declarations remain governed metadata, while the generic metadata
+setter rejects the four selector-derived standard IDs. Deployment and
+governance tests verify selector counts and routing self-consistency; an
+independently maintained release manifest remains necessary for exact
+expected-set review.
+Recorded runtime hashes remain offchain release metadata rather than live
 dispatch controls.

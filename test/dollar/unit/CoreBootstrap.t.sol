@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {
     CoreBootstrapConfig,
@@ -18,14 +19,19 @@ import {LibCoreStorage} from "src/dollar/core/libraries/LibCoreStorage.sol";
 import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
+import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
+import {IERC173} from "src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "src/interfaces/IStaticsBasket.sol";
 import {LibDiamond} from "src/libraries/LibDiamond.sol";
 import {StaticsDollarRiskShares} from "src/dollar/StaticsDollarRiskShares.sol";
 import {StaticsDollar} from "src/dollar/StaticsDollar.sol";
 import {IStaticsDollarRiskShares} from "src/dollar/interfaces/IStaticsDollarRiskShares.sol";
+import {IStaticsDollarSeriesMigration} from "src/dollar/interfaces/IStaticsDollarSeriesMigration.sol";
 import {IStaticsDollar} from "src/dollar/interfaces/IStaticsDollar.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
+import {LibCoreAccounting} from "src/dollar/core/libraries/LibCoreAccounting.sol";
+import {SeriesMigrationFacet} from "src/dollar/periphery/facets/SeriesMigrationFacet.sol";
 import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
 import {SequencerAwareMockOracle} from "../helpers/SequencerAwareMockOracle.sol";
 
@@ -108,7 +114,16 @@ contract CoreBootstrapTest is Test {
         assertEq(deployment.positionNFT, deployment.diamond);
         assertEq(ownership.owner(), owner);
         assertEq(loupe.facetAddresses().length, 11);
-        assertEq(staticsLoupe.facetAddresses().length, 34);
+        assertEq(staticsLoupe.facetAddresses().length, 36);
+        address migrationFacet =
+            staticsLoupe.facetAddress(IStaticsDollarSeriesMigration.processSeriesTransition.selector);
+        assertNotEq(staticsLoupe.facetAddress(StakingFacet.stakeRiskShares.selector), migrationFacet);
+        assertTrue(migrationFacet != address(0));
+        assertEq(
+            staticsLoupe.facetAddress(IStaticsDollarSeriesMigration.settleSeriesMigration.selector), migrationFacet
+        );
+        assertEq(staticsLoupe.facetAddress(IStaticsDollarSeriesMigration.seriesMigration.selector), migrationFacet);
+        assertTrue(IERC165(deployment.diamond).supportsInterface(type(IStaticsDollarSeriesMigration).interfaceId));
         assertTrue(loupe.facetAddress(CoreGovernanceFacet.setManagedRecoveryHolder.selector) != address(0));
         assertEq(loupe.facetAddress(bytes4(keccak256("registerManagedRecoveryHolder()"))), address(0));
         assertEq(IStaticsBasket(deployment.diamond).basketCount(), 0);
@@ -117,6 +132,33 @@ contract CoreBootstrapTest is Test {
         assertEq(StakingFacet(deployment.diamond).staticsDollar(), deployment.staticsDollar);
         assertEq(StakingFacet(deployment.diamond).staticsDollarRisk(), deployment.staticsDollarRisk);
         assertEq(StakingFacet(deployment.diamond).positionNFT(), deployment.positionNFT);
+    }
+
+    function test_CoreGenesisCannotAdvertiseMissingStandardSelectors() public {
+        CorePartsHarness harness = new CorePartsHarness();
+        DeployCoreBootstrap.CoreParts memory parts = harness.deployParts();
+        CanonicalWETH9 collateral = new CanonicalWETH9();
+        MockETHUSDOracle oracle = new MockETHUSDOracle(2_500e18, 1 hours);
+        address predictedCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
+        StaticsDollar staticsDollar = new StaticsDollar(predictedCore);
+        StaticsDollarRiskShares staticsDollarRisk = new StaticsDollarRiskShares(predictedCore, "");
+        IDiamondCut.FacetCut[] memory genesis = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = DiamondLoupeFacet.supportsInterface.selector;
+        genesis[0] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, selectors);
+        CoreInit.InitArgs memory args =
+            _initArgs(address(staticsDollar), address(staticsDollarRisk), address(oracle), address(collateral));
+
+        StaticsDollarCoreDiamond core =
+            new StaticsDollarCoreDiamond(owner, parts.init, abi.encodeCall(CoreInit.genesis, (genesis, args)));
+        assertEq(address(core), predictedCore);
+
+        IERC165 interfaces = IERC165(address(core));
+        assertTrue(interfaces.supportsInterface(type(IERC165).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IDiamondCut).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
+        assertFalse(interfaces.supportsInterface(type(IERC173).interfaceId));
+        assertFalse(interfaces.supportsInterface(0xffffffff));
     }
 
     function test_CoreTokenAuthorityAndRiskIngressStayRestricted() public {
@@ -183,6 +225,16 @@ contract CoreBootstrapTest is Test {
         CoreBootstrapDeployment memory deployment = new DeployCoreBootstrap().deploy(valid);
         assertEq(CoreViewFacet(deployment.core).requiredSequencerUptimeFeed(), address(feed));
         assertEq(CoreViewFacet(deployment.core).minimumSequencerGracePeriod(), 1 hours);
+    }
+
+    function test_InitRejectsZeroSeriesGeometryFromBadlyScaledOracle() public {
+        CanonicalWETH9 weth = new CanonicalWETH9();
+        MockETHUSDOracle oracle = new MockETHUSDOracle(type(uint256).max, 1 hours);
+        CoreBootstrapConfig memory config = _config(address(weth), address(oracle));
+        DeployCoreBootstrap deployer = new DeployCoreBootstrap();
+
+        vm.expectPartialRevert(LibCoreAccounting.InvalidSeriesGeometry.selector);
+        deployer.deploy(config);
     }
 
     function test_IncompleteBootstrapRejectsUnauthorizedAndMisboundFinalization() public {

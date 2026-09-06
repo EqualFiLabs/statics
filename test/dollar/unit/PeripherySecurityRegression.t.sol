@@ -14,13 +14,14 @@ import {StaticsDollarRiskShares} from "src/dollar/StaticsDollarRiskShares.sol";
 import {StaticsDollar} from "src/dollar/StaticsDollar.sol";
 import {IStaticsDollarCore} from "src/dollar/core/interfaces/IStaticsDollarCore.sol";
 import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
+import {IStaticsDollarSeriesMigration} from "src/dollar/interfaces/IStaticsDollarSeriesMigration.sol";
 import {CoreTransitionFacet} from "src/dollar/core/facets/CoreTransitionFacet.sol";
 import {CoreGovernanceFacet} from "src/dollar/core/facets/CoreGovernanceFacet.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 import {PairingVaultFacet} from "src/dollar/periphery/facets/PairingVaultFacet.sol";
+import {SeriesMigrationFacet} from "src/dollar/periphery/facets/SeriesMigrationFacet.sol";
 import {StakingFacet} from "src/dollar/periphery/facets/StakingFacet.sol";
-import {LibPeriphery} from "src/dollar/periphery/libraries/LibPeriphery.sol";
 import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {MockERC20, MockFeeOnTransferERC20} from "test/mocks/MockERC20.sol";
 
@@ -41,6 +42,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
     CanonicalWETH9 internal weth;
     MockETHUSDOracle internal oracle;
     StakingFacet internal staking;
+    SeriesMigrationFacet internal seriesMigration;
     PairingVaultFacet internal vault;
     MockERC20 internal statics;
 
@@ -63,6 +65,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         weth = CanonicalWETH9(payable(deployment.weth));
         oracle = MockETHUSDOracle(deployment.oracle);
         staking = StakingFacet(deployment.diamond);
+        seriesMigration = SeriesMigrationFacet(deployment.diamond);
         vault = PairingVaultFacet(deployment.diamond);
         statics.mint(alice, 1_000 ether);
     }
@@ -343,6 +346,36 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(weth.balanceOf(bob) - beforeClaim, collateralClaimed);
     }
 
+    function test_ReduceOnlyPairingInsuranceReachesCurrentRunoff() public {
+        (, uint256 aliceShares) = _deposit(alice, 1 ether);
+        (uint256 redeemerDollars,) = _deposit(redeemer, 1 ether);
+        uint256 supplied = aliceShares / 2;
+        uint256 fill = supplied / 2;
+        _createAndStake(alice, supplied);
+
+        vm.prank(owner);
+        CoreGovernanceFacet(deployment.core).enterReduceOnly(PROFILE_ID);
+        PairingVaultFacet.RedeemPreview memory preview = vault.previewRedeem(SERIES_ID, fill);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory beforeFill = core.collateralProfile(PROFILE_ID);
+        vm.startPrank(redeemer);
+        staticsDollar.approve(deployment.diamond, redeemerDollars);
+        vault.redeem(SERIES_ID, fill, fill, 0, block.timestamp, redeemer);
+        vm.stopPrank();
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory afterFill = core.collateralProfile(PROFILE_ID);
+        assertEq(afterFill.insuranceReserve - beforeFill.insuranceReserve, preview.collateralToInsurance);
+        IStaticsDollarCoreTypes.RiskSeries memory seriesBeforeRetirement = core.riskSeries(SERIES_ID);
+        vm.prank(owner);
+        CoreGovernanceFacet(deployment.core).setProfileMode(PROFILE_ID, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory retired = core.collateralProfile(PROFILE_ID);
+        IStaticsDollarCoreTypes.RiskSeries memory retiredSeries = core.riskSeries(SERIES_ID);
+        assertEq(retired.insuranceReserve, 0);
+        assertEq(
+            retiredSeries.accountedCollateral, seriesBeforeRetirement.accountedCollateral + afterFill.insuranceReserve
+        );
+    }
+
     function test_PairingConsumptionReleasesCanonicalRiskIncentivesProportionally() public {
         (uint256 aliceDollars, uint256 aliceShares) = _deposit(alice, 1 ether);
         (uint256 redeemerDollars,) = _deposit(redeemer, 1 ether);
@@ -484,6 +517,40 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(staking.riskLiquidity(alicePosition, SERIES_ID).claimableStaticsDollar, 0);
     }
 
+    function test_FinalSupplierClaimDrainsNondivisibleEpochResidue() public {
+        (, uint256 aliceShares) = _deposit(alice, 1 ether);
+        (, uint256 bobShares) = _deposit(bob, 1 ether);
+        (uint256 redeemerDollar,) = _deposit(redeemer, 1 ether);
+        uint256 riskUnit = 1 ether;
+        assertGe(aliceShares, riskUnit);
+        assertGe(bobShares, 2 * riskUnit);
+        uint256 alicePosition = _createAndStake(alice, riskUnit);
+        uint256 bobPosition = _createAndStake(bob, 2 * riskUnit);
+
+        vm.startPrank(alice);
+        statics.approve(deployment.diamond, 1);
+        staking.fundRiskStaticsIncentives(SERIES_ID, 1);
+        vm.stopPrank();
+        vm.startPrank(redeemer);
+        staticsDollar.approve(deployment.diamond, redeemerDollar);
+        vault.redeem(SERIES_ID, 3 * riskUnit, 3 * riskUnit, 0, block.timestamp, redeemer);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        (,, uint256 aliceStatics) = staking.claimRiskProceeds(alicePosition, SERIES_ID, alice);
+        assertEq(aliceStatics, 0);
+        vm.prank(alice);
+        staking.closeRiskLiquidity(alicePosition, SERIES_ID);
+        assertEq(staking.riskLiquidity(bobPosition, SERIES_ID).claimableStatics, 1);
+        uint256 beforeBalance = statics.balanceOf(bob);
+        vm.prank(bob);
+        (,, uint256 claimed) = staking.claimRiskProceeds(bobPosition, SERIES_ID, bob);
+
+        assertEq(claimed, 1);
+        assertEq(statics.balanceOf(bob) - beforeBalance, 1);
+        assertEq(staking.reservedBalance(address(statics)), 0);
+    }
+
     function test_ZeroEffectiveLiquidityCanCloseWithoutStrandingRemainingShares() public {
         (, uint256 aliceShares) = _deposit(alice, 1 ether);
         (, uint256 bobShares) = _deposit(bob, 1 ether);
@@ -525,6 +592,168 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         vm.stopPrank();
     }
 
+    function test_CancelledMigrationBlocksStakeUntilReturnedSharesAreReclaimed() public {
+        (, uint256 shares) = _deposit(alice, 3 ether);
+        uint256 supplied = shares / 2;
+        uint256 positionId = _createAndStake(alice, supplied);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        oracle.setPriceWad(2_500e18);
+        transition.cancelSeriesTransition(SERIES_ID);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(StakingFacet.SeriesMigrationReclaimPending.selector, SERIES_ID));
+        staking.stakeRiskShares(positionId, SERIES_ID, shares - supplied);
+
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        vm.prank(alice);
+        staking.stakeRiskShares(positionId, SERIES_ID, shares - supplied);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), shares);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        (uint256 noSeriesId, uint256 noPrincipal) = seriesMigration.processSeriesTransition(SERIES_ID);
+        assertEq(noSeriesId, 0);
+        assertEq(noPrincipal, 0);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        transition.finalizeSeriesTransition(SERIES_ID);
+        (uint256 successorSeriesId,) = seriesMigration.processSeriesTransition(SERIES_ID);
+
+        vm.prank(alice);
+        (, uint256 successorPrincipal) = seriesMigration.settleSeriesMigration(positionId, SERIES_ID);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), 0);
+        assertEq(staking.riskLiquidity(positionId, SERIES_ID).effectiveShares, 0);
+        assertEq(staking.riskLiquidity(positionId, successorSeriesId).effectiveShares, successorPrincipal);
+    }
+
+    function test_RestartWithoutSecondReturnStillSettlesPriorEscrow() public {
+        (, uint256 shares) = _deposit(alice, 3 ether);
+        uint256 positionId = _createAndStake(alice, shares);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        oracle.setPriceWad(2_500e18);
+        transition.cancelSeriesTransition(SERIES_ID);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        transition.finalizeSeriesTransition(SERIES_ID);
+        (uint256 successorSeriesId,) = seriesMigration.processSeriesTransition(SERIES_ID);
+
+        vm.prank(alice);
+        (, uint256 successorPrincipal) = seriesMigration.settleSeriesMigration(positionId, SERIES_ID);
+        assertGt(successorPrincipal, 0);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), 0);
+        assertEq(staking.riskLiquidity(positionId, successorSeriesId).effectiveShares, successorPrincipal);
+    }
+
+    function test_CancelledSuccessorMigrationMustReclaimBeforeLatePredecessorRecovery() public {
+        (uint256 aliceDollars, uint256 aliceShares) = _deposit(alice, 3 ether);
+        uint256 alicePosition = _createAndStake(alice, aliceShares);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        uint256 secondSeriesId = transition.finalizeSeriesTransition(SERIES_ID);
+
+        (, uint256 bobShares) = _deposit(bob, 3 ether);
+        vm.startPrank(bob);
+        staticsDollarRisk.setApprovalForAll(deployment.diamond, true);
+        uint256 bobPosition = staking.createAndStakeRiskShares(secondSeriesId, bobShares, bob);
+        vm.stopPrank();
+
+        oracle.setPriceWad(6_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(secondSeriesId);
+        oracle.setPriceWad(4_000e18);
+        transition.cancelSeriesTransition(secondSeriesId);
+
+        vm.startPrank(alice);
+        staticsDollar.approve(deployment.diamond, aliceDollars);
+        vm.expectRevert(
+            abi.encodeWithSelector(SeriesMigrationFacet.SeriesMigrationReclaimPending.selector, secondSeriesId)
+        );
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        vm.stopPrank();
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), aliceShares);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), 0);
+
+        seriesMigration.processSeriesTransition(secondSeriesId);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), bobShares);
+
+        vm.prank(alice);
+        (uint256 recoveredSeriesId, uint256 recoveredPrincipal) = seriesMigration.processSeriesTransition(SERIES_ID);
+        assertEq(recoveredSeriesId, secondSeriesId);
+        assertGt(recoveredPrincipal, 0);
+        vm.prank(alice);
+        (, uint256 aliceSecondPrincipal) = seriesMigration.settleSeriesMigration(alicePosition, SERIES_ID);
+        assertEq(aliceSecondPrincipal, recoveredPrincipal);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), 0);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), bobShares + recoveredPrincipal);
+
+        oracle.setPriceWad(6_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(secondSeriesId);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        uint256 thirdSeriesId = transition.finalizeSeriesTransition(secondSeriesId);
+        seriesMigration.processSeriesTransition(secondSeriesId);
+
+        vm.prank(alice);
+        (, uint256 aliceThirdPrincipal) = seriesMigration.settleSeriesMigration(alicePosition, secondSeriesId);
+        vm.prank(bob);
+        (, uint256 bobThirdPrincipal) = seriesMigration.settleSeriesMigration(bobPosition, secondSeriesId);
+
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), 0);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), 0);
+        assertEq(
+            staticsDollarRisk.balanceOf(deployment.diamond, thirdSeriesId), aliceThirdPrincipal + bobThirdPrincipal
+        );
+        assertEq(seriesMigration.seriesMigration(secondSeriesId).remainingOldPrincipal, 0);
+    }
+
+    function test_CancelledSuccessorMigrationBlocksLateReturnedPredecessorClaim() public {
+        (, uint256 aliceShares) = _deposit(alice, 3 ether);
+        _createAndStake(alice, aliceShares);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        uint256 secondSeriesId = transition.finalizeSeriesTransition(SERIES_ID);
+
+        (, uint256 bobShares) = _deposit(bob, 3 ether);
+        vm.startPrank(bob);
+        staticsDollarRisk.setApprovalForAll(deployment.diamond, true);
+        staking.createAndStakeRiskShares(secondSeriesId, bobShares, bob);
+        vm.stopPrank();
+
+        oracle.setPriceWad(6_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(secondSeriesId);
+        oracle.setPriceWad(4_000e18);
+        transition.cancelSeriesTransition(secondSeriesId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SeriesMigrationFacet.SeriesMigrationReclaimPending.selector, secondSeriesId)
+        );
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, SERIES_ID), 0);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), 0);
+
+        seriesMigration.processSeriesTransition(secondSeriesId);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), bobShares);
+
+        (uint256 recoveredSeriesId, uint256 recoveredPrincipal) = seriesMigration.processSeriesTransition(SERIES_ID);
+        assertEq(recoveredSeriesId, secondSeriesId);
+        assertGt(recoveredPrincipal, 0);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, secondSeriesId), bobShares + recoveredPrincipal);
+    }
+
     function test_SuppliedRiskSharesRemainSuppliedThroughSeriesRecovery() public {
         (, uint256 shares) = _deposit(alice, 3 ether);
         uint256 supplied = shares / 2;
@@ -536,14 +765,14 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
 
         oracle.setPriceWad(4_000e18);
         transition.startSeriesTransition(PROFILE_ID);
-        staking.processSeriesTransition(SERIES_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
         vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
         transition.finalizeSeriesTransition(SERIES_ID);
-        (uint256 successorSeriesId,) = staking.processSeriesTransition(SERIES_ID);
+        (uint256 successorSeriesId,) = seriesMigration.processSeriesTransition(SERIES_ID);
         assertEq(staking.riskIncentives(successorSeriesId).staticsReserve, 10 ether);
 
         vm.prank(alice);
-        (, uint256 successorPrincipal) = staking.settleSeriesMigration(positionId, SERIES_ID);
+        (, uint256 successorPrincipal) = seriesMigration.settleSeriesMigration(positionId, SERIES_ID);
 
         assertGt(successorSeriesId, SERIES_ID);
         assertGt(successorPrincipal, 0);
@@ -554,7 +783,7 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         assertEq(staking.riskLiquidity(positionId, SERIES_ID).claimableStaticsDollar, successorPrincipal);
     }
 
-    function test_RetiredProfileTransitionCreditsHolderCollateralToMigration() public {
+    function test_ReduceOnlyExpiredTransitionSettlesCollateralWithoutSuccessorIssuance() public {
         (uint256 dollars, uint256 shares) = _deposit(alice, 3 ether);
         uint256 positionId = _createAndStake(alice, shares);
 
@@ -562,23 +791,60 @@ contract PeripherySecurityRegressionTest is Test, IERC1155Receiver {
         transition.startSeriesTransition(PROFILE_ID);
         vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
         transition.finalizeSeriesTransition(SERIES_ID);
-        vm.startPrank(owner);
+        vm.prank(owner);
         CoreGovernanceFacet(address(deployment.core)).enterReduceOnly(PROFILE_ID);
-        CoreGovernanceFacet(address(deployment.core))
-            .setProfileMode(PROFILE_ID, IStaticsDollarCoreTypes.ProfileMode.Retired);
-        vm.stopPrank();
 
-        assertFalse(staking.seriesMigration(SERIES_ID).returned);
+        assertFalse(seriesMigration.seriesMigration(SERIES_ID).returned);
 
         vm.startPrank(alice);
         staticsDollar.approve(deployment.diamond, dollars);
-        staking.processSeriesTransition(SERIES_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
         vm.stopPrank();
 
-        LibPeriphery.SeriesMigration memory migration = staking.seriesMigration(SERIES_ID);
+        IStaticsDollarSeriesMigration.SeriesMigrationView memory migration = seriesMigration.seriesMigration(SERIES_ID);
+        assertEq(migration.remainingNewPrincipal, 0);
         assertEq(migration.remainingStaticsDollar, 0);
         assertGt(migration.remainingCollateral, 0);
         assertEq(staticsDollarRisk.balanceOf(alice, SERIES_ID), 0);
+
+        vm.prank(alice);
+        (, uint256 successorPrincipal) = seriesMigration.settleSeriesMigration(positionId, SERIES_ID);
+        assertEq(successorPrincipal, 0);
+        uint256 collateralBefore = weth.balanceOf(alice);
+        vm.prank(alice);
+        (uint256 collateralClaimed,,) = staking.claimRiskProceeds(positionId, SERIES_ID, alice);
+        assertGt(collateralClaimed, 0);
+        assertEq(weth.balanceOf(alice) - collateralBefore, collateralClaimed);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, migration.newSeriesId), 0);
+    }
+
+    function test_ReduceOnlyReturnedTransitionSettlesCollateralWithoutSuccessorIssuance() public {
+        (, uint256 shares) = _deposit(alice, 3 ether);
+        uint256 positionId = _createAndStake(alice, shares);
+
+        oracle.setPriceWad(4_000e18);
+        transition.startSeriesTransition(PROFILE_ID);
+        seriesMigration.processSeriesTransition(SERIES_ID);
+        vm.warp(block.timestamp + transition.SERIES_TRANSITION_DELAY());
+        transition.finalizeSeriesTransition(SERIES_ID);
+        vm.prank(owner);
+        CoreGovernanceFacet(address(deployment.core)).enterReduceOnly(PROFILE_ID);
+
+        (uint256 successorSeriesId, uint256 successorPrincipal) = seriesMigration.processSeriesTransition(SERIES_ID);
+        assertEq(successorPrincipal, 0);
+        IStaticsDollarSeriesMigration.SeriesMigrationView memory migration = seriesMigration.seriesMigration(SERIES_ID);
+        assertEq(migration.remainingNewPrincipal, 0);
+        assertGt(migration.remainingCollateral, 0);
+
+        vm.prank(alice);
+        (, successorPrincipal) = seriesMigration.settleSeriesMigration(positionId, SERIES_ID);
+        assertEq(successorPrincipal, 0);
+        uint256 collateralBefore = weth.balanceOf(alice);
+        vm.prank(alice);
+        (uint256 collateralClaimed,,) = staking.claimRiskProceeds(positionId, SERIES_ID, alice);
+        assertGt(collateralClaimed, 0);
+        assertEq(weth.balanceOf(alice) - collateralBefore, collateralClaimed);
+        assertEq(staticsDollarRisk.balanceOf(deployment.diamond, successorSeriesId), 0);
     }
 
     function _deposit(address account, uint256 collateralAmount) internal returns (uint256 dollars, uint256 shares) {

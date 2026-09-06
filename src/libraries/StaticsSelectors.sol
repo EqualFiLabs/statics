@@ -122,15 +122,14 @@ library StaticsSelectors {
     }
 
     function morphoActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](7);
         selectors[0] = IStaticsMorpho.deployMorphoCollateral.selector;
         selectors[1] = IStaticsMorpho.recallMorphoCollateral.selector;
-        selectors[2] = IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector;
-        selectors[3] = IStaticsMorpho.borrowMorphoUsd.selector;
-        selectors[4] = IStaticsMorpho.repayMorphoUsd.selector;
-        selectors[5] = IStaticsMorpho.syncMorpho.selector;
-        selectors[6] = IStaticsMorpho.syncMorphoForModule.selector;
-        selectors[7] = IStaticsMorpho.liquidateMorphoAndSync.selector;
+        selectors[2] = IStaticsMorpho.borrowMorphoUsd.selector;
+        selectors[3] = IStaticsMorpho.repayMorphoUsd.selector;
+        selectors[4] = IStaticsMorpho.syncMorpho.selector;
+        selectors[5] = IStaticsMorpho.syncMorphoForModule.selector;
+        selectors[6] = IStaticsMorpho.liquidateMorphoAndSync.selector;
     }
 
     function morphoSettlement() internal pure returns (bytes4[] memory selectors) {
@@ -138,6 +137,11 @@ library StaticsSelectors {
         selectors[0] = IStaticsMorpho.claimMorphoSyncBounties.selector;
         selectors[1] = IStaticsMorpho.routeMorphoPerformanceFee.selector;
         selectors[2] = IStaticsMorpho.recoverMorphoAccountToken.selector;
+    }
+
+    function morphoRecovery() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector;
     }
 
     function morphoView() internal pure returns (bytes4[] memory selectors) {
@@ -298,9 +302,9 @@ library StaticsSelectors {
         selectors[8] = IStaticsBasketLiquidity.canonicalPool.selector;
         selectors[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
         selectors[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeConfiguration.selector;
-        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeConfiguration.selector;
-        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeConfiguration.selector;
+        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
+        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
+        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
     }
 
     function protocolPoolCreation() internal pure returns (bytes4[] memory selectors) {

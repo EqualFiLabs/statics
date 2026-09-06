@@ -98,6 +98,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error PoolAlreadyRegistered(PoolId poolId);
     error PoolNotRegistered(PoolId poolId);
     error InvalidPoolKind();
+    error InvalidCreator(address creator);
     error PoolIsDecommissioned(PoolId poolId);
     error PoolNotDecommissioned(PoolId poolId);
     error NativeCurrencyUnsupported();
@@ -224,6 +225,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (key.currency0.isAddressZero() || key.currency1.isAddressZero()) revert NativeCurrencyUnsupported();
         if (key.fee != 0) revert NonzeroNativeLpFee(key.fee);
         if (kind != PoolKind.BasketCanonical && kind != PoolKind.General) revert InvalidPoolKind();
+        if (creator == address(0)) revert InvalidCreator(creator);
         poolId = key.toId();
         if (registrations[poolId].registered) revert PoolAlreadyRegistered(poolId);
         registrations[poolId] = PoolRegistration({

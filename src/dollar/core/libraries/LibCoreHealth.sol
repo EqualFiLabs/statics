@@ -74,8 +74,10 @@ library LibCoreHealth {
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile,
         SolvencyScratch memory scratch
     ) private view returns (uint256 aggregateDeficit) {
-        uint256 recordedSupportingCollateral =
-            profile.accountedCollateral + profile.insuranceReserve;
+        uint256 recordedSupportingCollateral = profile.accountedCollateral;
+        if (profile.kind == IStaticsDollarCoreTypes.ProfileKind.Pegged) {
+            recordedSupportingCollateral += profile.insuranceReserve;
+        }
         scratch.custodySupportingCollateral =
             scratch.actualBalance < recordedSupportingCollateral ? scratch.actualBalance : recordedSupportingCollateral;
         (scratch.normalized, scratch.custodySupportingWad) =
@@ -98,9 +100,13 @@ library LibCoreHealth {
         SolvencyScratch memory scratch
     ) private view returns (uint256 isolatedDeficit) {
         (uint256 indexedSeriesDeficit,,,) = cs.solvencyIndex[profileId].deficitAt(scratch.priceWad);
-        uint256 custodyInsuranceCollateral = scratch.custodySupportingCollateral > profile.accountedCollateral
-            ? scratch.custodySupportingCollateral - profile.accountedCollateral
-            : 0;
+        uint256 custodyInsuranceCollateral;
+        if (
+            profile.kind == IStaticsDollarCoreTypes.ProfileKind.Pegged
+                && scratch.custodySupportingCollateral > profile.accountedCollateral
+        ) {
+            custodyInsuranceCollateral = scratch.custodySupportingCollateral - profile.accountedCollateral;
+        }
         (scratch.normalized, scratch.custodySupportingWad) = toWad(custodyInsuranceCollateral, profile.decimals);
         if (!scratch.normalized) {
             solvency.oracleAvailable = false;

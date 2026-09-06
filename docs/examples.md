@@ -183,8 +183,8 @@ instead of becoming a historical claim for a later staker.
 
 New stake and new selections wait until the next hourly boundary at least 24
 hours later. Existing mature stake remains eligible when Alice opts into
-another asset or adds stake, and all STATICS remains withdrawable during the
-eligibility wait.
+another asset or adds stake. Undeployed STATICS remains withdrawable during the
+eligibility wait; any stake supplied to Morpho must first be recalled.
 
 ## Arbitraging an overpriced BasketToken
 

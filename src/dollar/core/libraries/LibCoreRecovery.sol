@@ -14,7 +14,6 @@ library LibCoreRecovery {
     uint256 internal constant KEEPER_BOUNTY_BPS = 50;
 
     error EmptyPool();
-    error DepositTooSmall();
     error RecoveryBookQuoteChanged(uint256 expectedGross, uint256 actualGross);
 
     event InsuranceDrawn(
@@ -100,9 +99,8 @@ library LibCoreRecovery {
         uint256 ratioBps,
         uint256 bandBps
     ) internal {
-        uint256 collateralPerPairWad = Math.mulDiv(Math.mulDiv(WAD, ratioBps, BPS), WAD, priceWad);
-        if (collateralPerPairWad == 0) revert DepositTooSmall();
-        uint256 seniorCollateralPerUnitWad = Math.mulDiv(WAD, WAD, priceWad);
+        (uint256 collateralPerPairWad, uint256 seniorCollateralPerUnitWad, uint256 juniorCollateralPerUnitWad) =
+            LibCoreAccounting.seriesGeometry(priceWad, ratioBps);
         cs.riskSeries[seriesId] = IStaticsDollarCoreTypes.RiskSeries({
             profileId: profileId,
             collateralToken: cs.collateralProfiles[profileId].collateralToken,
@@ -112,7 +110,7 @@ library LibCoreRecovery {
             startPriceWad: priceWad,
             collateralPerPairWad: collateralPerPairWad,
             seniorCollateralPerUnitWad: seniorCollateralPerUnitWad,
-            juniorCollateralPerUnitWad: collateralPerPairWad - seniorCollateralPerUnitWad,
+            juniorCollateralPerUnitWad: juniorCollateralPerUnitWad,
             collateralRatioBps: ratioBps,
             priceBandBps: bandBps,
             startedAt: block.timestamp,

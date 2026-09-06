@@ -117,13 +117,16 @@ contract PositionNFTFacet is
 
     function closePosition(uint256 positionId) external {
         LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibPosition.PackedPositionState storage state = LibPosition.positionStorage().state[positionId];
+        address owner = _ownerOf(positionId);
+        LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
+        LibPosition.PackedPositionState storage state = ps.state[positionId];
         if (state.initializing) revert PositionInitializing(positionId);
         if (state.activeLegCount != 0) revert PositionHasActiveLegs(positionId, state.activeLegCount);
         if (state.unresolvedObligationCount != 0) {
             revert PositionHasUnresolvedObligations(positionId, state.unresolvedObligationCount);
         }
         IStaticsMorpho(address(this)).enforceMorphoAccountEmpty(positionId);
+        ps.morphoRecoveryBeneficiary[positionId] = owner;
         LibPosition.incrementNonce(positionId);
         _burn(positionId);
         LibPosition.emitStateChanged(positionId);
@@ -156,10 +159,21 @@ contract PositionNFTFacet is
         return LibPosition.positionStorage().activeLeg[positionId][legKey_];
     }
 
-    function isPositionClosable(uint256 positionId) external view returns (bool) {
+    function isPositionClosable(uint256 positionId) external view returns (bool closable) {
         LibPosition.PackedPositionState storage state = LibPosition.positionStorage().state[positionId];
-        return _ownerOf(positionId) != address(0) && !state.initializing && state.activeLegCount == 0
-            && state.unresolvedObligationCount == 0;
+        uint256 structuralBlockers;
+        // The nonce occupies the low 64 bits; all closure blockers share the remainder of the packed word.
+        assembly ("memory-safe") {
+            structuralBlockers := shr(64, sload(state.slot))
+        }
+        if (_ownerOf(positionId) != address(0) && structuralBlockers == 0) {
+            uint256 selector = uint32(IStaticsMorpho.enforceMorphoAccountEmpty.selector);
+            assembly ("memory-safe") {
+                mstore(0, selector)
+                mstore(32, positionId)
+                closable := staticcall(gas(), address(), 28, 36, 0, 0)
+            }
+        }
     }
 
     function locked(uint256 positionId) public view returns (bool) {

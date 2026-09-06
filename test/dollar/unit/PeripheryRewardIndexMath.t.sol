@@ -29,6 +29,66 @@ contract PeripheryConsumptionMathHarness {
         remainder = index.remainderRay;
     }
 
+    function addPosition(uint256 positionId, uint256 amount) external {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        LibPeriphery.SeriesBook storage book = ps.series[SERIES_ID];
+        LibPeriphery.PositionLeg storage leg = ps.leg[positionId][SERIES_ID];
+        leg.exists = true;
+        leg.epoch = book.epoch;
+        leg.stored += LibPeriphery.addLiquidity(book, amount);
+    }
+
+    function accrueReserved(address token, uint256 amount, LibPeriphery.IncentiveKind kind) external {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        LibPeriphery.SeriesBook storage book = ps.series[SERIES_ID];
+        LibPeriphery.reserve(ps, token, amount);
+        LibPeriphery.accrueReservedRiskIncentive(
+            ps, SERIES_ID, book.epoch, book.totalStored, token, amount, kind, "INCENTIVE"
+        );
+    }
+
+    function settle(uint256 positionId) external {
+        LibPeriphery.settleLeg(LibPeriphery.s(), positionId, SERIES_ID);
+    }
+
+    function pending(uint256 positionId)
+        external
+        view
+        returns (uint256 collateral, uint256 staticsDollar, uint256 statics)
+    {
+        return LibPeriphery.pendingProceeds(LibPeriphery.s(), positionId, SERIES_ID);
+    }
+
+    function accrued(uint256 positionId)
+        external
+        view
+        returns (uint256 collateral, uint256 staticsDollar, uint256 statics)
+    {
+        LibPeriphery.PositionLeg storage leg = LibPeriphery.s().leg[positionId][SERIES_ID];
+        return (leg.accruedCollateral, leg.accruedStaticsDollar, leg.accruedStatics);
+    }
+
+    function indexAccounting(LibPeriphery.IncentiveKind kind)
+        external
+        view
+        returns (uint256 remainder, uint256 funded, uint256 crystallized)
+    {
+        LibPeriphery.SeriesBook storage book = LibPeriphery.s().series[SERIES_ID];
+        LibPeriphery.ProceedsIndex storage index;
+        if (kind == LibPeriphery.IncentiveKind.Collateral) index = book.collateralProceeds[0];
+        else if (kind == LibPeriphery.IncentiveKind.StaticsDollar) index = book.staticsDollarProceeds[0];
+        else index = book.staticsProceeds[0];
+        return (index.remainderRay, index.fundedAmount, index.crystallizedAmount);
+    }
+
+    function clearZeroValueLiquidity(uint256 positionId) external returns (uint256 clearedStored) {
+        return LibPeriphery.clearZeroValueLiquidity(LibPeriphery.s(), positionId, SERIES_ID);
+    }
+
+    function reserved(address token) external view returns (uint256) {
+        return LibPeriphery.s().reservedByToken[token];
+    }
+
     function state() external view returns (uint256 totalStored, uint256 effectivePrincipal, uint256 scaleRay) {
         LibPeriphery.SeriesBook storage book = LibPeriphery.s().series[SERIES_ID];
         return (book.totalStored, book.effectivePrincipal, book.scaleRay);
@@ -65,6 +125,59 @@ contract PeripheryRewardIndexMathTest is Test {
         assertEq(remainder, mulmod(amount, RAY, denominator));
     }
 
+    function test_FinalOldEpochLegReceivesEveryTerminalResidue() public {
+        MockERC20 dollar = new MockERC20("Dollar", "DOL", 18);
+        MockERC20 statics = new MockERC20("Statics", "STX", 18);
+        token.mint(address(harness), 1);
+        dollar.mint(address(harness), 1);
+        statics.mint(address(harness), 1);
+        harness.addPosition(1, 1);
+        harness.addPosition(2, 2);
+        harness.accrueReserved(address(token), 1, LibPeriphery.IncentiveKind.Collateral);
+        harness.accrueReserved(address(dollar), 1, LibPeriphery.IncentiveKind.StaticsDollar);
+        harness.accrueReserved(address(statics), 1, LibPeriphery.IncentiveKind.Statics);
+
+        harness.consume(3);
+        harness.settle(1);
+        (uint256 firstCollateral, uint256 firstDollar, uint256 firstStatics) = harness.accrued(1);
+        assertEq(firstCollateral, 0);
+        assertEq(firstDollar, 0);
+        assertEq(firstStatics, 0);
+        (uint256 pendingCollateral, uint256 pendingDollar, uint256 pendingStatics) = harness.pending(2);
+        assertEq(pendingCollateral, 1);
+        assertEq(pendingDollar, 1);
+        assertEq(pendingStatics, 1);
+
+        harness.settle(2);
+        (uint256 finalCollateral, uint256 finalDollar, uint256 finalStatics) = harness.accrued(2);
+        assertEq(finalCollateral, 1);
+        assertEq(finalDollar, 1);
+        assertEq(finalStatics, 1);
+        _assertClosedIndex(LibPeriphery.IncentiveKind.Collateral);
+        _assertClosedIndex(LibPeriphery.IncentiveKind.StaticsDollar);
+        _assertClosedIndex(LibPeriphery.IncentiveKind.Statics);
+        assertEq(harness.reserved(address(token)), 1);
+        assertEq(harness.reserved(address(dollar)), 1);
+        assertEq(harness.reserved(address(statics)), 1);
+    }
+
+    function test_SettlementOrderChangesOnlyTheResidueRecipient() public {
+        token.mint(address(harness), 1);
+        harness.addPosition(1, 1);
+        harness.addPosition(2, 2);
+        harness.accrueReserved(address(token), 1, LibPeriphery.IncentiveKind.Collateral);
+        harness.consume(3);
+
+        harness.settle(2);
+        harness.settle(1);
+
+        (uint256 first,,) = harness.accrued(1);
+        (uint256 second,,) = harness.accrued(2);
+        assertEq(first + second, 1);
+        assertEq(first, 1);
+        _assertClosedIndex(LibPeriphery.IncentiveKind.Collateral);
+    }
+
     function testFuzz_PartialConsumptionPreservesPositiveScale(uint256 rawSupply, uint256 rawFill) public {
         uint256 supply = bound(rawSupply, 2, type(uint128).max);
         uint256 minimumRemainder = Math.ceilDiv(supply, RAY);
@@ -96,5 +209,12 @@ contract PeripheryRewardIndexMathTest is Test {
             assertEq(released, Math.mulDiv(reserve, fill, available));
             assertLe(released, reserve);
         }
+    }
+
+    function _assertClosedIndex(LibPeriphery.IncentiveKind kind) private view {
+        (uint256 remainder, uint256 funded, uint256 crystallized) = harness.indexAccounting(kind);
+        assertEq(remainder, 0);
+        assertEq(funded, 1);
+        assertEq(crystallized, funded);
     }
 }

@@ -270,6 +270,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         PoolKey memory ok = _poolKey(currency0, currency1, 0, 20);
         vm.expectRevert(StaticsSwapFeeHook.InvalidPoolKind.selector);
         diamond.registerPool(ok, IStaticsSwapFeeHook.PoolKind.None, creator);
+
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.InvalidCreator.selector, address(0)));
+        diamond.registerPool(ok, IStaticsSwapFeeHook.PoolKind.General, address(0));
+        assertFalse(hook.poolRegistration(ok.toId()).registered);
     }
 
     function testRegistrationRecordsKindAndCreator() public view {
