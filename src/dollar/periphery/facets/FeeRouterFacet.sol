@@ -28,6 +28,7 @@ contract FeeRouterFacet is ReentrancyGuard {
         uint256 indexed profileId, address indexed token, IStaticsDollarCoreTypes.FeeKind indexed kind, uint256 amount
     );
     event PendingInsuranceRouted(uint256 indexed profileId, address indexed token, uint256 amount, address caller);
+    event RetiredSurplusIndexed(uint256 indexed profileId, address indexed token, uint256 amount);
     event SplitSet(uint16 baseBps, uint16 insuranceBps);
 
     error OnlyPool(address caller);
@@ -37,7 +38,7 @@ contract FeeRouterFacet is ReentrancyGuard {
     error InvalidProfileKind(
         uint256 profileId, IStaticsDollarCoreTypes.ProfileKind expected, IStaticsDollarCoreTypes.ProfileKind actual
     );
-    error NothingToRoute(uint256 profileId);
+    error ProfileNotRetired(uint256 profileId, IStaticsDollarCoreTypes.ProfileMode mode);
 
     function onSeriesFee(uint256 seriesId, address token, uint256 amount, IStaticsDollarCoreTypes.FeeKind kind)
         external
@@ -95,19 +96,30 @@ contract FeeRouterFacet is ReentrancyGuard {
         emit PeggedProfileFeeRouted(profileId, token, kind, amount);
     }
 
+    function onRetiredSurplus(uint256 profileId, address token, uint256 amount) external {
+        LibPeriphery.PS storage ps = LibPeriphery.s();
+        if (msg.sender != ps.pool) revert OnlyPool(msg.sender);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile =
+            IStaticsDollarCore(ps.pool).collateralProfile(profileId);
+        if (profile.mode != IStaticsDollarCoreTypes.ProfileMode.Retired) {
+            revert ProfileNotRetired(profileId, profile.mode);
+        }
+        if (token != profile.collateralToken) {
+            revert InvalidProfileFeeToken(profileId, profile.collateralToken, token);
+        }
+        LibCustody.reserve(LibCustody.dollarAccount(), token, amount);
+        LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), token, amount);
+        emit RetiredSurplusIndexed(profileId, token, amount);
+    }
+
     function routePendingInsurance(uint256 profileId) external nonReentrant returns (uint256 amount) {
         LibPeriphery.PS storage ps = LibPeriphery.s();
         IStaticsDollarCoreTypes.StableCollateralProfile memory profile =
             IStaticsDollarCore(ps.pool).collateralProfile(profileId);
         amount = ps.pendingInsurance[profileId];
-        if (amount == 0) revert NothingToRoute(profileId);
+        if (amount == 0) return 0;
         ps.pendingInsurance[profileId] = 0;
         ps.pendingInsuranceByToken[profile.collateralToken] -= amount;
-        if (profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired) {
-            LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), profile.collateralToken, amount);
-            emit PendingInsuranceRouted(profileId, profile.collateralToken, amount, msg.sender);
-            return amount;
-        }
         LibCustody.release(LibCustody.dollarAccount(), profile.collateralToken, amount);
         IERC20(profile.collateralToken).forceApprove(ps.pool, amount);
         IStaticsDollarCore(ps.pool).topUpInsurance(profileId, amount);

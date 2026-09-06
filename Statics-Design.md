@@ -983,18 +983,14 @@ a transition or retirement. Retirement first flushes pending periphery
 insurance. It allocates reserve to the current live paired series only when that
 series is the profile's sole senior generation; otherwise the non-claimant
 reserve enters the global non-swap reward ledger. Fixed historical recovery
-books never gain later reserve. Any legacy pegged reserve joins a live
-redemption book, while an empty pegged profile routes its terminal surplus
-globally. Retirement never depends on a claimant clearing reserve first, and
-later top-ups are rejected.
+books never gain later reserve. An empty pegged profile routes its terminal
+surplus globally. Retirement never depends on a claimant clearing reserve
+first, and later top-ups are rejected.
 
 Transition finalization freezes ordinary transfers of the predecessor's
-freeze-capable `STATICS_DOLLAR_RISK_V2` ID while preserving Core mint and burn
-for runoff and successor rollover. The immutable V1 Risk Shares contract lacks
-that capability and cannot be reused with this Core revision. Deployment must
-create the V2 token, Core, and `StaticsDiamond` together as a fresh full stack;
-an initialized full-stack Diamond cannot safely be rebound in place because its
-Dollar books are keyed by Core-issued numeric IDs. This restriction does not
+freeze-capable `STATICS_DOLLAR_RISK_V1` ID while preserving Core mint and burn
+for runoff and successor rollover. Deployment creates the Risk Shares token,
+Core, and `StaticsDiamond` together as one coordinated stack. This does not
 change the later one-shot binding of a separately deployed Genesis contract.
 
 This coexistence does not merge Dollar collateral held by Core with Diamond
@@ -1037,12 +1033,9 @@ a complete fill drains the remaining rounding residue. `claimRiskProceeds`
 returns collateral, Statics Dollar, and STATICS independently and aggregates
 transfers safely if configured token roles coincide.
 
-Terminal-residue counters activate lazily for an empty proceeds index. An
-in-place upgrade that encounters a nonzero legacy index keeps that index on its
-pre-upgrade floor-rounding path rather than attempting to infer historical
-funding. Later funding into that same index also remains floor-only and its
-residual remains reserved. New empty indexes and later epochs receive exact
-terminal settlement; historical dust is not retroactively reassigned.
+Every proceeds index records total funding and crystallized claims. When an
+epoch closes, the final stored leg receives every raw-token unit not already
+crystallized, so rounding residue cannot remain stranded in protocol custody.
 
 Unused incentives do not become stranded historical rewards.
 `finalizeRiskIncentives` is permissionless and idempotent after a series is

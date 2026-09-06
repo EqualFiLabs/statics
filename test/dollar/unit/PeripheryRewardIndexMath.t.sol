@@ -81,27 +81,6 @@ contract PeripheryConsumptionMathHarness {
         return (index.remainderRay, index.fundedAmount, index.crystallizedAmount);
     }
 
-    function residueTracked(LibPeriphery.IncentiveKind kind) external view returns (bool) {
-        LibPeriphery.SeriesBook storage book = LibPeriphery.s().series[SERIES_ID];
-        if (kind == LibPeriphery.IncentiveKind.Collateral) return book.collateralProceeds[0].residueTracked;
-        if (kind == LibPeriphery.IncentiveKind.StaticsDollar) return book.staticsDollarProceeds[0].residueTracked;
-        return book.staticsProceeds[0].residueTracked;
-    }
-
-    function seedLegacyCollateralIndex(uint256 accPerStoredRay, uint256 remainderRay) external {
-        LibPeriphery.ProceedsIndex storage index = LibPeriphery.s().series[SERIES_ID].collateralProceeds[0];
-        index.accPerStoredRay = accPerStoredRay;
-        index.remainderRay = remainderRay;
-    }
-
-    function advancePastUntrackedLegacyEpoch() external {
-        LibPeriphery.SeriesBook storage book = LibPeriphery.s().series[SERIES_ID];
-        book.totalStored = 0;
-        book.effectivePrincipal = 0;
-        book.scaleRay = LibPeriphery.RAY;
-        book.epoch = 1;
-    }
-
     function clearZeroValueLiquidity(uint256 positionId) external returns (uint256 clearedStored) {
         return LibPeriphery.clearZeroValueLiquidity(LibPeriphery.s(), positionId, SERIES_ID);
     }
@@ -199,72 +178,6 @@ contract PeripheryRewardIndexMathTest is Test {
         _assertClosedIndex(LibPeriphery.IncentiveKind.Collateral);
     }
 
-    function test_LegacyAccrualSettlesWithoutUninitializedCounterUnderflow() public {
-        harness.addPosition(1, 1);
-        harness.addPosition(2, 2);
-        harness.seedLegacyCollateralIndex(RAY, 1);
-
-        harness.consume(3);
-        harness.settle(1);
-        harness.settle(2);
-
-        (uint256 first,,) = harness.accrued(1);
-        (uint256 second,,) = harness.accrued(2);
-        assertEq(first, 1);
-        assertEq(second, 2);
-        assertFalse(harness.residueTracked(LibPeriphery.IncentiveKind.Collateral));
-        (uint256 remainder, uint256 funded, uint256 crystallized) =
-            harness.indexAccounting(LibPeriphery.IncentiveKind.Collateral);
-        assertEq(remainder, 0);
-        assertEq(funded, 0);
-        assertEq(crystallized, 0);
-    }
-
-    function test_LaterFundingIntoLegacyIndexRemainsFloorOnlyAndReserved() public {
-        harness.addPosition(1, 1);
-        harness.addPosition(2, 2);
-        harness.seedLegacyCollateralIndex(RAY, 1);
-        token.mint(address(harness), 1);
-        harness.accrueReserved(address(token), 1, LibPeriphery.IncentiveKind.Collateral);
-
-        harness.consume(3);
-        harness.settle(1);
-        harness.settle(2);
-
-        (uint256 first,,) = harness.accrued(1);
-        (uint256 second,,) = harness.accrued(2);
-        assertEq(first, 1);
-        assertEq(second, 2);
-        assertEq(harness.reserved(address(token)), 1);
-        assertFalse(harness.residueTracked(LibPeriphery.IncentiveKind.Collateral));
-        (uint256 remainder, uint256 funded, uint256 crystallized) =
-            harness.indexAccounting(LibPeriphery.IncentiveKind.Collateral);
-        assertEq(remainder, 0);
-        assertEq(funded, 0);
-        assertEq(crystallized, 0);
-    }
-
-    function test_UntrackedClosedLegacyEpochSettlesAndClearsWithoutCounterState() public {
-        harness.addPosition(1, 1);
-        harness.addPosition(2, 2);
-        harness.seedLegacyCollateralIndex(RAY, 1);
-        harness.advancePastUntrackedLegacyEpoch();
-
-        harness.settle(1);
-        harness.settle(2);
-
-        (uint256 first,,) = harness.accrued(1);
-        (uint256 second,,) = harness.accrued(2);
-        assertEq(first, 1);
-        assertEq(second, 2);
-        assertEq(harness.clearZeroValueLiquidity(1), 1);
-        assertEq(harness.clearZeroValueLiquidity(2), 2);
-        assertFalse(harness.residueTracked(LibPeriphery.IncentiveKind.Collateral));
-        (, uint256 funded, uint256 crystallized) = harness.indexAccounting(LibPeriphery.IncentiveKind.Collateral);
-        assertEq(funded, 0);
-        assertEq(crystallized, 0);
-    }
-
     function testFuzz_PartialConsumptionPreservesPositiveScale(uint256 rawSupply, uint256 rawFill) public {
         uint256 supply = bound(rawSupply, 2, type(uint128).max);
         uint256 minimumRemainder = Math.ceilDiv(supply, RAY);
@@ -303,6 +216,5 @@ contract PeripheryRewardIndexMathTest is Test {
         assertEq(remainder, 0);
         assertEq(funded, 1);
         assertEq(crystallized, funded);
-        assertTrue(harness.residueTracked(kind));
     }
 }

@@ -306,6 +306,12 @@ contract CoreDiamondLifecycleTest is Test {
         assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth)), explicitlyRoutedTreasury);
     }
 
+    function test_RetiredSurplusIngressRejectsNonCoreCallers() public {
+        FeeRouterFacet router = FeeRouterFacet(deployment.diamond);
+        vm.expectRevert(abi.encodeWithSelector(FeeRouterFacet.OnlyPool.selector, address(this)));
+        router.onRetiredSurplus(1, address(weth), 1);
+    }
+
     function test_RetiredRecombinationFeeRoutesDirectlyToGlobalRewards() public {
         _setVolatileFees(0, 100);
         vm.deal(alice, 1 ether);

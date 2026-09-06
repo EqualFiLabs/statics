@@ -15,6 +15,7 @@ interface ICoreFeeReceiver {
     function onSeriesFee(uint256 seriesId, address token, uint256 amount, IStaticsDollarCoreTypes.FeeKind kind) external;
     function onPeggedProfileFee(uint256 profileId, address token, uint256 amount, IStaticsDollarCoreTypes.FeeKind kind)
         external;
+    function onRetiredSurplus(uint256 profileId, address token, uint256 amount) external;
 }
 
 library LibCoreAccounting {
@@ -176,23 +177,13 @@ library LibCoreAccounting {
         internal
     {
         if (amount == 0) return;
-        IStaticsDollarCoreTypes.StableCollateralProfile storage storedProfile = cs.collateralProfiles[profileId];
-        address token = storedProfile.collateralToken;
+        address token = cs.collateralProfiles[profileId].collateralToken;
         address recipient = cs.periphery;
         cs.accountedCollateralByToken[token] -= amount;
         pushExact(token, recipient, amount);
-        if (storedProfile.kind == IStaticsDollarCoreTypes.ProfileKind.Volatile) {
-            try ICoreFeeReceiver(recipient)
-                .onSeriesFee(seriesId, token, amount, IStaticsDollarCoreTypes.FeeKind.Redemption) {}
-            catch {
-                revert FeeRecipientCallbackFailed(recipient);
-            }
-        } else {
-            try ICoreFeeReceiver(recipient)
-                .onPeggedProfileFee(profileId, token, amount, IStaticsDollarCoreTypes.FeeKind.Redemption) {}
-            catch {
-                revert FeeRecipientCallbackFailed(recipient);
-            }
+        try ICoreFeeReceiver(recipient).onRetiredSurplus(profileId, token, amount) {}
+        catch {
+            revert FeeRecipientCallbackFailed(recipient);
         }
         emit RetiredSurplusRouted(profileId, seriesId, token, amount);
     }

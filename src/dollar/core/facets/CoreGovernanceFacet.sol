@@ -13,7 +13,6 @@ import {LibCorePeggedRedemption} from "../libraries/LibCorePeggedRedemption.sol"
 import {LibCoreStorage} from "../libraries/LibCoreStorage.sol";
 
 interface ICoreInsuranceRouter {
-    function pendingInsurance(uint256 profileId) external view returns (uint256 amount);
     function routePendingInsurance(uint256 profileId) external returns (uint256 amount);
 }
 
@@ -361,15 +360,10 @@ contract CoreGovernanceFacet is ReentrancyGuard {
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile
     ) private {
         if (profile.kind == IStaticsDollarCoreTypes.ProfileKind.Pegged) {
-            uint256 peggedInsurance = profile.insuranceReserve;
             uint256 peggedTerminalSurplus;
             if (profile.seniorOutstanding == 0) {
-                peggedTerminalSurplus = profile.accountedCollateral + peggedInsurance;
+                peggedTerminalSurplus = profile.accountedCollateral;
                 profile.accountedCollateral = 0;
-                profile.insuranceReserve = 0;
-            } else if (peggedInsurance != 0) {
-                profile.insuranceReserve = 0;
-                profile.accountedCollateral += peggedInsurance;
             }
             profile.mode = IStaticsDollarCoreTypes.ProfileMode.Retired;
             emit PeggedProfilePermanentlyRetired(profileId);
@@ -415,8 +409,7 @@ contract CoreGovernanceFacet is ReentrancyGuard {
     }
 
     function _flushPendingInsurance(LibCoreStorage.CS storage cs, uint256 profileId) private {
-        ICoreInsuranceRouter router = ICoreInsuranceRouter(cs.periphery);
-        if (router.pendingInsurance(profileId) != 0) router.routePendingInsurance(profileId);
+        ICoreInsuranceRouter(cs.periphery).routePendingInsurance(profileId);
     }
 
     function _validateVolatileConfig(

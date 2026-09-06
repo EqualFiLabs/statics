@@ -17,7 +17,7 @@ import {LibCoreStorage} from "./libraries/LibCoreStorage.sol";
 contract CoreInit {
     uint256 internal constant BPS = 10_000;
     bytes32 internal constant STATICS_DOLLAR_KIND = keccak256("STATICS_DOLLAR_TOKEN_V1");
-    bytes32 internal constant STATICS_DOLLAR_RISK_KIND = keccak256("STATICS_DOLLAR_RISK_V2");
+    bytes32 internal constant STATICS_DOLLAR_RISK_KIND = keccak256("STATICS_DOLLAR_RISK_V1");
 
     struct InitArgs {
         address staticsDollar;

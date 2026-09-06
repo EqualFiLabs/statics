@@ -599,14 +599,10 @@ claims. A series retired directly with its profile remains unfrozen,
 transferable, and ordinary-recombinable via Core (and the gateway for profile
 1) during runoff.
 
-This Core revision binds to the freeze-capable
-`STATICS_DOLLAR_RISK_V2` token kind. The immutable V1 Risk Shares contract does
-not expose the freeze selectors and cannot be reused. Use the canonical launcher
-to deploy a fresh V2 token, Core, and `StaticsDiamond` as one coordinated full
-stack. Do not rebind an initialized full-stack Diamond to a fresh Core: its
-Dollar books are keyed by Core-issued numeric IDs. A separately deployed,
-unbound Genesis contract may still perform its documented one-shot binding
-after the fresh stack is handed off.
+Core binds to the freeze-capable `STATICS_DOLLAR_RISK_V1` token kind. Use the
+canonical launcher to deploy the Risk Shares token, Core, and `StaticsDiamond`
+as one coordinated stack. A separately deployed, unbound Genesis contract may
+still perform its documented one-shot binding after the stack is handed off.
 
 `topUpInsurance` accepts profiles that are not permanently retired. Volatile
 top-ups credit profile-level reserve, including during `ReduceOnly`; pegged
@@ -617,9 +613,8 @@ pending periphery insurance into Core before deciding its disposition. Reserve
 joins the current live paired series only when that series is the profile's sole
 senior generation. If historical senior claims remain or no current paired claim
 exists, the non-claimant reserve enters global non-swap rewards instead; fixed
-historical recovery books never gain later reserve. Legacy pegged reserve joins
-a live redemption book, while an empty pegged profile routes terminal surplus
-globally. Retirement does not wait for claims or reserve consumption. Later
+historical recovery books never gain later reserve. An empty pegged profile
+routes terminal surplus globally. Retirement does not wait for claims or reserve consumption. Later
 volatile fees enter global rewards directly, and post-retirement top-ups revert.
 
 Permit submission is permissionless. The gateway tolerates a pre-submitted
@@ -699,12 +694,8 @@ transfers internally.
 
 When full consumption closes an epoch, the final stored leg settled from that
 epoch receives every raw-token unit not already crystallized by the index;
-settlement order therefore selects the terminal-residue recipient. Empty/new
-indexes track this exactly. A nonzero index carried through an in-place upgrade
-stays on the legacy floor-rounding path because historical funded totals cannot
-be inferred safely onchain. All later funding into that same legacy index also
-uses floor rounding, so its residual remains reserved rather than being assigned
-retroactively. Later empty indexes and epochs use exact settlement.
+settlement order therefore selects the terminal-residue recipient. Every index
+tracks funded and crystallized amounts so terminal settlement is exact.
 
 `fundRiskCollateralIncentives`, `fundRiskDollarIncentives`, and
 `fundRiskStaticsIncentives` are permissionless and accept only the three

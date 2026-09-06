@@ -386,10 +386,8 @@ series' deficit. Upside transitions do not trigger this pegged-only quarantine.
 
 This amendment introduced a clean architectural break. Pegged profiles have no
 fake series ID or junior-token compatibility path, and loan extension exposes
-no BasketToken-fee compatibility selector. The later terminal-residue
-hardening, however, appends fields within the existing periphery namespace so
-an in-place upgrade can preserve live positions without guessing historical
-funding.
+no BasketToken-fee compatibility selector. Terminal-residue accounting ships
+inside the fresh periphery namespace used by the coordinated deployment.
 
 ### Volatile fee routing and consumption-only Risk liquidity
 
@@ -455,22 +453,17 @@ never gain later reserve. Pegged top-ups enter the proportional redemption book
 immediately; an empty pegged profile routes terminal surplus globally.
 
 Successful deployments bind Core to the freeze-capable
-`STATICS_DOLLAR_RISK_V2` token kind. The immutable V1 Risk Shares contract lacks
-the freeze selectors and cannot be reused with this Core revision. The release
-must create the V2 token, Core, and `StaticsDiamond` as a fresh coordinated
-stack. Rebinding an initialized full-stack Diamond to a fresh Core is unsupported
-because periphery books are keyed by Core-issued numeric IDs; a safe in-place
-path would require a separate namespace migration design.
+`STATICS_DOLLAR_RISK_V1` token kind. The release creates the Risk Shares token,
+Core, and `StaticsDiamond` as one coordinated stack. Per-series freezes prevent
+ordinary transfers while preserving Core minting and burning for runoff and
+successor rollover.
 
-Terminal-residue counters activate lazily within storage v6. A nonzero index
-encountered during an in-place upgrade remains on legacy floor rounding for all
-later funding into that same index, and its residual stays reserved. Empty
-indexes and later epochs activate exact terminal accounting without assigning
-historical dust retroactively.
+Every proceeds index tracks total funding and crystallized claims. The final
+stored leg settled from a closed epoch receives the exact remaining balance.
 
 Passive, opt-in, arbitrary-reward, automatic series-fee, and reward-gate fields
-and compatibility aliases remain removed. Terminal accounting retains the
-existing periphery storage namespace and appends only storage-compatible fields.
+and compatibility aliases remain removed. The periphery uses a fresh namespaced
+layout for the coordinated deployment.
 
 ### PositionNFT ownership
 

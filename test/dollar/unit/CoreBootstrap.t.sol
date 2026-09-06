@@ -67,18 +67,6 @@ contract CounterfeitStaticsDollar {
     }
 }
 
-contract LegacyStaticsDollarRiskShares {
-    address public immutable pool;
-
-    constructor(address pool_) {
-        pool = pool_;
-    }
-
-    function coreTokenKind() external pure returns (bytes32) {
-        return keccak256("STATICS_DOLLAR_RISK_V1");
-    }
-}
-
 contract BootstrapWiringMock {
     address public pool;
     address public immutable staticsDollar;
@@ -277,29 +265,6 @@ contract CoreBootstrapTest is Test {
         _rejectEoaCounterfeit(harness, oracle, collateral);
         _rejectCounterfeitTokenKind(harness, oracle, collateral);
         _rejectMisboundTokenPool(harness, oracle, collateral);
-    }
-
-    function test_InitRejectsLegacyRiskTokenWithoutTransferFreeze() public {
-        CorePartsHarness harness = new CorePartsHarness();
-        DeployCoreBootstrap.CoreParts memory parts = harness.deployParts();
-        IDiamondCut.FacetCut[] memory genesis = harness.buildGenesis(parts);
-        CanonicalWETH9 collateral = new CanonicalWETH9();
-        MockETHUSDOracle oracle = new MockETHUSDOracle(2_500e18, 1 hours);
-        address predictedCore = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
-        StaticsDollar staticsDollar = new StaticsDollar(predictedCore);
-        LegacyStaticsDollarRiskShares legacyRisk = new LegacyStaticsDollarRiskShares(predictedCore);
-        CoreInit.InitArgs memory args =
-            _initArgs(address(staticsDollar), address(legacyRisk), address(oracle), address(collateral));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CoreInit.InvalidTokenKind.selector,
-                address(legacyRisk),
-                keccak256("STATICS_DOLLAR_RISK_V2"),
-                keccak256("STATICS_DOLLAR_RISK_V1")
-            )
-        );
-        new StaticsDollarCoreDiamond(owner, parts.init, abi.encodeCall(CoreInit.genesis, (genesis, args)));
     }
 
     function _rejectEoaCounterfeit(CorePartsHarness harness, MockETHUSDOracle oracle, CanonicalWETH9 collateral)

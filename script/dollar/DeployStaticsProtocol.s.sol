@@ -273,13 +273,14 @@ abstract contract DeployStaticsProtocol {
     }
 
     function _dollarFeeSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](6);
+        s = new bytes4[](7);
         s[0] = FeeRouterFacet.onSeriesFee.selector;
         s[1] = FeeRouterFacet.onPeggedProfileFee.selector;
-        s[2] = FeeRouterFacet.routePendingInsurance.selector;
-        s[3] = FeeRouterFacet.setSplit.selector;
-        s[4] = FeeRouterFacet.splits.selector;
-        s[5] = FeeRouterFacet.pendingInsurance.selector;
+        s[2] = FeeRouterFacet.onRetiredSurplus.selector;
+        s[3] = FeeRouterFacet.routePendingInsurance.selector;
+        s[4] = FeeRouterFacet.setSplit.selector;
+        s[5] = FeeRouterFacet.splits.selector;
+        s[6] = FeeRouterFacet.pendingInsurance.selector;
     }
 
     function _dollarVaultSelectors() private pure returns (bytes4[] memory s) {

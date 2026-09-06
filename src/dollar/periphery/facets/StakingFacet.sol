@@ -11,9 +11,9 @@ import {IStaticsDollarRiskIncentives} from "../../interfaces/IStaticsDollarRiskI
 import {IStaticsDollarCore} from "../../core/interfaces/IStaticsDollarCore.sol";
 import {IStaticsPositionModule} from "../../../interfaces/IStaticsPosition.sol";
 import {LibCustody} from "../../../libraries/LibCustody.sol";
-import {LibGlobalRewards} from "../../../libraries/LibGlobalRewards.sol";
 import {LibPosition} from "../../../position/LibPosition.sol";
 import {LibPeriphery} from "../libraries/LibPeriphery.sol";
+import {LibRiskLiquidity} from "../libraries/LibRiskLiquidity.sol";
 
 contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentives, IERC1155Receiver, ReentrancyGuard {
     event RiskLiquidityClosed(uint256 indexed positionId, uint256 indexed seriesId);
@@ -92,7 +92,7 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         returns (uint256 destinationSeriesId, bool routedGlobal)
     {
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        return _finalizeRiskIncentives(ps, seriesId, IStaticsDollarCore(ps.pool).riskSeries(seriesId));
+        return LibRiskLiquidity.finalizeIncentives(ps, seriesId, IStaticsDollarCore(ps.pool).riskSeries(seriesId));
     }
 
     function createAndStakeRiskShares(uint256 seriesId, uint256 amount, address receiver)
@@ -115,7 +115,7 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
     function stakeRiskShares(uint256 positionId, uint256 seriesId, uint256 amount) external override nonReentrant {
         if (amount == 0) revert ZeroAmount();
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceAuthorized(positionId);
+        LibPosition.enforceAuthorized(positionId, msg.sender);
         _requireActive(ps, seriesId);
         _stake(ps, positionId, seriesId, msg.sender, amount, true);
     }
@@ -129,8 +129,8 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceAuthorized(positionId);
-        LibPeriphery.PositionLeg storage leg_ = _leg(ps, positionId, seriesId);
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibPeriphery.PositionLeg storage leg_ = LibRiskLiquidity.leg(ps, positionId, seriesId);
         LibPeriphery.SeriesBook storage book = ps.series[seriesId];
         if (leg_.epoch != book.epoch) revert InsufficientRiskLiquidity(amount, 0);
         uint256 available = LibPeriphery.positionEffective(book, leg_.stored);
@@ -160,8 +160,8 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
     {
         if (receiver == address(0)) revert ZeroAddress();
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceAuthorized(positionId);
-        LibPeriphery.PositionLeg storage leg_ = _leg(ps, positionId, seriesId);
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibPeriphery.PositionLeg storage leg_ = LibRiskLiquidity.leg(ps, positionId, seriesId);
         LibPeriphery.settleLeg(ps, positionId, seriesId);
         collateralAmount = leg_.accruedCollateral;
         staticsDollarAmount = leg_.accruedStaticsDollar;
@@ -198,8 +198,8 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
 
     function closeRiskLiquidity(uint256 positionId, uint256 seriesId) external nonReentrant {
         LibPeriphery.PS storage ps = LibPeriphery.s();
-        _enforceAuthorized(positionId);
-        LibPeriphery.PositionLeg storage leg_ = _leg(ps, positionId, seriesId);
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibPeriphery.PositionLeg storage leg_ = LibRiskLiquidity.leg(ps, positionId, seriesId);
         LibPeriphery.settleLeg(ps, positionId, seriesId);
         LibPeriphery.clearZeroValueLiquidity(ps, positionId, seriesId);
         if (
@@ -359,69 +359,6 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         }
     }
 
-    function _finalizeRiskIncentives(
-        LibPeriphery.PS storage ps,
-        uint256 seriesId,
-        IStaticsDollarCoreTypes.RiskSeries memory series
-    ) private returns (uint256 destinationSeriesId, bool routedGlobal) {
-        LibPeriphery.SeriesBook storage book = ps.series[seriesId];
-        if (book.incentivesFinalized) {
-            return (book.incentiveDestinationSeriesId, book.incentivesRoutedGlobal);
-        }
-
-        IStaticsDollarCore core = IStaticsDollarCore(ps.pool);
-        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = core.collateralProfile(series.profileId);
-        if (profile.mode != IStaticsDollarCoreTypes.ProfileMode.Retired) {
-            destinationSeriesId = profile.activeSeriesId;
-            if (
-                (series.status != IStaticsDollarCoreTypes.SeriesStatus.Recoverable
-                        && series.status != IStaticsDollarCoreTypes.SeriesStatus.Closed)
-                    || destinationSeriesId == seriesId
-                    || core.riskSeries(destinationSeriesId).status != IStaticsDollarCoreTypes.SeriesStatus.Active
-            ) {
-                revert SeriesIncentivesNotFinalizable(seriesId);
-            }
-        } else if (
-            series.status != IStaticsDollarCoreTypes.SeriesStatus.Recoverable
-                && series.status != IStaticsDollarCoreTypes.SeriesStatus.Retired
-                && series.status != IStaticsDollarCoreTypes.SeriesStatus.Closed
-        ) {
-            revert SeriesIncentivesNotFinalizable(seriesId);
-        }
-
-        uint256 collateralAmount = book.collateralIncentiveReserve;
-        uint256 staticsDollarAmount = book.staticsDollarIncentiveReserve;
-        uint256 staticsAmount = book.staticsIncentiveReserve;
-        book.collateralIncentiveReserve = 0;
-        book.staticsDollarIncentiveReserve = 0;
-        book.staticsIncentiveReserve = 0;
-        book.incentiveDestinationSeriesId = destinationSeriesId;
-        book.incentivesRoutedGlobal = profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired;
-        book.incentivesFinalized = true;
-        routedGlobal = book.incentivesRoutedGlobal;
-
-        if (routedGlobal) {
-            _routeRiskIncentiveGlobal(ps, series.collateralToken, collateralAmount);
-            _routeRiskIncentiveGlobal(ps, ps.staticsDollar, staticsDollarAmount);
-            _routeRiskIncentiveGlobal(ps, ps.staticsToken, staticsAmount);
-            emit RiskIncentivesRoutedGlobal(seriesId, collateralAmount, staticsDollarAmount, staticsAmount);
-        } else {
-            LibPeriphery.SeriesBook storage destination = ps.series[destinationSeriesId];
-            destination.collateralIncentiveReserve += collateralAmount;
-            destination.staticsDollarIncentiveReserve += staticsDollarAmount;
-            destination.staticsIncentiveReserve += staticsAmount;
-            emit RiskIncentivesRolledOver(
-                seriesId, destinationSeriesId, collateralAmount, staticsDollarAmount, staticsAmount
-            );
-        }
-    }
-
-    function _routeRiskIncentiveGlobal(LibPeriphery.PS storage ps, address token, uint256 amount) private {
-        if (amount == 0) return;
-        ps.reservedByToken[token] -= amount;
-        LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), token, amount);
-    }
-
     function _fundRiskIncentives(LibPeriphery.PS storage ps, uint256 seriesId, address token, uint256 amount)
         private
         returns (uint256 received)
@@ -433,43 +370,10 @@ contract StakingFacet is IStaticsDollarRiskLiquidity, IStaticsDollarRiskIncentiv
         emit RiskIncentivesFunded(seriesId, token, msg.sender, amount, received);
     }
 
-    function _leg(LibPeriphery.PS storage ps, uint256 positionId, uint256 seriesId)
-        private
-        view
-        returns (LibPeriphery.PositionLeg storage leg_)
-    {
-        leg_ = ps.leg[positionId][seriesId];
-        if (!leg_.exists) revert UnknownRiskLiquidity(positionId, seriesId);
-    }
-
-    function _enforceAuthorized(uint256 positionId) private view {
-        if (!LibPosition.isAuthorized(positionId, msg.sender)) {
-            revert NotPositionOwnerOrApproved(positionId, msg.sender);
-        }
-    }
-
     function _pullRisk(LibPeriphery.PS storage ps, address from, uint256 seriesId, uint256 amount) private {
-        _expectRiskIngress(ps, address(this), from, seriesId, amount);
+        LibRiskLiquidity.expectIngress(ps, address(this), from, seriesId, amount);
         IERC1155(ps.staticsDollarRisk).safeTransferFrom(from, address(this), seriesId, amount, "");
-        _requireRiskIngressConsumed(ps);
-    }
-
-    function _expectRiskIngress(
-        LibPeriphery.PS storage ps,
-        address operator,
-        address from,
-        uint256 seriesId,
-        uint256 amount
-    ) private {
-        if (amount == 0) return;
-        if (ps.expectedRiskIngress.active) revert UnexpectedRiskIngressState();
-        ps.expectedRiskIngress = LibPeriphery.ExpectedRiskIngress({
-            operator: operator, from: from, seriesId: seriesId, amount: amount, active: true
-        });
-    }
-
-    function _requireRiskIngressConsumed(LibPeriphery.PS storage ps) private view {
-        if (ps.expectedRiskIngress.active) revert UnexpectedRiskIngressState();
+        LibRiskLiquidity.requireIngressConsumed(ps);
     }
 
     function _pushRiskProceeds(

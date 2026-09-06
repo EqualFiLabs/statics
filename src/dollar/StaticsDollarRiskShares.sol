@@ -6,7 +6,7 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IStaticsDollarRiskShares} from "./interfaces/IStaticsDollarRiskShares.sol";
 
 contract StaticsDollarRiskShares is ERC1155, IStaticsDollarRiskShares {
-    bytes32 internal constant TOKEN_KIND = keccak256("STATICS_DOLLAR_RISK_V2");
+    bytes32 internal constant TOKEN_KIND = keccak256("STATICS_DOLLAR_RISK_V1");
 
     address public immutable override pool;
     string public constant override name = "Statics Dollar Risk Shares";

@@ -6,9 +6,10 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStaticsDollarCore} from "../../core/interfaces/IStaticsDollarCore.sol";
 import {LibCustody} from "../../../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../../../libraries/LibGlobalRewards.sol";
+import {LibIndexMath} from "../../../libraries/LibIndexMath.sol";
 
 library LibPeriphery {
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.dollar.position.periphery.storage.v6");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.dollar.position.periphery.storage.v7");
     uint256 internal constant RAY = 1e27;
     uint256 internal constant BPS = 10_000;
 
@@ -26,7 +27,6 @@ library LibPeriphery {
         uint256 remainderRay;
         uint256 fundedAmount;
         uint256 crystallizedAmount;
-        bool residueTracked;
     }
 
     struct EpochSettlement {
@@ -307,7 +307,7 @@ library LibPeriphery {
         reserve(ps, collateralToken, amount);
         ProceedsIndex storage index = ps.series[seriesId].collateralProceeds[epoch];
         _recordFunding(index, amount);
-        (uint256 delta, uint256 remainder) = _indexDelta(amount, totalStored, index.remainderRay);
+        (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, totalStored, index.remainderRay);
         index.remainderRay = remainder;
         index.accPerStoredRay += delta;
         emit RiskProceedsAccrued(seriesId, epoch, collateralToken, amount, source);
@@ -335,7 +335,7 @@ library LibPeriphery {
             index = book.staticsProceeds[epoch];
         }
         _recordFunding(index, amount);
-        (uint256 delta, uint256 remainder) = _indexDelta(amount, totalStored, index.remainderRay);
+        (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, totalStored, index.remainderRay);
         index.remainderRay = remainder;
         index.accPerStoredRay += delta;
         emit RiskProceedsAccrued(seriesId, epoch, token, amount, source);
@@ -478,7 +478,7 @@ library LibPeriphery {
         returns (uint256 added)
     {
         added = _pendingIndex(index, stored, checkpoint);
-        if (index.residueTracked) index.crystallizedAmount += added;
+        index.crystallizedAmount += added;
     }
 
     function _pendingIndex(ProceedsIndex storage index, uint256 stored, uint256 checkpoint)
@@ -495,7 +495,6 @@ library LibPeriphery {
         view
         returns (uint256)
     {
-        if (!index.residueTracked) return 0;
         return index.fundedAmount - index.crystallizedAmount - pendingAmount;
     }
 
@@ -516,45 +515,12 @@ library LibPeriphery {
     }
 
     function _finalizeIndex(ProceedsIndex storage index) private returns (uint256 residue) {
-        if (!index.residueTracked) {
-            index.remainderRay = 0;
-            return 0;
-        }
         residue = index.fundedAmount - index.crystallizedAmount;
         index.crystallizedAmount = index.fundedAmount;
         index.remainderRay = 0;
     }
 
-    /// @dev A nonzero legacy index predates terminal-residue counters. Keep that
-    /// epoch on the legacy floor-rounding path so an in-place facet upgrade cannot
-    /// underflow while settling already accrued proceeds. Empty indexes can opt in
-    /// lazily because they contain no pre-upgrade funding to reconstruct.
     function _recordFunding(ProceedsIndex storage index, uint256 amount) private {
-        if (!index.residueTracked) {
-            if (
-                index.accPerStoredRay != 0 || index.remainderRay != 0 || index.fundedAmount != 0
-                    || index.crystallizedAmount != 0
-            ) return;
-            index.residueTracked = true;
-        }
         index.fundedAmount += amount;
-    }
-
-    function _indexDelta(uint256 amount, uint256 denominator, uint256 priorRemainder)
-        private
-        pure
-        returns (uint256 delta, uint256 remainder)
-    {
-        delta = Math.mulDiv(amount, RAY, denominator);
-        remainder = mulmod(amount, RAY, denominator);
-        delta += priorRemainder / denominator;
-        uint256 normalizedPrior = priorRemainder % denominator;
-        uint256 room = denominator - normalizedPrior;
-        if (remainder >= room) {
-            ++delta;
-            remainder -= room;
-        } else {
-            remainder += normalizedPrior;
-        }
     }
 }
