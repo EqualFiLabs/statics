@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
-import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
-import {IERC173} from "../interfaces/IERC173.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
@@ -32,6 +29,7 @@ import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio
 import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {IStaticsDollarRiskLiquidity} from "../dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
 import {IStaticsDollarRiskIncentives} from "../dollar/interfaces/IStaticsDollarRiskIncentives.sol";
+import {IStaticsDollarSeriesMigration} from "../dollar/interfaces/IStaticsDollarSeriesMigration.sol";
 import {IStaticsDollarGateway} from "../dollar/interfaces/IStaticsDollarGateway.sol";
 import {LibPeriphery} from "../dollar/periphery/libraries/LibPeriphery.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
@@ -111,6 +109,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IERC1155Receiver).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsDollarRiskLiquidity).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsDollarRiskIncentives).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsDollarSeriesMigration).interfaceId] = true;
     }
 
     function _initializeProtocol(
@@ -124,16 +123,13 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         if (guardian == address(0)) revert InvalidGuardian();
         if (treasury == address(0) || treasury == address(this)) revert InvalidTreasury();
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        if (ds.supportedInterfaces[type(IERC165).interfaceId]) revert AlreadyInitialized();
+        // The genesis cut synchronizes standard interface flags before protocol initialization.
+        if (ds.supportedInterfaces[type(IStaticsGovernance).interfaceId]) revert AlreadyInitialized();
 
         __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
 
-        ds.supportedInterfaces[type(IERC165).interfaceId] = true;
-        ds.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
-        ds.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
-        ds.supportedInterfaces[type(IERC173).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsGovernance).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;

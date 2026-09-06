@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
+import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
+import {IERC173} from "../interfaces/IERC173.sol";
 
 /// @notice Shared EIP-2535 storage and cut logic for every Statics Diamond.
 library LibDiamond {
@@ -64,6 +67,7 @@ library LibDiamond {
     }
 
     function diamondCut(IDiamondCut.FacetCut[] memory cut, address init, bytes memory data) internal {
+        DiamondStorage storage ds = diamondStorage();
         for (uint256 facetIndex; facetIndex < cut.length; ++facetIndex) {
             IDiamondCut.FacetCutAction action = cut[facetIndex].action;
             if (action == IDiamondCut.FacetCutAction.Add) {
@@ -76,8 +80,10 @@ library LibDiamond {
                 revert IncorrectFacetCutAction(uint8(action));
             }
         }
+        _syncStandardInterfaces(ds);
         emit DiamondCut(cut, init, data);
         initializeCut(init, data);
+        _syncStandardInterfaces(ds);
     }
 
     function addFunctions(address facetAddress, bytes4[] memory selectors) internal {
@@ -175,6 +181,22 @@ library LibDiamond {
             ds.facetAddresses.pop();
             delete ds.facetFunctionSelectors[facetAddress].facetAddressPosition;
         }
+    }
+
+    function _syncStandardInterfaces(DiamondStorage storage ds) private {
+        ds.supportedInterfaces[type(IERC165).interfaceId] = _hasSelector(ds, IERC165.supportsInterface.selector);
+        ds.supportedInterfaces[type(IDiamondCut).interfaceId] = _hasSelector(ds, IDiamondCut.diamondCut.selector);
+        ds.supportedInterfaces[type(IDiamondLoupe).interfaceId] = _hasSelector(ds, IDiamondLoupe.facets.selector)
+            && _hasSelector(ds, IDiamondLoupe.facetFunctionSelectors.selector)
+            && _hasSelector(ds, IDiamondLoupe.facetAddresses.selector)
+            && _hasSelector(ds, IDiamondLoupe.facetAddress.selector);
+        ds.supportedInterfaces[type(IERC173).interfaceId] =
+            _hasSelector(ds, IERC173.owner.selector) && _hasSelector(ds, IERC173.transferOwnership.selector);
+        ds.supportedInterfaces[0xffffffff] = false;
+    }
+
+    function _hasSelector(DiamondStorage storage ds, bytes4 selector) private view returns (bool) {
+        return ds.selectorToFacetAndPosition[selector].facetAddress != address(0);
     }
 
     function enforceHasContractCode(address account) private view {

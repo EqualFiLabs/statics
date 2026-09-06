@@ -199,10 +199,12 @@ contract SelectorManifestTest is Test {
         bytes4[] memory admin = StaticsSelectors.morphoAdmin();
         bytes4[] memory actions = StaticsSelectors.morphoActions();
         bytes4[] memory settlement = StaticsSelectors.morphoSettlement();
+        bytes4[] memory recovery = StaticsSelectors.morphoRecovery();
         bytes4[] memory views = StaticsSelectors.morphoView();
         assertEq(admin.length, 5);
-        assertEq(actions.length, 8);
+        assertEq(actions.length, 7);
         assertEq(settlement.length, 3);
+        assertEq(recovery.length, 1);
         assertEq(views.length, 10);
         bytes4[] memory all = new bytes4[](26);
         for (uint256 i; i < admin.length; ++i) {
@@ -214,8 +216,11 @@ contract SelectorManifestTest is Test {
         for (uint256 i; i < settlement.length; ++i) {
             all[admin.length + actions.length + i] = settlement[i];
         }
+        for (uint256 i; i < recovery.length; ++i) {
+            all[admin.length + actions.length + settlement.length + i] = recovery[i];
+        }
         for (uint256 i; i < views.length; ++i) {
-            all[admin.length + actions.length + settlement.length + i] = views[i];
+            all[admin.length + actions.length + settlement.length + recovery.length + i] = views[i];
         }
         for (uint256 i; i < all.length; ++i) {
             for (uint256 j; j < i; ++j) {
@@ -225,6 +230,7 @@ contract SelectorManifestTest is Test {
         assertEq(admin[0], IStaticsMorpho.initializeMorphoIntegration.selector);
         assertEq(actions[0], IStaticsMorpho.deployMorphoCollateral.selector);
         assertEq(settlement[2], IStaticsMorpho.recoverMorphoAccountToken.selector);
+        assertEq(recovery[0], IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector);
         assertEq(views[0], IStaticsMorpho.morpho.selector);
         assertEq(views[9], IStaticsMorpho.enforceMorphoAccountEmpty.selector);
     }

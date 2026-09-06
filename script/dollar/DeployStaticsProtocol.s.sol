@@ -30,6 +30,8 @@ import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {StaticsProtocolInit} from "../../src/diamond/StaticsProtocolInit.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
+import {SeriesMigrationFacet} from "../../src/dollar/periphery/facets/SeriesMigrationFacet.sol";
+import {IStaticsDollarSeriesMigration} from "../../src/dollar/interfaces/IStaticsDollarSeriesMigration.sol";
 import {StakingFacet} from "../../src/dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../../src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.sol";
@@ -37,6 +39,7 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
+import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
@@ -63,6 +66,7 @@ abstract contract DeployStaticsProtocol {
         address flashLoan;
         address interfaceInit;
         address staking;
+        address seriesMigration;
         address fee;
         address vault;
         address gateway;
@@ -73,6 +77,7 @@ abstract contract DeployStaticsProtocol {
         address protocolRevenue;
         address genesisNFT;
         address morphoActions;
+        address morphoRecovery;
         address morphoSettlement;
         address morphoAdmin;
         address morphoView;
@@ -141,6 +146,7 @@ abstract contract DeployStaticsProtocol {
         parts.flashLoan = address(new FlashLoanFacet());
         parts.interfaceInit = address(new StaticsInterfaceInit());
         parts.staking = address(new StakingFacet());
+        parts.seriesMigration = address(new SeriesMigrationFacet());
         parts.fee = address(new FeeRouterFacet());
         parts.vault = address(new PairingVaultFacet());
         parts.gateway = address(new StaticsDollarGatewayFacet());
@@ -151,6 +157,7 @@ abstract contract DeployStaticsProtocol {
         parts.protocolRevenue = address(new ProtocolRevenueFacet());
         parts.genesisNFT = address(new GenesisNFTFacet());
         parts.morphoActions = address(new MorphoFacet());
+        parts.morphoRecovery = address(new MorphoRecoveryFacet());
         parts.morphoSettlement = address(new MorphoSettlementFacet());
         parts.morphoAdmin = address(new MorphoAdminFacet());
         parts.morphoView = address(new MorphoViewFacet());
@@ -161,7 +168,7 @@ abstract contract DeployStaticsProtocol {
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](34);
+        cut = new IDiamondCut.FacetCut[](36);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -224,35 +231,45 @@ abstract contract DeployStaticsProtocol {
             parts.morphoSettlement, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoSettlement()
         );
         cut[33] = IDiamondCut.FacetCut(parts.morphoView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoView());
+        cut[34] = IDiamondCut.FacetCut(
+            parts.seriesMigration, IDiamondCut.FacetCutAction.Add, _dollarSeriesMigrationSelectors()
+        );
+        cut[35] = IDiamondCut.FacetCut(
+            parts.morphoRecovery, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoRecovery()
+        );
     }
 
     function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](25);
+        s = new bytes4[](22);
         s[0] = StakingFacet.createAndStakeRiskShares.selector;
         s[1] = StakingFacet.stakeRiskShares.selector;
         s[2] = StakingFacet.unstakeRiskShares.selector;
         s[3] = StakingFacet.claimRiskProceeds.selector;
-        s[4] = StakingFacet.processSeriesTransition.selector;
-        s[5] = StakingFacet.settleSeriesMigration.selector;
-        s[6] = StakingFacet.closeRiskLiquidity.selector;
-        s[7] = StakingFacet.riskLiquidity.selector;
-        s[8] = StakingFacet.totalRiskLiquidity.selector;
-        s[9] = StakingFacet.riskLiquidityScaleRay.selector;
-        s[10] = StakingFacet.positionSeriesCount.selector;
-        s[11] = StakingFacet.positionSeriesAt.selector;
-        s[12] = StakingFacet.seriesMigration.selector;
-        s[13] = StakingFacet.reservedBalance.selector;
-        s[14] = StakingFacet.onERC1155Received.selector;
-        s[15] = StakingFacet.onERC1155BatchReceived.selector;
-        s[16] = StakingFacet.pool.selector;
-        s[17] = StakingFacet.staticsDollar.selector;
-        s[18] = StakingFacet.staticsDollarRisk.selector;
-        s[19] = StakingFacet.positionNFT.selector;
-        s[20] = StakingFacet.fundRiskCollateralIncentives.selector;
-        s[21] = StakingFacet.fundRiskDollarIncentives.selector;
-        s[22] = StakingFacet.fundRiskStaticsIncentives.selector;
-        s[23] = StakingFacet.riskIncentives.selector;
-        s[24] = StakingFacet.finalizeRiskIncentives.selector;
+        s[4] = StakingFacet.closeRiskLiquidity.selector;
+        s[5] = StakingFacet.riskLiquidity.selector;
+        s[6] = StakingFacet.totalRiskLiquidity.selector;
+        s[7] = StakingFacet.riskLiquidityScaleRay.selector;
+        s[8] = StakingFacet.positionSeriesCount.selector;
+        s[9] = StakingFacet.positionSeriesAt.selector;
+        s[10] = StakingFacet.reservedBalance.selector;
+        s[11] = StakingFacet.onERC1155Received.selector;
+        s[12] = StakingFacet.onERC1155BatchReceived.selector;
+        s[13] = StakingFacet.pool.selector;
+        s[14] = StakingFacet.staticsDollar.selector;
+        s[15] = StakingFacet.staticsDollarRisk.selector;
+        s[16] = StakingFacet.positionNFT.selector;
+        s[17] = StakingFacet.fundRiskCollateralIncentives.selector;
+        s[18] = StakingFacet.fundRiskDollarIncentives.selector;
+        s[19] = StakingFacet.fundRiskStaticsIncentives.selector;
+        s[20] = StakingFacet.riskIncentives.selector;
+        s[21] = StakingFacet.finalizeRiskIncentives.selector;
+    }
+
+    function _dollarSeriesMigrationSelectors() private pure returns (bytes4[] memory s) {
+        s = new bytes4[](3);
+        s[0] = IStaticsDollarSeriesMigration.processSeriesTransition.selector;
+        s[1] = IStaticsDollarSeriesMigration.settleSeriesMigration.selector;
+        s[2] = IStaticsDollarSeriesMigration.seriesMigration.selector;
     }
 
     function _dollarFeeSelectors() private pure returns (bytes4[] memory s) {

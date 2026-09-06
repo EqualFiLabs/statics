@@ -34,6 +34,8 @@ import {StaticsDollar} from "../../src/dollar/StaticsDollar.sol";
 import {StaticsDollarRiskShares} from "../../src/dollar/StaticsDollarRiskShares.sol";
 import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
+import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
+import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {ConfigureStaticsLiquidity, StaticsLiquidityConfig} from "../../script/ConfigureStaticsLiquidity.s.sol";
@@ -43,6 +45,7 @@ import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract DeployStaticsTest is Test {
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
+    uint256 private constant MIN_MORPHO_FACET_HEADROOM = 1_024;
 
     /// @dev Excluded from coverage runs: instrumentation inflates runtime bytecode,
     /// so the EIP-170 ceiling only holds against a normal build.
@@ -68,6 +71,16 @@ contract DeployStaticsTest is Test {
             assertGt(created.code.length, 0, "launcher creation has no runtime code");
             assertLe(created.code.length, EIP170_RUNTIME_LIMIT, "launcher created oversized runtime");
         }
+        assertLe(
+            type(MorphoFacet).runtimeCode.length,
+            EIP170_RUNTIME_LIMIT - MIN_MORPHO_FACET_HEADROOM,
+            "Morpho action facet lacks maintenance headroom"
+        );
+        assertLe(
+            type(MorphoRecoveryFacet).runtimeCode.length,
+            EIP170_RUNTIME_LIMIT - MIN_MORPHO_FACET_HEADROOM,
+            "Morpho recovery facet lacks maintenance headroom"
+        );
     }
 
     function testLocalLaunchPreservesClosedBasketCreationConfiguration() public {
@@ -131,8 +144,9 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 34, 283);
+        _assertManifest(diamond, 36, 283);
         _assertBasketRoutes(diamond);
+        _assertMorphoRoutes(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
@@ -213,6 +227,20 @@ contract DeployStaticsTest is Test {
         assertEq(loupe.facetAddress(IStaticsBasket.basketIdOf.selector), views);
         assertEq(loupe.facetAddress(IStaticsBasket.vaultBalance.selector), views);
         assertEq(loupe.facetAddress(IStaticsBasket.feeSharesFor.selector), views);
+    }
+
+    function _assertMorphoRoutes(address diamond) private view {
+        IDiamondLoupe loupe = IDiamondLoupe(diamond);
+        address actions = loupe.facetAddress(IStaticsMorpho.deployMorphoCollateral.selector);
+        address settlement = loupe.facetAddress(IStaticsMorpho.recoverMorphoAccountToken.selector);
+        address recovery = loupe.facetAddress(IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector);
+
+        assertTrue(actions != address(0));
+        assertTrue(settlement != address(0));
+        assertTrue(recovery != address(0));
+        assertTrue(actions != settlement && actions != recovery && settlement != recovery);
+        assertEq(loupe.facetAddress(IStaticsMorpho.borrowMorphoUsd.selector), actions);
+        assertEq(loupe.facetAddress(IStaticsMorpho.claimMorphoSyncBounties.selector), settlement);
     }
 
     function _v4Config() private returns (DeployStatics.V4Config memory config) {

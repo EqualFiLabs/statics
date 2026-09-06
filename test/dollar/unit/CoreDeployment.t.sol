@@ -20,6 +20,7 @@ import {DiamondLoupeFacet} from "src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "src/facets/OwnershipFacet.sol";
 import {IDiamondCut} from "src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "src/interfaces/IDiamondLoupe.sol";
+import {IERC173} from "src/interfaces/IERC173.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 
@@ -91,7 +92,7 @@ contract CoreDeploymentTest is Test {
         assertEq(MockETHUSDOracle(deployment.oracle).priceWad(), 2_500e18);
 
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(deployment.diamond, 34, 283);
+        _assertManifest(deployment.diamond, 36, 283);
     }
 
     function test_LocalBroadcastEntrypointUsesDeployerForAddressPredictions() public {
@@ -249,5 +250,7 @@ contract CoreDeploymentTest is Test {
         assertEq(selectorCount, expectedSelectors);
         assertTrue(loupe.supportsInterface(type(IDiamondCut).interfaceId));
         assertTrue(loupe.supportsInterface(type(IDiamondLoupe).interfaceId));
+        assertTrue(loupe.supportsInterface(type(IERC173).interfaceId));
+        assertFalse(loupe.supportsInterface(0xffffffff));
     }
 }
