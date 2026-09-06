@@ -66,11 +66,23 @@ library LibMorpho {
     error NotMorphoRecoveryBeneficiary(uint256 positionId, address caller, address beneficiary);
     error InvalidPerformanceFee(uint256 feeBps);
     error InvalidOperatorShare(uint256 shareBps);
+    error InvalidReceiver(address receiver);
 
     function morphoStorage() internal pure returns (MorphoStorage storage ms) {
         bytes32 slot = STORAGE_POSITION;
         assembly ("memory-safe") {
             ms.slot := slot
+        }
+    }
+
+    function requireInitialized() internal view returns (MorphoStorage storage ms) {
+        ms = morphoStorage();
+        if (!ms.initialized) revert MorphoNotInitialized();
+    }
+
+    function enforceReceiver(MorphoStorage storage ms, address receiver) internal view {
+        if (receiver == address(0) || receiver == address(this) || ms.isAccount[receiver]) {
+            revert InvalidReceiver(receiver);
         }
     }
 

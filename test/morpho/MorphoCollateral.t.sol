@@ -69,7 +69,7 @@ contract MorphoGenesisHarnessFacet {
 
 contract AlternateMorphoAccount {}
 
-contract LegacyNoReturnToken {
+contract NoReturnToken {
     mapping(address account => uint256) public balanceOf;
 
     function mint(address receiver, uint256 amount) external {
@@ -524,16 +524,16 @@ contract MorphoCollateralTest is StaticsTestBase {
         vm.prank(alice);
         morphoApi.deployMorphoCollateral(positionId, marketId, 1 ether);
         (address account,) = morphoApi.morphoAccount(positionId);
-        LegacyNoReturnToken legacyToken = new LegacyNoReturnToken();
-        legacyToken.mint(account, 5 ether);
+        NoReturnToken noReturnToken = new NoReturnToken();
+        noReturnToken.mint(account, 5 ether);
 
         vm.prank(alice);
         uint256 received =
-            morphoApi.recoverMorphoAccountToken(positionId, address(legacyToken), 5 ether, alice, 5 ether);
+            morphoApi.recoverMorphoAccountToken(positionId, address(noReturnToken), 5 ether, alice, 5 ether);
 
         assertEq(received, 5 ether);
-        assertEq(legacyToken.balanceOf(account), 0);
-        assertEq(legacyToken.balanceOf(alice), 5 ether);
+        assertEq(noReturnToken.balanceOf(account), 0);
+        assertEq(noReturnToken.balanceOf(alice), 5 ether);
     }
 
     function testMorphoAccountPredictionRequiresInitialization() public {

@@ -6,6 +6,7 @@ import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketCollateral} from "./LibBasketCollateral.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
+import {LibIndexMath} from "./LibIndexMath.sol";
 import {LibMorpho} from "./LibMorpho.sol";
 
 library LibBasketRewards {
@@ -105,7 +106,7 @@ library LibBasketRewards {
         uint256 total = rs.totalEligibleShares[basketId];
         if (total == 0) revert BasketHasNoEligibleShares(basketId);
         RewardBook storage book = rs.books[basketId][asset];
-        (uint256 delta, uint256 remainder) = _indexDelta(amount, total, book.indexRemainder);
+        (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, total, book.indexRemainder);
         book.indexRay += delta;
         book.indexRemainder = remainder;
         book.indexedAmount += amount;
@@ -397,7 +398,8 @@ library LibBasketRewards {
         }
         uint256 remainder = forfeited - bounty;
         if (remainder != 0 && otherEligible != 0) {
-            (uint256 delta, uint256 indexRemainder) = _indexDelta(remainder, otherEligible, book.indexRemainder);
+            (uint256 delta, uint256 indexRemainder) =
+                LibIndexMath.indexDelta(remainder, otherEligible, book.indexRemainder);
             book.indexRay += delta;
             book.indexRemainder = indexRemainder;
             _flushAssetRemainder(basketId, asset, book);
@@ -574,24 +576,6 @@ library LibBasketRewards {
         book.indexedAmount -= dust;
         LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
         emit IStaticsBasketRewards.BasketRewardDustRouted(basketId, asset, dust);
-    }
-
-    function _indexDelta(uint256 amount, uint256 denominator, uint256 priorRemainder)
-        private
-        pure
-        returns (uint256 delta, uint256 remainder)
-    {
-        delta = Math.mulDiv(amount, RAY, denominator);
-        remainder = mulmod(amount, RAY, denominator);
-        delta += priorRemainder / denominator;
-        uint256 normalizedPrior = priorRemainder % denominator;
-        uint256 room = denominator - normalizedPrior;
-        if (remainder >= room) {
-            ++delta;
-            remainder -= room;
-        } else {
-            remainder += normalizedPrior;
-        }
     }
 
     function _eligibleAt(uint256 pendingStart) private pure returns (uint40) {

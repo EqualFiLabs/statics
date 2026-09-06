@@ -102,12 +102,10 @@ profile 1) during runoff.
 - Dollar redemption fees are capped at 1,000 basis points independently from
   mint fees, and redemption rejects raw-unit rounding that would produce zero
   collateral output.
-- Dollar Core binds to freeze-capable `STATICS_DOLLAR_RISK_V2`. The immutable
-  V1 Risk Shares token cannot be upgraded or reused with this Core revision;
-  deploy a fresh V2 token, Core, and `StaticsDiamond` as one coordinated full
-  stack. Rebinding an initialized full-stack Diamond to a fresh Core is not a
-  supported in-place upgrade because its Dollar books are keyed by Core-issued
-  numeric IDs.
+- Dollar Core binds to the freeze-capable `STATICS_DOLLAR_RISK_V1` token kind.
+  Deploy the Risk Shares token, Core, and `StaticsDiamond` as one coordinated
+  stack. Per-series transfer freezes preserve Core minting and burning so users
+  can always roll predecessor claims into the active successor series.
 - Insurance top-ups accept non-retired profiles. Pegged top-ups become
   immediately redeemable profile collateral; volatile top-ups remain
   profile-level transition reserve through `ReduceOnly`. Unassigned volatile
@@ -173,17 +171,9 @@ IERC-165, IDiamondCut, IDiamondLoupe, and IERC-173 declarations from final
 selector routing after every successful cut, including after its initializer.
 The invalid `0xffffffff` interface ID always remains false. Protocol-specific
 interface declarations remain governed metadata, while the generic metadata
-setter rejects the four selector-derived standard IDs. Existing Diamonds do
-not inherit an internal library source change; they require an explicit facet
-upgrade to adopt new cut behavior. On `StaticsDiamond`, atomically replace
-`DiamondCutFacet`, `StaticsInterfaceInit`, and `DiamondLoupeFacet`; on the
-Dollar Core, replace `DiamondCutFacet` and `DiamondLoupeFacet`. Replacing only
-the cut facet leaves the legacy metadata setter able to overwrite standard IDs
-and the legacy loupe able to advertise `0xffffffff`. Because each replacement
-transaction itself executes the old cut facet, schedule one subsequent empty
-cut through each new cut facet to recompute standard metadata (including Core
-IERC-173 support). The deployment and governance tests verify selector counts,
-routing self-consistency, and the replacement sequence; an independently
-maintained release manifest remains necessary for exact expected-set review.
+setter rejects the four selector-derived standard IDs. Deployment and
+governance tests verify selector counts and routing self-consistency; an
+independently maintained release manifest remains necessary for exact
+expected-set review.
 Recorded runtime hashes remain offchain release metadata rather than live
 dispatch controls.

@@ -38,7 +38,7 @@ contract MorphoAdminFacet {
         IStaticsMorpho.MarketMode mode
     ) external returns (bytes32 id) {
         LibDiamond.enforceIsContractOwner();
-        LibMorpho.MorphoStorage storage ms = _storage();
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
         if (kind == IStaticsMorpho.CollateralKind.None) revert InvalidCollateralKind();
         if (mode == IStaticsMorpho.MarketMode.Disabled) revert LibMorpho.InvalidMarketMode();
         if (params.loanToken != ms.usdStx) revert InvalidLoanToken(ms.usdStx, params.loanToken);
@@ -77,7 +77,7 @@ contract MorphoAdminFacet {
     function setMorphoSyncBountyBps(uint16 bountyBps) external {
         LibDiamond.enforceIsContractOwner();
         if (bountyBps > LibMorpho.MAX_SYNC_BOUNTY_BPS) revert LibMorpho.InvalidSyncBounty(bountyBps);
-        LibMorpho.MorphoStorage storage ms = _storage();
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
         uint16 previous = ms.syncBountyBps;
         ms.syncBountyBps = bountyBps;
         emit IStaticsMorpho.MorphoSyncBountyUpdated(previous, bountyBps);
@@ -87,7 +87,7 @@ contract MorphoAdminFacet {
         LibDiamond.enforceIsContractOwner();
         if (feeBps > LibMorpho.MAX_PERFORMANCE_FEE_BPS) revert LibMorpho.InvalidPerformanceFee(feeBps);
         if (operatorShareBps > LibBasket.BPS) revert LibMorpho.InvalidOperatorShare(operatorShareBps);
-        LibMorpho.MorphoStorage storage ms = _storage();
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
         if (router != address(0)) {
             if (!LibGenesisIntegration.genesisStorage().initialized) revert GenesisIntegrationNotInitialized();
             LibGenesisRewards.configureLenderRewardAsset(ms.usdStx);
@@ -96,10 +96,5 @@ contract MorphoAdminFacet {
         ms.performanceFeeBps = feeBps;
         ms.operatorShareBps = operatorShareBps;
         emit IStaticsMorpho.MorphoPerformanceFeeConfigured(router, feeBps, operatorShareBps, ms.usdStx);
-    }
-
-    function _storage() private view returns (LibMorpho.MorphoStorage storage ms) {
-        ms = LibMorpho.morphoStorage();
-        if (!ms.initialized) revert LibMorpho.MorphoNotInitialized();
     }
 }

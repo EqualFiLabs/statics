@@ -50,7 +50,6 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         LibPeriphery.InitArgs dollar;
     }
 
-    error AlreadyInitialized();
     error InvalidGuardian();
     error InvalidTreasury();
 
@@ -123,8 +122,6 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         if (guardian == address(0)) revert InvalidGuardian();
         if (treasury == address(0) || treasury == address(this)) revert InvalidTreasury();
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        // The genesis cut synchronizes standard interface flags before protocol initialization.
-        if (ds.supportedInterfaces[type(IStaticsGovernance).interfaceId]) revert AlreadyInitialized();
 
         __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(positionCreationFeeAmount);

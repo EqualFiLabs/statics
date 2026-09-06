@@ -9,6 +9,7 @@ import {LibCustody} from "./LibCustody.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 import {LibMorpho} from "./LibMorpho.sol";
+import {LibIndexMath} from "./LibIndexMath.sol";
 
 library LibGlobalRewards {
     using SafeCast for uint256;
@@ -599,7 +600,7 @@ library LibGlobalRewards {
     }
 
     function _increaseIndexWithoutFunding(RewardBook storage book, uint256 amount, uint256 denominator) private {
-        (uint256 delta, uint256 remainder) = _indexDelta(amount, denominator, book.indexRemainder);
+        (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, denominator, book.indexRemainder);
         book.indexRay += delta;
         book.indexRemainder = remainder;
     }
@@ -613,24 +614,6 @@ library LibGlobalRewards {
         book.indexedAmount -= dust;
         rs.treasuryAccrued[asset] += dust;
         emit IStaticsGlobalRewards.RewardAssetDustRouted(asset, dust);
-    }
-
-    function _indexDelta(uint256 amount, uint256 denominator, uint256 priorRemainder)
-        private
-        pure
-        returns (uint256 delta, uint256 remainder)
-    {
-        delta = Math.mulDiv(amount, RAY, denominator);
-        remainder = mulmod(amount, RAY, denominator);
-        delta += priorRemainder / denominator;
-        uint256 normalizedPrior = priorRemainder % denominator;
-        uint256 room = denominator - normalizedPrior;
-        if (remainder >= room) {
-            ++delta;
-            remainder -= room;
-        } else {
-            remainder += normalizedPrior;
-        }
     }
 
     function _increasePending(

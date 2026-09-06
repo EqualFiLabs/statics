@@ -22,8 +22,8 @@ contract MorphoRecoveryFacet is ReentrancyGuard {
         if (assets == 0) revert InvalidAmount();
         bool closedPosition = LibMorpho.enforceRecoveryAuthorized(positionId, msg.sender);
         LibMorpho.MarketConfig storage config = LibMorpho.requireMarket(marketId_);
-        LibMorpho.MorphoStorage storage ms = _storage();
-        _enforceReceiver(ms, receiver);
+        LibMorpho.MorphoStorage storage ms = LibMorpho.requireInitialized();
+        LibMorpho.enforceReceiver(ms, receiver);
         if (!closedPosition) LibMorphoSync.syncOne(positionId, marketId_, msg.sender);
         LibMorpho.PositionMarket storage tracked = ms.positions[positionId].positions[marketId_];
         MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
@@ -39,16 +39,5 @@ contract MorphoRecoveryFacet is ReentrancyGuard {
             LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
         }
         emit IStaticsMorpho.MorphoSurplusWithdrawn(positionId, marketId_, receiver, assets);
-    }
-
-    function _enforceReceiver(LibMorpho.MorphoStorage storage ms, address receiver) private view {
-        if (receiver == address(0) || receiver == address(this) || ms.isAccount[receiver]) {
-            revert InvalidReceiver(receiver);
-        }
-    }
-
-    function _storage() private view returns (LibMorpho.MorphoStorage storage ms) {
-        ms = LibMorpho.morphoStorage();
-        if (!ms.initialized) revert LibMorpho.MorphoNotInitialized();
     }
 }

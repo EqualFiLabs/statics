@@ -69,67 +69,6 @@ contract DiamondInterfaceOverrideInitializer {
     }
 }
 
-/// @dev Models the pre-restriction metadata setter installed as a facet.
-contract LegacyStaticsInterfaceFacet {
-    function setInterfaces(bytes4[] calldata interfaceIds, bool[] calldata supported) external {
-        LibDiamond.enforceIsContractOwner();
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        for (uint256 i; i < interfaceIds.length; ++i) {
-            ds.supportedInterfaces[interfaceIds[i]] = supported[i];
-        }
-    }
-}
-
-/// @dev Models the pre-hardening loupe, which trusted the invalid interface flag.
-contract LegacyDiamondLoupeFacet is IDiamondLoupe, IERC165 {
-    function facets() external view returns (Facet[] memory facets_) {
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        uint256 length = ds.facetAddresses.length;
-        facets_ = new Facet[](length);
-        for (uint256 i; i < length; ++i) {
-            address facet = ds.facetAddresses[i];
-            facets_[i] =
-                Facet({facetAddress: facet, functionSelectors: ds.facetFunctionSelectors[facet].functionSelectors});
-        }
-    }
-
-    function facetFunctionSelectors(address facet) external view returns (bytes4[] memory selectors) {
-        return LibDiamond.diamondStorage().facetFunctionSelectors[facet].functionSelectors;
-    }
-
-    function facetAddresses() external view returns (address[] memory addresses) {
-        return LibDiamond.diamondStorage().facetAddresses;
-    }
-
-    function facetAddress(bytes4 selector) external view returns (address facet) {
-        return LibDiamond.diamondStorage().selectorToFacetAndPosition[selector].facetAddress;
-    }
-
-    function supportsInterface(bytes4 interfaceId) external view returns (bool) {
-        return LibDiamond.diamondStorage().supportedInterfaces[interfaceId];
-    }
-}
-
-/// @dev Models the pre-synchronization cut facet during its own replacement.
-contract LegacyDiamondCutFacet is IDiamondCut {
-    function diamondCut(FacetCut[] calldata facetCuts, address init, bytes calldata data) external {
-        LibDiamond.enforceIsContractOwner();
-        for (uint256 i; i < facetCuts.length; ++i) {
-            FacetCut calldata facetCut = facetCuts[i];
-            if (facetCut.action == FacetCutAction.Add) {
-                LibDiamond.addFunctions(facetCut.facetAddress, facetCut.functionSelectors);
-            } else if (facetCut.action == FacetCutAction.Replace) {
-                LibDiamond.replaceFunctions(facetCut.facetAddress, facetCut.functionSelectors);
-            } else if (facetCut.action == FacetCutAction.Remove) {
-                LibDiamond.removeFunctions(facetCut.facetAddress, facetCut.functionSelectors);
-            } else {
-                revert LibDiamond.IncorrectFacetCutAction(uint8(facetCut.action));
-            }
-        }
-        LibDiamond.initializeCut(init, data);
-    }
-}
-
 contract DiamondProxyFacet {
     address internal immutable implementation;
 
@@ -406,66 +345,6 @@ contract DiamondCutTest is Test {
         assertFalse(interfaces.supportsInterface(type(IDiamondLoupe).interfaceId));
         assertFalse(interfaces.supportsInterface(type(IERC173).interfaceId));
         assertFalse(interfaces.supportsInterface(0xffffffff));
-    }
-
-    function test_InterfaceUpgradeReplacesSetterLoupeAndCutBeforeSynchronization() public {
-        LegacyStaticsInterfaceFacet metadataFacet = new LegacyStaticsInterfaceFacet();
-        LegacyDiamondCutFacet legacyCutFacet = new LegacyDiamondCutFacet();
-        LegacyDiamondLoupeFacet legacyLoupeFacet = new LegacyDiamondLoupeFacet();
-        IDiamondCut.FacetCut[] memory installLegacy = new IDiamondCut.FacetCut[](3);
-        installLegacy[0] = IDiamondCut.FacetCut(
-            address(metadataFacet),
-            IDiamondCut.FacetCutAction.Add,
-            _singleSelector(LegacyStaticsInterfaceFacet.setInterfaces.selector)
-        );
-        installLegacy[1] = IDiamondCut.FacetCut(
-            address(legacyCutFacet),
-            IDiamondCut.FacetCutAction.Replace,
-            _singleSelector(IDiamondCut.diamondCut.selector)
-        );
-        installLegacy[2] =
-            IDiamondCut.FacetCut(address(legacyLoupeFacet), IDiamondCut.FacetCutAction.Replace, _loupeSelectors());
-        cut.diamondCut(installLegacy, address(0), "");
-
-        bytes4[] memory interfaceIds = new bytes4[](2);
-        interfaceIds[0] = type(IERC173).interfaceId;
-        interfaceIds[1] = 0xffffffff;
-        bool[] memory supported = new bool[](2);
-        supported[0] = false;
-        supported[1] = true;
-        LegacyStaticsInterfaceFacet(address(diamond)).setInterfaces(interfaceIds, supported);
-        assertFalse(IERC165(address(diamond)).supportsInterface(type(IERC173).interfaceId));
-        assertTrue(IERC165(address(diamond)).supportsInterface(0xffffffff));
-
-        DiamondCutFacet synchronizedCutFacet = new DiamondCutFacet();
-        DiamondLoupeFacet hardenedLoupeFacet = new DiamondLoupeFacet();
-        StaticsInterfaceInit restrictedMetadataFacet = new StaticsInterfaceInit();
-        IDiamondCut.FacetCut[] memory upgrade = new IDiamondCut.FacetCut[](3);
-        upgrade[0] = IDiamondCut.FacetCut(
-            address(synchronizedCutFacet),
-            IDiamondCut.FacetCutAction.Replace,
-            _singleSelector(IDiamondCut.diamondCut.selector)
-        );
-        upgrade[1] =
-            IDiamondCut.FacetCut(address(hardenedLoupeFacet), IDiamondCut.FacetCutAction.Replace, _loupeSelectors());
-        upgrade[2] = IDiamondCut.FacetCut(
-            address(restrictedMetadataFacet),
-            IDiamondCut.FacetCutAction.Replace,
-            _singleSelector(StaticsInterfaceInit.setInterfaces.selector)
-        );
-        IDiamondCut(address(diamond)).diamondCut(upgrade, address(0), "");
-        assertFalse(IERC165(address(diamond)).supportsInterface(type(IERC173).interfaceId));
-        assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(StaticsInterfaceInit.StandardInterfaceManaged.selector, type(IERC173).interfaceId)
-        );
-        StaticsInterfaceInit(address(diamond)).setInterfaces(interfaceIds, supported);
-
-        IDiamondCut.FacetCut[] memory emptyCut = new IDiamondCut.FacetCut[](0);
-        IDiamondCut(address(diamond)).diamondCut(emptyCut, address(0), "");
-        assertTrue(IERC165(address(diamond)).supportsInterface(type(IERC173).interfaceId));
-        assertFalse(IERC165(address(diamond)).supportsInterface(0xffffffff));
     }
 
     function test_SelectorManifestIsExact() public view {
