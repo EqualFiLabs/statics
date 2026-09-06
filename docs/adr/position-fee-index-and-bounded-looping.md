@@ -167,6 +167,11 @@ reducing debt ceilings, and entering reduce-only mode. It cannot block
 proportional holder exits. A profile can be permanently retired only from
 reduce-only mode, and retirement is an irreversible runoff state.
 
+Every initial, owner-created, and successor volatile series derives its
+collateral-per-pair denominator through one checked geometry function. A
+nonzero but badly scaled oracle price that would round that denominator to zero
+reverts before any series is stored or a pending transition is finalized.
+
 Fee, reward, and pairing-redemption parameters on the user Diamond remain
 timelock-configurable. They do not have irreversible lock functions. The
 timelock starts with a seven-day delay, and OpenZeppelin's self-call-only delay
@@ -368,6 +373,9 @@ profile's outstanding senior capacity, removes the corresponding proportional
 collateral, withholds the redemption fee as protocol revenue, and transfers the
 remainder. Pegged fees do not automatically fund volatile insurance or
 position rewards; an external account may fund those systems explicitly.
+Redemption fees are capped independently at 1,000 basis points. A redemption
+also reverts before burning Statics Dollar if raw-unit fee rounding would leave
+zero collateral output.
 
 Pegged redemption is quarantined as soon as any volatile downside transition
 starts. The quarantine is permissionlessly checkpointed and remains until all
@@ -376,10 +384,12 @@ is healthy and oracle-available, and that condition has held continuously for
 48 hours. Creating a healthy successor series cannot hide or cure the old
 series' deficit. Upside transitions do not trigger this pegged-only quarantine.
 
-This amendment is a clean architectural break. Pegged profiles have no fake
-series ID or junior-token compatibility path, and loan extension exposes no
-BasketToken-fee compatibility selector. Statics targets fresh deployments; no
-storage migration or legacy ABI is retained.
+This amendment introduced a clean architectural break. Pegged profiles have no
+fake series ID or junior-token compatibility path, and loan extension exposes
+no BasketToken-fee compatibility selector. The later terminal-residue
+hardening, however, appends fields within the existing periphery namespace so
+an in-place upgrade can preserve live positions without guessing historical
+funding.
 
 ### Volatile fee routing and consumption-only Risk liquidity
 
@@ -390,17 +400,23 @@ proportional consumption; unconsumed shares remain withdrawable.
 
 Eligible volatile-series mint and ordinary recombination fees retain the
 configured 70% reward and 30% insurance split. The complete reward share enters
-the global Statics non-swap ledger. When the series or profile mode is
-ineligible, the would-be reward share routes to insurance. Pegged-profile fees
+the global Statics non-swap ledger. When a non-retired series or profile mode is
+ineligible, the would-be reward share routes to insurance. Fees received after
+permanent retirement enter the global ledger directly. Pegged-profile fees
 continue to enter the global Statics ledger without a Risk Share allocation.
+The independent 1,000-basis-point redemption cap and nonzero-output check also
+apply to ordinary volatile recombination; mint fees retain their separate
+configuration bound.
 
 The managed pairing path charges one independent initial 50-basis-point fee on
 the senior collateral allocation. A fill credits the consumed Risk suppliers
 with their complete junior collateral residual plus 80% of that pairing fee;
 the remaining 20% tops up profile insurance. A per-epoch collateral index makes
 those proceeds claimable without looping over PositionNFTs. The index is
-advanced only by an actual fill, so staking without consumption earns nothing
-and a later supplier cannot claim proceeds from an earlier fill.
+advanced only by an actual fill, so staking without consumption earns nothing.
+A later supplier checkpoints at the current index and cannot claim whole units
+already indexed by an earlier fill, though the bounded numerator remainder may
+cross a cohort change before it crystallizes.
 
 Anyone may permissionlessly fund an active or reduce-only volatile series with
 its collateral token, Statics Dollar, or the configured STATICS staking token.
@@ -422,9 +438,39 @@ into the global Statics reward ledger under its existing staker and treasury
 split. Finalization is idempotent and does not alter reserves when a pending
 transition is cancelled.
 
-This is a clean break. Passive, opt-in, arbitrary-reward, automatic series-fee,
-and reward-gate fields and compatibility aliases remain removed. The periphery
-storage namespace advances for fresh deployment.
+Successful transition finalization irreversibly freezes ordinary ERC-1155
+transfers for the predecessor series ID. Transfers remain available throughout
+the return window and after cancellation, while Core mint and burn operations
+remain available for predecessor runoff and successor rollover. This prevents a
+holder from invalidating a permissionless full-balance recovery by reshuffling
+expired shares after a keeper has quoted it. After permanent profile
+retirement, later insurance top-ups are rejected. Volatile reserve moves into
+the current live paired series only when that series is the profile's sole senior
+generation, so ordinary runoff can consume it. Unassigned reserve is excluded
+from present solvency and projected issuance. Retirement first flushes pending
+periphery insurance; if historical senior claims remain or no current paired
+claim exists, it routes the non-claimant reserve into global non-swap rewards
+instead of favoring one fixed book or reverting. Fixed historical recovery books
+never gain later reserve. Pegged top-ups enter the proportional redemption book
+immediately; an empty pegged profile routes terminal surplus globally.
+
+Successful deployments bind Core to the freeze-capable
+`STATICS_DOLLAR_RISK_V2` token kind. The immutable V1 Risk Shares contract lacks
+the freeze selectors and cannot be reused with this Core revision. The release
+must create the V2 token, Core, and `StaticsDiamond` as a fresh coordinated
+stack. Rebinding an initialized full-stack Diamond to a fresh Core is unsupported
+because periphery books are keyed by Core-issued numeric IDs; a safe in-place
+path would require a separate namespace migration design.
+
+Terminal-residue counters activate lazily within storage v6. A nonzero index
+encountered during an in-place upgrade remains on legacy floor rounding for all
+later funding into that same index, and its residual stays reserved. Empty
+indexes and later epochs activate exact terminal accounting without assigning
+historical dust retroactively.
+
+Passive, opt-in, arbitrary-reward, automatic series-fee, and reward-gate fields
+and compatibility aliases remain removed. Terminal accounting retains the
+existing periphery storage namespace and appends only storage-compatible fields.
 
 ### PositionNFT ownership
 
@@ -461,12 +507,12 @@ action address; a separate PositionNFT contract is not deployed. Individual
 BasketTokens, the Statics Dollar token, and the series-specific Dollar risk
 token retain their required separate token addresses.
 
-Newly deposited shares are subject to a one-block minimum position age or an
-equivalent one-block withdrawal restriction. This prevents a single-transaction
-flash borrower from depositing immediately before a known fee accrual and
-withdrawing immediately afterward. This basket-leg rule does not replace the
-longer Statics Dollar reward-eligibility gate. These are economic eligibility
-rules, not token-admission or administrative safety restrictions.
+Newly deposited shares enter the same bounded hourly 24-to-25-hour eligibility
+shape as global staking. Top-ups preserve weighted pending age, and withdrawals
+consume pending shares before eligible shares. There is no separate withdrawal
+cooldown: unlocked, undeployed BasketTokens may leave immediately, while loan
+locks and Morpho deployment remain hard availability constraints. This
+basket-leg rule is independent of Statics Dollar reward eligibility.
 
 All fee settlement is lazy and interaction-driven. There is no keeper or timed
 background process: deposits, withdrawals, claims, transfers affecting
@@ -643,8 +689,13 @@ attribution does not create a reward index or a module claim.
 1. The approval entrypoints use an existing Statics Dollar allowance. The
    permit entrypoints first checkpoint exit availability, then attempt an
    exact-amount EIP-2612 permit from `msg.sender` to `StaticsDiamond`.
-2. The gateway pulls the matching Dollar and series-specific risk amount into
-   `StaticsDiamond`. Risk shares still require ERC-1155 operator approval.
+2. For profile 1, when its series is active, transition-pending, or directly
+   retired, the gateway
+   pulls the matching Dollar and series-specific risk amount into
+   `StaticsDiamond`. Risk shares still require ERC-1155 operator approval. A
+   transition-finalized recoverable predecessor ID is transfer-frozen and
+   cannot be pulled by the gateway; its holder may use direct Core
+   recombination for runoff or the Core recovery burn/mint path for rollover.
 3. It calls the ordinary Core recombination path on behalf of the user.
 4. Core applies the same recombination fee and health rules used by a direct
    user call.

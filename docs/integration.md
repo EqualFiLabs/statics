@@ -48,8 +48,11 @@ Use compiled ABIs from these sources:
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
 | Dollar Risk liquidity | `src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol` | Stake consumable Risk Shares, inspect liquidity, withdraw unconsumed shares, and claim fill proceeds |
+| Dollar Risk Shares | `src/dollar/interfaces/IStaticsDollarRiskShares.sol` | ERC-1155 balances, approvals, transfer-freeze state, and Core-only mint, burn, and freeze calls |
+| Dollar series migration | `src/dollar/interfaces/IStaticsDollarSeriesMigration.sol` | Aggregate transition processing, PositionNFT settlement, and migration state |
 | Dollar Core | `src/dollar/core/interfaces/IStaticsDollarCore.sol` | Direct issuance, recombination, health, and recovery |
 | Statics Dollar | `src/dollar/interfaces/IStaticsDollar.sol` | ERC-20 transfers, allowances, and EIP-2612 permit |
+| Morpho integration | `src/interfaces/IStaticsMorpho.sol` | Market configuration, tracked collateral, borrowing, repayment, synchronization, and account recovery |
 
 All 5,555 Genesis NFTs exist from deployment. Integrators call
 `quoteGenesisPurchase()` immediately before acquiring a selected vault-owned
@@ -208,12 +211,16 @@ To deposit held BasketTokens, approve the Diamond and use
 constituents and mint directly into collateral, use
 `createAndMintBasketCollateral` or `mintBasketCollateral`. Unlocked collateral
 returns through `withdrawBasketCollateral`; `redeemBasketCollateral` burns
-unlocked collateral and returns constituents. A new deposit cannot withdraw in
-its deposit block.
+unlocked collateral and returns constituents. Unlocked, undeployed shares have
+no separate deposit-block withdrawal gate; loan-locked or Morpho-deployed
+shares must first be unlocked or recalled.
 
-Deposited BasketTokens enter an isolated per-basket reward index. The reward
-assets are the BasketToken and every basket constituent; no opt-in loop is
-required because each basket has at most sixteen assets. Read
+Deposited BasketTokens enter a pending tranche for an isolated per-basket
+reward index and mature at the next hourly boundary at least 24 hours later.
+Top-ups retain weighted pending age, and withdrawals consume pending shares
+before eligible shares. The reward assets are the BasketToken and every basket
+constituent; no opt-in loop is required because each basket has at most sixteen
+assets. Read
 `getBasketRewardAssets`, `getBasketRewards`, and `basketRewardState`, then call
 `claimBasketRewards`. Locked collateral remains eligible while borrowed.
 Withdrawn or recovered shares settle first and stop earning.
@@ -225,8 +232,9 @@ most 64 reward assets, while the protocol supports any number globally. Use
 `optInRewardAssets` and `optOutRewardAssets` to change the selection. A new
 selection and every top-up enter a pending tranche that matures at the next
 hourly boundary at least 24 hours later. Existing mature stake remains eligible
-and all stake remains withdrawable. Withdrawals consume pending stake first. A
-full unstake clears selections but preserves settled claims.
+and undeployed stake has no cooldown. Stake supplied to Morpho must first be
+recalled. Withdrawals consume pending stake first. A full unstake clears
+selections but preserves settled claims.
 
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
@@ -243,11 +251,24 @@ Before accepting a PositionNFT transfer, call `positionState(positionId)` and
 inspect protocol-specific economics for each discovered Leg. The standardized
 state reports the structural nonce, active-Leg count, and unresolved live-loan
 count; it does not report valuation or solvency. `isPositionClosable` is true
-only for an existing, fully initialized Position with both counts at zero.
-Structural membership is available through `isLegActive`; events
+only for an existing, fully initialized Position with both counts at zero and
+no collateral or debt in any historically tracked Morpho market. Structural
+membership is available through `isLegActive`; events
 `PositionLegAttached`, `PositionLegDetached`, and `PositionStateChanged` support
 indexer reconstruction. Position identity is `(chain ID, StaticsDiamond,
 positionId)`, with no separate Position Key getter.
+
+Raw tokens and collateral deposited directly into a registered Morpho market
+that the Position never tracked are not enumerable close blockers. When an
+already deployed Morpho account's Position closes, its actual final owner keeps
+permanent authority only for `recoverMorphoAccountToken` and
+`withdrawUntrackedMorphoCollateral`; prior NFT approvals and all borrowing or
+collateral-deployment authority end at burn. Transfers to a predicted but
+undeployed account remain unsupported. Do not use a PNFT Morpho account as the
+`onBehalf` lender for loan-token supply: Morpho `supplyShares` are not checked by
+the Statics close predicate and cannot be withdrawn through Statics in this
+release. Native assets and NFTs sent to that account are likewise unsupported
+and unrecoverable through the current interface.
 
 `tokenURI(positionId)` returns fully onchain Base64 JSON with a Base64 SVG
 showing the Statics logo and `POSITION #<positionId>`. The stable image contains
@@ -369,10 +390,11 @@ Creator attribution uses EIP-712 authorization under the domain
 `verifyingContract = StaticsDiamond`. `SignatureChecker` validates both EOA and
 ERC-1271 creators. The signed digest binds the PoolId, normalized price,
 `inputFeeBps`, `outputFeeBps`, creator, nonce, and deadline. Three paths apply:
-a direct creator (`creator == msg.sender`) may pass empty authorization and
-consumes no nonce; while creation is disabled the Diamond owner may designate a
-creator without a signature; otherwise the named creator must supply a valid
-authorization and its unordered nonce is consumed. Relayed authorizations
+when the creation fee is nonzero, a direct creator (`creator == msg.sender`) may
+pass empty authorization and consumes no nonce; while creation is disabled the
+Diamond owner may designate any nonzero creator without a signature; otherwise
+the named creator must supply a valid authorization and its unordered nonce is
+consumed. Relayed authorizations
 deliberately do not bind `msg.sender`, so a copied transaction may pay the fee
 and initialize the pool first but can never replace the creator or change the
 PoolId, price, or fee rate. Cancel an unused authorization with
@@ -567,7 +589,38 @@ mint-and-recombine variant permits the pegged collateral token rather than
 Statics Dollar. `mintPeggedWithPermit` likewise requires the configured
 collateral token to implement EIP-2612.
 Matching Risk Shares remain ERC-1155 tokens and require
-`setApprovalForAll(StaticsDiamond, true)`.
+`setApprovalForAll(StaticsDiamond, true)` for gateway transfers. Successful
+transition finalization freezes ordinary transfers for the predecessor's
+recoverable series ID. The freeze also prevents gateway entrypoints from
+pulling that expired ID, but a holder may still recombine directly through Core
+because Core burns from that holder without an ERC-1155 transfer. The matching
+Core recovery path can instead burn predecessor claims and mint successor
+claims. A series retired directly with its profile remains unfrozen,
+transferable, and ordinary-recombinable via Core (and the gateway for profile
+1) during runoff.
+
+This Core revision binds to the freeze-capable
+`STATICS_DOLLAR_RISK_V2` token kind. The immutable V1 Risk Shares contract does
+not expose the freeze selectors and cannot be reused. Use the canonical launcher
+to deploy a fresh V2 token, Core, and `StaticsDiamond` as one coordinated full
+stack. Do not rebind an initialized full-stack Diamond to a fresh Core: its
+Dollar books are keyed by Core-issued numeric IDs. A separately deployed,
+unbound Genesis contract may still perform its documented one-shot binding
+after the fresh stack is handed off.
+
+`topUpInsurance` accepts profiles that are not permanently retired. Volatile
+top-ups credit profile-level reserve, including during `ReduceOnly`; pegged
+top-ups immediately increase proportional redemption collateral. Permanent
+volatile reserve is contingent transition capital, not present solvency backing,
+and cannot authorize new issuance until assigned. Retirement atomically routes
+pending periphery insurance into Core before deciding its disposition. Reserve
+joins the current live paired series only when that series is the profile's sole
+senior generation. If historical senior claims remain or no current paired claim
+exists, the non-claimant reserve enters global non-swap rewards instead; fixed
+historical recovery books never gain later reserve. Legacy pegged reserve joins
+a live redemption book, while an empty pegged profile routes terminal surplus
+globally. Retirement does not wait for claims or reserve consumption. Later
+volatile fees enter global rewards directly, and post-retirement top-ups revert.
 
 Permit submission is permissionless. The gateway tolerates a pre-submitted
 valid permit and still requires allowance-backed `transferFrom`. It checks exit
@@ -579,7 +632,10 @@ the transaction.
 For volatile WETH profiles, use `depositETH` or `depositWETH` to mint Statics
 Dollar and current-series Risk Shares to independently selected receivers. Use
 `recombineToWETH` or `recombineToETH` to burn matching claims and exit when the
-health state permits. Respect maximum-share and minimum-output parameters.
+health state permits and the series ID remains transferable. After transition
+finalization, the gateway cannot pull the frozen predecessor ID. A holder may
+still use direct Core recombination for runoff, or Core recovery for successor
+rollover. Respect maximum-share and minimum-output parameters.
 
 For pegged profiles, `previewPeggedMint`, `mintPegged`, and
 `mintPeggedWithPermit` pull nominal collateral plus the independent mint fee.
@@ -641,6 +697,15 @@ separate collateral, Statics Dollar, and STATICS amounts even when two roles
 resolve to the same physical token; the Diamond aggregates coincident-token
 transfers internally.
 
+When full consumption closes an epoch, the final stored leg settled from that
+epoch receives every raw-token unit not already crystallized by the index;
+settlement order therefore selects the terminal-residue recipient. Empty/new
+indexes track this exactly. A nonzero index carried through an in-place upgrade
+stays on the legacy floor-rounding path because historical funded totals cannot
+be inferred safely onchain. All later funding into that same legacy index also
+uses floor rounding, so its residual remains reserved rather than being assigned
+retroactively. Later empty indexes and epochs use exact settlement.
+
 `fundRiskCollateralIncentives`, `fundRiskDollarIncentives`, and
 `fundRiskStaticsIncentives` are permissionless and accept only the three
 canonical assets inferred from protocol configuration. They may fund an Active
@@ -689,9 +754,25 @@ Index these event families, then reconcile with current views:
   `RewardAssetOptedIn`, `RewardAssetOptedOut`, and `RewardAssetDustRouted`;
 - lending and flash: `LoanOriginated`, `LoanRepaid`, `LoanExtensionFeePaid`,
   `LoanExtended`, `LoanRecovered`, and `BasketFlashLoan`;
+- Dollar Risk Shares token: `SeriesTransfersFrozen`;
 - Dollar Risk incentives: `RiskIncentivesFunded`, `RiskIncentivesReleased`,
   `RiskIncentivesRolledOver`, `RiskIncentivesRoutedGlobal`,
-  `RiskProceedsAccrued`, and `RiskProceedsClaimed`;
+  `RiskProceedsAccrued`, `RiskProceedsSettled`,
+  `RiskProceedsResidueAssigned`, and `RiskProceedsClaimed`;
+- Dollar series migration: `SeriesTransitionProcessed`,
+  `PositionMigrationSettled`, and `MigrationRoundingWrittenOff`;
+- Dollar Core transition and recovery: `Recombined`, `CollateralExitDeferred`,
+  `SeriesTransitionStarted`, `SeriesTransitionCancelled`,
+  `RiskSharesReturned`, `ReturnedRiskSharesReclaimed`,
+  `SeriesTransitionFinalized`, `ReturnedRiskClaimed`,
+  `RecoverySeniorRedeemed`, `ExpiredRiskRecovered`, and `SeriesClosed`;
+- Morpho: `MorphoIntegrationInitialized`, `MorphoMarketRegistered`,
+  `MorphoMarketModeChanged`, `MorphoAccountDeployed`,
+  `MorphoCollateralDeployed`, `MorphoCollateralRecalled`,
+  `MorphoSurplusWithdrawn`, `MorphoBorrowed`, `MorphoRepaid`,
+  `MorphoSynchronized`, `MorphoLiquidatedAndSynchronized`,
+  `MorphoSyncBountyClaimed`, `MorphoAccountTokenRecovered`, and
+  `MorphoPerformanceFeeRouted`;
 - canonical lifecycle: `LiquidityIntegrationInstalled`,
   `CanonicalPoolInitialized`, `CanonicalPoolSyncedToManager`,
   `SwapFeeConfigurationChanged`, and `BasketLiquidityUnwound`;

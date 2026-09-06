@@ -35,11 +35,11 @@ historical fees. Opt-out settles earned rewards before removing the position's
 stake. Historical claimables remain claimable and do not count against the
 64-asset selection limit.
 
-Global stake is always withdrawable. Initial stake, new selections, and top-ups
-enter a pending tranche for each selected asset. Pending stake matures at the
-next hourly boundary at least 24 hours later, producing a bounded 24-to-25-hour
-wait. Mature stake remains eligible when more stake is added, and withdrawals
-consume pending stake first.
+Undeployed global stake has no cooldown; stake supplied to Morpho must first be
+recalled. Initial stake, new selections, and top-ups enter a pending tranche for
+each selected asset. Pending stake matures at the next hourly boundary at least
+24 hours later, producing a bounded 24-to-25-hour wait. Mature stake remains
+eligible when more stake is added, and withdrawals consume pending stake first.
 
 Each asset maintains a 25-slot hourly maturity ring. Fee accrual and position
 interactions roll due buckets before using the eligible denominator, so no

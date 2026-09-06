@@ -64,7 +64,7 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 30 facets and 254 selectors on
+The fresh-deployment launcher installs 36 facets and 283 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -94,7 +94,8 @@ separately namespaced:
 - canonical-pool registration, lifecycle, and decommission state;
 - direct Genesis STATICS/WETH indexes, prior-owner credits, registration, and
   an isolated Genesis reward reservation;
-- one immediately withdrawable global staking balance per PositionNFT, at most
+- one global staking balance per PositionNFT, withdrawable without a cooldown
+  except while supplied to Morpho, at most
   64 selected reward assets per position, and independent hourly 24-to-25-hour
   eligibility rings for an unlimited set of global asset indexes; and
 - per-position, per-basket reward indexes, loan tranches, principal, and

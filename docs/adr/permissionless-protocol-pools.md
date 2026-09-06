@@ -452,6 +452,8 @@ Governance may update the basket and general allocation profiles independently, 
 
 Changing a global allocation profile does not change any PoolId's fee rate. Changing a PoolId's fee rate does not change the applicable allocation profile.
 
+For compatibility, `setCanonicalPoolFeeConfiguration` retains the legacy combined rate-and-allocation ABI. Its allocation fields are assertions, not PoolId-local settings: every supplied allocation field must exactly match the active global basket profile or the call reverts. A successful call changes only the PoolId-local rate, and its event records the effective global allocation.
+
 The fallback policy remains explicit:
 
 - an unavailable LP allocation routes to PoolId-local POL;
@@ -553,6 +555,7 @@ The Diamond sorts the currencies and converts the supplied tokenA/tokenB price i
 
 ```text
 tokenA and tokenB are distinct nonzero contract addresses
+creator is a nonzero address
 native currency is unsupported
 1 <= tickSpacing <= 32,767
 TickMath.MIN_SQRT_PRICE <= normalized sqrtPriceX96 < TickMath.MAX_SQRT_PRICE
@@ -596,10 +599,10 @@ chainId
 verifyingContract = Statics Diamond
 ```
 
-Authorization follows three paths:
+Creator validation rejects the zero address before quote construction or hook registration. Authorization then follows three paths, with the zero-fee permission gate resolved before the direct-creator shortcut:
 
-1. If `creator == msg.sender`, an empty authorization is accepted for direct creation and no nonce is consumed.
-2. If `poolCreationFeeAmount == 0` and `msg.sender` is the Diamond owner, governance may designate a creator without a signature.
+1. If `poolCreationFeeAmount == 0`, only the Diamond owner may create; governance may designate any nonzero creator without a signature.
+2. If `poolCreationFeeAmount > 0` and `creator == msg.sender`, an empty authorization is accepted for direct creation and no nonce is consumed.
 3. Otherwise, the named creator must provide a valid EIP-712 authorization and its nonce is consumed.
 
 The owner receives no signature bypass while permissionless creation is enabled unless the owner is also the creator.
@@ -623,7 +626,10 @@ function isPoolCreationNonceUsed(address creator, uint256 nonce)
     returns (bool);
 ```
 
-Nonce consumption occurs before external interactions. Any later revert restores the nonce with the rest of the atomic transaction.
+Signed authorization validates the creator, including any ERC-1271 external
+call, before consuming the nonce. Consumption still precedes the fee transfer,
+hook registration, and PoolManager initialization. Any later revert restores
+the nonce with the rest of the atomic transaction.
 
 Creator identity is immutable after successful registration.
 
@@ -632,22 +638,21 @@ Creator identity is immutable after successful registration.
 A successful general pool creation performs one atomic transition:
 
 1. Enforce the liquidity pause and deadline.
-2. Validate token addresses, tick spacing, normalized price, and requested fee rate.
-3. Resolve the independent pool creation fee.
-4. If the fee is zero, require the Diamond owner and zero `msg.value`.
-5. If the fee is nonzero, require exact `msg.value` from every caller.
-6. Construct the sorted PoolKey using native fee zero and the installed Statics hook.
-7. Calculate PoolId.
-8. Reject an existing basket or general pool using that PoolId.
-9. Reject an existing hook registration or PoolManager initialization.
-10. Resolve the direct, governed, or signed creator-authorization path.
-11. Consume the unordered nonce when signed authorization is used.
-12. Collect the creation fee to treasury.
-13. Record the general pool and immutable creator.
-14. Register the PoolKey with `StaticsSwapFeeHook`.
-15. Store the initial PoolId-specific Statics fee rate.
-16. Initialize the pool through PoolManager.
-17. Emit the authoritative creation event.
+2. Validate token addresses, nonzero creator, tick spacing, normalized price, and requested fee rate.
+3. Resolve the independent pool creation fee, construct the sorted PoolKey
+   using native fee zero and the installed Statics hook, and calculate PoolId.
+4. Reject an existing basket or general pool using that PoolId.
+5. Reject an existing hook registration or PoolManager initialization.
+6. Resolve the direct, governed, or signed creator-authorization path. A zero
+   fee requires the Diamond owner; a signed path validates EOA/ERC-1271
+   authorization before consuming its unordered nonce.
+7. Require zero `msg.value` for the governed zero-fee path or the exact fee
+   from every nonzero-fee caller, then transfer that fee to treasury.
+8. Record the general pool and immutable creator.
+9. Register the PoolKey with `StaticsSwapFeeHook`.
+10. Store the initial PoolId-specific Statics fee rate.
+11. Initialize the pool through PoolManager.
+12. Emit the authoritative creation event.
 
 Any failure reverts nonce consumption, creation-fee transfer, creator registration, fee-rate registration, hook registration, and PoolManager initialization together.
 
@@ -1386,6 +1391,7 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 - Exact PoolKey duplicates cannot create a second Statics market or creator.
 - Tick spacing is creator-selectable only within valid PoolManager bounds.
 - Initial Statics fee rates are creator-selectable only within canonical protocol fee bounds.
+- Pool registration rejects a zero creator, and zero-fee creation remains owner-only even when the caller names itself as creator.
 - Creator authorization binds PoolId, normalized price, fee rate, creator, nonce, and deadline under the Diamond's EIP-712 domain.
 - Relayed creator authorization supports EOAs and ERC-1271 creators.
 - Unordered creator nonces can be invalidated without serializing independent launches.
@@ -1508,7 +1514,7 @@ The implementation must cover:
 - different pools receiving different creator-selected initial Statics fee rates;
 - fee-rate bounds using canonical hook validation;
 - deterministic `quotePool` output matching `createPool` PoolId and normalized price;
-- direct creator creation without a signature;
+- direct creator creation without a signature while creation is permissionless;
 - governed-phase designated creator without a signature;
 - permissionless owner creation requiring creator authorization when owner is not creator;
 - EOA creator authorization;
