@@ -102,6 +102,53 @@ contract StaticsDollarTokensTest is Test {
         assertEq(staticsDollarRisk.balanceOf(alice, 2), 40 ether);
     }
 
+    function test_RevertWhen_NonPoolFreezesSeriesTransfers() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsDollarRiskShares.NotPool.selector, alice));
+        staticsDollarRisk.freezeTransfers(1);
+    }
+
+    function testFuzz_FrozenSeriesBlocksTransfersButAllowsPoolMintAndBurn(uint256 rawAmount) public {
+        uint256 amount = bound(rawAmount, 1, type(uint128).max);
+        uint256[] memory ids = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+        ids[0] = 1;
+        ids[1] = 2;
+        amounts[0] = amount;
+        amounts[1] = amount;
+
+        vm.startPrank(pool);
+        staticsDollarRisk.batchMint(alice, ids, amounts);
+        vm.expectEmit(true, false, false, false);
+        emit IStaticsDollarRiskShares.SeriesTransfersFrozen(1);
+        staticsDollarRisk.freezeTransfers(1);
+        vm.stopPrank();
+
+        assertTrue(staticsDollarRisk.transfersFrozen(1));
+        assertFalse(staticsDollarRisk.transfersFrozen(2));
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsDollarRiskShares.FrozenSeriesTransfer.selector, 1));
+        staticsDollarRisk.safeTransferFrom(alice, bob, 1, amount, "");
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsDollarRiskShares.FrozenSeriesTransfer.selector, 1));
+        staticsDollarRisk.safeBatchTransferFrom(alice, bob, ids, amounts, "");
+
+        vm.prank(alice);
+        staticsDollarRisk.safeTransferFrom(alice, bob, 2, amount, "");
+
+        vm.startPrank(pool);
+        staticsDollarRisk.burn(alice, 1, amount);
+        staticsDollarRisk.mint(bob, 1, amount);
+        vm.stopPrank();
+
+        assertEq(staticsDollarRisk.balanceOf(alice, 1), 0);
+        assertEq(staticsDollarRisk.balanceOf(bob, 1), amount);
+        assertEq(staticsDollarRisk.balanceOf(alice, 2), 0);
+        assertEq(staticsDollarRisk.balanceOf(bob, 2), amount);
+    }
+
     function test_PermitAllowsRelayedTransferFrom() public {
         uint256 ownerKey = 0xa11ce;
         address owner = vm.addr(ownerKey);

@@ -52,6 +52,12 @@ contract FeeRouterFacet is ReentrancyGuard {
         if (profile.kind != IStaticsDollarCoreTypes.ProfileKind.Volatile) {
             revert InvalidProfileKind(series.profileId, IStaticsDollarCoreTypes.ProfileKind.Volatile, profile.kind);
         }
+        if (profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired) {
+            LibCustody.reserve(LibCustody.dollarAccount(), token, amount);
+            LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), token, amount);
+            emit PoolFeeIndexed(seriesId, series.profileId, token, kind, amount, 0);
+            return;
+        }
         uint256 insuranceShare = Math.mulDiv(amount, ps.insuranceBps, LibPeriphery.BPS);
         uint256 rewardShare = amount - insuranceShare;
         bool rewardableMode = profile.mode == IStaticsDollarCoreTypes.ProfileMode.Active
@@ -97,6 +103,11 @@ contract FeeRouterFacet is ReentrancyGuard {
         if (amount == 0) revert NothingToRoute(profileId);
         ps.pendingInsurance[profileId] = 0;
         ps.pendingInsuranceByToken[profile.collateralToken] -= amount;
+        if (profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired) {
+            LibGlobalRewards.accrueNonSwapFee(LibCustody.dollarAccount(), profile.collateralToken, amount);
+            emit PendingInsuranceRouted(profileId, profile.collateralToken, amount, msg.sender);
+            return amount;
+        }
         LibCustody.release(LibCustody.dollarAccount(), profile.collateralToken, amount);
         IERC20(profile.collateralToken).forceApprove(ps.pool, amount);
         IStaticsDollarCore(ps.pool).topUpInsurance(profileId, amount);

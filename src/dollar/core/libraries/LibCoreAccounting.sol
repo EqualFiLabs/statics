@@ -35,9 +35,13 @@ library LibCoreAccounting {
     error CustodyShortfall(address token, uint256 accounted, uint256 actual);
     error FeeRecipientCallbackFailed(address recipient);
     error NumericOverflow();
+    error InvalidSeriesGeometry(uint256 priceWad, uint256 collateralRatioBps);
 
     event FeeCollected(
         address indexed payer, address indexed recipient, address indexed collateralToken, uint256 amount
+    );
+    event RetiredSurplusRouted(
+        uint256 indexed profileId, uint256 indexed seriesId, address indexed collateralToken, uint256 amount
     );
 
     function enforceBootstrapFinalized(LibCoreStorage.CS storage cs) internal view {
@@ -88,7 +92,10 @@ library LibCoreAccounting {
         uint256 seniorAdded,
         uint256 priceWad
     ) internal view {
-        uint256 supporting = storedProfile.accountedCollateral + storedProfile.insuranceReserve + collateralAdded;
+        uint256 supporting = storedProfile.accountedCollateral + collateralAdded;
+        if (storedProfile.kind == IStaticsDollarCoreTypes.ProfileKind.Pegged) {
+            supporting += storedProfile.insuranceReserve;
+        }
         uint256 value = LibCoreHealth.valueWad(toWad(supporting, storedProfile.decimals), priceWad);
         uint256 liabilities = storedProfile.seniorOutstanding + seniorAdded;
         if (value < liabilities) revert ProfileImpaired(profileId, liabilities - value);
@@ -159,6 +166,35 @@ library LibCoreAccounting {
             revert FeeRecipientCallbackFailed(recipient);
         }
         emit FeeCollected(payer, recipient, token, amount);
+    }
+
+    /// @dev Moves collateral that has no remaining claim path into the
+    /// periphery's terminal global-reward path. The profile must already be
+    /// Retired so the volatile callback cannot reclassify the amount as
+    /// pending insurance again.
+    function routeRetiredSurplus(LibCoreStorage.CS storage cs, uint256 profileId, uint256 seriesId, uint256 amount)
+        internal
+    {
+        if (amount == 0) return;
+        IStaticsDollarCoreTypes.StableCollateralProfile storage storedProfile = cs.collateralProfiles[profileId];
+        address token = storedProfile.collateralToken;
+        address recipient = cs.periphery;
+        cs.accountedCollateralByToken[token] -= amount;
+        pushExact(token, recipient, amount);
+        if (storedProfile.kind == IStaticsDollarCoreTypes.ProfileKind.Volatile) {
+            try ICoreFeeReceiver(recipient)
+                .onSeriesFee(seriesId, token, amount, IStaticsDollarCoreTypes.FeeKind.Redemption) {}
+            catch {
+                revert FeeRecipientCallbackFailed(recipient);
+            }
+        } else {
+            try ICoreFeeReceiver(recipient)
+                .onPeggedProfileFee(profileId, token, amount, IStaticsDollarCoreTypes.FeeKind.Redemption) {}
+            catch {
+                revert FeeRecipientCallbackFailed(recipient);
+            }
+        }
+        emit RetiredSurplusRouted(profileId, seriesId, token, amount);
     }
 
     function enforceCustody(LibCoreStorage.CS storage cs, address token) internal view {
@@ -259,6 +295,17 @@ library LibCoreAccounting {
     function feeAmount(uint256 amount, uint256 bps) internal pure returns (uint256) {
         if (amount == 0 || bps == 0) return 0;
         return Math.mulDiv(amount, bps, BPS, Math.Rounding.Ceil);
+    }
+
+    function seriesGeometry(uint256 priceWad, uint256 ratioBps)
+        internal
+        pure
+        returns (uint256 collateralPerPairWad, uint256 seniorCollateralPerUnitWad, uint256 juniorCollateralPerUnitWad)
+    {
+        collateralPerPairWad = Math.mulDiv(Math.mulDiv(WAD, ratioBps, BPS), WAD, priceWad);
+        if (collateralPerPairWad == 0) revert InvalidSeriesGeometry(priceWad, ratioBps);
+        seniorCollateralPerUnitWad = Math.mulDiv(WAD, WAD, priceWad);
+        juniorCollateralPerUnitWad = collateralPerPairWad - seniorCollateralPerUnitWad;
     }
 
     function toWad(uint256 raw, uint8 decimals) internal pure returns (uint256 wad) {

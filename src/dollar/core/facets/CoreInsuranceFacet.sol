@@ -15,25 +15,19 @@ contract CoreInsuranceFacet is ReentrancyGuard {
     error InvalidProfileKind(
         uint256 profileId, IStaticsDollarCoreTypes.ProfileKind expected, IStaticsDollarCoreTypes.ProfileKind actual
     );
+    error InvalidProfileMode(uint256 profileId, IStaticsDollarCoreTypes.ProfileMode mode);
 
     function topUpInsurance(uint256 profileId, uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         LibCoreStorage.CS storage cs = LibCoreStorage.s();
         LibCoreAccounting.enforceBootstrapFinalized(cs);
         IStaticsDollarCoreTypes.StableCollateralProfile storage profile = LibCoreAccounting.profile(cs, profileId);
+        if (profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired) {
+            revert InvalidProfileMode(profileId, profile.mode);
+        }
         LibCoreAccounting.pullExact(profile.collateralToken, msg.sender, amount);
-        if (
-            profile.kind == IStaticsDollarCoreTypes.ProfileKind.Volatile
-                && profile.mode == IStaticsDollarCoreTypes.ProfileMode.Retired
-        ) {
-            IStaticsDollarCoreTypes.RiskSeries storage series = cs.riskSeries[profile.activeSeriesId];
-            if (series.status == IStaticsDollarCoreTypes.SeriesStatus.Closed) {
-                profile.insuranceReserve += amount;
-            } else {
-                profile.accountedCollateral += amount;
-                series.accountedCollateral += amount;
-                LibCoreAccounting.updateSeriesIndex(cs, profile.activeSeriesId);
-            }
+        if (profile.kind == IStaticsDollarCoreTypes.ProfileKind.Pegged) {
+            profile.accountedCollateral += amount;
         } else {
             profile.insuranceReserve += amount;
         }

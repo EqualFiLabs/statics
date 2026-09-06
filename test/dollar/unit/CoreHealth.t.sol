@@ -79,13 +79,16 @@ contract CoreHealthTest is Test {
         assertFalse(solvency.healthy);
     }
 
-    function test_InsuranceOffsetsSeriesDeficitWithoutIgnoringCustody() public {
+    function test_UnassignedVolatileInsuranceDoesNotMaskSeriesDeficitOrCustody() public {
         (CoreHealthHarness health, HealthCollateral collateral,) = _profile(18, 1e18);
         collateral.mint(address(health), 250e18);
         health.setAccounting(1, 200e18, 50e18, 200e18);
         health.setSeriesBook(1, 1, 100e18, 50e18);
         health.setSeriesBook(1, 2, 100e18, 150e18);
-        assertTrue(health.profileSolvency(1).healthy);
+        IStaticsDollarCoreTypes.ProfileSolvency memory beforeShortfall = health.profileSolvency(1);
+        assertEq(beforeShortfall.collateralValueWad, 200e18);
+        assertEq(beforeShortfall.seniorDeficitWad, 50e18);
+        assertFalse(beforeShortfall.healthy);
 
         collateral.burn(address(health), 75e18);
         IStaticsDollarCoreTypes.ProfileSolvency memory solvency = health.profileSolvency(1);

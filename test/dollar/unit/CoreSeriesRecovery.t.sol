@@ -21,7 +21,9 @@ import {LibCoreAccounting} from "src/dollar/core/libraries/LibCoreAccounting.sol
 import {LibDiamond} from "src/libraries/LibDiamond.sol";
 import {StaticsDollarRiskShares} from "src/dollar/StaticsDollarRiskShares.sol";
 import {StaticsDollar} from "src/dollar/StaticsDollar.sol";
+import {IStaticsDollarRiskShares} from "src/dollar/interfaces/IStaticsDollarRiskShares.sol";
 import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
+import {IStaticsGlobalRewards} from "src/interfaces/IStaticsGlobalRewards.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
 
@@ -52,6 +54,7 @@ contract CoreSeriesRecoveryTest is Test {
     address internal owner = makeAddr("owner");
     address internal profileGuardian = makeAddr("profileGuardian");
     address internal alice = makeAddr("alice");
+    address internal shardRecipient = makeAddr("shardRecipient");
     address internal keeper = makeAddr("keeper");
     address internal executor = makeAddr("executor");
 
@@ -118,6 +121,35 @@ contract CoreSeriesRecoveryTest is Test {
         assertEq(weth.balanceOf(keeper) - keeperWethBefore, preview.seniorCollateralOut + preview.keeperBounty);
         assertEq(weth.balanceOf(alice) - holderWethBefore, preview.holderCollateral);
         assertEq(staticsDollarRisk.balanceOf(alice, 1), 0);
+    }
+
+    function test_FinalizedSeriesBlocksShardingButPreservesSuccessorDepositAndRecovery() public {
+        uint256 minted = _depositWeth(2e18);
+        uint256 successorSeriesId = _finalizeUpside(0);
+
+        assertTrue(staticsDollarRisk.transfersFrozen(1));
+        assertFalse(staticsDollarRisk.transfersFrozen(successorSeriesId));
+
+        uint256 successorBalanceBefore = staticsDollarRisk.balanceOf(alice, successorSeriesId);
+        uint256 successorDeposit = _depositWeth(0.5e18);
+        assertEq(staticsDollarRisk.balanceOf(alice, successorSeriesId) - successorBalanceBefore, successorDeposit);
+
+        IStaticsDollarCoreTypes.ExpiredRiskRecoveryPreview memory preview =
+            recoveryFacet.previewExpiredRiskRecovery(alice, 1, minted, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV);
+        assertGt(preview.holderPairs, 0);
+        vm.prank(alice);
+        staticsDollar.transfer(keeper, minted);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsDollarRiskShares.FrozenSeriesTransfer.selector, 1));
+        staticsDollarRisk.safeTransferFrom(alice, shardRecipient, 1, 1, "");
+
+        uint256 successorBeforeRecovery = staticsDollarRisk.balanceOf(alice, successorSeriesId);
+        vm.prank(keeper);
+        recoveryFacet.recoverExpiredRisk(alice, 1, minted, IStaticsDollarCoreTypes.RecoveryClaimMode.NAV, 0);
+
+        assertEq(staticsDollarRisk.balanceOf(alice, 1), 0);
+        assertEq(staticsDollarRisk.balanceOf(alice, successorSeriesId) - successorBeforeRecovery, preview.holderPairs);
     }
 
     function test_ReturnedAndExpiredUpsideRecoverySettleEveryAggregateBook() public {
@@ -187,6 +219,7 @@ contract CoreSeriesRecoveryTest is Test {
         oracle.setPriceWad(4_000e18);
         oracle.setUpdatedAt(block.timestamp);
         transition.startSeriesTransition(1);
+        assertFalse(staticsDollarRisk.transfersFrozen(1));
         vm.prank(alice);
         staticsDollarRisk.setApprovalForAll(deployment.core, true);
         vm.prank(alice);
@@ -195,6 +228,7 @@ contract CoreSeriesRecoveryTest is Test {
         oracle.setPriceWad(2_500e18);
         oracle.setUpdatedAt(block.timestamp);
         transition.cancelSeriesTransition(1);
+        assertFalse(staticsDollarRisk.transfersFrozen(1));
         uint256 balanceBefore = staticsDollarRisk.balanceOf(alice, 1);
         vm.prank(alice);
         uint256 reclaimed = transition.reclaimReturnedRiskShares(1, alice);
@@ -413,6 +447,130 @@ contract CoreSeriesRecoveryTest is Test {
         assertEq(uint256(viewFacet.riskSeries(1).status), uint256(IStaticsDollarCoreTypes.SeriesStatus.Closed));
     }
 
+    function test_RetirementRoutesReserveGloballyWhenHistoricalClaimsRemain() public {
+        _depositWeth(1e18);
+        oracle.setPriceWad(1_600e18);
+        oracle.setUpdatedAt(block.timestamp);
+        transition.startSeriesTransition(1);
+        IStaticsDollarCoreTypes.SeriesRecoveryState memory state = viewFacet.seriesRecoveryState(1);
+        vm.warp(state.endsAt);
+        oracle.setUpdatedAt(block.timestamp);
+        uint256 successorSeriesId = transition.finalizeSeriesTransition(1);
+
+        oracle.setPriceWad(2_300e18);
+        oracle.setUpdatedAt(block.timestamp);
+        _depositWeth(1e18);
+        oracle.setPriceWad(1_500e18);
+        oracle.setUpdatedAt(block.timestamp);
+        IStaticsDollarCoreTypes.ProfileSolvency memory impaired = healthFacet.profileSolvency(1);
+        assertFalse(impaired.healthy);
+        assertGt(impaired.seniorDeficitWad, 0);
+        uint256 donation = 0.2e18;
+        _fundAndApproveWeth(alice, donation);
+        vm.prank(alice);
+        insuranceFacet.topUpInsurance(1, donation);
+        assertFalse(healthFacet.profileSolvency(1).healthy);
+        vm.expectRevert(
+            abi.encodeWithSelector(LibCoreAccounting.ProfileImpaired.selector, 1, impaired.seniorDeficitWad)
+        );
+        mintFacet.previewDeposit(1, 1e18);
+
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(1);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory beforeProfile = viewFacet.collateralProfile(1);
+        IStaticsDollarCoreTypes.RiskSeries memory beforeHistorical = viewFacet.riskSeries(1);
+        IStaticsDollarCoreTypes.RiskSeries memory beforeSuccessor = viewFacet.riskSeries(successorSeriesId);
+        uint256 coreBalanceBefore = weth.balanceOf(deployment.core);
+        uint256 treasuryBefore = IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth));
+        vm.prank(owner);
+        governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory afterProfile = viewFacet.collateralProfile(1);
+        assertEq(uint256(afterProfile.mode), uint256(IStaticsDollarCoreTypes.ProfileMode.Retired));
+        assertEq(afterProfile.insuranceReserve, 0);
+        assertEq(afterProfile.accountedCollateral, beforeProfile.accountedCollateral);
+        assertEq(viewFacet.riskSeries(1).accountedCollateral, beforeHistorical.accountedCollateral);
+        assertEq(viewFacet.riskSeries(successorSeriesId).accountedCollateral, beforeSuccessor.accountedCollateral);
+        assertEq(coreBalanceBefore - weth.balanceOf(deployment.core), donation);
+        assertEq(IStaticsGlobalRewards(deployment.diamond).treasuryAccrued(address(weth)) - treasuryBefore, donation);
+    }
+
+    function test_RetirementAllocatesReserveToSoleOutstandingSeriesRunoff() public {
+        uint256 minted = _depositWeth(1e18);
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(1);
+
+        uint256 donation = 0.2e18;
+        _fundAndApproveWeth(alice, donation);
+        vm.prank(alice);
+        insuranceFacet.topUpInsurance(1, donation);
+
+        uint256 seriesCollateralBefore = viewFacet.riskSeries(1).accountedCollateral;
+        vm.prank(owner);
+        governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = viewFacet.collateralProfile(1);
+        assertEq(profile.insuranceReserve, 0);
+        assertEq(viewFacet.riskSeries(1).accountedCollateral, seriesCollateralBefore + donation);
+
+        vm.prank(alice);
+        mintFacet.recombine(1, minted, minted, 0, alice);
+        _assertHistoricalSeriesClosed(1);
+        assertEq(viewFacet.collateralProfile(1).accountedCollateral, 0);
+        assertEq(viewFacet.totalCollateral(address(weth)), 0);
+    }
+
+    function test_FinalizationRejectsZeroSuccessorGeometryWithoutRetiringCurrentSeries() public {
+        _depositWeth(1e18);
+        oracle.setPriceWad(4_000e18);
+        oracle.setUpdatedAt(block.timestamp);
+        transition.startSeriesTransition(1);
+        IStaticsDollarCoreTypes.SeriesRecoveryState memory state = viewFacet.seriesRecoveryState(1);
+        vm.warp(state.endsAt);
+        oracle.setPriceWad(type(uint256).max);
+        oracle.setUpdatedAt(block.timestamp);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(LibCoreAccounting.InvalidSeriesGeometry.selector, type(uint256).max, uint256(15_000))
+        );
+        transition.finalizeSeriesTransition(1);
+
+        assertEq(uint256(viewFacet.riskSeries(1).status), uint256(IStaticsDollarCoreTypes.SeriesStatus.RecoveryPending));
+        assertEq(viewFacet.collateralProfile(1).activeSeriesId, 1);
+        assertEq(viewFacet.nextSeriesId(), 2);
+        assertFalse(staticsDollarRisk.transfersFrozen(1));
+    }
+
+    function test_RedemptionRejectsRoundedZeroCollateralOutputWithoutBurningClaims() public {
+        ZeroDecimalRecoveryCollateral collateral = new ZeroDecimalRecoveryCollateral();
+        MockETHUSDOracle lowDecimalOracle = new MockETHUSDOracle(10e18, 30 days);
+        vm.prank(owner);
+        (uint256 profileId, uint256 seriesId) = governance.createCollateralProfile(
+            address(collateral), address(lowDecimalOracle), 15_000, 15_000, 0, 1, type(uint256).max
+        );
+        vm.prank(owner);
+        governance.setProfileMode(profileId, IStaticsDollarCoreTypes.ProfileMode.Active);
+
+        collateral.mint(alice, 1);
+        vm.prank(alice);
+        collateral.approve(deployment.core, 1);
+        IStaticsDollarCoreTypes.DepositPreview memory depositPreview = mintFacet.previewDeposit(profileId, 1);
+        vm.prank(alice);
+        (, uint256 minted,) = mintFacet.depositCollateral(
+            profileId, 1, depositPreview.staticsDollarMinted, depositPreview.sharesMinted, alice, alice
+        );
+
+        uint256 dollarBalance = staticsDollar.balanceOf(alice);
+        uint256 riskBalance = staticsDollarRisk.balanceOf(alice, seriesId);
+        vm.prank(alice);
+        vm.expectRevert(CoreMintFacet.RedemptionTooSmall.selector);
+        mintFacet.recombine(seriesId, minted, minted, 0, alice);
+
+        assertEq(staticsDollar.balanceOf(alice), dollarBalance);
+        assertEq(staticsDollarRisk.balanceOf(alice, seriesId), riskBalance);
+        assertEq(collateral.balanceOf(deployment.core), 1);
+    }
+
     function test_LowDecimalRecombineThenRecoverySweepsHistoricalBook() public {
         ZeroDecimalRecoveryCollateral collateral = new ZeroDecimalRecoveryCollateral();
         MockETHUSDOracle lowDecimalOracle = new MockETHUSDOracle(10e18, 30 days);
@@ -590,12 +748,18 @@ contract CoreSeriesRecoveryTest is Test {
         _assertHistoricalSeriesClosed(1);
     }
 
-    function test_RetiredSeriesRecombinationClosesBeforeFutureInsuranceDonations() public {
+    function test_RetiredSeriesRecombinationClosesAndRejectsFutureInsuranceDonations() public {
         uint256 minted = _depositWeth(1e18);
         vm.prank(profileGuardian);
         governance.enterReduceOnly(1);
         vm.prank(owner);
         governance.setProfileMode(1, IStaticsDollarCoreTypes.ProfileMode.Retired);
+
+        assertFalse(staticsDollarRisk.transfersFrozen(1));
+        vm.prank(alice);
+        staticsDollarRisk.safeTransferFrom(alice, shardRecipient, 1, 1, "");
+        vm.prank(shardRecipient);
+        staticsDollarRisk.safeTransferFrom(shardRecipient, alice, 1, 1, "");
 
         vm.prank(alice);
         mintFacet.recombine(1, minted, minted, 0, alice);
@@ -604,9 +768,54 @@ contract CoreSeriesRecoveryTest is Test {
         uint256 donation = 0.1e18;
         _fundAndApproveWeth(alice, donation);
         vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CoreInsuranceFacet.InvalidProfileMode.selector, 1, IStaticsDollarCoreTypes.ProfileMode.Retired
+            )
+        );
         insuranceFacet.topUpInsurance(1, donation);
-        assertEq(viewFacet.collateralProfile(1).insuranceReserve, donation);
+        assertEq(viewFacet.collateralProfile(1).insuranceReserve, 0);
         assertEq(viewFacet.riskSeries(1).accountedCollateral, 0);
+    }
+
+    function test_PeggedTopUpIsImmediatelyAvailableToLiveRedemption() public {
+        ZeroDecimalRecoveryCollateral collateral = new ZeroDecimalRecoveryCollateral();
+        MockETHUSDOracle peggedOracle = new MockETHUSDOracle(1e18, 30 days);
+        vm.prank(owner);
+        uint256 profileId = governance.createPeggedCollateralProfile(
+            address(collateral), address(peggedOracle), 0.995e18, 1.005e18, 0, 0, type(uint256).max
+        );
+
+        vm.prank(owner);
+        governance.setProfileMode(profileId, IStaticsDollarCoreTypes.ProfileMode.Active);
+        collateral.mint(alice, 2);
+        vm.prank(alice);
+        collateral.approve(deployment.core, 2);
+        vm.prank(alice);
+        mintFacet.mintPegged(profileId, 1 ether, 1, alice);
+        vm.prank(alice);
+        insuranceFacet.topUpInsurance(profileId, 1);
+
+        IStaticsDollarCoreTypes.StableCollateralProfile memory toppedUp = viewFacet.collateralProfile(profileId);
+        assertEq(toppedUp.insuranceReserve, 0);
+        assertEq(toppedUp.accountedCollateral, 2);
+
+        vm.prank(profileGuardian);
+        governance.enterReduceOnly(profileId);
+        vm.prank(owner);
+        governance.setProfileMode(profileId, IStaticsDollarCoreTypes.ProfileMode.Retired);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory retired = viewFacet.collateralProfile(profileId);
+        assertEq(retired.insuranceReserve, 0);
+        assertEq(retired.accountedCollateral, 2);
+
+        vm.prank(alice);
+        (IStaticsDollarCoreTypes.ExitStatus status, uint256 collateralOut) =
+            mintFacet.redeemPegged(profileId, 1 ether, 2, alice);
+        assertEq(uint256(status), uint256(IStaticsDollarCoreTypes.ExitStatus.Available));
+        assertEq(collateralOut, 2);
+        assertEq(collateral.balanceOf(alice), 2);
+        assertEq(viewFacet.collateralProfile(profileId).accountedCollateral, 0);
+        assertEq(viewFacet.totalCollateral(address(collateral)), 0);
     }
 
     function test_GovernanceControlsManagedRecoveryHolders() public {

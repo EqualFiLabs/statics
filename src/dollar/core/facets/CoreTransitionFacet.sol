@@ -198,6 +198,7 @@ contract CoreTransitionFacet is ReentrancyGuard {
             cs, successorSeriesId, series.profileId, priceWad, snapshot.collateralRatioBps, snapshot.priceBandBps
         );
         profile.activeSeriesId = successorSeriesId;
+        IStaticsDollarRiskShares(cs.staticsDollarRisk).freezeTransfers(seriesId);
         LibCoreAccounting.updateSeriesIndex(cs, seriesId);
         delete cs.transitionSnapshot[seriesId];
         LibCorePeggedRedemption.resolveDownside(cs, seriesId);

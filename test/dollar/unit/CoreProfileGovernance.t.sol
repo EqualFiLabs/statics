@@ -13,6 +13,7 @@ import {CoreViewFacet} from "src/dollar/core/facets/CoreViewFacet.sol";
 import {IStaticsDollarCoreTypes} from "src/dollar/interfaces/IStaticsDollarCoreTypes.sol";
 import {CanonicalWETH9} from "src/dollar/mocks/CanonicalWETH9.sol";
 import {MockETHUSDOracle} from "src/dollar/mocks/MockETHUSDOracle.sol";
+import {LibCoreAccounting} from "src/dollar/core/libraries/LibCoreAccounting.sol";
 import {LibDiamond} from "src/libraries/LibDiamond.sol";
 import {MockUSDC} from "../helpers/MockUSDC.sol";
 
@@ -65,6 +66,21 @@ contract CoreProfileGovernanceTest is Test {
         assertEq(
             uint256(viewFacet.collateralProfile(profileId).mode), uint256(IStaticsDollarCoreTypes.ProfileMode.Active)
         );
+    }
+
+    function test_ProfileCreationRejectsZeroSeriesGeometryFromBadlyScaledOracle() public {
+        MockUSDC collateral = new MockUSDC();
+        MockETHUSDOracle oracle = new MockETHUSDOracle(type(uint256).max, 30 days);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(LibCoreAccounting.InvalidSeriesGeometry.selector, type(uint256).max, uint256(15_000))
+        );
+        governance.createCollateralProfile(address(collateral), address(oracle), 15_000, 15_000, 0, 0, 1_000_000e18);
+
+        assertEq(viewFacet.nextProfileId(), 2);
+        assertEq(viewFacet.nextSeriesId(), 2);
+        assertEq(viewFacet.collateralTokenProfileId(address(collateral)), 0);
     }
 
     function test_GuardianCanPauseAndReduceRiskButCannotRestoreIt() public {
@@ -130,6 +146,45 @@ contract CoreProfileGovernanceTest is Test {
         vm.prank(profileGuardian);
         governance.reduceDebtCeiling(1, 900_000e18);
         assertEq(viewFacet.collateralProfile(1).debtCeiling, 900_000e18);
+    }
+
+    function test_RedemptionFeeCapIsIndependentFromMintFeeBound() public {
+        MockUSDC collateral = new MockUSDC();
+        MockETHUSDOracle volatileOracle = new MockETHUSDOracle(25e18, 30 days);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(CoreGovernanceFacet.InvalidFeeBps.selector, 1_001));
+        governance.createCollateralProfile(
+            address(collateral), address(volatileOracle), 15_000, 15_000, 0, 1_001, 1_000_000e18
+        );
+
+        MockETHUSDOracle peggedOracle = new MockETHUSDOracle(1e18, 30 days);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(CoreGovernanceFacet.InvalidFeeBps.selector, 1_001));
+        governance.createPeggedCollateralProfile(
+            address(collateral), address(peggedOracle), 0.995e18, 1.005e18, 0, 1_001, 1_000_000e18
+        );
+
+        CoreGovernanceFacet.ProfileRiskConfig memory risk = CoreGovernanceFacet.ProfileRiskConfig({
+            collateralRatioBps: 15_000,
+            priceBandBps: 15_000,
+            mintFeeBps: 10_000,
+            redemptionFeeBps: 1_001,
+            insuranceTargetBps: 0,
+            insuranceFeeBps: 0,
+            pegMinPriceWad: 0,
+            pegMaxPriceWad: 0,
+            debtCeiling: 1_000_000e18
+        });
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(CoreGovernanceFacet.InvalidFeeBps.selector, 1_001));
+        governance.setProfileRiskConfig(1, risk);
+
+        risk.redemptionFeeBps = 1_000;
+        vm.prank(owner);
+        governance.setProfileRiskConfig(1, risk);
+        IStaticsDollarCoreTypes.StableCollateralProfile memory profile = viewFacet.collateralProfile(1);
+        assertEq(profile.mintFeeBps, 10_000);
+        assertEq(profile.redemptionFeeBps, 1_000);
     }
 
     function test_PeggedCreationDoesNotProbeTokenSpecificIssuerControls() public {

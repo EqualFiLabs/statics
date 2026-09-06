@@ -24,6 +24,20 @@ library LibPeriphery {
     struct ProceedsIndex {
         uint256 accPerStoredRay;
         uint256 remainderRay;
+        uint256 fundedAmount;
+        uint256 crystallizedAmount;
+        bool residueTracked;
+    }
+
+    struct EpochSettlement {
+        uint256 remainingStored;
+        bool closed;
+    }
+
+    struct ProceedsAmounts {
+        uint256 collateral;
+        uint256 staticsDollar;
+        uint256 statics;
     }
 
     struct SeriesBook {
@@ -40,6 +54,7 @@ library LibPeriphery {
         uint256 incentiveDestinationSeriesId;
         bool incentivesRoutedGlobal;
         bool incentivesFinalized;
+        mapping(uint64 epoch => EpochSettlement settlement) epochSettlements;
     }
 
     struct PositionLeg {
@@ -118,6 +133,14 @@ library LibPeriphery {
         uint256 accruedStatics
     );
     event RiskLiquidityDustCleared(uint256 indexed positionId, uint256 indexed seriesId, uint256 storedUnits);
+    event RiskProceedsResidueAssigned(
+        uint256 indexed positionId,
+        uint256 indexed seriesId,
+        uint64 indexed epoch,
+        uint256 collateralAmount,
+        uint256 staticsDollarAmount,
+        uint256 staticsAmount
+    );
 
     error NoRiskLiquidity(uint256 seriesId);
     error ConsumeExceedsLiquidity(uint256 requested, uint256 available);
@@ -127,6 +150,7 @@ library LibPeriphery {
     error InvalidSplit();
     error InvalidRedemptionParams();
     error ZeroAddress();
+    error InvalidEpochSettlement(uint256 seriesId, uint64 epoch, uint256 stored, uint256 remainingStored);
 
     function s() internal pure returns (PS storage ps) {
         bytes32 slot = STORAGE_POSITION;
@@ -232,36 +256,19 @@ library LibPeriphery {
     function settleLeg(PS storage ps, uint256 positionId, uint256 seriesId) internal {
         PositionLeg storage leg = ps.leg[positionId][seriesId];
         SeriesBook storage book = ps.series[seriesId];
-        ProceedsIndex storage collateralIndex = book.collateralProceeds[leg.epoch];
-        ProceedsIndex storage staticsDollarIndex = book.staticsDollarProceeds[leg.epoch];
-        ProceedsIndex storage staticsIndex = book.staticsProceeds[leg.epoch];
-        uint256 collateralAdded;
-        uint256 staticsDollarAdded;
-        uint256 staticsAdded;
-        if (collateralIndex.accPerStoredRay > leg.collateralCheckpointRay && leg.stored != 0) {
-            collateralAdded =
-                Math.mulDiv(leg.stored, collateralIndex.accPerStoredRay - leg.collateralCheckpointRay, RAY);
-        }
-        if (staticsDollarIndex.accPerStoredRay > leg.staticsDollarCheckpointRay && leg.stored != 0) {
-            staticsDollarAdded =
-                Math.mulDiv(leg.stored, staticsDollarIndex.accPerStoredRay - leg.staticsDollarCheckpointRay, RAY);
-        }
-        if (staticsIndex.accPerStoredRay > leg.staticsCheckpointRay && leg.stored != 0) {
-            staticsAdded = Math.mulDiv(leg.stored, staticsIndex.accPerStoredRay - leg.staticsCheckpointRay, RAY);
-        }
-        leg.collateralCheckpointRay = collateralIndex.accPerStoredRay;
-        leg.staticsDollarCheckpointRay = staticsDollarIndex.accPerStoredRay;
-        leg.staticsCheckpointRay = staticsIndex.accPerStoredRay;
-        leg.accruedCollateral += collateralAdded;
-        leg.accruedStaticsDollar += staticsDollarAdded;
-        leg.accruedStatics += staticsAdded;
-        if (collateralAdded != 0 || staticsDollarAdded != 0 || staticsAdded != 0) {
+        uint64 legEpoch = leg.epoch;
+        ProceedsAmounts memory added = _settleIndexes(book, leg, legEpoch);
+        _settleClosedEpoch(book, leg, positionId, seriesId, legEpoch, added);
+        leg.accruedCollateral += added.collateral;
+        leg.accruedStaticsDollar += added.staticsDollar;
+        leg.accruedStatics += added.statics;
+        if (added.collateral != 0 || added.staticsDollar != 0 || added.statics != 0) {
             emit RiskProceedsSettled(
                 positionId,
                 seriesId,
-                collateralAdded,
-                staticsDollarAdded,
-                staticsAdded,
+                added.collateral,
+                added.staticsDollar,
+                added.statics,
                 leg.accruedCollateral,
                 leg.accruedStaticsDollar,
                 leg.accruedStatics
@@ -279,22 +286,11 @@ library LibPeriphery {
         staticsDollarAmount = leg.accruedStaticsDollar;
         staticsAmount = leg.accruedStatics;
         SeriesBook storage book = ps.series[seriesId];
-        ProceedsIndex storage collateralIndex = book.collateralProceeds[leg.epoch];
-        ProceedsIndex storage staticsDollarIndex = book.staticsDollarProceeds[leg.epoch];
-        ProceedsIndex storage staticsIndex = book.staticsProceeds[leg.epoch];
-        if (collateralIndex.accPerStoredRay > leg.collateralCheckpointRay && leg.stored != 0) {
-            collateralAmount += Math.mulDiv(
-                leg.stored, collateralIndex.accPerStoredRay - leg.collateralCheckpointRay, RAY
-            );
-        }
-        if (staticsDollarIndex.accPerStoredRay > leg.staticsDollarCheckpointRay && leg.stored != 0) {
-            staticsDollarAmount += Math.mulDiv(
-                leg.stored, staticsDollarIndex.accPerStoredRay - leg.staticsDollarCheckpointRay, RAY
-            );
-        }
-        if (staticsIndex.accPerStoredRay > leg.staticsCheckpointRay && leg.stored != 0) {
-            staticsAmount += Math.mulDiv(leg.stored, staticsIndex.accPerStoredRay - leg.staticsCheckpointRay, RAY);
-        }
+        uint64 legEpoch = leg.epoch;
+        ProceedsAmounts memory pending = _pendingIndexes(book, leg, legEpoch);
+        collateralAmount += pending.collateral;
+        staticsDollarAmount += pending.staticsDollar;
+        staticsAmount += pending.statics;
     }
 
     function accrueRiskProceeds(
@@ -310,6 +306,7 @@ library LibPeriphery {
         if (totalStored == 0) revert NoRiskLiquidity(seriesId);
         reserve(ps, collateralToken, amount);
         ProceedsIndex storage index = ps.series[seriesId].collateralProceeds[epoch];
+        _recordFunding(index, amount);
         (uint256 delta, uint256 remainder) = _indexDelta(amount, totalStored, index.remainderRay);
         index.remainderRay = remainder;
         index.accPerStoredRay += delta;
@@ -337,6 +334,7 @@ library LibPeriphery {
         } else {
             index = book.staticsProceeds[epoch];
         }
+        _recordFunding(index, amount);
         (uint256 delta, uint256 remainder) = _indexDelta(amount, totalStored, index.remainderRay);
         index.remainderRay = remainder;
         index.accPerStoredRay += delta;
@@ -389,11 +387,157 @@ library LibPeriphery {
         newScaleRay = remaining == 0 ? RAY : Math.mulDiv(remaining, RAY, book.totalStored);
         if (remaining != 0 && newScaleRay == 0) revert RiskLiquidityScaleExhausted(book.totalStored);
         if (remaining == 0) {
+            EpochSettlement storage settlement = book.epochSettlements[book.epoch];
+            settlement.remainingStored = book.totalStored;
+            settlement.closed = true;
             book.totalStored = 0;
             book.epoch += 1;
         }
         book.effectivePrincipal = remaining;
         book.scaleRay = newScaleRay;
+    }
+
+    function finalizeEpochToLeg(PS storage ps, uint256 positionId, uint256 seriesId, uint64 epoch) internal {
+        SeriesBook storage book = ps.series[seriesId];
+        EpochSettlement storage settlement = book.epochSettlements[epoch];
+        settlement.closed = true;
+        settlement.remainingStored = 0;
+        PositionLeg storage leg = ps.leg[positionId][seriesId];
+        ProceedsAmounts memory residue = _finalizeEpochResidue(book, epoch);
+        leg.accruedCollateral += residue.collateral;
+        leg.accruedStaticsDollar += residue.staticsDollar;
+        leg.accruedStatics += residue.statics;
+        _emitResidue(positionId, seriesId, epoch, residue);
+    }
+
+    function _settleIndexes(SeriesBook storage book, PositionLeg storage leg, uint64 epoch)
+        private
+        returns (ProceedsAmounts memory added)
+    {
+        ProceedsIndex storage collateralIndex = book.collateralProceeds[epoch];
+        ProceedsIndex storage staticsDollarIndex = book.staticsDollarProceeds[epoch];
+        ProceedsIndex storage staticsIndex = book.staticsProceeds[epoch];
+        added.collateral = _settleIndex(collateralIndex, leg.stored, leg.collateralCheckpointRay);
+        added.staticsDollar = _settleIndex(staticsDollarIndex, leg.stored, leg.staticsDollarCheckpointRay);
+        added.statics = _settleIndex(staticsIndex, leg.stored, leg.staticsCheckpointRay);
+        leg.collateralCheckpointRay = collateralIndex.accPerStoredRay;
+        leg.staticsDollarCheckpointRay = staticsDollarIndex.accPerStoredRay;
+        leg.staticsCheckpointRay = staticsIndex.accPerStoredRay;
+    }
+
+    function _settleClosedEpoch(
+        SeriesBook storage book,
+        PositionLeg storage leg,
+        uint256 positionId,
+        uint256 seriesId,
+        uint64 epoch,
+        ProceedsAmounts memory added
+    ) private {
+        EpochSettlement storage settlement = book.epochSettlements[epoch];
+        uint256 stored = leg.stored;
+        if (!settlement.closed || stored == 0) return;
+        uint256 remainingStored = settlement.remainingStored;
+        if (stored > remainingStored) {
+            revert InvalidEpochSettlement(seriesId, epoch, stored, remainingStored);
+        }
+        settlement.remainingStored = remainingStored - stored;
+        if (stored == remainingStored) {
+            ProceedsAmounts memory residue = _finalizeEpochResidue(book, epoch);
+            added.collateral += residue.collateral;
+            added.staticsDollar += residue.staticsDollar;
+            added.statics += residue.statics;
+            _emitResidue(positionId, seriesId, epoch, residue);
+        }
+        leg.stored = 0;
+        leg.epoch = book.epoch;
+        leg.collateralCheckpointRay = book.collateralProceeds[book.epoch].accPerStoredRay;
+        leg.staticsDollarCheckpointRay = book.staticsDollarProceeds[book.epoch].accPerStoredRay;
+        leg.staticsCheckpointRay = book.staticsProceeds[book.epoch].accPerStoredRay;
+    }
+
+    function _pendingIndexes(SeriesBook storage book, PositionLeg storage leg, uint64 epoch)
+        private
+        view
+        returns (ProceedsAmounts memory pending)
+    {
+        ProceedsIndex storage collateralIndex = book.collateralProceeds[epoch];
+        ProceedsIndex storage staticsDollarIndex = book.staticsDollarProceeds[epoch];
+        ProceedsIndex storage staticsIndex = book.staticsProceeds[epoch];
+        pending.collateral = _pendingIndex(collateralIndex, leg.stored, leg.collateralCheckpointRay);
+        pending.staticsDollar = _pendingIndex(staticsDollarIndex, leg.stored, leg.staticsDollarCheckpointRay);
+        pending.statics = _pendingIndex(staticsIndex, leg.stored, leg.staticsCheckpointRay);
+        EpochSettlement storage settlement = book.epochSettlements[epoch];
+        if (!settlement.closed || leg.stored == 0 || leg.stored != settlement.remainingStored) return pending;
+        pending.collateral += _pendingTerminalResidue(collateralIndex, pending.collateral);
+        pending.staticsDollar += _pendingTerminalResidue(staticsDollarIndex, pending.staticsDollar);
+        pending.statics += _pendingTerminalResidue(staticsIndex, pending.statics);
+    }
+
+    function _settleIndex(ProceedsIndex storage index, uint256 stored, uint256 checkpoint)
+        private
+        returns (uint256 added)
+    {
+        added = _pendingIndex(index, stored, checkpoint);
+        if (index.residueTracked) index.crystallizedAmount += added;
+    }
+
+    function _pendingIndex(ProceedsIndex storage index, uint256 stored, uint256 checkpoint)
+        private
+        view
+        returns (uint256)
+    {
+        if (stored == 0 || index.accPerStoredRay <= checkpoint) return 0;
+        return Math.mulDiv(stored, index.accPerStoredRay - checkpoint, RAY);
+    }
+
+    function _pendingTerminalResidue(ProceedsIndex storage index, uint256 pendingAmount)
+        private
+        view
+        returns (uint256)
+    {
+        if (!index.residueTracked) return 0;
+        return index.fundedAmount - index.crystallizedAmount - pendingAmount;
+    }
+
+    function _finalizeEpochResidue(SeriesBook storage book, uint64 epoch)
+        private
+        returns (ProceedsAmounts memory residue)
+    {
+        residue.collateral = _finalizeIndex(book.collateralProceeds[epoch]);
+        residue.staticsDollar = _finalizeIndex(book.staticsDollarProceeds[epoch]);
+        residue.statics = _finalizeIndex(book.staticsProceeds[epoch]);
+    }
+
+    function _emitResidue(uint256 positionId, uint256 seriesId, uint64 epoch, ProceedsAmounts memory residue) private {
+        if (residue.collateral == 0 && residue.staticsDollar == 0 && residue.statics == 0) return;
+        emit RiskProceedsResidueAssigned(
+            positionId, seriesId, epoch, residue.collateral, residue.staticsDollar, residue.statics
+        );
+    }
+
+    function _finalizeIndex(ProceedsIndex storage index) private returns (uint256 residue) {
+        if (!index.residueTracked) {
+            index.remainderRay = 0;
+            return 0;
+        }
+        residue = index.fundedAmount - index.crystallizedAmount;
+        index.crystallizedAmount = index.fundedAmount;
+        index.remainderRay = 0;
+    }
+
+    /// @dev A nonzero legacy index predates terminal-residue counters. Keep that
+    /// epoch on the legacy floor-rounding path so an in-place facet upgrade cannot
+    /// underflow while settling already accrued proceeds. Empty indexes can opt in
+    /// lazily because they contain no pre-upgrade funding to reconstruct.
+    function _recordFunding(ProceedsIndex storage index, uint256 amount) private {
+        if (!index.residueTracked) {
+            if (
+                index.accPerStoredRay != 0 || index.remainderRay != 0 || index.fundedAmount != 0
+                    || index.crystallizedAmount != 0
+            ) return;
+            index.residueTracked = true;
+        }
+        index.fundedAmount += amount;
     }
 
     function _indexDelta(uint256 amount, uint256 denominator, uint256 priorRemainder)
