@@ -20,7 +20,6 @@ contract MorphoFacet is ReentrancyGuard {
     error InvalidReceiver(address receiver);
     error InsufficientAvailableCollateral(uint256 requested, uint256 available);
     error InsufficientTrackedCollateral(uint256 requested, uint256 tracked);
-    error InsufficientUntrackedCollateral(uint256 requested, uint256 available);
     error BorrowSlippage(uint256 sharesBorrowed, uint256 maximum);
     error RepaySlippage(uint256 assetsRepaid, uint256 maximum);
     error LiquidationSlippage(uint256 assetsSeized, uint256 minimum, uint256 assetsRepaid, uint256 maximum);
@@ -85,30 +84,6 @@ contract MorphoFacet is ReentrancyGuard {
         LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
         LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
         emit IStaticsMorpho.MorphoCollateralRecalled(positionId, marketId_, assets);
-    }
-
-    function withdrawUntrackedMorphoCollateral(uint256 positionId, bytes32 marketId_, uint256 assets, address receiver)
-        external
-        nonReentrant
-    {
-        if (assets == 0) revert InvalidAmount();
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibMorpho.MarketConfig storage config = LibMorpho.requireMarket(marketId_);
-        LibMorpho.MorphoStorage storage ms = _storage();
-        _enforceReceiver(ms, receiver);
-        LibMorphoSync.syncOne(positionId, marketId_, msg.sender);
-        LibMorpho.PositionMarket storage tracked = ms.positions[positionId].positions[marketId_];
-        MorphoPosition memory actual = LibMorpho.actualPosition(positionId, marketId_);
-        uint256 surplus = uint256(actual.collateral) - tracked.trackedCollateral;
-        if (assets > surplus) revert InsufficientUntrackedCollateral(assets, surplus);
-        uint256 beforeBalance = IERC20(config.params.collateralToken).balanceOf(receiver);
-        IMorphoBlue(ms.morpho).withdrawCollateral(config.params, assets, LibMorpho.accountAddress(positionId), receiver);
-        uint256 received = IERC20(config.params.collateralToken).balanceOf(receiver) - beforeBalance;
-        if (received != assets) revert IncompatibleTokenTransfer(config.params.collateralToken, assets, received);
-        actual = LibMorpho.actualPosition(positionId, marketId_);
-        LibMorpho.syncDebtObligation(positionId, marketId_, actual.borrowShares);
-        LibMorpho.deactivateIfEmpty(positionId, marketId_, actual);
-        emit IStaticsMorpho.MorphoSurplusWithdrawn(positionId, marketId_, receiver, assets);
     }
 
     function borrowMorphoUsd(

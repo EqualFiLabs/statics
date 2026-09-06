@@ -2,7 +2,9 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {MorphoMarketId, MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
+import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
@@ -16,6 +18,8 @@ import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
 import {LibMorpho} from "../../src/libraries/LibMorpho.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
 import {LibBasketRewards} from "../../src/libraries/LibBasketRewards.sol";
+import {LibPositionPortfolio} from "../../src/libraries/LibPositionPortfolio.sol";
+import {LibPosition} from "../../src/position/LibPosition.sol";
 import {StaticsTestBase, StaticsTestDeployer} from "../helpers/StaticsTestBase.sol";
 import {MockERC20, MockFeeOnTransferERC20} from "../mocks/MockERC20.sol";
 import {MockMorphoBlue} from "../mocks/MockMorphoBlue.sol";
@@ -50,9 +54,34 @@ contract MorphoGenesisHarnessFacet {
         );
         LibBasketRewards.accrueReserved(basketId, LibBasket.basketStorage().baskets[basketId], asset, amount);
     }
+
+    function rawMorphoTracking(uint256 positionId, bytes32 marketId)
+        external
+        view
+        returns (bool active, uint256 historyIndexPlusOne, uint256 portfolioCount)
+    {
+        LibMorpho.PositionMarkets storage position = LibMorpho.morphoStorage().positions[positionId];
+        active = position.positions[marketId].active;
+        historyIndexPlusOne = position.indexPlusOne[marketId];
+        portfolioCount = LibPositionPortfolio.portfolioStorage().morphoMarkets[positionId].values.length;
+    }
 }
 
 contract AlternateMorphoAccount {}
+
+contract LegacyNoReturnToken {
+    mapping(address account => uint256) public balanceOf;
+
+    function mint(address receiver, uint256 amount) external {
+        balanceOf[receiver] += amount;
+    }
+
+    function transfer(address receiver, uint256 amount) external {
+        require(balanceOf[msg.sender] >= amount, "insufficient balance");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[receiver] += amount;
+    }
+}
 
 contract MorphoViewUpgradeHarnessFacet {
     function morphoAccount(uint256 positionId) external view returns (address account, bool deployed) {
@@ -69,6 +98,14 @@ contract MorphoViewUpgradeHarnessFacet {
 }
 
 contract MorphoCollateralTest is StaticsTestBase {
+    struct ClosedMorphoRecoveryScenario {
+        uint256 positionId;
+        bytes32 marketId;
+        address collateralToken;
+        address account;
+        uint256 closedStateNonce;
+    }
+
     IStaticsMorpho internal morphoApi;
     MockMorphoBlue internal morphoBlue;
     MockERC20 internal usdStx;
@@ -82,11 +119,12 @@ contract MorphoCollateralTest is StaticsTestBase {
         morphoApi.initializeMorphoIntegration(address(morphoBlue), address(usdStx), 500);
         usdStx.mint(address(morphoBlue), 1_000_000 ether);
         MorphoGenesisHarnessFacet implementation = new MorphoGenesisHarnessFacet();
-        bytes4[] memory selectors = new bytes4[](4);
+        bytes4[] memory selectors = new bytes4[](5);
         selectors[0] = MorphoGenesisHarnessFacet.seedGenesisIntegration.selector;
         selectors[1] = MorphoGenesisHarnessFacet.morphoGenesisBook.selector;
         selectors[2] = MorphoGenesisHarnessFacet.accrueGlobalFee.selector;
         selectors[3] = MorphoGenesisHarnessFacet.accrueBasketReward.selector;
+        selectors[4] = MorphoGenesisHarnessFacet.rawMorphoTracking.selector;
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(implementation), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
@@ -309,6 +347,7 @@ contract MorphoCollateralTest is StaticsTestBase {
         morphoBlue.supplyCollateral(morphoApi.morphoMarket(marketId).params, 1 ether, account, "");
         vm.stopPrank();
 
+        assertFalse(PositionNFTFacet(address(diamond)).isPositionClosable(positionId));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(LibMorpho.MorphoPositionNotEmpty.selector, positionId, marketId));
         IStaticsPosition(address(diamond)).closePosition(positionId);
@@ -316,8 +355,123 @@ contract MorphoCollateralTest is StaticsTestBase {
         vm.startPrank(alice);
         morphoApi.syncMorpho(positionId, marketId);
         morphoApi.withdrawUntrackedMorphoCollateral(positionId, marketId, 1 ether, alice);
+        assertTrue(PositionNFTFacet(address(diamond)).isPositionClosable(positionId));
         IStaticsPosition(address(diamond)).closePosition(positionId);
         vm.stopPrank();
+    }
+
+    function testClosePreservesRawTokenRecoveryForFinalOwnerOnly() public {
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 positionId = _mintBasketPosition(basketId, 1 ether);
+        bytes32 marketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
+        address finalOwner = makeAddr("finalOwner");
+
+        vm.startPrank(alice);
+        morphoApi.deployMorphoCollateral(positionId, marketId, 1 ether);
+        morphoApi.recallMorphoCollateral(positionId, marketId, 1 ether);
+        basketCollateral.withdrawBasketCollateral(positionId, basketId, 1 ether, alice);
+        IERC721(address(diamond)).transferFrom(alice, finalOwner, positionId);
+        vm.stopPrank();
+
+        vm.prank(finalOwner);
+        IERC721(address(diamond)).approve(bob, positionId);
+
+        (address account, bool deployed) = morphoApi.morphoAccount(positionId);
+        assertTrue(deployed);
+        MockERC20 rawToken = new MockERC20("Unexpected", "RAW", 18);
+        rawToken.mint(account, 2 ether);
+
+        vm.prank(bob);
+        IStaticsPosition(address(diamond)).closePosition(positionId);
+        rawToken.mint(account, 3 ether);
+
+        vm.prank(finalOwner);
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", positionId));
+        morphoApi.deployMorphoCollateral(positionId, marketId, 1);
+
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(LibMorpho.NotMorphoRecoveryBeneficiary.selector, positionId, bob, finalOwner)
+        );
+        morphoApi.recoverMorphoAccountToken(positionId, address(rawToken), 5 ether, bob, 5 ether);
+
+        vm.prank(finalOwner);
+        assertEq(
+            morphoApi.recoverMorphoAccountToken(positionId, address(rawToken), 5 ether, finalOwner, 5 ether), 5 ether
+        );
+        assertEq(rawToken.balanceOf(account), 0);
+        assertEq(rawToken.balanceOf(finalOwner), 5 ether);
+    }
+
+    function testFinalOwnerCanWithdrawNeverTrackedRegisteredCollateralAfterClose() public {
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 positionId = _mintBasketPosition(basketId, 1 ether);
+        bytes32 trackedMarketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
+
+        vm.startPrank(alice);
+        morphoApi.deployMorphoCollateral(positionId, trackedMarketId, 1 ether);
+        morphoApi.recallMorphoCollateral(positionId, trackedMarketId, 1 ether);
+        basketCollateral.withdrawBasketCollateral(positionId, basketId, 1 ether, alice);
+        vm.stopPrank();
+        (address account,) = morphoApi.morphoAccount(positionId);
+
+        MorphoMarketParams memory untrackedParams = MorphoMarketParams({
+            loanToken: address(usdStx),
+            collateralToken: token,
+            oracle: makeAddr("untrackedOracle"),
+            irm: makeAddr("untrackedIrm"),
+            lltv: 0.7 ether
+        });
+        bytes32 untrackedMarketId = morphoBlue.createMarket(untrackedParams);
+        assertEq(
+            morphoApi.registerMorphoMarket(
+                untrackedParams, IStaticsMorpho.CollateralKind.Basket, basketId, IStaticsMorpho.MarketMode.Active
+            ),
+            untrackedMarketId
+        );
+
+        deal(token, bob, 1 ether);
+        vm.startPrank(bob);
+        IERC20(token).approve(address(morphoBlue), 1 ether);
+        morphoBlue.supplyCollateral(untrackedParams, 1 ether, account, "");
+        vm.stopPrank();
+
+        assertEq(positionPortfolio.positionPortfolioCounts(positionId).morphoMarketCount, 0);
+        assertTrue(PositionNFTFacet(address(diamond)).isPositionClosable(positionId));
+        vm.prank(alice);
+        IStaticsPosition(address(diamond)).closePosition(positionId);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibMorpho.NotMorphoRecoveryBeneficiary.selector, positionId, bob, alice));
+        morphoApi.withdrawUntrackedMorphoCollateral(positionId, untrackedMarketId, 1 ether, bob);
+
+        uint256 aliceBefore = IERC20(token).balanceOf(alice);
+        vm.prank(alice);
+        morphoApi.withdrawUntrackedMorphoCollateral(positionId, untrackedMarketId, 1 ether, alice);
+        assertEq(IERC20(token).balanceOf(alice), aliceBefore + 1 ether);
+        assertEq(morphoBlue.position(MorphoMarketId.wrap(untrackedMarketId), account).collateral, 0);
+    }
+
+    function testClosedHistoricalMarketPartialRecoveryDoesNotReactivateBurnedPosition() public {
+        ClosedMorphoRecoveryScenario memory scenario = _closeHistoricalMarketAndRedeposit(2 ether);
+        uint256 balanceBefore = IERC20(scenario.collateralToken).balanceOf(alice);
+
+        vm.prank(alice);
+        morphoApi.withdrawUntrackedMorphoCollateral(scenario.positionId, scenario.marketId, 1 ether, alice);
+
+        assertEq(IERC20(scenario.collateralToken).balanceOf(alice), balanceBefore + 1 ether);
+        _assertClosedMorphoTrackingInactive(scenario, 1 ether);
+    }
+
+    function testClosedHistoricalMarketFullRecoveryDoesNotMutateBurnedPositionState() public {
+        ClosedMorphoRecoveryScenario memory scenario = _closeHistoricalMarketAndRedeposit(2 ether);
+        uint256 balanceBefore = IERC20(scenario.collateralToken).balanceOf(alice);
+
+        vm.prank(alice);
+        morphoApi.withdrawUntrackedMorphoCollateral(scenario.positionId, scenario.marketId, 2 ether, alice);
+
+        assertEq(IERC20(scenario.collateralToken).balanceOf(alice), balanceBefore + 2 ether);
+        _assertClosedMorphoTrackingInactive(scenario, 0);
     }
 
     function testBorrowRejectsKnownMorphoAccountReceiver() public {
@@ -363,6 +517,25 @@ contract MorphoCollateralTest is StaticsTestBase {
         assertEq(taxed.balanceOf(alice), 99 ether);
     }
 
+    function testRecoverRawAccountTokenAcceptsNoReturnTransfer() public {
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256 positionId = _mintBasketPosition(basketId, 1 ether);
+        bytes32 marketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
+        vm.prank(alice);
+        morphoApi.deployMorphoCollateral(positionId, marketId, 1 ether);
+        (address account,) = morphoApi.morphoAccount(positionId);
+        LegacyNoReturnToken legacyToken = new LegacyNoReturnToken();
+        legacyToken.mint(account, 5 ether);
+
+        vm.prank(alice);
+        uint256 received =
+            morphoApi.recoverMorphoAccountToken(positionId, address(legacyToken), 5 ether, alice, 5 ether);
+
+        assertEq(received, 5 ether);
+        assertEq(legacyToken.balanceOf(account), 0);
+        assertEq(legacyToken.balanceOf(alice), 5 ether);
+    }
+
     function testMorphoAccountPredictionRequiresInitialization() public {
         MockERC20 statics = new MockERC20("Statics", "STAT", 18);
         IStaticsMorpho uninitialized = IStaticsMorpho(
@@ -398,7 +571,7 @@ contract MorphoCollateralTest is StaticsTestBase {
         uint256 bounty = morphoApi.morphoSyncBounty(keeper, address(assetA));
 
         vm.prank(keeper);
-        vm.expectRevert(abi.encodeWithSelector(MorphoFacet.InvalidReceiver.selector, address(diamond)));
+        vm.expectRevert(abi.encodeWithSelector(MorphoSettlementFacet.InvalidReceiver.selector, address(diamond)));
         morphoApi.claimMorphoSyncBounties(rewards, address(diamond));
         assertEq(morphoApi.morphoSyncBounty(keeper, address(assetA)), bounty);
     }
@@ -631,6 +804,61 @@ contract MorphoCollateralTest is StaticsTestBase {
         _fundAndApprove(alice, quote[0], quote[1]);
         vm.prank(alice);
         (positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, shares, alice, quote);
+    }
+
+    function _closeHistoricalMarketAndRedeposit(uint256 redeposited)
+        private
+        returns (ClosedMorphoRecoveryScenario memory scenario)
+    {
+        (uint256 basketId, address collateralToken) = _createDefaultBasket(0, 0);
+        scenario.positionId = _mintBasketPosition(basketId, 1 ether);
+        scenario.marketId = _registerMarket(collateralToken, IStaticsMorpho.CollateralKind.Basket, basketId);
+        scenario.collateralToken = collateralToken;
+
+        vm.startPrank(alice);
+        morphoApi.deployMorphoCollateral(scenario.positionId, scenario.marketId, 1 ether);
+        morphoApi.recallMorphoCollateral(scenario.positionId, scenario.marketId, 1 ether);
+        basketCollateral.withdrawBasketCollateral(scenario.positionId, basketId, 1 ether, alice);
+        IStaticsPosition(address(diamond)).closePosition(scenario.positionId);
+        vm.stopPrank();
+
+        (scenario.account,) = morphoApi.morphoAccount(scenario.positionId);
+        scenario.closedStateNonce = IModularPositionNFT(address(diamond)).positionState(scenario.positionId).stateNonce;
+        _assertClosedMorphoTrackingInactive(scenario, 0);
+
+        deal(collateralToken, bob, redeposited);
+        vm.startPrank(bob);
+        IERC20(collateralToken).approve(address(morphoBlue), redeposited);
+        morphoBlue.supplyCollateral(morphoApi.morphoMarket(scenario.marketId).params, redeposited, scenario.account, "");
+        vm.stopPrank();
+
+        _assertClosedMorphoTrackingInactive(scenario, redeposited);
+    }
+
+    function _assertClosedMorphoTrackingInactive(
+        ClosedMorphoRecoveryScenario memory scenario,
+        uint256 expectedActualCollateral
+    ) private view {
+        IModularPositionNFT position = IModularPositionNFT(address(diamond));
+        IModularPositionNFT.PositionState memory state = position.positionState(scenario.positionId);
+        assertFalse(state.exists);
+        assertEq(state.stateNonce, scenario.closedStateNonce);
+        assertEq(state.activeLegCount, 0);
+        assertEq(state.unresolvedObligationCount, 0);
+        assertFalse(position.isLegActive(scenario.positionId, LibPosition.morphoLegKey(scenario.marketId)));
+        (bool active, uint256 historyIndexPlusOne, uint256 portfolioCount) =
+            genesisHarness.rawMorphoTracking(scenario.positionId, scenario.marketId);
+        assertFalse(active);
+        assertGt(historyIndexPlusOne, 0);
+        assertEq(portfolioCount, 0);
+
+        IStaticsMorpho.PositionMarketView memory market =
+            morphoApi.morphoPositionMarket(scenario.positionId, scenario.marketId);
+        assertEq(market.trackedCollateral, 0);
+        assertEq(market.actualCollateral, expectedActualCollateral);
+        assertEq(market.untrackedSurplus, expectedActualCollateral);
+        assertEq(market.borrowShares, 0);
+        assertFalse(market.debtActive);
     }
 
     function _accrueBasketReward(uint256 basketId, uint256 amount) private {

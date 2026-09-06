@@ -10,7 +10,6 @@ import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
 import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {StaticsMorphoAccount} from "../morpho/StaticsMorphoAccount.sol";
-import {LibPosition} from "../position/LibPosition.sol";
 
 contract MorphoSettlementFacet is ReentrancyGuard {
     error InvalidAmount();
@@ -48,7 +47,7 @@ contract MorphoSettlementFacet is ReentrancyGuard {
         uint256 minReceived
     ) external nonReentrant returns (uint256 received) {
         if (token == address(0) || amount == 0) revert InvalidAmount();
-        LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibMorpho.enforceRecoveryAuthorized(positionId, msg.sender);
         LibMorpho.MorphoStorage storage ms = _storage();
         _enforceReceiver(ms, receiver);
         address account = ms.accounts[positionId];

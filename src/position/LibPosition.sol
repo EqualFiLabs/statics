@@ -30,6 +30,7 @@ library LibPosition {
         mapping(address owner => uint256[] positionIds) ownedPositions;
         mapping(uint256 positionId => address owner) indexedOwner;
         mapping(uint256 positionId => uint256 indexPlusOne) ownedPositionIndex;
+        mapping(uint256 positionId => address beneficiary) morphoRecoveryBeneficiary;
     }
 
     error AlreadyInitialized();
@@ -237,7 +238,12 @@ library LibPosition {
             && (actor == owner || nft.getApproved(positionId) == actor || nft.isApprovedForAll(owner, actor));
     }
 
-    function enforceAuthorized(uint256 positionId, address actor) internal view {
-        if (!isAuthorized(positionId, actor)) revert NotPositionOwnerOrApproved(positionId, actor);
+    function enforceAuthorized(uint256 positionId, address actor) internal view returns (address owner) {
+        IERC721 nft = IERC721(address(this));
+        owner = nft.ownerOf(positionId);
+        if (
+            actor == address(0)
+                || (actor != owner && nft.getApproved(positionId) != actor && !nft.isApprovedForAll(owner, actor))
+        ) revert NotPositionOwnerOrApproved(positionId, actor);
     }
 }
