@@ -15,30 +15,33 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {DeployPermit2} from "permit2/test/utils/DeployPermit2.sol";
+import {IPositionDescriptor} from "@uniswap/v4-periphery/src/interfaces/IPositionDescriptor.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
+import {PositionManager} from "@uniswap/v4-periphery/src/PositionManager.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IStaticsLaunchLiquidityHook} from "../../src/interfaces/IStaticsLaunchLiquidityHook.sol";
 import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 contract LaunchLiquidityHandler is Test {
     PoolSwapTest private immutable router;
     StaticsLaunchLiquidityHook private immutable hook;
-    PoolId private immutable poolId;
     Currency private immutable currency0;
     Currency private immutable currency1;
     address private immutable feeReceiver;
     PoolKey private key;
 
-    uint128 public lastLiquidity;
     uint256 public lastReceiver0;
     uint256 public lastReceiver1;
-    bool public liquidityDecreased;
     bool public receiverBalanceDecreased;
-    bool public maintenancePaidCaller;
+    bool public hookRetainedTokens;
 
     constructor(PoolSwapTest router_, StaticsLaunchLiquidityHook hook_, PoolKey memory key_, address feeReceiver_) {
         router = router_;
         hook = hook_;
         key = key_;
-        poolId = key_.toId();
         currency0 = key_.currency0;
         currency1 = key_.currency1;
         feeReceiver = feeReceiver_;
@@ -52,26 +55,6 @@ contract LaunchLiquidityHandler is Test {
 
     function swapExactOutput(bool zeroForOne, uint256 rawAmount) external {
         _swap(zeroForOne, int256(bound(rawAmount, 1_000, 0.0005 ether)));
-    }
-
-    function compound() external {
-        uint256 balance0 = currency0.balanceOf(address(this));
-        uint256 balance1 = currency1.balanceOf(address(this));
-        try hook.compoundPOL(key) {} catch {}
-        if (currency0.balanceOf(address(this)) > balance0 || currency1.balanceOf(address(this)) > balance1) {
-            maintenancePaidCaller = true;
-        }
-        _recordMonotonicState();
-    }
-
-    function harvest() external {
-        uint256 balance0 = currency0.balanceOf(address(this));
-        uint256 balance1 = currency1.balanceOf(address(this));
-        try hook.harvestPOLFees(key) {} catch {}
-        if (currency0.balanceOf(address(this)) > balance0 || currency1.balanceOf(address(this)) > balance1) {
-            maintenancePaidCaller = true;
-        }
-        _recordMonotonicState();
     }
 
     function _swap(bool zeroForOne, int256 amountSpecified) private {
@@ -88,22 +71,18 @@ contract LaunchLiquidityHandler is Test {
             BalanceDelta
         ) {}
             catch {}
-        _recordMonotonicState();
-    }
-
-    function _recordMonotonicState() private {
-        uint128 liquidity = hook.polLiquidity(poolId);
         uint256 receiver0 = currency0.balanceOf(feeReceiver);
         uint256 receiver1 = currency1.balanceOf(feeReceiver);
-        if (liquidity < lastLiquidity) liquidityDecreased = true;
         if (receiver0 < lastReceiver0 || receiver1 < lastReceiver1) receiverBalanceDecreased = true;
-        lastLiquidity = liquidity;
+        if (currency0.balanceOf(address(hook)) != 0 || currency1.balanceOf(address(hook)) != 0) {
+            hookRetainedTokens = true;
+        }
         lastReceiver0 = receiver0;
         lastReceiver1 = receiver1;
     }
 }
 
-contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers {
+contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPermit2 {
     using PoolIdLibrary for PoolKey;
 
     uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
@@ -118,10 +97,14 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers {
     function setUp() public {
         deployFreshManagerAndRouters();
         deployMintAndApprove2Currencies();
-        hook = _deployHook();
+        IAllowanceTransfer permit2 = IAllowanceTransfer(deployPermit2());
+        PositionManager positionManager =
+            new PositionManager(manager, permit2, 100_000, IPositionDescriptor(address(0)), IWETH9(address(0)));
+        hook = _deployHook(IPositionManager(address(positionManager)));
         poolKey =
             PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
-        poolId = hook.registerAndInitialize(poolKey, SQRT_PRICE_1_1);
+        poolId = hook.registerPool(poolKey, SQRT_PRICE_1_1, 25, 75);
+        positionManager.initializePool(poolKey, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(poolKey, LIQUIDITY_PARAMS, "");
 
         handler = new LaunchLiquidityHandler(swapRouter, hook, poolKey, feeReceiver);
@@ -130,30 +113,31 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers {
         targetContract(address(handler));
     }
 
-    function invariantPendingPOLIsFullySolvent() public view {
-        _assertPending(currency0);
-        _assertPending(currency1);
+    function invariantHookNeverCustodiesSwapFees() public view {
+        assertEq(currency0.balanceOf(address(hook)), 0);
+        assertEq(currency1.balanceOf(address(hook)), 0);
+        assertFalse(handler.hookRetainedTokens());
     }
 
-    function invariantPermissionlessMaintenanceCannotDecreasePOLOrRevenue() public view {
-        assertFalse(handler.liquidityDecreased(), "active POL liquidity decreased");
-        assertFalse(handler.receiverBalanceDecreased(), "fee receiver balance decreased");
-        assertFalse(handler.maintenancePaidCaller(), "permissionless maintenance paid caller");
+    function invariantFeeReceiverBalancesNeverDecrease() public view {
+        assertFalse(handler.receiverBalanceDecreased());
     }
 
-    function _assertPending(Currency currency) private view {
-        uint256 pending = hook.pendingPOL(poolId, currency);
-        assertEq(pending, hook.totalPendingPOL(currency));
-        assertEq(currency.balanceOf(address(hook)), pending);
+    function invariantRegisteredPoolConfigurationIsIsolated() public view {
+        IStaticsLaunchLiquidityHook.PoolRegistration memory registration = hook.poolRegistration(poolId);
+        assertTrue(registration.registered);
+        assertEq(registration.nativeLpFee, 3_000);
+        assertEq(registration.tickSpacing, 60);
+        assertEq(registration.expectedSqrtPriceX96, SQRT_PRICE_1_1);
+        assertEq(registration.inputFeeBps, 25);
+        assertEq(registration.outputFeeBps, 75);
     }
 
-    function _deployHook() private returns (StaticsLaunchLiquidityHook deployed) {
-        bytes memory args = abi.encode(manager, address(this), feeReceiver, address(this), address(this));
+    function _deployHook(IPositionManager positionManager_) private returns (StaticsLaunchLiquidityHook deployed) {
+        bytes memory args = abi.encode(manager, positionManager_, address(this), feeReceiver);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsLaunchLiquidityHook).creationCode, args);
-        deployed = new StaticsLaunchLiquidityHook{salt: salt}(
-            manager, address(this), feeReceiver, address(this), address(this)
-        );
+        deployed = new StaticsLaunchLiquidityHook{salt: salt}(manager, positionManager_, address(this), feeReceiver);
         assertEq(address(deployed), expected);
     }
 }
