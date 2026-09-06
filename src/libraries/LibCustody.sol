@@ -25,6 +25,8 @@ library LibCustody {
     error InsufficientUnreserved(address token, uint256 requested, uint256 available);
     error InsufficientAccountReservation(bytes32 account, address token, uint256 requested, uint256 available);
     error BalanceDecreasedDuringPull(address token, uint256 beforeBalance, uint256 afterBalance);
+    error InvalidTransferReceiver(address receiver);
+    error DebitBelowRequested(address token, uint256 spent, uint256 requested);
     error DebitExceedsAuthorization(address token, uint256 spent, uint256 maximum);
     error GlobalReservationShortfall(address token, uint256 reserved, uint256 balance);
 
@@ -122,14 +124,24 @@ library LibCustody {
         internal
         returns (uint256 spent, uint256 received)
     {
-        uint256 local = accountReserved(account, token);
+        CustodyStorage storage cs = custodyStorage();
+        uint256 local = cs.reservedByAccount[account][token];
         if (maximumDebit > local) {
             revert InsufficientAccountReservation(account, token, maximumDebit, local);
         }
 
-        release(account, token, maximumDebit);
+        if (maximumDebit != 0) {
+            cs.reservedByAccount[account][token] = local - maximumDebit;
+            cs.globalReservedByToken[token] -= maximumDebit;
+        }
         (spent, received) = _pushMeasured(token, receiver, amount);
         if (spent > maximumDebit) revert DebitExceedsAuthorization(token, spent, maximumDebit);
+        uint256 unusedAuthorization = maximumDebit - spent;
+        if (unusedAuthorization != 0) {
+            cs.reservedByAccount[account][token] += unusedAuthorization;
+            cs.globalReservedByToken[token] += unusedAuthorization;
+        }
+        if (spent != 0) emit CustodyReleased(account, token, spent);
         _enforceGlobalBacking(token);
     }
 
@@ -165,6 +177,7 @@ library LibCustody {
         private
         returns (uint256 spent, uint256 received)
     {
+        if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
         uint256 senderBefore = IERC20(token).balanceOf(address(this));
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
         IERC20(token).safeTransfer(receiver, amount);
@@ -172,6 +185,7 @@ library LibCustody {
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
         spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
         received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
+        if (spent < amount) revert DebitBelowRequested(token, spent, amount);
     }
 
     function _enforceGlobalBacking(address token) private view {

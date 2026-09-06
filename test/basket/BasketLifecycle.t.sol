@@ -466,6 +466,31 @@ contract BasketLifecycleTest is StaticsTestBase {
         _assertSenderTaxIsolation(firstBasket, secondBasket, address(taxed), firstToken, snapshot);
     }
 
+    function testRedemptionCannotClearBackingToDiamondReceiver() public {
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        _fundAndApprove(alice, 2 ether, 5 ether);
+        uint256[] memory inputs = baskets.quoteMint(basketId, 1 ether);
+        vm.prank(alice);
+        baskets.mint(basketId, 1 ether, alice, inputs);
+
+        uint256 sharesBefore = IERC20(token).balanceOf(alice);
+        uint256 supplyBefore = IERC20(token).totalSupply();
+        uint256 firstVaultBefore = baskets.vaultBalance(basketId, address(assetA));
+        uint256 firstReservedBefore = custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA));
+        uint256[] memory outputs = baskets.quoteRedeem(basketId, 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LibCustody.InvalidTransferReceiver.selector, address(diamond)));
+        baskets.redeem(basketId, 1 ether, address(diamond), outputs);
+
+        assertEq(IERC20(token).balanceOf(alice), sharesBefore);
+        assertEq(IERC20(token).totalSupply(), supplyBefore);
+        assertEq(baskets.vaultBalance(basketId, address(assetA)), firstVaultBefore);
+        assertEq(
+            custody.reservedByAccount(custody.basketCustodyAccount(basketId), address(assetA)), firstReservedBefore
+        );
+    }
+
     struct SenderTaxSnapshot {
         uint256 firstSupplyBefore;
         uint256 firstVaultBefore;
