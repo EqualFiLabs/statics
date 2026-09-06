@@ -352,6 +352,35 @@ PRIVATE_KEY="$ANVIL_PRIVATE_KEY" forge script \
 
 Use an ephemeral Anvil key only. Local fixtures and addresses are not production deployment evidence.
 
+To reproduce the realistic standalone launch-liquidity lifecycle against the
+deployed Robinhood contracts, start a pinned fork in a separate terminal:
+
+```shell
+anvil \
+  --fork-url "${ROBINHOOD_MAINNET:?set private Robinhood RPC}" \
+  --fork-block-number 56184871 \
+  --chain-id 4663 \
+  --host 127.0.0.1 \
+  --port 8545
+```
+
+Then run the checked-in fork regression against Anvil:
+
+```shell
+ROBINHOOD_MAINNET=http://127.0.0.1:8545 \
+ROBINHOOD_FORK_LATEST=true \
+REQUIRE_ROBINHOOD_FORK=true \
+forge test \
+  --match-path test/liquidity/fork/RobinhoodRealisticLaunchLiquidityFork.t.sol \
+  -vv
+```
+
+The regression initializes the supplied STATICS/NVDA ratio, proves a
+$10,000 single-sided STATICS seed transfers zero NVDA, adds two independently
+owned concentrated positions, reconfigures bilateral hook fees and their
+receiver, executes approximately $100,000 of two-way input notional, removes
+10% of only the launch position, and verifies another swap still succeeds.
+
 ### Robinhood Chain testnet
 
 Robinhood testnet is chain `46630`. The repository records the current
