@@ -116,7 +116,8 @@ contract PositionNFTFacet is
     }
 
     function closePosition(uint256 positionId) external {
-        address owner = LibPosition.enforceAuthorized(positionId, msg.sender);
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        address owner = _ownerOf(positionId);
         LibPosition.PositionStorage storage ps = LibPosition.positionStorage();
         LibPosition.PackedPositionState storage state = ps.state[positionId];
         if (state.initializing) revert PositionInitializing(positionId);

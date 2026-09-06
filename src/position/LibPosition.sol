@@ -238,9 +238,9 @@ library LibPosition {
             && (actor == owner || nft.getApproved(positionId) == actor || nft.isApprovedForAll(owner, actor));
     }
 
-    function enforceAuthorized(uint256 positionId, address actor) internal view returns (address owner) {
+    function enforceAuthorized(uint256 positionId, address actor) internal view {
         IERC721 nft = IERC721(address(this));
-        owner = nft.ownerOf(positionId);
+        address owner = nft.ownerOf(positionId);
         if (
             actor == address(0)
                 || (actor != owner && nft.getApproved(positionId) != actor && !nft.isApprovedForAll(owner, actor))
