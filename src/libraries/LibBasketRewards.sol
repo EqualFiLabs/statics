@@ -21,6 +21,7 @@ library LibBasketRewards {
         uint256 crystallizedAmount;
         mapping(uint40 epoch => uint256 indexRay) activationIndexRay;
         mapping(uint40 epoch => bool recorded) activationRecorded;
+        uint256 indexRemainder;
     }
 
     struct EligibilityBook {
@@ -38,6 +39,13 @@ library LibBasketRewards {
         uint256 pendingShares;
         uint40 pendingStartTime;
         uint40 eligibleAt;
+    }
+
+    struct AssetLossContext {
+        uint256 basketId;
+        uint256 eligibleLoss;
+        address keeper;
+        uint16 bountyBps;
     }
 
     struct RewardStorage {
@@ -97,7 +105,9 @@ library LibBasketRewards {
         uint256 total = rs.totalEligibleShares[basketId];
         if (total == 0) revert BasketHasNoEligibleShares(basketId);
         RewardBook storage book = rs.books[basketId][asset];
-        book.indexRay += Math.mulDiv(amount, RAY, total);
+        (uint256 delta, uint256 remainder) = _indexDelta(amount, total, book.indexRemainder);
+        book.indexRay += delta;
+        book.indexRemainder = remainder;
         book.indexedAmount += amount;
         emit IStaticsBasketRewards.BasketRewardAccrued(basketId, asset, amount, book.indexRay);
         return book.indexRay;
@@ -165,7 +175,7 @@ library LibBasketRewards {
         settle(positionId, basketId, configured);
         LibBasketCollateral.decreasePosition(positionId, basketId, shares);
         RewardStorage storage rs = rewardStorage();
-        _decreaseEligibility(rs, positionId, basketId, shares);
+        _decreaseEligibility(rs, positionId, basketId, configured, shares);
         if (rs.totalEligibleShares[basketId] == 0) _routeDust(basketId, configured);
     }
 
@@ -181,7 +191,7 @@ library LibBasketRewards {
         LibBasketCollateral.lockForLoan(positionId, basketId, sharesIn, feeShares, collateralShares);
         if (feeShares == 0) return;
         RewardStorage storage rs = rewardStorage();
-        _decreaseEligibility(rs, positionId, basketId, feeShares);
+        _decreaseEligibility(rs, positionId, basketId, configured, feeShares);
         if (rs.totalEligibleShares[basketId] == 0) _routeDust(basketId, configured);
     }
 
@@ -205,7 +215,7 @@ library LibBasketRewards {
         settle(positionId, basketId, configured);
         LibBasketCollateral.releaseAfterRecovery(positionId, basketId, collateralShares, burnShares);
         RewardStorage storage rs = rewardStorage();
-        _decreaseEligibility(rs, positionId, basketId, burnShares);
+        _decreaseEligibility(rs, positionId, basketId, configured, burnShares);
         if (rs.totalEligibleShares[basketId] == 0) _routeDust(basketId, configured);
     }
 
@@ -225,10 +235,13 @@ library LibBasketRewards {
         uint256 deposited = LibBasketCollateral.collateralStorage().positions[positionId][basketId].depositedShares;
         uint256 eligibleLoss = Math.mulDiv(amount, position.eligibleShares, deposited);
         uint256 pendingLoss = amount - eligibleLoss;
-        _applyAssetLoss(rs, position, basketId, configured.token, eligibleLoss, keeper, bountyBps);
+        if (eligibleLoss != 0) _flushRemainders(rs, basketId, configured);
+        AssetLossContext memory context =
+            AssetLossContext({basketId: basketId, eligibleLoss: eligibleLoss, keeper: keeper, bountyBps: bountyBps});
+        _applyAssetLoss(rs, position, configured.token, context);
         uint256 length = configured.assets.length;
         for (uint256 i; i < length; ++i) {
-            _applyAssetLoss(rs, position, basketId, configured.assets[i], eligibleLoss, keeper, bountyBps);
+            _applyAssetLoss(rs, position, configured.assets[i], context);
         }
         if (pendingLoss != 0) {
             EligibilityBook storage eligibility = rs.eligibility[basketId];
@@ -327,6 +340,7 @@ library LibBasketRewards {
         uint256 dust = book.indexedAmount - book.crystallizedAmount;
         book.indexedAmount = 0;
         book.crystallizedAmount = 0;
+        book.indexRemainder = 0;
         if (dust == 0) return;
         LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
         emit IStaticsBasketRewards.BasketRewardDustRouted(basketId, asset, dust);
@@ -335,38 +349,58 @@ library LibBasketRewards {
     function _applyAssetLoss(
         RewardStorage storage rs,
         PositionRewards storage position,
-        uint256 basketId,
         address asset,
-        uint256 eligibleLoss,
-        address keeper,
-        uint16 bountyBps
+        AssetLossContext memory context
     ) private {
-        RewardBook storage book = rs.books[basketId][asset];
+        RewardBook storage book = rs.books[context.basketId][asset];
         uint256 eligible = position.eligibleShares;
         uint256 accrued;
         if (eligible != 0 && book.indexRay > position.checkpoints[asset]) {
             accrued = Math.mulDiv(eligible, book.indexRay - position.checkpoints[asset], RAY);
         }
-        uint256 forfeited = eligible == 0 ? 0 : Math.mulDiv(accrued, eligibleLoss, eligible);
+        uint256 forfeited = eligible == 0 ? 0 : Math.mulDiv(accrued, context.eligibleLoss, eligible);
         uint256 survivor = accrued - forfeited;
         if (survivor != 0) {
             if (position.claimable[asset] == 0) ++position.claimAssetCount;
             position.claimable[asset] += survivor;
-            rs.totalClaimable[basketId][asset] += survivor;
+            rs.totalClaimable[context.basketId][asset] += survivor;
             book.crystallizedAmount += survivor;
         }
         position.checkpoints[asset] = book.indexRay;
         if (forfeited == 0) return;
+        _routeForfeiture(
+            rs,
+            context.basketId,
+            asset,
+            rs.totalEligibleShares[context.basketId] - eligible,
+            forfeited,
+            context.keeper,
+            context.bountyBps
+        );
+        position.checkpoints[asset] = book.indexRay;
+    }
+
+    function _routeForfeiture(
+        RewardStorage storage rs,
+        uint256 basketId,
+        address asset,
+        uint256 otherEligible,
+        uint256 forfeited,
+        address keeper,
+        uint16 bountyBps
+    ) private {
+        RewardBook storage book = rs.books[basketId][asset];
         uint256 bounty = Math.mulDiv(forfeited, bountyBps, LibBasket.BPS);
         if (bounty != 0) {
             LibMorpho.creditSyncBounty(keeper, asset, bounty);
             book.indexedAmount -= bounty;
         }
         uint256 remainder = forfeited - bounty;
-        uint256 otherEligible = rs.totalEligibleShares[basketId] - eligible;
         if (remainder != 0 && otherEligible != 0) {
-            book.indexRay += Math.mulDiv(remainder, RAY, otherEligible);
-            position.checkpoints[asset] = book.indexRay;
+            (uint256 delta, uint256 indexRemainder) = _indexDelta(remainder, otherEligible, book.indexRemainder);
+            book.indexRay += delta;
+            book.indexRemainder = indexRemainder;
+            _flushAssetRemainder(basketId, asset, book);
         } else if (remainder != 0) {
             LibGlobalRewards.accrueReservedTreasuryFee(asset, remainder);
             book.indexedAmount -= remainder;
@@ -396,9 +430,13 @@ library LibBasketRewards {
         _addPendingBucket(book, eligibleAt, totalPending);
     }
 
-    function _decreaseEligibility(RewardStorage storage rs, uint256 positionId, uint256 basketId, uint256 amount)
-        private
-    {
+    function _decreaseEligibility(
+        RewardStorage storage rs,
+        uint256 positionId,
+        uint256 basketId,
+        LibBasket.Basket storage configured,
+        uint256 amount
+    ) private {
         PositionRewards storage position = rs.positions[positionId][basketId];
         EligibilityBook storage book = rs.eligibility[basketId];
         uint256 pendingReduction = amount < position.pendingShares ? amount : position.pendingShares;
@@ -416,6 +454,7 @@ library LibBasketRewards {
         }
         uint256 eligibleReduction = amount - pendingReduction;
         if (eligibleReduction != 0) {
+            _flushRemainders(rs, basketId, configured);
             position.eligibleShares -= eligibleReduction;
             rs.totalEligibleShares[basketId] -= eligibleReduction;
         }
@@ -480,18 +519,7 @@ library LibBasketRewards {
         uint8 cursor = book.bucketCursor;
         for (uint256 i; i < elapsed; ++i) {
             uint8 index = uint8((uint256(cursor) + i) % REWARD_BUCKET_COUNT);
-            uint256 shares = book.pendingBuckets[index];
-            if (shares != 0) {
-                uint40 epoch = nextEpoch + uint40(i);
-                book.pendingBuckets[index] = 0;
-                book.pendingShares -= shares;
-                rs.totalEligibleShares[basketId] += shares;
-                _recordActivation(rs.books[basketId][configured.token], epoch);
-                uint256 assetsLength = configured.assets.length;
-                for (uint256 j; j < assetsLength; ++j) {
-                    _recordActivation(rs.books[basketId][configured.assets[j]], epoch);
-                }
-            }
+            _matureBucket(rs, basketId, configured, book, index, nextEpoch + uint40(i));
         }
         if (uint256(currentEpoch - nextEpoch) + 1 >= REWARD_BUCKET_COUNT) {
             book.nextBucketEpoch = currentEpoch + 1;
@@ -502,9 +530,68 @@ library LibBasketRewards {
         }
     }
 
+    function _matureBucket(
+        RewardStorage storage rs,
+        uint256 basketId,
+        LibBasket.Basket storage configured,
+        EligibilityBook storage eligibility,
+        uint8 index,
+        uint40 epoch
+    ) private {
+        uint256 shares = eligibility.pendingBuckets[index];
+        if (shares == 0) return;
+        _flushRemainders(rs, basketId, configured);
+        eligibility.pendingBuckets[index] = 0;
+        eligibility.pendingShares -= shares;
+        rs.totalEligibleShares[basketId] += shares;
+        _recordActivation(rs.books[basketId][configured.token], epoch);
+        uint256 length = configured.assets.length;
+        for (uint256 i; i < length; ++i) {
+            _recordActivation(rs.books[basketId][configured.assets[i]], epoch);
+        }
+    }
+
     function _recordActivation(RewardBook storage book, uint40 epoch) private {
         book.activationIndexRay[epoch] = book.indexRay;
         book.activationRecorded[epoch] = true;
+    }
+
+    function _flushRemainders(RewardStorage storage rs, uint256 basketId, LibBasket.Basket storage configured) private {
+        _flushAssetRemainder(basketId, configured.token, rs.books[basketId][configured.token]);
+        uint256 length = configured.assets.length;
+        for (uint256 i; i < length; ++i) {
+            address asset = configured.assets[i];
+            _flushAssetRemainder(basketId, asset, rs.books[basketId][asset]);
+        }
+    }
+
+    function _flushAssetRemainder(uint256 basketId, address asset, RewardBook storage book) private {
+        uint256 remainder = book.indexRemainder;
+        if (remainder == 0) return;
+        book.indexRemainder = 0;
+        uint256 dust = remainder / RAY;
+        if (dust == 0) return;
+        book.indexedAmount -= dust;
+        LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
+        emit IStaticsBasketRewards.BasketRewardDustRouted(basketId, asset, dust);
+    }
+
+    function _indexDelta(uint256 amount, uint256 denominator, uint256 priorRemainder)
+        private
+        pure
+        returns (uint256 delta, uint256 remainder)
+    {
+        delta = Math.mulDiv(amount, RAY, denominator);
+        remainder = mulmod(amount, RAY, denominator);
+        delta += priorRemainder / denominator;
+        uint256 normalizedPrior = priorRemainder % denominator;
+        uint256 room = denominator - normalizedPrior;
+        if (remainder >= room) {
+            ++delta;
+            remainder -= room;
+        } else {
+            remainder += normalizedPrior;
+        }
     }
 
     function _eligibleAt(uint256 pendingStart) private pure returns (uint40) {

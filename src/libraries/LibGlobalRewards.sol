@@ -39,6 +39,7 @@ library LibGlobalRewards {
         uint256[25] pendingWeightBuckets;
         uint32 pendingBucketBitmap;
         bool weightInitialized;
+        uint256 indexRemainder;
     }
 
     struct PositionSelection {
@@ -173,6 +174,7 @@ library LibGlobalRewards {
         uint256 removedEligibleWeight = selection.eligibleWeight;
         uint256 removedPendingWeight = selection.pendingWeight;
         if (removedEligible != 0) {
+            _flushIndexRemainder(rs, asset, book);
             book.eligibleStake -= removedEligible;
             book.eligibleWeight -= removedEligibleWeight;
         }
@@ -240,6 +242,7 @@ library LibGlobalRewards {
             }
             uint256 eligibleReduction = amount - pendingReduction;
             if (eligibleReduction != 0) {
+                _flushIndexRemainder(rs, asset, book);
                 uint256 priorEligible = selection.eligibleStake;
                 uint256 priorEligibleWeight = selection.eligibleWeight;
                 uint256 remainingEligible = priorEligible - eligibleReduction;
@@ -296,6 +299,7 @@ library LibGlobalRewards {
         _increaseClaimable(rs, position, asset, survivorAccrued);
         book.crystallizedAmount += survivorAccrued;
         selection.checkpointRay = book.indexRay;
+        if (eligibleLoss != 0) _flushIndexRemainder(rs, asset, book);
         _applyLossToSelection(selection, book, context.amount - eligibleLoss, eligibleLoss, context.multiplierBps);
         _redistributeForfeiture(rs, asset, selection, book, forfeited, context.keeper, context.bountyBps);
         _routeDustIfEmpty(rs, asset, book);
@@ -347,6 +351,7 @@ library LibGlobalRewards {
 
             uint256 previousEligibleWeight = selection.eligibleWeight;
             uint256 nextEligibleWeight = _weight(selection.eligibleStake, newMultiplierBps);
+            if (previousEligibleWeight != nextEligibleWeight) _flushIndexRemainder(rs, asset, book);
             selection.eligibleWeight = nextEligibleWeight;
             book.eligibleWeight = book.eligibleWeight - previousEligibleWeight + nextEligibleWeight;
 
@@ -516,7 +521,9 @@ library LibGlobalRewards {
     }
 
     function _routeDustIfEmpty(RewardStorage storage rs, address asset, RewardBook storage book) private {
-        if (book.eligibleWeight != 0 || book.indexedAmount == 0) return;
+        if (book.eligibleWeight != 0) return;
+        book.indexRemainder = 0;
+        if (book.indexedAmount == 0) return;
         uint256 dust = book.indexedAmount - book.crystallizedAmount;
         book.indexedAmount = 0;
         book.crystallizedAmount = 0;
@@ -581,14 +588,49 @@ library LibGlobalRewards {
             book.indexedAmount -= remainder;
             return;
         }
-        book.indexRay += Math.mulDiv(remainder, RAY, otherWeight);
+        _increaseIndexWithoutFunding(book, remainder, otherWeight);
         selection.checkpointRay = book.indexRay;
+        _flushIndexRemainder(rs, asset, book);
     }
 
     function _increaseIndex(RewardBook storage book, uint256 amount, uint256 denominator) private {
-        uint256 delta = Math.mulDiv(amount, RAY, denominator);
-        book.indexRay += delta;
+        _increaseIndexWithoutFunding(book, amount, denominator);
         book.indexedAmount += amount;
+    }
+
+    function _increaseIndexWithoutFunding(RewardBook storage book, uint256 amount, uint256 denominator) private {
+        (uint256 delta, uint256 remainder) = _indexDelta(amount, denominator, book.indexRemainder);
+        book.indexRay += delta;
+        book.indexRemainder = remainder;
+    }
+
+    function _flushIndexRemainder(RewardStorage storage rs, address asset, RewardBook storage book) private {
+        uint256 remainder = book.indexRemainder;
+        if (remainder == 0) return;
+        book.indexRemainder = 0;
+        uint256 dust = remainder / RAY;
+        if (dust == 0) return;
+        book.indexedAmount -= dust;
+        rs.treasuryAccrued[asset] += dust;
+        emit IStaticsGlobalRewards.RewardAssetDustRouted(asset, dust);
+    }
+
+    function _indexDelta(uint256 amount, uint256 denominator, uint256 priorRemainder)
+        private
+        pure
+        returns (uint256 delta, uint256 remainder)
+    {
+        delta = Math.mulDiv(amount, RAY, denominator);
+        remainder = mulmod(amount, RAY, denominator);
+        delta += priorRemainder / denominator;
+        uint256 normalizedPrior = priorRemainder % denominator;
+        uint256 room = denominator - normalizedPrior;
+        if (remainder >= room) {
+            ++delta;
+            remainder -= room;
+        } else {
+            remainder += normalizedPrior;
+        }
     }
 
     function _increasePending(
@@ -720,6 +762,7 @@ library LibGlobalRewards {
         uint256 stake = book.pendingBuckets[index];
         if (stake == 0) return;
         uint256 weight = book.pendingWeightBuckets[index];
+        _flushIndexRemainder(rewardStorage(), asset, book);
         book.pendingBucketBitmap &= ~(uint32(1) << index);
         book.pendingBuckets[index] = 0;
         book.pendingWeightBuckets[index] = 0;
