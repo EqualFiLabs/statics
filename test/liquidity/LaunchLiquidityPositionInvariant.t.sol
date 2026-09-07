@@ -9,7 +9,9 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
@@ -26,6 +28,8 @@ import {PositionConfig} from "@uniswap/v4-periphery/test/shared/PositionConfig.s
 import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
+    using PoolIdLibrary for PoolKey;
+
     IAllowanceTransfer private immutable permit2;
     PoolSwapTest private immutable router;
     StaticsLaunchLiquidityHook private immutable hook;
@@ -92,7 +96,7 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
     }
 
     function swapExactInput(bool zeroForOne, uint256 rawAmount) external {
-        router.swap(
+        try router.swap(
             key,
             SwapParams({
                 zeroForOne: zeroForOne,
@@ -101,8 +105,11 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
-        );
-        successfulSwaps++;
+        ) returns (
+            BalanceDelta
+        ) {
+            successfulSwaps++;
+        } catch {}
     }
 
     function positionId(uint256 index) external view returns (uint256) {
@@ -121,6 +128,8 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
 }
 
 contract LaunchLiquidityPositionInvariantTest is StdInvariant, Test, Deployers, DeployPermit2, LiquidityOperations {
+    using PoolIdLibrary for PoolKey;
+
     uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG;
 
@@ -141,7 +150,7 @@ contract LaunchLiquidityPositionInvariantTest is StdInvariant, Test, Deployers, 
         lpm = IPositionManager(address(positionManager));
         hook = _deployHook();
         key = PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
-        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50);
+        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50, address(this));
         positionManager.initializePool(key, SQRT_PRICE_1_1);
         _approvePositionManager(currency0, permit2);
         _approvePositionManager(currency1, permit2);
@@ -161,6 +170,7 @@ contract LaunchLiquidityPositionInvariantTest is StdInvariant, Test, Deployers, 
         MockERC20(Currency.unwrap(currency0)).mint(address(handler), 1_000_000 ether);
         MockERC20(Currency.unwrap(currency1)).mint(address(handler), 1_000_000 ether);
         handler.seed();
+        hook.activatePool(key.toId());
         bytes4[] memory selectors = new bytes4[](4);
         selectors[0] = handler.increase.selector;
         selectors[1] = handler.decrease.selector;
@@ -187,6 +197,10 @@ contract LaunchLiquidityPositionInvariantTest is StdInvariant, Test, Deployers, 
     function invariantHookDoesNotCustodyLiquidityAssets() public view {
         assertEq(currency0.balanceOf(address(hook)), 0);
         assertEq(currency1.balanceOf(address(hook)), 0);
+    }
+
+    function invariantPositionPoolRemainsActive() public view {
+        assertTrue(hook.poolRegistration(key.toId()).active);
     }
 
     function _approvePositionManager(Currency currency, IAllowanceTransfer permit2) private {

@@ -174,6 +174,9 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         );
 
         vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+
+        vm.prank(positionOwner);
         positionManager.transferFrom(positionOwner, externalLp, tokenId);
         assertEq(positionManager.ownerOf(tokenId), externalLp);
 
@@ -192,9 +195,10 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         vm.expectRevert();
         positionManager.ownerOf(tokenId);
 
-        uint256 receiverBefore = currency0.balanceOf(feeReceiver);
+        assertTrue(hook.poolRegistration(key.toId()).active);
+        uint256 receiverBefore = manager.balanceOf(feeReceiver, currency0.toId());
         swap(key, true, -int256(0.001 ether), ZERO_BYTES);
-        assertGt(currency0.balanceOf(feeReceiver), receiverBefore);
+        assertGt(manager.balanceOf(feeReceiver, currency0.toId()), receiverBefore);
     }
 
     function _initializeAndMint(

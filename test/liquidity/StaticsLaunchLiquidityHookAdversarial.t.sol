@@ -59,7 +59,9 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
             ? (Currency.wrap(address(tokenA)), Currency.wrap(address(tokenB)))
             : (Currency.wrap(address(tokenB)), Currency.wrap(address(tokenA)));
         key = PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
-        poolId = hook.registerPool(key, SQRT_PRICE_1_1, 25, 75);
+        poolId = hook.registerPool(key, SQRT_PRICE_1_1, 25, 75, address(this));
+        manager.callAfterInitialize(IHooks(hook), address(positionManager), key, SQRT_PRICE_1_1, 0);
+        hook.activatePool(poolId);
     }
 
     function testFuzzBeforeSwapChargesExactSpecifiedLeg(
@@ -71,7 +73,7 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         FeeCase memory case_ = FeeCase({
             zeroForOne: zeroForOne,
             exactInput: exactInput,
-            amount: bound(rawAmount, 1, uint256(uint128(type(int128).max))),
+            amount: bound(rawAmount, 1, uint256(uint128(type(int128).max)) / 2),
             feeBps: uint16(bound(rawFeeBps, 0, hook.MAX_HOOK_FEE_BPS()))
         });
         _assertBeforeSwap(case_);
@@ -80,10 +82,11 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
     function _assertBeforeSwap(FeeCase memory case_) private {
         hook.setHookFees(poolId, case_.feeBps, case_.feeBps);
         Currency specified = case_.zeroForOne == case_.exactInput ? key.currency0 : key.currency1;
-        uint256 expected = Math.mulDiv(case_.amount, case_.feeBps, 10_000, Math.Rounding.Ceil);
-        _token(specified).mint(address(manager), expected);
+        uint256 expected =
+            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
         uint256 managerBefore = specified.balanceOf(address(manager));
         uint256 receiverBefore = specified.balanceOf(receiver);
+        uint256 claimsBefore = manager.balanceOf(receiver, specified.toId());
 
         (, BeforeSwapDelta returned, uint24 lpFeeOverride) = manager.callBeforeSwap(
             IHooks(hook),
@@ -94,8 +97,9 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         assertEq(returned.getSpecifiedDelta(), int128(uint128(expected)));
         assertEq(returned.getUnspecifiedDelta(), 0);
         assertEq(lpFeeOverride, 0);
-        assertEq(managerBefore - specified.balanceOf(address(manager)), expected);
-        assertEq(specified.balanceOf(receiver) - receiverBefore, expected);
+        assertEq(specified.balanceOf(address(manager)), managerBefore);
+        assertEq(specified.balanceOf(receiver), receiverBefore);
+        assertEq(manager.balanceOf(receiver, specified.toId()) - claimsBefore, expected);
         assertEq(key.currency0.balanceOf(address(hook)), 0);
         assertEq(key.currency1.balanceOf(address(hook)), 0);
     }
@@ -110,7 +114,7 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         FeeCase memory case_ = FeeCase({
             zeroForOne: zeroForOne,
             exactInput: exactInput,
-            amount: bound(rawAmount, 1, uint256(uint128(type(int128).max))),
+            amount: bound(rawAmount, 1, uint256(uint128(type(int128).max)) / 2),
             feeBps: uint16(bound(rawFeeBps, 0, hook.MAX_HOOK_FEE_BPS()))
         });
         _assertAfterSwap(case_, negativeDelta);
@@ -120,23 +124,24 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         hook.setHookFees(poolId, case_.feeBps, case_.feeBps);
         bool specifiedCurrencyIs0 = case_.exactInput == case_.zeroForOne;
         Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
-        int128 signedAmount = negativeDelta ? -int128(uint128(case_.amount)) : int128(uint128(case_.amount));
-        BalanceDelta delta = specifiedCurrencyIs0 ? toBalanceDelta(0, signedAmount) : toBalanceDelta(signedAmount, 0);
-        uint256 expected = Math.mulDiv(case_.amount, case_.feeBps, 10_000, Math.Rounding.Ceil);
-        _token(unspecified).mint(address(manager), expected);
-        uint256 managerBefore = unspecified.balanceOf(address(manager));
-        uint256 receiverBefore = unspecified.balanceOf(receiver);
+        uint256 expected =
+            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
 
         (, int128 returned) = manager.callAfterSwap(
             IHooks(hook),
             key,
             _params(case_.zeroForOne, case_.exactInput ? -int256(case_.amount) : int256(case_.amount)),
-            delta
+            _fullFillDelta(
+                case_,
+                specifiedCurrencyIs0,
+                negativeDelta ? -int128(uint128(case_.amount)) : int128(uint128(case_.amount))
+            )
         );
 
         assertEq(returned, int128(uint128(expected)));
-        assertEq(managerBefore - unspecified.balanceOf(address(manager)), expected);
-        assertEq(unspecified.balanceOf(receiver) - receiverBefore, expected);
+        assertEq(unspecified.balanceOf(address(manager)), 0);
+        assertEq(unspecified.balanceOf(receiver), 0);
+        assertEq(manager.balanceOf(receiver, unspecified.toId()), expected);
     }
 
     function testZeroFeeSkipsTokenTransferEvenWhenZeroTransfersRevert() public {
@@ -148,54 +153,49 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         assertEq(BeforeSwapDelta.unwrap(returned), 0);
     }
 
-    function testShortReceiptRevertsAndRollsBackCompleteRoute() public {
+    function testFeeClaimsDoNotInvokeAdversarialCurrencyTransfers() public {
         AdversarialLaunchToken chargedToken = _token(key.currency0);
-        chargedToken.mint(address(manager), 1 ether);
-        chargedToken.setBehavior(AdversarialLaunchToken.Behavior.ShortReceipt);
-        uint256 managerBefore = chargedToken.balanceOf(address(manager));
         uint256 charged = Math.mulDiv(1 ether, 25, 10_000, Math.Rounding.Ceil);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                StaticsLaunchLiquidityHook.IncompatiblePoolCurrency.selector, key.currency0, charged, charged - 1
-            )
-        );
-        manager.callBeforeSwap(IHooks(hook), key, _params(true, -int256(1 ether)));
-
-        assertEq(chargedToken.balanceOf(address(manager)), managerBefore);
-        assertEq(chargedToken.balanceOf(receiver), 0);
-    }
-
-    function testExtraDebitRevertsAndRollsBackCompleteRoute() public {
-        AdversarialLaunchToken chargedToken = _token(key.currency0);
-        chargedToken.mint(address(manager), 1 ether);
-        chargedToken.setBehavior(AdversarialLaunchToken.Behavior.ExtraDebit);
-        uint256 managerBefore = chargedToken.balanceOf(address(manager));
-        uint256 charged = Math.mulDiv(1 ether, 25, 10_000, Math.Rounding.Ceil);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                StaticsLaunchLiquidityHook.UnexpectedTokenDebit.selector, key.currency0, charged, charged + 1
-            )
-        );
-        manager.callBeforeSwap(IHooks(hook), key, _params(true, -int256(1 ether)));
-
-        assertEq(chargedToken.balanceOf(address(manager)), managerBefore);
-        assertEq(chargedToken.balanceOf(receiver), 0);
-    }
-
-    function testReentrantTokenCannotChangeConfiguration() public {
-        AdversarialLaunchToken chargedToken = _token(key.currency0);
-        chargedToken.mint(address(manager), 1 ether);
+        AdversarialLaunchToken.Behavior[4] memory behaviors = [
+            AdversarialLaunchToken.Behavior.ShortReceipt,
+            AdversarialLaunchToken.Behavior.ExtraDebit,
+            AdversarialLaunchToken.Behavior.RevertTransfer,
+            AdversarialLaunchToken.Behavior.Reenter
+        ];
         chargedToken.setReentry(address(hook), abi.encodeCall(hook.setHookFees, (poolId, 999, 999)));
-        chargedToken.setBehavior(AdversarialLaunchToken.Behavior.Reenter);
 
-        manager.callBeforeSwap(IHooks(hook), key, _params(true, -int256(1 ether)));
+        for (uint256 i; i < behaviors.length; ++i) {
+            chargedToken.setBehavior(behaviors[i]);
+            manager.callBeforeSwap(IHooks(hook), key, _params(true, -int256(1 ether)));
+        }
 
         assertFalse(chargedToken.reentrySucceeded());
+        assertEq(manager.balanceOf(receiver, key.currency0.toId()), charged * behaviors.length);
+        assertEq(chargedToken.balanceOf(address(manager)), 0);
+        assertEq(chargedToken.balanceOf(receiver), 0);
         IStaticsLaunchLiquidityHook.PoolRegistration memory registration = hook.poolRegistration(poolId);
         assertEq(registration.inputFeeBps, 25);
         assertEq(registration.outputFeeBps, 75);
+    }
+
+    function testIncompleteSpecifiedFillRevertsAndRollsBackBothClaims() public {
+        SwapParams memory params = _params(true, -int256(1 ether));
+        uint256 specifiedFee = _feeFromGross(1 ether, 25);
+        int128 partialSpecifiedDelta = -int128(int256(1 ether - specifiedFee - 1));
+        BalanceDelta partialDelta = toBalanceDelta(partialSpecifiedDelta, int128(0.5 ether));
+        int256 expectedSpecifiedDelta = -int256(1 ether) + int256(specifiedFee);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsLaunchLiquidityHook.IncompleteSpecifiedFill.selector,
+                expectedSpecifiedDelta,
+                int256(partialSpecifiedDelta)
+            )
+        );
+        manager.callSwapHooks(IHooks(hook), key, params, partialDelta);
+
+        assertEq(manager.balanceOf(receiver, key.currency0.toId()), 0);
+        assertEq(manager.balanceOf(receiver, key.currency1.toId()), 0);
     }
 
     function testCallbacksRejectEveryNonManagerCaller() public {
@@ -211,19 +211,24 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
     }
 
     function testInitializationRequiresBoundPositionManagerAndExactPrice() public {
+        PoolKey memory second = key;
+        second.fee = 5_000;
+        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 0, 0, address(this));
         vm.expectRevert(abi.encodeWithSelector(StaticsLaunchLiquidityHook.UnauthorizedInitializer.selector, outsider));
-        manager.callAfterInitialize(IHooks(hook), outsider, key, SQRT_PRICE_1_1, 0);
+        manager.callAfterInitialize(IHooks(hook), outsider, second, SQRT_PRICE_1_1, 0);
         vm.expectRevert(
             abi.encodeWithSelector(
                 StaticsLaunchLiquidityHook.InitialPriceMismatch.selector, SQRT_PRICE_1_1, SQRT_PRICE_1_1 + 1
             )
         );
-        manager.callAfterInitialize(IHooks(hook), address(positionManager), key, SQRT_PRICE_1_1 + 1, 0);
+        manager.callAfterInitialize(IHooks(hook), address(positionManager), second, SQRT_PRICE_1_1 + 1, 0);
 
         assertEq(
-            manager.callAfterInitialize(IHooks(hook), address(positionManager), key, SQRT_PRICE_1_1, 0),
+            manager.callAfterInitialize(IHooks(hook), address(positionManager), second, SQRT_PRICE_1_1, 0),
             IHooks.afterInitialize.selector
         );
+        assertTrue(hook.poolRegistration(secondId).initialized);
+        assertFalse(hook.poolRegistration(secondId).active);
     }
 
     function testOwnershipTransitionMovesAllConfigurationAuthority() public {
@@ -254,6 +259,9 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         assertEq(after_.nativeLpFee, before_.nativeLpFee);
         assertEq(after_.tickSpacing, before_.tickSpacing);
         assertEq(after_.expectedSqrtPriceX96, before_.expectedSqrtPriceX96);
+        assertEq(after_.launchOperator, before_.launchOperator);
+        assertEq(after_.initialized, before_.initialized);
+        assertEq(after_.active, before_.active);
         assertTrue(after_.registered);
         assertEq(after_.inputFeeBps, 0);
         assertEq(after_.outputFeeBps, hook.MAX_HOOK_FEE_BPS());
@@ -266,6 +274,31 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
 
     function _token(Currency currency) private pure returns (AdversarialLaunchToken) {
         return AdversarialLaunchToken(Currency.unwrap(currency));
+    }
+
+    function _fullFillDelta(FeeCase memory case_, bool specifiedCurrencyIs0, int128 unspecifiedDelta)
+        private
+        pure
+        returns (BalanceDelta)
+    {
+        uint256 specifiedFee =
+            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
+        int256 rawSpecified = case_.exactInput
+            ? -int256(case_.amount) + int256(specifiedFee)
+            : int256(case_.amount) + int256(specifiedFee);
+        int128 specifiedDelta = int128(rawSpecified);
+        return specifiedCurrencyIs0
+            ? toBalanceDelta(specifiedDelta, unspecifiedDelta)
+            : toBalanceDelta(unspecifiedDelta, specifiedDelta);
+    }
+
+    function _feeFromGross(uint256 amount, uint256 feeBps) private pure returns (uint256) {
+        return Math.mulDiv(amount, feeBps, 10_000, Math.Rounding.Ceil);
+    }
+
+    function _feeFromNet(uint256 amount, uint256 feeBps) private pure returns (uint256) {
+        if (feeBps == 0) return 0;
+        return Math.mulDiv(amount, feeBps, 10_000 - feeBps, Math.Rounding.Ceil);
     }
 
     function _deployHook() private returns (StaticsLaunchLiquidityHook deployed) {

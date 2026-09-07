@@ -88,8 +88,14 @@ contract AdversarialLaunchToken is IERC20 {
 }
 
     contract AdversarialPoolManager {
+        mapping(address owner => mapping(uint256 id => uint256 amount)) public balanceOf;
+
         function take(Currency currency, address to, uint256 amount) external {
             IERC20(Currency.unwrap(currency)).transfer(to, amount);
+        }
+
+        function mint(address to, uint256 id, uint256 amount) external {
+            balanceOf[to][id] += amount;
         }
 
         function callAfterInitialize(
@@ -114,6 +120,13 @@ contract AdversarialLaunchToken is IERC20 {
             returns (bytes4, int128)
         {
             return hook.afterSwap(address(this), key, params, delta, "");
+        }
+
+        function callSwapHooks(IHooks hook, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta)
+            external
+        {
+            hook.beforeSwap(address(this), key, params, "");
+            hook.afterSwap(address(this), key, params, delta, "");
         }
     }
 

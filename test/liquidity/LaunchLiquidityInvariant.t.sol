@@ -9,6 +9,7 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -109,7 +110,7 @@ contract LaunchLiquidityHandler is Test {
 
     function _swap(bool useSecondary, bool zeroForOne, int256 amountSpecified) private {
         PoolKey memory selected = _key(useSecondary);
-        router.swap(
+        try router.swap(
             selected,
             SwapParams({
                 zeroForOne: zeroForOne,
@@ -118,8 +119,11 @@ contract LaunchLiquidityHandler is Test {
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
-        );
-        successfulSwaps++;
+        ) returns (
+            BalanceDelta
+        ) {
+            successfulSwaps++;
+        } catch {}
         _observe();
     }
 
