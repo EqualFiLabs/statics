@@ -143,6 +143,10 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
     }
 
     function activatePool(PoolId poolId) external override {
+        _activatePool(poolId);
+    }
+
+    function _activatePool(PoolId poolId) internal {
         PoolRegistration storage registration = _registration(poolId);
         if (msg.sender != registration.launchOperator && msg.sender != owner()) {
             revert UnauthorizedActivator(msg.sender);
