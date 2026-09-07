@@ -35,6 +35,14 @@ contract LaunchLiquidityHookHarness is StaticsLaunchLiquidityHook {
         return this.poolRegistration(PoolId.wrap(rawPoolId)).launchOperator;
     }
 
+    function registrationInputFee(bytes32 rawPoolId) external view returns (uint16) {
+        return this.poolRegistration(PoolId.wrap(rawPoolId)).inputFeeBps;
+    }
+
+    function registrationOutputFee(bytes32 rawPoolId) external view returns (uint16) {
+        return this.poolRegistration(PoolId.wrap(rawPoolId)).outputFeeBps;
+    }
+
     function registrationLifecycleIsCoherent(bytes32 rawPoolId) external view returns (bool) {
         IStaticsLaunchLiquidityHook.PoolRegistration memory registration = this.poolRegistration(PoolId.wrap(rawPoolId));
         return !registration.active || (registration.registered && registration.initialized);

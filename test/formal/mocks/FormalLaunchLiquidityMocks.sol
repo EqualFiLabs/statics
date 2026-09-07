@@ -47,6 +47,20 @@ contract FormalLaunchToken is IERC20 {
     }
 }
 
+    contract FormalLaunchAccessController {
+        bytes32 public constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
+
+        mapping(address account => bool enabled) private proposers;
+
+        function setProposer(address account, bool enabled) external {
+            proposers[account] = enabled;
+        }
+
+        function hasRole(bytes32 role, address account) external view returns (bool) {
+            return role == PROPOSER_ROLE && proposers[account];
+        }
+    }
+
     contract FormalLaunchPoolManager {
         mapping(address owner => mapping(uint256 id => uint256 amount)) public balanceOf;
 

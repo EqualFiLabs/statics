@@ -8,6 +8,8 @@ methods {
     function registrationInitialized(bytes32) external returns (bool) envfree;
     function registrationActive(bytes32) external returns (bool) envfree;
     function registrationLaunchOperator(bytes32) external returns (address) envfree;
+    function registrationInputFee(bytes32) external returns (uint16) envfree;
+    function registrationOutputFee(bytes32) external returns (uint16) envfree;
     function registrationLifecycleIsCoherent(bytes32) external returns (bool) envfree;
 }
 
@@ -44,6 +46,36 @@ rule onlyOwnerCanUpdateReceiver(env e, address nextReceiver) {
 
     assert lastReverted || e.msg.sender == ownerBefore,
         "only owner may update receiver";
+}
+
+/// A successful bilateral fee update can only be authorized by the current owner.
+rule onlyOwnerCanUpdatePoolFees(env e, bytes32 poolId, uint16 inputFeeBps, uint16 outputFeeBps) {
+    address ownerBefore = owner();
+
+    setHookFees@withrevert(e, poolId, inputFeeBps, outputFeeBps);
+
+    assert lastReverted || e.msg.sender == ownerBefore,
+        "only owner may update bilateral pool fees";
+}
+
+/// A successful fee update writes the exact requested rates and cannot mutate another pool.
+rule feeUpdateIsExactAndPoolLocal(
+    env e,
+    bytes32 poolId,
+    bytes32 otherPoolId,
+    uint16 inputFeeBps,
+    uint16 outputFeeBps
+) {
+    bytes32 otherRegistrationBefore = registrationDigest(otherPoolId);
+
+    setHookFees@withrevert(e, poolId, inputFeeBps, outputFeeBps);
+
+    assert lastReverted || registrationInputFee(poolId) == inputFeeBps,
+        "successful update must set the exact input fee";
+    assert lastReverted || registrationOutputFee(poolId) == outputFeeBps,
+        "successful update must set the exact output fee";
+    assert lastReverted || poolId == otherPoolId || registrationDigest(otherPoolId) == otherRegistrationBefore,
+        "fee update must not mutate another pool";
 }
 
 /// Activation is one-way, requires prior initialization, and is limited to owner or launch operator.

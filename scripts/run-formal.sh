@@ -103,6 +103,14 @@ case "$TARGET" in
       '^check_initializedPoolsStayActiveAfterConfigurationChanges'
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-full-fill 8 out-formal-genesis \
       '^check_incompleteSpecifiedFillRevertsBeforeUnspecifiedClaim'
+    run_halmos "$ROOT" StaticsLaunchLiquidityGovernanceHalmosTest launch-liquidity-registration-authority 8 \
+      out-formal-genesis '^check_registrationTracksCurrentProposerRole'
+    run_halmos "$ROOT" StaticsLaunchLiquidityGovernanceHalmosTest launch-liquidity-owner-registration 8 \
+      out-formal-genesis '^check_ownerCanRegisterDirectly'
+    run_halmos "$ROOT" StaticsLaunchLiquidityGovernanceHalmosTest launch-liquidity-proposer-revocation 8 \
+      out-formal-genesis '^check_revokedProposerCannotRegister'
+    run_halmos "$ROOT" StaticsLaunchLiquidityGovernanceHalmosTest launch-liquidity-proposer-boundary 8 \
+      out-formal-genesis '^check_proposerCannotChangeOwnerOnlyConfiguration'
     ;;
   all)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
