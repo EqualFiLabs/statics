@@ -5,11 +5,23 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 contract RepositoryIndependenceTest is Test {
-    function test_activePathsDoNotReachAdjacentRepository() public view {
+    function test_sourceDoesNotReachAdjacentRepository() public view {
         _checkTree("src");
+    }
+
+    function test_testsDoNotReachAdjacentRepository() public view {
         _checkTree("test");
+    }
+
+    function test_scriptsDoNotReachAdjacentRepository() public view {
         _checkTree("script");
+    }
+
+    function test_deploymentsDoNotReachAdjacentRepository() public view {
         _checkTree("deployments");
+    }
+
+    function test_rootConfigurationDoesNotReachAdjacentRepository() public view {
         _checkFile("foundry.toml");
         _checkFile("remappings.txt");
     }
