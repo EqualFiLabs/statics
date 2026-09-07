@@ -1,0 +1,63 @@
+# Launch-liquidity hook verification
+
+This ledger covers the standalone `StaticsLaunchLiquidityHook` and the ordinary
+Uniswap v4 PositionManager positions used with its registered pools. It does not
+claim that external token contracts, PoolManager, PositionManager, price choice,
+tick-range choice, or an offchain liquidity strategy are formally verified.
+
+## Reproduction
+
+Run the focused executable suites locally:
+
+```sh
+forge test --match-path test/liquidity/StaticsLaunchLiquidityHookAdversarial.t.sol -vv
+FOUNDRY_PROFILE=security forge test --match-path test/liquidity/LaunchLiquidityInvariant.t.sol -vv
+FOUNDRY_PROFILE=security forge test --match-path test/liquidity/LaunchLiquidityPositionInvariant.t.sol -vv
+forge test --match-path test/liquidity/LaunchLiquidityPositionManager.t.sol -vv
+```
+
+Run the symbolic hook properties with Halmos 0.3.3:
+
+```sh
+scripts/run-formal.sh launch-liquidity
+```
+
+On a configured Certora host with `solc8.26` and `CERTORAKEY` available:
+
+```sh
+scripts/run-certora.sh launch-liquidity
+```
+
+The scheduled security workflow runs the fuzz and invariant suites at 10,000
+fuzz cases, 1,024 invariant runs, 100 calls per run, and fail-on-revert enabled.
+
+## Property ledger
+
+| Property | Evidence |
+| --- | --- |
+| The specified-leg fee is `ceil(abs(amountSpecified) * feeBps / 10,000)` for both swap directions and exact-input/output, routes the selected currency exactly, returns the exact specified delta, and leaves no hook custody | Halmos over symbolic `uint120` amounts and valid fee rates; full-width Foundry fuzz |
+| The unspecified-leg fee uses the configured complementary rate, routes exactly, and returns the exact unspecified delta | Halmos representative exact-input path over symbolic `uint64` amounts; full-width Foundry fuzz covers both directions, exactness modes, and positive/negative deltas |
+| Per-pool fee changes remain bounded and isolated; receiver rotation preserves every pool registration | Halmos with two PoolKeys; Certora invariant/rule; two-pool stateful invariant |
+| Only PoolManager may enter callbacks; only the owner may register pools, change fees, or rotate the receiver | Halmos, Certora, adversarial unit tests, and fail-on-revert stateful invariant |
+| Initialization succeeds only through the bound PositionManager at the registered price | Halmos and adversarial unit tests |
+| Invalid transfer behavior cannot silently underpay the receiver or over-debit PoolManager; a revert rolls the complete route back | Short-receipt, extra-debit, reverting, zero-transfer, and reentrant token tests |
+| The hook never owns PositionManager NFTs or pool assets | Real PoolManager/PositionManager stateful invariant and adversarial custody assertions |
+| Multiple ordinary positions can coexist, increase, decrease, collect, transfer, fully exit, and burn without changing fee routing or disabling a pool that retains liquidity | Real PoolManager/PositionManager lifecycle tests and two-position stateful invariant |
+| Liquidity owned by an unrelated LP remains unchanged under managed-position action sequences | Real PositionManager stateful invariant with a sentinel external position |
+
+## Proof boundaries
+
+- The Halmos harness bypasses hook-address flag validation so symbolic deployment
+  does not depend on CREATE address mining. Production deployment and unit tests
+  validate the actual permission bits.
+- The before-swap Halmos theorem covers every boolean direction/exactness branch.
+  The post-swap theorem uses one representative positive-delta branch because
+  symbolic signed packed-delta branching is not CI-tractable; the adjacent
+  full-width fuzz test covers all symmetric branches and both signs.
+- Formal transfer proofs use an exact-transfer token. Hostile ERC-20 behavior is
+  covered adversarially and is rejected when PoolManager debit or receiver credit
+  differs from the requested fee.
+- Position lifecycle evidence executes the pinned real Uniswap v4 contracts. It
+  verifies integration behavior but is not a formal proof of those dependencies.
+- None of these checks proves that a chosen price or concentrated range is
+  economically appropriate or that an offchain manager will act profitably.
