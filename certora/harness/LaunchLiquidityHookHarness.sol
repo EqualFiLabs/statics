@@ -23,6 +23,10 @@ contract LaunchLiquidityHookHarness is StaticsLaunchLiquidityHook {
         return keccak256(abi.encode(this.poolRegistration(PoolId.wrap(rawPoolId))));
     }
 
+    function registrationDigestTyped(PoolId poolId) external view returns (bytes32) {
+        return keccak256(abi.encode(this.poolRegistration(poolId)));
+    }
+
     function registrationInitialized(bytes32 rawPoolId) external view returns (bool) {
         return this.poolRegistration(PoolId.wrap(rawPoolId)).initialized;
     }
@@ -35,12 +39,12 @@ contract LaunchLiquidityHookHarness is StaticsLaunchLiquidityHook {
         return this.poolRegistration(PoolId.wrap(rawPoolId)).launchOperator;
     }
 
-    function registrationInputFee(bytes32 rawPoolId) external view returns (uint16) {
-        return this.poolRegistration(PoolId.wrap(rawPoolId)).inputFeeBps;
+    function registrationInputFee(PoolId poolId) external view returns (uint16) {
+        return this.poolRegistration(poolId).inputFeeBps;
     }
 
-    function registrationOutputFee(bytes32 rawPoolId) external view returns (uint16) {
-        return this.poolRegistration(PoolId.wrap(rawPoolId)).outputFeeBps;
+    function registrationOutputFee(PoolId poolId) external view returns (uint16) {
+        return this.poolRegistration(poolId).outputFeeBps;
     }
 
     function registrationLifecycleIsCoherent(bytes32 rawPoolId) external view returns (bool) {

@@ -30,6 +30,9 @@ On a configured Certora host with `solc8.33` and `CERTORAKEY` available:
 scripts/run-certora.sh launch-liquidity
 ```
 
+Latest exact-candidate Certora report:
+https://prover.certora.com/output/8471858/09a9c4b18cc64543aac06459079d92f2
+
 The scheduled security workflow runs the fuzz and invariant suites at 10,000
 fuzz cases, 1,024 invariant runs, 100 calls per run, and fail-on-revert enabled.
 

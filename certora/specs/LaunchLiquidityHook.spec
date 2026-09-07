@@ -5,11 +5,12 @@ methods {
     function positionManager() external returns (address) envfree;
     function registrationFeesWithinCap(bytes32) external returns (bool) envfree;
     function registrationDigest(bytes32) external returns (bytes32) envfree;
+    function registrationDigestTyped(LaunchLiquidityHookHarness.PoolId) external returns (bytes32) envfree;
     function registrationInitialized(bytes32) external returns (bool) envfree;
     function registrationActive(bytes32) external returns (bool) envfree;
     function registrationLaunchOperator(bytes32) external returns (address) envfree;
-    function registrationInputFee(bytes32) external returns (uint16) envfree;
-    function registrationOutputFee(bytes32) external returns (uint16) envfree;
+    function registrationInputFee(LaunchLiquidityHookHarness.PoolId) external returns (uint16) envfree;
+    function registrationOutputFee(LaunchLiquidityHookHarness.PoolId) external returns (uint16) envfree;
     function registrationLifecycleIsCoherent(bytes32) external returns (bool) envfree;
 }
 
@@ -49,7 +50,12 @@ rule onlyOwnerCanUpdateReceiver(env e, address nextReceiver) {
 }
 
 /// A successful bilateral fee update can only be authorized by the current owner.
-rule onlyOwnerCanUpdatePoolFees(env e, bytes32 poolId, uint16 inputFeeBps, uint16 outputFeeBps) {
+rule onlyOwnerCanUpdatePoolFees(
+    env e,
+    LaunchLiquidityHookHarness.PoolId poolId,
+    uint16 inputFeeBps,
+    uint16 outputFeeBps
+) {
     address ownerBefore = owner();
 
     setHookFees@withrevert(e, poolId, inputFeeBps, outputFeeBps);
@@ -61,20 +67,21 @@ rule onlyOwnerCanUpdatePoolFees(env e, bytes32 poolId, uint16 inputFeeBps, uint1
 /// A successful fee update writes the exact requested rates and cannot mutate another pool.
 rule feeUpdateIsExactAndPoolLocal(
     env e,
-    bytes32 poolId,
-    bytes32 otherPoolId,
+    LaunchLiquidityHookHarness.PoolId poolId,
+    LaunchLiquidityHookHarness.PoolId otherPoolId,
     uint16 inputFeeBps,
     uint16 outputFeeBps
 ) {
-    bytes32 otherRegistrationBefore = registrationDigest(otherPoolId);
+    bytes32 otherRegistrationBefore = registrationDigestTyped(otherPoolId);
 
     setHookFees@withrevert(e, poolId, inputFeeBps, outputFeeBps);
+    bool updateReverted = lastReverted;
 
-    assert lastReverted || registrationInputFee(poolId) == inputFeeBps,
+    assert updateReverted || registrationInputFee(poolId) == inputFeeBps,
         "successful update must set the exact input fee";
-    assert lastReverted || registrationOutputFee(poolId) == outputFeeBps,
+    assert updateReverted || registrationOutputFee(poolId) == outputFeeBps,
         "successful update must set the exact output fee";
-    assert lastReverted || poolId == otherPoolId || registrationDigest(otherPoolId) == otherRegistrationBefore,
+    assert updateReverted || poolId == otherPoolId || registrationDigestTyped(otherPoolId) == otherRegistrationBefore,
         "fee update must not mutate another pool";
 }
 
