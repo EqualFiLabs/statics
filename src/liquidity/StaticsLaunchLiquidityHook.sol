@@ -22,8 +22,8 @@ import {IStaticsLaunchLiquidityHook} from "../interfaces/IStaticsLaunchLiquidity
 
 /// @notice Standalone fee hook for temporary Statics launch pools.
 /// @dev Each registered PoolKey selects its own static native LP fee and bilateral hook fees.
-/// Hook fees route directly from PoolManager to a mutable receiver. Liquidity remains in ordinary,
-/// externally owned PositionManager NFTs and can be managed without calling this hook.
+/// Hook fees accrue as PoolManager ERC-6909 claims to a mutable receiver. Liquidity remains in
+/// ordinary, externally owned PositionManager NFTs and can be managed without calling this hook.
 contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ownable2Step {
     using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
@@ -50,10 +50,15 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
     error HookFeeTooLarge(uint16 feeBps);
     error PoolAlreadyRegistered(PoolId poolId);
     error PoolNotRegistered(PoolId poolId);
+    error InvalidLaunchOperator(address launchOperator);
     error UnauthorizedInitializer(address sender);
+    error UnauthorizedActivator(address sender);
+    error PoolNotInitialized(PoolId poolId);
+    error PoolAlreadyActive(PoolId poolId);
+    error PoolNotActive(PoolId poolId);
     error InitialPriceMismatch(uint160 expected, uint160 actual);
-    error IncompatiblePoolCurrency(Currency currency, uint256 requested, uint256 received);
-    error UnexpectedTokenDebit(Currency currency, uint256 expected, uint256 actual);
+    error IncompleteSpecifiedFill(int256 expected, int256 actual);
+    error OwnershipRenunciationDisabled();
 
     constructor(
         IPoolManager manager,
@@ -68,8 +73,8 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         if (boundManager != address(manager)) {
             revert InvalidPositionManagerBinding(address(manager), boundManager);
         }
-        _enforceValidReceiver(initialFeeReceiver);
         _positionManager = positionManager_;
+        _enforceValidReceiver(initialFeeReceiver);
         feeReceiver = initialFeeReceiver;
     }
 
@@ -85,12 +90,13 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         permissions.afterSwapReturnDelta = true;
     }
 
-    function registerPool(PoolKey calldata key, uint160 expectedSqrtPriceX96, uint16 inputFeeBps, uint16 outputFeeBps)
-        external
-        override
-        onlyOwner
-        returns (PoolId poolId)
-    {
+    function registerPool(
+        PoolKey calldata key,
+        uint160 expectedSqrtPriceX96,
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
+        address launchOperator
+    ) external override onlyOwner returns (PoolId poolId) {
         if (address(key.hooks) != address(this)) revert InvalidHook(address(key.hooks));
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
@@ -106,6 +112,7 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         }
         _enforceHookFee(inputFeeBps);
         _enforceHookFee(outputFeeBps);
+        _enforceValidLaunchOperator(launchOperator);
 
         poolId = key.toId();
         if (registrations[poolId].registered) revert PoolAlreadyRegistered(poolId);
@@ -117,6 +124,9 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
             expectedSqrtPriceX96: expectedSqrtPriceX96,
             inputFeeBps: inputFeeBps,
             outputFeeBps: outputFeeBps,
+            launchOperator: launchOperator,
+            initialized: false,
+            active: false,
             registered: true
         });
         emit PoolRegistered(
@@ -127,8 +137,20 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
             key.tickSpacing,
             expectedSqrtPriceX96,
             inputFeeBps,
-            outputFeeBps
+            outputFeeBps,
+            launchOperator
         );
+    }
+
+    function activatePool(PoolId poolId) external override {
+        PoolRegistration storage registration = _registration(poolId);
+        if (msg.sender != registration.launchOperator && msg.sender != owner()) {
+            revert UnauthorizedActivator(msg.sender);
+        }
+        if (!registration.initialized) revert PoolNotInitialized(poolId);
+        if (registration.active) revert PoolAlreadyActive(poolId);
+        registration.active = true;
+        emit PoolActivated(poolId, msg.sender);
     }
 
     function setHookFees(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external override onlyOwner {
@@ -150,13 +172,16 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         emit FeeReceiverSet(previous, newReceiver);
     }
 
+    function renounceOwnership() public pure override {
+        revert OwnershipRenunciationDisabled();
+    }
+
     function poolRegistration(PoolId poolId) external view override returns (PoolRegistration memory registration) {
         return registrations[poolId];
     }
 
     function _afterInitialize(address sender, PoolKey calldata key, uint160 sqrtPriceX96, int24)
         internal
-        view
         override
         returns (bytes4)
     {
@@ -165,6 +190,8 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         if (sqrtPriceX96 != registration.expectedSqrtPriceX96) {
             revert InitialPriceMismatch(registration.expectedSqrtPriceX96, sqrtPriceX96);
         }
+        registration.initialized = true;
+        emit PoolInitialized(key.toId());
         return IHooks.afterInitialize.selector;
     }
 
@@ -175,10 +202,11 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
     {
         PoolId poolId = key.toId();
         PoolRegistration storage registration = _registration(poolId);
+        if (!registration.active) revert PoolNotActive(poolId);
         bool exactInput = params.amountSpecified < 0;
         uint256 realized = _absolute(params.amountSpecified);
         uint16 feeBps = exactInput ? registration.inputFeeBps : registration.outputFeeBps;
-        uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
+        uint256 charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
         if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
         _routeFee(poolId, specified, realized, charged, true);
@@ -194,26 +222,27 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         PoolRegistration storage registration = _registration(poolId);
         bool exactInput = params.amountSpecified < 0;
         bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
+        int128 specifiedDelta = specifiedCurrencyIs0 ? delta.amount0() : delta.amount1();
+        uint16 specifiedFeeBps = exactInput ? registration.inputFeeBps : registration.outputFeeBps;
+        uint256 specifiedFee = exactInput
+            ? _feeFromGross(_absolute(params.amountSpecified), specifiedFeeBps)
+            : _feeFromNet(_absolute(params.amountSpecified), specifiedFeeBps);
+        int256 expectedSpecifiedDelta = params.amountSpecified + int256(specifiedFee);
+        if (int256(specifiedDelta) != expectedSpecifiedDelta) {
+            revert IncompleteSpecifiedFill(expectedSpecifiedDelta, int256(specifiedDelta));
+        }
         Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
         int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
         uint256 realized = _absolute(int256(unspecifiedDelta));
         uint16 feeBps = exactInput ? registration.outputFeeBps : registration.inputFeeBps;
-        uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
+        uint256 charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
         if (charged != 0) _routeFee(poolId, unspecified, realized, charged, false);
         return (IHooks.afterSwap.selector, charged.toInt128());
     }
 
     function _routeFee(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg) private {
         address receiver = feeReceiver;
-        uint256 managerBefore = currency.balanceOf(address(poolManager));
-        uint256 receiverBefore = currency.balanceOf(receiver);
-        poolManager.take(currency, receiver, charged);
-        uint256 managerAfter = currency.balanceOf(address(poolManager));
-        uint256 receiverAfter = currency.balanceOf(receiver);
-        uint256 debited = managerBefore >= managerAfter ? managerBefore - managerAfter : 0;
-        if (debited != charged) revert UnexpectedTokenDebit(currency, charged, debited);
-        uint256 received = receiverAfter >= receiverBefore ? receiverAfter - receiverBefore : 0;
-        if (received != charged) revert IncompatiblePoolCurrency(currency, charged, received);
+        poolManager.mint(receiver, currency.toId(), charged);
         emit SwapLegFeeRouted(poolId, currency, specifiedLeg, realized, charged, receiver);
     }
 
@@ -223,13 +252,35 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
     }
 
     function _enforceValidReceiver(address receiver) private view {
-        if (receiver == address(0) || receiver == address(this) || receiver == address(poolManager)) {
+        if (
+            receiver == address(0) || receiver == address(this) || receiver == address(poolManager)
+                || receiver == address(_positionManager)
+        ) {
             revert InvalidReceiver();
+        }
+    }
+
+    function _enforceValidLaunchOperator(address launchOperator) private view {
+        if (
+            launchOperator == address(0) || launchOperator == address(this) || launchOperator == address(poolManager)
+                || launchOperator == address(_positionManager) || launchOperator == address(1)
+                || launchOperator == address(2)
+        ) {
+            revert InvalidLaunchOperator(launchOperator);
         }
     }
 
     function _enforceHookFee(uint16 feeBps) private pure {
         if (feeBps > MAX_HOOK_FEE_BPS) revert HookFeeTooLarge(feeBps);
+    }
+
+    function _feeFromGross(uint256 amount, uint16 feeBps) private pure returns (uint256) {
+        return Math.mulDiv(amount, feeBps, BPS, Math.Rounding.Ceil);
+    }
+
+    function _feeFromNet(uint256 amount, uint16 feeBps) private pure returns (uint256) {
+        if (feeBps == 0) return 0;
+        return Math.mulDiv(amount, feeBps, BPS - feeBps, Math.Rounding.Ceil);
     }
 
     function _absolute(int256 value) private pure returns (uint256) {

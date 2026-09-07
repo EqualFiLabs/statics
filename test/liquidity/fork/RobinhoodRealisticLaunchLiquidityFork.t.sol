@@ -107,7 +107,7 @@ contract RobinhoodRealisticLaunchLiquidityForkTest is Test, LiquidityOperations 
             tickSpacing: 60,
             hooks: IHooks(hook)
         });
-        hook.registerPool(key, INITIAL_SQRT_PRICE_X96, 50, 50);
+        hook.registerPool(key, INITIAL_SQRT_PRICE_X96, 50, 50, positionOwner);
 
         _approvePositionManager(STATICS);
         _approvePositionManager(NVDA);
@@ -145,10 +145,10 @@ contract RobinhoodRealisticLaunchLiquidityForkTest is Test, LiquidityOperations 
         uint256 totalUsdNotional =
             totalStaticsInput * STATICS_USD_NUMERATOR / STATICS_USD_DENOMINATOR + totalNvdaInput * NVDA_USD_PRICE;
         assertApproxEqAbs(totalUsdNotional, SWAP_USD_NOTIONAL, 2_000);
-        assertEq(IERC20(STATICS).balanceOf(initialFeeReceiver), 0);
-        assertEq(IERC20(NVDA).balanceOf(initialFeeReceiver), 0);
-        assertGt(IERC20(STATICS).balanceOf(replacementFeeReceiver), 0);
-        assertGt(IERC20(NVDA).balanceOf(replacementFeeReceiver), 0);
+        assertEq(poolManager.balanceOf(initialFeeReceiver, Currency.wrap(STATICS).toId()), 0);
+        assertEq(poolManager.balanceOf(initialFeeReceiver, Currency.wrap(NVDA).toId()), 0);
+        assertGt(poolManager.balanceOf(replacementFeeReceiver, Currency.wrap(STATICS).toId()), 0);
+        assertGt(poolManager.balanceOf(replacementFeeReceiver, Currency.wrap(NVDA).toId()), 0);
         assertEq(IERC20(STATICS).balanceOf(address(hook)), 0);
         assertEq(IERC20(NVDA).balanceOf(address(hook)), 0);
 
@@ -161,9 +161,9 @@ contract RobinhoodRealisticLaunchLiquidityForkTest is Test, LiquidityOperations 
         assertEq(lpm.getPositionLiquidity(narrowTokenId), narrowLiquidity);
         assertEq(lpm.getPositionLiquidity(broadTokenId), broadLiquidity);
 
-        uint256 receiverStaticsBefore = IERC20(STATICS).balanceOf(replacementFeeReceiver);
+        uint256 receiverStaticsBefore = poolManager.balanceOf(replacementFeeReceiver, Currency.wrap(STATICS).toId());
         _swap(true, 1_000 ether);
-        assertGt(IERC20(STATICS).balanceOf(replacementFeeReceiver), receiverStaticsBefore);
+        assertGt(poolManager.balanceOf(replacementFeeReceiver, Currency.wrap(STATICS).toId()), receiverStaticsBefore);
     }
 
     function _createPositions() private {
@@ -202,6 +202,8 @@ contract RobinhoodRealisticLaunchLiquidityForkTest is Test, LiquidityOperations 
         );
         broadTokenId = lpm.nextTokenId();
         mint(broadPosition, broadLiquidity, positionOwner, "");
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
     }
 
     function _initializeAndMintSingleSided(uint256 launchStaticsAmount) private {

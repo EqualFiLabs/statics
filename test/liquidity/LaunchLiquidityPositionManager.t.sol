@@ -7,6 +7,7 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
@@ -26,6 +27,7 @@ import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiqui
 /// that removing selected positions does not disable the pool or its hook fee routing.
 contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, LiquidityOperations {
     using Planner for Plan;
+    using PoolIdLibrary for PoolKey;
 
     uint24 private constant LP_FEE = 3_000;
     int24 private constant TICK_SPACING = 60;
@@ -51,7 +53,7 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         key = PoolKey({
             currency0: currency0, currency1: currency1, fee: LP_FEE, tickSpacing: TICK_SPACING, hooks: IHooks(hook)
         });
-        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50);
+        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50, positionOwner);
         _approvePositionManager(currency0);
         _approvePositionManager(currency1);
     }
@@ -70,6 +72,8 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         assertEq(currency1.balanceOfSelf(), balance1Before);
         assertEq(currency0.balanceOf(address(hook)), 0);
         assertEq(currency1.balanceOf(address(hook)), 0);
+        assertTrue(hook.poolRegistration(key.toId()).initialized);
+        assertFalse(hook.poolRegistration(key.toId()).active);
     }
 
     function testMintsSingleSidedCurrency1WhenPriceStartsAboveRange() public {
@@ -81,6 +85,21 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
 
         assertEq(currency0.balanceOfSelf(), balance0Before);
         assertLt(currency1.balanceOfSelf(), balance1Before);
+    }
+
+    function testFirstConvertingSwapSucceedsWithoutCounterassetInventory() public {
+        PositionConfig memory launchPosition = PositionConfig({poolKey: key, tickLower: 60, tickUpper: 600});
+        _initializeAndMint(launchPosition, INITIAL_LIQUIDITY, type(uint128).max, 0, positionOwner);
+        assertEq(currency1.balanceOf(address(manager)), 0);
+
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+        swap(key, false, -int256(0.001 ether), ZERO_BYTES);
+
+        assertGt(manager.balanceOf(feeReceiver, currency1.toId()), 0);
+        assertGt(manager.balanceOf(feeReceiver, currency0.toId()), 0);
+        assertEq(currency0.balanceOf(address(hook)), 0);
+        assertEq(currency1.balanceOf(address(hook)), 0);
     }
 
     function testMultipleOwnerPositionsCanBePartiallyRemovedWhilePoolStaysLive() public {
@@ -117,9 +136,11 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         assertEq(lpm.getPositionLiquidity(secondId), 0);
         assertEq(lpm.getPositionLiquidity(independentId), INITIAL_LIQUIDITY);
 
-        uint256 receiverBefore = currency0.balanceOf(feeReceiver);
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+        uint256 receiverBefore = manager.balanceOf(feeReceiver, currency0.toId());
         swap(key, true, -int256(0.001 ether), ZERO_BYTES);
-        assertGt(currency0.balanceOf(feeReceiver), receiverBefore);
+        assertGt(manager.balanceOf(feeReceiver, currency0.toId()), receiverBefore);
         assertEq(currency0.balanceOf(address(hook)), 0);
         assertEq(currency1.balanceOf(address(hook)), 0);
     }
@@ -131,9 +152,11 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
 
         assertEq(positionManager.ownerOf(tokenId), positionOwner);
         assertTrue(positionOwner != hook.feeReceiver());
-        uint256 receiverBefore = currency1.balanceOf(feeReceiver);
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+        uint256 receiverBefore = manager.balanceOf(feeReceiver, currency1.toId());
         swap(key, false, -int256(0.001 ether), ZERO_BYTES);
-        assertGt(currency1.balanceOf(feeReceiver), receiverBefore);
+        assertGt(manager.balanceOf(feeReceiver, currency1.toId()), receiverBefore);
         assertEq(currency0.balanceOf(positionOwner), 0);
         assertEq(currency1.balanceOf(positionOwner), 0);
     }

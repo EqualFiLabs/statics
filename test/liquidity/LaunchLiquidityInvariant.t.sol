@@ -6,6 +6,7 @@ import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {Test} from "forge-std/Test.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
@@ -27,6 +28,7 @@ import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiqui
 
 contract LaunchLiquidityHandler is Test {
     PoolSwapTest private immutable router;
+    IPoolManager private immutable manager;
     StaticsLaunchLiquidityHook private immutable hook;
     Currency private immutable currency0;
     Currency private immutable currency1;
@@ -38,8 +40,15 @@ contract LaunchLiquidityHandler is Test {
     bool public receiverBalanceDecreased;
     bool public hookRetainedTokens;
 
-    constructor(PoolSwapTest router_, StaticsLaunchLiquidityHook hook_, PoolKey memory key_, address feeReceiver_) {
+    constructor(
+        PoolSwapTest router_,
+        IPoolManager manager_,
+        StaticsLaunchLiquidityHook hook_,
+        PoolKey memory key_,
+        address feeReceiver_
+    ) {
         router = router_;
+        manager = manager_;
         hook = hook_;
         key = key_;
         currency0 = key_.currency0;
@@ -71,8 +80,8 @@ contract LaunchLiquidityHandler is Test {
             BalanceDelta
         ) {}
             catch {}
-        uint256 receiver0 = currency0.balanceOf(feeReceiver);
-        uint256 receiver1 = currency1.balanceOf(feeReceiver);
+        uint256 receiver0 = manager.balanceOf(feeReceiver, currency0.toId());
+        uint256 receiver1 = manager.balanceOf(feeReceiver, currency1.toId());
         if (receiver0 < lastReceiver0 || receiver1 < lastReceiver1) receiverBalanceDecreased = true;
         if (currency0.balanceOf(address(hook)) != 0 || currency1.balanceOf(address(hook)) != 0) {
             hookRetainedTokens = true;
@@ -103,11 +112,12 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
         hook = _deployHook(IPositionManager(address(positionManager)));
         poolKey =
             PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
-        poolId = hook.registerPool(poolKey, SQRT_PRICE_1_1, 25, 75);
+        poolId = hook.registerPool(poolKey, SQRT_PRICE_1_1, 25, 75, address(this));
         positionManager.initializePool(poolKey, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(poolKey, LIQUIDITY_PARAMS, "");
+        hook.activatePool(poolId);
 
-        handler = new LaunchLiquidityHandler(swapRouter, hook, poolKey, feeReceiver);
+        handler = new LaunchLiquidityHandler(swapRouter, IPoolManager(manager), hook, poolKey, feeReceiver);
         MockERC20(Currency.unwrap(currency0)).mint(address(handler), 1_000_000 ether);
         MockERC20(Currency.unwrap(currency1)).mint(address(handler), 1_000_000 ether);
         targetContract(address(handler));
@@ -131,6 +141,8 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
         assertEq(registration.expectedSqrtPriceX96, SQRT_PRICE_1_1);
         assertEq(registration.inputFeeBps, 25);
         assertEq(registration.outputFeeBps, 75);
+        assertTrue(registration.initialized);
+        assertTrue(registration.active);
     }
 
     function _deployHook(IPositionManager positionManager_) private returns (StaticsLaunchLiquidityHook deployed) {

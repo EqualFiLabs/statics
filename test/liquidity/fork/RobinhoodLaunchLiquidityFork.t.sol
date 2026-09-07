@@ -10,6 +10,7 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
@@ -26,6 +27,7 @@ import {StaticsLaunchLiquidityHook} from "../../../src/liquidity/StaticsLaunchLi
 /// latest-state mode additionally exercises the deployed STATICS and NVDA token contracts.
 contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
     using Planner for Plan;
+    using PoolIdLibrary for PoolKey;
 
     string private constant MANIFEST_PATH = "deployments/robinhood-chain-4663.json";
     address private constant STATICS = 0x2d8d6F4A93AcD7a916A5a654ec8b690bA3B3EAdd;
@@ -90,7 +92,7 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
 
         hook = _deployHook();
         key = PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
-        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50);
+        hook.registerPool(key, SQRT_PRICE_1_1, 50, 50, positionOwner);
         _approvePositionManager(currency0);
         _approvePositionManager(currency1);
         IERC20(Currency.unwrap(currency0)).approve(address(swapRouter), type(uint256).max);
@@ -107,6 +109,8 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
         activePosition = PositionConfig({poolKey: key, tickLower: -600, tickUpper: 600});
         activeTokenId = lpm.nextTokenId();
         mint(activePosition, 1e25, positionOwner, "");
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
     }
 
     function testDeployedDependenciesSupportExternalLaunchAndHundredThousandVolume() public {
@@ -133,8 +137,8 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
             totalInput += 5_000 ether;
         }
         assertEq(totalInput, 100_000 ether);
-        assertGt(currency0.balanceOf(feeReceiver), 0);
-        assertGt(currency1.balanceOf(feeReceiver), 0);
+        assertGt(poolManager.balanceOf(feeReceiver, currency0.toId()), 0);
+        assertGt(poolManager.balanceOf(feeReceiver, currency1.toId()), 0);
         assertEq(currency0.balanceOf(address(hook)), 0);
         assertEq(currency1.balanceOf(address(hook)), 0);
 
@@ -144,7 +148,7 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
         );
         assertEq(lpm.getPositionLiquidity(launchTokenId), 5e24);
 
-        uint256 staticsBefore = staticsCurrency.balanceOf(feeReceiver);
+        uint256 staticsBefore = poolManager.balanceOf(feeReceiver, staticsCurrency.toId());
         bool staticsIsCurrency0 = Currency.unwrap(currency0) == Currency.unwrap(staticsCurrency);
         swapRouter.swap(
             key,
@@ -156,7 +160,7 @@ contract RobinhoodLaunchLiquidityForkTest is Test, LiquidityOperations {
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         );
-        assertGt(staticsCurrency.balanceOf(feeReceiver), staticsBefore);
+        assertGt(poolManager.balanceOf(feeReceiver, staticsCurrency.toId()), staticsBefore);
     }
 
     function _initializeAndMintSingleSided(bool staticsIsCurrency0) private {
