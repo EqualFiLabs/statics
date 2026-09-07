@@ -380,6 +380,34 @@ $10,000 single-sided STATICS seed transfers zero NVDA, adds two independently
 owned concentrated positions, reconfigures bilateral hook fees and their
 receiver, executes approximately $100,000 of two-way input notional, removes
 10% of only the launch position, and verifies another swap still succeeds.
+The receiver accrues PoolManager ERC-6909 claims for each charged currency;
+neither the hook nor the receiver needs raw counterasset inventory for the
+first converting swap.
+
+Each registered launch pool has a designated launch operator. The bound
+PositionManager must initialize it at the registered price, positions may then
+be minted normally, and swaps remain disabled until either that operator or
+hook governance calls `activatePool`. Activation is permanent and does not
+restrict later PositionManager NFT additions, removals, transfers, or burns.
+
+The deployment artifact contains only stable deployment and pool configuration.
+Generate expiring PositionManager calldata immediately before execution:
+
+```shell
+STATICS_LAUNCH_LIQUIDITY_ARTIFACT=artifacts/launch-liquidity/robinhood-4663.json \
+STATICS_LAUNCH_POSITION_ARTIFACT=artifacts/launch-liquidity/robinhood-4663-position.json \
+STATICS_LAUNCH_POSITION_DEADLINE="$FRESH_UNIX_TIMESTAMP" \
+forge script \
+  script/PrepareStaticsLaunchPosition.s.sol:PrepareStaticsLaunchPosition \
+  --rpc-url "$ROBINHOOD_MAINNET"
+```
+
+The prepared artifact includes atomic initialize-and-mint calldata, a mint-only
+fallback if the exact-price initialization was already completed, and separate
+activation calldata. To convert accrued claims to underlying tokens, the claim
+owner authorizes the deployed `StaticsLaunchFeeClaimRedeemer` in PoolManager
+and calls `redeem`; the helper burns the claims and sends the underlying to the
+chosen recipient without retaining custody.
 
 ### Robinhood Chain testnet
 

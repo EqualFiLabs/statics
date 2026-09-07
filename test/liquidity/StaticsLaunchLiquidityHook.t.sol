@@ -7,11 +7,14 @@ import {Test} from "forge-std/Test.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {DeployPermit2} from "permit2/test/utils/DeployPermit2.sol";
@@ -21,6 +24,7 @@ import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
 import {PositionManager} from "@uniswap/v4-periphery/src/PositionManager.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsLaunchLiquidityHook} from "../../src/interfaces/IStaticsLaunchLiquidityHook.sol";
+import {StaticsLaunchFeeClaimRedeemer} from "../../src/liquidity/StaticsLaunchFeeClaimRedeemer.sol";
 import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
@@ -49,11 +53,12 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         key = PoolKey({
             currency0: currency0, currency1: currency1, fee: LP_FEE, tickSpacing: TICK_SPACING, hooks: IHooks(hook)
         });
-        poolId = hook.registerPool(key, SQRT_PRICE_1_1, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        poolId = hook.registerPool(key, SQRT_PRICE_1_1, INPUT_FEE_BPS, OUTPUT_FEE_BPS, address(this));
         positionManagerContract.initializePool(key, SQRT_PRICE_1_1);
 
         LIQUIDITY_PARAMS.liquidityDelta = 1e18;
         modifyLiquidityRouter.modifyLiquidity(key, LIQUIDITY_PARAMS, ZERO_BYTES);
+        hook.activatePool(poolId);
     }
 
     function testStoresExplicitPoolConfigurationAndExactPermissionMask() public view {
@@ -80,12 +85,15 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         assertEq(registration.expectedSqrtPriceX96, SQRT_PRICE_1_1);
         assertEq(registration.inputFeeBps, INPUT_FEE_BPS);
         assertEq(registration.outputFeeBps, OUTPUT_FEE_BPS);
+        assertEq(registration.launchOperator, address(this));
+        assertTrue(registration.initialized);
+        assertTrue(registration.active);
     }
 
     function testRegistersDifferentStaticNativeFeesAcrossPools() public {
         PoolKey memory second = key;
         second.fee = 5_000;
-        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 10, 20);
+        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 10, 20, address(this));
 
         assertTrue(PoolId.unwrap(secondId) != PoolId.unwrap(poolId));
         assertEq(hook.poolRegistration(secondId).nativeLpFee, 5_000);
@@ -95,15 +103,17 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
     function testMultiplePoolsRouteIndependentConfiguredFees() public {
         PoolKey memory second = key;
         second.fee = 5_000;
-        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 100, 200);
+        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 100, 200, address(this));
         positionManagerContract.initializePool(second, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(second, LIQUIDITY_PARAMS, ZERO_BYTES);
+        hook.activatePool(secondId);
 
         uint256 amountIn = 0.001 ether;
-        uint256 receiverBefore = currency0.balanceOf(feeReceiver);
+        uint256 receiverBefore = manager.balanceOf(feeReceiver, currency0.toId());
         swap(second, true, -int256(amountIn), ZERO_BYTES);
         assertEq(
-            currency0.balanceOf(feeReceiver) - receiverBefore, Math.mulDiv(amountIn, 100, 10_000, Math.Rounding.Ceil)
+            manager.balanceOf(feeReceiver, currency0.toId()) - receiverBefore,
+            Math.mulDiv(amountIn, 100, 10_000, Math.Rounding.Ceil)
         );
         assertEq(hook.poolRegistration(secondId).inputFeeBps, 100);
         assertEq(hook.poolRegistration(poolId).inputFeeBps, INPUT_FEE_BPS);
@@ -113,23 +123,74 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         PoolKey memory invalid = key;
         invalid.fee = LPFeeLibrary.DYNAMIC_FEE_FLAG;
         vm.expectRevert(StaticsLaunchLiquidityHook.DynamicNativeLpFeeUnsupported.selector);
-        hook.registerPool(invalid, SQRT_PRICE_1_1, 0, 0);
+        hook.registerPool(invalid, SQRT_PRICE_1_1, 0, 0, address(this));
 
         PoolKey memory second = key;
         second.fee = 5_000;
         vm.expectRevert(abi.encodeWithSelector(StaticsLaunchLiquidityHook.HookFeeTooLarge.selector, uint16(1_001)));
-        hook.registerPool(second, SQRT_PRICE_1_1, 1_001, 0);
+        hook.registerPool(second, SQRT_PRICE_1_1, 1_001, 0, address(this));
     }
 
     function testRejectsDirectInitializationAndWrongPositionManagerPrice() public {
         PoolKey memory second = key;
         second.fee = 5_000;
-        hook.registerPool(second, SQRT_PRICE_1_1, 0, 0);
+        hook.registerPool(second, SQRT_PRICE_1_1, 0, 0, address(this));
 
         vm.expectRevert();
         manager.initialize(second, SQRT_PRICE_1_1);
         assertEq(positionManagerContract.initializePool(second, SQRT_PRICE_1_1 + 1), type(int24).max);
         assertEq(positionManagerContract.initializePool(second, SQRT_PRICE_1_1), 0);
+    }
+
+    function testPoolCannotSwapUntilLaunchOperatorActivatesIt() public {
+        PoolKey memory second = key;
+        second.fee = 5_000;
+        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 10, 20, outsider);
+        positionManagerContract.initializePool(second, SQRT_PRICE_1_1);
+        modifyLiquidityRouter.modifyLiquidity(second, LIQUIDITY_PARAMS, ZERO_BYTES);
+
+        vm.expectRevert();
+        swap(second, true, -int256(0.001 ether), ZERO_BYTES);
+
+        vm.prank(outsider);
+        hook.activatePool(secondId);
+        swap(second, true, -int256(0.001 ether), ZERO_BYTES);
+    }
+
+    function testActivationRequiresInitializationAndAuthorizedCaller() public {
+        PoolKey memory second = key;
+        second.fee = 5_000;
+        PoolId secondId = hook.registerPool(second, SQRT_PRICE_1_1, 10, 20, outsider);
+
+        vm.prank(outsider);
+        vm.expectRevert(abi.encodeWithSelector(StaticsLaunchLiquidityHook.PoolNotInitialized.selector, secondId));
+        hook.activatePool(secondId);
+        positionManagerContract.initializePool(second, SQRT_PRICE_1_1);
+
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(StaticsLaunchLiquidityHook.UnauthorizedActivator.selector, stranger));
+        hook.activatePool(secondId);
+
+        vm.prank(outsider);
+        hook.activatePool(secondId);
+        vm.prank(outsider);
+        vm.expectRevert(abi.encodeWithSelector(StaticsLaunchLiquidityHook.PoolAlreadyActive.selector, secondId));
+        hook.activatePool(secondId);
+    }
+
+    function testPartialSpecifiedFillRevertsWithoutMintingClaims() public {
+        uint256 claim0Before = manager.balanceOf(feeReceiver, currency0.toId());
+        uint256 claim1Before = manager.balanceOf(feeReceiver, currency1.toId());
+        vm.expectRevert();
+        swapRouter.swap(
+            key,
+            SwapParams({zeroForOne: true, amountSpecified: -int256(1 ether), sqrtPriceLimitX96: SQRT_PRICE_1_1 - 1}),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ZERO_BYTES
+        );
+        assertEq(manager.balanceOf(feeReceiver, currency0.toId()), claim0Before);
+        assertEq(manager.balanceOf(feeReceiver, currency1.toId()), claim1Before);
     }
 
     function testExactInputRoutesConfiguredBilateralFees() public {
@@ -176,7 +237,7 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, outsider));
         hook.setFeeReceiver(outsider);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, outsider));
-        hook.registerPool(key, SQRT_PRICE_1_1, 1, 2);
+        hook.registerPool(key, SQRT_PRICE_1_1, 1, 2, address(this));
         vm.stopPrank();
     }
 
@@ -187,8 +248,33 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         hook.setFeeReceiver(address(hook));
         vm.expectRevert(StaticsLaunchLiquidityHook.InvalidReceiver.selector);
         hook.setFeeReceiver(address(manager));
+        vm.expectRevert(StaticsLaunchLiquidityHook.InvalidReceiver.selector);
+        hook.setFeeReceiver(address(positionManagerContract));
         vm.expectRevert(abi.encodeWithSelector(StaticsLaunchLiquidityHook.HookFeeTooLarge.selector, uint16(1_001)));
         hook.setHookFees(poolId, 0, 1_001);
+    }
+
+    function testOwnershipCannotBeRenounced() public {
+        vm.expectRevert(StaticsLaunchLiquidityHook.OwnershipRenunciationDisabled.selector);
+        hook.renounceOwnership();
+    }
+
+    function testFeeReceiverCanRedeemClaimsWithoutGivingRedeemerCustody() public {
+        _assertSwapAccounting(true, -int256(0.001 ether), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        uint256 claimAmount = manager.balanceOf(feeReceiver, currency0.toId());
+        assertGt(claimAmount, 0);
+
+        StaticsLaunchFeeClaimRedeemer redeemer = new StaticsLaunchFeeClaimRedeemer(IPoolManager(manager));
+        vm.prank(feeReceiver);
+        manager.setOperator(address(redeemer), true);
+
+        uint256 recipientBefore = currency0.balanceOf(outsider);
+        vm.prank(feeReceiver);
+        redeemer.redeem(currency0, claimAmount, outsider);
+
+        assertEq(manager.balanceOf(feeReceiver, currency0.toId()), 0);
+        assertEq(currency0.balanceOf(outsider) - recipientBefore, claimAmount);
+        assertEq(currency0.balanceOf(address(redeemer)), 0);
     }
 
     function _assertSwapAccounting(
@@ -201,9 +287,11 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         Currency specified = (zeroForOne == exactInput) ? currency0 : currency1;
         Currency unspecified = specified == currency0 ? currency1 : currency0;
         uint256 specifiedRealized = _absolute(amountSpecified);
-        uint256 specifiedFee = Math.mulDiv(specifiedRealized, specifiedFeeBps, 10_000, Math.Rounding.Ceil);
-        uint256 specifiedReceiverBefore = specified.balanceOf(feeReceiver);
-        uint256 unspecifiedReceiverBefore = unspecified.balanceOf(feeReceiver);
+        uint256 specifiedFee = exactInput
+            ? _feeFromGross(specifiedRealized, specifiedFeeBps)
+            : _feeFromNet(specifiedRealized, specifiedFeeBps);
+        uint256 specifiedReceiverBefore = manager.balanceOf(feeReceiver, specified.toId());
+        uint256 unspecifiedReceiverBefore = manager.balanceOf(feeReceiver, unspecified.toId());
 
         BalanceDelta delta = swap(key, zeroForOne, amountSpecified, ZERO_BYTES);
         bool specifiedCurrencyIs0 = exactInput == zeroForOne;
@@ -212,8 +300,10 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
             ? _feeFromNet(_absolute(int256(unspecifiedDelta)), unspecifiedFeeBps)
             : _feeFromGross(_absolute(int256(unspecifiedDelta)), unspecifiedFeeBps);
 
-        assertEq(specified.balanceOf(feeReceiver) - specifiedReceiverBefore, specifiedFee);
-        assertApproxEqAbs(unspecified.balanceOf(feeReceiver) - unspecifiedReceiverBefore, unspecifiedFee, 1);
+        assertEq(manager.balanceOf(feeReceiver, specified.toId()) - specifiedReceiverBefore, specifiedFee);
+        assertApproxEqAbs(
+            manager.balanceOf(feeReceiver, unspecified.toId()) - unspecifiedReceiverBefore, unspecifiedFee, 1
+        );
         assertEq(currency0.balanceOf(address(hook)), 0);
         assertEq(currency1.balanceOf(address(hook)), 0);
     }
@@ -232,7 +322,7 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
     }
 
     function _feeFromGross(uint256 grossAmount, uint256 feeBps) private pure returns (uint256) {
-        return Math.mulDiv(grossAmount, feeBps, 10_000 + feeBps, Math.Rounding.Ceil);
+        return Math.mulDiv(grossAmount, feeBps, 10_000, Math.Rounding.Ceil);
     }
 
     function _absolute(int256 value) private pure returns (uint256) {

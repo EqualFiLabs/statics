@@ -5,7 +5,9 @@ import {Test} from "forge-std/Test.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {DeployStaticsLaunchLiquidity} from "../../script/DeployStaticsLaunchLiquidity.s.sol";
+import {PrepareStaticsLaunchPosition} from "../../script/PrepareStaticsLaunchPosition.s.sol";
 import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 contract LaunchBindingMock {
@@ -58,7 +60,6 @@ contract DeployStaticsLaunchLiquidityTest is Test {
             amount1Max: staticsIsCurrency0 ? 0 : type(uint128).max,
             inputFeeBps: 25,
             outputFeeBps: 75,
-            positionDeadline: block.timestamp + 1 days,
             poolManagerCodeHash: address(manager).codehash,
             positionManagerCodeHash: address(positionManager).codehash,
             permit2CodeHash: address(permit2).codehash,
@@ -73,6 +74,7 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         assertEq(deployment.hook.owner(), address(deployment.timelock));
         assertEq(deployment.hook.feeReceiver(), feeReceiver);
         assertEq(deployment.hook.positionManager(), config.positionManager);
+        assertEq(address(deployment.feeClaimRedeemer.poolManager()), config.poolManager);
         assertEq(deployment.key.fee, 5_000);
         assertEq(deployment.key.tickSpacing, 60);
         assertEq(uint160(address(deployment.hook)) & Hooks.ALL_HOOK_MASK, script.REQUIRED_HOOK_FLAGS());
@@ -111,7 +113,7 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         script.deploy(config, address(script));
     }
 
-    function testWritesRegistrationAndPositionManagerMulticallArtifact() public {
+    function testWritesStableDeploymentArtifactWithoutExpiringPositionCalldata() public {
         DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
         string memory path = "artifacts/launch-liquidity/test-deployment.json";
         vm.createDir("artifacts/launch-liquidity", true);
@@ -120,6 +122,7 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         string memory artifact = vm.readFile(path);
         assertEq(vm.parseJsonAddress(artifact, ".hook"), address(deployment.hook));
         assertEq(vm.parseJsonAddress(artifact, ".timelock"), address(deployment.timelock));
+        assertEq(vm.parseJsonAddress(artifact, ".feeClaimRedeemer"), address(deployment.feeClaimRedeemer));
         assertEq(vm.parseJsonAddress(artifact, ".pairedToken"), config.pairedToken);
         assertEq(vm.parseJsonAddress(artifact, ".positionOwner"), positionOwner);
         assertEq(vm.parseJsonUint(artifact, ".nativeLpFeePips"), 5_000);
@@ -129,9 +132,60 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         assertEq(vm.parseJsonBytes32(artifact, ".hookRuntimeCodeHash"), address(deployment.hook).codehash);
         bytes memory registration = vm.parseJsonBytes(artifact, ".registerPoolCalldata");
         assertEq(bytes4(registration), StaticsLaunchLiquidityHook.registerPool.selector);
-        bytes memory launch = vm.parseJsonBytes(artifact, ".positionManagerMulticallCalldata");
-        assertEq(bytes4(launch), IMulticall_v4.multicall.selector);
+        assertFalse(vm.keyExistsJson(artifact, ".positionDeadline"));
+        assertFalse(vm.keyExistsJson(artifact, ".positionManagerMulticallCalldata"));
         vm.removeFile(path);
+    }
+
+    function testPreparesFreshInitializeFallbackAndActivationCalldata() public {
+        DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
+        string memory deploymentPath = "artifacts/launch-liquidity/test-deployment.json";
+        string memory preparedPath = "artifacts/launch-liquidity/test-position.json";
+        vm.createDir("artifacts/launch-liquidity", true);
+        script.writeArtifact(deploymentPath, config, deployment, address(this));
+
+        PrepareStaticsLaunchPosition prepare = new PrepareStaticsLaunchPosition();
+        PrepareStaticsLaunchPosition.LaunchConfig memory launch = prepare.loadArtifact(deploymentPath);
+        uint256 deadline = block.timestamp + 30 minutes;
+        prepare.validate(launch, deadline);
+        prepare.writeArtifact(preparedPath, deploymentPath, launch, deadline);
+
+        string memory artifact = vm.readFile(preparedPath);
+        assertEq(vm.parseJsonUint(artifact, ".positionDeadline"), deadline);
+        assertEq(bytes4(vm.parseJsonBytes(artifact, ".initializeAndMintCalldata")), IMulticall_v4.multicall.selector);
+        assertEq(bytes4(vm.parseJsonBytes(artifact, ".mintOnlyCalldata")), IPositionManager.modifyLiquidities.selector);
+        assertEq(
+            bytes4(vm.parseJsonBytes(artifact, ".activatePoolCalldata")),
+            StaticsLaunchLiquidityHook.activatePool.selector
+        );
+
+        vm.removeFile(preparedPath);
+        vm.removeFile(deploymentPath);
+    }
+
+    function testRejectsExpiredPreparedPositionDeadline() public {
+        PrepareStaticsLaunchPosition prepare = new PrepareStaticsLaunchPosition();
+        PrepareStaticsLaunchPosition.LaunchConfig memory launch;
+        launch.chainId = block.chainid;
+        vm.warp(100);
+        vm.expectRevert(
+            abi.encodeWithSelector(PrepareStaticsLaunchPosition.ExpiredDeadline.selector, uint256(99), uint256(100))
+        );
+        prepare.validate(launch, 99);
+    }
+
+    function testRejectsUnsafePositionOwnersAndExcessLiquidity() public {
+        address[4] memory unsafeOwners = [config.poolManager, config.positionManager, address(1), address(2)];
+        for (uint256 i; i < unsafeOwners.length; ++i) {
+            config.positionOwner = unsafeOwners[i];
+            vm.expectRevert(DeployStaticsLaunchLiquidity.InvalidConfig.selector);
+            script.deploy(config, address(script));
+        }
+
+        config.positionOwner = positionOwner;
+        config.liquidity = uint128(type(int128).max) + 1;
+        vm.expectRevert(DeployStaticsLaunchLiquidity.InvalidConfig.selector);
+        script.deploy(config, address(script));
     }
 
     function _executeTimelock(

@@ -17,6 +17,9 @@ interface IStaticsLaunchLiquidityHook {
         uint160 expectedSqrtPriceX96;
         uint16 inputFeeBps;
         uint16 outputFeeBps;
+        address launchOperator;
+        bool initialized;
+        bool active;
         bool registered;
     }
 
@@ -28,8 +31,11 @@ interface IStaticsLaunchLiquidityHook {
         int24 tickSpacing,
         uint160 expectedSqrtPriceX96,
         uint16 inputFeeBps,
-        uint16 outputFeeBps
+        uint16 outputFeeBps,
+        address launchOperator
     );
+    event PoolInitialized(PoolId indexed poolId);
+    event PoolActivated(PoolId indexed poolId, address indexed activator);
     event HookFeesSet(
         PoolId indexed poolId,
         uint16 previousInputFeeBps,
@@ -47,9 +53,14 @@ interface IStaticsLaunchLiquidityHook {
     );
     event FeeReceiverSet(address indexed previousReceiver, address indexed newReceiver);
 
-    function registerPool(PoolKey calldata key, uint160 expectedSqrtPriceX96, uint16 inputFeeBps, uint16 outputFeeBps)
-        external
-        returns (PoolId poolId);
+    function registerPool(
+        PoolKey calldata key,
+        uint160 expectedSqrtPriceX96,
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
+        address launchOperator
+    ) external returns (PoolId poolId);
+    function activatePool(PoolId poolId) external;
     function setHookFees(PoolId poolId, uint16 inputFeeBps, uint16 outputFeeBps) external;
     function setFeeReceiver(address newReceiver) external;
 
