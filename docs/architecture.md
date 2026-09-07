@@ -317,7 +317,7 @@ of both Diamonds. Core administration derives from the Core Diamond owner; it
 does not maintain a second protocol-governor role, internal proposal queue, or
 irreversible configuration locks. The timelock constructor selects two minutes
 for Robinhood testnet and local development, while Robinhood mainnet and other
-chains default to seven days. After deployment, the delay can change only
+chains default to 24 hours. After deployment, the delay can change only
 through a scheduled timelock call to the timelock itself. The configured multisig proposes
 and may cancel scheduled operations, while execution is open after the current
 delay. The emergency guardian is not a timelock canceller.

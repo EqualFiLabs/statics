@@ -7,7 +7,7 @@ import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 contract StaticsTimelockTest is Test {
     function testRobinhoodMainnetUsesProductionDelay() public {
         vm.chainId(4_663);
-        assertEq(_deploy().getMinDelay(), 7 days);
+        assertEq(_deploy().getMinDelay(), 24 hours);
     }
 
     function testRobinhoodTestnetUsesDevelopmentDelay() public {
@@ -22,7 +22,7 @@ contract StaticsTimelockTest is Test {
 
     function testUnknownChainDefaultsToProductionDelay() public {
         vm.chainId(1);
-        assertEq(_deploy().getMinDelay(), 7 days);
+        assertEq(_deploy().getMinDelay(), 24 hours);
     }
 
     function _deploy() private returns (StaticsTimelock timelock) {

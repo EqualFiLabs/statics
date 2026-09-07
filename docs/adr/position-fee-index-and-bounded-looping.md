@@ -174,7 +174,7 @@ reverts before any series is stored or a pending transition is finalized.
 
 Fee, reward, and pairing-redemption parameters on the user Diamond remain
 timelock-configurable. They do not have irreversible lock functions. The
-timelock starts with a seven-day delay, and OpenZeppelin's self-call-only delay
+timelock starts with a 24-hour delay, and OpenZeppelin's self-call-only delay
 update remains available through an ordinary scheduled governance operation.
 
 All value-moving facets use ordinary OpenZeppelin `ReentrancyGuard`. Facets on

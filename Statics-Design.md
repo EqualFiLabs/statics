@@ -1140,7 +1140,7 @@ keepers and failed unwind attempts.
 
 One `StaticsTimelock` owns both Diamonds. Its constructor selects two minutes
 for Robinhood testnet and local development, while Robinhood mainnet and other
-chains default to seven days. The configured multisig is proposer and canceller,
+chains default to 24 hours. The configured multisig is proposer and canceller,
 execution is open after delay,
 and the emergency guardian is not a timelock canceller.
 

@@ -85,7 +85,7 @@ profile 1) during runoff.
 ## Authority
 
 - One `StaticsTimelock` owns both `StaticsDiamond` and
-  `StaticsDollarCoreDiamond`. Its delay initializes to seven days and can change
+  `StaticsDollarCoreDiamond`. Its delay initializes to 24 hours and can change
   only through a scheduled timelock call to the timelock itself.
 - The configured multisig is the timelock proposer and canceller. Execution is
   open after the current delay. The emergency guardian is not a timelock
