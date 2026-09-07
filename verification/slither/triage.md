@@ -1,7 +1,7 @@
 # Slither triage
 
-Slither emitted 175 in-scope occurrences: 13 high, 56 medium, 62 low, and 44
-informational. Repeated compile-unit instances reduce to 154 stable findings in
+Slither emitted 255 in-scope occurrences: 13 high, 107 medium, 68 low, and 67
+informational. Repeated compile-unit instances reduce to 218 stable findings in
 the reviewed baseline. There are no `CONFIRMED` or `INVESTIGATE` findings.
 The machine-readable classification and rationale for each detector family live
 in `decisions.json`; `baseline.json` applies those decisions to each stable
@@ -22,21 +22,42 @@ finding fingerprint.
 
 | Detector | Count | Classification | Review conclusion |
 | --- | ---: | --- | --- |
-| `incorrect-equality` | 16 | FALSE POSITIVE | Exact equality is used for zero-state, fixed-cap, configuration, and accounting validation. |
+| `incorrect-equality` | 26 | FALSE POSITIVE | Exact equality is used for zero-state, fixed-cap, configuration, and accounting validation. |
 | `reentrancy-no-eth` | 16 | INTENTIONAL | Guarded callbacks deliberately settle old state, while claim paths clear liabilities and custody before exact token transfers. |
 | `uninitialized-local` | 8 | FALSE POSITIVE | The values are intentional Solidity-zero accumulators, optional branch results, or bitmaps. |
-| `unused-return` | 16 | INTENTIONAL | Calls are capability probes or side-effect transitions; security-sensitive asset deltas are independently checked. |
+| `unused-return` | 57 | INTENTIONAL | Calls are capability probes, side-effect transitions, Forge JSON serialization, or callbacks with intentionally empty return data; security-sensitive asset deltas are independently checked. |
+
+## Launch-liquidity pass
+
+The added launch-liquidity scope contains 54 stable findings: 42 medium, five
+low, and seven informational. None is a confirmed defect.
+
+- The 42 medium `unused-return` findings are 32 intermediate deployment-artifact
+  serialization calls, nine intermediate fresh-calldata serialization calls,
+  and the claim redeemer's PoolManager unlock result. Forge serialization builds
+  one JSON object through side effects and only the final return is written. The
+  redeemer callback deliberately returns empty bytes; success or revert and the
+  PoolManager claim/underlying deltas are the relevant results.
+- The two zero-check reports miss `_enforceValidReceiver`, which rejects zero,
+  the hook, PoolManager, and PositionManager for both construction and rotation.
+- The two event-order reports follow calls to the immutable PoolManager. Claim
+  minting invokes no currency contract, the redeemer retains no state or assets,
+  and callback failure reverts the entire transition.
+- The preparation timestamp is an explicit transaction deadline. The remaining
+  informational reports cover pinned compiler/remapping units, the fixed hook
+  permission mask, inherited Forge script state, and a false missing-override
+  report even though `getHookPermissions()` is implemented directly.
 
 ## Low and informational
 
-The 62 low findings comprise two reviewed call loops, two already-validated
-zero-address reports, 14 benign reentrancy reports, 22 event-order reports, and
-22 intentional timestamp reports. The 44 informational findings comprise eight
-reviewed Diamond storage/dispatch assembly blocks, two bounded orchestration
-complexity reports, five checked low-level calls, seven structural inheritance
-suggestions, one naming report, one compiler-pragma report, one exact hash
-literal, one event topic budget report, and 18 deployment/configuration state
-reports.
+The 68 low findings comprise two reviewed call loops, four already-validated
+zero-address reports, 14 benign reentrancy reports, 24 event-order reports, and
+24 intentional timestamp reports. The 30 informational findings comprise nine
+reviewed Diamond storage/dispatch assembly blocks, one bounded orchestration
+complexity report, six checked low-level calls, two structural inheritance
+suggestions, one naming report, three compiler/remapping reports, two exact
+hash-or-mask literals, one false missing-override report, one event topic budget
+report, and four deployment/configuration state reports.
 
 These findings are retained rather than suppressed. The important callback
 orders—Genesis owner transition, activation reset, recovery unlink, FeeReceiver

@@ -161,6 +161,46 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         assertEq(currency1.balanceOf(positionOwner), 0);
     }
 
+    function testTransferredPositionCanBeRemovedAndBurnedWithoutDisablingPool() public {
+        PositionConfig memory managed = PositionConfig({poolKey: key, tickLower: -120, tickUpper: 120});
+        uint256 tokenId = lpm.nextTokenId();
+        _initializeAndMint(managed, INITIAL_LIQUIDITY, type(uint128).max, type(uint128).max, positionOwner);
+        _mint(
+            PositionConfig({poolKey: key, tickLower: -600, tickUpper: 600}),
+            INITIAL_LIQUIDITY,
+            type(uint128).max,
+            type(uint128).max,
+            positionOwner
+        );
+
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+
+        vm.prank(positionOwner);
+        positionManager.transferFrom(positionOwner, externalLp, tokenId);
+        assertEq(positionManager.ownerOf(tokenId), externalLp);
+
+        vm.prank(positionOwner);
+        vm.expectRevert();
+        positionManager.modifyLiquidities(
+            getDecreaseEncoded(tokenId, managed, INITIAL_LIQUIDITY, ZERO_BYTES), block.timestamp + 1
+        );
+
+        vm.prank(externalLp);
+        positionManager.modifyLiquidities(
+            getDecreaseEncoded(tokenId, managed, INITIAL_LIQUIDITY, ZERO_BYTES), block.timestamp + 1
+        );
+        vm.prank(externalLp);
+        positionManager.modifyLiquidities(getBurnEncoded(tokenId, managed, ZERO_BYTES), block.timestamp + 1);
+        vm.expectRevert();
+        positionManager.ownerOf(tokenId);
+
+        assertTrue(hook.poolRegistration(key.toId()).active);
+        uint256 receiverBefore = manager.balanceOf(feeReceiver, currency0.toId());
+        swap(key, true, -int256(0.001 ether), ZERO_BYTES);
+        assertGt(manager.balanceOf(feeReceiver, currency0.toId()), receiverBefore);
+    }
+
     function _initializeAndMint(
         PositionConfig memory config,
         uint128 liquidity,
