@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
@@ -31,6 +32,7 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
 
     uint16 public constant MAX_HOOK_FEE_BPS = 1_000;
     uint256 private constant BPS = 10_000;
+    bytes32 private constant TIMELOCK_PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
 
     IPositionManager private immutable _positionManager;
     address public override feeReceiver;
@@ -50,6 +52,7 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
     error HookFeeTooLarge(uint16 feeBps);
     error PoolAlreadyRegistered(PoolId poolId);
     error PoolNotRegistered(PoolId poolId);
+    error UnauthorizedPoolRegistration(address sender);
     error InvalidLaunchOperator(address launchOperator);
     error UnauthorizedInitializer(address sender);
     error UnauthorizedActivator(address sender);
@@ -96,7 +99,8 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
         uint16 inputFeeBps,
         uint16 outputFeeBps,
         address launchOperator
-    ) external override onlyOwner returns (PoolId poolId) {
+    ) external override returns (PoolId poolId) {
+        _checkPoolRegistrationAuthority();
         if (address(key.hooks) != address(this)) revert InvalidHook(address(key.hooks));
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
@@ -253,6 +257,18 @@ contract StaticsLaunchLiquidityHook is BaseHook, IStaticsLaunchLiquidityHook, Ow
     function _registration(PoolId poolId) private view returns (PoolRegistration storage registration) {
         registration = registrations[poolId];
         if (!registration.registered) revert PoolNotRegistered(poolId);
+    }
+
+    /// @dev The hook owner may register directly. When the owner is a TimelockController, its
+    /// existing proposer Safe may also register immediately without a second authority or role.
+    function _checkPoolRegistrationAuthority() private view {
+        address hookOwner = owner();
+        if (msg.sender == hookOwner) return;
+        (bool success, bytes memory result) =
+            hookOwner.staticcall(abi.encodeCall(IAccessControl.hasRole, (TIMELOCK_PROPOSER_ROLE, msg.sender)));
+        if (!success || result.length != 32 || !abi.decode(result, (bool))) {
+            revert UnauthorizedPoolRegistration(msg.sender);
+        }
     }
 
     function _enforceValidReceiver(address receiver) private view {

@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
@@ -82,19 +83,37 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         assertTrue(deployment.timelock.hasRole(deployment.timelock.EXECUTOR_ROLE(), address(0)));
     }
 
-    function testReceiverAndPoolFeesChangeOnlyThroughTimelock() public {
+    function testProposerRegistersImmediatelyWhileChangesUseTimelock() public {
         DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
         StaticsLaunchLiquidityHook hook = deployment.hook;
         address replacement = makeAddr("replacement");
 
-        _executeTimelock(deployment, script.registrationCalldata(config, deployment), keccak256("register launch pool"));
+        uint256 registrationTime = block.timestamp;
+        vm.prank(governance);
+        hook.registerPool(
+            deployment.key, config.sqrtPriceX96, config.inputFeeBps, config.outputFeeBps, config.positionOwner
+        );
+        assertEq(block.timestamp, registrationTime);
+        assertTrue(hook.poolRegistration(deployment.poolId).registered);
 
-        vm.expectRevert();
+        vm.prank(outsider);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsLaunchLiquidityHook.UnauthorizedPoolRegistration.selector, outsider)
+        );
+        hook.registerPool(
+            deployment.key, config.sqrtPriceX96, config.inputFeeBps, config.outputFeeBps, config.positionOwner
+        );
+
+        vm.prank(governance);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, governance));
         hook.setFeeReceiver(replacement);
         bytes memory receiverData = abi.encodeCall(StaticsLaunchLiquidityHook.setFeeReceiver, (replacement));
         _executeTimelock(deployment, receiverData, keccak256("replace launch fee receiver"));
         assertEq(hook.feeReceiver(), replacement);
 
+        vm.prank(governance);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, governance));
+        hook.setHookFees(deployment.poolId, 100, 200);
         bytes memory feesData = abi.encodeCall(StaticsLaunchLiquidityHook.setHookFees, (deployment.poolId, 100, 200));
         _executeTimelock(deployment, feesData, keccak256("replace launch hook fees"));
         assertEq(hook.poolRegistration(deployment.poolId).inputFeeBps, 100);

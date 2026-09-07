@@ -118,6 +118,11 @@ profile 1) during runoff.
   fixed to the configured treasury. Dollar insurance and opt-in routing remain
   governed by their isolated Dollar books; eligible Dollar fees can also enter
   the global fee ledger.
+- A standalone launch hook additionally permits the Safe holding its owner's
+  existing timelock proposer role to register a new pool immediately. Initial
+  pool terms are therefore established before trading begins without waiting
+  for the delay. Later hook-fee and fee-receiver changes remain owner-only and
+  must execute through the timelock.
 
 Diamond ownership uses immediate ERC-173 transfer by the current owner. A
 governance migration must execute through the timelock and verify both Diamond
