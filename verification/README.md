@@ -20,6 +20,10 @@ uploads symbolic results as CI artifacts. Local development should use focused F
 when required, the hosted Certora run; rerunning the full Halmos or Slither jobs locally is not
 required release evidence.
 
+The standalone launch-liquidity hook has a separate [verification ledger](./launch-liquidity.md)
+covering its fee callbacks, configuration authority, hostile-token rejection, and externally owned
+PositionManager lifecycle.
+
 ## Property ledger
 
 | Property | Target | Engine | Result |
@@ -63,20 +67,21 @@ CI gates because they require a hosted prover credential.
 
 ## Certora
 
-Install `certora-cli`, expose the Solidity 0.8.33 compiler as `solc8.33`, set
-`CERTORAKEY`, and run:
+Install `certora-cli`, expose the compiler aliases required by each configuration
+(`solc8.33` and `solc8.26`), set `CERTORAKEY`, and run:
 
 ```sh
 scripts/run-certora.sh vault
 scripts/run-certora.sh fees
 scripts/run-certora.sh distributor
 scripts/run-certora.sh vesting
+scripts/run-certora.sh launch-liquidity
 ```
 
 The configurations enable basic rule-sanity checks, disable optimistic loops,
 and use eight loop iterations. The specs use ghost ledgers where the complete
 external accounting boundary is modeled. The following selected rules were
-proved with Solidity 0.8.33:
+proved with the compiler pinned by each configuration:
 
 | Configuration | Proved rules | Hosted report |
 | --- | --- | --- |
@@ -84,6 +89,7 @@ proved with Solidity 0.8.33:
 | `FeeReceiver.conf` | Distributor claimable balances remain within cumulative attribution; surplus recovery preserves distributor liability | [report](https://prover.certora.com/output/8471858/9a10ef5901cf47338d7d62728899930f) |
 | `GenesisDistributor.conf` | Reward assets remain nonzero and distinct; the Genesis share remains bounded; crystallized rewards equal claimable plus claimed; batches of up to eight IDs preserve crystallized accounting; recovery is segregated from numeraire accounting; surplus recovery preserves accounted reward quantities | [report](https://prover.certora.com/output/8471858/e187b2a7454a4aebae384b18a05a0d63) |
 | `TreasuryVesting.conf` | Exact capped Genesis vesting; recipient rotation and successful post-bootstrap surplus recovery preserve immutable state and released accounting; unauthorized or pre-bootstrap sweeps revert | Current hosted run required after native STATICS vesting implementation |
+| `LaunchLiquidityHook.conf` | Registered bilateral fees remain capped; the fee receiver remains valid; receiver rotation preserves every sampled pool registration; only the owner may rotate the receiver | [report](https://prover.certora.com/output/8471858/d7f6b8d3ff014b7bb3eb490ce7eedb2b) |
 
 The transition invariants listed in the table are selected hosted proofs. The
 distributor's aggregate attribution ghost remains staged because secured-credit

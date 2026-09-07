@@ -236,7 +236,9 @@ contract StaticsLaunchLiquidityHookTest is Test, Deployers, DeployPermit2 {
         hook.setHookFees(poolId, 1, 2);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, outsider));
         hook.setFeeReceiver(outsider);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, outsider));
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsLaunchLiquidityHook.UnauthorizedPoolRegistration.selector, outsider)
+        );
         hook.registerPool(key, SQRT_PRICE_1_1, 1, 2, address(this));
         vm.stopPrank();
     }

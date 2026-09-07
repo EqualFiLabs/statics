@@ -53,6 +53,8 @@ interface IStaticsLaunchLiquidityHook {
     );
     event FeeReceiverSet(address indexed previousReceiver, address indexed newReceiver);
 
+    /// @notice Registers immutable launch parameters before a pool is initialized.
+    /// @dev Callable by the hook owner or by an account holding the owner's existing timelock proposer role.
     function registerPool(
         PoolKey calldata key,
         uint160 expectedSqrtPriceX96,

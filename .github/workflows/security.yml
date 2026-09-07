@@ -81,6 +81,13 @@ jobs:
         env:
           FOUNDRY_PROFILE: security
         run: forge test -vv
+      - name: Run deep launch-liquidity adversarial profile
+        env:
+          FOUNDRY_PROFILE: adversarial
+        run: |
+          forge test --match-path test/liquidity/StaticsLaunchLiquidityHookAdversarial.t.sol -vv
+          forge test --match-path test/liquidity/LaunchLiquidityInvariant.t.sol -vv
+          forge test --match-path test/liquidity/LaunchLiquidityPositionInvariant.t.sol -vv
 
   doppler-fork:
     name: Security / Doppler fork

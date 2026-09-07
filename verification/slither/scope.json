@@ -39,6 +39,13 @@
       "src/libraries/StaticsSelectors.sol",
       "src/genesis/doppler/StaticsDopplerLaunchConfig.sol",
       "src/genesis/doppler/StaticsLaunchCurves.sol"
+    ],
+    "launch-liquidity": [
+      "src/interfaces/IStaticsLaunchLiquidityHook.sol",
+      "src/liquidity/StaticsLaunchLiquidityHook.sol",
+      "src/liquidity/StaticsLaunchFeeClaimRedeemer.sol",
+      "script/DeployStaticsLaunchLiquidity.s.sol",
+      "script/PrepareStaticsLaunchPosition.s.sol"
     ]
   }
 }

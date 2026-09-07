@@ -389,6 +389,9 @@ PositionManager must initialize it at the registered price, positions may then
 be minted normally, and swaps remain disabled until either that operator or
 hook governance calls `activatePool`. Activation is permanent and does not
 restrict later PositionManager NFT additions, removals, transfers, or burns.
+The Safe holding the hook owner's existing timelock proposer role may register
+new pools immediately. Later changes to a registered pool's bilateral hook fees
+or the shared fee receiver remain owner-only and execute through the timelock.
 
 The deployment artifact contains only stable deployment and pool configuration.
 Generate expiring PositionManager calldata immediately before execution:

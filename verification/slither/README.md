@@ -2,9 +2,9 @@
 
 This campaign reviews the effective runtime and deployment surface carried by
 the Genesis PR stack. It intentionally analyzes the composed source graph, then
-reduces findings by source mapping into three explicit passes defined in
-`scope.json`: standalone launch, permanent Diamond integration, and deployment
-handoff.
+reduces findings by source mapping into four explicit passes defined in
+`scope.json`: standalone launch, permanent Diamond integration, deployment
+handoff, and standalone launch-liquidity operations.
 
 ## Reproduce
 
