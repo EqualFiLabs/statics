@@ -40,5 +40,9 @@ contract LaunchLiquidityHookHarness is StaticsLaunchLiquidityHook {
         return !registration.active || (registration.registered && registration.initialized);
     }
 
+    function activatePoolRaw(bytes32 rawPoolId) external {
+        _activatePool(PoolId.wrap(rawPoolId));
+    }
+
     function validateHookAddress(BaseHook) internal pure override {}
 }
