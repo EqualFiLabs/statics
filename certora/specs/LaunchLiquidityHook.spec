@@ -53,7 +53,7 @@ rule activationIsAuthorizedAndOneWay(env e, bytes32 poolId) {
     bool initializedBefore = registrationInitialized(poolId);
     bool activeBefore = registrationActive(poolId);
 
-    activatePool@withrevert(e, poolId);
+    activatePoolRaw@withrevert(e, poolId);
 
     assert lastReverted || initializedBefore,
         "activation requires initialization";
