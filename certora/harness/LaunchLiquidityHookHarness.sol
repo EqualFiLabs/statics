@@ -13,31 +13,14 @@ contract LaunchLiquidityHookHarness is StaticsLaunchLiquidityHook {
         StaticsLaunchLiquidityHook(manager, positionManager_, initialOwner, receiver)
     {}
 
-    function registrationFees(bytes32 rawPoolId)
-        external
-        view
-        returns (uint16 inputFeeBps, uint16 outputFeeBps, bool registered)
-    {
+    function registrationFeesWithinCap(bytes32 rawPoolId) external view returns (bool) {
         IStaticsLaunchLiquidityHook.PoolRegistration memory registration = this.poolRegistration(PoolId.wrap(rawPoolId));
-        return (registration.inputFeeBps, registration.outputFeeBps, registration.registered);
+        return !registration.registered
+            || (registration.inputFeeBps <= MAX_HOOK_FEE_BPS && registration.outputFeeBps <= MAX_HOOK_FEE_BPS);
     }
 
     function registrationDigest(bytes32 rawPoolId) external view returns (bytes32) {
         return keccak256(abi.encode(this.poolRegistration(PoolId.wrap(rawPoolId))));
-    }
-
-    function registrationStructureDigest(bytes32 rawPoolId) external view returns (bytes32) {
-        IStaticsLaunchLiquidityHook.PoolRegistration memory registration = this.poolRegistration(PoolId.wrap(rawPoolId));
-        return keccak256(
-            abi.encode(
-                registration.currency0,
-                registration.currency1,
-                registration.nativeLpFee,
-                registration.tickSpacing,
-                registration.expectedSqrtPriceX96,
-                registration.registered
-            )
-        );
     }
 
     function validateHookAddress(BaseHook) internal pure override {}
