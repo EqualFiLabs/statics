@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.26;
+pragma solidity 0.8.33;
 
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
@@ -21,6 +21,23 @@ contract LaunchLiquidityHookHarness is StaticsLaunchLiquidityHook {
 
     function registrationDigest(bytes32 rawPoolId) external view returns (bytes32) {
         return keccak256(abi.encode(this.poolRegistration(PoolId.wrap(rawPoolId))));
+    }
+
+    function registrationInitialized(bytes32 rawPoolId) external view returns (bool) {
+        return this.poolRegistration(PoolId.wrap(rawPoolId)).initialized;
+    }
+
+    function registrationActive(bytes32 rawPoolId) external view returns (bool) {
+        return this.poolRegistration(PoolId.wrap(rawPoolId)).active;
+    }
+
+    function registrationLaunchOperator(bytes32 rawPoolId) external view returns (address) {
+        return this.poolRegistration(PoolId.wrap(rawPoolId)).launchOperator;
+    }
+
+    function registrationLifecycleIsCoherent(bytes32 rawPoolId) external view returns (bool) {
+        IStaticsLaunchLiquidityHook.PoolRegistration memory registration = this.poolRegistration(PoolId.wrap(rawPoolId));
+        return !registration.active || (registration.registered && registration.initialized);
     }
 
     function validateHookAddress(BaseHook) internal pure override {}

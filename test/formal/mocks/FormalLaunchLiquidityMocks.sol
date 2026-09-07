@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.26;
+pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
@@ -48,8 +48,14 @@ contract FormalLaunchToken is IERC20 {
 }
 
     contract FormalLaunchPoolManager {
+        mapping(address owner => mapping(uint256 id => uint256 amount)) public balanceOf;
+
         function take(Currency currency, address to, uint256 amount) external {
             IERC20(Currency.unwrap(currency)).transfer(to, amount);
+        }
+
+        function mint(address to, uint256 id, uint256 amount) external {
+            balanceOf[to][id] += amount;
         }
 
         function callAfterInitialize(IHooks hook, address sender, PoolKey calldata key, uint160 sqrtPriceX96)
@@ -71,6 +77,13 @@ contract FormalLaunchToken is IERC20 {
             returns (bytes4, int128)
         {
             return hook.afterSwap(address(this), key, params, delta, "");
+        }
+
+        function callSwapHooks(IHooks hook, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta)
+            external
+        {
+            hook.beforeSwap(address(this), key, params, "");
+            hook.afterSwap(address(this), key, params, delta, "");
         }
     }
 

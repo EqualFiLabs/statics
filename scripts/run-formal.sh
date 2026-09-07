@@ -99,6 +99,10 @@ case "$TARGET" in
       '^check_initializationAcceptsOnlyBoundManagerAndPrice'
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-authorization 8 out-formal-genesis \
       '^check_unauthorizedCallerCannotChangeConfiguration'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-active-state 8 out-formal-genesis \
+      '^check_initializedPoolsStayActiveAfterConfigurationChanges'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-full-fill 8 out-formal-genesis \
+      '^check_incompleteSpecifiedFillRevertsBeforeUnspecifiedClaim'
     ;;
   all)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
