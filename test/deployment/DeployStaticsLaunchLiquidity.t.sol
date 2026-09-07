@@ -3,8 +3,10 @@ pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {DeployStaticsLaunchLiquidity} from "../../script/DeployStaticsLaunchLiquidity.s.sol";
@@ -83,6 +85,15 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         assertTrue(deployment.timelock.hasRole(deployment.timelock.EXECUTOR_ROLE(), address(0)));
     }
 
+    function testProductionDeploymentUses24HourTimelock() public {
+        vm.chainId(script.ROBINHOOD_MAINNET_CHAIN_ID());
+        config.chainId = block.chainid;
+
+        DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
+
+        assertEq(deployment.timelock.getMinDelay(), 24 hours);
+    }
+
     function testProposerRegistersImmediatelyWhileChangesUseTimelock() public {
         DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
         StaticsLaunchLiquidityHook hook = deployment.hook;
@@ -118,6 +129,28 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         _executeTimelock(deployment, feesData, keccak256("replace launch hook fees"));
         assertEq(hook.poolRegistration(deployment.poolId).inputFeeBps, 100);
         assertEq(hook.poolRegistration(deployment.poolId).outputFeeBps, 200);
+    }
+
+    function testRevokedProposerCannotRegisterAnotherPool() public {
+        DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
+        bytes32 proposerRole = deployment.timelock.PROPOSER_ROLE();
+        bytes memory revokeData = abi.encodeCall(IAccessControl.revokeRole, (proposerRole, governance));
+
+        _executeTimelockTarget(
+            deployment, address(deployment.timelock), revokeData, keccak256("revoke launch proposer")
+        );
+        assertFalse(deployment.timelock.hasRole(proposerRole, governance));
+
+        PoolKey memory anotherKey = deployment.key;
+        anotherKey.fee = 3_000;
+        vm.prank(governance);
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsLaunchLiquidityHook.UnauthorizedPoolRegistration.selector, governance)
+        );
+        deployment.hook
+            .registerPool(
+                anotherKey, config.sqrtPriceX96, config.inputFeeBps, config.outputFeeBps, config.positionOwner
+            );
     }
 
     function testRejectsPinnedDependencyHashMismatch() public {
@@ -212,11 +245,30 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         bytes memory data,
         bytes32 salt
     ) private {
+        _executeTimelockTarget(deployment, address(deployment.hook), data, salt);
+    }
+
+    function _executeTimelockTarget(
+        DeployStaticsLaunchLiquidity.Deployment memory deployment,
+        address target,
+        bytes memory data,
+        bytes32 salt
+    ) private {
         uint256 delay = deployment.timelock.getMinDelay();
+        uint256 scheduledAt = block.timestamp;
         vm.prank(governance);
-        deployment.timelock.schedule(address(deployment.hook), 0, data, bytes32(0), salt, delay);
-        vm.warp(block.timestamp + delay);
+        deployment.timelock.schedule(target, 0, data, bytes32(0), salt, delay);
+
         vm.prank(outsider);
-        deployment.timelock.execute(address(deployment.hook), 0, data, bytes32(0), salt);
+        vm.expectRevert();
+        deployment.timelock.execute(target, 0, data, bytes32(0), salt);
+        vm.warp(scheduledAt + delay - 1);
+        vm.prank(outsider);
+        vm.expectRevert();
+        deployment.timelock.execute(target, 0, data, bytes32(0), salt);
+
+        vm.warp(scheduledAt + delay);
+        vm.prank(outsider);
+        deployment.timelock.execute(target, 0, data, bytes32(0), salt);
     }
 }

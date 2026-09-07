@@ -3,6 +3,8 @@ pragma solidity 0.8.26;
 
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {Test} from "forge-std/Test.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -41,6 +43,7 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
     IAllowanceTransfer private permit2;
     PositionManager private positionManager;
     StaticsLaunchLiquidityHook private hook;
+    TimelockController private timelock;
 
     function setUp() public {
         deployFreshManagerAndRouters();
@@ -49,6 +52,7 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         positionManager =
             new PositionManager(manager, permit2, 100_000, IPositionDescriptor(address(0)), IWETH9(address(0)));
         lpm = IPositionManager(address(positionManager));
+        timelock = _deployTimelock();
         hook = _deployHook();
         key = PoolKey({
             currency0: currency0, currency1: currency1, fee: LP_FEE, tickSpacing: TICK_SPACING, hooks: IHooks(hook)
@@ -56,6 +60,81 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         hook.registerPool(key, SQRT_PRICE_1_1, 50, 50, positionOwner);
         _approvePositionManager(currency0);
         _approvePositionManager(currency1);
+    }
+
+    function testGovernedLifecycleSupportsManagedPositionsAndDelayedConfiguration() public {
+        PositionConfig memory launchPosition = PositionConfig({poolKey: key, tickLower: 60, tickUpper: 600});
+        PositionConfig memory managedPosition = PositionConfig({poolKey: key, tickLower: -120, tickUpper: 240});
+        uint256 launchId = lpm.nextTokenId();
+        _initializeAndMint(launchPosition, INITIAL_LIQUIDITY, type(uint128).max, 0, positionOwner);
+
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+        swap(key, false, -int256(0.001 ether), ZERO_BYTES);
+
+        uint256 managedId = lpm.nextTokenId();
+        _mint(managedPosition, INITIAL_LIQUIDITY, type(uint128).max, type(uint128).max, positionOwner);
+        vm.prank(positionOwner);
+        positionManager.modifyLiquidities(
+            getDecreaseEncoded(launchId, launchPosition, INITIAL_LIQUIDITY / 2, ZERO_BYTES), block.timestamp + 1
+        );
+        assertEq(lpm.getPositionLiquidity(launchId), INITIAL_LIQUIDITY / 2);
+        assertEq(lpm.getPositionLiquidity(managedId), INITIAL_LIQUIDITY);
+
+        address replacementReceiver = makeAddr("replacementReceiver");
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        hook.setFeeReceiver(replacementReceiver);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        hook.setHookFees(key.toId(), 100, 200);
+
+        bytes memory receiverData = abi.encodeCall(hook.setFeeReceiver, (replacementReceiver));
+        bytes memory feesData = abi.encodeCall(hook.setHookFees, (key.toId(), 100, 200));
+        uint256 scheduledAt = block.timestamp;
+        _scheduleHookCall(receiverData, keccak256("rotate launch receiver"));
+        _scheduleHookCall(feesData, keccak256("update launch fees"));
+
+        vm.prank(externalLp);
+        vm.expectRevert();
+        timelock.execute(address(hook), 0, receiverData, bytes32(0), keccak256("rotate launch receiver"));
+        vm.warp(scheduledAt + 24 hours - 1);
+        vm.prank(externalLp);
+        vm.expectRevert();
+        timelock.execute(address(hook), 0, receiverData, bytes32(0), keccak256("rotate launch receiver"));
+
+        vm.warp(scheduledAt + 24 hours);
+        vm.prank(externalLp);
+        timelock.execute(address(hook), 0, receiverData, bytes32(0), keccak256("rotate launch receiver"));
+        vm.prank(externalLp);
+        timelock.execute(address(hook), 0, feesData, bytes32(0), keccak256("update launch fees"));
+
+        assertEq(hook.feeReceiver(), replacementReceiver);
+        assertEq(hook.poolRegistration(key.toId()).inputFeeBps, 100);
+        assertEq(hook.poolRegistration(key.toId()).outputFeeBps, 200);
+
+        uint256 oldReceiver0 = manager.balanceOf(feeReceiver, currency0.toId());
+        uint256 oldReceiver1 = manager.balanceOf(feeReceiver, currency1.toId());
+        uint256 replacement0 = manager.balanceOf(replacementReceiver, currency0.toId());
+        uint256 replacement1 = manager.balanceOf(replacementReceiver, currency1.toId());
+        swap(key, true, -int256(0.0002 ether), ZERO_BYTES);
+        assertEq(manager.balanceOf(feeReceiver, currency0.toId()), oldReceiver0);
+        assertEq(manager.balanceOf(feeReceiver, currency1.toId()), oldReceiver1);
+        assertGt(manager.balanceOf(replacementReceiver, currency0.toId()), replacement0);
+        assertGt(manager.balanceOf(replacementReceiver, currency1.toId()), replacement1);
+
+        vm.prank(positionOwner);
+        positionManager.modifyLiquidities(
+            getDecreaseEncoded(launchId, launchPosition, INITIAL_LIQUIDITY / 2, ZERO_BYTES), block.timestamp + 1
+        );
+        assertEq(lpm.getPositionLiquidity(launchId), 0);
+        assertEq(lpm.getPositionLiquidity(managedId), INITIAL_LIQUIDITY);
+        assertTrue(hook.poolRegistration(key.toId()).active);
+
+        uint256 claimsBefore = manager.balanceOf(replacementReceiver, currency0.toId())
+            + manager.balanceOf(replacementReceiver, currency1.toId());
+        swap(key, false, -int256(0.0001 ether), ZERO_BYTES);
+        uint256 claimsAfter = manager.balanceOf(replacementReceiver, currency0.toId())
+            + manager.balanceOf(replacementReceiver, currency1.toId());
+        assertGt(claimsAfter, claimsBefore);
     }
 
     function testInitializesAndMintsSingleSidedCurrency0PositionAtomically() public {
@@ -259,12 +338,27 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         permit2.approve(token, address(lpm), type(uint160).max, type(uint48).max);
     }
 
+    function _deployTimelock() private returns (TimelockController deployed) {
+        address[] memory proposers = new address[](1);
+        proposers[0] = address(this);
+        address[] memory executors = new address[](1);
+        executors[0] = address(0);
+        deployed = new TimelockController(24 hours, proposers, executors, address(0));
+        assertTrue(deployed.hasRole(deployed.PROPOSER_ROLE(), address(this)));
+        assertEq(deployed.getMinDelay(), 24 hours);
+    }
+
+    function _scheduleHookCall(bytes memory data, bytes32 salt) private {
+        timelock.schedule(address(hook), 0, data, bytes32(0), salt, 24 hours);
+    }
+
     function _deployHook() private returns (StaticsLaunchLiquidityHook deployed) {
         IPositionManager lpm_ = IPositionManager(address(positionManager));
-        bytes memory args = abi.encode(manager, lpm_, address(this), feeReceiver);
+        bytes memory args = abi.encode(manager, lpm_, address(timelock), feeReceiver);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsLaunchLiquidityHook).creationCode, args);
-        deployed = new StaticsLaunchLiquidityHook{salt: salt}(IPoolManager(manager), lpm_, address(this), feeReceiver);
+        deployed =
+            new StaticsLaunchLiquidityHook{salt: salt}(IPoolManager(manager), lpm_, address(timelock), feeReceiver);
         assertEq(address(deployed), expected);
     }
 }
