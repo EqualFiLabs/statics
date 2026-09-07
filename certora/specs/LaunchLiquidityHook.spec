@@ -54,14 +54,15 @@ rule activationIsAuthorizedAndOneWay(env e, bytes32 poolId) {
     bool activeBefore = registrationActive(poolId);
 
     activatePoolRaw@withrevert(e, poolId);
+    bool activationReverted = lastReverted;
 
-    assert lastReverted || initializedBefore,
+    assert activationReverted || initializedBefore,
         "activation requires initialization";
-    assert lastReverted || e.msg.sender == ownerBefore || e.msg.sender == operatorBefore,
+    assert activationReverted || e.msg.sender == ownerBefore || e.msg.sender == operatorBefore,
         "activation requires owner or launch operator";
-    assert lastReverted || registrationActive(poolId),
+    assert activationReverted || registrationActive(poolId),
         "successful activation sets active state";
-    assert !activeBefore || lastReverted,
+    assert !activeBefore || activationReverted,
         "active pools cannot be activated twice";
 }
 
