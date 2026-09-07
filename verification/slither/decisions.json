@@ -39,7 +39,7 @@
     },
     "unused-return": {
       "classification": "INTENTIONAL",
-      "rationale": "These calls are made for validated side effects or interface capability probes; exact asset movement is checked independently where the returned amount is security-sensitive."
+      "rationale": "These calls are made for validated side effects, interface capability probes, Forge JSON serialization, or an unlock callback whose payload is intentionally empty; exact asset movement is checked independently where the returned amount is security-sensitive."
     },
     "calls-loop": {
       "classification": "INTENTIONAL",
@@ -47,7 +47,7 @@
     },
     "missing-zero-check": {
       "classification": "FALSE POSITIVE",
-      "rationale": "Redemption validates the receiver before the native send; a zero native sender intentionally disables direct native ingress for deployments that do not use that path, while production supplies WETH."
+      "rationale": "The reported launch fee receivers are validated through _enforceValidReceiver; redemption validates its recipient before transfer; a zero native sender intentionally disables direct native ingress where that path is unused."
     },
     "reentrancy-benign": {
       "classification": "FALSE POSITIVE",
@@ -55,11 +55,11 @@
     },
     "reentrancy-events": {
       "classification": "FALSE POSITIVE",
-      "rationale": "Events are emitted only after guarded interactions succeed; all value and ownership state changes revert atomically if the callback fails."
+      "rationale": "Events follow guarded or immutable-PoolManager interactions; the launch redeemer is stateless, hook fee minting invokes no currency contract, and every callback or value transition reverts atomically on failure."
     },
     "timestamp": {
       "classification": "INTENTIONAL",
-      "rationale": "Timestamps implement explicit epoch, credit maturity, grace-period, vesting, and reward-eligibility semantics; no timestamp comparison selects randomness."
+      "rationale": "Timestamps implement explicit transaction deadlines, epochs, credit maturity, grace periods, vesting, and reward eligibility; no timestamp comparison selects randomness."
     },
     "assembly": {
       "classification": "INTENTIONAL",
@@ -83,7 +83,7 @@
     },
     "pragma": {
       "classification": "INTENTIONAL",
-      "rationale": "Owned production contracts pin Solidity 0.8.33; shared Diamond kernel compatibility is intentionally bounded to the audited 0.8.28-or-newer compiler family."
+      "rationale": "Formal launch targets pin Solidity 0.8.33 while production and pinned third-party compile units retain their compatible exact versions; the reported version count comes from the composed source graph."
     },
     "unindexed-event-address": {
       "classification": "INTENTIONAL",
@@ -95,7 +95,11 @@
     },
     "too-many-digits": {
       "classification": "INTENTIONAL",
-      "rationale": "The reported literal is a full 32-byte expected creation-code hash whose exact hexadecimal value is required for deployment attestation."
+      "rationale": "The reported literals are exact full-width creation-code hashes or fixed Uniswap hook-address masks required for deployment attestation and CREATE2 mining."
+    },
+    "unimplemented-functions": {
+      "classification": "FALSE POSITIVE",
+      "rationale": "StaticsLaunchLiquidityHook explicitly overrides getHookPermissions; duplicate remapped BaseHook compile units cause Slither to miss that implementation relationship."
     }
   }
 }
