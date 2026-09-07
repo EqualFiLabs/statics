@@ -11,11 +11,9 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.sol";
-import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
-import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
+import {StaticsLaunchFeeClaimRedeemer} from "../src/liquidity/StaticsLaunchFeeClaimRedeemer.sol";
 import {StaticsLaunchLiquidityHook} from "../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 interface ILaunchPositionManagerBindings {
@@ -54,7 +52,6 @@ contract DeployStaticsLaunchLiquidity is Script {
         uint128 amount1Max;
         uint16 inputFeeBps;
         uint16 outputFeeBps;
-        uint256 positionDeadline;
         bytes32 poolManagerCodeHash;
         bytes32 positionManagerCodeHash;
         bytes32 permit2CodeHash;
@@ -65,6 +62,7 @@ contract DeployStaticsLaunchLiquidity is Script {
     struct Deployment {
         StaticsTimelock timelock;
         StaticsLaunchLiquidityHook hook;
+        StaticsLaunchFeeClaimRedeemer feeClaimRedeemer;
         PoolKey key;
         PoolId poolId;
         bytes32 create2Salt;
@@ -99,6 +97,7 @@ contract DeployStaticsLaunchLiquidity is Script {
         address[] memory executors = new address[](1);
         executors[0] = address(0);
         deployment.timelock = new StaticsTimelock(proposers, executors, address(0));
+        deployment.feeClaimRedeemer = new StaticsLaunchFeeClaimRedeemer(IPoolManager(config.poolManager));
 
         bytes memory args = abi.encode(
             IPoolManager(config.poolManager),
@@ -119,6 +118,9 @@ contract DeployStaticsLaunchLiquidity is Script {
         }
         uint160 actualFlags = uint160(address(deployment.hook)) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert HookPermissionMismatch(REQUIRED_HOOK_FLAGS, actualFlags);
+        _validatePositionOwner(
+            config.positionOwner, address(deployment.hook), address(deployment.feeClaimRedeemer), config
+        );
 
         (Currency currency0, Currency currency1) = config.pairedToken < config.statics
             ? (Currency.wrap(config.pairedToken), Currency.wrap(config.statics))
@@ -169,7 +171,6 @@ contract DeployStaticsLaunchLiquidity is Script {
         config.amount1Max = _toUint128(vm.envUint("STATICS_LAUNCH_AMOUNT1_MAX"));
         config.inputFeeBps = _toUint16(vm.envUint("STATICS_LAUNCH_INPUT_FEE_BPS"));
         config.outputFeeBps = _toUint16(vm.envUint("STATICS_LAUNCH_OUTPUT_FEE_BPS"));
-        config.positionDeadline = vm.envUint("STATICS_LAUNCH_POSITION_DEADLINE");
         config.pairedTokenCodeHash = vm.envOr("STATICS_LAUNCH_PAIRED_TOKEN_CODE_HASH", bytes32(0));
         return config;
     }
@@ -181,35 +182,8 @@ contract DeployStaticsLaunchLiquidity is Script {
     {
         return abi.encodeCall(
             StaticsLaunchLiquidityHook.registerPool,
-            (deployment.key, config.sqrtPriceX96, config.inputFeeBps, config.outputFeeBps)
+            (deployment.key, config.sqrtPriceX96, config.inputFeeBps, config.outputFeeBps, config.positionOwner)
         );
-    }
-
-    function positionManagerMulticall(Config memory config, Deployment memory deployment)
-        public
-        pure
-        returns (bytes memory)
-    {
-        bytes memory actions =
-            abi.encodePacked(bytes1(uint8(Actions.MINT_POSITION)), bytes1(uint8(Actions.SETTLE_PAIR)));
-        bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(
-            deployment.key,
-            config.tickLower,
-            config.tickUpper,
-            config.liquidity,
-            config.amount0Max,
-            config.amount1Max,
-            config.positionOwner,
-            bytes("")
-        );
-        params[1] = abi.encode(deployment.key.currency0, deployment.key.currency1);
-        bytes[] memory calls = new bytes[](2);
-        calls[0] =
-            abi.encodeWithSelector(IPoolInitializer_v4.initializePool.selector, deployment.key, config.sqrtPriceX96);
-        calls[1] =
-            abi.encodeCall(IPositionManager.modifyLiquidities, (abi.encode(actions, params), config.positionDeadline));
-        return abi.encodeCall(IMulticall_v4.multicall, (calls));
     }
 
     function writeArtifact(string memory path, Config memory config, Deployment memory deployment, address deployer)
@@ -221,6 +195,7 @@ contract DeployStaticsLaunchLiquidity is Script {
         vm.serializeAddress(objectKey, "deployer", deployer);
         vm.serializeAddress(objectKey, "timelock", address(deployment.timelock));
         vm.serializeAddress(objectKey, "hook", address(deployment.hook));
+        vm.serializeAddress(objectKey, "feeClaimRedeemer", address(deployment.feeClaimRedeemer));
         vm.serializeAddress(objectKey, "poolManager", config.poolManager);
         vm.serializeAddress(objectKey, "positionManager", config.positionManager);
         vm.serializeAddress(objectKey, "permit2", config.permit2);
@@ -248,11 +223,8 @@ contract DeployStaticsLaunchLiquidity is Script {
         vm.serializeUint(objectKey, "liquidity", config.liquidity);
         vm.serializeUint(objectKey, "amount0Max", config.amount0Max);
         vm.serializeUint(objectKey, "amount1Max", config.amount1Max);
-        vm.serializeUint(objectKey, "positionDeadline", config.positionDeadline);
-        vm.serializeBytes(objectKey, "registerPoolCalldata", registrationCalldata(config, deployment));
-        string memory json = vm.serializeBytes(
-            objectKey, "positionManagerMulticallCalldata", positionManagerMulticall(config, deployment)
-        );
+        string memory json =
+            vm.serializeBytes(objectKey, "registerPoolCalldata", registrationCalldata(config, deployment));
         vm.writeJson(json, path);
     }
 
@@ -265,10 +237,10 @@ contract DeployStaticsLaunchLiquidity is Script {
                 || config.tickSpacing > TickMath.MAX_TICK_SPACING || config.sqrtPriceX96 < TickMath.MIN_SQRT_PRICE
                 || config.sqrtPriceX96 >= TickMath.MAX_SQRT_PRICE || config.tickLower >= config.tickUpper
                 || config.tickLower % config.tickSpacing != 0 || config.tickUpper % config.tickSpacing != 0
-                || config.liquidity == 0 || config.inputFeeBps > 1_000 || config.outputFeeBps > 1_000
-                || config.positionDeadline < block.timestamp || config.nativeLpFee.isDynamicFee()
-                || !config.nativeLpFee.isValid()
+                || config.liquidity == 0 || config.liquidity > uint128(type(int128).max) || config.inputFeeBps > 1_000
+                || config.outputFeeBps > 1_000 || config.nativeLpFee.isDynamicFee() || !config.nativeLpFee.isValid()
         ) revert InvalidConfig();
+        _validatePositionOwner(config.positionOwner, address(0), address(0), config);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
@@ -282,6 +254,17 @@ contract DeployStaticsLaunchLiquidity is Script {
         if (boundPermit2 != config.permit2) {
             revert InvalidV4Binding(config.positionManager, config.permit2, boundPermit2);
         }
+    }
+
+    function _validatePositionOwner(address positionOwner, address hook, address feeClaimRedeemer, Config memory config)
+        private
+        pure
+    {
+        if (
+            positionOwner == address(0) || positionOwner == config.poolManager
+                || positionOwner == config.positionManager || positionOwner == hook || positionOwner == feeClaimRedeemer
+                || positionOwner == address(1) || positionOwner == address(2)
+        ) revert InvalidConfig();
     }
 
     function _validateSingleSided(Config memory config, PoolKey memory key) private pure {
