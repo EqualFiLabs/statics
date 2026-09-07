@@ -54,6 +54,14 @@ runs = 128
 depth = 64
 fail_on_revert = true
 
+[profile.adversarial.fuzz]
+runs = 10_000
+
+[profile.adversarial.invariant]
+runs = 1_024
+depth = 100
+fail_on_revert = true
+
 # Keep symbolic artifacts separate while preserving the production Cancun EVM.
 [profile.formal]
 src = "src/genesis"

@@ -25,11 +25,15 @@ case "$TARGET" in
   vesting)
     run_spec TreasuryVesting
     ;;
+  launch-liquidity)
+    run_spec LaunchLiquidityHook
+    ;;
   all)
     run_spec GenesisVault
     run_spec FeeReceiver
     run_spec GenesisDistributor
     run_spec TreasuryVesting
+    run_spec LaunchLiquidityHook
     ;;
   *)
     printf 'unknown Certora target: %s\n' "$TARGET" >&2
