@@ -86,8 +86,22 @@ case "$TARGET" in
     run_halmos "$ROOT" GenesisRewardsHalmosTest genesis-rewards-recovery 8 out-formal-genesis \
       '^check_recoveryIndexAllocatesOnlyToRemainingWeight'
     ;;
+  launch-liquidity)
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-before-swap 8 out-formal-genesis \
+      '^check_beforeSwapRoutesExactSpecifiedFee'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap 8 out-formal-genesis \
+      '^check_afterSwapRoutesExactUnspecifiedFee'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-pool-isolation 8 out-formal-genesis \
+      '^check_feeUpdatesRemainPoolLocal'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-receiver 8 out-formal-genesis \
+      '^check_receiverUpdatePreservesEveryPool'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-initialization 8 out-formal-genesis \
+      '^check_initializationAcceptsOnlyBoundManagerAndPrice'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-authorization 8 out-formal-genesis \
+      '^check_unauthorizedCallerCannotChangeConfiguration'
+    ;;
   all)
-    for target in vault fees distributor genesis vesting credit rewards position genesis-rewards; do
+    for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
       "$0" "$target"
     done
     "$0" geometry
