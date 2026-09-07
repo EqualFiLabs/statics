@@ -36,8 +36,8 @@ fuzz cases, 1,024 invariant runs, 100 calls per run, and fail-on-revert enabled.
 
 | Property | Evidence |
 | --- | --- |
-| Exact-input specified fees are `ceil(grossInput * feeBps / 10,000)`; exact-output specified fees are `ceil(netOutput * feeBps / (10,000 - feeBps))` | Halmos over symbolic `uint120` amounts and valid fee rates; full-width Foundry fuzz |
-| Exact-input unspecified fees are a fraction of raw pool output; exact-output unspecified fees are grossed up from core input so each configured rate is consistently a fraction of the trader's gross leg | Halmos representative exact-input path over symbolic `uint64` amounts; full-width Foundry fuzz covers both directions, exactness modes, and signed deltas |
+| Exact-input specified fees are `ceil(grossInput * feeBps / 10,000)`; exact-output specified fees are `ceil(netOutput * feeBps / (10,000 - feeBps))` | Halmos over symbolic `uint120` amounts and valid fee rates; 10,000-case Foundry fuzz over amounts bounded to half of `int128.max` |
+| Exact-input unspecified fees are a fraction of raw pool output; exact-output unspecified fees are grossed up from core input so each configured rate is consistently a fraction of the trader's gross leg | Halmos representative exact-input path over symbolic `uint64` amounts; 10,000-case Foundry fuzz over amounts bounded to half of `int128.max`, both directions, exactness modes, and signed deltas |
 | Every successful fee route mints PoolManager ERC-6909 claims to the current receiver without invoking either currency contract or requiring pre-existing counterasset reserves | Halmos claim-balance assertions, hostile-token adversarial tests, and the first-converting-swap PositionManager regression |
 | A swap must completely fill its specified amount after the before-swap fee adjustment; incomplete price-limit or liquidity fills revert atomically and retain no claims | Halmos rejection-before-unspecified-claim property, mock atomic-rollback regression, and real PoolManager partial-fill regression |
 | Per-pool fee changes remain bounded and isolated; receiver rotation preserves every pool registration | Halmos with two PoolKeys; Certora invariant/rule; two-pool stateful invariant |
@@ -58,7 +58,7 @@ fuzz cases, 1,024 invariant runs, 100 calls per run, and fail-on-revert enabled.
 - The before-swap Halmos theorem covers every boolean direction/exactness branch.
   The post-swap theorem uses one representative positive-delta branch because
   symbolic signed packed-delta branching is not CI-tractable; the adjacent
-  full-width fuzz test covers all symmetric branches and both signs.
+  bounded 10,000-case fuzz test covers all symmetric branches and both signs.
 - Fee settlement mints PoolManager claims and therefore does not call token
   transfer code. Hostile ERC-20 behaviors are exercised to confirm they cannot
   reenter fee configuration or alter claim accounting during a swap callback.
