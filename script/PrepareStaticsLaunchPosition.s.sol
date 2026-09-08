@@ -160,7 +160,9 @@ contract PrepareStaticsLaunchPosition is Script {
         vm.serializeAddress(objectKey, "positionManager", config.positionManager);
         vm.serializeAddress(objectKey, "hook", config.hook);
         vm.serializeAddress(objectKey, "positionOwner", config.positionOwner);
-        vm.serializeString(objectKey, "fundingMode", LaunchLiquidityScript.fundingModeName(config.fundingMode));
+        _requireSerialized(
+            vm.serializeString(objectKey, "fundingMode", LaunchLiquidityScript.fundingModeName(config.fundingMode))
+        );
         vm.serializeBytes32(objectKey, "poolId", PoolId.unwrap(poolId));
         vm.serializeUint(objectKey, "positionDeadline", deadline);
         vm.serializeBytes(objectKey, "initializeAndMintCalldata", initializeAndMintCalldata(config, deadline));
@@ -172,6 +174,10 @@ contract PrepareStaticsLaunchPosition is Script {
     function _toUint24(uint256 value) private pure returns (uint24) {
         if (value > type(uint24).max) revert InvalidArtifact();
         return uint24(value);
+    }
+
+    function _requireSerialized(string memory serialized) private pure {
+        if (bytes(serialized).length == 0) revert InvalidArtifact();
     }
 
     function _toUint128(uint256 value) private pure returns (uint128) {

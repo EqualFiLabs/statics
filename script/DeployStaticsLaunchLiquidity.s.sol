@@ -212,7 +212,9 @@ contract DeployStaticsLaunchLiquidity is Script {
         vm.serializeAddress(objectKey, "governance", config.governance);
         vm.serializeAddress(objectKey, "feeReceiver", config.feeReceiver);
         vm.serializeAddress(objectKey, "positionOwner", config.positionOwner);
-        vm.serializeString(objectKey, "fundingMode", LaunchLiquidityScript.fundingModeName(config.fundingMode));
+        _requireSerialized(
+            vm.serializeString(objectKey, "fundingMode", LaunchLiquidityScript.fundingModeName(config.fundingMode))
+        );
         vm.serializeBytes32(objectKey, "poolId", PoolId.unwrap(deployment.poolId));
         vm.serializeBytes32(objectKey, "create2Salt", deployment.create2Salt);
         vm.serializeBytes32(objectKey, "poolManagerRuntimeCodeHash", config.poolManagerCodeHash);
@@ -292,6 +294,10 @@ contract DeployStaticsLaunchLiquidity is Script {
     function _toUint16(uint256 value) private pure returns (uint16) {
         if (value > type(uint16).max) revert InvalidConfig();
         return uint16(value);
+    }
+
+    function _requireSerialized(string memory serialized) private pure {
+        if (bytes(serialized).length == 0) revert InvalidConfig();
     }
 
     function _toUint24(uint256 value) private pure returns (uint24) {
