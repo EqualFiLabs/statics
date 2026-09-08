@@ -119,7 +119,9 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
     }
 
     function _assertAfterSwap(SwapCase memory case_) private {
-        hook.setHookFees(poolA, case_.feeBps, case_.feeBps);
+        uint16 inputFeeBps = case_.exactInput ? 0 : case_.feeBps;
+        uint16 outputFeeBps = case_.exactInput ? case_.feeBps : 0;
+        hook.setHookFees(poolA, inputFeeBps, outputFeeBps);
 
         bool specifiedIsCurrency0 = case_.exactInput == case_.zeroForOne;
         Currency unspecified = specifiedIsCurrency0 ? keyA.currency1 : keyA.currency0;
@@ -263,11 +265,7 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
     }
 
     function _fullFillDelta(SwapCase memory case_, bool specifiedIsCurrency0) private pure returns (BalanceDelta) {
-        uint256 specifiedFee =
-            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
-        int256 specified = case_.exactInput
-            ? -int256(uint256(case_.amount)) + int256(specifiedFee)
-            : int256(uint256(case_.amount)) + int256(specifiedFee);
+        int256 specified = case_.exactInput ? -int256(uint256(case_.amount)) : int256(uint256(case_.amount));
         int128 specifiedDelta = int128(specified);
         int128 unspecifiedDelta = int128(uint128(case_.amount));
         return specifiedIsCurrency0
