@@ -146,18 +146,12 @@ contract LaunchLiquidityRangeTraversalTest is Test, Deployers, DeployPermit2, Li
         assertTrue(vm.revertToState(state));
     }
 
-    function executeSwap(bool zeroForOne, bool exactInput, uint256 amount)
-        external
-        returns (BalanceDelta delta)
-    {
+    function executeSwap(bool zeroForOne, bool exactInput, uint256 amount) external returns (BalanceDelta delta) {
         require(msg.sender == address(this));
         return _executeSwap(zeroForOne, exactInput, amount);
     }
 
-    function _executeSwap(bool zeroForOne, bool exactInput, uint256 amount)
-        private
-        returns (BalanceDelta delta)
-    {
+    function _executeSwap(bool zeroForOne, bool exactInput, uint256 amount) private returns (BalanceDelta delta) {
         return swapRouter.swap(
             key,
             SwapParams({

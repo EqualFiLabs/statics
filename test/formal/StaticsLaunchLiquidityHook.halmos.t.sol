@@ -96,8 +96,20 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFee(uint64 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputZeroForOne(uint64 amount, uint16 feeBps) public {
         _checkAfterSwap(amount, feeBps, true, true);
+    }
+
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero(uint64 amount, uint16 feeBps) public {
+        _checkAfterSwap(amount, feeBps, false, true);
+    }
+
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne(uint64 amount, uint16 feeBps) public {
+        _checkAfterSwap(amount, feeBps, true, false);
+    }
+
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputOneForZero(uint64 amount, uint16 feeBps) public {
+        _checkAfterSwap(amount, feeBps, false, false);
     }
 
     function _checkAfterSwap(uint64 amount, uint16 feeBps, bool zeroForOne, bool exactInput) private {
@@ -174,18 +186,32 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         assertTrue(registration.active);
     }
 
-    function check_incompleteSpecifiedFillRevertsBeforeUnspecifiedClaim() public {
-        uint64 amount = 1_000_000;
-        uint16 feeBps = 25;
+    function check_incompleteSpecifiedFillRevertsBeforeUnspecifiedClaim(
+        bool zeroForOne,
+        bool exactInput,
+        uint64 amount,
+        uint16 feeBps
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(feeBps <= hook.MAX_HOOK_FEE_BPS());
         hook.setHookFees(poolA, feeBps, feeBps);
-        uint256 specifiedFee = _feeFromGross(amount, feeBps);
-        int128 partialSpecified = -int128(uint128(amount - specifiedFee - 1));
-        BalanceDelta partialDelta = toBalanceDelta(partialSpecified, int128(uint128(amount)));
+        SwapCase memory case_ = SwapCase(zeroForOne, exactInput, amount, feeBps);
+        uint256 specifiedFee = exactInput ? _feeFromGross(amount, feeBps) : _feeFromNet(amount, feeBps);
+        int256 expectedSpecified = exactInput
+            ? -int256(uint256(amount)) + int256(specifiedFee)
+            : int256(uint256(amount)) + int256(specifiedFee);
+        int128 partialSpecified = int128(expectedSpecified + (exactInput ? int256(1) : -int256(1)));
+        int128 unspecified = exactInput ? int128(uint128(amount)) : -int128(uint128(amount));
+        bool specifiedIsCurrency0 = exactInput == zeroForOne;
+        BalanceDelta partialDelta = specifiedIsCurrency0
+            ? toBalanceDelta(partialSpecified, unspecified)
+            : toBalanceDelta(unspecified, partialSpecified);
 
         (bool success,) = address(manager)
             .call(
                 abi.encodeCall(
-                    manager.callAfterSwap, (IHooks(hook), keyA, _params(true, -int256(uint256(amount))), partialDelta)
+                    manager.callSwapHooks,
+                    (IHooks(hook), keyA, _params(zeroForOne, _specifiedAmount(case_)), partialDelta)
                 )
             );
 
