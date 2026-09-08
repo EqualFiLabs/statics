@@ -89,6 +89,8 @@ case "$TARGET" in
   launch-liquidity)
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-before-swap 8 out-formal-genesis \
       '^check_beforeSwapRoutesExactSpecifiedFee'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-balance-delta-packing 8 \
+      out-formal-genesis '^check_balanceDeltaHighHalfRoundTrips'
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap-exact-input-zero-for-one \
       8 out-formal-genesis '^check_afterSwapRoutesExactUnspecifiedFeeExactInputZeroForOne'
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap-exact-input-one-for-zero \

@@ -112,6 +112,15 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         _checkAfterSwap(amount, feeBps, false, false);
     }
 
+    function check_balanceDeltaHighHalfRoundTrips(uint16 highAmount, int16 lowAmount) public pure {
+        int128 expectedHigh = int128(uint128(highAmount));
+        int128 expectedLow = int128(lowAmount);
+        BalanceDelta delta = toBalanceDelta(expectedHigh, expectedLow);
+
+        assertEq(delta.amount0(), expectedHigh);
+        assertEq(delta.amount1(), expectedLow);
+    }
+
     function _checkAfterSwap(uint16 amount, uint16 feeBps, bool zeroForOne, bool exactInput) private {
         vm.assume(amount > 0);
         vm.assume(feeBps <= hook.MAX_HOOK_FEE_BPS());
@@ -128,12 +137,13 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         uint256 expected =
             case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
 
-        (, int128 returned) = manager.callAfterSwap(
-            IHooks(hook),
-            keyA,
-            _params(case_.zeroForOne, _specifiedAmount(case_)),
-            _fullFillDelta(case_, specifiedIsCurrency0)
-        );
+        BalanceDelta fullFillDelta = _fullFillDelta(case_, specifiedIsCurrency0);
+        if (!specifiedIsCurrency0) {
+            vm.assume(fullFillDelta.amount0() == int128(uint128(case_.amount)));
+        }
+
+        (, int128 returned) =
+            manager.callAfterSwap(IHooks(hook), keyA, _params(case_.zeroForOne, _specifiedAmount(case_)), fullFillDelta);
 
         assertEq(returned, int128(uint128(expected)));
         _assertClaimMint(unspecified, expected);
