@@ -280,6 +280,34 @@ contract LaunchLiquidityPositionManagerTest is Test, Deployers, DeployPermit2, L
         assertGt(manager.balanceOf(feeReceiver, currency0.toId()), receiverBefore);
     }
 
+    function testExhaustedLiquidityCanBeReplacedWithoutReregisteringPool() public {
+        PositionConfig memory original = PositionConfig({poolKey: key, tickLower: -120, tickUpper: 120});
+        uint256 originalId = lpm.nextTokenId();
+        _initializeAndMint(original, INITIAL_LIQUIDITY, type(uint128).max, type(uint128).max, positionOwner);
+        vm.prank(positionOwner);
+        hook.activatePool(key.toId());
+
+        vm.prank(positionOwner);
+        positionManager.modifyLiquidities(
+            getDecreaseEncoded(originalId, original, INITIAL_LIQUIDITY, ZERO_BYTES), block.timestamp + 1
+        );
+        assertEq(lpm.getPositionLiquidity(originalId), 0);
+        assertTrue(hook.poolRegistration(key.toId()).active);
+        vm.expectRevert();
+        swap(key, true, -int256(0.001 ether), ZERO_BYTES);
+
+        PositionConfig memory replacement = PositionConfig({poolKey: key, tickLower: -600, tickUpper: 600});
+        uint256 replacementId = lpm.nextTokenId();
+        _mint(replacement, INITIAL_LIQUIDITY, type(uint128).max, type(uint128).max, externalLp);
+        uint256 receiverBefore = manager.balanceOf(feeReceiver, currency0.toId());
+        swap(key, true, -int256(0.001 ether), ZERO_BYTES);
+
+        assertEq(positionManager.ownerOf(replacementId), externalLp);
+        assertEq(lpm.getPositionLiquidity(replacementId), INITIAL_LIQUIDITY);
+        assertGt(manager.balanceOf(feeReceiver, currency0.toId()), receiverBefore);
+        assertTrue(hook.poolRegistration(key.toId()).active);
+    }
+
     function _initializeAndMint(
         PositionConfig memory config,
         uint128 liquidity,
