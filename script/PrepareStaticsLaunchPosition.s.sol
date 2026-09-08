@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.33;
+pragma solidity ^0.8.26;
 
 import {Script} from "forge-std/Script.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -11,6 +11,7 @@ import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.
 import {IPoolInitializer_v4} from "@uniswap/v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {StaticsLaunchLiquidityHook} from "../src/liquidity/StaticsLaunchLiquidityHook.sol";
+import {LaunchLiquidityScript} from "./libraries/LaunchLiquidityScript.sol";
 
 /// @notice Builds fresh launch-position calldata from a checked-in deployment artifact.
 /// @dev This script never broadcasts. Generate calldata immediately before the position transaction.
@@ -24,6 +25,7 @@ contract PrepareStaticsLaunchPosition is Script {
         address statics;
         address pairedToken;
         address positionOwner;
+        LaunchLiquidityScript.FundingMode fundingMode;
         uint24 nativeLpFee;
         int24 tickSpacing;
         uint160 sqrtPriceX96;
@@ -61,6 +63,9 @@ contract PrepareStaticsLaunchPosition is Script {
         config.statics = vm.parseJsonAddress(json, ".statics");
         config.pairedToken = vm.parseJsonAddress(json, ".pairedToken");
         config.positionOwner = vm.parseJsonAddress(json, ".positionOwner");
+        config.fundingMode = vm.keyExistsJson(json, ".fundingMode")
+            ? LaunchLiquidityScript.parseFundingMode(vm.parseJsonString(json, ".fundingMode"))
+            : LaunchLiquidityScript.FundingMode.StaticsOnly;
         config.nativeLpFee = _toUint24(vm.parseJsonUint(json, ".nativeLpFeePips"));
         config.tickSpacing = _toInt24(vm.parseJsonInt(json, ".tickSpacing"));
         config.sqrtPriceX96 = _toUint160(vm.parseJsonUint(json, ".sqrtPriceX96"));
@@ -79,6 +84,16 @@ contract PrepareStaticsLaunchPosition is Script {
                 || config.pairedToken == address(0) || config.statics == config.pairedToken
                 || config.positionOwner == address(0) || config.liquidity == 0
         ) revert InvalidArtifact();
+        LaunchLiquidityScript.validateFundingPosition(
+            config.fundingMode,
+            config.statics,
+            poolKey(config),
+            config.sqrtPriceX96,
+            config.tickLower,
+            config.tickUpper,
+            config.amount0Max,
+            config.amount1Max
+        );
     }
 
     function initializeAndMintCalldata(LaunchConfig memory config, uint256 deadline)
@@ -145,6 +160,7 @@ contract PrepareStaticsLaunchPosition is Script {
         vm.serializeAddress(objectKey, "positionManager", config.positionManager);
         vm.serializeAddress(objectKey, "hook", config.hook);
         vm.serializeAddress(objectKey, "positionOwner", config.positionOwner);
+        vm.serializeString(objectKey, "fundingMode", LaunchLiquidityScript.fundingModeName(config.fundingMode));
         vm.serializeBytes32(objectKey, "poolId", PoolId.unwrap(poolId));
         vm.serializeUint(objectKey, "positionDeadline", deadline);
         vm.serializeBytes(objectKey, "initializeAndMintCalldata", initializeAndMintCalldata(config, deadline));

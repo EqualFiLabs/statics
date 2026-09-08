@@ -6,11 +6,15 @@ import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IMulticall_v4} from "@uniswap/v4-periphery/src/interfaces/IMulticall_v4.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {DeployStaticsLaunchLiquidity} from "../../script/DeployStaticsLaunchLiquidity.s.sol";
 import {PrepareStaticsLaunchPosition} from "../../script/PrepareStaticsLaunchPosition.s.sol";
+import {PrepareStaticsPoolLaunch} from "../../script/PrepareStaticsPoolLaunch.s.sol";
+import {PrepareStaticsPositionActions} from "../../script/PrepareStaticsPositionActions.s.sol";
+import {LaunchLiquidityScript} from "../../script/libraries/LaunchLiquidityScript.sol";
 import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 contract LaunchBindingMock {
@@ -53,6 +57,7 @@ contract DeployStaticsLaunchLiquidityTest is Test {
             governance: governance,
             feeReceiver: feeReceiver,
             positionOwner: positionOwner,
+            fundingMode: LaunchLiquidityScript.FundingMode.StaticsOnly,
             nativeLpFee: 5_000,
             tickSpacing: 60,
             sqrtPriceX96: SQRT_PRICE_1_1,
@@ -161,7 +166,41 @@ contract DeployStaticsLaunchLiquidityTest is Test {
 
     function testRejectsSingleSidedLimitsForWrongCurrency() public {
         (config.amount0Max, config.amount1Max) = (config.amount1Max, config.amount0Max);
-        vm.expectRevert(DeployStaticsLaunchLiquidity.InvalidSingleSidedPosition.selector);
+        vm.expectRevert(LaunchLiquidityScript.InvalidFundingPosition.selector);
+        script.deploy(config, address(script));
+    }
+
+    function testAcceptsPairedTokenOnlyFundingOnTheOppositeSide() public {
+        bool staticsIsCurrency0 = config.statics < config.pairedToken;
+        config.fundingMode = LaunchLiquidityScript.FundingMode.PairedTokenOnly;
+        config.tickLower = staticsIsCurrency0 ? int24(-600) : int24(60);
+        config.tickUpper = staticsIsCurrency0 ? int24(-60) : int24(600);
+        config.amount0Max = staticsIsCurrency0 ? 0 : type(uint128).max;
+        config.amount1Max = staticsIsCurrency0 ? type(uint128).max : 0;
+
+        DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
+
+        assertEq(deployment.key.fee, config.nativeLpFee);
+    }
+
+    function testAcceptsTwoSidedFundingInsideTheRange() public {
+        config.fundingMode = LaunchLiquidityScript.FundingMode.TwoSided;
+        config.tickLower = -600;
+        config.tickUpper = 600;
+        config.amount0Max = type(uint128).max;
+        config.amount1Max = type(uint128).max;
+
+        DeployStaticsLaunchLiquidity.Deployment memory deployment = script.deploy(config, address(script));
+
+        assertEq(deployment.key.fee, config.nativeLpFee);
+    }
+
+    function testRejectsTwoSidedFundingOutsideTheRange() public {
+        config.fundingMode = LaunchLiquidityScript.FundingMode.TwoSided;
+        config.amount0Max = type(uint128).max;
+        config.amount1Max = type(uint128).max;
+
+        vm.expectRevert(LaunchLiquidityScript.InvalidFundingPosition.selector);
         script.deploy(config, address(script));
     }
 
@@ -177,6 +216,7 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         assertEq(vm.parseJsonAddress(artifact, ".feeClaimRedeemer"), address(deployment.feeClaimRedeemer));
         assertEq(vm.parseJsonAddress(artifact, ".pairedToken"), config.pairedToken);
         assertEq(vm.parseJsonAddress(artifact, ".positionOwner"), positionOwner);
+        assertEq(vm.parseJsonString(artifact, ".fundingMode"), "STATICS_ONLY");
         assertEq(vm.parseJsonUint(artifact, ".nativeLpFeePips"), 5_000);
         assertEq(vm.parseJsonUint(artifact, ".inputFeeBps"), 25);
         assertEq(vm.parseJsonUint(artifact, ".outputFeeBps"), 75);
@@ -238,6 +278,57 @@ contract DeployStaticsLaunchLiquidityTest is Test {
         config.liquidity = uint128(type(int128).max) + 1;
         vm.expectRevert(DeployStaticsLaunchLiquidity.InvalidConfig.selector);
         script.deploy(config, address(script));
+    }
+
+    function testCalculatesLiquidityForEveryFundingMode() public {
+        PrepareStaticsPoolLaunch prepare = new PrepareStaticsPoolLaunch();
+        PrepareStaticsPoolLaunch.PoolLaunchConfig memory launch;
+        launch.sqrtPriceX96 = SQRT_PRICE_1_1;
+        launch.tickLower = 60;
+        launch.tickUpper = 600;
+        launch.amount0Max = 100 ether;
+        assertGt(prepare.calculateLiquidity(launch), 0);
+
+        launch.tickLower = -600;
+        launch.tickUpper = -60;
+        launch.amount0Max = 0;
+        launch.amount1Max = 100 ether;
+        assertGt(prepare.calculateLiquidity(launch), 0);
+
+        launch.tickLower = -600;
+        launch.tickUpper = 600;
+        launch.amount0Max = 100 ether;
+        launch.amount1Max = 100 ether;
+        assertGt(prepare.calculateLiquidity(launch), 0);
+    }
+
+    function testPositionActionArtifactsContainStandardManagerCalls() public {
+        PrepareStaticsPositionActions prepare = new PrepareStaticsPositionActions();
+        PrepareStaticsPositionActions.PositionActionConfig memory action =
+            PrepareStaticsPositionActions.PositionActionConfig({
+                chainId: block.chainid,
+                positionManager: config.positionManager,
+                currency0: config.statics < config.pairedToken
+                    ? Currency.wrap(config.statics)
+                    : Currency.wrap(config.pairedToken),
+                currency1: config.statics < config.pairedToken
+                    ? Currency.wrap(config.pairedToken)
+                    : Currency.wrap(config.statics),
+                tokenId: 1,
+                liquidityDelta: 1 ether,
+                amount0Max: 10 ether,
+                amount1Max: 10 ether,
+                amount0Min: 1,
+                amount1Min: 1,
+                recipient: positionOwner
+            });
+        uint256 deadline = block.timestamp + 1 hours;
+        prepare.validate(action, deadline);
+
+        assertEq(bytes4(prepare.increaseCalldata(action, deadline)), IPositionManager.modifyLiquidities.selector);
+        assertEq(bytes4(prepare.decreaseCalldata(action, deadline)), IPositionManager.modifyLiquidities.selector);
+        assertEq(bytes4(prepare.collectCalldata(action, deadline)), IPositionManager.modifyLiquidities.selector);
+        assertEq(bytes4(prepare.exitAndBurnCalldata(action, deadline)), IPositionManager.modifyLiquidities.selector);
     }
 
     function _executeTimelock(

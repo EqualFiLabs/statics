@@ -15,14 +15,15 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {StaticsLaunchFeeClaimRedeemer} from "../src/liquidity/StaticsLaunchFeeClaimRedeemer.sol";
 import {StaticsLaunchLiquidityHook} from "../src/liquidity/StaticsLaunchLiquidityHook.sol";
+import {LaunchLiquidityScript} from "./libraries/LaunchLiquidityScript.sol";
 
 interface ILaunchPositionManagerBindings {
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
 }
 
-/// @notice Deploys the standalone launch fee hook and prepares one externally owned, single-sided
-/// PositionManager launch. The same hook can register additional PoolKeys after deployment.
+/// @notice Deploys the standalone launch fee hook and prepares one externally owned PositionManager launch.
+/// @dev The same hook can register additional PoolKeys after deployment.
 contract DeployStaticsLaunchLiquidity is Script {
     using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
@@ -42,6 +43,7 @@ contract DeployStaticsLaunchLiquidity is Script {
         address governance;
         address feeReceiver;
         address positionOwner;
+        LaunchLiquidityScript.FundingMode fundingMode;
         uint24 nativeLpFee;
         int24 tickSpacing;
         uint160 sqrtPriceX96;
@@ -70,7 +72,6 @@ contract DeployStaticsLaunchLiquidity is Script {
 
     error InvalidChain(uint256 expected, uint256 actual);
     error InvalidConfig();
-    error InvalidSingleSidedPosition();
     error InvalidV4Contract(address target);
     error InvalidCodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
@@ -134,7 +135,7 @@ contract DeployStaticsLaunchLiquidity is Script {
         });
         deployment.poolId = deployment.key.toId();
         deployment.create2Salt = salt;
-        _validateSingleSided(config, deployment.key);
+        _validateFunding(config, deployment.key);
     }
 
     function loadRobinhoodConfig() public view returns (Config memory config) {
@@ -161,14 +162,21 @@ contract DeployStaticsLaunchLiquidity is Script {
         config.pairedToken = vm.envAddress("STATICS_LAUNCH_PAIRED_TOKEN");
         config.feeReceiver = vm.envAddress("STATICS_LAUNCH_FEE_RECEIVER");
         config.positionOwner = vm.envAddress("STATICS_LAUNCH_POSITION_OWNER");
+        config.fundingMode =
+            LaunchLiquidityScript.parseFundingMode(vm.envOr("STATICS_LAUNCH_FUNDING_MODE", string("STATICS_ONLY")));
         config.nativeLpFee = _toUint24(vm.envUint("STATICS_LAUNCH_NATIVE_LP_FEE"));
         config.tickSpacing = _toInt24(vm.envInt("STATICS_LAUNCH_TICK_SPACING"));
         config.sqrtPriceX96 = _toUint160(vm.envUint("STATICS_LAUNCH_SQRT_PRICE_X96"));
         config.tickLower = _toInt24(vm.envInt("STATICS_LAUNCH_TICK_LOWER"));
         config.tickUpper = _toInt24(vm.envInt("STATICS_LAUNCH_TICK_UPPER"));
-        config.liquidity = _toUint128(vm.envUint("STATICS_LAUNCH_LIQUIDITY"));
         config.amount0Max = _toUint128(vm.envUint("STATICS_LAUNCH_AMOUNT0_MAX"));
         config.amount1Max = _toUint128(vm.envUint("STATICS_LAUNCH_AMOUNT1_MAX"));
+        uint256 configuredLiquidity = vm.envOr("STATICS_LAUNCH_LIQUIDITY", uint256(0));
+        config.liquidity = configuredLiquidity == 0
+            ? LaunchLiquidityScript.liquidityForAmounts(
+                config.sqrtPriceX96, config.tickLower, config.tickUpper, config.amount0Max, config.amount1Max
+            )
+            : _toUint128(configuredLiquidity);
         config.inputFeeBps = _toUint16(vm.envUint("STATICS_LAUNCH_INPUT_FEE_BPS"));
         config.outputFeeBps = _toUint16(vm.envUint("STATICS_LAUNCH_OUTPUT_FEE_BPS"));
         config.pairedTokenCodeHash = vm.envOr("STATICS_LAUNCH_PAIRED_TOKEN_CODE_HASH", bytes32(0));
@@ -204,6 +212,7 @@ contract DeployStaticsLaunchLiquidity is Script {
         vm.serializeAddress(objectKey, "governance", config.governance);
         vm.serializeAddress(objectKey, "feeReceiver", config.feeReceiver);
         vm.serializeAddress(objectKey, "positionOwner", config.positionOwner);
+        vm.serializeString(objectKey, "fundingMode", LaunchLiquidityScript.fundingModeName(config.fundingMode));
         vm.serializeBytes32(objectKey, "poolId", PoolId.unwrap(deployment.poolId));
         vm.serializeBytes32(objectKey, "create2Salt", deployment.create2Salt);
         vm.serializeBytes32(objectKey, "poolManagerRuntimeCodeHash", config.poolManagerCodeHash);
@@ -267,17 +276,17 @@ contract DeployStaticsLaunchLiquidity is Script {
         ) revert InvalidConfig();
     }
 
-    function _validateSingleSided(Config memory config, PoolKey memory key) private pure {
-        uint160 sqrtPriceLowerX96 = TickMath.getSqrtPriceAtTick(config.tickLower);
-        uint160 sqrtPriceUpperX96 = TickMath.getSqrtPriceAtTick(config.tickUpper);
-        bool staticsIsCurrency0 = Currency.unwrap(key.currency0) == config.statics;
-        if (staticsIsCurrency0) {
-            if (config.sqrtPriceX96 > sqrtPriceLowerX96 || config.amount0Max == 0 || config.amount1Max != 0) {
-                revert InvalidSingleSidedPosition();
-            }
-        } else if (config.sqrtPriceX96 < sqrtPriceUpperX96 || config.amount0Max != 0 || config.amount1Max == 0) {
-            revert InvalidSingleSidedPosition();
-        }
+    function _validateFunding(Config memory config, PoolKey memory key) private pure {
+        LaunchLiquidityScript.validateFundingPosition(
+            config.fundingMode,
+            config.statics,
+            key,
+            config.sqrtPriceX96,
+            config.tickLower,
+            config.tickUpper,
+            config.amount0Max,
+            config.amount1Max
+        );
     }
 
     function _toUint16(uint256 value) private pure returns (uint16) {
