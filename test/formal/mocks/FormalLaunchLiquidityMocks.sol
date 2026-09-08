@@ -63,6 +63,10 @@ contract FormalLaunchToken is IERC20 {
 
     contract FormalLaunchPoolManager {
         mapping(address owner => mapping(uint256 id => uint256 amount)) public balanceOf;
+        address public lastMintReceiver;
+        uint256 public lastMintId;
+        uint256 public lastMintAmount;
+        uint256 public mintCount;
 
         function take(Currency currency, address to, uint256 amount) external {
             IERC20(Currency.unwrap(currency)).transfer(to, amount);
@@ -70,6 +74,10 @@ contract FormalLaunchToken is IERC20 {
 
         function mint(address to, uint256 id, uint256 amount) external {
             balanceOf[to][id] += amount;
+            lastMintReceiver = to;
+            lastMintId = id;
+            lastMintAmount = amount;
+            mintCount++;
         }
 
         function callAfterInitialize(IHooks hook, address sender, PoolKey calldata key, uint160 sqrtPriceX96)

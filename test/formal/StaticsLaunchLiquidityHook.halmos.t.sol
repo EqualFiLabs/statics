@@ -134,9 +134,14 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         );
 
         assertEq(returned, int128(uint128(expected)));
-        assertEq(unspecified.balanceOf(address(manager)), 0);
-        assertEq(unspecified.balanceOf(receiver), 0);
-        assertEq(manager.balanceOf(receiver, unspecified.toId()), expected);
+        if (expected == 0) {
+            assertEq(manager.mintCount(), 0);
+        } else {
+            assertEq(manager.mintCount(), 1);
+            assertEq(manager.lastMintReceiver(), receiver);
+            assertEq(manager.lastMintId(), unspecified.toId());
+            assertEq(manager.lastMintAmount(), expected);
+        }
         assertEq(keyA.currency0.balanceOf(address(hook)), 0);
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
