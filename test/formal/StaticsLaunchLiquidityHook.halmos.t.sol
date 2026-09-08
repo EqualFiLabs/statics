@@ -100,11 +100,11 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         _checkAfterSwap(amount, feeBps, true, true);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero(uint8 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero(uint8 amount, uint8 feeBps) public {
         _checkAfterSwap(amount, feeBps, false, true);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne(uint8 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne(uint8 amount, uint8 feeBps) public {
         _checkAfterSwap(amount, feeBps, true, false);
     }
 
