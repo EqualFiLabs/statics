@@ -113,6 +113,7 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
     }
 
     function check_balanceDeltaHighHalfRoundTrips(uint16 highAmount, int16 lowAmount) public {
+        assertEq(hook.MAX_HOOK_FEE_BPS(), 1_000);
         int128 expectedHigh = int128(uint128(highAmount));
         int128 expectedLow = int128(lowAmount);
         BalanceDelta delta = toBalanceDelta(expectedHigh, expectedLow);
