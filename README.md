@@ -412,6 +412,11 @@ owner authorizes the deployed `StaticsLaunchFeeClaimRedeemer` in PoolManager
 and calls `redeem`; the helper burns the claims and sends the underlying to the
 chosen recipient without retaining custody.
 
+For repeated PoolKey launches, three funding modes, amount-based liquidity
+sizing, additional position mints at the current pool price, and existing-NFT
+management calldata, follow the
+[launch-liquidity tooling guide](./docs/launch-liquidity-tooling.md).
+
 ### Robinhood Chain testnet
 
 Robinhood testnet is chain `46630`. The repository records the current

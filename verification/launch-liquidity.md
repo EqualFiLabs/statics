@@ -16,6 +16,7 @@ FOUNDRY_PROFILE=adversarial forge test --match-path test/liquidity/LaunchLiquidi
 FOUNDRY_PROFILE=adversarial forge test --match-path test/liquidity/LaunchLiquidityPositionInvariant.t.sol -vv
 forge test --match-path test/liquidity/LaunchLiquidityPositionManager.t.sol -vv
 forge test --match-path test/deployment/DeployStaticsLaunchLiquidity.t.sol -vv
+forge test --match-path test/deployment/PrepareStaticsLiquidityOperations.t.sol -vv
 ```
 
 Run the symbolic hook properties with Halmos 0.3.3:
@@ -50,6 +51,8 @@ fuzz cases, 1,024 invariant runs, 100 calls per run, and fail-on-revert enabled.
 | Initialization succeeds only through the bound PositionManager at the registered price; swaps remain disabled until the registered launch operator or owner permanently activates the pool | Halmos, Certora, adversarial unit tests, and real PoolManager lifecycle tests |
 | PoolManager, PositionManager, the hook, known system sinks, and zero cannot become unsafe launch-position recipients; initial liquidity fits the signed PositionManager delta | Deployment validation tests |
 | Stable deployment artifacts contain no expiring PositionManager transaction; a separate preparation script emits fresh initialize-and-mint, mint-only fallback, and activation calldata | Deployment and artifact regression tests |
+| Pool-launch tooling accepts STATICS-only, paired-token-only, and two-sided funding, calculates liquidity from amount caps, and emits reusable registration, initialization, mint, and activation calls | Deployment validation and real PoolManager execution tests |
+| Additional-position and existing-position tooling mints independent ranges and emits working increase, partial decrease, fee collection, and full exit-and-burn calls without affecting another position | Real PoolManager/PositionManager lifecycle test |
 | A claim owner can authorize the stateless redeemer to burn claims and send underlying currency to any nonzero recipient without leaving helper custody | Real PoolManager redemption regression |
 | The hook never owns PositionManager NFTs or pool assets | Real PoolManager/PositionManager stateful invariant and adversarial custody assertions |
 | Multiple ordinary positions can coexist, increase, decrease, collect, transfer, fully exit, and burn without changing fee routing or disabling a pool that retains liquidity | Real PoolManager/PositionManager lifecycle tests, including a composed single-sided launch plus delayed configuration change, and two-position stateful invariant |
