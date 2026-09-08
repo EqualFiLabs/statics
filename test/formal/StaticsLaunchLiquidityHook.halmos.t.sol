@@ -194,15 +194,19 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
     ) public {
         vm.assume(amount > 1);
         vm.assume(feeBps <= hook.MAX_HOOK_FEE_BPS());
-        hook.setHookFees(poolA, feeBps, feeBps);
-        SwapCase memory case_ = SwapCase(zeroForOne, exactInput, amount, feeBps);
-        uint256 specifiedFee = exactInput ? _feeFromGross(amount, feeBps) : _feeFromNet(amount, feeBps);
-        int256 expectedSpecified = exactInput
-            ? -int256(uint256(amount)) + int256(specifiedFee)
-            : int256(uint256(amount)) + int256(specifiedFee);
-        int128 partialSpecified = int128(expectedSpecified + (exactInput ? int256(1) : -int256(1)));
-        int128 unspecified = exactInput ? int128(uint128(amount)) : -int128(uint128(amount));
-        bool specifiedIsCurrency0 = exactInput == zeroForOne;
+        _assertIncompleteSpecifiedFill(SwapCase(zeroForOne, exactInput, amount, feeBps));
+    }
+
+    function _assertIncompleteSpecifiedFill(SwapCase memory case_) private {
+        hook.setHookFees(poolA, case_.feeBps, case_.feeBps);
+        uint256 specifiedFee =
+            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
+        int256 expectedSpecified = case_.exactInput
+            ? -int256(uint256(case_.amount)) + int256(specifiedFee)
+            : int256(uint256(case_.amount)) + int256(specifiedFee);
+        int128 partialSpecified = int128(expectedSpecified + (case_.exactInput ? int256(1) : -int256(1)));
+        int128 unspecified = case_.exactInput ? int128(uint128(case_.amount)) : -int128(uint128(case_.amount));
+        bool specifiedIsCurrency0 = case_.exactInput == case_.zeroForOne;
         BalanceDelta partialDelta = specifiedIsCurrency0
             ? toBalanceDelta(partialSpecified, unspecified)
             : toBalanceDelta(unspecified, partialSpecified);
@@ -211,7 +215,7 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
             .call(
                 abi.encodeCall(
                     manager.callSwapHooks,
-                    (IHooks(hook), keyA, _params(zeroForOne, _specifiedAmount(case_)), partialDelta)
+                    (IHooks(hook), keyA, _params(case_.zeroForOne, _specifiedAmount(case_)), partialDelta)
                 )
             );
 
