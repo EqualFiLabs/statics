@@ -91,7 +91,7 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         assertEq(overrideFee, 0);
         assertEq(specified.balanceOf(address(manager)), 0);
         assertEq(specified.balanceOf(receiver), 0);
-        assertEq(manager.balanceOf(receiver, specified.toId()), expected);
+        _assertClaimMint(specified, expected);
         assertEq(keyA.currency0.balanceOf(address(hook)), 0);
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
@@ -134,14 +134,7 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         );
 
         assertEq(returned, int128(uint128(expected)));
-        if (expected == 0) {
-            assertEq(manager.mintCount(), 0);
-        } else {
-            assertEq(manager.mintCount(), 1);
-            assertEq(manager.lastMintReceiver(), receiver);
-            assertEq(manager.lastMintId(), unspecified.toId());
-            assertEq(manager.lastMintAmount(), expected);
-        }
+        _assertClaimMint(unspecified, expected);
         assertEq(keyA.currency0.balanceOf(address(hook)), 0);
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
@@ -225,6 +218,8 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
             );
 
         assertFalse(success);
+        assertEq(manager.mintCount(), 0);
+        assertEq(manager.lastMintAmount(), 0);
         assertEq(manager.balanceOf(receiver, keyA.currency0.toId()), 0);
         assertEq(manager.balanceOf(receiver, keyA.currency1.toId()), 0);
     }
@@ -249,6 +244,17 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
 
     function _params(bool zeroForOne, int256 amountSpecified) private pure returns (SwapParams memory) {
         return SwapParams({zeroForOne: zeroForOne, amountSpecified: amountSpecified, sqrtPriceLimitX96: 0});
+    }
+
+    function _assertClaimMint(Currency currency, uint256 expected) private view {
+        if (expected == 0) {
+            assertEq(manager.mintCount(), 0);
+        } else {
+            assertEq(manager.mintCount(), 1);
+            assertEq(manager.lastMintReceiver(), receiver);
+            assertEq(manager.lastMintId(), currency.toId());
+            assertEq(manager.lastMintAmount(), expected);
+        }
     }
 
     function _specifiedAmount(SwapCase memory case_) private pure returns (int256) {

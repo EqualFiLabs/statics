@@ -73,7 +73,6 @@ contract FormalLaunchToken is IERC20 {
         }
 
         function mint(address to, uint256 id, uint256 amount) external {
-            balanceOf[to][id] += amount;
             lastMintReceiver = to;
             lastMintId = id;
             lastMintAmount = amount;
