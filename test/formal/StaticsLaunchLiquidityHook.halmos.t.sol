@@ -96,23 +96,23 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFeeExactInputZeroForOne(uint64 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputZeroForOne(uint32 amount, uint16 feeBps) public {
         _checkAfterSwap(amount, feeBps, true, true);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero(uint64 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero(uint32 amount, uint16 feeBps) public {
         _checkAfterSwap(amount, feeBps, false, true);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne(uint64 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne(uint32 amount, uint16 feeBps) public {
         _checkAfterSwap(amount, feeBps, true, false);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputOneForZero(uint64 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputOneForZero(uint32 amount, uint16 feeBps) public {
         _checkAfterSwap(amount, feeBps, false, false);
     }
 
-    function _checkAfterSwap(uint64 amount, uint16 feeBps, bool zeroForOne, bool exactInput) private {
+    function _checkAfterSwap(uint32 amount, uint16 feeBps, bool zeroForOne, bool exactInput) private {
         vm.assume(amount > 0);
         vm.assume(feeBps <= hook.MAX_HOOK_FEE_BPS());
         _assertAfterSwap(SwapCase(zeroForOne, exactInput, amount, feeBps));
