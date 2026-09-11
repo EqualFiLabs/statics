@@ -217,7 +217,7 @@ library StaticsSelectors {
     }
 
     function globalRewards() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](23);
+        selectors = new bytes4[](25);
         selectors[0] = IStaticsGlobalRewards.createAndStake.selector;
         selectors[1] = IStaticsGlobalRewards.stake.selector;
         selectors[2] = IStaticsGlobalRewards.unstake.selector;
@@ -241,6 +241,8 @@ library StaticsSelectors {
         selectors[20] = IStaticsGlobalRewards.routeSwapFees.selector;
         selectors[21] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
         selectors[22] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        selectors[23] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        selectors[24] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
     }
 
     function genesisNFT() internal pure returns (bytes4[] memory selectors) {

@@ -86,6 +86,7 @@ interface IStaticsGlobalRewards {
     event PositionRewardSettled(uint256 indexed positionId, address indexed asset, uint256 amount);
     event RewardClaimed(uint256 indexed positionId, address indexed receiver, address indexed asset, uint256 amount);
     event TreasuryFeesDistributed(address indexed asset, address indexed treasury, uint256 amount);
+    event MaxRewardAssetsPerPositionIncreased(uint256 previousMax, uint256 newMax);
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
@@ -129,7 +130,11 @@ interface IStaticsGlobalRewards {
         view
         returns (RewardSelectionView memory selection);
 
-    function maxRewardAssetsPerPosition() external pure returns (uint256);
+    function maxRewardAssetsPerPosition() external view returns (uint256);
+
+    function hardMaxRewardAssetsPerPosition() external pure returns (uint256);
+
+    function increaseMaxRewardAssetsPerPosition(uint8 newMax) external;
 
     function rewardEligibilityDelay() external pure returns (uint256);
 

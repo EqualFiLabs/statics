@@ -6,6 +6,7 @@ import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
+import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -204,8 +205,17 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         return LibGlobalRewards.selectionView(positionId, asset);
     }
 
-    function maxRewardAssetsPerPosition() external pure returns (uint256) {
-        return LibGlobalRewards.MAX_REWARD_ASSETS_PER_POSITION;
+    function maxRewardAssetsPerPosition() external view returns (uint256) {
+        return LibGlobalRewards.maxRewardAssetsPerPosition();
+    }
+
+    function hardMaxRewardAssetsPerPosition() external pure returns (uint256) {
+        return LibGlobalRewards.HARD_MAX_REWARD_ASSETS_PER_POSITION;
+    }
+
+    function increaseMaxRewardAssetsPerPosition(uint8 newMax) external {
+        LibDiamond.enforceIsContractOwner();
+        LibGlobalRewards.increaseMaxRewardAssetsPerPosition(newMax);
     }
 
     function rewardEligibilityDelay() external pure returns (uint256) {

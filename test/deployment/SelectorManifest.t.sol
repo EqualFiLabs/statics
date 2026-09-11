@@ -266,7 +266,7 @@ contract SelectorManifestTest is Test {
 
     function testGlobalRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.globalRewards();
-        bytes4[] memory expected = new bytes4[](23);
+        bytes4[] memory expected = new bytes4[](25);
         expected[0] = IStaticsGlobalRewards.createAndStake.selector;
         expected[1] = IStaticsGlobalRewards.stake.selector;
         expected[2] = IStaticsGlobalRewards.unstake.selector;
@@ -290,6 +290,8 @@ contract SelectorManifestTest is Test {
         expected[20] = IStaticsGlobalRewards.routeSwapFees.selector;
         expected[21] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
         expected[22] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        expected[23] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        expected[24] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

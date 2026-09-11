@@ -7,6 +7,7 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
+import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
 import {LibPosition} from "../../src/position/LibPosition.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
@@ -254,7 +255,57 @@ contract GlobalRewardsTest is StaticsTestBase {
         assertEq(cleared.length, 0);
     }
 
-    function testEachPositionMaySelectSixtyFourAcrossMoreThanSixtyFourGlobalAssets() external {
+    function testActiveRewardAssetLimitStartsAtTwelveAndOnlyOwnerMayRaiseIt() external {
+        assertEq(globalRewards.maxRewardAssetsPerPosition(), 12);
+        assertEq(globalRewards.hardMaxRewardAssetsPerPosition(), 64);
+
+        address[] memory selectedAssets = new address[](12);
+        for (uint256 i; i < selectedAssets.length; ++i) {
+            selectedAssets[i] = address(new MockERC20("Reward", "RWD", 18));
+        }
+        stakingAsset.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 1 ether);
+        uint256 positionId = globalRewards.createAndStake(1 ether, alice, selectedAssets);
+        address extra = address(new MockERC20("Extra Reward", "XR", 18));
+        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardAssetLimitExceeded.selector, positionId));
+        globalRewards.optInRewardAssets(positionId, _asset(extra));
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, alice, address(this)));
+        globalRewards.increaseMaxRewardAssetsPerPosition(13);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibGlobalRewards.InvalidMaxRewardAssetsPerPosition.selector, uint256(12), uint256(12)
+            )
+        );
+        globalRewards.increaseMaxRewardAssetsPerPosition(12);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibGlobalRewards.InvalidMaxRewardAssetsPerPosition.selector, uint256(12), uint256(65)
+            )
+        );
+        globalRewards.increaseMaxRewardAssetsPerPosition(65);
+
+        vm.expectEmit(false, false, false, true, address(diamond));
+        emit IStaticsGlobalRewards.MaxRewardAssetsPerPositionIncreased(12, 13);
+        globalRewards.increaseMaxRewardAssetsPerPosition(13);
+        assertEq(globalRewards.maxRewardAssetsPerPosition(), 13);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibGlobalRewards.InvalidMaxRewardAssetsPerPosition.selector, uint256(13), uint256(12)
+            )
+        );
+        globalRewards.increaseMaxRewardAssetsPerPosition(12);
+
+        vm.prank(alice);
+        globalRewards.optInRewardAssets(positionId, _asset(extra));
+        vm.prank(alice);
+        assertEq(globalRewards.positionRewardAssets(positionId).length, 13);
+    }
+
+    function testOwnerMayRaiseActiveLimitToHardMaximumAcrossGlobalAssets() external {
+        globalRewards.increaseMaxRewardAssetsPerPosition(64);
         address[] memory aliceAssets = new address[](64);
         address[] memory bobAssets = new address[](64);
         for (uint256 i; i < 64; ++i) {
@@ -578,6 +629,7 @@ contract GlobalRewardsTest is StaticsTestBase {
 
     function testMaximumAssetWeightTransitionFitsTransactionGasCap() external {
         FeeAccrualHarness harness = _installFeeAccrualHarness();
+        globalRewards.increaseMaxRewardAssetsPerPosition(64);
         address[] memory rewardAssets = new address[](64);
         for (uint256 i; i < rewardAssets.length; ++i) {
             rewardAssets[i] = address(new MockERC20("Reward", "RWD", 18));

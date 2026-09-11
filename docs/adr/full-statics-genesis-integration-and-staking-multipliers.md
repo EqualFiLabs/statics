@@ -603,7 +603,8 @@ install new effective weight from the same raw stake
 future rewards accrue at new multiplier
 ```
 
-For each selected reward asset, at most 64:
+For each selected reward asset, bounded by the active limit and the 64-asset
+hard ceiling:
 
 1. roll any matured pending buckets;
 2. settle all eligible rewards under the current effective weight;
@@ -1226,7 +1227,7 @@ Implementation and verification must establish at minimum:
 38. Genesis reward custody cannot be consumed by unrelated Diamond modules.
 39. No lifecycle operation requires iteration over all Genesis NFTs.
 40. No lifecycle operation requires iteration over all PositionNFTs.
-41. Position multiplier work is bounded by the existing 64 selected global reward assets.
+41. Position multiplier work is bounded by the 64-asset hard ceiling for selected global reward assets.
 42. Pending-bucket multiplier work remains bounded by the existing fixed hourly bucket count.
 43. `StaticsFeeReceiver` behavior and accounting remain unchanged by this integration.
 
@@ -1367,7 +1368,7 @@ Fuzz across:
 raw stake
 all five Genesis multiplier tiers
 pending / mature stake mixtures
-1 to 64 selected reward assets
+1 selected reward asset through the 64-asset hard ceiling
 multiple activation transitions
 stake increase
 stake decrease

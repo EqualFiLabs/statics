@@ -16,7 +16,8 @@ library LibGlobalRewards {
 
     bytes32 internal constant REWARD_STORAGE_POSITION = keccak256("statics.storage.global.rewards.v3");
     uint256 internal constant RAY = 1e27;
-    uint256 internal constant MAX_REWARD_ASSETS_PER_POSITION = 64;
+    uint8 internal constant INITIAL_MAX_REWARD_ASSETS_PER_POSITION = 12;
+    uint8 internal constant HARD_MAX_REWARD_ASSETS_PER_POSITION = 64;
     uint256 internal constant MAX_CHECKPOINT_ASSETS = 8;
     uint256 internal constant REWARD_ELIGIBILITY_DELAY = 24 hours;
     uint256 internal constant REWARD_BUCKET_SIZE = 1 hours;
@@ -71,6 +72,7 @@ library LibGlobalRewards {
         mapping(uint256 positionId => StakePosition position) positions;
         mapping(address asset => uint256 amount) totalClaimable;
         mapping(address asset => uint256 amount) treasuryAccrued;
+        uint8 activeMaxRewardAssetsPerPosition;
     }
 
     struct MorphoLossContext {
@@ -86,6 +88,7 @@ library LibGlobalRewards {
     error RewardAssetAlreadyOptedIn(uint256 positionId, address asset);
     error RewardAssetNotOptedIn(uint256 positionId, address asset);
     error RewardAssetLimitExceeded(uint256 positionId);
+    error InvalidMaxRewardAssetsPerPosition(uint256 currentMax, uint256 proposedMax);
     error InvalidMaturitySchedule(uint40 eligibleAt);
     error InvalidRewardMultiplier(uint16 multiplierBps);
     error InvalidCheckpointAssetCount(uint256 count);
@@ -103,6 +106,21 @@ library LibGlobalRewards {
         RewardStorage storage rs = rewardStorage();
         if (rs.stakingToken != address(0)) revert InvalidStakingToken();
         rs.stakingToken = stakingToken_;
+        rs.activeMaxRewardAssetsPerPosition = INITIAL_MAX_REWARD_ASSETS_PER_POSITION;
+    }
+
+    function maxRewardAssetsPerPosition() internal view returns (uint256) {
+        return rewardStorage().activeMaxRewardAssetsPerPosition;
+    }
+
+    function increaseMaxRewardAssetsPerPosition(uint8 newMax) internal {
+        RewardStorage storage rs = rewardStorage();
+        uint256 currentMax = maxRewardAssetsPerPosition();
+        if (newMax <= currentMax || newMax > HARD_MAX_REWARD_ASSETS_PER_POSITION) {
+            revert InvalidMaxRewardAssetsPerPosition(currentMax, newMax);
+        }
+        rs.activeMaxRewardAssetsPerPosition = newMax;
+        emit IStaticsGlobalRewards.MaxRewardAssetsPerPositionIncreased(currentMax, newMax);
     }
 
     function accrueNonSwapFee(bytes32 sourceAccount, address asset, uint256 grossFee) internal {
@@ -142,7 +160,7 @@ library LibGlobalRewards {
         RewardStorage storage rs = rewardStorage();
         StakePosition storage position = rs.positions[positionId];
         if (position.optedInIndexPlusOne[asset] != 0) revert RewardAssetAlreadyOptedIn(positionId, asset);
-        if (position.optedInAssets.length == MAX_REWARD_ASSETS_PER_POSITION) {
+        if (position.optedInAssets.length >= maxRewardAssetsPerPosition()) {
             revert RewardAssetLimitExceeded(positionId);
         }
         RewardBook storage book = rs.books[asset];
