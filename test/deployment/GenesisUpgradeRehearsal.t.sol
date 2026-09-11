@@ -41,6 +41,8 @@ contract GenesisUpgradeRehearsalTest is StaticsTestBase {
         StaticsGenesisUpgradeParts memory parts = preparer.deploy();
         IDiamondCut(address(diamond)).diamondCut(preparer.buildCut(parts), address(0), "");
 
+        assertEq(globalRewards.maxRewardAssetsPerPosition(), 12);
+        assertEq(globalRewards.hardMaxRewardAssetsPerPosition(), 64);
         _assertLegacyStateBeforeLazyMigration(positionId, pendingEligibleAt);
         address[] memory assets = _assets();
         assertTrue(globalRewards.rewardBookNeedsCheckpoint(address(assetA)));
@@ -85,14 +87,16 @@ contract GenesisUpgradeRehearsalTest is StaticsTestBase {
     }
 
     function _restorePreGenesisSelectorSet() private {
-        bytes4[] memory selectors = new bytes4[](7);
+        bytes4[] memory selectors = new bytes4[](9);
         selectors[0] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
         selectors[1] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
-        selectors[2] = IERC5192.locked.selector;
-        selectors[3] = IStaticsCustody.genesisRewardCustodyAccount.selector;
-        selectors[4] = LegacyGlobalRewardsSeeder.seedLegacyGlobalRewards.selector;
-        selectors[5] = LegacyGlobalRewardsSeeder.reserveLegacyRewardAsset.selector;
-        selectors[6] = LegacyGlobalRewardsSeeder.legacyPendingBucket.selector;
+        selectors[2] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        selectors[3] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
+        selectors[4] = IERC5192.locked.selector;
+        selectors[5] = IStaticsCustody.genesisRewardCustodyAccount.selector;
+        selectors[6] = LegacyGlobalRewardsSeeder.seedLegacyGlobalRewards.selector;
+        selectors[7] = LegacyGlobalRewardsSeeder.reserveLegacyRewardAsset.selector;
+        selectors[8] = LegacyGlobalRewardsSeeder.legacyPendingBucket.selector;
         IDiamondCut.FacetCut[] memory removal = new IDiamondCut.FacetCut[](1);
         removal[0] = IDiamondCut.FacetCut({
             facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: selectors

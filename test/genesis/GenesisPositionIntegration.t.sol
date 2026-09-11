@@ -620,6 +620,7 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
 
     function testMaximumAssetRecoveryUsesPermissionlessCheckpointBatches() external {
         uint256 maximumGas = 16_000_000;
+        globalRewards.increaseMaxRewardAssetsPerPosition(64);
         address[] memory rewardAssets = new address[](64);
         for (uint256 i; i < rewardAssets.length; ++i) {
             rewardAssets[i] = address(new MockERC20("Reward", "RWD", 18));

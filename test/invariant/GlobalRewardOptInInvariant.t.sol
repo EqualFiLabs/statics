@@ -44,7 +44,7 @@ contract GlobalRewardOptInHandler is Test {
         stakingAsset_.mint(address(this), 1_000_000 ether);
 
         for (uint256 i; i < 3; ++i) {
-            uint256 selectionLength = i == 0 ? 64 : 1;
+            uint256 selectionLength = i == 0 ? rewards.maxRewardAssetsPerPosition() : 1;
             address[] memory selected = new address[](selectionLength);
             for (uint256 j; j < selectionLength; ++j) {
                 selected[j] = address(rewardTokens_[i == 0 ? j : i]);
@@ -64,7 +64,7 @@ contract GlobalRewardOptInHandler is Test {
         uint256 positionId = positionIds[rawPosition % positionIds.length];
         address asset = address(rewardTokens[rawAsset % rewardTokens.length]);
         if (rewards.isRewardAssetOptedIn(positionId, asset)) return;
-        if (rewards.stakePosition(positionId).optedInAssetCount == rewards.maxRewardAssetsPerPosition()) return;
+        if (rewards.stakePosition(positionId).optedInAssetCount >= rewards.maxRewardAssetsPerPosition()) return;
         address[] memory assets = _asset(asset);
         rewards.optInRewardAssets(positionId, assets);
     }
