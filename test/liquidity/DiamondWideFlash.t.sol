@@ -87,6 +87,8 @@ contract DiamondWideFlashTest is StaticsTestBase {
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
         uint256[] memory maximums = baskets.quoteMint(basketId, 1 ether);
         uint256 fee = flashLoans.quoteFlashLoanAsset(address(assetA), maximums[0]);
+        // Mint reservation needs independent physical slack while assetA principal is out.
+        assetA.mint(address(diamond), maximums[0]);
         assetA.mint(address(receiver), maximums[0] + fee);
         assetB.mint(address(receiver), maximums[1]);
         receiver.approveProtocol(address(assetA), type(uint256).max);

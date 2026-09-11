@@ -739,8 +739,11 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 basketId, address token) = _createDefaultBasket(0.01 ether, 0);
         _mintShares(basketId, token, alice, 10 ether);
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        (,, uint256[] memory fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
+        (, uint256[] memory flashAmounts, uint256[] memory fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
         uint256[] memory maximums = baskets.quoteMint(basketId, 1 ether);
+        // Mint reservations need independent physical slack while principal is out.
+        assetA.mint(address(diamond), flashAmounts[0]);
+        assetB.mint(address(diamond), flashAmounts[1]);
         assetA.mint(address(receiver), maximums[0] + fees[0]);
         assetB.mint(address(receiver), maximums[1] + fees[1]);
         receiver.approveProtocol(address(assetA), type(uint256).max);
