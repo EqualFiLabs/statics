@@ -546,8 +546,9 @@ pool validation, NFT custody, or reward registration reverts the entire call.
 Statics exposes two typed flash-loan modes backed by the Diamond's physical
 ERC-20 balances. Flash principal does not debit basket vaults or custody
 reservations. Each requested amount must fit within its starting physical
-balance, and successful repayment must leave the Diamond with at least that
-starting balance plus the quoted fee.
+balance. Successful repayment must preserve the Diamond's starting unreserved
+balance, cover the reservations that exist after callback composition, and add
+the quoted fee.
 
 `quoteFlashLoan` returns principal and basket-specific fees for the basket's
 complete constituent vector. The basket defines the vector, but does not limit

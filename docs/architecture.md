@@ -125,6 +125,9 @@ Every attributed ingress increases both the module account and global total.
 Every egress releases only the calling account's authorization, caps the
 Diamond's observed debit, and proves the remaining physical balance still
 covers the global total. Raw balances are never treated as module liquidity.
+Flash principal is the deliberate transaction-local exception: it may use the
+raw physical balance, while final settlement preserves the pre-loan unreserved
+balance plus current reservations and the newly earned fee.
 
 Internal accounting isolates hostile baskets from one another. A token that
 rebases, burns the Diamond's balance externally, or lies through `balanceOf`

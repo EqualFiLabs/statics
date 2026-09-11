@@ -16,11 +16,17 @@ more of the same ERC-20 for other protocol books.
 Flash principal has no persistent owner change: either the receiver restores
 the required balance in the same transaction or the entire transaction,
 including every outbound transfer and callback effect, reverts. The durable
-invariant is therefore physical rather than basket-scoped:
+invariant is therefore physical and reservation-aware rather than basket-scoped:
 
 ```text
-ending Diamond balance >= starting Diamond balance + quoted fee
+ending Diamond balance >= starting unreserved balance
+                          + post-callback reservations
+                          + quoted fee
 ```
+
+Using only the raw starting balance would incorrectly reject legitimate
+callback minting and redemption, because those operations change both physical
+balances and their matching custody reservations.
 
 Statics also needs an explicit way to borrow one physically held asset without
 inventing a basket or a sentinel basket ID. Basket-vector and single-asset
@@ -34,7 +40,7 @@ atomic balance engine.
 Both flash entrypoints snapshot each requested ERC-20 balance, require the
 requested principal to fit within that physical balance, transfer the exact
 amount, invoke the typed callback, collect exact principal plus the quoted fee,
-and enforce the ending-balance invariant.
+and enforce the reservation-aware ending-balance invariant.
 
 Flash principal never changes:
 
@@ -131,7 +137,8 @@ balance is sufficient. Arbitrarily transferred ERC-20 balances also become
 available to the flash engine without being assigned to a custody account.
 
 The temporary physical under-backing exists only inside the transiently
-guarded transaction. Successful completion restores every starting balance
-and adds the quoted fee; unsuccessful completion is atomic. Integrators must
-use the callback matching the selected API and approve exact repayment before
-returning its distinct success value.
+guarded transaction. Successful completion preserves the starting unreserved
+balance, covers every post-callback reservation, and adds the quoted fee;
+unsuccessful completion is atomic. Integrators must use the callback matching
+the selected API and approve exact repayment before returning its distinct
+success value.

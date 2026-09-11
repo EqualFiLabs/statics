@@ -117,10 +117,10 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
         bytes calldata data
     ) private {
         uint256 length = assets.length;
-        uint256[] memory startingBalances = new uint256[](length);
+        uint256[] memory startingUnreserved = new uint256[](length);
         _enterPersistentGuard();
         for (uint256 i; i < length; ++i) {
-            startingBalances[i] = _lendAsset(assets[i], amounts[i], context.receiver);
+            startingUnreserved[i] = _lendAsset(assets[i], amounts[i], context.receiver);
         }
         _exitPersistentGuard();
 
@@ -130,22 +130,27 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
 
         _enterPersistentGuard();
         for (uint256 i; i < length; ++i) {
-            _collectRepayment(assets[i], amounts[i], fees[i], startingBalances[i], context.receiver);
+            _collectRepayment(assets[i], amounts[i], fees[i], startingUnreserved[i], context.receiver);
         }
         _exitPersistentGuard();
     }
 
-    function _lendAsset(address asset, uint256 amount, address receiver) private returns (uint256 startingBalance) {
-        startingBalance = IERC20(asset).balanceOf(address(this));
+    function _lendAsset(address asset, uint256 amount, address receiver) private returns (uint256 startingUnreserved) {
+        uint256 startingBalance = IERC20(asset).balanceOf(address(this));
+        uint256 startingReserved = LibCustody.globalReserved(asset);
+        if (startingBalance < startingReserved) {
+            revert LibCustody.GlobalReservationShortfall(asset, startingReserved, startingBalance);
+        }
+        startingUnreserved = startingBalance - startingReserved;
         if (amount > startingBalance) revert InsufficientFlashLiquidity(asset, amount, startingBalance);
-        if (amount == 0) return startingBalance;
+        if (amount == 0) return startingUnreserved;
         (uint256 spent, uint256 received) = LibCustody.pushFlash(asset, receiver, amount);
         if (spent != amount || received != amount) {
             revert IncompatibleFlashAsset(asset, amount, spent, received);
         }
     }
 
-    function _collectRepayment(address asset, uint256 amount, uint256 fee, uint256 startingBalance, address receiver)
+    function _collectRepayment(address asset, uint256 amount, uint256 fee, uint256 startingUnreserved, address receiver)
         private
     {
         uint256 repayment = amount + fee;
@@ -156,7 +161,7 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
             }
         }
         uint256 endingBalance = IERC20(asset).balanceOf(address(this));
-        uint256 requiredBalance = startingBalance + fee;
+        uint256 requiredBalance = LibCustody.globalReserved(asset) + startingUnreserved + fee;
         if (endingBalance < requiredBalance) {
             revert InsufficientRepayment(asset, requiredBalance, endingBalance);
         }
