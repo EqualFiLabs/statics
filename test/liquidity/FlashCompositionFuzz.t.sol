@@ -34,6 +34,9 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         );
         uint256 vaultABefore = baskets.vaultBalance(basketId, address(tokenA));
         uint256 vaultBBefore = baskets.vaultBalance(basketId, address(tokenB));
+        // Keep the ordinary redemption physically backed while principal is lent.
+        tokenA.mint(address(diamond), amounts[0]);
+        tokenB.mint(address(diamond), amounts[1]);
 
         receiver.execute(basketId, shares, bytes("decimal composition"));
 

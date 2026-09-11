@@ -30,6 +30,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         uint256 creationFeeAmount;
         uint256 positionCreationFeeAmount;
         uint256 poolCreationFeeAmount;
+        uint256 singleAssetFlashFeeBps;
     }
 
     struct V4Config {
@@ -65,7 +66,8 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             creationFeeAmount: vm.envUint("BASKET_CREATION_FEE_AMOUNT"),
             positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
-            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT")
+            poolCreationFeeAmount: vm.envUint("POOL_CREATION_FEE_AMOUNT"),
+            singleAssetFlashFeeBps: vm.envUint("STATICS_SINGLE_ASSET_FLASH_FEE_BPS")
         });
         StaticsDollarProductionConfig memory production = StaticsDollarProductionConfig({
             owner: address(0),
@@ -75,6 +77,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0,
             poolCreationFeeAmount: 0,
+            singleAssetFlashFeeBps: 0,
             weth: vm.envAddress("WETH_ADDRESS"),
             ethUsdFeed: vm.envAddress("ETH_USD_FEED"),
             sequencerUptimeFeed: vm.envAddress("SEQUENCER_UPTIME_FEED"),
@@ -109,6 +112,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         local.creationFeeAmount = config.creationFeeAmount;
         local.positionCreationFeeAmount = config.positionCreationFeeAmount;
         local.poolCreationFeeAmount = config.poolCreationFeeAmount;
+        local.singleAssetFlashFeeBps = config.singleAssetFlashFeeBps;
         local.deployMockWeth = true;
         local.deployMockOracle = true;
         local.mockOraclePriceWad = 2_500e18;
@@ -149,6 +153,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         production.creationFeeAmount = config.creationFeeAmount;
         production.positionCreationFeeAmount = config.positionCreationFeeAmount;
         production.poolCreationFeeAmount = config.poolCreationFeeAmount;
+        production.singleAssetFlashFeeBps = config.singleAssetFlashFeeBps;
         deployment = _deployProduction(production, deploymentCreator);
     }
 

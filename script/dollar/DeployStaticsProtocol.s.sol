@@ -93,6 +93,7 @@ abstract contract DeployStaticsProtocol {
         uint256 creationFeeAmount;
         uint256 positionCreationFeeAmount;
         uint256 poolCreationFeeAmount;
+        uint256 singleAssetFlashFeeBps;
     }
 
     function _deployStaticsProtocol(ProtocolDeploymentConfig memory config)
@@ -117,6 +118,7 @@ abstract contract DeployStaticsProtocol {
             creationFeeAmount: config.creationFeeAmount,
             positionCreationFeeAmount: config.positionCreationFeeAmount,
             poolCreationFeeAmount: config.poolCreationFeeAmount,
+            singleAssetFlashFeeBps: config.singleAssetFlashFeeBps,
             dollar: dollarArgs
         });
         StaticsDiamond deployedDiamond = new StaticsDiamond(

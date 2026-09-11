@@ -556,6 +556,9 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
             MockERC20(assets[i]).mint(alice, maximums[i] + 100 ether);
+            // Underpriced buy-and-redeem routes need unreserved physical slack while
+            // their flash principal is temporarily outside the Diamond.
+            MockERC20(assets[i]).mint(address(diamond), 100 ether);
             vm.startPrank(alice);
             IERC20(assets[i]).approve(address(diamond), type(uint256).max);
             IERC20(assets[i]).approve(address(v4Router), type(uint256).max);

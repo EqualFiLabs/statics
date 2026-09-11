@@ -155,6 +155,8 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
             MockERC20(assets[i]).mint(alice, maximums[i] + 100 ether);
+            // Supply independent physical slack for redemption while flash principal is out.
+            MockERC20(assets[i]).mint(address(diamond), 100 ether);
             vm.startPrank(alice);
             IERC20(assets[i]).approve(address(diamond), type(uint256).max);
             IERC20(assets[i]).approve(address(router), type(uint256).max);

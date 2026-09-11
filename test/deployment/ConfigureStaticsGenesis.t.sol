@@ -89,7 +89,8 @@ contract ConfigureStaticsGenesisTest is Test {
             stakingToken: address(statics),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0,
-            poolCreationFeeAmount: 0
+            poolCreationFeeAmount: 0,
+            singleAssetFlashFeeBps: 5
         });
         (StaticsDollarStackDeployment memory deployment, StaticsTimelock deployedTimelock) =
             deployer.deploy(protocolConfig);

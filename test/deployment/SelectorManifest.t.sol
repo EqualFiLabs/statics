@@ -7,6 +7,7 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
@@ -25,6 +26,19 @@ import {
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testFlashLoanSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.flashLoan();
+        bytes4[] memory expected = new bytes4[](7);
+        expected[0] = IStaticsFlashLoan.flashLoan.selector;
+        expected[1] = IStaticsFlashLoan.quoteFlashLoan.selector;
+        expected[2] = IStaticsFlashLoan.flashLoanAsset.selector;
+        expected[3] = IStaticsFlashLoan.quoteFlashLoanAsset.selector;
+        expected[4] = IStaticsFlashLoan.maxFlashLoan.selector;
+        expected[5] = IStaticsFlashLoan.singleAssetFlashFeeBps.selector;
+        expected[6] = IStaticsFlashLoan.setSingleAssetFlashFeeBps.selector;
+        _assertExact(actual, expected);
+    }
+
     function testGenesisNFTSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.genesisNFT();
         bytes4[] memory expected = new bytes4[](34);

@@ -2,11 +2,13 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IStaticsFlashAssetBorrower} from "../../src/interfaces/IStaticsFlashAssetBorrower.sol";
 import {IStaticsFlashBorrower} from "../../src/interfaces/IStaticsFlashBorrower.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 
-contract MockFlashBorrower is IStaticsFlashBorrower {
+contract MockFlashBorrower is IStaticsFlashBorrower, IStaticsFlashAssetBorrower {
     bytes32 internal constant CALLBACK_SUCCESS = keccak256("IStaticsFlashBorrower.onStaticsFlashLoan");
+    bytes32 internal constant ASSET_CALLBACK_SUCCESS = keccak256("IStaticsFlashAssetBorrower.onStaticsFlashLoanAsset");
 
     address public immutable PROTOCOL;
     bool public repay = true;
@@ -39,6 +41,10 @@ contract MockFlashBorrower is IStaticsFlashBorrower {
         IStaticsFlashLoan(PROTOCOL).flashLoan(basketId, shares, address(this), data);
     }
 
+    function executeAsset(address asset, uint256 amount, bytes calldata data) external {
+        IStaticsFlashLoan(PROTOCOL).flashLoanAsset(asset, amount, address(this), data);
+    }
+
     function onStaticsFlashLoan(
         address,
         uint256,
@@ -58,5 +64,17 @@ contract MockFlashBorrower is IStaticsFlashBorrower {
             }
         }
         return callbackResult;
+    }
+
+    function onStaticsFlashLoanAsset(address, address asset, uint256 amount, uint256 fee, bytes calldata)
+        external
+        returns (bytes32)
+    {
+        require(msg.sender == PROTOCOL, "only protocol");
+        if (reentryData.length != 0) {
+            (reentrySucceeded, reentryResult) = PROTOCOL.call(reentryData);
+        }
+        if (repay) IERC20(asset).approve(PROTOCOL, amount + fee);
+        return callbackResult == CALLBACK_SUCCESS ? ASSET_CALLBACK_SUCCESS : callbackResult;
     }
 }

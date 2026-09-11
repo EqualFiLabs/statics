@@ -34,6 +34,7 @@ import {IStaticsDollarGateway} from "../dollar/interfaces/IStaticsDollarGateway.
 import {LibPeriphery} from "../dollar/periphery/libraries/LibPeriphery.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
+import {LibFlashLoan} from "../libraries/LibFlashLoan.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
@@ -47,6 +48,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         uint256 creationFeeAmount;
         uint256 positionCreationFeeAmount;
         uint256 poolCreationFeeAmount;
+        uint256 singleAssetFlashFeeBps;
         LibPeriphery.InitArgs dollar;
     }
 
@@ -59,10 +61,17 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address stakingToken,
         uint256 creationFeeAmount,
         uint256 positionCreationFeeAmount,
-        uint256 poolCreationFeeAmount
+        uint256 poolCreationFeeAmount,
+        uint256 singleAssetFlashFeeBps
     ) external initializer {
         _initializeProtocol(
-            guardian, treasury, stakingToken, creationFeeAmount, positionCreationFeeAmount, poolCreationFeeAmount
+            guardian,
+            treasury,
+            stakingToken,
+            creationFeeAmount,
+            positionCreationFeeAmount,
+            poolCreationFeeAmount,
+            singleAssetFlashFeeBps
         );
     }
 
@@ -79,11 +88,18 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address stakingToken,
         uint256 creationFeeAmount,
         uint256 positionCreationFeeAmount,
-        uint256 poolCreationFeeAmount
+        uint256 poolCreationFeeAmount,
+        uint256 singleAssetFlashFeeBps
     ) external initializer {
         LibDiamond.diamondCut(cut, address(0), "");
         _initializeProtocol(
-            guardian, treasury, stakingToken, creationFeeAmount, positionCreationFeeAmount, poolCreationFeeAmount
+            guardian,
+            treasury,
+            stakingToken,
+            creationFeeAmount,
+            positionCreationFeeAmount,
+            poolCreationFeeAmount,
+            singleAssetFlashFeeBps
         );
     }
 
@@ -101,7 +117,8 @@ contract StaticsProtocolInit is ERC721Upgradeable {
             args.stakingToken,
             args.creationFeeAmount,
             args.positionCreationFeeAmount,
-            args.poolCreationFeeAmount
+            args.poolCreationFeeAmount,
+            args.singleAssetFlashFeeBps
         );
         LibPeriphery.initialize(args.dollar);
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
@@ -117,7 +134,8 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         address stakingToken,
         uint256 creationFeeAmount,
         uint256 positionCreationFeeAmount,
-        uint256 poolCreationFeeAmount
+        uint256 poolCreationFeeAmount,
+        uint256 singleAssetFlashFeeBps
     ) private {
         if (guardian == address(0)) revert InvalidGuardian();
         if (treasury == address(0) || treasury == address(this)) revert InvalidTreasury();
@@ -126,6 +144,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
+        LibFlashLoan.initialize(singleAssetFlashFeeBps);
 
         ds.supportedInterfaces[type(IStaticsGovernance).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;

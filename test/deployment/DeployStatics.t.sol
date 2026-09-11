@@ -21,6 +21,7 @@ import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
@@ -37,6 +38,7 @@ import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
 import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
+import {LibFlashLoan} from "../../src/libraries/LibFlashLoan.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {ConfigureStaticsLiquidity, StaticsLiquidityConfig} from "../../script/ConfigureStaticsLiquidity.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
@@ -58,7 +60,8 @@ contract DeployStaticsTest is Test {
             stakingToken: address(deployer),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0,
-            poolCreationFeeAmount: 0
+            poolCreationFeeAmount: 0,
+            singleAssetFlashFeeBps: 5
         });
         uint64 firstCreationNonce = vm.getNonce(address(deployer));
 
@@ -92,7 +95,8 @@ contract DeployStaticsTest is Test {
             stakingToken: address(deployer),
             creationFeeAmount: 0,
             positionCreationFeeAmount: 0.001 ether,
-            poolCreationFeeAmount: 0.05 ether
+            poolCreationFeeAmount: 0.05 ether,
+            singleAssetFlashFeeBps: 5
         });
 
         (StaticsDollarStackDeployment memory deployment,) = deployer.deploy(config);
@@ -100,6 +104,7 @@ contract DeployStaticsTest is Test {
         assertEq(IStaticsBasketAdmin(deployment.diamond).creationFee(), 0);
         assertEq(IStaticsPositionFees(deployment.diamond).positionCreationFee(), 0.001 ether);
         assertEq(IStaticsProtocolPools(deployment.diamond).poolCreationFee(), 0.05 ether);
+        assertEq(IStaticsFlashLoan(deployment.diamond).singleAssetFlashFeeBps(), 5);
     }
 
     function testLaunchInstallsFullProtocolBehindTimelockedDiamond() public {
@@ -114,7 +119,8 @@ contract DeployStaticsTest is Test {
             stakingToken: address(deployer),
             creationFeeAmount: 0.01 ether,
             positionCreationFeeAmount: 0,
-            poolCreationFeeAmount: 0.02 ether
+            poolCreationFeeAmount: 0.02 ether,
+            singleAssetFlashFeeBps: 5
         });
         DeployStatics.V4Config memory v4 = _v4Config();
 
@@ -144,7 +150,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 36, 286);
+        _assertManifest(diamond, 36, 291);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
@@ -167,6 +173,7 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolPools).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsFlashLoan).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGenesisIntegration).interfaceId));
         assertFalse(IStaticsGenesisIntegration(diamond).genesisIntegrationReady());
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionFees).interfaceId));
@@ -274,9 +281,27 @@ contract DeployStaticsTest is Test {
             stakingToken: address(deployer),
             creationFeeAmount: 1 ether,
             positionCreationFeeAmount: 0,
-            poolCreationFeeAmount: 0
+            poolCreationFeeAmount: 0,
+            singleAssetFlashFeeBps: 5
         });
         vm.expectRevert(DeployStatics.InvalidConfig.selector);
+        deployer.deploy(config);
+    }
+
+    function testLaunchRejectsInvalidSingleAssetFlashFee() public {
+        DeployStatics deployer = new DeployStatics();
+        DeployStatics.Config memory config = DeployStatics.Config({
+            multisig: makeAddr("multisig"),
+            guardian: makeAddr("guardian"),
+            treasury: makeAddr("treasury"),
+            stakingToken: address(deployer),
+            creationFeeAmount: 0,
+            positionCreationFeeAmount: 0,
+            poolCreationFeeAmount: 0,
+            singleAssetFlashFeeBps: 10_001
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(LibFlashLoan.InvalidSingleAssetFlashFeeBps.selector, 10_001));
         deployer.deploy(config);
     }
 

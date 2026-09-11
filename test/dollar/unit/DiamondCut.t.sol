@@ -335,7 +335,7 @@ contract DiamondCutTest is Test {
             address(initializer),
             abi.encodeCall(
                 StaticsProtocolInit.genesisInitialize,
-                (genesisCut, makeAddr("partialGuardian"), makeAddr("partialTreasury"), address(initializer), 0, 0, 0)
+                (genesisCut, makeAddr("partialGuardian"), makeAddr("partialTreasury"), address(initializer), 0, 0, 0, 5)
             )
         );
 

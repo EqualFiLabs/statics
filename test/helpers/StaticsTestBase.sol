@@ -95,7 +95,7 @@ contract StaticsTestDeployer {
             address(0),
             address(init),
             abi.encodeCall(
-                StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0, 0)
+                StaticsProtocolInit.genesisInitialize, (cut, guardian, treasury, stakingToken, 1 ether, 0, 0, 5)
             )
         );
     }
