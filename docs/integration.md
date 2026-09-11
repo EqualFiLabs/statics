@@ -41,7 +41,7 @@ Use compiled ABIs from these sources:
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
-| Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute constituent-vector flash loans |
+| Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
 | PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect metadata, and close positions |
 | Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
@@ -543,20 +543,36 @@ pool validation, NFT custody, or reward registration reverts the entire call.
 
 ## Flash loans and arbitrage routing
 
-`quoteFlashLoan` returns principal and quoted fees for the basket's complete
-constituent vector. A receiver implements
-`IStaticsFlashBorrower.onStaticsFlashLoan`, approves requested repayment during
-the callback, and returns the documented callback hash.
+Statics exposes two typed flash-loan modes backed by the Diamond's physical
+ERC-20 balances. Flash principal does not debit basket vaults or custody
+reservations. Each requested amount must fit within its starting physical
+balance, and successful repayment must leave the Diamond with at least that
+starting balance plus the quoted fee.
+
+`quoteFlashLoan` returns principal and basket-specific fees for the basket's
+complete constituent vector. The basket defines the vector, but does not limit
+the physical liquidity source to its own vault. A receiver implements
+`IStaticsFlashBorrower.onStaticsFlashLoan`, approves exact principal plus fees,
+and returns `keccak256("IStaticsFlashBorrower.onStaticsFlashLoan")`.
+
+`maxFlashLoan(asset)` returns the Diamond's full raw ERC-20 balance, including
+balances represented by custody reservations. `quoteFlashLoanAsset` applies
+the protocol-wide `singleAssetFlashFeeBps` with ceiling rounding.
+`flashLoanAsset` invokes
+`IStaticsFlashAssetBorrower.onStaticsFlashLoanAsset` and requires the distinct
+`keccak256("IStaticsFlashAssetBorrower.onStaticsFlashLoanAsset")` success value.
+It does not use a basket ID. Governance may update the single-asset fee through
+the Diamond timelock.
 
 The callback may call ordinary `mint` and `redeem`. Those paths retain all fees,
 approvals, minimums, and lifecycle checks. Nested flash loans remain blocked.
 Disbursement must debit the Diamond and credit the receiver by exactly the
 quoted principal; outbound-tax and sender-extra-tax tokens are incompatible.
 
-Repayment requests principal plus quoted fee but credits a measured balance
-delta. Success requires at least principal; actual fee equals measured receipt
-minus principal and enters the global non-swap fee ledger. Callback failure,
-an invalid hash, a receiver minimum-profit revert, or insufficient principal
+Repayment collects exact principal plus quoted fee using measured sender and
+receiver deltas. Only that newly earned fee enters custody and the global
+non-swap reward/treasury ledger. Callback failure, an invalid hash, a receiver
+minimum-profit revert, an inexact token transfer, or insufficient repayment
 reverts all protocol and external-pool changes atomically.
 
 An overpriced route can borrow constituents, mint, sell BasketTokens across
@@ -579,6 +595,8 @@ allowlist, arbitrary target-and-calldata execution, callback privilege, or fee
 exemption. It does not implement the underpriced buy-and-redeem direction or
 search for profitable allocations. Searchers remain responsible for fresh
 quotes, gas, allocation selection, and minimums. Cancun/EIP-1153 is required.
+Basket-to-basket, asset-to-asset, and cross-mode nested flash loans are all
+blocked.
 See `docs/adr/composable-flash-loan-callbacks.md`.
 
 ## Statics Dollar authorization
