@@ -665,6 +665,16 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(globalRewards.treasuryAccrued(assets[0]), fees[0]);
     }
 
+    struct TaxReceiptSnapshot {
+        uint256 supply;
+        bytes32 basketAccount;
+        uint256 vault;
+        uint256 basketReserved;
+        uint256 globalReserved;
+        uint256 treasury;
+        uint256 diamondBalance;
+    }
+
     function testFlashRepaymentRejectsDirectionalTaxReceipt() public {
         MockOutboundFeeERC20 taxed = new MockOutboundFeeERC20();
         taxed.setTaxedSender(makeAddr("inactive taxed sender"));
@@ -683,8 +693,6 @@ contract LendingAndFlashTest is StaticsTestBase {
             baskets.mint(basketId, 10 ether, alice, initialMaximums);
             vm.stopPrank();
         }
-        uint256 supplyBefore = IERC20(token).totalSupply();
-
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
         uint256[] memory fees;
         {
@@ -696,22 +704,24 @@ contract LendingAndFlashTest is StaticsTestBase {
         }
         taxed.setTaxedSender(address(receiver));
 
-        bytes32 basketAccount = custody.basketCustodyAccount(basketId);
-        uint256 vaultBefore = baskets.vaultBalance(basketId, address(taxed));
-        uint256 basketReservedBefore = custody.reservedByAccount(basketAccount, address(taxed));
-        uint256 globalReservedBefore = custody.globalReservedByToken(address(taxed));
-        uint256 treasuryBefore = globalRewards.treasuryAccrued(address(taxed));
-        uint256 diamondBefore = taxed.balanceOf(address(diamond));
+        TaxReceiptSnapshot memory snapshot;
+        snapshot.supply = IERC20(token).totalSupply();
+        snapshot.basketAccount = custody.basketCustodyAccount(basketId);
+        snapshot.vault = baskets.vaultBalance(basketId, address(taxed));
+        snapshot.basketReserved = custody.reservedByAccount(snapshot.basketAccount, address(taxed));
+        snapshot.globalReserved = custody.globalReservedByToken(address(taxed));
+        snapshot.treasury = globalRewards.treasuryAccrued(address(taxed));
+        snapshot.diamondBalance = taxed.balanceOf(address(diamond));
 
         vm.expectPartialRevert(FlashLoanFacet.IncompatibleFlashAsset.selector);
         receiver.execute(basketId, 1 ether, bytes("directional repayment tax"));
 
-        assertEq(baskets.vaultBalance(basketId, address(taxed)), vaultBefore);
-        assertEq(custody.reservedByAccount(basketAccount, address(taxed)), basketReservedBefore);
-        assertEq(custody.globalReservedByToken(address(taxed)), globalReservedBefore);
-        assertEq(globalRewards.treasuryAccrued(address(taxed)), treasuryBefore);
-        assertEq(taxed.balanceOf(address(diamond)), diamondBefore);
-        assertEq(IERC20(token).totalSupply(), supplyBefore);
+        assertEq(baskets.vaultBalance(basketId, address(taxed)), snapshot.vault);
+        assertEq(custody.reservedByAccount(snapshot.basketAccount, address(taxed)), snapshot.basketReserved);
+        assertEq(custody.globalReservedByToken(address(taxed)), snapshot.globalReserved);
+        assertEq(globalRewards.treasuryAccrued(address(taxed)), snapshot.treasury);
+        assertEq(taxed.balanceOf(address(diamond)), snapshot.diamondBalance);
+        assertEq(IERC20(token).totalSupply(), snapshot.supply);
     }
 
     function testFlashLoanRevertsAtomicallyWhenReceiverDoesNotRepay() public {
