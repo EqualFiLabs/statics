@@ -58,9 +58,7 @@ contract DiamondWideFlashTest is StaticsTestBase {
         assertEq(custody.reservedByAccount(before_.firstAccount, address(assetA)), before_.firstReserved);
         assertEq(custody.reservedByAccount(before_.secondAccount, address(assetA)), before_.secondReserved);
         assertEq(custody.globalReservedByToken(address(assetA)), before_.globalReserved + fees[0]);
-        assertEq(
-            custody.reservedByAccount(custody.feeCustodyAccount(), address(assetA)), before_.feeReserved + fees[0]
-        );
+        assertEq(custody.reservedByAccount(custody.feeCustodyAccount(), address(assetA)), before_.feeReserved + fees[0]);
     }
 
     function testSingleAssetFlashBorrowsFullPhysicalBalanceAndRoutesFee() public {
@@ -93,9 +91,7 @@ contract DiamondWideFlashTest is StaticsTestBase {
         assetB.mint(address(receiver), maximums[1]);
         receiver.approveProtocol(address(assetA), type(uint256).max);
         receiver.approveProtocol(address(assetB), type(uint256).max);
-        receiver.setReentryData(
-            abi.encodeCall(IStaticsBasket.mint, (basketId, 1 ether, address(receiver), maximums))
-        );
+        receiver.setReentryData(abi.encodeCall(IStaticsBasket.mint, (basketId, 1 ether, address(receiver), maximums)));
 
         receiver.executeAsset(address(assetA), maximums[0], bytes("mint composition"));
 
