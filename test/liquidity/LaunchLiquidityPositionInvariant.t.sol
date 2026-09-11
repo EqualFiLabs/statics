@@ -34,11 +34,14 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
     PoolSwapTest private immutable router;
     StaticsLaunchLiquidityHook private immutable hook;
     PoolKey private key;
-    PositionConfig[2] private configs;
-    uint256[2] private tokenIds;
-    uint128[2] private expectedLiquidity;
+    PositionConfig[4] private configs;
+    uint256[4] private tokenIds;
+    uint128[4] private expectedLiquidity;
+    bool[4] private alive;
 
     uint256 public successfulSwaps;
+    uint256 public successfulPositionChanges;
+    uint256 public actionCalls;
     bool public seeded;
 
     constructor(
@@ -55,6 +58,8 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
         key = key_;
         configs[0] = PositionConfig({poolKey: key_, tickLower: -120, tickUpper: 120});
         configs[1] = PositionConfig({poolKey: key_, tickLower: 60, tickUpper: 600});
+        configs[2] = PositionConfig({poolKey: key_, tickLower: -600, tickUpper: -60});
+        configs[3] = PositionConfig({poolKey: key_, tickLower: -600, tickUpper: 600});
         _approve(key_.currency0);
         _approve(key_.currency1);
         IERC20(Currency.unwrap(key_.currency0)).approve(address(router_), type(uint256).max);
@@ -64,43 +69,81 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
     function seed() external {
         require(!seeded);
         for (uint256 i; i < tokenIds.length; ++i) {
-            uint256 tokenId = lpm.nextTokenId();
             uint128 liquidity = uint128(1e18 + i * 1e17);
-            mint(configs[i], liquidity, address(this), "");
-            tokenIds[i] = tokenId;
-            expectedLiquidity[i] = liquidity;
+            _mintPosition(i, liquidity);
         }
         seeded = true;
     }
 
     function increase(uint256 rawIndex, uint256 rawLiquidity) external {
+        actionCalls++;
         uint256 index = bound(rawIndex, 0, tokenIds.length - 1);
+        if (!alive[index]) return;
         uint128 amount = uint128(bound(rawLiquidity, 1, 1e16));
         increaseLiquidity(tokenIds[index], configs[index], amount, "");
         expectedLiquidity[index] += amount;
+        successfulPositionChanges++;
     }
 
     function decrease(uint256 rawIndex, uint256 rawLiquidity) external {
+        actionCalls++;
         uint256 index = bound(rawIndex, 0, tokenIds.length - 1);
+        if (!alive[index]) return;
         uint128 current = expectedLiquidity[index];
         if (current == 0) return;
         uint128 amount = uint128(bound(rawLiquidity, 1, current));
         decreaseLiquidity(tokenIds[index], configs[index], amount, "");
         expectedLiquidity[index] = current - amount;
+        successfulPositionChanges++;
     }
 
     function collectFees(uint256 rawIndex) external {
+        actionCalls++;
         uint256 index = bound(rawIndex, 0, tokenIds.length - 1);
-        if (expectedLiquidity[index] == 0) return;
-        collect(tokenIds[index], configs[index], "");
+        if (!alive[index]) return;
+        try lpm.modifyLiquidities(getCollectEncoded(tokenIds[index], configs[index], ""), block.timestamp + 1) {
+            successfulPositionChanges++;
+        } catch {}
+    }
+
+    function burnEmptyAndRemint(uint256 rawIndex, uint256 rawLiquidity, bool remint) external {
+        actionCalls++;
+        uint256 index = bound(rawIndex, 0, tokenIds.length - 1);
+        if (alive[index] && expectedLiquidity[index] == 0) {
+            burn(tokenIds[index], configs[index], "");
+            alive[index] = false;
+            successfulPositionChanges++;
+        }
+        if (!alive[index] && remint) {
+            _mintPosition(index, uint128(bound(rawLiquidity, 1, 1e18)));
+        }
     }
 
     function swapExactInput(bool zeroForOne, uint256 rawAmount) external {
+        actionCalls++;
         try router.swap(
             key,
             SwapParams({
                 zeroForOne: zeroForOne,
                 amountSpecified: -int256(bound(rawAmount, 1_000, 0.0002 ether)),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        ) returns (
+            BalanceDelta
+        ) {
+            successfulSwaps++;
+        } catch {}
+    }
+
+    function swapExactOutput(bool zeroForOne, uint256 rawAmount) external {
+        actionCalls++;
+        try router.swap(
+            key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: int256(bound(rawAmount, 1_000, 0.0001 ether)),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
@@ -118,6 +161,18 @@ contract LaunchLiquidityPositionHandler is Test, LiquidityOperations {
 
     function expectedPositionLiquidity(uint256 index) external view returns (uint128) {
         return expectedLiquidity[index];
+    }
+
+    function positionAlive(uint256 index) external view returns (bool) {
+        return alive[index];
+    }
+
+    function _mintPosition(uint256 index, uint128 liquidity) private {
+        tokenIds[index] = lpm.nextTokenId();
+        mint(configs[index], liquidity, address(this), "");
+        expectedLiquidity[index] = liquidity;
+        alive[index] = true;
+        successfulPositionChanges++;
     }
 
     function _approve(Currency currency) private {
@@ -171,21 +226,25 @@ contract LaunchLiquidityPositionInvariantTest is StdInvariant, Test, Deployers, 
         MockERC20(Currency.unwrap(currency1)).mint(address(handler), 1_000_000 ether);
         handler.seed();
         hook.activatePool(key.toId());
-        bytes4[] memory selectors = new bytes4[](4);
+        bytes4[] memory selectors = new bytes4[](6);
         selectors[0] = handler.increase.selector;
         selectors[1] = handler.decrease.selector;
         selectors[2] = handler.collectFees.selector;
         selectors[3] = handler.swapExactInput.selector;
+        selectors[4] = handler.swapExactOutput.selector;
+        selectors[5] = handler.burnEmptyAndRemint.selector;
         targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 
     function invariantManagedPositionsMatchShadowLiquidity() public view {
-        for (uint256 i; i < 2; ++i) {
+        for (uint256 i; i < 4; ++i) {
             uint256 tokenId = handler.positionId(i);
-            assertEq(positionManager.ownerOf(tokenId), address(handler));
-            assertEq(lpm.getPositionLiquidity(tokenId), handler.expectedPositionLiquidity(i));
-            assertTrue(positionManager.ownerOf(tokenId) != address(hook));
+            if (handler.positionAlive(i)) {
+                assertEq(positionManager.ownerOf(tokenId), address(handler));
+                assertEq(lpm.getPositionLiquidity(tokenId), handler.expectedPositionLiquidity(i));
+                assertTrue(positionManager.ownerOf(tokenId) != address(hook));
+            }
         }
     }
 
@@ -201,6 +260,12 @@ contract LaunchLiquidityPositionInvariantTest is StdInvariant, Test, Deployers, 
 
     function invariantPositionPoolRemainsActive() public view {
         assertTrue(hook.poolRegistration(key.toId()).active);
+    }
+
+    function afterInvariant() public view {
+        assertGt(handler.actionCalls(), 0);
+        assertGt(handler.successfulPositionChanges(), 0);
+        assertGt(handler.successfulSwaps(), 0);
     }
 
     function _approvePositionManager(Currency currency, IAllowanceTransfer permit2) private {

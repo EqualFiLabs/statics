@@ -91,40 +91,63 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         assertEq(overrideFee, 0);
         assertEq(specified.balanceOf(address(manager)), 0);
         assertEq(specified.balanceOf(receiver), 0);
-        assertEq(manager.balanceOf(receiver, specified.toId()), expected);
+        _assertClaimMint(specified, expected);
         assertEq(keyA.currency0.balanceOf(address(hook)), 0);
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
 
-    function check_afterSwapRoutesExactUnspecifiedFee(uint64 amount, uint16 feeBps) public {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputZeroForOne(uint16 amount, uint16 feeBps) public {
         _checkAfterSwap(amount, feeBps, true, true);
     }
 
-    function _checkAfterSwap(uint64 amount, uint16 feeBps, bool zeroForOne, bool exactInput) private {
+    function check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero() public {
+        _checkAfterSwap(type(uint8).max, 1_000, false, true);
+    }
+
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne() public {
+        _checkAfterSwap(type(uint8).max, 1_000, true, false);
+    }
+
+    function check_afterSwapRoutesExactUnspecifiedFeeExactOutputOneForZero(uint16 amount, uint16 feeBps) public {
+        _checkAfterSwap(amount, feeBps, false, false);
+    }
+
+    function check_balanceDeltaHighHalfRoundTrips(uint16 highAmount, int16 lowAmount) public {
+        hook.setHookFees(poolA, 0, 0);
+        int128 expectedHigh = int128(uint128(highAmount));
+        int128 expectedLow = int128(lowAmount);
+        BalanceDelta delta = toBalanceDelta(expectedHigh, expectedLow);
+
+        assertEq(delta.amount0(), expectedHigh);
+        assertEq(delta.amount1(), expectedLow);
+    }
+
+    function _checkAfterSwap(uint16 amount, uint16 feeBps, bool zeroForOne, bool exactInput) private {
         vm.assume(amount > 0);
         vm.assume(feeBps <= hook.MAX_HOOK_FEE_BPS());
         _assertAfterSwap(SwapCase(zeroForOne, exactInput, amount, feeBps));
     }
 
     function _assertAfterSwap(SwapCase memory case_) private {
-        hook.setHookFees(poolA, case_.feeBps, case_.feeBps);
+        uint16 inputFeeBps = case_.exactInput ? 0 : case_.feeBps;
+        uint16 outputFeeBps = case_.exactInput ? case_.feeBps : 0;
+        hook.setHookFees(poolA, inputFeeBps, outputFeeBps);
 
         bool specifiedIsCurrency0 = case_.exactInput == case_.zeroForOne;
         Currency unspecified = specifiedIsCurrency0 ? keyA.currency1 : keyA.currency0;
         uint256 expected =
             case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
 
-        (, int128 returned) = manager.callAfterSwap(
-            IHooks(hook),
-            keyA,
-            _params(case_.zeroForOne, _specifiedAmount(case_)),
-            _fullFillDelta(case_, specifiedIsCurrency0)
-        );
+        BalanceDelta fullFillDelta = _fullFillDelta(case_, specifiedIsCurrency0);
+        if (!specifiedIsCurrency0) {
+            vm.assume(fullFillDelta.amount0() == int128(uint128(case_.amount)));
+        }
+
+        (, int128 returned) =
+            manager.callAfterSwap(IHooks(hook), keyA, _params(case_.zeroForOne, _specifiedAmount(case_)), fullFillDelta);
 
         assertEq(returned, int128(uint128(expected)));
-        assertEq(unspecified.balanceOf(address(manager)), 0);
-        assertEq(unspecified.balanceOf(receiver), 0);
-        assertEq(manager.balanceOf(receiver, unspecified.toId()), expected);
+        _assertClaimMint(unspecified, expected);
         assertEq(keyA.currency0.balanceOf(address(hook)), 0);
         assertEq(keyA.currency1.balanceOf(address(hook)), 0);
     }
@@ -174,22 +197,42 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         assertTrue(registration.active);
     }
 
-    function check_incompleteSpecifiedFillRevertsBeforeUnspecifiedClaim() public {
-        uint64 amount = 1_000_000;
-        uint16 feeBps = 25;
-        hook.setHookFees(poolA, feeBps, feeBps);
-        uint256 specifiedFee = _feeFromGross(amount, feeBps);
-        int128 partialSpecified = -int128(uint128(amount - specifiedFee - 1));
-        BalanceDelta partialDelta = toBalanceDelta(partialSpecified, int128(uint128(amount)));
+    function check_incompleteSpecifiedFillRevertsBeforeUnspecifiedClaim(
+        bool zeroForOne,
+        bool exactInput,
+        uint64 amount,
+        uint16 feeBps
+    ) public {
+        vm.assume(amount > 1);
+        vm.assume(feeBps <= hook.MAX_HOOK_FEE_BPS());
+        _assertIncompleteSpecifiedFill(SwapCase(zeroForOne, exactInput, amount, feeBps));
+    }
+
+    function _assertIncompleteSpecifiedFill(SwapCase memory case_) private {
+        hook.setHookFees(poolA, case_.feeBps, case_.feeBps);
+        uint256 specifiedFee =
+            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
+        int256 expectedSpecified = case_.exactInput
+            ? -int256(uint256(case_.amount)) + int256(specifiedFee)
+            : int256(uint256(case_.amount)) + int256(specifiedFee);
+        int128 partialSpecified = int128(expectedSpecified + (case_.exactInput ? int256(1) : -int256(1)));
+        int128 unspecified = case_.exactInput ? int128(uint128(case_.amount)) : -int128(uint128(case_.amount));
+        bool specifiedIsCurrency0 = case_.exactInput == case_.zeroForOne;
+        BalanceDelta partialDelta = specifiedIsCurrency0
+            ? toBalanceDelta(partialSpecified, unspecified)
+            : toBalanceDelta(unspecified, partialSpecified);
 
         (bool success,) = address(manager)
             .call(
                 abi.encodeCall(
-                    manager.callAfterSwap, (IHooks(hook), keyA, _params(true, -int256(uint256(amount))), partialDelta)
+                    manager.callSwapHooks,
+                    (IHooks(hook), keyA, _params(case_.zeroForOne, _specifiedAmount(case_)), partialDelta)
                 )
             );
 
         assertFalse(success);
+        assertEq(manager.mintCount(), 0);
+        assertEq(manager.lastMintAmount(), 0);
         assertEq(manager.balanceOf(receiver, keyA.currency0.toId()), 0);
         assertEq(manager.balanceOf(receiver, keyA.currency1.toId()), 0);
     }
@@ -216,17 +259,24 @@ contract StaticsLaunchLiquidityHookHalmosTest is SymTest, Test {
         return SwapParams({zeroForOne: zeroForOne, amountSpecified: amountSpecified, sqrtPriceLimitX96: 0});
     }
 
+    function _assertClaimMint(Currency currency, uint256 expected) private view {
+        if (expected == 0) {
+            assertEq(manager.mintCount(), 0);
+        } else {
+            assertEq(manager.mintCount(), 1);
+            assertEq(manager.lastMintReceiver(), receiver);
+            assertEq(manager.lastMintId(), currency.toId());
+            assertEq(manager.lastMintAmount(), expected);
+        }
+    }
+
     function _specifiedAmount(SwapCase memory case_) private pure returns (int256) {
         int256 amount = int256(uint256(case_.amount));
         return case_.exactInput ? -amount : amount;
     }
 
     function _fullFillDelta(SwapCase memory case_, bool specifiedIsCurrency0) private pure returns (BalanceDelta) {
-        uint256 specifiedFee =
-            case_.exactInput ? _feeFromGross(case_.amount, case_.feeBps) : _feeFromNet(case_.amount, case_.feeBps);
-        int256 specified = case_.exactInput
-            ? -int256(uint256(case_.amount)) + int256(specifiedFee)
-            : int256(uint256(case_.amount)) + int256(specifiedFee);
+        int256 specified = case_.exactInput ? -int256(uint256(case_.amount)) : int256(uint256(case_.amount));
         int128 specifiedDelta = int128(specified);
         int128 unspecifiedDelta = int128(uint128(case_.amount));
         return specifiedIsCurrency0

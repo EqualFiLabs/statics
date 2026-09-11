@@ -120,6 +120,30 @@ contract StaticsLaunchLiquidityHookAdversarialTest is Test {
         _assertAfterSwap(case_, negativeDelta);
     }
 
+    function testFeeBoundaryMatrixCoversEveryDirectionAndExactnessMode() public {
+        uint16[3] memory fees = [uint16(0), uint16(1), hook.MAX_HOOK_FEE_BPS()];
+        uint256[3] memory amounts = [uint256(1), uint256(9_999), uint256(type(uint64).max)];
+        for (uint256 feeIndex; feeIndex < fees.length; ++feeIndex) {
+            for (uint256 direction; direction < 2; ++direction) {
+                for (uint256 exactness; exactness < 2; ++exactness) {
+                    FeeCase memory case_ = FeeCase({
+                        zeroForOne: direction == 1,
+                        exactInput: exactness == 1,
+                        amount: amounts[feeIndex],
+                        feeBps: fees[feeIndex]
+                    });
+                    uint256 beforeState = vm.snapshotState();
+                    _assertBeforeSwap(case_);
+                    assertTrue(vm.revertToState(beforeState));
+
+                    uint256 afterState = vm.snapshotState();
+                    _assertAfterSwap(case_, direction != exactness);
+                    assertTrue(vm.revertToState(afterState));
+                }
+            }
+        }
+    }
+
     function _assertAfterSwap(FeeCase memory case_, bool negativeDelta) private {
         hook.setHookFees(poolId, case_.feeBps, case_.feeBps);
         bool specifiedCurrencyIs0 = case_.exactInput == case_.zeroForOne;

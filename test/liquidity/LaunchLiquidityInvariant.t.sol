@@ -24,6 +24,7 @@ import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
 import {PositionManager} from "@uniswap/v4-periphery/src/PositionManager.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsLaunchLiquidityHook} from "../../src/interfaces/IStaticsLaunchLiquidityHook.sol";
+import {StaticsLaunchFeeClaimRedeemer} from "../../src/liquidity/StaticsLaunchFeeClaimRedeemer.sol";
 import {StaticsLaunchLiquidityHook} from "../../src/liquidity/StaticsLaunchLiquidityHook.sol";
 
 contract LaunchLiquidityHandler is Test {
@@ -32,26 +33,32 @@ contract LaunchLiquidityHandler is Test {
     PoolSwapTest private immutable router;
     IPoolManager private immutable manager;
     StaticsLaunchLiquidityHook private immutable hook;
+    StaticsLaunchFeeClaimRedeemer private immutable redeemer;
     Currency private immutable currency0;
     Currency private immutable currency1;
+    address private immutable redemptionRecipient;
     PoolKey private primaryKey;
     PoolKey private secondaryKey;
     address[3] private receivers;
 
     mapping(PoolId poolId => uint16 fee) public expectedInputFee;
     mapping(PoolId poolId => uint16 fee) public expectedOutputFee;
-    mapping(address receiver => mapping(Currency currency => uint256 balance)) public lastReceiverBalance;
+    mapping(address receiver => mapping(Currency currency => uint256 amount)) public totalClaimsMinted;
+    mapping(address receiver => mapping(Currency currency => uint256 amount)) public totalClaimsRedeemed;
 
     address public currentReceiver;
-    bool public receiverBalanceDecreased;
+    bool public claimAccountingDecreased;
     bool public hookRetainedTokens;
     uint256 public successfulSwaps;
+    uint256 public successfulRedemptions;
     uint256 public configurationChanges;
+    uint256 public actionCalls;
 
     constructor(
         PoolSwapTest router_,
         IPoolManager manager_,
         StaticsLaunchLiquidityHook hook_,
+        StaticsLaunchFeeClaimRedeemer redeemer_,
         PoolKey memory primaryKey_,
         PoolKey memory secondaryKey_,
         address[3] memory receivers_
@@ -59,11 +66,13 @@ contract LaunchLiquidityHandler is Test {
         router = router_;
         manager = manager_;
         hook = hook_;
+        redeemer = redeemer_;
         primaryKey = primaryKey_;
         secondaryKey = secondaryKey_;
         currency0 = primaryKey_.currency0;
         currency1 = primaryKey_.currency1;
         receivers = receivers_;
+        redemptionRecipient = address(0xA11CE);
         currentReceiver = receivers_[0];
         expectedInputFee[primaryKey_.toId()] = 25;
         expectedOutputFee[primaryKey_.toId()] = 75;
@@ -74,14 +83,17 @@ contract LaunchLiquidityHandler is Test {
     }
 
     function swapExactInput(bool useSecondary, bool zeroForOne, uint256 rawAmount) external {
+        actionCalls++;
         _swap(useSecondary, zeroForOne, -int256(bound(rawAmount, 1_000, 0.00025 ether)));
     }
 
     function swapExactOutput(bool useSecondary, bool zeroForOne, uint256 rawAmount) external {
+        actionCalls++;
         _swap(useSecondary, zeroForOne, int256(bound(rawAmount, 1_000, 0.0001 ether)));
     }
 
     function setFees(bool useSecondary, uint256 rawInputFee, uint256 rawOutputFee) external {
+        actionCalls++;
         PoolId poolId = _key(useSecondary).toId();
         uint16 inputFee = uint16(bound(rawInputFee, 0, hook.MAX_HOOK_FEE_BPS()));
         uint16 outputFee = uint16(bound(rawOutputFee, 0, hook.MAX_HOOK_FEE_BPS()));
@@ -93,10 +105,30 @@ contract LaunchLiquidityHandler is Test {
     }
 
     function rotateReceiver(uint256 rawIndex) external {
+        actionCalls++;
         address next = receivers[bound(rawIndex, 0, receivers.length - 1)];
         hook.setFeeReceiver(next);
         currentReceiver = next;
         configurationChanges++;
+        _observe();
+    }
+
+    function redeemClaims(uint256 rawReceiverIndex, bool useCurrency1, uint256 rawAmount) external {
+        actionCalls++;
+        address receiver = receivers[bound(rawReceiverIndex, 0, receivers.length - 1)];
+        Currency currency = useCurrency1 ? currency1 : currency0;
+        uint256 available = manager.balanceOf(receiver, currency.toId());
+        if (available == 0) {
+            _observe();
+            return;
+        }
+        uint256 amount = bound(rawAmount, 1, available);
+        uint256 recipientBefore = currency.balanceOf(redemptionRecipient);
+        vm.prank(receiver);
+        redeemer.redeem(currency, amount, redemptionRecipient);
+        assertEq(currency.balanceOf(redemptionRecipient) - recipientBefore, amount);
+        totalClaimsRedeemed[receiver][currency] += amount;
+        successfulRedemptions++;
         _observe();
     }
 
@@ -132,17 +164,20 @@ contract LaunchLiquidityHandler is Test {
             address receiver = receivers[i];
             uint256 balance0 = manager.balanceOf(receiver, currency0.toId());
             uint256 balance1 = manager.balanceOf(receiver, currency1.toId());
-            if (
-                balance0 < lastReceiverBalance[receiver][currency0]
-                    || balance1 < lastReceiverBalance[receiver][currency1]
-            ) {
-                receiverBalanceDecreased = true;
-            }
-            lastReceiverBalance[receiver][currency0] = balance0;
-            lastReceiverBalance[receiver][currency1] = balance1;
+            _observeClaims(receiver, currency0, balance0);
+            _observeClaims(receiver, currency1, balance1);
         }
         if (currency0.balanceOf(address(hook)) != 0 || currency1.balanceOf(address(hook)) != 0) {
             hookRetainedTokens = true;
+        }
+    }
+
+    function _observeClaims(address receiver, Currency currency, uint256 outstanding) private {
+        uint256 accounted = outstanding + totalClaimsRedeemed[receiver][currency];
+        if (accounted < totalClaimsMinted[receiver][currency]) {
+            claimAccountingDecreased = true;
+        } else {
+            totalClaimsMinted[receiver][currency] = accounted;
         }
     }
 
@@ -159,6 +194,7 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
 
     address[3] private receivers = [makeAddr("receiverA"), makeAddr("receiverB"), makeAddr("receiverC")];
     StaticsLaunchLiquidityHook private hook;
+    StaticsLaunchFeeClaimRedeemer private redeemer;
     LaunchLiquidityHandler private handler;
     PoolKey private primaryKey;
     PoolKey private secondaryKey;
@@ -170,6 +206,7 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
         PositionManager positionManager =
             new PositionManager(manager, permit2, 100_000, IPositionDescriptor(address(0)), IWETH9(address(0)));
         hook = _deployHook(IPositionManager(address(positionManager)));
+        redeemer = new StaticsLaunchFeeClaimRedeemer(IPoolManager(manager));
         primaryKey =
             PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 60, hooks: IHooks(hook)});
         secondaryKey = primaryKey;
@@ -183,8 +220,14 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
         hook.activatePool(primaryKey.toId());
         hook.activatePool(secondaryKey.toId());
 
-        handler =
-            new LaunchLiquidityHandler(swapRouter, IPoolManager(manager), hook, primaryKey, secondaryKey, receivers);
+        for (uint256 i; i < receivers.length; ++i) {
+            vm.prank(receivers[i]);
+            manager.setOperator(address(redeemer), true);
+        }
+
+        handler = new LaunchLiquidityHandler(
+            swapRouter, IPoolManager(manager), hook, redeemer, primaryKey, secondaryKey, receivers
+        );
         hook.transferOwnership(address(handler));
         vm.prank(address(handler));
         hook.acceptOwnership();
@@ -199,8 +242,19 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
         assertFalse(handler.hookRetainedTokens());
     }
 
-    function invariantEveryReceiverBalanceIsMonotonic() public view {
-        assertFalse(handler.receiverBalanceDecreased());
+    function invariantClaimsEqualMintedMinusRedeemed() public view {
+        assertFalse(handler.claimAccountingDecreased());
+        for (uint256 i; i < receivers.length; ++i) {
+            address receiver = handler.receiverAt(i);
+            assertEq(
+                handler.totalClaimsMinted(receiver, currency0),
+                manager.balanceOf(receiver, currency0.toId()) + handler.totalClaimsRedeemed(receiver, currency0)
+            );
+            assertEq(
+                handler.totalClaimsMinted(receiver, currency1),
+                manager.balanceOf(receiver, currency1.toId()) + handler.totalClaimsRedeemed(receiver, currency1)
+            );
+        }
     }
 
     function invariantCurrentReceiverMatchesGovernedState() public view {
@@ -210,6 +264,11 @@ contract LaunchLiquidityInvariantTest is StdInvariant, Test, Deployers, DeployPe
     function invariantRegisteredPoolConfigurationsRemainIsolated() public view {
         _assertRegistration(primaryKey, 3_000, 60);
         _assertRegistration(secondaryKey, 5_000, 60);
+    }
+
+    function afterInvariant() public view {
+        assertGt(handler.actionCalls(), 0);
+        assertGt(handler.successfulSwaps(), 0);
     }
 
     function _assertRegistration(PoolKey memory selected, uint24 nativeFee, int24 tickSpacing) private view {

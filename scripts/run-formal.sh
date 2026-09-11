@@ -89,8 +89,16 @@ case "$TARGET" in
   launch-liquidity)
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-before-swap 8 out-formal-genesis \
       '^check_beforeSwapRoutesExactSpecifiedFee'
-    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap 8 out-formal-genesis \
-      '^check_afterSwapRoutesExactUnspecifiedFee'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-balance-delta-packing 8 \
+      out-formal-genesis '^check_balanceDeltaHighHalfRoundTrips'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap-exact-input-zero-for-one \
+      8 out-formal-genesis '^check_afterSwapRoutesExactUnspecifiedFeeExactInputZeroForOne'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap-exact-input-one-for-zero \
+      8 out-formal-genesis '^check_afterSwapRoutesExactUnspecifiedFeeExactInputOneForZero'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap-exact-output-zero-for-one \
+      8 out-formal-genesis '^check_afterSwapRoutesExactUnspecifiedFeeExactOutputZeroForOne'
+    run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-after-swap-exact-output-one-for-zero \
+      8 out-formal-genesis '^check_afterSwapRoutesExactUnspecifiedFeeExactOutputOneForZero'
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-pool-isolation 8 out-formal-genesis \
       '^check_feeUpdatesRemainPoolLocal'
     run_halmos "$ROOT" StaticsLaunchLiquidityHookHalmosTest launch-liquidity-receiver 8 out-formal-genesis \
