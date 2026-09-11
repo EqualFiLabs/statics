@@ -95,9 +95,10 @@ separately namespaced:
 - direct Genesis STATICS/WETH indexes, prior-owner credits, registration, and
   an isolated Genesis reward reservation;
 - one global staking balance per PositionNFT, withdrawable without a cooldown
-  except while supplied to Morpho, at most
-  64 selected reward assets per position, and independent hourly 24-to-25-hour
-  eligibility rings for an unlimited set of global asset indexes; and
+  except while supplied to Morpho, an initial active limit of 12 selected
+  reward assets under a 64-asset hard ceiling, and independent hourly
+  24-to-25-hour eligibility rings for an unlimited set of global asset indexes;
+  and
 - per-position, per-basket reward indexes, loan tranches, principal, and
   proportional recovery state.
 

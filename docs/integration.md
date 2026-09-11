@@ -227,14 +227,23 @@ Withdrawn or recovered shares settle first and stop earning.
 
 To earn global Statics-staker fees, approve the configured `stakingToken()` and
 use `createAndStake(amount,
-receiver, rewardAssets)` or `stake(positionId, amount)`. A position selects at
-most 64 reward assets, while the protocol supports any number globally. Use
-`optInRewardAssets` and `optOutRewardAssets` to change the selection. A new
-selection and every top-up enter a pending tranche that matures at the next
-hourly boundary at least 24 hours later. Existing mature stake remains eligible
-and undeployed stake has no cooldown. Stake supplied to Morpho must first be
-recalled. Withdrawals consume pending stake first. A full unstake clears
-selections but preserves settled claims.
+receiver, rewardAssets)` or `stake(positionId, amount)`. A position initially
+selects up to 12 reward assets, while the protocol supports any number globally.
+Read `maxRewardAssetsPerPosition()` for the current active limit and
+`hardMaxRewardAssetsPerPosition()` for the immutable ceiling of 64; do not
+hard-code either value in clients. Use `optInRewardAssets` and
+`optOutRewardAssets` to change the selection. A new selection and every top-up
+enter a pending tranche that matures at the next hourly boundary at least 24
+hours later. Existing mature stake remains eligible and undeployed stake has no
+cooldown. Stake supplied to Morpho must first be recalled. Withdrawals consume
+pending stake first. A full unstake clears selections but preserves settled
+claims.
+
+Timelock governance may only raise the active selection limit. Index
+`MaxRewardAssetsPerPositionIncreased` and refresh client-side capacity when it
+appears. Existing positions above the active value continue to stake, unstake,
+settle, claim, and opt out, but cannot add a selection until their selected
+count is below the active limit.
 
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
@@ -742,7 +751,8 @@ Index these event families, then reconcile with current views:
   `RewardStakeScheduled`, `RewardBucketMatured`,
   `PositionRewardEligibilityActivated`, `GlobalFeeAccrued`,
   `PositionRewardSettled`, `RewardClaimed`, `TreasuryFeesDistributed`,
-  `RewardAssetOptedIn`, `RewardAssetOptedOut`, and `RewardAssetDustRouted`;
+  `RewardAssetOptedIn`, `RewardAssetOptedOut`, `RewardAssetDustRouted`, and
+  `MaxRewardAssetsPerPositionIncreased`;
 - lending and flash: `LoanOriginated`, `LoanRepaid`, `LoanExtensionFeePaid`,
   `LoanExtended`, `LoanRecovered`, and `BasketFlashLoan`;
 - Dollar Risk Shares token: `SeriesTransfersFrozen`;

@@ -68,7 +68,7 @@ backing or let one basket consume another basket's assets.
 | Basket accounting | Static aggregate-supply backing; no NAV or price oracle |
 | Position ownership | One shared ERC-721 at `StaticsDiamond` |
 | Basket collateral | Optional BasketToken deposit leg; deposited and locked shares earn isolated basket rewards |
-| Global rewards | Unlimited global assets; each PositionNFT selects at most 64 reward assets |
+| Global rewards | Unlimited global assets; each PositionNFT initially selects up to 12 reward assets under a governance-raiseable 64-asset hard ceiling |
 | Non-swap fee split | 90% to matured selected global stake and 10% to treasury; unavailable staker allocation goes to treasury |
 | Canonical swap fees | Separate input and output hook fees; launch default is 50 BPS on each realized leg |
 | Swap-fee split | Launch default 10% permanent liquidity, 25% eligible canonical LPs, 25% deposited BasketTokens, 15% global Statics stakers, 25% treasury |
@@ -503,13 +503,23 @@ treasury when that asset's eligible weight returns to zero.
 ### Reward indexes and claims
 
 The ledger can create a reward book for any asset and uses 1e27 index
-precision. Each PositionNFT may select at most 64 assets, so every
-position-owned action remains bounded without imposing a protocol-wide asset
-cap. Each asset's index denominator is the matured eligible stake of positions
-currently selected into that asset. A new selection enters pending state; its
-maturity bucket records the then-current index, and the position accrues only
-from that activation index. Opt-out settles earned value before removing both
-eligible and pending stake.
+precision. Each PositionNFT initially may select up to 12 assets. Timelock
+governance may raise that active limit to any strictly greater value through
+the immutable 64-asset hard ceiling, but it cannot lower the limit. The hard
+ceiling keeps every position-owned action bounded without imposing a
+protocol-wide asset cap. Each asset's index denominator is the matured eligible
+stake of positions currently selected into that asset. A new selection enters
+pending state; its maturity bucket records the then-current index, and the
+position accrues only from that activation index. Opt-out settles earned value
+before removing both eligible and pending stake.
+
+The active limit applies only when adding a selection. Existing positions above
+the active value retain stake, settlement, claim, unstake, and opt-out behavior,
+but cannot add another asset until their selected count is below the active
+limit. Historical claimables do not consume selection capacity. An upgraded
+Diamond whose appended active-limit storage slot is still zero reads the same
+12-asset initial value, preserving upgrade compatibility without rewriting
+position accounting.
 
 Claims are pull-based, require PositionNFT authorization, and accept a
 per-asset minimum received amount. Claim settlement transfers from the global
@@ -519,10 +529,12 @@ fee reservation and never reduces basket backing.
 `isRewardAssetOptedIn`, and `rewardSelection` are authorization-gated because
 their values belong to a PositionNFT. `rewardSelection` reports selected,
 eligible, pending, and exact maturity state. `rewardAsset`,
-`maxRewardAssetsPerPosition`, `rewardEligibilityDelay`,
+`maxRewardAssetsPerPosition`, `hardMaxRewardAssetsPerPosition`,
+`rewardEligibilityDelay`,
 `rewardEligibilityBucketSize`, `stakingToken`, `totalStaked`,
 `treasuryAccrued`, and `canAccrueStakerRewards` expose global configuration or
-state.
+state. `increaseMaxRewardAssetsPerPosition` is owner-only and emits
+`MaxRewardAssetsPerPositionIncreased` after a successful raise.
 
 Anyone may call `distributeTreasuryFees(asset)`, but the destination is always
 the configured treasury. The caller cannot choose a recipient.
