@@ -125,8 +125,18 @@ library LibGlobalRewards {
 
     function accrueNonSwapFee(bytes32 sourceAccount, address asset, uint256 grossFee) internal {
         if (grossFee == 0) return;
-        RewardStorage storage rs = rewardStorage();
         LibCustody.moveReservation(sourceAccount, LibCustody.feeAccount(), asset, grossFee);
+        _accrueReservedNonSwapFee(asset, grossFee);
+    }
+
+    function accrueUnreservedNonSwapFee(address asset, uint256 grossFee) internal {
+        if (grossFee == 0) return;
+        LibCustody.reserve(LibCustody.feeAccount(), asset, grossFee);
+        _accrueReservedNonSwapFee(asset, grossFee);
+    }
+
+    function _accrueReservedNonSwapFee(address asset, uint256 grossFee) private {
+        RewardStorage storage rs = rewardStorage();
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
         uint256 stakerAmount;

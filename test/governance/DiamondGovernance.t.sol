@@ -17,6 +17,7 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
+import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
@@ -64,7 +65,8 @@ contract DiamondGovernanceTest is Test {
                 stakingToken: address(deployer),
                 creationFeeAmount: 1 ether,
                 positionCreationFeeAmount: 0,
-                poolCreationFeeAmount: 0
+                poolCreationFeeAmount: 0,
+                singleAssetFlashFeeBps: 5
             })
         );
         diamond = StaticsDiamond(payable(deployment.diamond));
@@ -282,6 +284,19 @@ contract DiamondGovernanceTest is Test {
         (uint16 redemptionFeeBps, uint16 supplierShareBps) = pairingVault.redemptionParams();
         assertEq(redemptionFeeBps, 25);
         assertEq(supplierShareBps, 7_500);
+    }
+
+    function testTimelockControlsSingleAssetFlashFee() public {
+        IStaticsFlashLoan flashLoan = IStaticsFlashLoan(address(diamond));
+
+        vm.prank(multisig);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, multisig, address(timelock)));
+        flashLoan.setSingleAssetFlashFeeBps(25);
+
+        _executeThroughTimelock(
+            abi.encodeCall(IStaticsFlashLoan.setSingleAssetFlashFeeBps, (uint16(25))), "set single asset flash fee"
+        );
+        assertEq(flashLoan.singleAssetFlashFeeBps(), 25);
     }
 
     function testUpgradeEntryPointCanBeRemovedAsTerminalCut() public {

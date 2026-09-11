@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "counts": {
-    "High": 13,
+    "High": 14,
     "Medium": 107,
     "Low": 68,
-    "Informational": 30
+    "Informational": 31
   },
   "raw_counts": {
-    "High": 13,
+    "High": 14,
     "Medium": 107,
     "Low": 68,
-    "Informational": 67
+    "Informational": 68
   },
   "findings": [
     {
@@ -42,6 +42,22 @@
         "src/genesis/LibExactAssetTransfer.sol"
       ],
       "summary": "LibExactAssetTransfer.pullExact(IERC20,address,uint256) (src/genesis/LibExactAssetTransfer.sol#12-23) uses arbitrary from in transferFrom: token.safeTransferFrom(from,address(this),amount) (src/genesis/LibExactAssetTransfer.sol#15)",
+      "rationale": "The transfer helpers are internal and every caller supplies an authenticated payer or a protocol-controlled source; balance deltas enforce the exact-transfer assumption.",
+      "occurrences": 1
+    },
+    {
+      "id": "69f77f287b2fff0eff4cc0e2",
+      "impact": "High",
+      "confidence": "High",
+      "check": "arbitrary-send-erc20",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "diamond-integration"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#117-125) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#120)",
       "rationale": "The transfer helpers are internal and every caller supplies an authenticated payer or a protocol-controlled source; balance deltas enforce the exact-transfer assumption.",
       "occurrences": 1
     },
@@ -174,7 +190,7 @@
       "occurrences": 1
     },
     {
-      "id": "d63bb8105ee0e2d4f0cb6428",
+      "id": "843f0b4d6f763da08e9cbc68",
       "impact": "High",
       "confidence": "High",
       "check": "unprotected-upgrade",
@@ -186,7 +202,7 @@
       "paths": [
         "src/diamond/StaticsProtocolInit.sol"
       ],
-      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#42-162) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-67)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#69-71)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#75-88)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#92-95). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#75-88)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#92-95)",
+      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#43-181) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#58-76)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#78-80)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#84-104)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#108-111). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#84-104)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#108-111)",
       "rationale": "StaticsProtocolInit is a Diamond delegatecall initializer, not a proxy implementation. Direct calls mutate only the disposable initializer contract; Diamond execution is owner-gated by LibDiamond.",
       "occurrences": 1
     },
@@ -895,7 +911,7 @@
       "occurrences": 1
     },
     {
-      "id": "05267c287457a26fb576624f",
+      "id": "c4515b166131bf62af7831eb",
       "impact": "Medium",
       "confidence": "Medium",
       "check": "uninitialized-local",
@@ -906,7 +922,7 @@
       "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibGlobalRewards.accrueNonSwapFee(bytes32,address,uint256).stakerAmount (src/libraries/LibGlobalRewards.sol#114) is a local variable never initialized",
+      "summary": "LibGlobalRewards._accrueReservedNonSwapFee(address,uint256).stakerAmount (src/libraries/LibGlobalRewards.sol#142) is a local variable never initialized",
       "rationale": "Solidity zero-initialization is deliberately used for accumulators, optional return fields, bitmaps, and branch-selected values.",
       "occurrences": 1
     },
@@ -2224,7 +2240,7 @@
       "occurrences": 1
     },
     {
-      "id": "ce597c9f2ab652716777a25e",
+      "id": "8f9ae426d35ad42f7d27f489",
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
@@ -2236,7 +2252,7 @@
       "paths": [
         "src/diamond/StaticsProtocolInit.sol"
       ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#75-88):",
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#84-104):",
       "rationale": "Reachable external entrypoints are guarded and the flagged post-call accounting is either exact-delta bookkeeping or the deliberate old-state checkpoint sequence.",
       "occurrences": 1
     },
@@ -2501,7 +2517,7 @@
       "occurrences": 1
     },
     {
-      "id": "c484a2f9f83423aaf430b750",
+      "id": "b92f6200ad836a124f936070",
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
@@ -3209,6 +3225,22 @@
       "occurrences": 1
     },
     {
+      "id": "1d8d3db916a4e62deb4af1e0",
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "launch-liquidity"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLaunchLiquidityHook.sol"
+      ],
+      "summary": "Low level call in StaticsLaunchLiquidityHook._checkPoolRegistrationAuthority() (src/liquidity/StaticsLaunchLiquidityHook.sol#264-272):",
+      "rationale": "Low-level calls are limited to checked native transfers and the EIP-2535 delegatecall path, with failure data propagated or explicit custom errors.",
+      "occurrences": 1
+    },
+    {
       "id": "2f059ef07cdc4bafe28a72f7",
       "impact": "Informational",
       "confidence": "High",
@@ -3337,7 +3369,7 @@
       "occurrences": 1
     },
     {
-      "id": "2d4a276234f3f8cf5e194c93",
+      "id": "ca12df5557f84308282937dd",
       "impact": "Informational",
       "confidence": "High",
       "check": "pragma",

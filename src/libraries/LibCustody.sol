@@ -112,6 +112,18 @@ library LibCustody {
         return afterBalance - beforeBalance;
     }
 
+    /// @dev Measures a flash repayment without changing reservations. The caller must
+    ///      restore physical backing before the surrounding atomic flash operation ends.
+    function pullFlash(address token, address from, uint256 amount) internal returns (uint256 spent, uint256 received) {
+        uint256 senderBefore = IERC20(token).balanceOf(from);
+        uint256 receiverBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransferFrom(from, address(this), amount);
+        uint256 senderAfter = IERC20(token).balanceOf(from);
+        uint256 receiverAfter = IERC20(token).balanceOf(address(this));
+        spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
+        received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
+    }
+
     function pullAndReserve(bytes32 account, address token, address from, uint256 amount)
         internal
         returns (uint256 received)
@@ -154,6 +166,15 @@ library LibCustody {
         (spent, received) = _pushMeasured(token, receiver, amount);
         if (spent > maximumDebit) revert DebitExceedsAuthorization(token, spent, maximumDebit);
         _enforceGlobalBacking(token);
+    }
+
+    /// @dev Measures flash principal without changing or enforcing reservations while
+    ///      the transient flash guard keeps the temporary under-backing transaction-local.
+    function pushFlash(address token, address receiver, uint256 amount)
+        internal
+        returns (uint256 spent, uint256 received)
+    {
+        return _pushMeasured(token, receiver, amount);
     }
 
     function beginUnreservedDebit(address token, uint256 maximumDebit) internal view returns (uint256 beforeBalance) {

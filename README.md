@@ -48,7 +48,7 @@ for the canonical machine-readable integration-beta state.
 | **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, selected global rewards, and staked canonical-liquidity positions. |
 | **Global rewards** | Positions stake the configured Statics token and select up to 64 reward assets; new selections cannot capture historical fees. |
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
-| **Flash composition** | Basket constituents can be borrowed atomically through a typed callback while nested flash loans remain blocked. |
+| **Flash composition** | Basket vectors or individual Diamond-held assets can be borrowed through dedicated typed callbacks while nested flash loans remain blocked. |
 | **Canonical v4 liquidity** | Protocol-created BasketToken/constituent pools use zero native LP fee and a Statics hook that charges bilateral input/output fees. |
 | **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s — gated by an independent creation fee and EIP-712 creator authorization — selecting tick spacing and an initial Statics fee rate, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
 | **Permanent liquidity** | The hook converts matched POL allocations into hook-owned full-range liquidity with no ordinary withdrawal path. |
@@ -76,7 +76,7 @@ for the canonical machine-readable integration-beta state.
 │  ├─ Basket collateral / lending / repayment / recovery            │
 │  ├─ Global Statics staking + selected multi-asset rewards          │
 │  ├─ Dollar gateway + pairing-risk liquidity                        │
-│  ├─ Constituent flash loans                                        │
+│  ├─ Basket-vector and single-asset flash loans                     │
 │  └─ Canonical-pool configuration + liquidity-position rewards      │
 └──────────────────────────────┬─────────────────────────────────────┘
                                │
@@ -690,6 +690,13 @@ lending.repay(loanId);
 flashLender.flashLoan(basketId, shares, address(receiver), routeData);
 // receiver.onStaticsFlashLoan(...) must return
 // keccak256("IStaticsFlashBorrower.onStaticsFlashLoan") and restore principal + fees.
+
+// A dedicated single-asset loan uses all physical balance held by the Diamond.
+uint256 amount = flashLender.maxFlashLoan(asset);
+uint256 fee = flashLender.quoteFlashLoanAsset(asset, amount);
+flashLender.flashLoanAsset(asset, amount, address(assetReceiver), routeData);
+// assetReceiver.onStaticsFlashLoanAsset(...) must return the dedicated callback
+// hash and approve the Diamond to collect amount + fee.
 ```
 
 **Create a permissionless general pool**

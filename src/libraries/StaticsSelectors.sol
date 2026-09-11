@@ -381,8 +381,13 @@ library StaticsSelectors {
     }
 
     function flashLoan() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](7);
         selectors[0] = IStaticsFlashLoan.flashLoan.selector;
         selectors[1] = IStaticsFlashLoan.quoteFlashLoan.selector;
+        selectors[2] = IStaticsFlashLoan.flashLoanAsset.selector;
+        selectors[3] = IStaticsFlashLoan.quoteFlashLoanAsset.selector;
+        selectors[4] = IStaticsFlashLoan.maxFlashLoan.selector;
+        selectors[5] = IStaticsFlashLoan.singleAssetFlashFeeBps.selector;
+        selectors[6] = IStaticsFlashLoan.setSingleAssetFlashFeeBps.selector;
     }
 }

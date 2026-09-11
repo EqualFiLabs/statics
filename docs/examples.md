@@ -197,7 +197,7 @@ An arbitrageur can:
 2. supply any static-mint-fee top-ups;
 3. mint BasketTokens through the ordinary public entrypoint;
 4. sell a complete BasketToken allocation across canonical or external pools;
-5. repay every constituent principal plus the measured flash fee; and
+5. repay every constituent principal plus its exact quoted flash fee; and
 6. keep only the per-asset remainder above configured minimum profit.
 
 The route must cover mint fees, both applicable hook fee legs, flash fees,

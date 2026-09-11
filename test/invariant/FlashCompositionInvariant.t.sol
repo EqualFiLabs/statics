@@ -71,6 +71,7 @@ contract FlashCompositionHandler is Test {
     bool public failedRouteChangedBooks;
     bool public siblingBasketChanged;
     bool public crossBasketAccountingBroken;
+    bool public singleAssetAccountingBroken;
     bool public v4SuccessObserved;
     bool public v4RouteAccountingBroken;
 
@@ -113,6 +114,17 @@ contract FlashCompositionHandler is Test {
         uint256 vaultB;
         uint256 treasuryA;
         uint256 treasuryB;
+    }
+
+    struct SingleAssetBooksSnapshot {
+        uint256 balance;
+        uint256 globalReserved;
+        uint256 feeReserved;
+        uint256 treasury;
+        uint256 firstVault;
+        uint256 secondVault;
+        uint256 firstReserved;
+        uint256 secondReserved;
     }
 
     function _snapshotFlashBooks(uint256 basketId) private view returns (FlashBooksSnapshot memory snapshot) {
@@ -196,6 +208,52 @@ contract FlashCompositionHandler is Test {
         } catch {}
         receiver.setRepay(true);
         if (_booksHash(receiver) != booksBefore) failedRouteChangedBooks = true;
+    }
+
+    function singleAssetFlash(uint256 rawAmount) external {
+        uint256 amount = bound(rawAmount, 1e12, 1 ether);
+        SingleAssetBooksSnapshot memory before_ = _snapshotSingleAssetBooks();
+        uint256 fee = flashLoans.quoteFlashLoanAsset(assetA, amount);
+        receiver.setRepay(true);
+        receiver.setReentryData(bytes(""));
+
+        try receiver.executeAsset(assetA, amount, bytes("single asset")) {
+            if (
+                IERC20(assetA).balanceOf(address(baskets)) != before_.balance + fee
+                    || custody.globalReservedByToken(assetA) != before_.globalReserved + fee
+                    || custody.reservedByAccount(custody.feeCustodyAccount(), assetA) != before_.feeReserved + fee
+                    || rewards.treasuryAccrued(assetA) != before_.treasury + fee
+                    || baskets.vaultBalance(firstBasketId, assetA) != before_.firstVault
+                    || baskets.vaultBalance(secondBasketId, assetA) != before_.secondVault
+                    || custody.reservedByAccount(firstAccount, assetA) != before_.firstReserved
+                    || custody.reservedByAccount(secondAccount, assetA) != before_.secondReserved
+            ) singleAssetAccountingBroken = true;
+        } catch {
+            singleAssetAccountingBroken = true;
+        }
+    }
+
+    function failedSingleAssetRepayment(uint256 rawAmount) external {
+        uint256 amount = bound(rawAmount, 1e12, 1 ether);
+        bytes32 booksBefore = _booksHash(receiver);
+        receiver.setReentryData(bytes(""));
+        receiver.setRepay(false);
+        try receiver.executeAsset(assetA, amount, bytes("single asset underpay")) {
+            failedRouteChangedBooks = true;
+        } catch {}
+        receiver.setRepay(true);
+        if (_booksHash(receiver) != booksBefore) failedRouteChangedBooks = true;
+    }
+
+    function _snapshotSingleAssetBooks() private view returns (SingleAssetBooksSnapshot memory snapshot) {
+        snapshot.balance = IERC20(assetA).balanceOf(address(baskets));
+        snapshot.globalReserved = custody.globalReservedByToken(assetA);
+        snapshot.feeReserved = custody.reservedByAccount(custody.feeCustodyAccount(), assetA);
+        snapshot.treasury = rewards.treasuryAccrued(assetA);
+        snapshot.firstVault = baskets.vaultBalance(firstBasketId, assetA);
+        snapshot.secondVault = baskets.vaultBalance(secondBasketId, assetA);
+        snapshot.firstReserved = custody.reservedByAccount(firstAccount, assetA);
+        snapshot.secondReserved = custody.reservedByAccount(secondAccount, assetA);
     }
 
     function failedCrossBasketMint(uint256 rawShares) external {
@@ -361,6 +419,10 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
         address compositionReceiver = address(handler.receiver());
         vm.prank(alice);
         IERC20(firstBasketToken).transfer(compositionReceiver, 100 ether);
+        // The handler repeatedly redeems during callbacks, which requires independent
+        // physical slack while its flash principal is temporarily outside the Diamond.
+        assetA.mint(address(diamond), 10_000 ether);
+        assetB.mint(address(diamond), 10_000 ether);
         handler.successfulV4Redeem(0.05 ether);
         assertTrue(handler.v4SuccessObserved());
         targetContract(address(handler));
@@ -385,6 +447,7 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
     function invariantSuccessfulFlashAccountingRemainsExact() public view {
         assertFalse(handler.principalRestorationBroken());
         assertFalse(handler.flashFeeRoutingBroken());
+        assertFalse(handler.singleAssetAccountingBroken());
     }
 
     function invariantFailedRoutesRemainAtomicAndBasketIsolated() public view {

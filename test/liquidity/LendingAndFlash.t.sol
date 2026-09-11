@@ -666,24 +666,22 @@ contract LendingAndFlashTest is StaticsTestBase {
     }
 
     struct TaxReceiptSnapshot {
-        uint256 launchSupply;
+        uint256 supply;
         bytes32 basketAccount;
-        uint256 vaultBefore;
-        uint256 basketReservedBefore;
-        uint256 globalReservedBefore;
-        uint256 treasuryBefore;
+        uint256 vault;
+        uint256 basketReserved;
+        uint256 globalReserved;
+        uint256 treasury;
+        uint256 diamondBalance;
     }
 
-    function testFlashRepaymentCreditsMeasuredDirectionalTaxReceipt() public {
+    function testFlashRepaymentRejectsDirectionalTaxReceipt() public {
         MockOutboundFeeERC20 taxed = new MockOutboundFeeERC20();
         taxed.setTaxedSender(makeAddr("inactive taxed sender"));
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.assets[0] = address(taxed);
         params.flashFeeBps = 200;
         (uint256 basketId, address token) = _launchBasket(params, alice, basketAdmin.creationFee());
-        TaxReceiptSnapshot memory snapshot;
-        snapshot.launchSupply = IERC20(token).totalSupply();
-        snapshot.basketAccount = custody.basketCustodyAccount(basketId);
 
         {
             uint256[] memory initialMaximums = baskets.quoteMint(basketId, 10 ether);
@@ -695,43 +693,35 @@ contract LendingAndFlashTest is StaticsTestBase {
             baskets.mint(basketId, 10 ether, alice, initialMaximums);
             vm.stopPrank();
         }
-
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        uint256[] memory amounts;
         uint256[] memory fees;
         {
             address[] memory assets;
-            (assets, amounts, fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
+            (assets,, fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
             taxed.mint(address(receiver), fees[0]);
             assetB.mint(address(receiver), fees[1]);
             assertEq(assets[0], address(taxed));
         }
         taxed.setTaxedSender(address(receiver));
 
-        snapshot.vaultBefore = baskets.vaultBalance(basketId, address(taxed));
-        snapshot.basketReservedBefore = custody.reservedByAccount(snapshot.basketAccount, address(taxed));
-        snapshot.globalReservedBefore = custody.globalReservedByToken(address(taxed));
-        snapshot.treasuryBefore = globalRewards.treasuryAccrued(address(taxed));
-        uint256 expectedActualFee = (amounts[0] + fees[0]) - ((amounts[0] + fees[0]) / 100) - amounts[0];
+        TaxReceiptSnapshot memory snapshot;
+        snapshot.supply = IERC20(token).totalSupply();
+        snapshot.basketAccount = custody.basketCustodyAccount(basketId);
+        snapshot.vault = baskets.vaultBalance(basketId, address(taxed));
+        snapshot.basketReserved = custody.reservedByAccount(snapshot.basketAccount, address(taxed));
+        snapshot.globalReserved = custody.globalReservedByToken(address(taxed));
+        snapshot.treasury = globalRewards.treasuryAccrued(address(taxed));
+        snapshot.diamondBalance = taxed.balanceOf(address(diamond));
 
+        vm.expectPartialRevert(FlashLoanFacet.IncompatibleFlashAsset.selector);
         receiver.execute(basketId, 1 ether, bytes("directional repayment tax"));
 
-        _assertDirectionalTaxReceipt(basketId, token, taxed, expectedActualFee, snapshot);
-    }
-
-    function _assertDirectionalTaxReceipt(
-        uint256 basketId,
-        address token,
-        MockOutboundFeeERC20 taxed,
-        uint256 expectedActualFee,
-        TaxReceiptSnapshot memory snapshot
-    ) private view {
-        assertEq(baskets.vaultBalance(basketId, address(taxed)), snapshot.vaultBefore);
-        assertEq(custody.reservedByAccount(snapshot.basketAccount, address(taxed)), snapshot.basketReservedBefore);
-        assertEq(globalRewards.treasuryAccrued(address(taxed)) - snapshot.treasuryBefore, expectedActualFee);
-        assertEq(custody.globalReservedByToken(address(taxed)) - snapshot.globalReservedBefore, expectedActualFee);
-        assertGe(taxed.balanceOf(address(diamond)), custody.globalReservedByToken(address(taxed)));
-        assertEq(IERC20(token).totalSupply(), snapshot.launchSupply + 10 ether);
+        assertEq(baskets.vaultBalance(basketId, address(taxed)), snapshot.vault);
+        assertEq(custody.reservedByAccount(snapshot.basketAccount, address(taxed)), snapshot.basketReserved);
+        assertEq(custody.globalReservedByToken(address(taxed)), snapshot.globalReserved);
+        assertEq(globalRewards.treasuryAccrued(address(taxed)), snapshot.treasury);
+        assertEq(taxed.balanceOf(address(diamond)), snapshot.diamondBalance);
+        assertEq(IERC20(token).totalSupply(), snapshot.supply);
     }
 
     function testFlashLoanRevertsAtomicallyWhenReceiverDoesNotRepay() public {
@@ -749,8 +739,11 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 basketId, address token) = _createDefaultBasket(0.01 ether, 0);
         _mintShares(basketId, token, alice, 10 ether);
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        (,, uint256[] memory fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
+        (, uint256[] memory flashAmounts, uint256[] memory fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
         uint256[] memory maximums = baskets.quoteMint(basketId, 1 ether);
+        // Mint reservations need independent physical slack while principal is out.
+        assetA.mint(address(diamond), flashAmounts[0]);
+        assetB.mint(address(diamond), flashAmounts[1]);
         assetA.mint(address(receiver), maximums[0] + fees[0]);
         assetB.mint(address(receiver), maximums[1] + fees[1]);
         receiver.approveProtocol(address(assetA), type(uint256).max);
@@ -767,6 +760,10 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
         _mintShares(basketId, token, alice, 10 ether);
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
+        (, uint256[] memory flashAmounts,) = flashLoans.quoteFlashLoan(basketId, 1 ether);
+        // Redemption needs separate unreserved liquidity while flash principal is out.
+        assetA.mint(address(diamond), flashAmounts[0]);
+        assetB.mint(address(diamond), flashAmounts[1]);
         vm.prank(alice);
         IERC20(token).transfer(address(receiver), 1 ether);
         receiver.setReentryData(

@@ -125,6 +125,9 @@ Every attributed ingress increases both the module account and global total.
 Every egress releases only the calling account's authorization, caps the
 Diamond's observed debit, and proves the remaining physical balance still
 covers the global total. Raw balances are never treated as module liquidity.
+Flash principal is the deliberate transaction-local exception: it may use the
+raw physical balance, while final settlement preserves the pre-loan unreserved
+balance plus current reservations and the newly earned fee.
 
 Internal accounting isolates hostile baskets from one another. A token that
 rebases, burns the Diamond's balance externally, or lies through `balanceOf`
@@ -297,8 +300,11 @@ ordinary OpenZeppelin `ReentrancyGuard`. Under delegatecall, those facets on the
 same Diamond share its fixed namespaced persistent slot, giving cross-facet
 exclusion without a protocol-specific lock. `FlashLoanFacet` instead uses
 OpenZeppelin `ReentrancyGuardTransient`: nested flash loans remain excluded in
-the transient domain while an ordinary guarded mint or redemption may execute
-during the explicit receiver callback. Flash disbursement and repayment each
+the transient domain across both basket-vector and single-asset entrypoints,
+while an ordinary guarded mint or redemption may execute during the explicit
+receiver callback. Flash principal is sourced from raw Diamond ERC-20 balances
+and never changes basket vault or custody reservations; only the earned fee is
+persistently reserved and accrued. Flash disbursement and repayment each
 acquire the common persistent slot, so callback-capable token transfers cannot
 enter another persistent value path while balance deltas are being measured.
 The user Diamond and Core Diamond have separate persistent guard state because

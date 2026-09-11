@@ -21,7 +21,7 @@ multi-asset and Statics Dollar protocol remains a pre-production surface.
 8. [Basket Position Rewards](#basket-position-rewards)
 9. [Global Staking and Rewards](#global-staking-and-rewards)
 10. [Position-Owned Basket Lending](#position-owned-basket-lending)
-11. [Basket Flash Loans](#basket-flash-loans)
+11. [Diamond-Wide Flash Loans](#diamond-wide-flash-loans)
 12. [Protocol Uniswap v4 Liquidity](#protocol-uniswap-v4-liquidity)
 13. [Borrow-to-Liquidity](#borrow-to-liquidity)
 14. [Statics Dollar](#statics-dollar)
@@ -75,7 +75,7 @@ backing or let one basket consume another basket's assets.
 | Canonical native LP fee | Zero |
 | Permanent liquidity | Hook-owned full-range liquidity, compounded from matched swap-fee inventory |
 | Dollar Risk incentives | Permissionless series funding in collateral, Statics Dollar, or configured STATICS; released only when supplied Risk liquidity is consumed |
-| Flash callbacks | May call ordinary basket mint and redemption; nested flash loans remain blocked |
+| Flash callbacks | Dedicated basket-vector and single-asset callbacks may compose with ordinary Statics actions when physical liquidity remains; all nested flash modes are blocked |
 | Upgradeability | Pre-release EIP-2535 Diamonds owned by one timelock; intended final release removes Diamond-cut authority after governance review |
 
 ### Fee-source routing summary
@@ -85,7 +85,7 @@ backing or let one basket consume another basket's assets.
 | Basket creation fee | Native asset sent directly to configured treasury | Creation reverts if the exact fee cannot be forwarded |
 | Basket mint and redemption fees | Constituent assets enter global non-swap rewards | 90% to matured selected global stake and 10% to treasury; 100% treasury if no eligible stake |
 | Basket-loan origination fee | Backing represented by burned fee shares enters global non-swap rewards | Same global 90/10 or treasury-only rule |
-| Extension payment, repayment excess, and measured flash excess | Full measured fee receipt enters global non-swap rewards | Same global 90/10 or treasury-only rule |
+| Extension payment, repayment excess, and quoted flash fee | Full fee receipt enters global non-swap rewards | Same global 90/10 or treasury-only rule |
 | Canonical swap hook fee | Effective global or pool-specific rates and five-way split | Unavailable LP and basket-staker shares redirect to POL; an unavailable Statics-staker share redirects to treasury |
 | Mature basket-loan recovery penalty | 20% to recovery caller and 80% to global non-swap rewards | Global portion uses the same 90/10 or treasury-only rule |
 | Pegged-profile mint and redemption fee | Entire collateral-token fee enters global non-swap rewards | Same global 90/10 or treasury-only rule |
@@ -481,8 +481,8 @@ settled claims.
 ### Non-swap fee routing
 
 Primary mint and redemption fees, lending origination backing
-reclassification, extension payments, repayment excess, measured flash-loan
-excess, the protocol share of mature-loan recovery penalties, pegged-profile
+reclassification, extension payments, repayment excess, exact quoted flash
+fees, the protocol share of mature-loan recovery penalties, pegged-profile
 fees, and the global share of eligible volatile-series fees enter the same
 non-swap ledger. If the asset has nonzero matured eligible selected stake:
 
@@ -574,35 +574,47 @@ converges below 20 times initial deposited shares and 19 times initial debt.
 Routers must impose their own depth, quote-freshness, approval, and slippage
 limits.
 
-## Basket Flash Loans
+## Diamond-Wide Flash Loans
 
-Flash loans borrow the basket's configured constituent vector for a
+Basket flash loans borrow the basket's configured constituent vector for a
 BasketToken-equivalent share amount. `quoteFlashLoan` returns principal and a
-quoted fee for every constituent.
+basket-specific quoted fee for every constituent. The basket defines the
+vector, but every principal amount is sourced from the Diamond's raw physical
+ERC-20 balance rather than that basket's vault or custody reservation.
+
+`flashLoanAsset` provides a separate single-asset path with
+`quoteFlashLoanAsset` and `maxFlashLoan`. It uses a protocol-wide,
+timelock-governed `singleAssetFlashFeeBps`, initialized from the required
+deployment input at 5 BPS, and a dedicated
+`IStaticsFlashAssetBorrower.onStaticsFlashLoanAsset` callback. It does not use
+a sentinel basket ID or expose arbitrary public multi-asset requests.
 
 `FlashLoanFacet` uses OpenZeppelin `ReentrancyGuardTransient`. Short persistent
-guard phases protect disbursement and repayment accounting, while the receiver
-callback runs outside the common persistent guard. Therefore a callback may
-call the ordinary public `mint` and `redeem` entrypoints. Those calls receive
-no privilege and pay all normal basket and hook fees. The transient guard still
-rejects nested `flashLoan` calls.
+guard phases protect disbursement and repayment accounting, while the selected
+typed receiver callback runs outside the common persistent guard. Therefore a
+callback may call ordinary public entrypoints when the remaining physical
+liquidity can satisfy their checks. Those calls receive no privilege and pay
+all normal fees. The transient guard rejects nested basket, asset, and
+cross-mode flash calls.
 
 Outbound disbursement must debit the Diamond and credit the receiver by exactly
 the quoted principal. Outbound-tax and sender-extra-tax assets are incompatible
 and revert atomically.
 
-After the callback returns the required hash, the Diamond requests principal
-plus quoted fee and measures its actual receipt. Success requires:
+For each asset, the Diamond snapshots its starting balance before disbursement.
+Flash principal does not change basket vaults, account reservations, or global
+reservations. After the callback returns the mode-specific hash, the Diamond
+collects exact principal plus quoted fee using measured sender and receiver
+deltas. Success requires:
 
 ```text
-measured receipt >= principal
-actual fee = measured receipt - principal
+ending Diamond balance >= starting Diamond balance + quoted fee
 ```
 
-The basket vault is restored by exactly the principal. Actual excess, which
-may differ from the quote for an inbound-tax token, enters the global non-swap
-fee ledger. A callback revert, invalid return hash, nested flash attempt, or
-insufficient measured principal reverts the entire transaction.
+Only the quoted fee is newly reserved and enters the global non-swap fee
+ledger. An inexact repayment token, callback revert, invalid return hash,
+nested flash attempt, or insufficient ending balance reverts the entire
+transaction.
 
 ### Arbitrage composition
 
@@ -1157,9 +1169,9 @@ and treasury or guardian changes. Reward-asset selection is a PositionNFT owner
 action and requires no governance admission or retirement.
 
 Diamond cuts are the sole implementation upgrade mechanism. Facets share the
-common OpenZeppelin persistent reentrancy slot under delegatecall. Flash loans
-add a separate transient guard domain and acquire the persistent slot only for
-their transfer/accounting phases. Cuts automatically synchronize the
+common OpenZeppelin persistent reentrancy slot under delegatecall. Both flash
+modes add a separate transient guard domain and acquire the persistent slot
+only for their transfer/accounting phases. Cuts automatically synchronize the
 selector-derived IERC-165, DiamondCut, DiamondLoupe, and ownership interface
 IDs; protocol-specific interface declarations remain governed metadata. Dollar
 Core bootstrap finalization validates wiring, pins the periphery as the initial
@@ -1213,7 +1225,7 @@ Diamond does not enforce facet bytecode hashes during dispatch.
 | Global staking and rewards | `IStaticsGlobalRewards` |
 | Full Genesis integration | `IStaticsGenesisIntegration` |
 | Basket lending | `IStaticsLending` |
-| Basket flash loans | `IStaticsFlashLoan` and `IStaticsFlashBorrower` |
+| Diamond-wide flash loans | `IStaticsFlashLoan`, `IStaticsFlashBorrower`, and `IStaticsFlashAssetBorrower` |
 | PositionNFT | `IStaticsPosition` plus ERC-721 interfaces; onchain financial-account metadata with an internal logo-and-ID SVG and no mutable renderer |
 | Genesis NFT and vault | `IStaticsGenesis` and `IStaticsGenesisVault` |
 | Standalone Genesis market | `IStaticsV4Hook` and `IStaticsHookController` |
@@ -1349,7 +1361,7 @@ does not substitute for that complete qualification.
 - shared PositionNFT and basket collateral;
 - position-selected global multi-asset indexes and treasury fees;
 - position-owned self-backed vector lending and debt-proportional recovery;
-- composable constituent-vector flash loans;
+- Diamond-wide basket-vector and dedicated single-asset flash loans;
 - atomic creator-funded launch of every basket and canonical constituent pool;
 - canonical zero-native-fee v4 pools with bilateral hook fees, governed
   per-pool fee rates, and globally configured allocation shares;
@@ -1485,11 +1497,11 @@ protocolAmount_i = penaltyBacking_i - callerAmount_i
 ### Flash loan
 
 ```text
-principal_i = floor(bundle_i * flashShares / Q)
-quoted fee_i = ceil(principal_i * flashFeeBps / D)
-requested repayment_i = principal_i + quoted fee_i
-success requires measured receipt_i >= principal_i
-actual fee_i = measured receipt_i - principal_i
+basket principal_i = floor(bundle_i * flashShares / Q)
+basket fee_i = ceil(basket principal_i * basket flashFeeBps / D)
+single-asset fee = ceil(asset amount * singleAssetFlashFeeBps / D)
+requested repayment = principal + quoted fee
+success requires ending Diamond balance >= starting Diamond balance + quoted fee
 ```
 
 ### Dollar Risk liquidity and incentives
@@ -1581,10 +1593,10 @@ remainder. Clearing the override restores the latest global rates and shares.
 19. Every loan tranche retains an independent principal vector and maturity.
 20. Repayment unlocks only the repaid tranche.
 21. Extension changes maturity but not principal, collateral, or global stake.
-22. Flash disbursement is exact and cannot spend another reservation.
-23. A flash callback may enter ordinary mint and redemption but cannot nest a flash loan.
-24. Successful flash settlement restores principal exactly to basket vault accounting.
-25. Measured flash excess, not merely the quote, is routed as a non-swap fee.
+22. Flash disbursement is exact and bounded by the Diamond's starting physical ERC-20 balance.
+23. A flash callback may enter ordinary actions when physical liquidity permits but cannot nest either flash mode.
+24. Flash principal never changes basket vault or custody reservation accounting.
+25. Successful flash settlement restores the starting physical balance and reserves only the exact quoted fee for non-swap routing.
 26. Failed callbacks or repayment checks leave no partial protocol or pool state.
 27. Canonical pools use the installed hook, zero native LP fee, and tick spacing 10.
 28. Basket creation registers, initializes, and permanently seeds exactly one canonical pool per constituent or reverts without creating the basket.
@@ -1647,7 +1659,7 @@ remainder. Clearing the override restores the latest global rates and shares.
 | **Bilateral hook fee** | Separate fee applied to realized input and output swap legs |
 | **PositionNFT** | Shared ERC-721 owning Statics staking, basket collateral and loans, Dollar legs, and voluntarily custodied LP NFTs and claims |
 | **ExitOnly** | Basket state that is terminal under installed facets, blocking new exposure while preserving exits and risk reduction |
-| **Actual flash fee** | Measured repayment received above principal |
+| **Flash fee** | Exact quoted repayment above principal; basket-specific for basket vectors and protocol-wide for single-asset loans |
 | **Quarantine** | Guardian containment state blocking new basket exposure while preserving installed-facet exits and risk reduction |
 | **Final V1 immutability** | Deliberate removal of Diamond implementation-upgrade authority after final governance review; retained parameter powers remain separately enumerated |
 | **Terminal treasury fee** | Global fee-account amount distributable only to the configured treasury |
