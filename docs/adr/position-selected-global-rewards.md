@@ -42,12 +42,8 @@ expand selection capacity after observing production gas and execution
 conditions without introducing a path that can strand positions by shrinking
 their permitted set.
 
-The active limit is enforced only when adding a selection. A position whose
-existing selection count exceeds the active value keeps all ordinary stake,
-unstake, settlement, claim, and opt-out behavior. It cannot opt into another
-asset until its selection count is below the active limit. For upgrade safety,
-the active limit is appended to the reward storage layout and a zero value is
-interpreted as the initial value of 12.
+The active limit is initialized to 12 when the Statics Diamond is first
+deployed and is enforced when adding a selection.
 
 Undeployed global stake has no cooldown; stake supplied to Morpho must first be
 recalled. Initial stake, new selections, and top-ups enter a pending tranche for
@@ -102,5 +98,5 @@ to treasury. This canonical-swap fallback is refined by
 - New selections do not dilute or capture rewards accrued before selection.
 - Indexers must follow selection events and asset-address books rather than
   numbered slots and generations.
-- Existing position and claim accounting remains compatible when the active
-  limit field is introduced on an upgraded Diamond.
+- The initial Diamond deployment writes the active limit directly during
+  protocol initialization.

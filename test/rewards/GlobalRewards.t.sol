@@ -47,18 +47,6 @@ contract FeeAccrualHarness {
     }
 }
 
-/// @dev Simulates the zero-valued appended storage slot found on a Diamond that
-/// predates the active reward-asset limit. Production upgrades do not clear it.
-contract RewardLimitStorageHarness {
-    function clearActiveMaxRewardAssetsPerPosition() external {
-        LibGlobalRewards.rewardStorage().activeMaxRewardAssetsPerPosition = 0;
-    }
-
-    function rawActiveMaxRewardAssetsPerPosition() external view returns (uint256) {
-        return LibGlobalRewards.rewardStorage().activeMaxRewardAssetsPerPosition;
-    }
-}
-
 contract GlobalRewardsTest is StaticsTestBase {
     uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
 
@@ -268,10 +256,8 @@ contract GlobalRewardsTest is StaticsTestBase {
     }
 
     function testActiveRewardAssetLimitStartsAtTwelveAndOnlyOwnerMayRaiseIt() external {
-        RewardLimitStorageHarness limitHarness = _installRewardLimitStorageHarness();
         assertEq(globalRewards.maxRewardAssetsPerPosition(), 12);
         assertEq(globalRewards.hardMaxRewardAssetsPerPosition(), 64);
-        assertEq(limitHarness.rawActiveMaxRewardAssetsPerPosition(), 12);
 
         address[] memory selectedAssets = new address[](12);
         for (uint256 i; i < selectedAssets.length; ++i) {
@@ -316,50 +302,6 @@ contract GlobalRewardsTest is StaticsTestBase {
         globalRewards.optInRewardAssets(positionId, _asset(extra));
         vm.prank(alice);
         assertEq(globalRewards.positionRewardAssets(positionId).length, 13);
-    }
-
-    function testLegacyPositionsKeepAccountingWhenActiveLimitFallsBackToTwelve() external {
-        FeeAccrualHarness feeHarness = _installFeeAccrualHarness();
-        RewardLimitStorageHarness limitHarness = _installRewardLimitStorageHarness();
-        globalRewards.increaseMaxRewardAssetsPerPosition(13);
-
-        address[] memory rewardAssets = new address[](13);
-        for (uint256 i; i < rewardAssets.length; ++i) {
-            rewardAssets[i] = address(new MockERC20("Reward", "RWD", 18));
-        }
-        MockERC20 reward = MockERC20(rewardAssets[0]);
-        stakingAsset.mint(alice, 2 ether);
-        reward.mint(alice, 1 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), 2 ether);
-        reward.approve(address(diamond), 1 ether);
-        uint256 positionId = globalRewards.createAndStake(1 ether, alice, rewardAssets);
-        vm.stopPrank();
-        _warpEligible(positionId, address(reward), alice);
-        vm.prank(alice);
-        feeHarness.accrueNonSwapFee(address(reward), 1 ether);
-
-        limitHarness.clearActiveMaxRewardAssetsPerPosition();
-        assertEq(limitHarness.rawActiveMaxRewardAssetsPerPosition(), 0);
-        assertEq(globalRewards.maxRewardAssetsPerPosition(), 12);
-
-        address extra = address(new MockERC20("Extra Reward", "XR", 18));
-        vm.startPrank(alice);
-        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardAssetLimitExceeded.selector, positionId));
-        globalRewards.optInRewardAssets(positionId, _asset(extra));
-        globalRewards.stake(positionId, 1 ether);
-        globalRewards.unstake(positionId, 1 ether, alice);
-        uint256[] memory claimed =
-            globalRewards.claimRewards(positionId, _asset(address(reward)), alice, new uint256[](1));
-        assertEq(claimed[0], 0.9 ether);
-
-        globalRewards.optOutRewardAssets(positionId, _asset(rewardAssets[0]));
-        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.RewardAssetLimitExceeded.selector, positionId));
-        globalRewards.optInRewardAssets(positionId, _asset(extra));
-        globalRewards.optOutRewardAssets(positionId, _asset(rewardAssets[1]));
-        globalRewards.optInRewardAssets(positionId, _asset(extra));
-        assertEq(globalRewards.positionRewardAssets(positionId).length, 12);
-        vm.stopPrank();
     }
 
     function testOwnerMayRaiseActiveLimitToHardMaximumAcrossGlobalAssets() external {
@@ -719,19 +661,6 @@ contract GlobalRewardsTest is StaticsTestBase {
         });
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         harness = FeeAccrualHarness(address(diamond));
-    }
-
-    function _installRewardLimitStorageHarness() private returns (RewardLimitStorageHarness harness) {
-        RewardLimitStorageHarness implementation = new RewardLimitStorageHarness();
-        bytes4[] memory selectors = new bytes4[](2);
-        selectors[0] = RewardLimitStorageHarness.clearActiveMaxRewardAssetsPerPosition.selector;
-        selectors[1] = RewardLimitStorageHarness.rawActiveMaxRewardAssetsPerPosition.selector;
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] = IDiamondCut.FacetCut({
-            facetAddress: address(implementation), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
-        });
-        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
-        harness = RewardLimitStorageHarness(address(diamond));
     }
 
     function _asset(address asset) private pure returns (address[] memory assets) {

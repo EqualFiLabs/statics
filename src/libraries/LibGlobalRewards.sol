@@ -110,8 +110,7 @@ library LibGlobalRewards {
     }
 
     function maxRewardAssetsPerPosition() internal view returns (uint256) {
-        uint8 storedMax = rewardStorage().activeMaxRewardAssetsPerPosition;
-        return storedMax == 0 ? INITIAL_MAX_REWARD_ASSETS_PER_POSITION : storedMax;
+        return rewardStorage().activeMaxRewardAssetsPerPosition;
     }
 
     function increaseMaxRewardAssetsPerPosition(uint8 newMax) internal {

@@ -513,13 +513,8 @@ pending state; its maturity bucket records the then-current index, and the
 position accrues only from that activation index. Opt-out settles earned value
 before removing both eligible and pending stake.
 
-The active limit applies only when adding a selection. Existing positions above
-the active value retain stake, settlement, claim, unstake, and opt-out behavior,
-but cannot add another asset until their selected count is below the active
-limit. Historical claimables do not consume selection capacity. An upgraded
-Diamond whose appended active-limit storage slot is still zero reads the same
-12-asset initial value, preserving upgrade compatibility without rewriting
-position accounting.
+The active limit applies when adding a selection. Historical claimables do not
+consume selection capacity.
 
 Claims are pull-based, require PositionNFT authorization, and accept a
 per-asset minimum received amount. Claim settlement transfers from the global

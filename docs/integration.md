@@ -241,9 +241,7 @@ claims.
 
 Timelock governance may only raise the active selection limit. Index
 `MaxRewardAssetsPerPositionIncreased` and refresh client-side capacity when it
-appears. Existing positions above the active value continue to stake, unstake,
-settle, claim, and opt out, but cannot add a selection until their selected
-count is below the active limit.
+appears.
 
 Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
