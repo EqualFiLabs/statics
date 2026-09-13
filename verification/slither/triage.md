@@ -3,9 +3,9 @@
 Slither emitted 255 in-scope occurrences: 13 high, 107 medium, 68 low, and 67
 informational. Repeated compile-unit instances reduce to 218 stable findings in
 the reviewed baseline. There are no `CONFIRMED` or `INVESTIGATE` findings.
-The machine-readable classification and rationale for each detector family live
-in `decisions.json`; `baseline.json` applies those decisions to each stable
-finding fingerprint.
+The machine-readable classification and rationale live on each stable finding
+fingerprint in `baseline.json`. The tables below summarize repeated detector
+families but do not apply blanket classifications to future findings.
 
 ## High
 

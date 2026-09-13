@@ -18,7 +18,7 @@ run_halmos() {
   local args=(
     --root "$root" \
     --contract "$contract" \
-    --solver-timeout-branching 0 \
+    --solver-timeout-branching "${HALMOS_BRANCH_TIMEOUT:-0}" \
     --solver-timeout-assertion 0 \
     --solver-threads "${HALMOS_THREADS:-4}" \
     --loop "$loop_bound" \
@@ -120,11 +120,26 @@ case "$TARGET" in
     run_halmos "$ROOT" StaticsLaunchLiquidityGovernanceHalmosTest launch-liquidity-proposer-boundary 8 \
       out-formal-genesis '^check_proposerCannotChangeOwnerOnlyConfiguration'
     ;;
-  all)
+  permanent-liquidity)
+    # Unknown branch-feasibility results are conservatively explored on both sides by Halmos.
+    # Bound those pruning queries so full-precision mulDiv internals cannot monopolize the job.
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMANENT_BRANCH_TIMEOUT:-100ms}"
+    run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-allocation 8 \
+      out-formal-genesis '^check_specifiedFeeAllocationEqualsMintedClaim'
+    run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-compounding 8 \
+      out-formal-genesis '^check_claimFundedCompoundingConservesLiabilities'
+    run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-overspend 8 \
+      out-formal-genesis '^check_claimFundedCompoundingRejectsOverspend'
+    ;;
+  established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
       "$0" "$target"
     done
     "$0" geometry
+    ;;
+  all)
+    "$0" established
+    "$0" permanent-liquidity
     ;;
   *)
     printf 'unknown formal target: %s\n' "$TARGET" >&2
