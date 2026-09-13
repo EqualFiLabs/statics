@@ -460,12 +460,10 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         return (IHooks.afterSwap.selector, charged.toInt128());
     }
 
-    function _chargeUnspecifiedLeg(
-        PoolId poolId,
-        PoolKey calldata key,
-        SwapParams calldata params,
-        BalanceDelta delta
-    ) private returns (uint256 charged) {
+    function _chargeUnspecifiedLeg(PoolId poolId, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta)
+        private
+        returns (uint256 charged)
+    {
         bool exactInput = params.amountSpecified < 0;
         bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
         EffectiveRate memory rate = _effectiveRate(poolId);
