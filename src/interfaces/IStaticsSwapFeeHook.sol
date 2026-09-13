@@ -40,7 +40,6 @@ interface IStaticsSwapFeeHook {
     /// is applied separately, so the configurable shares total 9,500 bps.
     struct BasketFeeAllocation {
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
@@ -49,7 +48,6 @@ interface IStaticsSwapFeeHook {
     /// @notice Global allocation profile for general pools. General pools have no basket-staker share.
     struct GeneralFeeAllocation {
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
     }
@@ -64,7 +62,6 @@ interface IStaticsSwapFeeHook {
         uint256 realizedAmount,
         uint256 chargedAmount,
         uint256 polAmount,
-        uint256 liquidityProviderAmount,
         uint256 basketStakerAmount,
         uint256 staticsStakerAmount,
         uint256 creatorAmount,
@@ -74,9 +71,7 @@ interface IStaticsSwapFeeHook {
         PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1, uint256 pending0, uint256 pending1
     );
     event PermanentLiquiditySeeded(PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1);
-    event PermanentLiquidityFeesCollected(
-        PoolId indexed poolId, Currency indexed currency, uint256 amount, uint256 pendingAmount
-    );
+    event PermanentLiquidityFeesRouted(PoolId indexed poolId, Currency indexed currency, uint256 amount);
     event PermanentLiquidityReleased(
         PoolId indexed poolId, address indexed receiver, uint128 liquidity, uint256 amount0, uint256 amount1
     );
@@ -84,17 +79,12 @@ interface IStaticsSwapFeeHook {
     event PoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps, bool overridden);
     event DefaultFeeRateSet(uint16 inputFeeBps, uint16 outputFeeBps);
     event BasketFeeAllocationSet(
-        uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
-        uint16 basketStakerShareBps,
-        uint16 staticsStakerShareBps,
-        uint16 treasuryShareBps
+        uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
     );
-    event GeneralFeeAllocationSet(
-        uint16 polShareBps, uint16 liquidityProviderShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
-    );
+    event GeneralFeeAllocationSet(uint16 polShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps);
 
     function staticsDiamond() external view returns (address);
+    function nativeLpFee() external view returns (uint24);
 
     // --- Fee rate (PoolId-local) ---
     function defaultFeeRate() external view returns (uint16 inputFeeBps, uint16 outputFeeBps);

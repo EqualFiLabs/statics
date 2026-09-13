@@ -21,7 +21,6 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
-import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
@@ -45,7 +44,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     bytes32 private constant PERMANENT_LIQUIDITY_SALT = keccak256("statics.permanent.swap.fee.liquidity");
 
     struct PendingDistribution {
-        uint256 liquidityProvider;
         uint256 basketStaker;
         uint256 staticsStaker;
         uint256 creator;
@@ -59,8 +57,10 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     struct CompoundPrepared {
         uint128 liquidityAdded;
-        int128 delta0;
-        int128 delta1;
+        int128 principal0;
+        int128 principal1;
+        uint128 fees0;
+        uint128 fees1;
     }
 
     struct EffectiveRate {
@@ -70,7 +70,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     struct AllocationShares {
         uint256 pol;
-        uint256 liquidityProvider;
         uint256 basketStaker;
         uint256 staticsStaker;
         uint256 creator;
@@ -78,6 +77,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     }
 
     address public immutable staticsDiamond;
+    uint24 public immutable nativeLpFee;
 
     uint16 private defaultInputFeeBps;
     uint16 private defaultOutputFeeBps;
@@ -102,7 +102,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error PoolIsDecommissioned(PoolId poolId);
     error PoolNotDecommissioned(PoolId poolId);
     error NativeCurrencyUnsupported();
-    error NonzeroNativeLpFee(uint24 fee);
+    error NativeLpFeeMismatch(uint24 expected, uint24 actual);
     error IncompatiblePoolCurrency(Currency currency, uint256 requested, uint256 received);
     error UnexpectedTokenDebit(Currency currency, uint256 expected, uint256 actual);
     error UnexpectedTokenAllowance(Currency currency, uint256 remaining);
@@ -110,6 +110,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error PendingLiquidityInsolvent(Currency currency, uint256 required, uint256 available);
     error PermanentLiquidityExceedsPending(Currency currency, uint256 required, uint256 available);
     error UnexpectedLiquidityDelta(int128 amount0, int128 amount1);
+    error UnexpectedCompoundDelta(Currency currency, int128 amount);
+    error UnexpectedNativeFeeDelta(int128 amount0, int128 amount1);
     error InvalidUnlockCaller(address caller);
     error InvalidReleaseReceiver();
     error EmptyPermanentLiquiditySeed();
@@ -118,26 +120,21 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error DuplicatePermanentLiquiditySeed(PoolId poolId);
     error UnexpectedCurrencyDelta(Currency currency, int256 delta);
     error CanonicalPoolDonationForbidden();
+    error IncompleteSpecifiedFill(int256 expected, int256 actual);
 
-    constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
+    constructor(IPoolManager manager, address diamond, uint24 lpFee, uint16 inputFeeBps, uint16 outputFeeBps)
+        BaseHook(manager)
+    {
         staticsDiamond = diamond;
+        nativeLpFee = lpFee;
         _setDefaultFeeRate(inputFeeBps, outputFeeBps);
         _setBasketFeeAllocation(
             BasketFeeAllocation({
-                polShareBps: 1_000,
-                liquidityProviderShareBps: 2_500,
-                basketStakerShareBps: 2_500,
-                staticsStakerShareBps: 1_500,
-                treasuryShareBps: 2_000
+                polShareBps: 1_500, basketStakerShareBps: 3_000, staticsStakerShareBps: 3_000, treasuryShareBps: 2_000
             })
         );
         _setGeneralFeeAllocation(
-            GeneralFeeAllocation({
-                polShareBps: 3_500,
-                liquidityProviderShareBps: 2_500,
-                staticsStakerShareBps: 1_500,
-                treasuryShareBps: 2_000
-            })
+            GeneralFeeAllocation({polShareBps: 4_000, staticsStakerShareBps: 3_500, treasuryShareBps: 2_000})
         );
     }
 
@@ -223,7 +220,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function registerPool(PoolKey calldata key, PoolKind kind, address creator) external returns (PoolId poolId) {
         _enforceDiamond();
         if (key.currency0.isAddressZero() || key.currency1.isAddressZero()) revert NativeCurrencyUnsupported();
-        if (key.fee != 0) revert NonzeroNativeLpFee(key.fee);
+        if (key.fee != nativeLpFee) revert NativeLpFeeMismatch(nativeLpFee, key.fee);
         if (kind != PoolKind.BasketCanonical && kind != PoolKind.General) revert InvalidPoolKind();
         if (creator == address(0)) revert InvalidCreator(creator);
         poolId = key.toId();
@@ -337,14 +334,20 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             liquidityDelta: -int256(uint256(liquidity)),
             salt: PERMANENT_LIQUIDITY_SALT
         });
-        (BalanceDelta delta,) = poolManager.modifyLiquidity(request.key, params, "");
-        if (delta.amount0() < 0 || delta.amount1() < 0) {
-            revert UnexpectedLiquidityDelta(delta.amount0(), delta.amount1());
+        (BalanceDelta callerDelta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(request.key, params, "");
+        (int128 principal0, int128 principal1, uint128 fees0, uint128 fees1) =
+            _separateLiquidityDelta(callerDelta, feesAccrued);
+        if (principal0 < 0 || principal1 < 0) {
+            revert UnexpectedLiquidityDelta(principal0, principal1);
         }
-        uint256 amount0 = uint256(uint128(delta.amount0()));
-        uint256 amount1 = uint256(uint128(delta.amount1()));
+        _routeNativeFees(poolId, request.key.currency0, fees0);
+        _routeNativeFees(poolId, request.key.currency1, fees1);
+        uint256 amount0 = uint256(uint128(principal0));
+        uint256 amount1 = uint256(uint128(principal1));
         _takeExact(request.key.currency0, request.receiver, amount0);
         _takeExact(request.key.currency1, request.receiver, amount1);
+        _routeDistribution(poolId, request.key.currency0);
+        _routeDistribution(poolId, request.key.currency1);
         return abi.encode(amount0, amount1);
     }
 
@@ -364,10 +367,14 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
                 liquidityDelta: int256(uint256(seed.liquidity)),
                 salt: PERMANENT_LIQUIDITY_SALT
             });
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(seed.key, params, "");
-            if (delta.amount0() >= 0 || delta.amount1() >= 0) revert InvalidPermanentLiquiditySeed(poolId);
-            amount0[i] = _absolute(int256(delta.amount0()));
-            amount1[i] = _absolute(int256(delta.amount1()));
+            (BalanceDelta callerDelta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(seed.key, params, "");
+            (int128 principal0, int128 principal1, uint128 fees0, uint128 fees1) =
+                _separateLiquidityDelta(callerDelta, feesAccrued);
+            if (principal0 >= 0 || principal1 >= 0) revert InvalidPermanentLiquiditySeed(poolId);
+            amount0[i] = _absolute(int256(principal0));
+            amount1[i] = _absolute(int256(principal1));
+            _routeNativeFees(poolId, seed.key.currency0, fees0);
+            _routeNativeFees(poolId, seed.key.currency1, fees1);
             permanentLiquidity[poolId] = seed.liquidity;
             currencyCount = _appendUniqueCurrency(currencies, currencyCount, seed.key.currency0);
             currencyCount = _appendUniqueCurrency(currencies, currencyCount, seed.key.currency1);
@@ -382,6 +389,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
         for (uint256 i; i < length; ++i) {
             PermanentLiquiditySeed memory seed = seeds[i];
+            _routeDistribution(seed.key.toId(), seed.key.currency0);
+            _routeDistribution(seed.key.toId(), seed.key.currency1);
             emit PermanentLiquiditySeeded(seed.key.toId(), seed.liquidity, amount0[i], amount1[i]);
         }
     }
@@ -428,7 +437,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         EffectiveRate memory rate = _effectiveRate(poolId);
         uint16 feeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
         uint256 realized = _absolute(params.amountSpecified);
-        uint256 charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
+        uint256 charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
         if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
         _takeExact(specified, charged);
@@ -447,12 +456,21 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         {
             bool exactInput = params.amountSpecified < 0;
             bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
+            int128 specifiedDelta = specifiedCurrencyIs0 ? delta.amount0() : delta.amount1();
+            EffectiveRate memory rate = _effectiveRate(poolId);
+            uint16 specifiedFeeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
+            uint256 specifiedFee = exactInput
+                ? _feeFromGross(_absolute(params.amountSpecified), specifiedFeeBps)
+                : _feeFromNet(_absolute(params.amountSpecified), specifiedFeeBps);
+            int256 expectedSpecifiedDelta = params.amountSpecified + int256(specifiedFee);
+            if (int256(specifiedDelta) != expectedSpecifiedDelta) {
+                revert IncompleteSpecifiedFill(expectedSpecifiedDelta, int256(specifiedDelta));
+            }
             Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
             int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
             uint256 realized = _absolute(int256(unspecifiedDelta));
-            EffectiveRate memory rate = _effectiveRate(poolId);
             uint16 feeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
-            charged = Math.mulDiv(realized, feeBps, BPS, Math.Rounding.Ceil);
+            charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
             if (charged != 0) {
                 _takeExact(unspecified, charged);
                 _allocate(poolId, unspecified, realized, charged, false);
@@ -470,7 +488,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         polPending[poolId][currency] += shares.pol;
         totalPending[currency] += shares.pol;
         PendingDistribution storage pending = distributions[poolId][currency];
-        pending.liquidityProvider += shares.liquidityProvider;
         pending.basketStaker += shares.basketStaker;
         pending.staticsStaker += shares.staticsStaker;
         pending.creator += shares.creator;
@@ -482,7 +499,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             realized,
             charged,
             shares.pol,
-            shares.liquidityProvider,
             shares.basketStaker,
             shares.staticsStaker,
             shares.creator,
@@ -491,7 +507,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     }
 
     /// @dev Carves the fixed creator share first, then applies the class allocation profile. Fallback
-    /// policy: unavailable LP and basket-staker shares route to POL; unavailable Statics-staker share
+    /// policy: an unavailable basket-staker share routes to POL; an unavailable Statics-staker share
     /// routes to treasury; the creator share never falls back.
     function _computeShares(PoolId poolId, Currency currency, uint256 charged)
         private
@@ -503,24 +519,17 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (kind == PoolKind.BasketCanonical) {
             BasketFeeAllocation storage a = basketAllocation;
             shares.pol = Math.mulDiv(charged, a.polShareBps, BPS);
-            shares.liquidityProvider = Math.mulDiv(charged, a.liquidityProviderShareBps, BPS);
             shares.basketStaker = Math.mulDiv(charged, a.basketStakerShareBps, BPS);
             shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
         } else {
             GeneralFeeAllocation storage a = generalAllocation;
             shares.pol = Math.mulDiv(charged, a.polShareBps, BPS);
-            shares.liquidityProvider = Math.mulDiv(charged, a.liquidityProviderShareBps, BPS);
             shares.basketStaker = 0;
             shares.staticsStaker = Math.mulDiv(charged, a.staticsStakerShareBps, BPS);
         }
-        shares.treasury = charged - shares.pol - shares.liquidityProvider - shares.basketStaker - shares.staticsStaker
-            - shares.creator;
+        shares.treasury = charged - shares.pol - shares.basketStaker - shares.staticsStaker - shares.creator;
 
-        if (!IStaticsLiquidityRewards(staticsDiamond).canAccrueLiquidityRewards(poolId)) {
-            shares.pol += shares.liquidityProvider;
-            shares.liquidityProvider = 0;
-        }
-        if (shares.basketStaker != 0 && !IStaticsLiquidityRewards(staticsDiamond).canAccrueBasketRewards(poolId)) {
+        if (shares.basketStaker != 0 && !IStaticsProtocolRevenue(staticsDiamond).canAccrueBasketRewards(poolId)) {
             shares.pol += shares.basketStaker;
             shares.basketStaker = 0;
         }
@@ -542,16 +551,14 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         PendingDistribution storage pending = distributions[poolId][currency];
         IStaticsProtocolRevenue.ProtocolFeeDistribution memory distribution =
             IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                liquidityProvider: pending.liquidityProvider,
                 basketStaker: pending.basketStaker,
                 staticsStaker: pending.staticsStaker,
                 creator: pending.creator,
                 treasury: pending.treasury
             });
-        uint256 total = distribution.liquidityProvider + distribution.basketStaker + distribution.staticsStaker
-            + distribution.creator + distribution.treasury;
+        uint256 total =
+            distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
         if (total == 0) return;
-        pending.liquidityProvider = 0;
         pending.basketStaker = 0;
         pending.staticsStaker = 0;
         pending.creator = 0;
@@ -570,12 +577,22 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function _compound(PoolKey calldata key, PoolId poolId) private returns (uint128 liquidityAdded) {
         uint256 available0 = polPending[poolId][key.currency0];
         uint256 available1 = polPending[poolId][key.currency1];
-        if (available0 == 0 || available1 == 0) return 0;
+        if (available0 == 0 || available1 == 0) {
+            if (permanentLiquidity[poolId] != 0) _collectNativeFees(key, poolId);
+            return 0;
+        }
         CompoundPrepared memory prepared = _addPermanentLiquidity(key, poolId, available0, available1);
-        if (prepared.liquidityAdded == 0) return 0;
-        uint256 amount0 = _applyCompoundDelta(poolId, key.currency0, prepared.delta0, available0);
-        uint256 amount1 = _applyCompoundDelta(poolId, key.currency1, prepared.delta1, available1);
+        if (prepared.liquidityAdded == 0) {
+            if (permanentLiquidity[poolId] != 0) _collectNativeFees(key, poolId);
+            return 0;
+        }
+        _routeNativeFees(poolId, key.currency0, prepared.fees0);
+        _routeNativeFees(poolId, key.currency1, prepared.fees1);
+        uint256 amount0 = _applyCompoundDelta(poolId, key.currency0, prepared.principal0, available0);
+        uint256 amount1 = _applyCompoundDelta(poolId, key.currency1, prepared.principal1, available1);
         permanentLiquidity[poolId] += prepared.liquidityAdded;
+        _routeDistribution(poolId, key.currency0);
+        _routeDistribution(poolId, key.currency1);
         emit PermanentLiquidityAdded(
             poolId,
             prepared.liquidityAdded,
@@ -608,9 +625,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             liquidityDelta: int256(uint256(prepared.liquidityAdded)),
             salt: PERMANENT_LIQUIDITY_SALT
         });
-        (BalanceDelta delta,) = poolManager.modifyLiquidity(key, params, "");
-        prepared.delta0 = delta.amount0();
-        prepared.delta1 = delta.amount1();
+        (BalanceDelta callerDelta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(key, params, "");
+        (prepared.principal0, prepared.principal1, prepared.fees0, prepared.fees1) =
+            _separateLiquidityDelta(callerDelta, feesAccrued);
     }
 
     function _applyCompoundDelta(PoolId poolId, Currency currency, int128 delta, uint256 available)
@@ -626,14 +643,47 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             totalPending[currency] -= amountPaid;
             _settle(currency, amountPaid);
         } else if (delta > 0) {
-            uint256 amountCollected = uint256(uint128(delta));
-            _takeExact(currency, address(this), amountCollected);
-            uint256 pendingAmount = available + amountCollected;
-            polPending[poolId][currency] = pendingAmount;
-            totalPending[currency] += amountCollected;
-            emit PermanentLiquidityFeesCollected(poolId, currency, amountCollected, pendingAmount);
+            revert UnexpectedCompoundDelta(currency, delta);
         }
         _assertPendingSolvency(currency);
+    }
+
+    function _collectNativeFees(PoolKey calldata key, PoolId poolId) private {
+        ModifyLiquidityParams memory params = ModifyLiquidityParams({
+            tickLower: TickMath.minUsableTick(key.tickSpacing),
+            tickUpper: TickMath.maxUsableTick(key.tickSpacing),
+            liquidityDelta: 0,
+            salt: PERMANENT_LIQUIDITY_SALT
+        });
+        (BalanceDelta callerDelta, BalanceDelta feesAccrued) = poolManager.modifyLiquidity(key, params, "");
+        (int128 principal0, int128 principal1, uint128 fees0, uint128 fees1) =
+            _separateLiquidityDelta(callerDelta, feesAccrued);
+        if (principal0 != 0 || principal1 != 0) revert UnexpectedLiquidityDelta(principal0, principal1);
+        _routeNativeFees(poolId, key.currency0, fees0);
+        _routeNativeFees(poolId, key.currency1, fees1);
+        _routeDistribution(poolId, key.currency0);
+        _routeDistribution(poolId, key.currency1);
+    }
+
+    function _separateLiquidityDelta(BalanceDelta callerDelta, BalanceDelta feesAccrued)
+        private
+        pure
+        returns (int128 principal0, int128 principal1, uint128 fees0, uint128 fees1)
+    {
+        int128 fee0 = feesAccrued.amount0();
+        int128 fee1 = feesAccrued.amount1();
+        if (fee0 < 0 || fee1 < 0) revert UnexpectedNativeFeeDelta(fee0, fee1);
+        principal0 = callerDelta.amount0() - fee0;
+        principal1 = callerDelta.amount1() - fee1;
+        fees0 = uint128(fee0);
+        fees1 = uint128(fee1);
+    }
+
+    function _routeNativeFees(PoolId poolId, Currency currency, uint128 amount) private {
+        if (amount == 0) return;
+        _takeExact(currency, amount);
+        distributions[poolId][currency].treasury += amount;
+        emit PermanentLiquidityFeesRouted(poolId, currency, amount);
     }
 
     function _takeExact(Currency currency, uint256 amount) private {
@@ -703,7 +753,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function _setBasketFeeAllocation(BasketFeeAllocation memory allocation) private {
         if (!LibProtocolPoolFee.isValidConfigurableShares(
                 allocation.polShareBps,
-                allocation.liquidityProviderShareBps,
                 allocation.basketStakerShareBps,
                 allocation.staticsStakerShareBps,
                 allocation.treasuryShareBps
@@ -711,7 +760,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         basketAllocation = allocation;
         emit BasketFeeAllocationSet(
             allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
             allocation.basketStakerShareBps,
             allocation.staticsStakerShareBps,
             allocation.treasuryShareBps
@@ -720,19 +768,21 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     function _setGeneralFeeAllocation(GeneralFeeAllocation memory allocation) private {
         if (!LibProtocolPoolFee.isValidConfigurableShares(
-                allocation.polShareBps,
-                allocation.liquidityProviderShareBps,
-                0,
-                allocation.staticsStakerShareBps,
-                allocation.treasuryShareBps
+                allocation.polShareBps, 0, allocation.staticsStakerShareBps, allocation.treasuryShareBps
             )) revert InvalidAllocation();
         generalAllocation = allocation;
         emit GeneralFeeAllocationSet(
-            allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
-            allocation.staticsStakerShareBps,
-            allocation.treasuryShareBps
+            allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
         );
+    }
+
+    function _feeFromGross(uint256 amount, uint16 feeBps) private pure returns (uint256) {
+        return Math.mulDiv(amount, feeBps, BPS, Math.Rounding.Ceil);
+    }
+
+    function _feeFromNet(uint256 amount, uint16 feeBps) private pure returns (uint256) {
+        if (feeBps == 0) return 0;
+        return Math.mulDiv(amount, feeBps, BPS - feeBps, Math.Rounding.Ceil);
     }
 
     function _absolute(int256 value) private pure returns (uint256) {

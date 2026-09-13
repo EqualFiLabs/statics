@@ -83,9 +83,8 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
             inputFeeBps: 40,
             outputFeeBps: 60,
             polShareBps: 6_000,
-            liquidityProviderShareBps: 1_000,
             basketStakerShareBps: 0,
-            staticsStakerShareBps: 2_000,
+            staticsStakerShareBps: 3_000,
             treasuryShareBps: 500
         });
         basketLiquidity.setSwapFeeConfiguration(configuration);
@@ -93,7 +92,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         assertEq(stored.inputFeeBps, 40);
         assertEq(stored.outputFeeBps, 60);
         assertEq(stored.polShareBps, 6_000);
-        assertEq(stored.liquidityProviderShareBps, 1_000);
+        assertEq(stored.staticsStakerShareBps, 3_000);
     }
 
     function _seedAndSwap() private {

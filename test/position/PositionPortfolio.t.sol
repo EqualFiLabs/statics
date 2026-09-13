@@ -35,7 +35,6 @@ contract PositionPortfolioTest is StaticsTestBase {
             positionPortfolio.positionPortfolioCounts(positionId);
         assertEq(counts.basketCount, 1);
         assertEq(counts.loanCount, 0);
-        assertEq(counts.liquidityPositionCount, 0);
         assertEq(counts.globalRewardAssetCount, 2);
         assertEq(counts.riskSeriesCount, 0);
 

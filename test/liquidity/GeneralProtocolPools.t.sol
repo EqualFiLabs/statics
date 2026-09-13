@@ -306,12 +306,12 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
 
     function testGeneralAllocationUpdateRoundtrips() public {
         IStaticsProtocolPools.GeneralFeeAllocation memory allocation = IStaticsProtocolPools.GeneralFeeAllocation({
-            polShareBps: 4_000, liquidityProviderShareBps: 2_000, staticsStakerShareBps: 1_500, treasuryShareBps: 2_000
+            polShareBps: 4_000, staticsStakerShareBps: 3_500, treasuryShareBps: 2_000
         });
         pools.setGeneralFeeAllocation(allocation);
         IStaticsProtocolPools.GeneralFeeAllocation memory stored = pools.generalFeeAllocation();
         assertEq(stored.polShareBps, 4_000);
-        assertEq(stored.liquidityProviderShareBps, 2_000);
+        assertEq(stored.staticsStakerShareBps, 3_500);
     }
 
     function testLiquidityPauseBlocksCreation() public {

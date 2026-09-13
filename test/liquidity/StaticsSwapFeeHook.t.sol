@@ -36,10 +36,8 @@ contract HookDiamondMock {
 
     address public hook;
     bool public stakersEligible = true;
-    bool public lpEligible;
     bool public basketEligible;
     mapping(address asset => bool eligible) public rewardAssetEligible;
-    mapping(address asset => uint256 amount) public lpFees;
     mapping(address asset => uint256 amount) public basketStakerFees;
     mapping(address asset => uint256 amount) public stakerFees;
     mapping(address asset => uint256 amount) public creatorFees;
@@ -54,10 +52,6 @@ contract HookDiamondMock {
         stakersEligible = eligible;
     }
 
-    function setLpEligible(bool eligible) external {
-        lpEligible = eligible;
-    }
-
     function setBasketEligible(bool eligible) external {
         basketEligible = eligible;
     }
@@ -70,10 +64,6 @@ contract HookDiamondMock {
         return stakersEligible && rewardAssetEligible[asset];
     }
 
-    function canAccrueLiquidityRewards(PoolId) external view returns (bool) {
-        return lpEligible;
-    }
-
     function canAccrueBasketRewards(PoolId) external view returns (bool) {
         return basketEligible;
     }
@@ -84,10 +74,9 @@ contract HookDiamondMock {
         IStaticsProtocolRevenue.ProtocolFeeDistribution calldata distribution
     ) external {
         require(msg.sender == hook, "only hook");
-        uint256 total = distribution.liquidityProvider + distribution.basketStaker + distribution.staticsStaker
-            + distribution.creator + distribution.treasury;
+        uint256 total =
+            distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
         IERC20(asset).safeTransferFrom(msg.sender, address(this), total);
-        lpFees[asset] += distribution.liquidityProvider;
         basketStakerFees[asset] += distribution.basketStaker;
         stakerFees[asset] += distribution.staticsStaker;
         creatorFees[asset] += distribution.creator;
@@ -137,7 +126,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
 
     uint16 private constant INPUT_FEE_BPS = 25;
     uint16 private constant OUTPUT_FEE_BPS = 25;
-    uint24 private constant LP_FEE = 0;
+    uint24 private constant LP_FEE = 3_000;
     int24 private constant TICK_SPACING = 10;
     uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
@@ -154,10 +143,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         diamond = new HookDiamondMock();
         hook = _deployHook(address(diamond));
         diamond.configureHook(address(hook));
-        // General allocation: pol 0, lp 0, staker 9500, treasury 0 keeps fees observable in one bucket.
+        // General allocation: pol 0, staker 9500, treasury 0 keeps fees observable in one bucket.
         diamond.setGeneralFeeAllocation(
             IStaticsSwapFeeHook.GeneralFeeAllocation({
-                polShareBps: 0, liquidityProviderShareBps: 0, staticsStakerShareBps: 9_500, treasuryShareBps: 0
+                polShareBps: 0, staticsStakerShareBps: 9_500, treasuryShareBps: 0
             })
         );
         key = _registerInitialize(currency0, currency1, TICK_SPACING);
@@ -173,6 +162,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertTrue(permissions.beforeSwap);
         assertTrue(permissions.beforeDonate);
         assertEq(hook.staticsDiamond(), address(diamond));
+        assertEq(hook.nativeLpFee(), LP_FEE);
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         assertEq(inputFeeBps, INPUT_FEE_BPS);
         assertEq(outputFeeBps, OUTPUT_FEE_BPS);
@@ -198,6 +188,30 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         swap(key, true, -int256(0.001 ether), "");
         assertEq(diamond.basketStakerFees(Currency.unwrap(key.currency0)), 0);
         assertEq(diamond.basketStakerFees(Currency.unwrap(key.currency1)), 0);
+    }
+
+    function testExactOutputGrossesUpSpecifiedAndUnspecifiedFees() public {
+        uint256 amountOut = 0.0001 ether;
+        BalanceDelta delta = swap(key, true, int256(amountOut), "");
+        uint256 specifiedFee = _feeFromNet(amountOut, OUTPUT_FEE_BPS);
+        assertEq(uint256(uint128(delta.amount1())), amountOut + specifiedFee);
+        address output = Currency.unwrap(key.currency1);
+        assertEq(diamond.creatorFees(output) + diamond.stakerFees(output) + diamond.treasuryFees(output), specifiedFee);
+    }
+
+    function testNativeFeesEarnedByPermanentLiquidityRouteOnlyToTreasury() public {
+        uint128 liquidity = 1 ether;
+        IERC20(Currency.unwrap(key.currency0)).transfer(address(diamond), 10 ether);
+        IERC20(Currency.unwrap(key.currency1)).transfer(address(diamond), 10 ether);
+        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](1);
+        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: key, liquidity: liquidity});
+        diamond.seed(seeds);
+
+        address input = Currency.unwrap(key.currency0);
+        uint256 treasuryBefore = diamond.treasuryFees(input);
+        swap(key, true, -int256(0.001 ether), "");
+        assertGt(diamond.treasuryFees(input), treasuryBefore);
+        assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), 0);
     }
 
     function testUnavailableStakerShareFallsBackToTreasury() public {
@@ -241,33 +255,33 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         vm.expectRevert(StaticsSwapFeeHook.InvalidAllocation.selector);
         diamond.setGeneralFeeAllocation(
             IStaticsSwapFeeHook.GeneralFeeAllocation({
-                polShareBps: 0, liquidityProviderShareBps: 0, staticsStakerShareBps: 9_000, treasuryShareBps: 0
+                polShareBps: 0, staticsStakerShareBps: 9_000, treasuryShareBps: 0
             })
         );
         vm.expectRevert(StaticsSwapFeeHook.InvalidAllocation.selector);
         diamond.setBasketFeeAllocation(
             IStaticsSwapFeeHook.BasketFeeAllocation({
-                polShareBps: 1_000,
-                liquidityProviderShareBps: 2_500,
-                basketStakerShareBps: 2_500,
-                staticsStakerShareBps: 1_500,
-                treasuryShareBps: 1_999
+                polShareBps: 1_000, basketStakerShareBps: 3_000, staticsStakerShareBps: 3_000, treasuryShareBps: 1_999
             })
         );
     }
 
-    function testRegistrationRejectsNativeCurrencyNativeLpFeeAndInvalidKind() public {
+    function testRegistrationRejectsNativeCurrencyMismatchedLpFeeAndInvalidKind() public {
         PoolKey memory nonzeroFee = _poolKey(currency0, currency1, 1, 20);
-        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.NonzeroNativeLpFee.selector, uint24(1)));
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.NativeLpFeeMismatch.selector, LP_FEE, uint24(1)));
         diamond.registerPool(nonzeroFee, IStaticsSwapFeeHook.PoolKind.General, creator);
 
         PoolKey memory nativePool = PoolKey({
-            currency0: Currency.wrap(address(0)), currency1: currency1, fee: 0, tickSpacing: 20, hooks: IHooks(hook)
+            currency0: Currency.wrap(address(0)),
+            currency1: currency1,
+            fee: LP_FEE,
+            tickSpacing: 20,
+            hooks: IHooks(hook)
         });
         vm.expectRevert(StaticsSwapFeeHook.NativeCurrencyUnsupported.selector);
         diamond.registerPool(nativePool, IStaticsSwapFeeHook.PoolKind.General, creator);
 
-        PoolKey memory ok = _poolKey(currency0, currency1, 0, 20);
+        PoolKey memory ok = _poolKey(currency0, currency1, LP_FEE, 20);
         vm.expectRevert(StaticsSwapFeeHook.InvalidPoolKind.selector);
         diamond.registerPool(ok, IStaticsSwapFeeHook.PoolKind.None, creator);
 
@@ -313,10 +327,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     }
 
     function _deployHook(address diamond_) private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, diamond_, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        bytes memory constructorArgs = abi.encode(manager, diamond_, uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, diamond_, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, diamond_, 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         assertEq(address(deployed), expected);
     }
 

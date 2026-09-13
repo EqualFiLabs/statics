@@ -15,7 +15,6 @@ import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketColla
 import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
-import {IStaticsLiquidityRewards} from "../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
@@ -134,6 +133,7 @@ contract DeployStaticsTest is Test {
             permit2: deployment.permit2,
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
+            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: deployment.poolManager.codehash,
@@ -150,7 +150,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 36, 291);
+        _assertManifest(diamond, 35, 280);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
@@ -170,7 +170,6 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBorrowLiquidity).interfaceId));
-        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsLiquidityRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolPools).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsFlashLoan).interfaceId));
@@ -264,6 +263,7 @@ contract DeployStaticsTest is Test {
             poolManager: address(poolManager),
             positionManager: address(positionManager),
             permit2: address(permit2Contract),
+            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: address(poolManager).codehash,

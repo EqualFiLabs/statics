@@ -202,9 +202,9 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25))
+            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25))
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25);
         assertEq(address(deployed), expected);
     }
 

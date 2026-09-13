@@ -9,7 +9,6 @@ library LibPosition {
     bytes32 internal constant DOLLAR_MODULE = keccak256("statics.position.module.dollar");
     bytes32 internal constant BASKET_MODULE = keccak256("statics.position.module.basket");
     bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
-    bytes32 internal constant LIQUIDITY_MODULE = keccak256("statics.position.module.liquidity");
     bytes32 internal constant GENESIS_MODULE = keccak256("statics.position.module.genesis");
     bytes32 internal constant MORPHO_MODULE = keccak256("statics.position.module.morpho");
 
@@ -151,14 +150,6 @@ library LibPosition {
 
     function stakingLegKey(address moduleAuthority) internal pure returns (bytes32) {
         return legKey(moduleAuthority, STAKING_MODULE, bytes32(uint256(1)));
-    }
-
-    function liquidityLegKey() internal view returns (bytes32) {
-        return legKey(LIQUIDITY_MODULE, bytes32(uint256(1)));
-    }
-
-    function liquidityLegKey(address moduleAuthority) internal pure returns (bytes32) {
-        return legKey(moduleAuthority, LIQUIDITY_MODULE, bytes32(uint256(1)));
     }
 
     function genesisLegKey(uint256 genesisId) internal view returns (bytes32) {

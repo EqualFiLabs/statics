@@ -108,7 +108,7 @@ contract GeneralPoolAggregationTest is GeneralPoolLifecycleTestBase {
             poolId,
             asset,
             IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                liquidityProvider: 0, basketStaker: 0, staticsStaker: 0, creator: amount, treasury: 0
+                basketStaker: 0, staticsStaker: 0, creator: amount, treasury: 0
             })
         );
     }
@@ -120,7 +120,7 @@ contract GeneralPoolAggregationTest is GeneralPoolLifecycleTestBase {
             poolId,
             asset,
             IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                liquidityProvider: 0, basketStaker: 0, staticsStaker: amount, creator: 0, treasury: 0
+                basketStaker: 0, staticsStaker: amount, creator: 0, treasury: 0
             })
         );
     }

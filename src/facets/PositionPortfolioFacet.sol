@@ -15,7 +15,6 @@ contract PositionPortfolioFacet is IStaticsPositionPortfolio {
         counts = PositionPortfolioCounts({
             basketCount: ps.baskets[positionId].values.length,
             loanCount: ps.loans[positionId].values.length,
-            liquidityPositionCount: ps.liquidityPositions[positionId].values.length,
             globalRewardAssetCount: ps.globalRewardAssets[positionId].values.length,
             riskSeriesCount: LibPeriphery.s().positionSeries[positionId].length,
             morphoMarketCount: ps.morphoMarkets[positionId].values.length
@@ -38,15 +37,6 @@ contract PositionPortfolioFacet is IStaticsPositionPortfolio {
     {
         _requirePosition(positionId);
         return _uintPage(LibPositionPortfolio.portfolioStorage().loans[positionId].values, cursor, limit);
-    }
-
-    function liquidityPositionIdsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)
-        external
-        view
-        returns (uint256[] memory tokenIds, uint256 nextCursor)
-    {
-        _requirePosition(positionId);
-        return _uintPage(LibPositionPortfolio.portfolioStorage().liquidityPositions[positionId].values, cursor, limit);
     }
 
     function globalRewardAssetsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)

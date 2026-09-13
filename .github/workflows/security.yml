@@ -90,12 +90,13 @@ jobs:
           forge test --match-path test/liquidity/LaunchLiquidityInvariant.t.sol -vv
           forge test --match-path test/liquidity/LaunchLiquidityPositionInvariant.t.sol -vv
 
-  doppler-fork:
-    name: Security / Doppler fork
+  robinhood-forks:
+    name: Security / Robinhood forks
     runs-on: ubuntu-latest
     env:
       ROBINHOOD_MAINNET: https://rpc.mainnet.chain.robinhood.com
       REQUIRE_DOPPLER_FORK_PROOF: "true"
+      REQUIRE_ROBINHOOD_FORK: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -129,3 +130,5 @@ jobs:
           test -n "$ROBINHOOD_MAINNET"
       - name: Run Doppler fork proof
         run: forge test --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol -vv
+      - name: Run permanent-liquidity fork proof
+        run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv

@@ -2,7 +2,6 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -24,7 +23,6 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     error InvalidLiquidityManager(address manager);
     error LiquidityManagerBindingMismatch(address manager, address expected, address actual);
     error LiquidityManagerUnchanged(address manager);
-    error LiquidityManagerApprovalMismatch(address manager, bool expected);
 
     function setPoolCreationFee(uint256 amount) external {
         LibDiamond.enforceIsContractOwner();
@@ -44,16 +42,14 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         IStaticsSwapFeeHook(_liquidityStorage().hook)
             .setBasketFeeAllocation(
                 IStaticsSwapFeeHook.BasketFeeAllocation({
-                polShareBps: allocation.polShareBps,
-                liquidityProviderShareBps: allocation.liquidityProviderShareBps,
-                basketStakerShareBps: allocation.basketStakerShareBps,
-                staticsStakerShareBps: allocation.staticsStakerShareBps,
-                treasuryShareBps: allocation.treasuryShareBps
-            })
+                    polShareBps: allocation.polShareBps,
+                    basketStakerShareBps: allocation.basketStakerShareBps,
+                    staticsStakerShareBps: allocation.staticsStakerShareBps,
+                    treasuryShareBps: allocation.treasuryShareBps
+                })
             );
         emit IStaticsProtocolPools.BasketFeeAllocationSet(
             allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
             allocation.basketStakerShareBps,
             allocation.staticsStakerShareBps,
             allocation.treasuryShareBps
@@ -65,17 +61,13 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         IStaticsSwapFeeHook(_liquidityStorage().hook)
             .setGeneralFeeAllocation(
                 IStaticsSwapFeeHook.GeneralFeeAllocation({
-                polShareBps: allocation.polShareBps,
-                liquidityProviderShareBps: allocation.liquidityProviderShareBps,
-                staticsStakerShareBps: allocation.staticsStakerShareBps,
-                treasuryShareBps: allocation.treasuryShareBps
-            })
+                    polShareBps: allocation.polShareBps,
+                    staticsStakerShareBps: allocation.staticsStakerShareBps,
+                    treasuryShareBps: allocation.treasuryShareBps
+                })
             );
         emit IStaticsProtocolPools.GeneralFeeAllocationSet(
-            allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
-            allocation.staticsStakerShareBps,
-            allocation.treasuryShareBps
+            allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
         );
     }
 
@@ -114,16 +106,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         _enforceManagerBinding(newManager, positionManager, newBinding.positionManager());
         _enforceManagerBinding(newManager, oldBinding.permit2(), newBinding.permit2());
 
-        IERC721 positions = IERC721(positionManager);
-        positions.setApprovalForAll(oldManager, false);
-        positions.setApprovalForAll(newManager, true);
         ls.manager = newManager;
-        if (positions.isApprovedForAll(address(this), oldManager)) {
-            revert LiquidityManagerApprovalMismatch(oldManager, false);
-        }
-        if (!positions.isApprovedForAll(address(this), newManager)) {
-            revert LiquidityManagerApprovalMismatch(newManager, true);
-        }
         emit IStaticsProtocolPools.LiquidityManagerReplaced(oldManager, newManager);
     }
 

@@ -24,7 +24,6 @@ import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketRewards} from "../../../src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsBorrowLiquidity} from "../../../src/interfaces/IStaticsBorrowLiquidity.sol";
-import {IStaticsLiquidityRewards} from "../../../src/interfaces/IStaticsLiquidityRewards.sol";
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
@@ -87,25 +86,14 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
     function testCompletedStaticsLiquidityLifecycleUsesRobinhoodV4() public {
         (uint256 basketId, address basketToken, uint256 positionId) = _createFundedBasket();
         uint256 userTokenId = _provideCanonicalLiquidity(positionId, basketId);
-        assertEq(IERC721(address(positionManager)).ownerOf(userTokenId), address(diamond));
+        assertEq(IERC721(address(positionManager)).ownerOf(userTokenId), alice);
 
         _swapCanonical(basketId, basketToken);
-        IStaticsLiquidityRewards liquidityRewards = IStaticsLiquidityRewards(address(diamond));
-        vm.prank(alice);
-        (, uint256 pending0,, uint256 pending1) = liquidityRewards.pendingLiquidityRewards(positionId, userTokenId);
-        assertGt(pending0 + pending1, 0);
-        vm.prank(alice);
-        liquidityRewards.claimLiquidityRewards(positionId, userTokenId, alice, 0, 0);
-
         IStaticsBasketRewards basketRewards = IStaticsBasketRewards(address(diamond));
         (, uint256[] memory pendingBasketRewards) = basketRewards.getBasketRewards(positionId, basketId);
         assertGt(pendingBasketRewards[0] + pendingBasketRewards[1], 0);
         vm.prank(alice);
         basketRewards.claimBasketRewards(positionId, basketId, alice);
-
-        vm.prank(alice);
-        liquidityRewards.unstakeLiquidityPosition(positionId, userTokenId, alice);
-        assertEq(IERC721(address(positionManager)).ownerOf(userTokenId), alice);
 
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
             basketLiquidity.canonicalPool(basketId, address(assetA));
@@ -120,7 +108,7 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
 
     function testUniversalRouterQuotesAndSwapsCanonicalHookedPool() public {
         (uint256 basketId, address basketToken, uint256 positionId) = _createFundedBasket();
-        uint256 liquidityTokenId = _provideCanonicalLiquidity(positionId, basketId);
+        _provideCanonicalLiquidity(positionId, basketId);
 
         IStaticsBasketLiquidity.CanonicalPoolView memory configured =
             basketLiquidity.canonicalPool(basketId, address(assetA));
@@ -146,11 +134,6 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         assertGt(globalRewards.treasuryAccrued(basketToken), basketTreasuryBefore);
         assertGt(globalRewards.treasuryAccrued(address(assetA)), assetTreasuryBefore);
         assertGt(hook.lockedLiquidity(poolId), 0);
-
-        vm.prank(alice);
-        (, uint256 pending0,, uint256 pending1) =
-            IStaticsLiquidityRewards(address(diamond)).pendingLiquidityRewards(positionId, liquidityTokenId);
-        assertGt(pending0 + pending1, 0);
     }
 
     function _createFundedBasket() private returns (uint256 basketId, address basketToken, uint256 positionId) {
@@ -217,11 +200,9 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             deadline: block.timestamp + 1 hours
         });
         vm.prank(alice);
-        (, uint256[] memory tokenIds) =
-            IStaticsBorrowLiquidity(address(diamond)).borrowAndStakeLiquidity(positionId, basketId, 20 ether, pools);
+        (, uint256[] memory tokenIds) = IStaticsBorrowLiquidity(address(diamond))
+            .borrowAndProvideLiquidity(positionId, basketId, 20 ether, pools, alice);
         tokenId = tokenIds[0];
-        vm.roll(block.number + 1);
-        IStaticsLiquidityRewards(address(diamond)).activateLiquidityPosition(tokenId);
     }
 
     function _quoteAndSwapThroughUniversalRouter(
@@ -341,9 +322,9 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25))
+            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25))
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25);
         assertEq(address(deployed), expected);
     }
 

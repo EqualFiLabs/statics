@@ -19,7 +19,6 @@ import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
-import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
@@ -102,14 +101,13 @@ library StaticsSelectors {
     }
 
     function positionPortfolio() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](7);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
         selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
         selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
-        selectors[3] = IStaticsPositionPortfolio.liquidityPositionIdsOfPosition.selector;
-        selectors[4] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
-        selectors[5] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
-        selectors[6] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
+        selectors[3] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
+        selectors[4] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+        selectors[5] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
     }
 
     function morphoAdmin() internal pure returns (bytes4[] memory selectors) {
@@ -339,25 +337,12 @@ library StaticsSelectors {
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         selectors[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         selectors[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         selectors[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
-    }
-
-    function liquidityRewards() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](10);
-        selectors[0] = IStaticsLiquidityRewards.stakeLiquidityPosition.selector;
-        selectors[1] = IStaticsLiquidityRewards.activateLiquidityPosition.selector;
-        selectors[2] = IStaticsLiquidityRewards.increaseStakedLiquidity.selector;
-        selectors[3] = IStaticsLiquidityRewards.unstakeLiquidityPosition.selector;
-        selectors[4] = IStaticsLiquidityRewards.claimLiquidityRewards.selector;
-        selectors[5] = IStaticsLiquidityRewards.stakedLiquidityPosition.selector;
-        selectors[6] = IStaticsLiquidityRewards.poolLiquidityRewards.selector;
-        selectors[7] = IStaticsLiquidityRewards.pendingLiquidityRewards.selector;
-        selectors[8] = IStaticsLiquidityRewards.canAccrueLiquidityRewards.selector;
-        selectors[9] = IStaticsLiquidityRewards.canAccrueBasketRewards.selector;
+        selectors[4] = IStaticsProtocolRevenue.canAccrueBasketRewards.selector;
     }
 
     function lending() internal pure returns (bytes4[] memory selectors) {
@@ -375,9 +360,8 @@ library StaticsSelectors {
     }
 
     function borrowLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](1);
         selectors[0] = IStaticsBorrowLiquidity.borrowAndProvideLiquidity.selector;
-        selectors[1] = IStaticsBorrowLiquidity.borrowAndStakeLiquidity.selector;
     }
 
     function flashLoan() internal pure returns (bytes4[] memory selectors) {

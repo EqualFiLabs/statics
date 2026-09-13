@@ -225,7 +225,6 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 inputFeeBps: 25,
                 outputFeeBps: 25,
                 polShareBps: 0,
-                liquidityProviderShareBps: 0,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 9_000,
                 treasuryShareBps: 500
@@ -605,9 +604,8 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 inputFeeBps: uint16(bound(rawInputFeeBps, 0, 100)),
                 outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100)),
                 polShareBps: 5_000,
-                liquidityProviderShareBps: 1_000,
                 basketStakerShareBps: 0,
-                staticsStakerShareBps: 3_000,
+                staticsStakerShareBps: 4_000,
                 treasuryShareBps: 500
             })
         );

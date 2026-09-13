@@ -33,7 +33,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
     using SafeERC20 for IERC20;
     using StateLibrary for IPoolManager;
 
-    uint24 private constant CANONICAL_LP_FEE = 0;
     int24 private constant CANONICAL_TICK_SPACING = 10;
 
     error LiquidityIntegrationAlreadyInstalled();
@@ -92,7 +91,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         _enforceBinding(manager, ls.poolManager, IStaticsLiquidityManager(manager).poolManager());
         ls.manager = manager;
         ls.managerInstalled = true;
-        IERC721Like(IStaticsLiquidityManager(manager).positionManager()).setApprovalForAll(manager, true);
         emit LiquidityManagerInstalled(manager);
     }
 
@@ -250,7 +248,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         hook.setBasketFeeAllocation(
             IStaticsSwapFeeHook.BasketFeeAllocation({
                 polShareBps: configuration.polShareBps,
-                liquidityProviderShareBps: configuration.liquidityProviderShareBps,
                 basketStakerShareBps: configuration.basketStakerShareBps,
                 staticsStakerShareBps: configuration.staticsStakerShareBps,
                 treasuryShareBps: configuration.treasuryShareBps
@@ -348,7 +345,6 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             inputFeeBps: inputFeeBps,
             outputFeeBps: outputFeeBps,
             polShareBps: allocation.polShareBps,
-            liquidityProviderShareBps: allocation.liquidityProviderShareBps,
             basketStakerShareBps: allocation.basketStakerShareBps,
             staticsStakerShareBps: allocation.staticsStakerShareBps,
             treasuryShareBps: allocation.treasuryShareBps
@@ -387,7 +383,7 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         key = PoolKey({
             currency0: currency0,
             currency1: currency1,
-            fee: CANONICAL_LP_FEE,
+            fee: IStaticsSwapFeeHook(ls.hook).nativeLpFee(),
             tickSpacing: CANONICAL_TICK_SPACING,
             hooks: IHooks(ls.hook)
         });
@@ -531,8 +527,4 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
 
 interface StaticsSwapFeeHookLike {
     function poolManager() external view returns (IPoolManager);
-}
-
-interface IERC721Like {
-    function setApprovalForAll(address operator, bool approved) external;
 }

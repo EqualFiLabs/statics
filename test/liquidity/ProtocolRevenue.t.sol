@@ -40,7 +40,7 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
     }
 
     function testOnlyHookCanRouteFees() public {
-        IStaticsProtocolRevenue.ProtocolFeeDistribution memory distribution = _distribution(0, 0, 0, 100, 0);
+        IStaticsProtocolRevenue.ProtocolFeeDistribution memory distribution = _distribution(0, 0, 100, 0);
         vm.expectRevert(
             abi.encodeWithSelector(ProtocolRevenueFacet.OnlySwapFeeHook.selector, address(this), address(swapFeeHook))
         );
@@ -54,7 +54,7 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         _fundHook(tokenA, total);
 
         vm.prank(address(swapFeeHook));
-        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 0, creatorAmount, treasuryAmount));
+        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, creatorAmount, treasuryAmount));
 
         assertEq(revenue.creatorRevenue(creator, tokenA), creatorAmount);
         assertEq(revenue.totalCreatorRevenue(tokenA), creatorAmount);
@@ -74,8 +74,8 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         _fundHook(tokenA, 500);
         _fundHook(tokenB, 700);
         vm.startPrank(address(swapFeeHook));
-        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 0, 500, 0));
-        revenue.routeProtocolSwapFees(poolId, tokenB, _distribution(0, 0, 0, 700, 0));
+        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 500, 0));
+        revenue.routeProtocolSwapFees(poolId, tokenB, _distribution(0, 0, 700, 0));
         vm.stopPrank();
         assertEq(revenue.creatorRevenue(creator, tokenA), 500);
         assertEq(revenue.creatorRevenue(creator, tokenB), 700);
@@ -94,7 +94,7 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
     function testClaimEnforcesMinimumOutput() public {
         _fundHook(tokenA, 500);
         vm.prank(address(swapFeeHook));
-        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 0, 500, 0));
+        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 500, 0));
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(ProtocolRevenueFacet.MinimumOutputNotMet.selector, tokenA, 500, 501));
         revenue.claimCreatorRevenue(tokenA, makeAddr("r"), 501);
@@ -108,22 +108,16 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         vm.expectRevert(
             abi.encodeWithSelector(ProtocolRevenueFacet.GeneralPoolBasketReward.selector, poolId, uint256(100))
         );
-        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 100, 0, 0, 0));
+        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(100, 0, 0, 0));
     }
 
-    function _distribution(
-        uint256 lp,
-        uint256 basketStaker,
-        uint256 staticsStaker,
-        uint256 creatorAmt,
-        uint256 treasury
-    ) private pure returns (IStaticsProtocolRevenue.ProtocolFeeDistribution memory) {
+    function _distribution(uint256 basketStaker, uint256 staticsStaker, uint256 creatorAmt, uint256 treasury)
+        private
+        pure
+        returns (IStaticsProtocolRevenue.ProtocolFeeDistribution memory)
+    {
         return IStaticsProtocolRevenue.ProtocolFeeDistribution({
-            liquidityProvider: lp,
-            basketStaker: basketStaker,
-            staticsStaker: staticsStaker,
-            creator: creatorAmt,
-            treasury: treasury
+            basketStaker: basketStaker, staticsStaker: staticsStaker, creator: creatorAmt, treasury: treasury
         });
     }
 

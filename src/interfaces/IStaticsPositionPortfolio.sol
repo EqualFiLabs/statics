@@ -7,7 +7,6 @@ interface IStaticsPositionPortfolio {
     struct PositionPortfolioCounts {
         uint256 basketCount;
         uint256 loanCount;
-        uint256 liquidityPositionCount;
         uint256 globalRewardAssetCount;
         uint256 riskSeriesCount;
         uint256 morphoMarketCount;
@@ -26,11 +25,6 @@ interface IStaticsPositionPortfolio {
         external
         view
         returns (uint256[] memory loanIds, uint256 nextCursor);
-
-    function liquidityPositionIdsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)
-        external
-        view
-        returns (uint256[] memory tokenIds, uint256 nextCursor);
 
     function globalRewardAssetsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)
         external

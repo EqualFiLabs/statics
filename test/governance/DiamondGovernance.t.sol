@@ -422,10 +422,10 @@ contract DiamondGovernanceTest is Test {
     function _installBasketLaunchLiquidity() private {
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25);
         assertEq(address(hook), expected);
         MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(address(diamond), address(poolManager));
         _executeThroughTimelock(

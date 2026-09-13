@@ -23,6 +23,7 @@ struct StaticsLiquidityConfig {
     address permit2;
     address hook;
     address manager;
+    uint24 nativeLpFee;
     uint16 inputFeeBps;
     uint16 outputFeeBps;
     bytes32 poolManagerCodeHash;
@@ -42,6 +43,7 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
     error InvalidBinding(address target, address expected, address actual);
     error InvalidHookFlags(uint160 expected, uint160 actual);
     error InvalidHookFees(uint256 expectedInput, uint256 actualInput, uint256 expectedOutput, uint256 actualOutput);
+    error InvalidNativeLpFee(uint256 expected, uint256 actual);
     error LiquidityAlreadyInstalled();
     error LiquidityInstallationFailed();
 
@@ -133,6 +135,9 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
+        if (hook.nativeLpFee() != config.nativeLpFee) {
+            revert InvalidNativeLpFee(config.nativeLpFee, hook.nativeLpFee());
+        }
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
             revert InvalidHookFees(config.inputFeeBps, inputFeeBps, config.outputFeeBps, outputFeeBps);
@@ -175,15 +180,20 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
         uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
         uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 nativeLpFee = vm.envOr(
+            "STATICS_NATIVE_LP_FEE_PIPS", vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.canonicalLpFeePips")
+        );
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(type(uint16).max, inputFee, type(uint16).max, outputFee);
         }
+        if (nativeLpFee > 1_000_000) revert InvalidNativeLpFee(1_000_000, nativeLpFee);
         config = StaticsLiquidityConfig({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
             hook: vm.envAddress("STATICS_SWAP_FEE_HOOK_ADDRESS"),
             manager: vm.envAddress("STATICS_LIQUIDITY_MANAGER_ADDRESS"),
+            nativeLpFee: uint24(nativeLpFee),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),

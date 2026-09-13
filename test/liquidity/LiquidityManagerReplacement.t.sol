@@ -16,9 +16,9 @@ contract LiquidityManagerReplacementTest is BorrowLiquidityTestBase {
         protocolPools = IStaticsProtocolPools(address(diamond));
     }
 
-    function testOwnerReplacesManagerAndRotatesPositionOperatorApproval() public {
+    function testOwnerReplacesManagerWithoutPositionOperatorApproval() public {
         StaticsLiquidityManager replacement = _replacement(address(diamond));
-        assertTrue(
+        assertFalse(
             IERC721(address(positionManagerContract))
                 .isApprovedForAll(address(diamond), address(liquidityManagerContract))
         );
@@ -33,10 +33,10 @@ contract LiquidityManagerReplacementTest is BorrowLiquidityTestBase {
             IERC721(address(positionManagerContract))
                 .isApprovedForAll(address(diamond), address(liquidityManagerContract))
         );
-        assertTrue(IERC721(address(positionManagerContract)).isApprovedForAll(address(diamond), address(replacement)));
+        assertFalse(IERC721(address(positionManagerContract)).isApprovedForAll(address(diamond), address(replacement)));
     }
 
-    function testReplacementRejectsMismatchedImmutableBindingWithoutChangingApproval() public {
+    function testReplacementRejectsMismatchedImmutableBindingWithoutGrantingApproval() public {
         address wrongDiamond = makeAddr("wrongDiamond");
         StaticsLiquidityManager replacement = _replacement(wrongDiamond);
 
@@ -52,7 +52,7 @@ contract LiquidityManagerReplacementTest is BorrowLiquidityTestBase {
 
         (address installed,) = IStaticsBasketLiquidity(address(diamond)).liquidityManager();
         assertEq(installed, address(liquidityManagerContract));
-        assertTrue(
+        assertFalse(
             IERC721(address(positionManagerContract))
                 .isApprovedForAll(address(diamond), address(liquidityManagerContract))
         );

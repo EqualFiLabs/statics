@@ -18,7 +18,6 @@ interface IStaticsProtocolPools {
 
     struct BasketFeeAllocation {
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
@@ -26,7 +25,6 @@ interface IStaticsProtocolPools {
 
     struct GeneralFeeAllocation {
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
     }
@@ -77,15 +75,9 @@ interface IStaticsProtocolPools {
     event PoolCreationNonceInvalidated(address indexed creator, uint256 indexed nonce);
     event ProtocolPoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps);
     event BasketFeeAllocationSet(
-        uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
-        uint16 basketStakerShareBps,
-        uint16 staticsStakerShareBps,
-        uint16 treasuryShareBps
+        uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
     );
-    event GeneralFeeAllocationSet(
-        uint16 polShareBps, uint16 liquidityProviderShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
-    );
+    event GeneralFeeAllocationSet(uint16 polShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps);
     event GeneralPoolDecommissioned(
         PoolId indexed poolId, address indexed currency0, address indexed currency1, uint256 amount0, uint256 amount1
     );

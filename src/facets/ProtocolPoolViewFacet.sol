@@ -47,7 +47,6 @@ contract ProtocolPoolViewFacet {
             IStaticsSwapFeeHook(_liquidityStorage().hook).basketFeeAllocation();
         allocation = IStaticsProtocolPools.BasketFeeAllocation({
             polShareBps: stored.polShareBps,
-            liquidityProviderShareBps: stored.liquidityProviderShareBps,
             basketStakerShareBps: stored.basketStakerShareBps,
             staticsStakerShareBps: stored.staticsStakerShareBps,
             treasuryShareBps: stored.treasuryShareBps
@@ -63,7 +62,6 @@ contract ProtocolPoolViewFacet {
             stored = IStaticsSwapFeeHook(_liquidityStorage().hook).generalFeeAllocation();
         allocation = IStaticsProtocolPools.GeneralFeeAllocation({
             polShareBps: stored.polShareBps,
-            liquidityProviderShareBps: stored.liquidityProviderShareBps,
             staticsStakerShareBps: stored.staticsStakerShareBps,
             treasuryShareBps: stored.treasuryShareBps
         });

@@ -32,25 +32,11 @@ interface IStaticsLiquidityManager {
         uint256 refund0,
         uint256 refund1
     );
-    event UserPositionIncreased(
-        bytes32 indexed poolId,
-        uint256 indexed tokenId,
-        address refundRecipient,
-        uint256 liquidity,
-        uint256 spent0,
-        uint256 spent1,
-        uint256 refund0,
-        uint256 refund1
-    );
-
     function staticsDiamond() external view returns (address);
     function positionManager() external view returns (address);
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
     function mintUserPosition(PositionRequest calldata request, address recipient, address refundRecipient)
-        external
-        returns (PositionMovement memory movement, uint256 refund0, uint256 refund1);
-    function increaseUserPosition(PositionRequest calldata request, uint256 tokenId, address refundRecipient)
         external
         returns (PositionMovement memory movement, uint256 refund0, uint256 refund1);
 }

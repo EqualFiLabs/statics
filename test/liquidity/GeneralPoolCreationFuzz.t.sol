@@ -150,7 +150,7 @@ contract GeneralPoolCreatorRevenueHandler is Test {
             poolId,
             ASSET,
             IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                liquidityProvider: 0, basketStaker: 0, staticsStaker: 0, creator: amount, treasury: 0
+                basketStaker: 0, staticsStaker: 0, creator: amount, treasury: 0
             })
         );
         vm.stopPrank();

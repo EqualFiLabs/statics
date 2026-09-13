@@ -39,10 +39,6 @@ contract HookInvariantFeeReceiver {
         return true;
     }
 
-    function canAccrueLiquidityRewards(PoolId) external pure returns (bool) {
-        return false;
-    }
-
     function canAccrueBasketRewards(PoolId) external pure returns (bool) {
         return false;
     }
@@ -53,7 +49,6 @@ contract HookInvariantFeeReceiver {
         IStaticsProtocolRevenue.ProtocolFeeDistribution calldata distribution
     ) external {
         require(msg.sender == hook);
-        require(distribution.liquidityProvider == 0);
         require(distribution.basketStaker == 0);
         uint256 total = distribution.staticsStaker + distribution.creator + distribution.treasury;
         IERC20(asset).safeTransferFrom(msg.sender, address(this), total);
@@ -123,23 +118,17 @@ contract HookAccountingHandler is Test {
         uint256 rawInputFeeBps,
         uint256 rawOutputFeeBps,
         uint256 rawPolShareBps,
-        uint256 rawLiquidityProviderShareBps,
         uint256 rawStakerShareBps
     ) external {
         uint256 inputFeeBps = bound(rawInputFeeBps, 1, 199);
         uint256 outputFeeBps = bound(rawOutputFeeBps, 1, 200 - inputFeeBps);
-        // Keep LP allocation at zero (no eligible LPs) so all configurable weight lands in observable
-        // staker/treasury buckets; POL is exercised through a nonzero pol share.
         uint256 polShareBps = bound(rawPolShareBps, 0, 9_500);
         uint256 staticsStakerShareBps = bound(rawStakerShareBps, 0, 9_500 - polShareBps);
         uint256 treasuryShareBps = 9_500 - polShareBps - staticsStakerShareBps;
-        // silence unused param without changing the fuzz surface
-        rawLiquidityProviderShareBps;
         receiver.setPoolFeeRate(poolId, uint16(inputFeeBps), uint16(outputFeeBps));
         receiver.setGeneralFeeAllocation(
             IStaticsSwapFeeHook.GeneralFeeAllocation({
                 polShareBps: uint16(polShareBps),
-                liquidityProviderShareBps: 0,
                 staticsStakerShareBps: uint16(staticsStakerShareBps),
                 treasuryShareBps: uint16(treasuryShareBps)
             })
@@ -205,7 +194,8 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         receiver = new HookInvariantFeeReceiver();
         hook = _deployHook();
         receiver.configureHook(address(hook));
-        poolKey = PoolKey({currency0: currency0, currency1: currency1, fee: 0, tickSpacing: 10, hooks: IHooks(hook)});
+        poolKey =
+            PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 10, hooks: IHooks(hook)});
         poolId = receiver.registerPool(poolKey);
         manager.initialize(poolKey, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(poolKey, LIQUIDITY_PARAMS, "");
@@ -242,8 +232,8 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         assertLe(uint256(rate.inputFeeBps) + uint256(rate.outputFeeBps), 200);
         IStaticsSwapFeeHook.GeneralFeeAllocation memory allocation = hook.generalFeeAllocation();
         assertEq(
-            uint256(allocation.polShareBps) + uint256(allocation.liquidityProviderShareBps)
-                + uint256(allocation.staticsStakerShareBps) + uint256(allocation.treasuryShareBps),
+            uint256(allocation.polShareBps) + uint256(allocation.staticsStakerShareBps)
+                + uint256(allocation.treasuryShareBps),
             9_500
         );
     }
@@ -257,10 +247,11 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        bytes memory constructorArgs =
+            abi.encode(manager, address(receiver), uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(receiver), 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         assertEq(address(deployed), expected);
     }
 }

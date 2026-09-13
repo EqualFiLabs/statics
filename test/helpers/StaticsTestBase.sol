@@ -32,7 +32,6 @@ import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
-import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
@@ -59,7 +58,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](29);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](28);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -77,18 +76,17 @@ contract StaticsTestDeployer {
         cut[14] = _cut(address(new BasketLiquidityFacet()), StaticsSelectors.basketLiquidity());
         cut[15] = _cut(address(new BorrowLiquidityFacet()), StaticsSelectors.borrowLiquidity());
         cut[16] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
-        cut[17] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
-        cut[18] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
-        cut[19] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
-        cut[20] = _cut(address(new ProtocolPoolCreationFacet()), StaticsSelectors.protocolPoolCreation());
-        cut[21] = _cut(address(new ProtocolPoolAdminFacet()), StaticsSelectors.protocolPoolAdmin());
-        cut[22] = _cut(address(new ProtocolPoolViewFacet()), StaticsSelectors.protocolPoolView());
-        cut[23] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
-        cut[24] = _cut(address(new MorphoAdminFacet()), StaticsSelectors.morphoAdmin());
-        cut[25] = _cut(address(new MorphoFacet()), StaticsSelectors.morphoActions());
-        cut[26] = _cut(address(new MorphoSettlementFacet()), StaticsSelectors.morphoSettlement());
-        cut[27] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
-        cut[28] = _cut(address(new MorphoRecoveryFacet()), StaticsSelectors.morphoRecovery());
+        cut[17] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
+        cut[18] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
+        cut[19] = _cut(address(new ProtocolPoolCreationFacet()), StaticsSelectors.protocolPoolCreation());
+        cut[20] = _cut(address(new ProtocolPoolAdminFacet()), StaticsSelectors.protocolPoolAdmin());
+        cut[21] = _cut(address(new ProtocolPoolViewFacet()), StaticsSelectors.protocolPoolView());
+        cut[22] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
+        cut[23] = _cut(address(new MorphoAdminFacet()), StaticsSelectors.morphoAdmin());
+        cut[24] = _cut(address(new MorphoFacet()), StaticsSelectors.morphoActions());
+        cut[25] = _cut(address(new MorphoSettlementFacet()), StaticsSelectors.morphoSettlement());
+        cut[26] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
+        cut[27] = _cut(address(new MorphoRecoveryFacet()), StaticsSelectors.morphoRecovery());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
@@ -302,10 +300,10 @@ abstract contract StaticsTestBase is Test {
     }
 
     function _deployLocalHook(IPoolManager manager) private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, address(diamond), uint16(25), uint16(25));
+        bytes memory constructorArgs = abi.encode(manager, address(diamond), uint24(3_000), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 3_000, 25, 25);
         assertEq(address(deployed), expected);
     }
 }
