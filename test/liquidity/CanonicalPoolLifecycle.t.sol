@@ -51,7 +51,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
     function testPoolPairAndConfigurationCannotBeSuppliedByCaller() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
-        assertEq(pool.lpFee, 0);
+        assertEq(pool.lpFee, 3_000);
         assertEq(pool.tickSpacing, 10);
         assertEq(pool.hook, address(swapFeeHook));
         assertTrue(

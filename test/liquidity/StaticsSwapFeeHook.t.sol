@@ -190,11 +190,11 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(diamond.basketStakerFees(Currency.unwrap(key.currency1)), 0);
     }
 
-    function testExactOutputGrossesUpSpecifiedAndUnspecifiedFees() public {
+    function testExactOutputPreservesRequestedOutputAndGrossesUpFees() public {
         uint256 amountOut = 0.0001 ether;
         BalanceDelta delta = swap(key, true, int256(amountOut), "");
         uint256 specifiedFee = _feeFromNet(amountOut, OUTPUT_FEE_BPS);
-        assertEq(uint256(uint128(delta.amount1())), amountOut + specifiedFee);
+        assertEq(uint256(uint128(delta.amount1())), amountOut);
         address output = Currency.unwrap(key.currency1);
         assertEq(diamond.creatorFees(output) + diamond.stakerFees(output) + diamond.treasuryFees(output), specifiedFee);
     }

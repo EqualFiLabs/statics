@@ -18,7 +18,7 @@ contract StaticsLiquidityManagerTest is LiquidityManagerTestBase {
     function testCanonicalKeyCannotBeSubstituted() public {
         _transferUserInventory(6 ether, 6 ether);
         IStaticsLiquidityManager.PositionRequest memory request = _request(5 ether, 6 ether, 6 ether);
-        request.poolKey.fee = 3_000;
+        request.poolKey.fee = 500;
 
         vm.expectPartialRevert(StaticsLiquidityManager.ProtocolPoolNotRegistered.selector);
         liquidityManager.mintUserPosition(request, bob, alice);
