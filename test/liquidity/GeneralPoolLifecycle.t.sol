@@ -9,6 +9,7 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {GeneralPoolLifecycleTestBase} from "../helpers/GeneralPoolLifecycleTestBase.sol";
@@ -102,5 +103,19 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
 
         assertEq(swapFeeHook.lockedLiquidity(poolLow), 0);
         assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
+    }
+
+    function _stakeStaticsFor(address user, address rewardA, address rewardB) private returns (uint256 positionId) {
+        uint256 fee = IStaticsPositionFees(address(diamond)).positionCreationFee();
+        uint256 stakeAmount = 10 ether;
+        stakingAsset.mint(user, stakeAmount);
+        address[] memory rewards = new address[](2);
+        rewards[0] = rewardA;
+        rewards[1] = rewardB;
+        vm.deal(user, user.balance + fee);
+        vm.startPrank(user);
+        IERC20(address(stakingAsset)).approve(address(diamond), stakeAmount);
+        positionId = staticsStakers.createAndStake{value: fee}(stakeAmount, user, rewards);
+        vm.stopPrank();
     }
 }
