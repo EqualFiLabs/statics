@@ -474,8 +474,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint256 charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
         if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
-        _mintClaim(specified, charged);
-        _allocate(poolId, specified, realized, charged, true);
+        _accrueSwapLegFee(poolId, specified, realized, charged, true);
         return (IHooks.beforeSwap.selector, toBeforeSwapDelta(charged.toInt128(), 0), 0);
     }
 
@@ -510,9 +509,16 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint256 realized = _absolute(int256(unspecifiedDelta));
         charged = exactInput ? _feeFromGross(realized, unspecifiedFeeBps) : _feeFromNet(realized, unspecifiedFeeBps);
         if (charged != 0) {
-            _mintClaim(unspecified, charged);
-            _allocate(poolId, unspecified, realized, charged, false);
+            _accrueSwapLegFee(poolId, unspecified, realized, charged, false);
         }
+    }
+
+    /// @dev Keep claim issuance and its matching liability allocation inseparable for both swap legs.
+    function _accrueSwapLegFee(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg)
+        internal
+    {
+        _mintClaim(currency, charged);
+        _allocate(poolId, currency, realized, charged, specifiedLeg);
     }
 
     function _enforceCompleteSpecifiedFill(
