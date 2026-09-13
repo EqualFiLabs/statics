@@ -468,24 +468,37 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     ) private returns (uint256 charged) {
         bool exactInput = params.amountSpecified < 0;
         bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
-        int128 specifiedDelta = specifiedCurrencyIs0 ? delta.amount0() : delta.amount1();
         EffectiveRate memory rate = _effectiveRate(poolId);
         uint16 specifiedFeeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
-        uint256 specifiedFee = exactInput
-            ? _feeFromGross(_absolute(params.amountSpecified), specifiedFeeBps)
-            : _feeFromNet(_absolute(params.amountSpecified), specifiedFeeBps);
-        int256 expectedSpecifiedDelta = params.amountSpecified + int256(specifiedFee);
-        if (int256(specifiedDelta) != expectedSpecifiedDelta) {
-            revert IncompleteSpecifiedFill(expectedSpecifiedDelta, int256(specifiedDelta));
-        }
+        uint16 unspecifiedFeeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
+        _enforceCompleteSpecifiedFill(
+            params.amountSpecified,
+            specifiedCurrencyIs0 ? delta.amount0() : delta.amount1(),
+            specifiedFeeBps,
+            exactInput
+        );
         Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
         int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
         uint256 realized = _absolute(int256(unspecifiedDelta));
-        uint16 feeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
-        charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
+        charged = exactInput ? _feeFromGross(realized, unspecifiedFeeBps) : _feeFromNet(realized, unspecifiedFeeBps);
         if (charged != 0) {
             _takeExact(unspecified, charged);
             _allocate(poolId, unspecified, realized, charged, false);
+        }
+    }
+
+    function _enforceCompleteSpecifiedFill(
+        int256 amountSpecified,
+        int128 specifiedDelta,
+        uint16 feeBps,
+        bool exactInput
+    ) private pure {
+        uint256 specifiedFee = exactInput
+            ? _feeFromGross(_absolute(amountSpecified), feeBps)
+            : _feeFromNet(_absolute(amountSpecified), feeBps);
+        int256 expectedSpecifiedDelta = amountSpecified + int256(specifiedFee);
+        if (int256(specifiedDelta) != expectedSpecifiedDelta) {
+            revert IncompleteSpecifiedFill(expectedSpecifiedDelta, int256(specifiedDelta));
         }
     }
 
