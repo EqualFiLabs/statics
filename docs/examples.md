@@ -117,8 +117,8 @@ loan rather than presenting the loop as a single perpetual position.
 ## Finishing the loop with canonical liquidity
 
 Instead of reminting and redepositing on the final leg, Alice calls
-`borrowAndStakeLiquidity` with one full-range liquidity request for every basket
-constituent.
+`borrowAndProvideLiquidity` with one liquidity request for every basket
+constituent and selects her wallet as `lpRecipient`.
 
 The atomic call:
 
@@ -126,19 +126,14 @@ The atomic call:
 2. uses part of the retained principal, plus caller-funded mint-fee top-ups, to
    mint BasketTokens;
 3. pairs those BasketTokens with the remaining borrowed constituents;
-4. creates one full-range v4 LP NFT per canonical pool;
-5. transfers the LP NFTs directly into Diamond custody; and
-6. associates their pending LP weight with the borrowing PositionNFT.
+4. creates one v4 LP NFT per canonical pool; and
+5. transfers the LP NFTs, unused principal, and PositionManager refunds to
+   Alice's selected recipient.
 
 The earlier deposited BasketTokens remain basket-reward eligible while locked.
-The terminal LP positions can be activated permissionlessly in the next block;
-only activated liquidity enters the canonical-LP reward denominator. Alice can
-therefore have two distinct activity-derived reward legs: basket rewards on
-deposited collateral and LP rewards on terminal liquidity.
-
-`borrowAndProvideLiquidity` differs intentionally. It sends the LP NFTs to a
-chosen external recipient and grants no automatic Statics LP reward
-eligibility. A qualifying full-range NFT can be staked separately later.
+The external LP NFTs are not PositionNFT legs and remain under Alice's direct
+control. They earn the pool's configured native Uniswap v4 LP fee through
+ordinary PositionManager accounting; Statics does not custody or stake them.
 
 ## Splitting canonical swap fees
 
@@ -146,17 +141,16 @@ Assume a canonical pool collects 100 units of one currency as a charged hook
 fee leg under the current launch-default allocation:
 
 ```text
-Permanent protocol-owned liquidity:  10
-Eligible canonical LPs:               25
-Deposited BasketTokens:               25
-Eligible STATICS stakers:             15
-Treasury:                             25
+Permanent protocol-owned liquidity:  15
+Deposited BasketTokens:               30
+Eligible STATICS stakers:             30
+Creator:                               5
+Treasury:                             20
 ```
 
-Each currency is accounted independently. If that pool has no eligible
-canonical LP liquidity, its 25-unit LP allocation redirects to permanent
-liquidity. Basket-staker and STATICS-staker allocations independently do the
-same when their corresponding denominators cannot accept that asset.
+Each currency is accounted independently. If basket staking cannot accept the
+asset, its allocation redirects to permanent liquidity. If STATICS staking
+cannot accept it, that allocation redirects to treasury.
 
 The current launch-default hook rates are 50 basis points on realized input and
 50 basis points on realized output. Governance may configure a complete global

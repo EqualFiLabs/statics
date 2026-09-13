@@ -1,9 +1,10 @@
 # ADR: Permissionless Uniswap v4 protocol pools
 
-- Status: Accepted and implemented
+- Status: Partially superseded by `native-v4-lp-fees.md`
 - Date: 2026-08-21
 - Scope: Statics pool creation, PoolKey policy, Statics fee configuration, creator revenue, permanent liquidity, LP rewards, governance, indexing, routing, and DEX market structure
 - Supersedes: `docs/adr/governed-protocol-pools.md` where the decisions conflict
+- Superseded decisions: zero native LP fees and custom Diamond-custodied LP rewards
 
 ## Context
 

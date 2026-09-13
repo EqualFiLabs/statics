@@ -1,6 +1,7 @@
 # ADR: Governed Uniswap v4 protocol pools
 
-- Status: Superseded by `docs/adr/permissionless-protocol-pools.md`
+- Status: Superseded by `docs/adr/permissionless-protocol-pools.md` and
+  `docs/adr/native-v4-lp-fees.md`
 - Date: 2026-08-06
 - Note: The governed generic-pool model described here was never shipped as a
   standalone rail. The permissionless-protocol-pools ADR replaces its

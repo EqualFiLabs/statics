@@ -52,16 +52,15 @@ arbitrage graph rather than creating only one disconnected pair.
 - Users can recursively borrow, mint more BasketTokens, deposit again, and
   repeat. LTV below 100%, origination fees, mint fees, available liquidity,
   independent loan maturities, and permissionless recovery bound the loop.
-- On the final borrowing leg, a user can mint BasketTokens, pair them with the
-  remaining borrowed constituents, and stake the resulting full-range canonical
-  LP positions. Earlier deposited collateral continues earning basket rewards
-  while the terminal LP can add a separate canonical-LP reward stream after
-  next-block activation.
+- On the final borrowing leg, a user can mint BasketTokens and pair them with
+  the remaining borrowed constituents in user-owned canonical LP positions.
+  Earlier deposited collateral continues earning basket rewards while the LP
+  NFTs earn ordinary native Uniswap v4 fees under the user's control.
 - Canonical Uniswap v4 pools provide public liquidity and standard routing
   surfaces. The Statics hook charges configurable fees on realized input and
   output, compounds permanent protocol-owned liquidity, and routes revenue
-  among eligible LPs, deposited BasketTokens, eligible STATICS stakers, and
-  treasury. Protocol-owned liquidity has no ordinary withdrawal path while the
+  among permanent liquidity, deposited BasketTokens, eligible STATICS stakers,
+  creators, and treasury. Protocol-owned liquidity has no ordinary withdrawal path while the
   pool is active, so activity can build enduring market infrastructure instead
   of temporary rented liquidity.
 - Statics Dollar adds a stable monetary layer. Pegged profiles provide direct
@@ -76,7 +75,8 @@ arbitrage graph rather than creating only one disconnected pair.
   be converted into a common payout asset.
 - PositionNFTs are transferable protocol accounts. One position can control
   STATICS stake, basket collateral, reward claims, independent loans, Statics
-  Dollar legs, and voluntarily custodied canonical LP NFTs. Position metadata
+  Dollar legs, and other protocol-account state. User v4 LP NFTs stay in their
+  selected recipient's wallet and do not transfer with a PositionNFT. Position metadata
   remains deliberately plain so artwork is associated with the scarce Genesis
   collection rather than scalable financial accounts.
 

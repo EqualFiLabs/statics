@@ -122,7 +122,7 @@ path lazily harvests before settlement while its distributor is active.
 NFTs; approvals do not authorize linking or unlinking. While linked,
 `locked()` is true for both NFTs and owner-changing transfer is prohibited.
 The activation multiplier applies only to global STATICS reward weight. It
-does not change raw stake, withdrawable principal, collateral, LP rewards, or
+does not change raw stake, withdrawable principal, collateral, external LP fees, or
 direct Genesis rewards. Recovery clears the link and boost but preserves the
 PositionNFT, raw stake, pending maturity, claims, and unrelated legs.
 
@@ -317,8 +317,8 @@ no arbitrary execution surface.
 ## Protocol pools and permanent liquidity
 
 There is one canonical hooked pool per basket constituent. Read
-`canonicalPool(basketId, asset)` for its PoolId, currencies, hook, zero native
-LP fee, tick spacing 10, and current spot tick.
+`canonicalPool(basketId, asset)` for its PoolId, currencies, hook, configured
+native LP fee, tick spacing 10, and current spot tick.
 
 The Diamond also supports permissionless **general pools** between two
 compatible ERC-20 assets with no basket association. Read
@@ -331,12 +331,12 @@ Diamond deliberately provides no unbounded pool array.
 The `ProtocolPoolCreated` event carries the market configuration that is not
 encoded in the PoolKey — creator, sorted currencies, tick spacing, the input
 and output hook fee rates, the normalized initial price, and the initial tick.
-There is no native-LP-fee field because every Statics protocol PoolKey uses
-`fee == 0`. Indexers reconstruct and rank markets from `ProtocolPoolCreated`,
+The native LP fee is available from the returned PoolKey and the hook's
+`nativeLpFee()` getter. Indexers reconstruct and rank markets from `ProtocolPoolCreated`,
 `CanonicalPoolInitialized`, `ProtocolPoolFeeRateSet`, `PoolCreationFeeSet`,
 `PoolCreationNonceInvalidated`, creator credit and claim events,
-`GeneralPoolDecommissioned`, hook permanent-liquidity and fee events, LP
-staking and reward events, and PoolManager state. A first-party frontend may
+`GeneralPoolDecommissioned`, hook permanent-liquidity and fee events, and
+PoolManager state. A first-party frontend may
 maintain curated token lists and hide spam without changing contract-level
 permissionlessness.
 
@@ -348,11 +348,11 @@ typed liquidity paths; no post-launch activation transaction is required.
 Display input and output hook fees separately from native v4 LP fees:
 
 ```text
-native v4 LP fee: 0
+native v4 LP fee: 3,000 pips (0.30%) by launch default
 launch input hook fee:  50 BPS on the realized input leg
 launch output hook fee: 50 BPS on the realized output leg
-launch split: 10% permanent liquidity / 25% eligible canonical LPs /
-              25% deposited BasketTokens / 15% global Statics stakers /
+launch split: 15% permanent liquidity / 30% deposited BasketTokens /
+              30% global Statics stakers /
               5% creator (fixed) / 20% treasury
 ```
 
@@ -361,8 +361,7 @@ shares; the combined input/output rate is capped at 200 BPS and the
 configurable shares always total 9,500 BPS beside the fixed 500-BPS creator
 share. Hook fees apply to every canonical swap without caller,
 router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
-If a pool has no activated staked liquidity, its LP share redirects to
-permanent liquidity. If the basket reward route cannot accrue its asset, that
+If the basket reward route cannot accrue its asset, that
 share redirects to permanent liquidity. If the global Statics reward route
 cannot accrue its asset, that share redirects to treasury.
 
@@ -375,8 +374,8 @@ token addresses, a valid `tickSpacing` (1 through 32,767), the initial price as
 `sqrtPriceBPerAX96` in raw-unit B-per-A orientation, an initial
 `PoolSwapFeeRate` whose `inputFeeBps + outputFeeBps <= 200`, the creator
 identity, an unordered `nonce`, and a `deadline`. Statics sorts the currencies
-and always constructs the PoolKey with native fee zero and the installed
-Statics hook.
+and always constructs the PoolKey with the installed hook's immutable native
+fee.
 
 General-pool creation is separate from liquidity provision. A successful
 `createPool` establishes the PoolId, price, tick spacing, creator, Statics fee
@@ -411,7 +410,7 @@ PoolId, price, or fee rate. Cancel an unused authorization with
 Distinct tick spacings for the same pair produce distinct PoolIds and
 independent markets. A different Statics fee rate or initial price alone does
 not create a new PoolId, so a second creation with the same currencies, tick
-spacing, zero native fee, and Statics hook reverts as a duplicate.
+spacing, configured native fee, and Statics hook reverts as a duplicate.
 
 Fee **rate** and fee **allocation** are separate policy dimensions. The swap
 fee rate is PoolId-local: general-pool creators select the initial
@@ -431,10 +430,9 @@ to 10,000 BPS. The initial launch-default profiles are:
 
 ```text
                         basket pool    general pool
-permanent liquidity     1,000 BPS      3,500 BPS
-eligible Statics LPs     2,500 BPS      2,500 BPS
-basket stakers           2,500 BPS      0 BPS
-global Statics stakers   1,500 BPS      1,500 BPS
+permanent liquidity     1,500 BPS      4,000 BPS
+basket stakers           3,000 BPS      0 BPS
+global Statics stakers   3,000 BPS      3,500 BPS
 creator, fixed             500 BPS        500 BPS
 treasury                 2,000 BPS      2,000 BPS
 total                   10,000 BPS     10,000 BPS
@@ -442,8 +440,8 @@ total                   10,000 BPS     10,000 BPS
 
 General pools have no basket-staker share; the profile encodes this explicitly
 rather than relying on a runtime fallback. Changing a global allocation profile
-affects only subsequent accrual and never rewrites accrued creator credits, LP
-rewards, basket rewards, Statics-staker rewards, treasury revenue, or POL
+affects only subsequent accrual and never rewrites accrued creator credits,
+basket rewards, Statics-staker rewards, treasury revenue, or POL
 inventory. Changing a PoolId's fee rate does not change the applicable
 allocation profile, and vice versa.
 
@@ -470,14 +468,13 @@ There is no primary-fee POL reserve, epoch, ramp, minimum compound size, hook
 settlement call, protocol PositionManager NFT, or manager-owned protocol
 inventory. The standalone manager resolves exact PoolKeys from the Diamond's
 protocol-pool registry and executes transaction-scoped PositionManager NFT
-mint and increase operations.
+mint operations.
 
 Only a general pool may use `decommissionGeneralPool(poolId)`, an owner-only
 terminal transition. The creator cannot decommission a pool. The call stops
 later swaps and managed LP actions, releases permanent liquidity to treasury
 accounting, and leaves all user PositionManager NFTs untouched. Existing
-creator credits and previously earned rewards remain claimable and staked NFTs
-remain withdrawable. Decommissioning is irreversible for that PoolKey; a
+creator credits remain claimable. Decommissioning is irreversible for that PoolKey; a
 replacement market requires a different supported PoolKey, which generally
 means a different tick spacing. Basket canonical pools retain their separate
 `ExitOnly` unwind and are never processed with general-pool decommission
@@ -486,30 +483,15 @@ accounting.
 When a basket is `ExitOnly`, anyone may call `unwindBasketLiquidity` once per
 constituent. It decommissions the pool, releases hook liquidity, burns returned
 BasketTokens, and routes released value to global treasury accrual. User-owned
-PositionManager liquidity is never decreased or burned by unwind. NFTs in
-voluntary Diamond custody remain immediately withdrawable by their PositionNFT
-owners.
+PositionManager liquidity is never decreased or burned by unwind.
 
-## Canonical LP NFT rewards
+## Native LP fees
 
-Approve an unsubscribed, full-range canonical PositionManager NFT to
-`StaticsDiamond`, then call `stakeLiquidityPosition(positionId, tokenId)`.
-The LP NFT owner must also own the PositionNFT. The Diamond takes custody and
-records the live liquidity as pending until the next block; anyone may then
-call `activateLiquidityPosition(tokenId)`.
-
-Activated liquidity receives the pool's LP share in both pool currencies.
-`claimLiquidityRewards` is pull based and applies independent minimum outputs.
-`unstakeLiquidityPosition` is available immediately, under pause, and in every
-basket lifecycle state. It crystallizes rewards before returning the NFT, so
-claims remain available through the PositionNFT even after exit.
-
-Use `increaseStakedLiquidity` with an exact liquidity delta, currency caps,
-deadline, and refund receiver to add liquidity without leaving custody. The
-existing activated amount keeps earning while only the added delta waits until
-the next block. To decrease, collect, or burn, first unstake and use the normal
-PositionManager surface. Staking requires PositionManager approval; increases
-also require bounded currency approvals to the Diamond.
+User-owned full-range or concentrated PositionManager NFTs earn the configured
+native v4 LP fee through standard Uniswap accounting. Statics does not custody
+these NFTs or expose LP reward activation, claim, increase, or unstake methods.
+Native fees earned by the hook-owned permanent position are collected after
+swaps and routed only to treasury; they never enter pending POL or compounding.
 
 ## Optional borrow-to-liquidity flow
 
@@ -526,20 +508,9 @@ price, cap, range, deadline, or principal requirement reverts the entire flow.
 
 Discover positions from `BorrowedLiquidityPositionMinted`,
 `BorrowedLiquidityProvided`, manager `UserPositionMinted`, and ordinary
-PositionManager `Transfer` events. They remain external until explicitly
-staked; borrowing through this function provides no reward privilege. Once
-staked, custody and claims follow the selected PositionNFT while repayment,
-extension, and recovery remain independent.
-
-`borrowAndStakeLiquidity(positionId, basketId, sharesIn, pools)` is the
-PositionNFT-owned alternative. It requires full-range pool entries and mints
-each v4 NFT directly to the Diamond, recording it as pending LP weight under
-the same PositionNFT. The current PositionNFT owner receives every unused
-principal and PositionManager refund even if an approved operator submits the
-call. Anyone may activate the NFT in the next block. The original deposited
-BasketTokens remain basket-reward eligible, so the position can earn both
-basket rewards and canonical LP rewards. Any failure in borrowing, minting,
-pool validation, NFT custody, or reward registration reverts the entire call.
+PositionManager `Transfer` events. They remain owned by `lpRecipient` and are
+independent of PositionNFT transfer, repayment, extension, recovery, and pool
+decommissioning.
 
 ## Flash loans and arbitrage routing
 

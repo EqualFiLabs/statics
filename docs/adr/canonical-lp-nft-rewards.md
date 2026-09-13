@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted and implemented.
+Superseded by [`native-v4-lp-fees.md`](./native-v4-lp-fees.md).
+
+This document records the former custom LP reward design. The permanent
+Statics Diamond was not deployed with that design, so there is no live reward
+state or LP custody to migrate. The standalone Genesis launch is separate and
+unchanged.
 
 ## Decision
 
