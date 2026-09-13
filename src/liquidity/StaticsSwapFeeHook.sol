@@ -452,35 +452,41 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         returns (bytes4, int128)
     {
         PoolId poolId = key.toId();
-        uint256 charged;
-        {
-            bool exactInput = params.amountSpecified < 0;
-            bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
-            int128 specifiedDelta = specifiedCurrencyIs0 ? delta.amount0() : delta.amount1();
-            EffectiveRate memory rate = _effectiveRate(poolId);
-            uint16 specifiedFeeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
-            uint256 specifiedFee = exactInput
-                ? _feeFromGross(_absolute(params.amountSpecified), specifiedFeeBps)
-                : _feeFromNet(_absolute(params.amountSpecified), specifiedFeeBps);
-            int256 expectedSpecifiedDelta = params.amountSpecified + int256(specifiedFee);
-            if (int256(specifiedDelta) != expectedSpecifiedDelta) {
-                revert IncompleteSpecifiedFill(expectedSpecifiedDelta, int256(specifiedDelta));
-            }
-            Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
-            int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
-            uint256 realized = _absolute(int256(unspecifiedDelta));
-            uint16 feeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
-            charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
-            if (charged != 0) {
-                _takeExact(unspecified, charged);
-                _allocate(poolId, unspecified, realized, charged, false);
-            }
-        }
+        uint256 charged = _chargeUnspecifiedLeg(poolId, key, params, delta);
 
         _routeDistribution(poolId, key.currency0);
         _routeDistribution(poolId, key.currency1);
         _compound(key, poolId);
         return (IHooks.afterSwap.selector, charged.toInt128());
+    }
+
+    function _chargeUnspecifiedLeg(
+        PoolId poolId,
+        PoolKey calldata key,
+        SwapParams calldata params,
+        BalanceDelta delta
+    ) private returns (uint256 charged) {
+        bool exactInput = params.amountSpecified < 0;
+        bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
+        int128 specifiedDelta = specifiedCurrencyIs0 ? delta.amount0() : delta.amount1();
+        EffectiveRate memory rate = _effectiveRate(poolId);
+        uint16 specifiedFeeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
+        uint256 specifiedFee = exactInput
+            ? _feeFromGross(_absolute(params.amountSpecified), specifiedFeeBps)
+            : _feeFromNet(_absolute(params.amountSpecified), specifiedFeeBps);
+        int256 expectedSpecifiedDelta = params.amountSpecified + int256(specifiedFee);
+        if (int256(specifiedDelta) != expectedSpecifiedDelta) {
+            revert IncompleteSpecifiedFill(expectedSpecifiedDelta, int256(specifiedDelta));
+        }
+        Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
+        int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
+        uint256 realized = _absolute(int256(unspecifiedDelta));
+        uint16 feeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
+        charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
+        if (charged != 0) {
+            _takeExact(unspecified, charged);
+            _allocate(poolId, unspecified, realized, charged, false);
+        }
     }
 
     function _allocate(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg) private {
