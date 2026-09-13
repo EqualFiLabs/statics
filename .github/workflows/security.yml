@@ -131,4 +131,5 @@ jobs:
       - name: Run Doppler fork proof
         run: forge test --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol -vv
       - name: Run permanent-liquidity fork proof
+        if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv
