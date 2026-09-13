@@ -94,7 +94,7 @@ jobs:
     name: Security / Robinhood forks
     runs-on: ubuntu-latest
     env:
-      ROBINHOOD_MAINNET: https://rpc.mainnet.chain.robinhood.com
+      ROBINHOOD_MAINNET: ${{ secrets.ROBINHOOD_MAINNET }}
       REQUIRE_DOPPLER_FORK_PROOF: "true"
       REQUIRE_ROBINHOOD_FORK: "true"
     steps:
