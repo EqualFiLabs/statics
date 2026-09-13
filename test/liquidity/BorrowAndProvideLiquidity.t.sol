@@ -170,6 +170,18 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         }
     }
 
+    function testCombinedPathRejectsDiamondAsLpRecipient() public {
+        _createReadyBasket(1);
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
+        uint256 nextTokenId = positionManagerContract.nextTokenId();
+
+        vm.prank(alice);
+        vm.expectRevert(BorrowLiquidityFacet.InvalidRecipient.selector);
+        borrowLiquidity.borrowAndProvideLiquidity(basketPositionId, basketId, 20 ether, params, address(diamond));
+
+        assertEq(positionManagerContract.nextTokenId(), nextTokenId);
+    }
+
     function testPrincipalRefundTokenCallbackCannotReenterCombinedPath() public {
         RefundCallbackERC20 reentrant = new RefundCallbackERC20();
         address[] memory assets = new address[](1);

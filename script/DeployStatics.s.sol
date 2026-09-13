@@ -98,6 +98,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         (deployment, timelock) = _deployProductionStack(config, production, vm.addr(privateKey));
         _deployLiquidityContracts(deployment, v4, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
+        _logLocalDeployment(deployment);
     }
 
     /// @notice Local full-stack deployment with repository WETH and oracle fixtures.
@@ -207,7 +208,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             config.inputFeeBps == 0 || config.outputFeeBps == 0
                 || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
         ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
-        if (config.nativeLpFee > 1_000_000) revert InvalidNativeLpFee(config.nativeLpFee);
+        if (config.nativeLpFee > 999_999) revert InvalidNativeLpFee(config.nativeLpFee);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
@@ -241,7 +242,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(inputFee, outputFee);
         }
-        if (nativeLpFee > 1_000_000) revert InvalidNativeLpFee(nativeLpFee);
+        if (nativeLpFee > 999_999) revert InvalidNativeLpFee(nativeLpFee);
         config = V4Config({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),

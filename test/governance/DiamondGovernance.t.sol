@@ -47,6 +47,7 @@ contract DiamondGovernanceTest is Test {
     uint256 internal constant PAUSE_FLASH = 1 << 3;
     uint256 internal constant PAUSE_REDEEM = 1 << 4;
     uint256 internal constant PAUSE_LIQUIDITY = 1 << 5;
+    uint256 internal constant PAUSE_TREASURY = 1 << 6;
 
     address internal multisig = makeAddr("multisig");
     address internal guardian = makeAddr("guardian");
@@ -141,7 +142,8 @@ contract DiamondGovernanceTest is Test {
 
     function testGuardianCanStopRiskIncreasingActionsButNotRedemption() public {
         IStaticsGovernance governance = IStaticsGovernance(address(diamond));
-        uint256 guardianActions = PAUSE_MINT | PAUSE_BORROW | PAUSE_EXTEND | PAUSE_FLASH | PAUSE_LIQUIDITY;
+        uint256 guardianActions =
+            PAUSE_MINT | PAUSE_BORROW | PAUSE_EXTEND | PAUSE_FLASH | PAUSE_LIQUIDITY | PAUSE_TREASURY;
 
         vm.prank(guardian);
         governance.pause(guardianActions);

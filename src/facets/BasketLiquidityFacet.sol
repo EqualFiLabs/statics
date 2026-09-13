@@ -16,6 +16,7 @@ import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
@@ -26,6 +27,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 
 contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchModule, ReentrancyGuard {
@@ -65,6 +67,15 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         uint256 supply;
         bytes32 basketAccount;
         bytes32 feeAccount;
+    }
+
+    struct BasketReleaseContext {
+        PoolId poolId;
+        address basketToken;
+        address asset;
+        uint256 basketBefore;
+        uint256 assetBefore;
+        bool basketIsCurrency0;
     }
 
     function installCanonicalPoolIntegration(address poolManager, address hook) external {
@@ -290,12 +301,18 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
         if (hook.poolDecommissioned(stored.key.toId())) revert BasketLiquidityAlreadyUnwound(basketId, asset);
         hook.decommissionPool(stored.key);
-        (uint256 released0, uint256 released1) = hook.releasePermanentLiquidity(stored.key, address(this));
-        bool basketIsCurrency0 = Currency.unwrap(stored.key.currency0) == basketToken;
-        uint256 basketTokens = basketIsCurrency0 ? released0 : released1;
-        uint256 constituent = basketIsCurrency0 ? released1 : released0;
-        _enforceReleased(basketToken, basketBefore, basketTokens);
-        _enforceReleased(asset, assetBefore, constituent);
+        PoolId poolId = stored.key.toId();
+        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released =
+            hook.releasePermanentLiquidity(stored.key, address(this));
+        BasketReleaseContext memory context = BasketReleaseContext({
+            poolId: poolId,
+            basketToken: basketToken,
+            asset: asset,
+            basketBefore: basketBefore,
+            assetBefore: assetBefore,
+            basketIsCurrency0: Currency.unwrap(stored.key.currency0) == basketToken
+        });
+        (uint256 basketTokens, uint256 constituent) = _settleBasketRelease(context, released);
 
         if (constituent != 0) {
             LibCustody.reserve(LibCustody.feeAccount(), asset, constituent);
@@ -303,7 +320,29 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
             emit PermanentLiquidityTreasuryAccrued(basketId, asset, asset, constituent);
         }
         _burnPolBasketTokens(configured, basketId, asset, basketTokens);
-        emit BasketLiquidityUnwound(basketId, asset, stored.key.toId(), constituent, basketTokens);
+        emit BasketLiquidityUnwound(basketId, asset, poolId, constituent, basketTokens);
+    }
+
+    function _settleBasketRelease(
+        BasketReleaseContext memory context,
+        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released
+    ) private returns (uint256 basketTokens, uint256 constituent) {
+        basketTokens = context.basketIsCurrency0
+            ? released.principal0 + released.pendingPol0
+            : released.principal1 + released.pendingPol1;
+        constituent = context.basketIsCurrency0
+            ? released.principal1 + released.pendingPol1
+            : released.principal0 + released.pendingPol0;
+        IStaticsSwapFeeHook.FeeDistribution memory basketDistribution =
+            context.basketIsCurrency0 ? released.distribution0 : released.distribution1;
+        IStaticsSwapFeeHook.FeeDistribution memory assetDistribution =
+            context.basketIsCurrency0 ? released.distribution1 : released.distribution0;
+        _enforceReleased(
+            context.basketToken, context.basketBefore, basketTokens + _distributionTotal(basketDistribution)
+        );
+        _enforceReleased(context.asset, context.assetBefore, constituent + _distributionTotal(assetDistribution));
+        _accrueDistribution(context.poolId, context.basketToken, basketDistribution);
+        _accrueDistribution(context.poolId, context.asset, assetDistribution);
     }
 
     function liquidityIntegration() external view returns (address poolManager, address hook, bool installed) {
@@ -508,6 +547,29 @@ contract BasketLiquidityFacet is IStaticsBasketLiquidity, IStaticsBasketLaunchMo
         uint256 afterBalance = IERC20(token).balanceOf(address(this));
         uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (observed != reported) revert ReleasedAmountMismatch(token, reported, observed);
+    }
+
+    function _accrueDistribution(PoolId poolId, address token, IStaticsSwapFeeHook.FeeDistribution memory distribution)
+        private
+    {
+        LibProtocolRevenue.accrueReceived(
+            poolId,
+            token,
+            IStaticsProtocolRevenue.ProtocolFeeDistribution({
+                basketStaker: distribution.basketStaker,
+                staticsStaker: distribution.staticsStaker,
+                creator: distribution.creator,
+                treasury: distribution.treasury
+            })
+        );
+    }
+
+    function _distributionTotal(IStaticsSwapFeeHook.FeeDistribution memory distribution)
+        private
+        pure
+        returns (uint256)
+    {
+        return distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
     }
 
     function _enforceContract(address target) private view {

@@ -76,7 +76,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         LiquidityParams[] calldata pools,
         address lpRecipient
     ) external nonReentrant returns (uint256 loanId, uint256[] memory v4TokenIds) {
-        if (lpRecipient == address(0)) revert InvalidRecipient();
+        if (lpRecipient == address(0) || lpRecipient == address(this)) revert InvalidRecipient();
         BorrowLiquidityRequest memory request = BorrowLiquidityRequest({
             positionId: positionId,
             basketId: basketId,

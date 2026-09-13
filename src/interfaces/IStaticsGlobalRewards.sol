@@ -110,8 +110,6 @@ interface IStaticsGlobalRewards {
 
     function distributeTreasuryFees(address asset) external returns (uint256 amount);
 
-    function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) external;
-
     function pendingRewards(uint256 positionId, address[] calldata assets)
         external
         view

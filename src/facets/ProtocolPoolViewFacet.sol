@@ -83,6 +83,10 @@ contract ProtocolPoolViewFacet {
         return LibProtocolPools.creatorOf(poolId);
     }
 
+    function permanentLiquidityHarvester() external view returns (address harvester) {
+        return LibProtocolPools.protocolPoolStorage().permanentLiquidityHarvester;
+    }
+
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {
         ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();

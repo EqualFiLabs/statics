@@ -755,8 +755,11 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_DOLLAR_RISK_URI` | ERC-1155 metadata URI for Risk Share series |
 | `STATICS_DIAMOND_ADDRESS` | Existing Diamond used by post-deployment ceremonies |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
+| `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deployed v4 liquidity manager |
-| `STATICS_NATIVE_LP_FEE_PIPS` | Native Uniswap v4 LP fee installed for every Statics pool; defaults to the selected deployment manifest (3,000 pips in checked-in Robinhood manifests) |
+| `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed v4 liquidity manager; required by installation |
+| `STATICS_PERMANENT_LIQUIDITY_HARVESTER` | Initial address authorized to harvest native fees earned by permanent liquidity into treasury accounting |
+| `STATICS_NATIVE_LP_FEE_PIPS` | Native Uniswap v4 LP fee installed for every Statics pool; must be below 1,000,000 pips and defaults to the selected deployment manifest (3,000 pips in checked-in Robinhood manifests) |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |

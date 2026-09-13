@@ -47,7 +47,10 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         returns (PositionMovement memory movement, uint256 refund0, uint256 refund1)
     {
         _enforceDiamond();
-        if (recipient == address(0) || refundRecipient == address(0)) revert InvalidRecipient();
+        if (
+            recipient == address(0) || refundRecipient == address(0) || recipient == address(this)
+                || refundRecipient == address(this) || recipient == staticsDiamond || refundRecipient == staticsDiamond
+        ) revert InvalidRecipient();
         _validateRequest(request);
         address token0 = Currency.unwrap(request.poolKey.currency0);
         address token1 = Currency.unwrap(request.poolKey.currency1);

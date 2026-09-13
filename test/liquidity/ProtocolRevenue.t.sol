@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
@@ -109,6 +110,31 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
             abi.encodeWithSelector(ProtocolRevenueFacet.GeneralPoolBasketReward.selector, poolId, uint256(100))
         );
         revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(100, 0, 0, 0));
+    }
+
+    function testRouteFallsBackToTreasuryWhenGlobalEligibilityIsZero() public {
+        uint256 staticsStakerAmount = 100;
+        _fundHook(tokenA, staticsStakerAmount);
+
+        vm.prank(address(swapFeeHook));
+        revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, staticsStakerAmount, 0, 0));
+
+        assertEq(globalRewards.treasuryAccrued(tokenA), staticsStakerAmount);
+    }
+
+    function testBasketCallbackRaceGuardRoutesRedeemedShareToTreasury() public {
+        (uint256 basketId,) = _createDefaultBasket(0, 0);
+        IStaticsBasketLiquidity.CanonicalPoolView memory canonical = basketLiquidity.canonicalPool(basketId, tokenA);
+        uint256 basketStakerAmount = 100;
+        uint256 treasuryBefore = globalRewards.treasuryAccrued(tokenA);
+        _fundHook(tokenA, basketStakerAmount);
+
+        // Synthetic hook input is required to reach the post-pull callback-race guard: under an
+        // ordinary call the hook converts the same zero-denominator share to POL before redemption.
+        vm.prank(address(swapFeeHook));
+        revenue.routeProtocolSwapFees(canonical.poolId, tokenA, _distribution(basketStakerAmount, 0, 0, 0));
+
+        assertEq(globalRewards.treasuryAccrued(tokenA) - treasuryBefore, basketStakerAmount);
     }
 
     function _distribution(uint256 basketStaker, uint256 staticsStaker, uint256 creatorAmt, uint256 treasury)

@@ -24,6 +24,7 @@ Every permanent Statics pool uses one immutable native LP fee selected when
 deployment manifest supplies the default, `STATICS_NATIVE_LP_FEE_PIPS` may
 override it for a deployment run, and pool construction reads the hook value.
 Registration rejects a PoolKey whose fee differs from the hook value.
+The fee must be less than 1,000,000 pips; a 100% native LP fee is rejected.
 
 Ordinary Uniswap v4 LP positions earn native fees without Statics custody or
 reward enrollment. Concentrated and full-range positions use standard
@@ -67,11 +68,39 @@ unspecified exact-output leg uses the same net-to-gross formula.
 
 Native fees earned by the hook-owned permanent position are protocol revenue,
 not new POL principal. Every liquidity modification separates PoolManager's
-`feesAccrued` from its principal delta. The hook takes the fee amount and routes
-it only to treasury; it never adds that amount to pending permanent liquidity
-or compounds it. If permanent liquidity exists but bilateral POL inventory is
-not matched, the post-swap path performs a zero-liquidity-delta collection so
-native fees still reach treasury.
+`feesAccrued` from its principal delta. The hook records that amount as a
+PoolManager ERC-6909 claim allocated only to treasury; it never adds native fees
+to pending permanent liquidity or compounds them.
+
+Ordinary swaps do not zero-poke permanent positions solely to collect fees.
+Automatic POL compounding still modifies the position and therefore realizes
+any native LP fees reported by that modification. A separately configured
+harvester lets the Diamond realize fees while compounding is idle or one-sided,
+and the Diamond can only credit the resulting tokens to protocol treasury
+accounting. The caller cannot choose a recipient. Governance can replace the
+harvester, while the guardian can pause explicit harvesting and treasury
+distribution; only governance can unpause them.
+
+Every permanent-position modification advances Uniswap v4's fee-growth
+checkpoint and may crystallize sub-unit rounding dust. Explicit harvesting
+avoids adding a zero-liquidity checkpoint to every swap, but it cannot remove
+the checkpoints required by automatic POL compounding. That residual is
+accepted to preserve keeperless compounding.
+
+Bilateral callback fees also remain as ERC-6909 claims until the next routing
+boundary. Claim liabilities are tracked by currency and checked against the
+hook's PoolManager claim balance. Matching POL claims are burned atomically when
+new permanent liquidity is added, preserving automatic swap-driven compounding
+without a keeper. Because eligibility can change while a distribution is
+pending, the routing boundary rechecks it: an unavailable basket-staker share
+becomes POL and an unavailable Statics-staker share becomes treasury. This keeps
+swaps, harvesting, and unwind live after the final eligible staker exits.
+
+Decommissioning reports permanent-liquidity principal, unmatched POL, and
+ordinary fee distributions separately. Principal and unmatched POL follow the
+pool unwind policy, while eligible staker, creator, and treasury distributions
+retain their original destinations. Decommissioning alone does not make a
+basket-staker distribution ineligible.
 
 Pool donation is forbidden, so an external caller cannot use the ordinary v4
 donation path to manufacture reported fees for the permanent position.
@@ -84,5 +113,7 @@ donation path to manufacture reported fees for the permanent position.
   hook and different pools rather than a governance update to existing keys.
 - Native LP fees and bilateral Statics fees must be displayed and quoted as
   distinct charges.
-- Decommissioning releases only permanent-liquidity principal to the normal
-  unwind receiver; native fees harvested during release route to treasury.
+- Native fee harvesting is operationally optional: delaying it affects only
+  treasury revenue, not swaps, user withdrawals, or automatic POL compounding.
+- Installation pins the exact runtime hashes of both the hook and liquidity
+  manager in addition to their immutable bindings.

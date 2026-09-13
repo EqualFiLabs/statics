@@ -8,7 +8,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
-import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
@@ -22,8 +22,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error IncompatibleStakingToken(uint256 requested, uint256 received);
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error NoRewards(uint256 positionId);
-    error OnlySwapFeeHook(address caller, address expected);
-    error IncompatibleRewardAsset(address asset, uint256 requested, uint256 received);
+    error ActionPaused(uint256 action);
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
@@ -127,6 +126,9 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function distributeTreasuryFees(address asset) external nonReentrant returns (uint256 amount) {
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_TREASURY != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_TREASURY);
+        }
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         amount = rs.treasuryAccrued[asset];
         if (amount == 0) return 0;
@@ -134,18 +136,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         address treasury_ = LibBasket.basketStorage().treasury;
         LibCustody.pushReserved(LibCustody.feeAccount(), asset, treasury_, amount, amount);
         emit TreasuryFeesDistributed(asset, treasury_, amount);
-    }
-
-    function routeSwapFees(address asset, uint256 stakerAmount, uint256 treasuryAmount) external nonReentrant {
-        address expected = LibBasketLiquidity.liquidityStorage().hook;
-        if (msg.sender != expected) revert OnlySwapFeeHook(msg.sender, expected);
-        uint256 total = stakerAmount + treasuryAmount;
-        if (total == 0) return;
-        uint256 received = LibCustody.pull(asset, msg.sender, total);
-        if (received != total) revert IncompatibleRewardAsset(asset, total, received);
-        LibCustody.reserve(LibCustody.feeAccount(), asset, total);
-        LibGlobalRewards.accrueReservedSwapStakerFee(asset, stakerAmount);
-        LibGlobalRewards.accrueReservedTreasuryFee(asset, treasuryAmount);
     }
 
     function pendingRewards(uint256 positionId, address[] calldata assets)

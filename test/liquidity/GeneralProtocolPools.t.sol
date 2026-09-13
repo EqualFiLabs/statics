@@ -8,6 +8,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
+import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
@@ -319,6 +320,41 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
         vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.ActionPaused.selector, 1 << 5));
         pools.createPool(params, "");
+    }
+
+    function testPermanentLiquidityHarvesterIsOwnerConfiguredAndGuardianPaused() public {
+        PoolId poolId = pools.createPool(_params(address(assetA), address(assetB), alice), "");
+        address harvester = makeAddr("permanent-liquidity-harvester");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(ProtocolPoolAdminFacet.InvalidPermanentLiquidityHarvester.selector, address(0))
+        );
+        pools.setPermanentLiquidityHarvester(address(0));
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        pools.setPermanentLiquidityHarvester(harvester);
+
+        pools.setPermanentLiquidityHarvester(harvester);
+        assertEq(pools.permanentLiquidityHarvester(), harvester);
+
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(ProtocolPoolAdminFacet.OnlyPermanentLiquidityHarvester.selector, bob, harvester)
+        );
+        pools.harvestPermanentLiquidityFees(poolId);
+
+        vm.prank(guardian);
+        governance.pause(1 << 6);
+        vm.prank(harvester);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolAdminFacet.ActionPaused.selector, 1 << 6));
+        pools.harvestPermanentLiquidityFees(poolId);
+
+        governance.unpause(1 << 6);
+        vm.prank(harvester);
+        (uint256 amount0, uint256 amount1) = pools.harvestPermanentLiquidityFees(poolId);
+        assertEq(amount0, 0);
+        assertEq(amount1, 0);
     }
 
     // --- helpers ---

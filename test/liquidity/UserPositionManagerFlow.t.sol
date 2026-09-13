@@ -44,6 +44,36 @@ contract UserPositionManagerFlowTest is LiquidityManagerTestBase {
         assertEq(positionManagerContract.nextTokenId(), 1);
     }
 
+    function testUserPathRejectsManagerAsNftRecipient() public {
+        _transferUserInventory(6 ether, 6 ether);
+        vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
+        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), address(liquidityManager), alice);
+        assertEq(positionManagerContract.nextTokenId(), 1);
+    }
+
+    function testUserPathRejectsManagerAsRefundRecipient() public {
+        _transferUserInventory(6 ether, 6 ether);
+        vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
+        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, address(liquidityManager));
+        assertEq(positionManagerContract.nextTokenId(), 1);
+    }
+
+    function testUserPathRejectsDiamondAsNftRecipient() public {
+        _transferUserInventory(6 ether, 6 ether);
+        address boundDiamond = liquidityManager.staticsDiamond();
+        vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
+        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), boundDiamond, alice);
+        assertEq(positionManagerContract.nextTokenId(), 1);
+    }
+
+    function testUserPathRejectsDiamondAsRefundRecipient() public {
+        _transferUserInventory(6 ether, 6 ether);
+        address boundDiamond = liquidityManager.staticsDiamond();
+        vm.expectRevert(StaticsLiquidityManager.InvalidRecipient.selector);
+        liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), bob, boundDiamond);
+        assertEq(positionManagerContract.nextTokenId(), 1);
+    }
+
     function testUserPositionCannotBeTransferredIntoProtocolManagerCustody() public {
         _transferUserInventory(6 ether, 6 ether);
         (IStaticsLiquidityManager.PositionMovement memory movement,,) =

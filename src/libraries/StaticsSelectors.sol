@@ -215,7 +215,7 @@ library StaticsSelectors {
     }
 
     function globalRewards() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](25);
+        selectors = new bytes4[](24);
         selectors[0] = IStaticsGlobalRewards.createAndStake.selector;
         selectors[1] = IStaticsGlobalRewards.stake.selector;
         selectors[2] = IStaticsGlobalRewards.unstake.selector;
@@ -236,11 +236,10 @@ library StaticsSelectors {
         selectors[17] = IStaticsGlobalRewards.totalStaked.selector;
         selectors[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
         selectors[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        selectors[20] = IStaticsGlobalRewards.routeSwapFees.selector;
-        selectors[21] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
-        selectors[22] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
-        selectors[23] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
-        selectors[24] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
+        selectors[20] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        selectors[21] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        selectors[22] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        selectors[23] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
     }
 
     function genesisNFT() internal pure returns (bytes4[] memory selectors) {
@@ -315,17 +314,19 @@ library StaticsSelectors {
     }
 
     function protocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](8);
         selectors[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
         selectors[1] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
         selectors[2] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
         selectors[3] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
         selectors[4] = IStaticsProtocolPools.decommissionGeneralPool.selector;
         selectors[5] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        selectors[6] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
+        selectors[7] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
     }
 
     function protocolPoolView() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsProtocolPools.protocolPool.selector;
         selectors[1] = IStaticsProtocolPools.isProtocolPool.selector;
         selectors[2] = IStaticsProtocolPools.poolCreationFee.selector;
@@ -334,6 +335,7 @@ library StaticsSelectors {
         selectors[5] = IStaticsProtocolPools.generalFeeAllocation.selector;
         selectors[6] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
         selectors[7] = IStaticsProtocolPools.protocolPoolCreator.selector;
+        selectors[8] = IStaticsProtocolPools.permanentLiquidityHarvester.selector;
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {

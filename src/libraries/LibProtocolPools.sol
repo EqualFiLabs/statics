@@ -27,6 +27,7 @@ library LibProtocolPools {
         mapping(PoolId poolId => GeneralPool pool) generalPools;
         mapping(address creator => mapping(uint256 nonce => bool used)) poolCreationNonceUsed;
         uint256 poolCreationFeeAmount;
+        address permanentLiquidityHarvester;
     }
 
     error ProtocolPoolNotRegistered(PoolId poolId);

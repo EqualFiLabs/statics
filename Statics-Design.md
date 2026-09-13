@@ -742,8 +742,9 @@ credited from the Diamond's fee ledger. Creator revenue is pull-based; swap
 execution never calls the creator.
 The permanent-liquidity share remains in the hook. When both pool
 currencies are available, the hook compounds matched inventory into its own
-full-range position during swap settlement. Unmatched amounts remain pending;
-anyone may call `compoundPermanentLiquidity` later.
+full-range position during swap settlement. Unmatched amounts remain pending
+until later swaps provide both currencies; there is no manual compounding
+entry point.
 
 Fee rate and fee allocation are separate policy dimensions. Timelocked Diamond
 governance may set a PoolId's `PoolSwapFeeRate` with `setProtocolPoolFeeRate`
@@ -759,6 +760,11 @@ existing two-sided pending inventory remains eligible for compounding. The
 unavailable basket-staker fallback to POL and unavailable Statics-staker
 fallback to treasury remain deterministic. No threshold, volume, liquidity, or
 oracle rule changes a rate or profile automatically.
+
+The Diamond repeats the denominator check after pulling a redeemed fee token.
+If a callback changes basket eligibility in the narrow interval after the
+hook's check, that already-redeemed basket share routes to treasury as a
+last-line liveness fallback; the ordinary claim-backed fallback remains POL.
 
 General pools have no basket reward recipient. Their profile encodes a zero
 basket-staker share explicitly rather than relying on a runtime fallback, while
@@ -1434,7 +1440,9 @@ position accrual
 If `totalEligibleShares[k]` is zero when the hook routes the fee, the
 basket-staker allocation redirects to POL instead of entering an index. Locked
 loan collateral remains in `positionEligibleShares`; only burned or withdrawn
-shares leave the denominator.
+shares leave the denominator. If token callback execution removes the final
+eligible share after the hook has already redeemed the claim, the Diamond's
+post-pull guard routes that amount to treasury rather than reverting.
 
 ### Borrow and extension
 

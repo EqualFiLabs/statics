@@ -7,8 +7,6 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
-import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
-import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
@@ -37,33 +35,12 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
     {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (msg.sender != ls.hook) revert OnlySwapFeeHook(msg.sender, ls.hook);
-        (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId,) =
-            LibProtocolPools.enforceRegistered(poolId);
-        address currency0 = Currency.unwrap(key.currency0);
-        address currency1 = Currency.unwrap(key.currency1);
-        if (asset != currency0 && asset != currency1) revert InvalidRewardAsset(poolId, asset);
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.General && distribution.basketStaker != 0) {
-            revert GeneralPoolBasketReward(poolId, distribution.basketStaker);
-        }
         uint256 total =
             distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
         if (total == 0) return;
         uint256 received = LibCustody.pull(asset, msg.sender, total);
         if (received != total) revert IncompatibleRevenueAsset(asset, total, received);
-        LibCustody.reserve(LibCustody.feeAccount(), asset, total);
-
-        if (distribution.basketStaker != 0) {
-            LibBasketRewards.accrueReserved(
-                basketId, LibBasket.basketStorage().baskets[basketId], asset, distribution.basketStaker
-            );
-        }
-        LibGlobalRewards.accrueReservedSwapStakerFee(asset, distribution.staticsStaker);
-        if (distribution.creator != 0) {
-            address creator = LibProtocolPools.creatorOf(poolId);
-            LibProtocolRevenue.credit(creator, asset, distribution.creator);
-            emit CreatorRevenueAccrued(poolId, creator, asset, distribution.creator);
-        }
-        LibGlobalRewards.accrueReservedTreasuryFee(asset, distribution.treasury);
+        LibProtocolRevenue.accrueReceived(poolId, asset, distribution);
     }
 
     function claimCreatorRevenue(address asset, address receiver, uint256 minReceived)
@@ -91,8 +68,6 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
     function canAccrueBasketRewards(PoolId poolId) external view returns (bool eligible) {
         (IStaticsProtocolPools.ProtocolPoolKind kind,, uint256 basketId,) = LibProtocolPools.resolve(poolId);
         if (kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) return false;
-        address hook = LibBasketLiquidity.liquidityStorage().hook;
-        if (hook != address(0) && IStaticsSwapFeeHook(hook).poolDecommissioned(poolId)) return false;
         return LibBasketRewards.canAccrue(basketId);
     }
 }

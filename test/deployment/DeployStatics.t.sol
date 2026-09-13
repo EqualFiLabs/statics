@@ -133,13 +133,41 @@ contract DeployStaticsTest is Test {
             permit2: deployment.permit2,
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
+            permanentLiquidityHarvester: makeAddr("permanentLiquidityHarvester"),
             nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: deployment.poolManager.codehash,
             positionManagerCodeHash: deployment.positionManager.codehash,
-            permit2CodeHash: deployment.permit2.codehash
+            permit2CodeHash: deployment.permit2.codehash,
+            hookCodeHash: deployment.swapFeeHook.codehash,
+            managerCodeHash: deployment.liquidityManager.codehash
         });
+        StaticsLiquidityConfig memory invalidHashConfig = liquidityConfig;
+        invalidHashConfig.hookCodeHash = bytes32(0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
+                deployment.swapFeeHook,
+                bytes32(0),
+                deployment.swapFeeHook.codehash
+            )
+        );
+        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject missing hook hash"));
+
+        invalidHashConfig.hookCodeHash = deployment.swapFeeHook.codehash;
+        invalidHashConfig.managerCodeHash = keccak256("wrong manager runtime");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
+                deployment.liquidityManager,
+                invalidHashConfig.managerCodeHash,
+                deployment.liquidityManager.codehash
+            )
+        );
+        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject wrong manager hash"));
+        invalidHashConfig.managerCodeHash = deployment.liquidityManager.codehash;
+
         bytes32 salt = keccak256("install Statics liquidity");
         bytes32 operationId = ceremony.schedule(diamond, liquidityConfig, salt);
         assertTrue(timelock.isOperationPending(operationId));
@@ -150,9 +178,10 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 35, 280);
+        _assertManifest(diamond, 35, 282);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
+        _assertRetiredLiquiditySelectorsAbsent(diamond);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
@@ -247,6 +276,31 @@ contract DeployStaticsTest is Test {
         assertTrue(actions != settlement && actions != recovery && settlement != recovery);
         assertEq(loupe.facetAddress(IStaticsMorpho.borrowMorphoUsd.selector), actions);
         assertEq(loupe.facetAddress(IStaticsMorpho.claimMorphoSyncBounties.selector), settlement);
+    }
+
+    function _assertRetiredLiquiditySelectorsAbsent(address diamond) private view {
+        IDiamondLoupe loupe = IDiamondLoupe(diamond);
+        bytes4[] memory retired = new bytes4[](12);
+        retired[0] = bytes4(keccak256("stakeLiquidityPosition(uint256,uint256)"));
+        retired[1] = bytes4(keccak256("activateLiquidityPosition(uint256)"));
+        retired[2] =
+            bytes4(keccak256("increaseStakedLiquidity(uint256,uint256,(uint256,uint256,uint256,uint256),address)"));
+        retired[3] = bytes4(keccak256("unstakeLiquidityPosition(uint256,uint256,address)"));
+        retired[4] = bytes4(keccak256("claimLiquidityRewards(uint256,uint256,address,uint256,uint256)"));
+        retired[5] = bytes4(keccak256("stakedLiquidityPosition(uint256)"));
+        retired[6] = bytes4(keccak256("poolLiquidityRewards(bytes32)"));
+        retired[7] = bytes4(keccak256("pendingLiquidityRewards(uint256,uint256)"));
+        retired[8] = bytes4(keccak256("canAccrueLiquidityRewards(bytes32)"));
+        retired[9] = bytes4(
+            keccak256(
+                "borrowAndStakeLiquidity(uint256,uint256,uint256,(address,int24,int24,uint256,uint256,uint256,uint256)[])"
+            )
+        );
+        retired[10] = bytes4(keccak256("liquidityPositionIdsOfPosition(uint256,uint256,uint256)"));
+        retired[11] = bytes4(keccak256("routeSwapFees(address,uint256,uint256)"));
+        for (uint256 i; i < retired.length; ++i) {
+            assertEq(loupe.facetAddress(retired[i]), address(0));
+        }
     }
 
     function _v4Config() private returns (DeployStatics.V4Config memory config) {

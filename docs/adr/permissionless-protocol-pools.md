@@ -462,6 +462,11 @@ The fallback policy remains explicit:
 - an unavailable global Statics-staker allocation routes to treasury; and
 - the creator allocation always credits the immutable creator and never falls back.
 
+The hook applies those rules before redeeming PoolManager claims. The Diamond
+rechecks after its token pull; if token callback execution removes the final
+basket denominator in that narrow interval, the already-redeemed basket share
+routes to treasury as a last-line liveness fallback.
+
 ## Creation fee and permissionless creation gate
 
 General pools have their own creation fee. It is independent from the basket creation fee and PositionNFT creation fee.

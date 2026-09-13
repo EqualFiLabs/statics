@@ -77,6 +77,41 @@ contract HookDiamondMock {
         uint256 total =
             distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
         IERC20(asset).safeTransferFrom(msg.sender, address(this), total);
+        _recordDistribution(asset, distribution);
+    }
+
+    function harvest(PoolKey calldata key)
+        external
+        returns (
+            IStaticsSwapFeeHook.FeeDistribution memory distribution0,
+            IStaticsSwapFeeHook.FeeDistribution memory distribution1
+        )
+    {
+        (distribution0, distribution1) = IStaticsSwapFeeHook(hook).harvestPermanentLiquidityFees(key);
+        _recordDistribution(Currency.unwrap(key.currency0), distribution0);
+        _recordDistribution(Currency.unwrap(key.currency1), distribution1);
+    }
+
+    function decommissionAndRelease(PoolKey calldata key)
+        external
+        returns (IStaticsSwapFeeHook.PermanentLiquidityRelease memory released)
+    {
+        IStaticsSwapFeeHook(hook).decommissionPool(key);
+        released = IStaticsSwapFeeHook(hook).releasePermanentLiquidity(key, address(this));
+        _recordDistribution(Currency.unwrap(key.currency0), released.distribution0);
+        _recordDistribution(Currency.unwrap(key.currency1), released.distribution1);
+    }
+
+    function _recordDistribution(address asset, IStaticsProtocolRevenue.ProtocolFeeDistribution calldata distribution)
+        private
+    {
+        basketStakerFees[asset] += distribution.basketStaker;
+        stakerFees[asset] += distribution.staticsStaker;
+        creatorFees[asset] += distribution.creator;
+        treasuryFees[asset] += distribution.treasury;
+    }
+
+    function _recordDistribution(address asset, IStaticsSwapFeeHook.FeeDistribution memory distribution) private {
         basketStakerFees[asset] += distribution.basketStaker;
         stakerFees[asset] += distribution.staticsStaker;
         creatorFees[asset] += distribution.creator;
@@ -168,6 +203,30 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(outputFeeBps, OUTPUT_FEE_BPS);
     }
 
+    function testCallbackFeesRemainFullyBackedByPoolManagerClaims() public {
+        swap(key, true, -int256(0.001 ether), "");
+        uint256 liability0 = hook.claimLiability(key.currency0);
+        uint256 liability1 = hook.claimLiability(key.currency1);
+        assertGt(liability0, 0);
+        assertGt(liability1, 0);
+        assertEq(manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(key.currency0)))), liability0);
+        assertEq(manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(key.currency1)))), liability1);
+    }
+
+    function testOnlyDiamondCanHarvestPermanentLiquidityFees() public {
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, address(this)));
+        hook.harvestPermanentLiquidityFees(key);
+    }
+
+    function testNativeLpFeeRejectsOneMillionPips() public {
+        uint24 invalidFee = 1_000_000;
+        bytes memory constructorArgs = abi.encode(manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        (, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.InvalidNativeLpFee.selector, invalidFee));
+        new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+    }
+
     function testGeneralPoolCarvesFixedFiveHundredBpsCreatorShare() public {
         uint256 amountIn = 0.001 ether;
         BalanceDelta delta = swap(key, true, -int256(amountIn), "");
@@ -176,6 +235,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         uint256 outputFee = _feeFromNet(netOutput, OUTPUT_FEE_BPS);
         address input = Currency.unwrap(key.currency0);
         address output = Currency.unwrap(key.currency1);
+        _routePendingFees();
         assertEq(diamond.creatorFees(input), Math.mulDiv(inputFee, 500, 10_000));
         assertEq(diamond.creatorFees(output), Math.mulDiv(outputFee, 500, 10_000));
         // remaining 9500 configured -> staker bucket in this profile
@@ -196,6 +256,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         uint256 specifiedFee = _feeFromNet(amountOut, OUTPUT_FEE_BPS);
         assertEq(uint256(uint128(delta.amount1())), amountOut);
         address output = Currency.unwrap(key.currency1);
+        _routePendingFees();
         assertEq(diamond.creatorFees(output) + diamond.stakerFees(output) + diamond.treasuryFees(output), specifiedFee);
     }
 
@@ -210,6 +271,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         address input = Currency.unwrap(key.currency0);
         uint256 treasuryBefore = diamond.treasuryFees(input);
         swap(key, true, -int256(0.001 ether), "");
+        diamond.harvest(key);
         assertGt(diamond.treasuryFees(input), treasuryBefore);
         assertEq(hook.pendingPermanentLiquidity(poolId, key.currency0), 0);
     }
@@ -220,10 +282,71 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         swap(key, true, -int256(amountIn), "");
         uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
         address input = Currency.unwrap(key.currency0);
+        _routePendingFees();
         assertEq(diamond.stakerFees(input), 0);
         // creator still 500, staker (9500) redirected to treasury
         assertEq(diamond.creatorFees(input), Math.mulDiv(inputFee, 500, 10_000));
         assertEq(diamond.treasuryFees(input), inputFee - Math.mulDiv(inputFee, 500, 10_000));
+    }
+
+    function testEligibilityDropBeforeNextSwapReallocatesPendingStakerShare() public {
+        uint256 amountIn = 0.001 ether;
+        swap(key, true, -int256(amountIn), "");
+        diamond.setStakersEligible(false);
+
+        swap(key, true, -int256(amountIn), "");
+
+        uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 creatorFee = Math.mulDiv(inputFee, 500, 10_000);
+        address input = Currency.unwrap(key.currency0);
+        assertEq(diamond.stakerFees(input), 0);
+        assertEq(diamond.creatorFees(input), creatorFee);
+        assertEq(diamond.treasuryFees(input), inputFee - creatorFee);
+    }
+
+    function testEligibilityDropBeforeHarvestReallocatesBasketShareToPol() public {
+        PoolKey memory basketKey =
+            _registerInitialize(currency0, currency1, 20, IStaticsSwapFeeHook.PoolKind.BasketCanonical);
+        PoolId basketPoolId = basketKey.toId();
+        diamond.setBasketFeeAllocation(
+            IStaticsSwapFeeHook.BasketFeeAllocation({
+                polShareBps: 0, basketStakerShareBps: 9_500, staticsStakerShareBps: 0, treasuryShareBps: 0
+            })
+        );
+        diamond.setBasketEligible(true);
+        uint256 amountIn = 0.001 ether;
+        swap(basketKey, true, -int256(amountIn), "");
+        diamond.setBasketEligible(false);
+
+        diamond.harvest(basketKey);
+
+        uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 basketShare = Math.mulDiv(inputFee, 9_500, 10_000);
+        address input = Currency.unwrap(basketKey.currency0);
+        assertEq(diamond.basketStakerFees(input), 0);
+        assertEq(hook.pendingPermanentLiquidity(basketPoolId, basketKey.currency0), basketShare);
+    }
+
+    function testEligibilityDropBeforeDecommissionRedeemsBasketFallbackAsPol() public {
+        PoolKey memory basketKey =
+            _registerInitialize(currency0, currency1, 20, IStaticsSwapFeeHook.PoolKind.BasketCanonical);
+        diamond.setBasketFeeAllocation(
+            IStaticsSwapFeeHook.BasketFeeAllocation({
+                polShareBps: 0, basketStakerShareBps: 9_500, staticsStakerShareBps: 0, treasuryShareBps: 0
+            })
+        );
+        diamond.setBasketEligible(true);
+        uint256 amountIn = 0.001 ether;
+        swap(basketKey, true, -int256(amountIn), "");
+        diamond.setBasketEligible(false);
+
+        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released = diamond.decommissionAndRelease(basketKey);
+
+        uint256 inputFee = Math.mulDiv(amountIn, INPUT_FEE_BPS, 10_000, Math.Rounding.Ceil);
+        uint256 basketShare = Math.mulDiv(inputFee, 9_500, 10_000);
+        assertEq(released.distribution0.basketStaker, 0);
+        assertEq(released.pendingPol0, basketShare);
+        assertTrue(hook.poolDecommissioned(basketKey.toId()));
     }
 
     function testPoolRateOverrideAppliesDistinctRate() public {
@@ -235,6 +358,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         uint256 before = diamond.creatorFees(Currency.unwrap(key.currency0))
             + diamond.stakerFees(Currency.unwrap(key.currency0)) + diamond.treasuryFees(Currency.unwrap(key.currency0));
         swap(key, true, -int256(amountIn), "");
+        _routePendingFees();
         uint256 collected = diamond.creatorFees(Currency.unwrap(key.currency0))
             + diamond.stakerFees(Currency.unwrap(key.currency0)) + diamond.treasuryFees(Currency.unwrap(key.currency0))
             - before;
@@ -311,10 +435,21 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         private
         returns (PoolKey memory poolKey)
     {
+        return _registerInitialize(first, second, tickSpacing, IStaticsSwapFeeHook.PoolKind.General);
+    }
+
+    function _registerInitialize(Currency first, Currency second, int24 tickSpacing, IStaticsSwapFeeHook.PoolKind kind)
+        private
+        returns (PoolKey memory poolKey)
+    {
         poolKey = _poolKey(first, second, LP_FEE, tickSpacing);
-        diamond.registerPool(poolKey, IStaticsSwapFeeHook.PoolKind.General, creator);
+        diamond.registerPool(poolKey, kind, creator);
         manager.initialize(poolKey, SQRT_PRICE_1_1);
         modifyLiquidityRouter.modifyLiquidity(poolKey, LIQUIDITY_PARAMS, "");
+    }
+
+    function _routePendingFees() private {
+        swap(key, true, -int256(0.001 ether), "");
     }
 
     function _poolKey(Currency first, Currency second, uint24 fee, int24 tickSpacing)

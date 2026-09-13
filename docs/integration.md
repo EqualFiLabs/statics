@@ -452,12 +452,24 @@ creator. Claim it with
 through the creator-credit views. Creator credits never expire, cannot be
 confiscated by governance, and survive decommissioning.
 
-The hook transfers both staker shares and treasury shares immediately to the
-Diamond and
-matches its permanent-liquidity shares into hook-owned full-range liquidity.
-Unmatched inventory is visible through `pendingPermanentLiquidity`; deployed
-liquidity is visible through `lockedLiquidity`. Swaps attempt compounding
-atomically, and `compoundPermanentLiquidity` is also permissionless.
+The hook records bilateral fees as PoolManager ERC-6909 claims. At the next
+routing boundary, non-POL claims move into the Diamond's basket-staker,
+Statics-staker, creator, and treasury ledgers. Matching POL claims are burned
+atomically to fund hook-owned full-range liquidity on swaps. Unmatched
+inventory is visible through `pendingPermanentLiquidity`; deployed liquidity
+is visible through `lockedLiquidity`; aggregate claim coverage is visible
+through `claimLiability`. There is no public manual compounding entry point.
+
+Native fees earned by the hook-owned position are treasury revenue rather than
+POL. Automatic POL compounding necessarily modifies the permanent position and
+can realize native fees during a swap. A configured
+`permanentLiquidityHarvester()` may additionally call
+`harvestPermanentLiquidityFees(poolId)` to realize fees while compounding is
+idle or one-sided; the call has no recipient argument. The Diamond books every
+realized token to treasury accounting. Governance may replace the harvester,
+the guardian may pause explicit harvesting and treasury distribution, and only
+governance may unpause them. Delaying explicit harvesting does not block swaps,
+user liquidity, or automatic POL compounding.
 
 Native PoolManager donations to a protocol pool always revert in
 `beforeDonate`. Integrators must not use Uniswap donation routers with Statics
@@ -472,9 +484,10 @@ mint operations.
 
 Only a general pool may use `decommissionGeneralPool(poolId)`, an owner-only
 terminal transition. The creator cannot decommission a pool. The call stops
-later swaps and managed LP actions, releases permanent liquidity to treasury
-accounting, and leaves all user PositionManager NFTs untouched. Existing
-creator credits remain claimable. Decommissioning is irreversible for that PoolKey; a
+later swaps and managed LP actions, sends permanent-liquidity principal and
+unmatched POL to treasury accounting, preserves ordinary fee allocations, and
+leaves all user PositionManager NFTs untouched. Existing creator credits
+remain claimable. Decommissioning is irreversible for that PoolKey; a
 replacement market requires a different supported PoolKey, which generally
 means a different tick spacing. Basket canonical pools retain their separate
 `ExitOnly` unwind and are never processed with general-pool decommission

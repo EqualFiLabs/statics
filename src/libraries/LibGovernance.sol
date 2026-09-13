@@ -10,8 +10,9 @@ library LibGovernance {
     uint256 internal constant PAUSE_FLASH = 1 << 3;
     uint256 internal constant PAUSE_REDEEM = 1 << 4;
     uint256 internal constant PAUSE_LIQUIDITY = 1 << 5;
+    uint256 internal constant PAUSE_TREASURY = 1 << 6;
     uint256 internal constant GUARDIAN_ACTIONS =
-        PAUSE_MINT | PAUSE_BORROW | PAUSE_EXTEND | PAUSE_FLASH | PAUSE_LIQUIDITY;
+        PAUSE_MINT | PAUSE_BORROW | PAUSE_EXTEND | PAUSE_FLASH | PAUSE_LIQUIDITY | PAUSE_TREASURY;
     uint256 internal constant ALL_ACTIONS = GUARDIAN_ACTIONS | PAUSE_REDEEM;
 
     struct GovernanceStorage {

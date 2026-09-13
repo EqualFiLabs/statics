@@ -78,13 +78,10 @@ contract HookAccountingHandler is Test {
     StaticsSwapFeeHook private immutable hook;
     HookInvariantFeeReceiver private immutable receiver;
     PoolId private immutable poolId;
-    address private immutable token0;
-    address private immutable token1;
     PoolKey private key;
 
     uint128 public lastLockedLiquidity;
     uint256 public successfulSwaps;
-    bool public missedFeeLeg;
     bool public liquidityDecreased;
 
     constructor(
@@ -98,10 +95,8 @@ contract HookAccountingHandler is Test {
         receiver = receiver_;
         key = key_;
         poolId = key_.toId();
-        token0 = Currency.unwrap(key_.currency0);
-        token1 = Currency.unwrap(key_.currency1);
-        IERC20(token0).approve(address(router_), type(uint256).max);
-        IERC20(token1).approve(address(router_), type(uint256).max);
+        IERC20(Currency.unwrap(key_.currency0)).approve(address(router_), type(uint256).max);
+        IERC20(Currency.unwrap(key_.currency1)).approve(address(router_), type(uint256).max);
     }
 
     function swapExactInput(uint256 rawAmount, bool zeroForOne) external {
@@ -140,8 +135,6 @@ contract HookAccountingHandler is Test {
     }
 
     function _swap(int256 amountSpecified, bool zeroForOne) private {
-        uint256 token0FeesBefore = _routed(token0);
-        uint256 token1FeesBefore = _routed(token1);
         PoolKey memory poolKey = key;
         try router.swap(
             poolKey,
@@ -153,23 +146,13 @@ contract HookAccountingHandler is Test {
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         ) returns (
-            BalanceDelta delta
+            BalanceDelta
         ) {
             ++successfulSwaps;
-            // With staker+treasury+creator always summing to configurable+creator > 0, every realized
-            // two-asset swap must route both legs.
-            if (
-                delta.amount0() != 0 && delta.amount1() != 0
-                    && (_routed(token0) <= token0FeesBefore || _routed(token1) <= token1FeesBefore)
-            ) missedFeeLeg = true;
             uint128 locked = hook.lockedLiquidity(poolId);
             if (locked < lastLockedLiquidity) liquidityDecreased = true;
             lastLockedLiquidity = locked;
         } catch {}
-    }
-
-    function _routed(address asset) private view returns (uint256) {
-        return receiver.stakerFees(asset) + receiver.treasuryFees(asset) + receiver.creatorFees(asset);
     }
 }
 
@@ -203,11 +186,16 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         handler = new HookAccountingHandler(swapRouter, hook, receiver, poolKey);
         MockERC20(Currency.unwrap(currency0)).mint(address(handler), 1_000_000 ether);
         MockERC20(Currency.unwrap(currency1)).mint(address(handler), 1_000_000 ether);
+        handler.swapExactInput(0.001 ether, true);
+        assertEq(handler.successfulSwaps(), 1, "invariant setup needs a successful swap");
         targetContract(address(handler));
     }
 
-    function invariantEverySuccessfulSwapRoutesBothFeeLegs() public view {
-        assertFalse(handler.missedFeeLeg(), "realized two-asset swap missed one fee leg");
+    function invariantHandlerExecutesSuccessfulSwaps() public view {
+        assertGt(handler.successfulSwaps(), 0, "swap accounting invariant is vacuous");
+    }
+
+    function invariantPermanentLiquidityNeverDecreasesDuringSwaps() public view {
         assertFalse(handler.liquidityDecreased(), "locked POL liquidity decreased");
     }
 
@@ -216,15 +204,9 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         _assertReceiverBalance(currency1);
     }
 
-    function invariantHookBalancesCoverPendingPermanentLiquidity() public view {
-        assertGe(
-            IERC20(Currency.unwrap(currency0)).balanceOf(address(hook)),
-            hook.pendingPermanentLiquidity(poolId, currency0)
-        );
-        assertGe(
-            IERC20(Currency.unwrap(currency1)).balanceOf(address(hook)),
-            hook.pendingPermanentLiquidity(poolId, currency1)
-        );
+    function invariantPoolManagerClaimsCoverAllHookLiabilities() public view {
+        _assertClaimSolvency(currency0);
+        _assertClaimSolvency(currency1);
     }
 
     function invariantEffectivePoolConfigurationIsValid() public view {
@@ -244,6 +226,16 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
             IERC20(asset).balanceOf(address(receiver)),
             receiver.stakerFees(asset) + receiver.treasuryFees(asset) + receiver.creatorFees(asset)
         );
+    }
+
+    function _assertClaimSolvency(Currency currency) private view {
+        uint256 liability = hook.claimLiability(currency);
+        uint256 claimBalance = manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(currency))));
+        IStaticsSwapFeeHook.FeeDistribution memory distribution = hook.pendingFeeDistribution(poolId, currency);
+        uint256 pending = hook.pendingPermanentLiquidity(poolId, currency) + distribution.basketStaker
+            + distribution.staticsStaker + distribution.creator + distribution.treasury;
+        assertEq(claimBalance, liability);
+        assertEq(liability, pending);
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
