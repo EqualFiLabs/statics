@@ -136,3 +136,6 @@ jobs:
       - name: Run managed-POL fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv
+      - name: Run nested-basket fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodNestedBasketsFork.t.sol -vv
