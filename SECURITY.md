@@ -144,8 +144,9 @@ and position interactions roll due buckets. Dollar passive Risk Share reward
 eligibility does not exist: supplied Risk Shares are immediately consumable by
 the pairing vault and earn only through actual consumption.
 
-Permanent protocol pools use an immutable deployment-configured native LP fee,
-initially 3,000 pips (0.30%), plus separate input/output hook fees.
+Permanent protocol pools use a creator-selected static native LP fee from 0
+through 999,999 pips, plus separate governed input/output hook fees. Dynamic
+fees and the 100% static-fee boundary are rejected.
 Their permanent full-range liquidity is owned by the hook, not by a protocol
 PositionManager NFT, and cannot be released until the pool is decommissioned.
 User PositionManager NFTs stay in user custody and earn native v4 fees through
@@ -154,8 +155,11 @@ route only to treasury and never become compoundable POL inventory. Basket
 creation initializes and seeds its canonical pools atomically. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
-exact payment while the fee is nonzero. Governance controls the creation gate,
-bilateral fee configuration, and irreversible general-pool decommissioning.
+exact payment while the fee is nonzero. The bilateral default initializes to
+25 BPS per leg. Governance may change the global default and set or clear
+registered PoolId overrides; creators cannot administer hook fees or allocation
+profiles. Governance also controls the creation gate and irreversible
+general-pool decommissioning.
 Permanent-liquidity compounding and eligible post-decommission unwind are
 permissionless.
 

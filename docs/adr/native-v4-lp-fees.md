@@ -1,9 +1,11 @@
 # ADR: Native Uniswap v4 LP compensation
 
-- Status: Accepted and implemented
+- Status: Partially superseded by `creator-led-pool-configuration.md`
 - Date: 2026-09-13
 - Scope: permanent Statics pools, LP compensation, bilateral hook fees, POL revenue, liquidity custody, and exact-output swaps
 - Supersedes: `canonical-lp-nft-rewards.md` and the zero-native-fee and custom-LP-reward decisions in `permissionless-protocol-pools.md`
+- Superseded decision: one immutable deployment-wide native LP fee; the native
+  v4 accounting and compensation decisions remain current
 
 ## Context
 

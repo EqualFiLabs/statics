@@ -152,8 +152,9 @@ Each currency is accounted independently. If basket staking cannot accept the
 asset, its allocation redirects to permanent liquidity. If STATICS staking
 cannot accept it, that allocation redirects to treasury.
 
-The current launch-default hook rates are 50 basis points on realized input and
-50 basis points on realized output. Governance may configure a complete global
+The current global hook-fee default is 25 basis points on realized input and
+25 basis points on realized output. Governance may update that default, set or
+clear PoolId-specific overrides, and configure a complete global
 or pool-specific rate and split within the protocol's bounds, so integrators
 must read effective onchain configuration rather than hardcode this example.
 
