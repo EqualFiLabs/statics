@@ -1,15 +1,15 @@
 {
   "schema": 2,
   "counts": {
-    "High": 42,
-    "Medium": 312,
-    "Low": 204,
+    "High": 44,
+    "Medium": 316,
+    "Low": 206,
     "Informational": 56
   },
   "raw_counts": {
-    "High": 42,
-    "Medium": 314,
-    "Low": 235,
+    "High": 44,
+    "Medium": 318,
+    "Low": 243,
     "Informational": 56
   },
   "findings": [
@@ -150,22 +150,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#302-325):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
-      "occurrences": 1,
-      "id": "00868c3ad924e61adb6f4b29"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager._executePosition(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#74-109):",
@@ -248,10 +232,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "3fa389b930025a7d232d763a"
+      "id": "25917accee9daf2c65b1f85d"
     },
     {
       "impact": "High",
@@ -264,10 +248,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.CallbackRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#189-202):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "434bc8f758df8e0c193e3f0b"
+      "id": "2c7836e28533444865664a22"
     },
     {
       "impact": "High",
@@ -312,10 +296,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#302-325):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#304-317):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "557ddc2877a36d0450d5ba6d"
+      "id": "592501167e240f7ab56815a8"
     },
     {
       "impact": "High",
@@ -332,22 +316,6 @@
       "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
       "occurrences": 1,
       "id": "5ac50faf6b4c2f2d40a2b59e"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
-      "occurrences": 1,
-      "id": "6142e606761f1b7f77481895"
     },
     {
       "impact": "High",
@@ -376,10 +344,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#302-325):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#304-317):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "6c87f2ed1a3a28a10735843a"
+      "id": "65f106559e609ffd16fa020f"
     },
     {
       "impact": "High",
@@ -396,6 +364,22 @@
       "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
       "occurrences": 1,
       "id": "707a18c793a14ae1c72cbc74"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
+      "occurrences": 1,
+      "id": "72de2b7bd26931d3862cdb41"
     },
     {
       "impact": "High",
@@ -424,10 +408,26 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.CallbackRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#189-202):",
-      "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._buyAndRedeemRoute(uint256,address[],uint256[],StaticsFlashArbitrageReceiver.BuyAndRedeemRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#359-385):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "9daa1dca917f9eb42d0ab869"
+      "id": "9f23d81b41ec4742d569f5e5"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._buyAndRedeemRoute(uint256,address[],uint256[],StaticsFlashArbitrageReceiver.BuyAndRedeemRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#359-385):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
+      "occurrences": 1,
+      "id": "9f336c80a70f5af89b027fb8"
     },
     {
       "impact": "High",
@@ -540,6 +540,38 @@
       "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
       "occurrences": 1,
       "id": "dcfa888817cb5e2e07f18a9f"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
+      "occurrences": 1,
+      "id": "eeb515336c72a9040b092ae9"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
+      "occurrences": 1,
+      "id": "f84dd7973d472a77a524ce63"
     },
     {
       "impact": "High",
@@ -764,6 +796,22 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "0d5d3a4fcec167ba8b057023"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._buyAndRedeemRoute(uint256,address[],uint256[],StaticsFlashArbitrageReceiver.BuyAndRedeemRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#359-385) uses a dangerous strict equality:",
+      "rationale": "The strict zero comparison rejects a route that acquired no BasketTokens; it is an exact state sentinel rather than a price or approximate-value comparison.",
+      "occurrences": 1,
+      "id": "187023d06187c3ac99beeb00"
     },
     {
       "impact": "Medium",
@@ -1766,6 +1814,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._prepareBuyAndRedeem(uint256,uint256,PoolKey[],uint256[],uint256[]).hasInput (src/periphery/StaticsFlashArbitrageReceiver.sol#194) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator or boolean sentinel before conditional updates.",
+      "occurrences": 1,
+      "id": "28b3d8721a770638ab1a5369"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]).currencyCount (src/liquidity/StaticsSwapFeeHook.sol#394) is a local variable never initialized",
@@ -1827,22 +1891,6 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._mintRouteBasket(IStaticsBasket,uint256,address[],StaticsFlashArbitrageReceiver.CallbackRoute).totalBasketAmountIn (src/periphery/StaticsFlashArbitrageReceiver.sol#215) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "4734a5e6b01879be781d4b91"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1852,6 +1900,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "48cc0a33b74a5986cc9f075c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._mintRouteBasket(IStaticsBasket,uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute).totalBasketAmountIn (src/periphery/StaticsFlashArbitrageReceiver.sol#330) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator or boolean sentinel before conditional updates.",
+      "occurrences": 1,
+      "id": "52359527405b827d9a42c6b3"
     },
     {
       "impact": "Medium",
@@ -2499,6 +2563,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._mintRouteBasket(IStaticsBasket,uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#321-340) ignores return value by basket.mint(basketId,route.shares,address(this),maximums) (src/periphery/StaticsFlashArbitrageReceiver.sol#336)",
+      "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
+      "occurrences": 1,
+      "id": "0a98b1691b3636c0d5daf050"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -2598,6 +2678,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._buyAndRedeemRoute(uint256,address[],uint256[],StaticsFlashArbitrageReceiver.BuyAndRedeemRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#359-385) ignores return value by basket.redeem(basketId,redeemedShares,address(this),minimums) (src/periphery/StaticsFlashArbitrageReceiver.sol#380)",
+      "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
+      "occurrences": 1,
+      "id": "12600392fb3d9064816506df"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StakingFacet.sol"
       ],
       "summary": "StakingFacet._stake(LibPeriphery.PS,uint256,uint256,address,uint256,bool) (src/dollar/periphery/facets/StakingFacet.sol#302-335) ignores return value by LibPeriphery.clearZeroValueLiquidity(ps,positionId,seriesId) (src/dollar/periphery/facets/StakingFacet.sol#325)",
@@ -2636,22 +2732,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "13e4d55a86745e6675b5fcea"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._mintRouteBasket(IStaticsBasket,uint256,address[],StaticsFlashArbitrageReceiver.CallbackRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#206-225) ignores return value by basket.mint(basketId,route.shares,address(this),maximums) (src/periphery/StaticsFlashArbitrageReceiver.sol#221)",
-      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
-      "occurrences": 1,
-      "id": "154578bff83ae51eb6e3072d"
     },
     {
       "impact": "Medium",
@@ -3276,22 +3356,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "4228137aee6fc655c8c4ee33"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver.constructor(address) (src/periphery/StaticsFlashArbitrageReceiver.sol#62-67) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(staticsDiamond_).liquidityIntegration() (src/periphery/StaticsFlashArbitrageReceiver.sol#63)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "433ca4444c811e8faf8639c0"
     },
     {
       "impact": "Medium",
@@ -4531,22 +4595,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._prepareArbitrage(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#105-121) ignores return value by (assets,flashAmounts,None) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId,shares) (src/periphery/StaticsFlashArbitrageReceiver.sol#113)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "a2f30ef87032eab97c2c5b4e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4604,6 +4652,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "a5c2827d999bf5d09ed87dd1"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._prepareArbitrage(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#159-175) ignores return value by (assets,flashAmounts,None) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId,shares) (src/periphery/StaticsFlashArbitrageReceiver.sol#167)",
+      "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
+      "occurrences": 1,
+      "id": "a92c1f8daf76405f9c6d0005"
     },
     {
       "impact": "Medium",
@@ -4972,6 +5036,22 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "c48faa1bae30e04169189ef2"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._prepareBuyAndRedeem(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#179-203) ignores return value by (assets,flashAmounts,None) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId,shares) (src/periphery/StaticsFlashArbitrageReceiver.sol#187)",
+      "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
+      "occurrences": 1,
+      "id": "c4f82d945784c628453115e7"
     },
     {
       "impact": "Medium",
@@ -5526,6 +5606,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver.constructor(address) (src/periphery/StaticsFlashArbitrageReceiver.sol#81-86) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(staticsDiamond_).liquidityIntegration() (src/periphery/StaticsFlashArbitrageReceiver.sol#82)",
+      "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
+      "occurrences": 1,
+      "id": "e967c9b2de9a9e663a7c829e"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "StaticsDollarGatewayFacet._supplyWETHDeposit(LibPeriphery.PS,StaticsDollarGatewayFacet.GatewayDeposit,StaticsDollarGatewayFacet.ResidualSnapshot) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#158-177) ignores return value by LibCustody.finishUnreservedDebit(ps.weth,wethBefore,request.amount) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#174)",
@@ -5718,6 +5814,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#493-504) has external calls inside a loop: senderAfter = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#497)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "occurrences": 2,
+      "id": "0926b6bd2f5bc6e45bbd7feb"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting.releaseGenesis(uint256) (src/genesis/StaticsTreasuryVesting.sol#123-138) has external calls inside a loop: genesis.safeTransferFrom(address(this),recipient,genesisId) (src/genesis/StaticsTreasuryVesting.sol#135)",
@@ -5736,10 +5848,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._collectProfits(address[],uint256[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#143-163) has external calls inside a loop: endingBalance = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#154)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._prepareBuyAndRedeem(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#179-203) has external calls inside a loop: startingBalances[i] = IERC20(assets[i]).balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#200)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "1310f39cfb754546eea7365d"
+      "id": "11c87ec89130add478a16ef9"
     },
     {
       "impact": "Low",
@@ -5779,6 +5891,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#493-504) has external calls inside a loop: receiverBefore = token.balanceOf(receiver) (src/periphery/StaticsFlashArbitrageReceiver.sol#495)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "occurrences": 2,
+      "id": "1f697eb1f239d5166bb429ed"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5788,22 +5916,6 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "225278dc450729612f297c0d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._pullTopUps(address[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#125-139) has external calls inside a loop: startingBalances[i] = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#134)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 1,
-      "id": "248f28febebc7c07d1791f3c"
     },
     {
       "impact": "Low",
@@ -5848,10 +5960,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: amountOut = abi.decode(poolManager.unlock(abi.encode(SwapCall({pool:pool,zeroForOne:zeroForOne,amountIn:amountIn}))),(uint256)) (src/periphery/StaticsFlashArbitrageReceiver.sol#289-292)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._pullExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#485-491) has external calls inside a loop: beforeBalance = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#486)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "2dda36baecc0bf81b3e5a62a"
+      "id": "2b87e73260903d6600229bae"
     },
     {
       "impact": "Low",
@@ -5864,10 +5976,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: outputAfter = outputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#294)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: amountOut = abi.decode(poolManager.unlock(abi.encode(SwapCall({pool:pool,zeroForOne:zeroForOne,amountIn:amountIn}))),(uint256)) (src/periphery/StaticsFlashArbitrageReceiver.sol#434-437)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "312468cf683d16c751961e30"
+      "id": "39a0105bafdceae77ecc0c1f"
     },
     {
       "impact": "Low",
@@ -5896,10 +6008,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: inputAfter = inputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#293)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._approveRepayments(address[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#388-398) has external calls inside a loop: available = IERC20(assets[i]).balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#394)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "452e8a2b5bacc3695600705d"
+      "id": "43465597355698ef3fe5e8d1"
     },
     {
       "impact": "Low",
@@ -5932,22 +6044,6 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "49fdf182e7d7de3920e4c737"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#348-359) has external calls inside a loop: receiverAfter = token.balanceOf(receiver) (src/periphery/StaticsFlashArbitrageReceiver.sol#353)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 1,
-      "id": "523e540332548d85d63ed0cb"
     },
     {
       "impact": "Low",
@@ -5990,6 +6086,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: outputAfter = outputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#439)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "occurrences": 1,
+      "id": "56a0d9df97059ecc288040f6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._collectProfits(address[],uint256[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#225-245) has external calls inside a loop: endingBalance = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#236)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "occurrences": 2,
+      "id": "630774af83b86494b07b84d3"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/BasketLiquidityFacet.sol"
       ],
       "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#352-391) has external calls inside a loop: key = PoolKey({currency0:currency0,currency1:currency1,fee:IStaticsSwapFeeHook(ls.hook).nativeLpFee(),tickSpacing:CANONICAL_TICK_SPACING,hooks:IHooks(ls.hook)}) (src/facets/BasketLiquidityFacet.sol#363-369)",
@@ -6008,10 +6136,26 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._approveRepayments(address[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#243-253) has external calls inside a loop: available = IERC20(assets[i]).balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#249)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: inputBefore = inputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#432)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "6faf40d015e82dd62ce0e074"
+      "id": "65d63b6925c8ffd09e46f690"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#493-504) has external calls inside a loop: receiverAfter = token.balanceOf(receiver) (src/periphery/StaticsFlashArbitrageReceiver.sol#498)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "occurrences": 2,
+      "id": "68407191d05299d27a08de4e"
     },
     {
       "impact": "Low",
@@ -6102,6 +6246,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#493-504) has external calls inside a loop: senderBefore = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#494)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "occurrences": 2,
+      "id": "801fb3c84a44a3ef9df81b28"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/BorrowLiquidityFacet.sol"
       ],
       "summary": "BorrowLiquidityFacet._mintLiquidityPosition(IStaticsLiquidityManager,BorrowLiquidityFacet.ProvisionContext,BorrowLiquidityFacet.PreparedPool) (src/facets/BorrowLiquidityFacet.sol#242-277) has external calls inside a loop: (movement,refund0,refund1) = manager.mintUserPosition(request,ctx.nftRecipient,ctx.refundRecipient) (src/facets/BorrowLiquidityFacet.sol#262-263)",
@@ -6152,10 +6312,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#348-359) has external calls inside a loop: receiverBefore = token.balanceOf(receiver) (src/periphery/StaticsFlashArbitrageReceiver.sol#350)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._pullTopUps(address[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#207-221) has external calls inside a loop: startingBalances[i] = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#216)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "8ac9547b34a55abf8ded2aba"
+      "id": "92ba9b0a5ad3e3da2072e374"
     },
     {
       "impact": "Low",
@@ -6168,10 +6328,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._validatePool(uint256,PoolKey,address,address) (src/periphery/StaticsFlashArbitrageReceiver.sol#327-338) has external calls inside a loop: canonical = IStaticsBasketLiquidity(staticsDiamond).canonicalPool(basketId,asset) (src/periphery/StaticsFlashArbitrageReceiver.sol#330-331)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._pullExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#485-491) has external calls inside a loop: afterBalance = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#488)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "8c72d91b7d193bde216bfafa"
+      "id": "b63a58f9205053ac612ff085"
     },
     {
       "impact": "Low",
@@ -6184,10 +6344,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#348-359) has external calls inside a loop: senderBefore = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#349)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: outputBefore = outputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#433)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "977642f1d0a594912e81de5f"
+      "id": "bcef9736dd4fad0ac915537a"
     },
     {
       "impact": "Low",
@@ -6200,58 +6360,10 @@
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: outputBefore = outputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#288)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "summary": "StaticsFlashArbitrageReceiver._validatePool(uint256,PoolKey,address,address) (src/periphery/StaticsFlashArbitrageReceiver.sol#472-483) has external calls inside a loop: canonical = IStaticsBasketLiquidity(staticsDiamond).canonicalPool(basketId,asset) (src/periphery/StaticsFlashArbitrageReceiver.sol#475-476)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "9b4080c5e09bc48cd231fe89"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: inputBefore = inputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#287)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 1,
-      "id": "aef382312d54e20c75a95885"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#348-359) has external calls inside a loop: senderAfter = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#352)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 1,
-      "id": "b1aa7ade61d1ba485150d248"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._pullExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#340-346) has external calls inside a loop: beforeBalance = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#341)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 1,
-      "id": "cd40508f5a97a0341efab482"
+      "id": "ca86a669c11b23af9141bf62"
     },
     {
       "impact": "Low",
@@ -6371,22 +6483,6 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver._pullExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#340-346) has external calls inside a loop: afterBalance = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#343)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 1,
-      "id": "f85f9a9101516efcf6719a06"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -6400,18 +6496,18 @@
     {
       "impact": "Low",
       "confidence": "Medium",
-      "check": "missing-zero-check",
-      "classification": "FALSE POSITIVE",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
       ],
       "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver.constructor(address).staticsDiamond_ (src/periphery/StaticsFlashArbitrageReceiver.sol#62) lacks a zero-check on :",
-      "rationale": "The zero case is either an intentional optional binding or is rejected by the called token/dependency and the protocol's installation or factory validation before value can enter.",
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: inputAfter = inputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#438)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "0ef1f6d3fe3064615057d0b1"
+      "id": "ff040c3e6304a20f0cd9bb6b"
     },
     {
       "impact": "Low",
@@ -6492,6 +6588,22 @@
       "rationale": "The zero case is either an intentional optional binding or is rejected by the called token/dependency and the protocol's installation or factory validation before value can enter.",
       "occurrences": 1,
       "id": "92dcc04991cf362beb9d2f69"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver.constructor(address).staticsDiamond_ (src/periphery/StaticsFlashArbitrageReceiver.sol#81) lacks a zero-check on :",
+      "rationale": "The constructor immediately queries the supplied Diamond and requires an installed PoolManager with code; the zero address cannot satisfy that integration check.",
+      "occurrences": 1,
+      "id": "9746eb1230ba875f36a42cbd"
     },
     {
       "impact": "Low",
@@ -7014,6 +7126,22 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsLiquidity.s.sol"
+      ],
+      "summary": "Reentrancy in ConfigureStaticsLiquidity.runSchedule() (script/ConfigureStaticsLiquidity.s.sol#65-74):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "1ae614765a61059688a4c0c1"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7351,22 +7479,6 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsLiquidity.s.sol"
-      ],
-      "summary": "Reentrancy in ConfigureStaticsLiquidity.schedule(address,StaticsLiquidityConfig,bytes32) (script/ConfigureStaticsLiquidity.s.sol#86-96):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "690c4136c8c6018364581dd8"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7675,22 +7787,6 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsLiquidity.s.sol"
-      ],
-      "summary": "Reentrancy in ConfigureStaticsLiquidity.runSchedule() (script/ConfigureStaticsLiquidity.s.sol#64-73):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "b124aab4824c0a0be9eb0f6d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7885,6 +7981,22 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsLiquidity.s.sol"
+      ],
+      "summary": "Reentrancy in ConfigureStaticsLiquidity.schedule(address,StaticsLiquidityConfig,bytes32) (script/ConfigureStaticsLiquidity.s.sol#87-97):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "e80720c7b7c4ec17afa9beea"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7988,7 +8100,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "f9da55d0bccacd38e5746dae"
     },
     {
@@ -8336,6 +8448,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver.executeMintAndSell(uint256,uint256,PoolKey[],uint256[],uint256[],uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#90-107) uses timestamp for comparisons",
+      "rationale": "Block time is the caller-specified route deadline; the comparison has explicit inclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "occurrences": 1,
+      "id": "2ced296516f1ca5d5342b5a8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault.creditActive(uint256) (src/genesis/StaticsGenesisVault.sol#496-498) uses timestamp for comparisons",
@@ -8614,22 +8742,6 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "a99420579f4a0c3a874223b7"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
-      ],
-      "summary": "StaticsFlashArbitrageReceiver.executeMintAndSell(uint256,uint256,PoolKey[],uint256[],uint256[],uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#71-88) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
-      "occurrences": 1,
-      "id": "aa347480d4330e09b84f41f0"
     },
     {
       "impact": "Low",
@@ -8950,6 +9062,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "fa8d397b7a8852cb872b1220"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+      ],
+      "summary": "StaticsFlashArbitrageReceiver.executeBuyAndRedeem(uint256,uint256,PoolKey[],uint256[],uint256[],uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#111-129) uses timestamp for comparisons",
+      "rationale": "Block time is the caller-specified route deadline; the comparison has explicit inclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "occurrences": 1,
+      "id": "fed3e8489116b346fd72765e"
     },
     {
       "impact": "Informational",
@@ -9764,12 +9892,13 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLaunchLiquidityHook.sol"
+        "src/interfaces/IStaticsSwapFeeHook.sol",
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsLaunchLiquidityHook (src/liquidity/StaticsLaunchLiquidityHook.sol#28-309) does not implement functions:",
+      "summary": "StaticsSwapFeeHook (src/liquidity/StaticsSwapFeeHook.sol#33-877) does not implement functions:",
       "rationale": "The hook implements getHookPermissions directly; Slither fails to recognize the concrete override through the BaseHook and interface inheritance graph.",
       "occurrences": 1,
-      "id": "a265655850387b90bbb8f50c"
+      "id": "388b267026e131e78aad1127"
     },
     {
       "impact": "Informational",
@@ -9780,13 +9909,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/interfaces/IStaticsSwapFeeHook.sol",
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/liquidity/StaticsLaunchLiquidityHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook (src/liquidity/StaticsSwapFeeHook.sol#33-873) does not implement functions:",
+      "summary": "StaticsLaunchLiquidityHook (src/liquidity/StaticsLaunchLiquidityHook.sol#28-309) does not implement functions:",
       "rationale": "The hook implements getHookPermissions directly; Slither fails to recognize the concrete override through the BaseHook and interface inheritance graph.",
       "occurrences": 1,
-      "id": "cdb4e2a58062b87e1cfed736"
+      "id": "a265655850387b90bbb8f50c"
     },
     {
       "impact": "Informational",
