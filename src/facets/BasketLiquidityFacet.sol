@@ -345,16 +345,6 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         }
     }
 
-    function _configuredPool(uint256 basketId, address asset)
-        private
-        view
-        returns (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored)
-    {
-        ls = LibBasketLiquidity.liquidityStorage();
-        stored = ls.canonicalPools[basketId][asset];
-        if (address(stored.key.hooks) == address(0)) revert CanonicalPoolNotConfigured(basketId, asset);
-    }
-
     function _basket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {
         configured = LibBasket.basketStorage().baskets[basketId];
         if (configured.token == address(0)) revert BasketNotFound(basketId);
