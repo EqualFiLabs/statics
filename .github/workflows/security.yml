@@ -136,3 +136,6 @@ jobs:
       - name: Run nested-basket fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/basket/fork/RobinhoodNestedBasketsFork.t.sol -vv
+      - name: Run nested flash-arbitrage fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodNestedFlashArbitrageFork.t.sol -vv
