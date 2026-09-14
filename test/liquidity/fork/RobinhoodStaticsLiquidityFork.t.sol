@@ -44,8 +44,8 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         | Hooks.BEFORE_DONATE_FLAG;
     bytes1 private constant PERMIT2_PERMIT_COMMAND = 0x0a;
     bytes1 private constant V4_SWAP_COMMAND = 0x10;
-    uint256 private constant FIRST_SWAPPER_KEY = 0xA11CE;
-    uint256 private constant SECOND_SWAPPER_KEY = 0xB0B;
+    uint256 private constant FIRST_SWAPPER_KEY = 0x9045a44c309ea7e3e550ff4bf446b647ba985910dfce59f24c2fb8639480e659;
+    uint256 private constant SECOND_SWAPPER_KEY = 0xc16276e2c1fcc6f2443e8e16b32aee83b00e6bb96d5bc34f647c71f41d31b274;
 
     // Robinhood's deployed Universal Router uses the later v4 single-hop
     // encoding that includes a per-hop minimum price after amountOutMinimum.
@@ -89,6 +89,9 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         uint256 userTokenId = _provideCanonicalLiquidity(positionId, basketId);
         assertEq(IERC721(address(positionManager)).ownerOf(userTokenId), alice);
 
+        vm.warp(block.timestamp + 25 hours);
+        _swapCanonical(basketId, basketToken);
+        // The next swap redeems and routes the prior swap's non-POL claims.
         _swapCanonical(basketId, basketToken);
         IStaticsBasketRewards basketRewards = IStaticsBasketRewards(address(diamond));
         (, uint256[] memory pendingBasketRewards) = basketRewards.getBasketRewards(positionId, basketId);
@@ -223,6 +226,7 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         assertGt(gasEstimate, 0, "hooked pool quote reported no gas");
 
         address swapper = vm.addr(swapperKey);
+        assertEq(swapper.code.length, 0, "fork swapper must be an EOA");
         vm.prank(alice);
         IERC20(input).transfer(swapper, amountIn);
         vm.prank(swapper);
