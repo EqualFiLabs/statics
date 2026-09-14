@@ -205,11 +205,15 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             permit2: v4.permit2,
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
+            permanentLiquidityHarvester: address(this),
+            nativeLpFee: v4.nativeLpFee,
             inputFeeBps: v4.inputFeeBps,
             outputFeeBps: v4.outputFeeBps,
             poolManagerCodeHash: v4.poolManagerCodeHash,
             positionManagerCodeHash: v4.positionManagerCodeHash,
-            permit2CodeHash: v4.permit2CodeHash
+            permit2CodeHash: v4.permit2CodeHash,
+            hookCodeHash: deployment.swapFeeHook.codehash,
+            managerCodeHash: deployment.liquidityManager.codehash
         });
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             installer.buildBatch(deployment.diamond, liquidity);
@@ -290,6 +294,7 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             poolManager: address(poolManager),
             positionManager: address(positionManager),
             permit2: address(permit2Contract),
+            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: address(poolManager).codehash,

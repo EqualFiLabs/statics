@@ -18,7 +18,6 @@ import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
-import {IStaticsLiquidityRewards} from "../interfaces/IStaticsLiquidityRewards.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsPosition, IStaticsPositionFees} from "../interfaces/IStaticsPosition.sol";
@@ -158,7 +157,6 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsCustody).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsLending).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsFlashLoan).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsLiquidityRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsProtocolPools).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsProtocolRevenue).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsDollarGateway).interfaceId] = true;

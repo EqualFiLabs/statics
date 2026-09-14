@@ -154,7 +154,13 @@ library LibGlobalRewards {
         RewardStorage storage rs = rewardStorage();
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
-        if (book.eligibleWeight == 0) revert InvalidRewardAsset(asset);
+        // A swap share can be classified before the last eligible position exits. Preserve routing
+        // liveness by applying the documented Statics-staker-to-treasury fallback at settlement.
+        if (book.eligibleWeight == 0) {
+            rs.treasuryAccrued[asset] += amount;
+            emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, 0, amount, book.indexRay);
+            return;
+        }
         _increaseIndex(book, amount, book.eligibleWeight);
         emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, amount, 0, book.indexRay);
     }

@@ -42,14 +42,14 @@ revision are comments warning about deprecated action constants. The local
 fixture therefore exercises the same executable implementation while retaining
 the official hook base compatible with the deployed PoolManager.
 
-For this pinned version, liquidity fees are collected through a zero-liquidity
-`DECREASE_LIQUIDITY` action followed by `CLOSE_CURRENCY` actions. Hook-returned
-swap deltas use v4's packed signed `BeforeSwapDelta` and `BalanceDelta` types and
-settle inside the PoolManager unlock callback. The immutable Statics hook uses
-the official `PoolManager.take` path during that callback, holds direct currency
-balances, returns the matching requested hook delta, and records only its
-measured physical receipt as liability. Statics does not also maintain v4
-ERC-6909 claims for hook fees.
+Hook-returned swap deltas use v4's packed signed `BeforeSwapDelta` and
+`BalanceDelta` types and settle inside the PoolManager unlock callback. The
+immutable Statics hook mints official PoolManager ERC-6909 claims against those
+deltas, tracks aggregate claim liabilities by currency, and burns matching POL
+claims when adding permanent liquidity. Distribution claims are redeemed with
+the official `burn` and `take` paths at a later routing boundary. Native fees
+earned by the permanent position are collected only through the configured
+Diamond harvester path.
 
 Robinhood's deployed Universal Router uses the standard `V4_SWAP` command
 `0x10`, but its verified single-hop payload appends `minHopPriceX36` after

@@ -32,10 +32,10 @@ import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
-import {LiquidityRewardsFacet} from "../../src/facets/LiquidityRewardsFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
+import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
@@ -50,6 +50,7 @@ import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol"
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
+import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
@@ -77,18 +78,18 @@ contract StaticsTestDeployer {
         cut[14] = _cut(address(new BasketLiquidityFacet()), StaticsSelectors.basketLiquidity());
         cut[15] = _cut(address(new BorrowLiquidityFacet()), StaticsSelectors.borrowLiquidity());
         cut[16] = _cut(address(new GlobalRewardsFacet()), StaticsSelectors.globalRewards());
-        cut[17] = _cut(address(new LiquidityRewardsFacet()), StaticsSelectors.liquidityRewards());
-        cut[18] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
-        cut[19] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
-        cut[20] = _cut(address(new ProtocolPoolCreationFacet()), StaticsSelectors.protocolPoolCreation());
-        cut[21] = _cut(address(new ProtocolPoolAdminFacet()), StaticsSelectors.protocolPoolAdmin());
-        cut[22] = _cut(address(new ProtocolPoolViewFacet()), StaticsSelectors.protocolPoolView());
-        cut[23] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
-        cut[24] = _cut(address(new MorphoAdminFacet()), StaticsSelectors.morphoAdmin());
-        cut[25] = _cut(address(new MorphoFacet()), StaticsSelectors.morphoActions());
-        cut[26] = _cut(address(new MorphoSettlementFacet()), StaticsSelectors.morphoSettlement());
-        cut[27] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
-        cut[28] = _cut(address(new MorphoRecoveryFacet()), StaticsSelectors.morphoRecovery());
+        cut[17] = _cut(address(new BasketRewardsFacet()), StaticsSelectors.basketRewards());
+        cut[18] = _cut(address(new PositionPortfolioFacet()), StaticsSelectors.positionPortfolio());
+        cut[19] = _cut(address(new ProtocolPoolCreationFacet()), StaticsSelectors.protocolPoolCreation());
+        cut[20] = _cut(address(new ProtocolPoolAdminFacet()), StaticsSelectors.protocolPoolAdmin());
+        cut[21] = _cut(address(new ProtocolPoolViewFacet()), StaticsSelectors.protocolPoolView());
+        cut[22] = _cut(address(new ProtocolRevenueFacet()), StaticsSelectors.protocolRevenue());
+        cut[23] = _cut(address(new MorphoAdminFacet()), StaticsSelectors.morphoAdmin());
+        cut[24] = _cut(address(new MorphoFacet()), StaticsSelectors.morphoActions());
+        cut[25] = _cut(address(new MorphoSettlementFacet()), StaticsSelectors.morphoSettlement());
+        cut[26] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
+        cut[27] = _cut(address(new MorphoRecoveryFacet()), StaticsSelectors.morphoRecovery());
+        cut[28] = _cut(address(new BasketLiquidityLifecycleFacet()), StaticsSelectors.basketLiquidityLifecycle());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
@@ -302,10 +303,12 @@ abstract contract StaticsTestBase is Test {
     }
 
     function _deployLocalHook(IPoolManager manager) private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, address(diamond), uint16(25), uint16(25));
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
+        bytes memory constructorArgs =
+            abi.encode(manager, address(diamond), uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 3_000, 25, 25, permanentLiquidityMath);
         assertEq(address(deployed), expected);
     }
 }

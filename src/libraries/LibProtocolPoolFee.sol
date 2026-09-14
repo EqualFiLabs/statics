@@ -29,13 +29,12 @@ library LibProtocolPoolFee {
     /// @return valid Whether the configurable shares sum to exactly 9,500 bps.
     function isValidConfigurableShares(
         uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
         uint16 basketStakerShareBps,
         uint16 staticsStakerShareBps,
         uint16 treasuryShareBps
     ) internal pure returns (bool valid) {
-        return uint256(polShareBps) + uint256(liquidityProviderShareBps) + uint256(basketStakerShareBps)
-                + uint256(staticsStakerShareBps) + uint256(treasuryShareBps) == CONFIGURABLE_SHARE_BPS;
+        return uint256(polShareBps) + uint256(basketStakerShareBps) + uint256(staticsStakerShareBps)
+                + uint256(treasuryShareBps) == CONFIGURABLE_SHARE_BPS;
     }
 
     /// @return valid Whether the tick spacing lies within the inclusive Statics policy bounds.

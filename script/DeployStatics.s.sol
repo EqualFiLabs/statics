@@ -13,6 +13,7 @@ import {
 } from "./dollar/DeployStaticsDollar.s.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
@@ -37,6 +38,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         address poolManager;
         address positionManager;
         address permit2;
+        uint24 nativeLpFee;
         uint16 inputFeeBps;
         uint16 outputFeeBps;
         bytes32 poolManagerCodeHash;
@@ -50,6 +52,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidV4Binding(address target, address expected, address actual);
     error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
+    error InvalidNativeLpFee(uint256 nativeLpFee);
     error HookAddressMismatch(address expected, address actual);
 
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
@@ -96,6 +99,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         (deployment, timelock) = _deployProductionStack(config, production, vm.addr(privateKey));
         _deployLiquidityContracts(deployment, v4, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
+        _logLocalDeployment(deployment);
     }
 
     /// @notice Local full-stack deployment with repository WETH and oracle fixtures.
@@ -173,12 +177,24 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         address create2Deployer
     ) private {
         _validateV4(config);
-        bytes memory constructorArgs =
-            abi.encode(IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps);
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
+        bytes memory constructorArgs = abi.encode(
+            IPoolManager(config.poolManager),
+            deployment.diamond,
+            config.nativeLpFee,
+            config.inputFeeBps,
+            config.outputFeeBps,
+            permanentLiquidityMath
+        );
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
-            IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps
+            IPoolManager(config.poolManager),
+            deployment.diamond,
+            config.nativeLpFee,
+            config.inputFeeBps,
+            config.outputFeeBps,
+            permanentLiquidityMath
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager manager =
@@ -187,6 +203,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         deployment.poolManager = config.poolManager;
         deployment.positionManager = config.positionManager;
         deployment.permit2 = config.permit2;
+        deployment.permanentLiquidityMath = address(permanentLiquidityMath);
         deployment.swapFeeHook = address(hook);
         deployment.liquidityManager = address(manager);
     }
@@ -196,6 +213,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             config.inputFeeBps == 0 || config.outputFeeBps == 0
                 || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
         ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
+        if (config.nativeLpFee > 999_999) revert InvalidNativeLpFee(config.nativeLpFee);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
@@ -223,13 +241,18 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
         uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
         uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 nativeLpFee = vm.envOr(
+            "STATICS_NATIVE_LP_FEE_PIPS", vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.canonicalLpFeePips")
+        );
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(inputFee, outputFee);
         }
+        if (nativeLpFee > 999_999) revert InvalidNativeLpFee(nativeLpFee);
         config = V4Config({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
+            nativeLpFee: uint24(nativeLpFee),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),

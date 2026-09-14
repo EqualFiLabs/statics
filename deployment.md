@@ -1,5 +1,10 @@
 # Statics — Robinhood Chain Testnet Deployment
 
+> Historical integration evidence only. These disposable testnet Diamonds
+> predate the permanent native-v4-LP-fee design in
+> `docs/adr/native-v4-lp-fees.md`. The standalone Genesis launch is separate,
+> and the permanent Statics Diamond has not been deployed.
+
 The newest full-stack rehearsal is recorded first. The earlier public testnet
 release remains documented below so existing integrations retain a stable
 reference while rehearsal deployments are discarded and repeated.

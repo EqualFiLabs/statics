@@ -47,7 +47,6 @@ contract ProtocolPoolViewFacet {
             IStaticsSwapFeeHook(_liquidityStorage().hook).basketFeeAllocation();
         allocation = IStaticsProtocolPools.BasketFeeAllocation({
             polShareBps: stored.polShareBps,
-            liquidityProviderShareBps: stored.liquidityProviderShareBps,
             basketStakerShareBps: stored.basketStakerShareBps,
             staticsStakerShareBps: stored.staticsStakerShareBps,
             treasuryShareBps: stored.treasuryShareBps
@@ -63,7 +62,6 @@ contract ProtocolPoolViewFacet {
             stored = IStaticsSwapFeeHook(_liquidityStorage().hook).generalFeeAllocation();
         allocation = IStaticsProtocolPools.GeneralFeeAllocation({
             polShareBps: stored.polShareBps,
-            liquidityProviderShareBps: stored.liquidityProviderShareBps,
             staticsStakerShareBps: stored.staticsStakerShareBps,
             treasuryShareBps: stored.treasuryShareBps
         });
@@ -83,6 +81,10 @@ contract ProtocolPoolViewFacet {
 
     function protocolPoolCreator(PoolId poolId) external view returns (address creator) {
         return LibProtocolPools.creatorOf(poolId);
+    }
+
+    function permanentLiquidityHarvester() external view returns (address harvester) {
+        return LibProtocolPools.protocolPoolStorage().permanentLiquidityHarvester;
     }
 
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {

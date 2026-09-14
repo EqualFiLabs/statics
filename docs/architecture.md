@@ -64,7 +64,7 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 36 facets and 283 selectors on
+The fresh-deployment launcher installs 36 facets and 282 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -138,8 +138,8 @@ not a reason for a protocol registry.
 ## Canonical v4 liquidity boundaries
 
 Every configured basket constituent has one canonical BasketToken/constituent
-pool key with the immutable Statics hook, a zero native LP fee, and tick spacing
-10. Basket creation atomically deploys the BasketToken, initializes every
+pool key with the immutable Statics hook, its deployment-configured native LP
+fee, and tick spacing 10. Basket creation atomically deploys the BasketToken, initializes every
 constituent pool, registers every key with the manager, mints the aggregate
 pool BasketTokens through ordinary backing and fee accounting, and seeds
 full-range permanent liquidity from creator-supplied assets. All pool and
@@ -153,8 +153,8 @@ settle the exact requested transfer amount; incompatible transfer-tax behavior
 reverts the entire genesis transaction.
 
 Each launched pool is immediately swappable and available to the typed
-borrow-to-liquidity and canonical LP reward paths. Callers bound execution with
-token amount caps and deadlines.
+borrow-to-liquidity path. Callers bound execution with token amount caps and
+deadlines.
 
 The three physical locations keep independent books:
 
@@ -164,32 +164,31 @@ StaticsDiamond
 ├── per-basket BasketToken and constituent reward indexes
 ├── global per-asset staking reward reserves
 ├── global per-asset treasury reserves
-├── custody for the configured staking token
-└── voluntary custody for reward-eligible PositionManager NFTs
+└── custody for the configured staking token
 
 StaticsSwapFeeHook
 ├── per-pool/per-currency pending POL
-└── hook-owned full-range v4 liquidity
+├── hook-owned full-range v4 liquidity
+└── immutable stateless full-range liquidity calculator
 
 StaticsLiquidityManager
 ├── normalized protocol-pool validation by PoolId
-├── typed user PositionManager NFT creation
-└── typed increases for Diamond-custodied user positions
+└── typed user PositionManager NFT creation
 ```
 
 Raw balances at any location are not shared liquidity. The hook charges both
-realized swap legs, rounded up, while the pool's native LP fee remains zero.
+realized swap legs, rounded up, separately from the deployment-configured native
+LP fee, initially 3,000 pips (0.30%).
 The default fee is 50 basis points on input and 50 basis points on output. The
 swap-fee **rate** is PoolId-local, while fee **allocation** is governed by two
 global profiles. The creator share is permanently fixed at 500 BPS; governance
 configures the remaining 9,500 BPS through independent basket and general
-allocation profiles. The initial basket-pool split is 10% to POL, 25% to
-activated protocol-pool LPs, 25% to deposited BasketToken positions, 15% to
-global Statics stakers, 5% to the fixed creator share, and 20% to treasury. The
-initial general-pool split is 35% to POL, 25% to protocol-pool LPs, 15% to
-global Statics stakers, 5% to the fixed creator share, and 20% to treasury;
-general pools have no basket-staker share. Unavailable LP and basket-staker
-allocations independently redirect to PoolId-local POL. An unavailable global
+allocation profiles. The initial basket-pool split is 15% to POL, 30% to
+deposited BasketToken positions, 30% to global Statics stakers, 5% to the fixed
+creator share, and 20% to treasury. The initial general-pool split is 40% to
+POL, 35% to global Statics stakers, 5% to the fixed creator share, and 20% to
+treasury; general pools have no basket-staker share. An unavailable basket-staker
+allocation redirects to PoolId-local POL. An unavailable global
 Statics-staker allocation redirects to treasury. The fixed creator allocation
 never falls back and always credits the immutable creator.
 
@@ -201,8 +200,8 @@ by PoolId. Timelocked governance may adjust a PoolId's input/output rate with
 basket and general allocation profiles with `setBasketFeeAllocation` and
 `setGeneralFeeAllocation`. Each configurable profile must total exactly 9,500
 BPS so that the profile plus the fixed 500-BPS creator share sums to 10,000
-BPS; POL or protocol-pool LPs may explicitly be set to zero.
-Profile changes never rewrite accrued creator credits, LP rewards, basket
+BPS; POL may explicitly be set to zero.
+Profile changes never rewrite accrued creator credits, basket
 rewards, Statics-staker rewards, treasury revenue, or pending POL, and never
 alter decommissioning. Changing a rate does not change the applicable profile,
 and vice versa.
@@ -229,32 +228,18 @@ active-pool POL. On `ExitOnly`, permissionless decommissioning releases it,
 burns the released BasketTokens, and reserves the resulting constituents for
 the common treasury. General pools instead use the owner-only terminal
 `decommissionGeneralPool`, which stops later swaps, releases permanent
-liquidity to treasury accounting, preserves accrued creator credits and earned
-LP rewards, and never seizes user LP principal; the creator cannot decommission
-a pool. User-owned v4 positions remain under their owners'
-control and collect no native LP fee. A full-range NFT for either protocol-pool
-class may instead be attached to a PositionNFT and held by the Diamond to earn
-the LP hook share.
-New and increased liquidity activates in the next block; there is no exit
-cooldown.
+liquidity to treasury accounting, preserves accrued creator credits, and never
+seizes user LP principal; the creator cannot decommission a pool. User-owned v4
+positions remain under their owners' control and earn the native v4 LP fee
+through ordinary PositionManager accounting.
 
 `borrowAndProvideLiquidity` is an optional typed Diamond action. It originates
 the ordinary position-owned loan, burns the ordinary origination fee, uses
 retained principal for an ordinary-fee basket mint, and creates one v4 NFT per
 constituent directly for the selected recipient. Unused transaction-scoped
 principal and PositionManager refunds go to that recipient. The manager keeps
-no user inventory. User v4 NFTs remain external unless their owner later opts
-into the separate PositionNFT custody-and-reward entrypoint; origin through
-this function is not an eligibility condition.
-
-`borrowAndStakeLiquidity` performs the same bounded borrow, ordinary-fee mint,
-and one-pool-per-constituent construction, but mints full-range v4 NFTs directly
-into Diamond custody as PositionNFT legs. The current PositionNFT owner is the
-refund beneficiary even when an approved operator submits the call. New LP
-weight activates in the next block. The deposited BasketToken collateral
-continues earning its isolated basket rewards while locked, so this path can
-earn both the basket-staker and canonical-LP hook allocations without changing
-loan economics.
+no user inventory, and the v4 NFTs remain independent of the PositionNFT and
+its loan lifecycle.
 
 Quarantine and liquidity pause block new combined borrowing. Exit-only baskets
 can permissionlessly decommission each canonical pool and unwind its permanent

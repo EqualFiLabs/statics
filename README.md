@@ -45,11 +45,11 @@ for the canonical machine-readable integration-beta state.
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
 | **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
-| **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, selected global rewards, and staked canonical-liquidity positions. |
+| **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, and selected global rewards. |
 | **Global rewards** | Positions stake the configured Statics token and select up to 64 reward assets; new selections cannot capture historical fees. |
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
 | **Flash composition** | Basket vectors or individual Diamond-held assets can be borrowed through dedicated typed callbacks while nested flash loans remain blocked. |
-| **Canonical v4 liquidity** | Protocol-created BasketToken/constituent pools use zero native LP fee and a Statics hook that charges bilateral input/output fees. |
+| **Canonical v4 liquidity** | Protocol-created BasketToken/constituent pools use a deployment-configured native LP fee and a separate Statics hook that charges bilateral input/output fees. |
 | **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s — gated by an independent creation fee and EIP-712 creator authorization — selecting tick spacing and an initial Statics fee rate, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
 | **Permanent liquidity** | The hook converts matched POL allocations into hook-owned full-range liquidity with no ordinary withdrawal path. |
 | **Governed lifecycle** | A shared timelock owns both Diamonds; guardians can restrict exposure while repayment, recovery, and exit paths remain available. |
@@ -330,7 +330,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           36 facets, 283 selectors
+StaticsDiamond:           36 facets, 282 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -553,7 +553,7 @@ Basket creators choose the immutable assets, bundle amounts, action-size fee tie
 
 ### Shared PositionNFT
 
-`StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, reward selections, loans, and custodied canonical-liquidity positions. ERC-721 transfer moves authority over the complete economic position. A position cannot close while any module leg remains active.
+`StaticsDiamond` is the ERC-721 PositionNFT contract. A position owns all attached basket collateral, Dollar series legs, reward selections, and loans. User Uniswap v4 LP NFTs remain in the selected recipient's wallet and are not PositionNFT legs. ERC-721 transfer moves authority over the complete economic position. A position cannot close while any module leg remains active.
 
 New PositionNFT creation charges the exact configured native fee; existing positions can be reused without paying again. Module entry points attach the first leg atomically so receiver callbacks cannot leave an empty initializing position.
 
@@ -583,7 +583,7 @@ NFTs earn direct STATICS and WETH rewards independently of Position linkage.
 Registration stays with the token across transfers, activation resets to Tier
 0, and rewards earned before transfer crystallize to the prior owner.
 
-Canonical LP rewards are separate: users may stake eligible full-range PositionManager NFTs for active Statics pools, accrue next-block liquidity weight, claim rewards, and unstake the NFT without a cooldown.
+Liquidity providers earn the native Uniswap v4 LP fee directly through ordinary PositionManager accounting. Statics does not custody their LP NFTs or maintain a second LP reward ledger.
 
 ### Lending and recovery
 
@@ -591,13 +591,13 @@ Basket lending locks deposited BasketTokens and releases the proportional consti
 
 ### Canonical liquidity and bilateral fees
 
-Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The pool uses zero native LP fee. `StaticsSwapFeeHook` charges configured fees on both input and output, then allocates them across permanent POL, eligible canonical LP positions, deposited BasketTokens, global Statics stakers, a fixed 500-bps creator share, and treasury.
+Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The pool uses the immutable deployment-configured native LP fee, initially 3,000 pips (0.30%). `StaticsSwapFeeHook` separately charges configured fees on both input and output, then allocates them across permanent POL, deposited BasketTokens, global Statics stakers, a fixed 500-bps creator share, and treasury.
 
 Matched POL inventory is converted into hook-owned full-range liquidity. It has no normal withdrawal path and can unwind only after the basket enters `ExitOnly` and its canonical pool is decommissioned. The swap-fee **rate** is PoolId-local, while fee **allocation** is governed by two global profiles (basket and general); the fixed creator share sits outside those profiles and the configurable shares always total 9,500 bps.
 
 ### Permissionless general pools
 
-Beyond basket canonical pools, anyone can create a **general pool** — a Statics-hook Uniswap v4 pool between two compatible ERC-20s with no basket association — once permissionless creation is enabled. `createPool` (preceded by a deterministic `quotePool`) lets the creator select a valid tick spacing, initial price, and initial Statics fee rate; Statics always fixes native fee zero and the installed hook. Creation is gated by an independent `poolCreationFeeAmount` that doubles as the permissionless switch: zero means only the Diamond owner may create (disabled), while a nonzero fee requires exact payment from every caller and forwards it to treasury.
+Beyond basket canonical pools, anyone can create a **general pool** — a Statics-hook Uniswap v4 pool between two compatible ERC-20s with no basket association — once permissionless creation is enabled. `createPool` (preceded by a deterministic `quotePool`) lets the creator select a valid tick spacing, initial price, and initial Statics fee rate; Statics fixes the installed hook and its deployment-configured native LP fee. Creation is gated by an independent `poolCreationFeeAmount` that doubles as the permissionless switch: zero means only the Diamond owner may create (disabled), while a nonzero fee requires exact payment from every caller and forwards it to treasury.
 
 Creator attribution uses EIP-712 authorization (domain `"Statics Protocol Pools"`) validated for EOA and ERC-1271 signers, binding the PoolId, price, fee rate, creator, an unordered nonce, and a deadline. When permissionless creation is enabled, a direct creator needs no signature; relayed authorization does not bind `msg.sender`, so front-running cannot steal creator identity, and unused nonces can be cancelled with `invalidatePoolCreationNonce`. General pools require no mandatory liquidity seed and may begin with zero liquidity, growing POL from swap activity. Distinct tick spacings for the same pair are independent PoolIds; a different fee rate or price alone cannot create a duplicate. The immutable creator earns a fixed 500-bps perpetual share, claimed pull-based through `claimCreatorRevenue`. General pools never gain basket backing, collateral, or lending status, and a pool's price is never a Statics solvency input. The owner-only `decommissionGeneralPool` is the terminal exit; it preserves accrued creator credits and user LP principal. General pools carry no privacy guarantees: the immutable creator address, creation events, nonces, every swap and LP action, and every revenue claim are permanently public and linkable onchain, so use a fresh creator address per pool where identity separation matters.
 
@@ -755,7 +755,11 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_DOLLAR_RISK_URI` | ERC-1155 metadata URI for Risk Share series |
 | `STATICS_DIAMOND_ADDRESS` | Existing Diamond used by post-deployment ceremonies |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
+| `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deployed v4 liquidity manager |
+| `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed v4 liquidity manager; required by installation |
+| `STATICS_PERMANENT_LIQUIDITY_HARVESTER` | Initial address authorized to harvest native fees earned by permanent liquidity into treasury accounting |
+| `STATICS_NATIVE_LP_FEE_PIPS` | Native Uniswap v4 LP fee installed for every Statics pool; must be below 1,000,000 pips and defaults to the selected deployment manifest (3,000 pips in checked-in Robinhood manifests) |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |

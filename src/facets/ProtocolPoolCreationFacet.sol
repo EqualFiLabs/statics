@@ -27,7 +27,6 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
-    uint24 private constant PROTOCOL_LP_FEE = 0;
     uint256 private constant Q96 = 1 << 96;
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
@@ -139,7 +138,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         quote.key = PoolKey({
             currency0: params.tokenA < params.tokenB ? Currency.wrap(params.tokenA) : Currency.wrap(params.tokenB),
             currency1: params.tokenA < params.tokenB ? Currency.wrap(params.tokenB) : Currency.wrap(params.tokenA),
-            fee: PROTOCOL_LP_FEE,
+            fee: IStaticsSwapFeeHook(ls.hook).nativeLpFee(),
             tickSpacing: params.tickSpacing,
             hooks: IHooks(ls.hook)
         });

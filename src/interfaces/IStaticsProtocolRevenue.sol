@@ -5,7 +5,6 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 
 interface IStaticsProtocolRevenue {
     struct ProtocolFeeDistribution {
-        uint256 liquidityProvider;
         uint256 basketStaker;
         uint256 staticsStaker;
         uint256 creator;
@@ -23,4 +22,5 @@ interface IStaticsProtocolRevenue {
         returns (uint256 amount, uint256 received);
     function creatorRevenue(address creator, address asset) external view returns (uint256 amount);
     function totalCreatorRevenue(address asset) external view returns (uint256 amount);
+    function canAccrueBasketRewards(PoolId poolId) external view returns (bool eligible);
 }

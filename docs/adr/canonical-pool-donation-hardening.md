@@ -1,6 +1,6 @@
 # ADR: Canonical Pool Donation Hardening
 
-- Status: Accepted
+- Status: Superseded by `native-v4-lp-fees.md`
 - Date: 2026-08-11
 - Scope: Canonical swap routing and protocol-owned liquidity
 
@@ -31,9 +31,10 @@ The hook enables `beforeDonate` and rejects every native PoolManager donation
 to a Statics protocol pool. The required hook permission bitmap therefore
 changes from `0x10cc` to `0x10ec`.
 
-Automatic compounding after each swap remains unchanged. The permissionless
-`compoundPermanentLiquidity` backup remains available. Protocol seeding and
-swap-fee allocation are the only supported sources of POL inventory.
+Automatic compounding after each swap remains unchanged. Unmatched inventory
+waits for a later swap to provide both currencies; there is no manual
+compounding entry point. Protocol seeding and swap-fee allocation are the only
+supported sources of POL inventory.
 
 ## Deployment boundary
 

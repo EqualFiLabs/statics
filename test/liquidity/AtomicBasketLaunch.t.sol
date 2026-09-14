@@ -317,7 +317,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
             ? (Currency.wrap(basketToken), Currency.wrap(asset))
             : (Currency.wrap(asset), Currency.wrap(basketToken));
         key = PoolKey({
-            currency0: currency0, currency1: currency1, fee: 0, tickSpacing: 10, hooks: IHooks(address(swapFeeHook))
+            currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 10, hooks: IHooks(address(swapFeeHook))
         });
     }
 }

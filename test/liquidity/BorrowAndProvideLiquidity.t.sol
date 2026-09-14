@@ -103,24 +103,6 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
         _assertManagerHasNoUserResidue();
     }
 
-    function testApprovedOperatorAtomicStakeRefundsPositionOwner() public {
-        _createReadyBasket(1);
-        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
-        vm.prank(alice);
-        IERC721(address(diamond)).approve(bob, basketPositionId);
-        uint256 ownerBalanceBefore = IERC20(basketAssets[0]).balanceOf(alice);
-        uint256 operatorBalanceBefore = IERC20(basketAssets[0]).balanceOf(bob);
-
-        vm.prank(bob);
-        (, uint256[] memory tokenIds) =
-            borrowLiquidity.borrowAndStakeLiquidity(basketPositionId, basketId, 20 ether, params);
-
-        assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenIds[0]), address(diamond));
-        assertGt(IERC20(basketAssets[0]).balanceOf(alice), ownerBalanceBefore);
-        assertEq(IERC20(basketAssets[0]).balanceOf(bob), operatorBalanceBefore);
-        _assertManagerHasNoUserResidue();
-    }
-
     function testExtensionAndRecoveryLeaveUserV4PositionIndependentAndBackingExact() public {
         _createReadyBasket(1);
         IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
@@ -184,11 +166,20 @@ contract BorrowAndProvideLiquidityTest is BorrowLiquidityTestBase {
             vm.prank(alice);
             vm.expectRevert();
             borrowLiquidity.borrowAndProvideLiquidity(basketPositionId, basketId, 20 ether, params, bob);
-            vm.prank(alice);
-            vm.expectRevert();
-            borrowLiquidity.borrowAndStakeLiquidity(basketPositionId, basketId, 20 ether, params);
             governance.unpause(actions[i]);
         }
+    }
+
+    function testCombinedPathRejectsDiamondAsLpRecipient() public {
+        _createReadyBasket(1);
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = _poolParams(5 ether);
+        uint256 nextTokenId = positionManagerContract.nextTokenId();
+
+        vm.prank(alice);
+        vm.expectRevert(BorrowLiquidityFacet.InvalidRecipient.selector);
+        borrowLiquidity.borrowAndProvideLiquidity(basketPositionId, basketId, 20 ether, params, address(diamond));
+
+        assertEq(positionManagerContract.nextTokenId(), nextTokenId);
     }
 
     function testPrincipalRefundTokenCallbackCannotReenterCombinedPath() public {

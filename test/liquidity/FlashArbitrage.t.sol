@@ -13,6 +13,7 @@ import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/Pool
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {StaticsFlashArbitrageReceiver} from "../../src/periphery/StaticsFlashArbitrageReceiver.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
@@ -50,6 +51,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         minimumProfits[1] = 0.05 ether;
 
         receiver.executeMintAndSell(fixture.basketId, 1 ether, fixture.pools, basketAmountsIn, minimumProfits);
+        _harvestPermanentFees(fixture.pools);
 
         assertGe(receiver.lastProfit(address(assetA)), minimumProfits[0]);
         assertGe(receiver.lastProfit(address(assetB)), minimumProfits[1]);
@@ -197,6 +199,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         (, uint256[] memory amounts,) = flashLoans.quoteFlashLoan(basketId, 1 ether);
 
         receiver.executeBuyAndRedeem(basketId, 1 ether, pool, amounts[0], 0.2 ether);
+        _harvestPermanentFee(pool);
 
         assertGe(receiver.lastProfit(address(assetA)), 0.2 ether);
         assertEq(assetA.balanceOf(address(receiver)), receiver.lastProfit(address(assetA)));
@@ -225,7 +228,6 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 inputFeeBps: 25,
                 outputFeeBps: 25,
                 polShareBps: 0,
-                liquidityProviderShareBps: 0,
                 basketStakerShareBps: 0,
                 staticsStakerShareBps: 9_000,
                 treasuryShareBps: 500
@@ -244,6 +246,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
                 sqrtPriceLimitX96: assetIsCurrency0 ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             })
         );
+        _harvestPermanentFee(pool);
 
         address[] memory rewardAssets = _assets(address(assetA), basketToken);
         vm.prank(alice);
@@ -599,15 +602,28 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         receiver = new FlashArbitrageReceiver(address(diamond), ICanonicalV4SwapRouter(address(v4Router)));
     }
 
+    function _harvestPermanentFees(PoolKey[] memory pools) private {
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.setPermanentLiquidityHarvester(address(this));
+        for (uint256 i; i < pools.length; ++i) {
+            protocolPools.harvestPermanentLiquidityFees(pools[i].toId());
+        }
+    }
+
+    function _harvestPermanentFee(PoolKey memory pool) private {
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.setPermanentLiquidityHarvester(address(this));
+        protocolPools.harvestPermanentLiquidityFees(pool.toId());
+    }
+
     function _setHookFees(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) private {
         basketLiquidity.setSwapFeeConfiguration(
             IStaticsBasketLiquidity.SwapFeeConfiguration({
                 inputFeeBps: uint16(bound(rawInputFeeBps, 0, 100)),
                 outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100)),
                 polShareBps: 5_000,
-                liquidityProviderShareBps: 1_000,
                 basketStakerShareBps: 0,
-                staticsStakerShareBps: 3_000,
+                staticsStakerShareBps: 4_000,
                 treasuryShareBps: 500
             })
         );

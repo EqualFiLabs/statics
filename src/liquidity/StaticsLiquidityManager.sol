@@ -47,11 +47,14 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         returns (PositionMovement memory movement, uint256 refund0, uint256 refund1)
     {
         _enforceDiamond();
-        if (recipient == address(0) || refundRecipient == address(0)) revert InvalidRecipient();
+        if (
+            recipient == address(0) || refundRecipient == address(0) || recipient == address(this)
+                || refundRecipient == address(this) || recipient == staticsDiamond || refundRecipient == staticsDiamond
+        ) revert InvalidRecipient();
         _validateRequest(request);
         address token0 = Currency.unwrap(request.poolKey.currency0);
         address token1 = Currency.unwrap(request.poolKey.currency1);
-        movement = _executePosition(request, Actions.MINT_POSITION, 0, recipient);
+        movement = _executePosition(request, recipient);
         uint256 allocatedRefund0 = request.amount0Limit - movement.spent0 + movement.received0;
         uint256 allocatedRefund1 = request.amount1Limit - movement.spent1 + movement.received1;
         (, refund0) = _refundUser(token0, refundRecipient, allocatedRefund0);
@@ -68,42 +71,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         );
     }
 
-    function increaseUserPosition(PositionRequest calldata request, uint256 tokenId, address refundRecipient)
-        external
-        nonReentrant
-        returns (PositionMovement memory movement, uint256 refund0, uint256 refund1)
-    {
-        _enforceDiamond();
-        if (refundRecipient == address(0)) revert InvalidRecipient();
-        _validateRequest(request);
-        address actualOwner = IERC721(positionManager).ownerOf(tokenId);
-        if (actualOwner != staticsDiamond) {
-            revert PositionOwnershipMismatch(tokenId, staticsDiamond, actualOwner);
-        }
-        PoolKey memory actualKey = _positionKey(tokenId);
-        if (keccak256(abi.encode(actualKey)) != keccak256(abi.encode(request.poolKey))) {
-            revert ProtocolPoolMismatch(PoolId.unwrap(request.poolKey.toId()));
-        }
-        address token0 = Currency.unwrap(request.poolKey.currency0);
-        address token1 = Currency.unwrap(request.poolKey.currency1);
-        movement = _executePosition(request, Actions.INCREASE_LIQUIDITY, tokenId, staticsDiamond);
-        uint256 allocatedRefund0 = request.amount0Limit - movement.spent0 + movement.received0;
-        uint256 allocatedRefund1 = request.amount1Limit - movement.spent1 + movement.received1;
-        (, refund0) = _refundUser(token0, refundRecipient, allocatedRefund0);
-        (, refund1) = _refundUser(token1, refundRecipient, allocatedRefund1);
-        emit UserPositionIncreased(
-            PoolId.unwrap(request.poolKey.toId()),
-            tokenId,
-            refundRecipient,
-            request.liquidity,
-            movement.spent0,
-            movement.spent1,
-            refund0,
-            refund1
-        );
-    }
-
-    function _executePosition(PositionRequest calldata request, uint256 action, uint256 tokenId, address recipient)
+    function _executePosition(PositionRequest calldata request, address recipient)
         private
         returns (PositionMovement memory movement)
     {
@@ -114,23 +82,18 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         _approve(token0, request.amount0Limit, request.deadline);
         _approve(token1, request.amount1Limit, request.deadline);
 
-        movement.tokenId = action == Actions.MINT_POSITION ? IPositionManager(positionManager).nextTokenId() : tokenId;
-        bytes memory actionParams = action == Actions.MINT_POSITION
-            ? abi.encode(
-                request.poolKey,
-                request.tickLower,
-                request.tickUpper,
-                request.liquidity,
-                uint128(request.amount0Limit),
-                uint128(request.amount1Limit),
-                recipient,
-                bytes("")
-            )
-            : abi.encode(
-                tokenId, request.liquidity, uint128(request.amount0Limit), uint128(request.amount1Limit), bytes("")
-            );
-        IPositionManager(positionManager)
-            .modifyLiquidities(_closePlan(action, actionParams, request.poolKey), request.deadline);
+        movement.tokenId = IPositionManager(positionManager).nextTokenId();
+        bytes memory actionParams = abi.encode(
+            request.poolKey,
+            request.tickLower,
+            request.tickUpper,
+            request.liquidity,
+            uint128(request.amount0Limit),
+            uint128(request.amount1Limit),
+            recipient,
+            bytes("")
+        );
+        IPositionManager(positionManager).modifyLiquidities(_closePlan(actionParams, request.poolKey), request.deadline);
         _clearApproval(token0);
         _clearApproval(token1);
         (movement.spent0, movement.received0) = _movement(token0, balance0Before);
@@ -145,18 +108,11 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         if (actualOwner != recipient) revert PositionOwnershipMismatch(movement.tokenId, recipient, actualOwner);
     }
 
-    function _positionKey(uint256 tokenId) private view returns (PoolKey memory key) {
-        (key,) = IPositionManager(positionManager).getPoolAndPositionInfo(tokenId);
-        _enforcePool(key);
-    }
-
-    function _closePlan(uint256 action, bytes memory actionParams, PoolKey memory key)
-        private
-        pure
-        returns (bytes memory)
-    {
+    function _closePlan(bytes memory actionParams, PoolKey memory key) private pure returns (bytes memory) {
         bytes memory actions = abi.encodePacked(
-            bytes1(uint8(action)), bytes1(uint8(Actions.CLOSE_CURRENCY)), bytes1(uint8(Actions.CLOSE_CURRENCY))
+            bytes1(uint8(Actions.MINT_POSITION)),
+            bytes1(uint8(Actions.CLOSE_CURRENCY)),
+            bytes1(uint8(Actions.CLOSE_CURRENCY))
         );
         bytes[] memory params = new bytes[](3);
         params[0] = actionParams;

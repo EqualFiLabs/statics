@@ -1,14 +1,21 @@
 # Statics Slither campaign
 
-This campaign reviews the effective runtime and deployment surface carried by
-the Genesis PR stack. It intentionally analyzes the composed source graph, then
-reduces findings by source mapping into four explicit passes defined in
-`scope.json`: standalone launch, permanent Diamond integration, deployment
-handoff, and standalone launch-liquidity operations.
+This campaign reviews every owned production Solidity contract and deployment
+script in the repository. Slither analyzes the composed source graph, then the
+normalizer reduces findings by source mapping into the `production-contracts`
+and `production-scripts` passes defined in `scope.json`.
+
+The scope manifest starts from every `*.sol` file below `src/` and `script/`.
+Local fixtures, testnet-only contracts and scripts, and empty third-party
+compiler-selection units are excluded individually with a concrete reason. The
+scope check fails before Slither runs if a new owned Solidity file is neither
+included nor explicitly excluded.
 
 ## Reproduce
 
-Use Python 3.12, Foundry 1.7.1, and Slither 0.11.6:
+GitHub Actions is the release-evidence runner. It pins Python 3.12, Foundry
+1.7.1, and Slither 0.11.6 and publishes the complete `slither-results/`
+directory. The same campaign can be reproduced with:
 
 ```sh
 python3.12 -m venv .slither-venv
@@ -22,18 +29,21 @@ Slither Foundry adapter invokes `forge clean` and a forced build, which are not
 allowed by this repository. Raw machine-specific output is written to the
 ignored `slither-results/` directory.
 
-`baseline.json` contains stable fingerprints for every reviewed in-scope
-finding. Repeated findings from multiple Foundry compile units are collapsed
-into one fingerprint with an occurrence count. Fingerprints use detector names
-and scoped source identities rather than line numbers. CI fails when a new high/medium finding is absent from the
-baseline or when a current high/medium finding remains `CONFIRMED` or
+`baseline.json` contains a classification and rationale for each exact reviewed
+finding fingerprint; detector-wide defaults are not applied. Repeated findings
+from multiple Foundry compile units are collapsed into one fingerprint with an
+occurrence count. Fingerprints use detector names and scoped source identities
+including source spans. CI fails when a new high/medium finding is absent
+from the baseline or when a current high/medium finding remains `CONFIRMED` or
 `INVESTIGATE`. New low/informational findings are printed for review but do not
-block the gate.
+block the gate. `current.json` retains the complete normalized result and
+`scope.json` records the exact files covered by that run.
 
 ## Evidence boundary
 
 The baseline is a reviewed static-analysis result, not a claim that Slither
-proves protocol correctness. `triage.md` records why every retained detector
-family is non-actionable on this source graph. Halmos, Certora, Foundry fuzz and
-invariant suites separately check the accounting and composed callback
-properties that static analysis cannot prove.
+proves protocol correctness. `triage.md` summarizes common detector families;
+the authoritative decision remains attached to each fingerprint in
+`baseline.json`. Halmos, Certora, Foundry fuzz and invariant suites separately
+check the accounting and composed callback properties that static analysis
+cannot prove.

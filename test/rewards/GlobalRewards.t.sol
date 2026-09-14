@@ -6,6 +6,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
+import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
@@ -105,6 +106,22 @@ contract GlobalRewardsTest is StaticsTestBase {
 
         assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.4 ether);
         assertEq(globalRewards.treasuryAccrued(address(assetB)), 1 ether);
+    }
+
+    function testGuardianCanPauseTreasuryDistributionUntilOwnerUnpauses() external {
+        _createDefaultBasket(0.1 ether, 0);
+        uint256 accrued = globalRewards.treasuryAccrued(address(assetA));
+        assertGt(accrued, 0);
+
+        vm.prank(guardian);
+        governance.pause(1 << 6);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, 1 << 6));
+        globalRewards.distributeTreasuryFees(address(assetA));
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), accrued);
+
+        governance.unpause(1 << 6);
+        globalRewards.distributeTreasuryFees(address(assetA));
+        assertEq(assetA.balanceOf(treasury), accrued);
     }
 
     function testStakeAndTopUpsRemainWithdrawableWhileOnlyNewStakeWaits() external {

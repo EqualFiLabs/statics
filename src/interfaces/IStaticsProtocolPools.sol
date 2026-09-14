@@ -18,7 +18,6 @@ interface IStaticsProtocolPools {
 
     struct BasketFeeAllocation {
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
@@ -26,7 +25,6 @@ interface IStaticsProtocolPools {
 
     struct GeneralFeeAllocation {
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
     }
@@ -77,19 +75,17 @@ interface IStaticsProtocolPools {
     event PoolCreationNonceInvalidated(address indexed creator, uint256 indexed nonce);
     event ProtocolPoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps);
     event BasketFeeAllocationSet(
-        uint16 polShareBps,
-        uint16 liquidityProviderShareBps,
-        uint16 basketStakerShareBps,
-        uint16 staticsStakerShareBps,
-        uint16 treasuryShareBps
+        uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
     );
-    event GeneralFeeAllocationSet(
-        uint16 polShareBps, uint16 liquidityProviderShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
-    );
+    event GeneralFeeAllocationSet(uint16 polShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps);
     event GeneralPoolDecommissioned(
         PoolId indexed poolId, address indexed currency0, address indexed currency1, uint256 amount0, uint256 amount1
     );
     event LiquidityManagerReplaced(address indexed oldManager, address indexed newManager);
+    event PermanentLiquidityHarvesterSet(address indexed previousHarvester, address indexed newHarvester);
+    event PermanentLiquidityFeesHarvested(
+        PoolId indexed poolId, address indexed harvester, uint256 amount0, uint256 amount1
+    );
 
     // --- Creation facet ---
     function quotePool(CreatePoolParams calldata params) external view returns (GeneralPoolQuote memory quote);
@@ -106,6 +102,8 @@ interface IStaticsProtocolPools {
     function setGeneralFeeAllocation(GeneralFeeAllocation calldata allocation) external;
     function decommissionGeneralPool(PoolId poolId) external returns (uint256 amount0, uint256 amount1);
     function replaceLiquidityManager(address newManager) external;
+    function setPermanentLiquidityHarvester(address newHarvester) external;
+    function harvestPermanentLiquidityFees(PoolId poolId) external returns (uint256 amount0, uint256 amount1);
 
     // --- View facet ---
     function protocolPool(PoolId poolId) external view returns (ProtocolPoolView memory pool);
@@ -116,4 +114,5 @@ interface IStaticsProtocolPools {
     function generalFeeAllocation() external view returns (GeneralFeeAllocation memory allocation);
     function protocolPoolFeeRate(PoolId poolId) external view returns (PoolSwapFeeRate memory feeRate);
     function protocolPoolCreator(PoolId poolId) external view returns (address creator);
+    function permanentLiquidityHarvester() external view returns (address harvester);
 }

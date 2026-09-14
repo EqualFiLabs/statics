@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {ConfigureStaticsLiquidity, StaticsLiquidityConfig} from "../../script/ConfigureStaticsLiquidity.s.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 
 contract ConfigureStaticsLiquidityTest is Test {
     function testBatchContainsOnlyTypedDiamondInstallationCalls() public {
@@ -16,28 +17,36 @@ contract ConfigureStaticsLiquidityTest is Test {
             permit2: makeAddr("permit2"),
             hook: makeAddr("hook"),
             manager: makeAddr("manager"),
+            permanentLiquidityHarvester: makeAddr("harvester"),
+            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: bytes32(0),
             positionManagerCodeHash: bytes32(0),
-            permit2CodeHash: bytes32(0)
+            permit2CodeHash: bytes32(0),
+            hookCodeHash: bytes32(0),
+            managerCodeHash: bytes32(0)
         });
 
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             ceremony.buildBatch(diamond, config);
 
-        assertEq(targets.length, 2);
-        assertEq(values.length, 2);
-        assertEq(payloads.length, 2);
+        assertEq(targets.length, 3);
+        assertEq(values.length, 3);
+        assertEq(payloads.length, 3);
         assertEq(targets[0], diamond);
         assertEq(targets[1], diamond);
+        assertEq(targets[2], diamond);
         assertEq(values[0], 0);
         assertEq(values[1], 0);
+        assertEq(values[2], 0);
         assertEq(_selector(payloads[0]), IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector);
         assertEq(_selector(payloads[1]), IStaticsBasketLiquidity.installLiquidityManager.selector);
+        assertEq(_selector(payloads[2]), IStaticsProtocolPools.setPermanentLiquidityHarvester.selector);
         assertEq(_addressArgument(payloads[0], 0), config.poolManager);
         assertEq(_addressArgument(payloads[0], 1), config.hook);
         assertEq(_addressArgument(payloads[1], 0), config.manager);
+        assertEq(_addressArgument(payloads[2], 0), config.permanentLiquidityHarvester);
     }
 
     function _selector(bytes memory payload) private pure returns (bytes4 selector) {

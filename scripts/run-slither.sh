@@ -5,10 +5,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SLITHER_BIN="${SLITHER_BIN:-slither}"
 RESULTS_DIR="${SLITHER_RESULTS_DIR:-$ROOT/slither-results}"
 RAW_JSON="$RESULTS_DIR/raw.json"
+CURRENT_JSON="$RESULTS_DIR/current.json"
+SCOPE_REPORT="$RESULTS_DIR/scope.json"
 RUN_LOG="$RESULTS_DIR/run.log"
 
 mkdir -p "$RESULTS_DIR"
 cd "$ROOT"
+
+python3 "$ROOT/scripts/slither_baseline.py" scope --output "$SCOPE_REPORT"
 
 # Slither's Foundry adapter normally invokes `forge clean` and a forced build.
 # Build once through the repository-approved path, then make Slither consume only
@@ -30,5 +34,7 @@ if [[ ! -s "$RAW_JSON" ]]; then
   exit 1
 fi
 
-python3 "$ROOT/scripts/slither_baseline.py" check --raw "$RAW_JSON"
+python3 "$ROOT/scripts/slither_baseline.py" check \
+  --raw "$RAW_JSON" \
+  --output "$CURRENT_JSON"
 printf 'Slither completed with detector exit %s; reviewed baseline is clean.\n' "$slither_status"

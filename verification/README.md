@@ -15,10 +15,12 @@ a pull request, use the repository's CI checks as the release evidence:
 gh pr checks --watch
 ```
 
-The workflow runs `scripts/run-formal.sh all` (plus Slither and the full Foundry suite) on clean runners and
-uploads symbolic results as CI artifacts. Local development should use focused Foundry tests and,
-when required, the hosted Certora run; rerunning the full Halmos or Slither jobs locally is not
-required release evidence.
+The workflow splits `scripts/run-formal.sh established` and
+`scripts/run-formal.sh permanent-liquidity` across independent jobs, and also runs Slither and the
+full Foundry suite on clean runners. `scripts/run-formal.sh all` remains the single local entrypoint
+without causing CI to prove any target twice. CI uploads each symbolic result set as a separate
+artifact. Local development should use focused Foundry tests and, when required, the hosted Certora
+run; rerunning the full Halmos or Slither jobs locally is not required release evidence.
 
 The standalone launch-liquidity hook has a separate [verification ledger](./launch-liquidity.md)
 covering its fee callbacks, configuration authority, hostile-token rejection, and externally owned
@@ -60,6 +62,17 @@ PositionManager lifecycle.
 | Exact pinned Multicurve produces six curves, 56 nonzero positions, a 120M tail, and residual at most 100 STATICS for both token orders | pinned Doppler `Multicurve` | Halmos plus Foundry | Pass |
 | Launch hash binds economics, exact authorities, Statics creation bytecode, full proxy and ownership-controller dependencies, runtime hashes, geometry, metadata, salt, and epoch | `DeployStaticsGenesis` | Foundry | Pass |
 | Zero approved Robinhood hash blocks production execution | `DeployStaticsGenesis` | Foundry | Pass |
+| Every General-pool swap-leg accrual from 1 through 255 fee units mints an equal ERC-6909 claim and allocates it exactly among POL, Statics stakers, creator, and treasury | `StaticsSwapFeeHook` | Halmos against the production accrual primitive plus minimal PoolManager model | CI gate |
+| In the fixed bilateral General-pool scenario, automatic POL compounding burns exactly the modeled claims consumed by `modifyLiquidity` and preserves the remaining liabilities | `StaticsSwapFeeHook` | Halmos against production hook plus minimal PoolManager model | CI gate |
+| In the fixed bilateral General-pool scenario, a modeled debit above pending POL reverts atomically without leaving claims, distributions, pending POL, burned totals, or locked liquidity | `StaticsSwapFeeHook` | Halmos against production hook plus minimal PoolManager model | CI gate |
+
+The permanent-liquidity Halmos target proves the hook's bounded symbolic
+accounting against a minimal PoolManager model. It does not prove real
+PoolManager funding, transient-delta closure, or ERC-6909 implementation
+correctness; the focused live-PoolManager Foundry suites cover those integration
+boundaries. Its branch-feasibility pruning queries are capped at 100 ms; Halmos
+conservatively explores both directions when such a query times out, while the
+assertion solver remains unbounded.
 
 `Mandatory` means `scripts/run-formal.sh all` must pass. The Certora specs under
 `certora/` are the selective aggregate-accounting layer and are not repository

@@ -1,51 +1,61 @@
 {
-  "schema": 1,
+  "schema": 2,
+  "roots": [
+    "src",
+    "script"
+  ],
   "passes": {
-    "standalone-launch": [
-      "src/genesis/StaticsGenesisVault.sol",
-      "src/tokens/StaticsGenesis.sol",
-      "src/genesis/StaticsTreasuryVesting.sol",
-      "src/genesis/StaticsFeeReceiver.sol",
-      "src/genesis/GenesisLaunchDistributor.sol",
-      "src/genesis/GenesisActivationRegistry.sol",
-      "src/genesis/LibExactAssetTransfer.sol"
+    "production-contracts": [
+      "src/**/*.sol"
     ],
-    "diamond-integration": [
-      "src/facets/GenesisNFTFacet.sol",
-      "src/libraries/LibGenesisIntegration.sol",
-      "src/libraries/LibGenesisRewards.sol",
-      "src/facets/GlobalRewardsFacet.sol",
-      "src/libraries/LibGlobalRewards.sol",
-      "src/libraries/LibCustody.sol",
-      "src/position/PositionNFTFacet.sol",
-      "src/position/LibPosition.sol",
-      "src/libraries/LibPositionPortfolio.sol",
-      "src/diamond/StaticsGenesisIntegrationInit.sol",
-      "src/diamond/StaticsProtocolInit.sol",
-      "src/diamond/StaticsGenesisCut.sol",
-      "src/diamond/StaticsDiamond.sol",
-      "src/diamond/DiamondKernel.sol",
-      "src/libraries/LibDiamond.sol",
-      "src/facets/DiamondCutFacet.sol"
-    ],
-    "deployment-handoff": [
-      "script/DeployStaticsGenesis.s.sol",
-      "script/ConfigureStaticsGenesis.s.sol",
-      "script/PrepareStaticsGenesisUpgrade.s.sol",
-      "script/dollar/DeployStaticsProtocol.s.sol",
-      "src/diamond/StaticsProtocolInit.sol",
-      "src/diamond/StaticsGenesisIntegrationInit.sol",
-      "src/diamond/StaticsGenesisCut.sol",
-      "src/libraries/StaticsSelectors.sol",
-      "src/genesis/doppler/StaticsDopplerLaunchConfig.sol",
-      "src/genesis/doppler/StaticsLaunchCurves.sol"
-    ],
-    "launch-liquidity": [
-      "src/interfaces/IStaticsLaunchLiquidityHook.sol",
-      "src/liquidity/StaticsLaunchLiquidityHook.sol",
-      "src/liquidity/StaticsLaunchFeeClaimRedeemer.sol",
-      "script/DeployStaticsLaunchLiquidity.s.sol",
-      "script/PrepareStaticsLaunchPosition.s.sol"
+    "production-scripts": [
+      "script/**/*.sol"
     ]
-  }
+  },
+  "exclusions": [
+    {
+      "pattern": "src/dollar/mocks/**/*.sol",
+      "reason": "Local Dollar fixtures are test dependencies and cannot be deployed as protocol production contracts."
+    },
+    {
+      "pattern": "src/dollar/testnet/**/*.sol",
+      "reason": "Testnet-only oracle fixtures are not part of a production deployment."
+    },
+    {
+      "pattern": "src/testnet/**/*.sol",
+      "reason": "Testnet faucets and oracle fixtures are not part of a production deployment."
+    },
+    {
+      "pattern": "src/liquidity/Permit2Compilation.sol",
+      "reason": "This empty import-only unit selects third-party compiler settings and has no owned runtime behavior."
+    },
+    {
+      "pattern": "src/liquidity/V4PoolManagerCompilation.sol",
+      "reason": "This empty import-only unit selects third-party compiler settings and has no owned runtime behavior."
+    },
+    {
+      "pattern": "script/DeployStaticsGenesisLocalFork.s.sol",
+      "reason": "The script deploys deterministic local-fork fixtures and is not a production ceremony."
+    },
+    {
+      "pattern": "script/DeployStaticsGenesisTestnetFaucet.s.sol",
+      "reason": "The script deploys a testnet-only faucet and is not a production ceremony."
+    },
+    {
+      "pattern": "script/DeployStaticsGenesisTestnetReplica.s.sol",
+      "reason": "The script deploys a testnet replica and is not a production ceremony."
+    },
+    {
+      "pattern": "script/DeployStaticsTestnetFaucet.s.sol",
+      "reason": "The script deploys a testnet-only faucet and is not a production ceremony."
+    },
+    {
+      "pattern": "script/DeployTestnetOracleFixtures.s.sol",
+      "reason": "The script deploys testnet oracle fixtures and is not a production ceremony."
+    },
+    {
+      "pattern": "script/dollar/DeployLocalStaticsWithLiquidity.s.sol",
+      "reason": "The script deploys a local development stack and is not a production ceremony."
+    }
+  ]
 }

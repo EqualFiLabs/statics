@@ -144,21 +144,20 @@ and position interactions roll due buckets. Dollar passive Risk Share reward
 eligibility does not exist: supplied Risk Shares are immediately consumable by
 the pairing vault and earn only through actual consumption.
 
-Canonical pools use zero native LP fee and separate input/output hook fees.
+Permanent protocol pools use an immutable deployment-configured native LP fee,
+initially 3,000 pips (0.30%), plus separate input/output hook fees.
 Their permanent full-range liquidity is owned by the hook, not by a protocol
 PositionManager NFT, and cannot be released until the pool is decommissioned.
-Full-range user PositionManager NFTs may be voluntarily held by the Diamond to
-earn a separate LP hook allocation. New and increased liquidity waits one block
-for eligibility but has no withdrawal cooldown; exit settles claims before
-returning the NFT. If an LP or global-staker hook allocation cannot be routed,
-it redirects to permanent liquidity. Basket creation initializes and seeds its
-canonical pools atomically. General-pool creation registers and initializes the
-pool but does not require a liquidity seed: it is owner-only while the creation
-fee is zero and permissionless with exact payment while the fee is nonzero.
-Governance controls the creation gate, fee configuration, and irreversible
-general-pool decommissioning. Permanent-liquidity compounding and eligible
-post-decommission unwind are permissionless; LP reward activation remains a
-separate next-block position action.
+User PositionManager NFTs stay in user custody and earn native v4 fees through
+standard pool accounting. Native fees earned by hook-owned permanent liquidity
+route only to treasury and never become compoundable POL inventory. Basket
+creation initializes and seeds its canonical pools atomically. General-pool
+creation registers and initializes the pool but does not require a liquidity
+seed: it is owner-only while the creation fee is zero and permissionless with
+exact payment while the fee is nonzero. Governance controls the creation gate,
+bilateral fee configuration, and irreversible general-pool decommissioning.
+Permanent-liquidity compounding and eligible post-decommission unwind are
+permissionless.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every

@@ -313,7 +313,7 @@ contract DopplerGenesisLaunchForkTest is Test {
 
             assertEq(statics.totalSupply(), 1_000_000_000 ether);
             assertEq(statics.balanceOf(treasury), 0);
-            assertEq(statics.balanceOf(address(vesting)), 0);
+            assertLt(statics.balanceOf(address(vesting)), 1 ether, "unexpected post-bootstrap launch rounding");
             assertEq(vault.tokenBacking(), 99_900_000 ether);
             assertEq(statics.balanceOf(address(vault)), vault.tokenBacking());
             assertEq(genesis.balanceOf(address(vault)), 5_000);
@@ -391,7 +391,11 @@ contract DopplerGenesisLaunchForkTest is Test {
     function _assertNativeVestingAtLaunch(StaticsGenesisLaunchArtifact memory artifact, address treasury) private view {
         IERC20 statics = IERC20(artifact.expectedStatics);
         IDopplerERC20V1 token = IDopplerERC20V1(artifact.expectedStatics);
-        assertEq(statics.balanceOf(artifact.treasuryVesting), 99_900_000 ether);
+        uint256 treasuryLiquidityBalance = statics.balanceOf(artifact.treasuryVesting);
+        assertGe(treasuryLiquidityBalance, 99_900_000 ether);
+        assertLt(treasuryLiquidityBalance - 99_900_000 ether, 1 ether, "unexpected launch-liquidity rounding");
+        address poolManager = address(IDopplerFeeShares(artifact.config.modules.poolInitializer).poolManager());
+        assertEq(treasuryLiquidityBalance + statics.balanceOf(poolManager), 899_900_000 ether);
         assertEq(statics.balanceOf(artifact.airlock), 0);
         assertEq(statics.balanceOf(artifact.expectedStatics), 100_100_000 ether);
         assertEq(token.vestedTotalAmount(), 100_100_000 ether);

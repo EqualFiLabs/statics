@@ -17,7 +17,6 @@ library LibPositionPortfolio {
     struct PortfolioStorage {
         mapping(uint256 positionId => UintIndex index) baskets;
         mapping(uint256 positionId => UintIndex index) loans;
-        mapping(uint256 positionId => UintIndex index) liquidityPositions;
         mapping(uint256 positionId => AddressIndex index) globalRewardAssets;
         mapping(uint256 positionId => UintIndex index) morphoMarkets;
     }
@@ -46,14 +45,6 @@ library LibPositionPortfolio {
 
     function removeLoan(uint256 positionId, uint256 loanId) internal {
         _remove(portfolioStorage().loans[positionId], positionId, loanId);
-    }
-
-    function addLiquidityPosition(uint256 positionId, uint256 tokenId) internal {
-        _add(portfolioStorage().liquidityPositions[positionId], tokenId);
-    }
-
-    function removeLiquidityPosition(uint256 positionId, uint256 tokenId) internal {
-        _remove(portfolioStorage().liquidityPositions[positionId], positionId, tokenId);
     }
 
     function addGlobalRewardAsset(uint256 positionId, address asset) internal {

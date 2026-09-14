@@ -61,18 +61,24 @@ jobs:
         env:
           SLITHER_BIN: ${{ github.workspace }}/.slither-venv/bin/slither
         run: scripts/run-slither.sh
-      - name: Upload Slither log
+      - name: Upload Slither evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: slither-log
-          path: slither-results/run.log
+          name: slither-results
+          path: slither-results/
           if-no-files-found: warn
 
   formal-verification:
-    name: Formal verification / Halmos
+    name: Formal verification / Halmos / ${{ matrix.target }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - established
+          - permanent-liquidity
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -116,17 +122,17 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: 1.7.1
-      - name: Prove Genesis launch invariants
+      - name: Prove ${{ matrix.target }} invariants
         env:
           HALMOS_BIN: ${{ github.workspace }}/.halmos-venv/bin/halmos
           HALMOS_THREADS: "4"
           HALMOS_LOOP_BOUND: "8"
-        run: scripts/run-formal.sh all
+        run: scripts/run-formal.sh "${{ matrix.target }}"
       - name: Upload proof results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: halmos-results
+          name: halmos-results-${{ matrix.target }}
           path: formal-results/
           if-no-files-found: warn
 

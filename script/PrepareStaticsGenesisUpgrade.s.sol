@@ -25,10 +25,10 @@ library StaticsGenesisUpgradeCut {
         bytes4[] memory custodySelectors = StaticsSelectors.custody();
         cut = new IDiamondCut.FacetCut[](7);
         cut[0] = IDiamondCut.FacetCut(
-            parts.globalRewards, IDiamondCut.FacetCutAction.Replace, _slice(globalSelectors, 0, 21)
+            parts.globalRewards, IDiamondCut.FacetCutAction.Replace, _slice(globalSelectors, 0, 20)
         );
         cut[1] = IDiamondCut.FacetCut(
-            parts.globalRewards, IDiamondCut.FacetCutAction.Add, _slice(globalSelectors, 21, globalSelectors.length)
+            parts.globalRewards, IDiamondCut.FacetCutAction.Add, _slice(globalSelectors, 20, globalSelectors.length)
         );
         cut[2] = IDiamondCut.FacetCut(
             parts.positionNFT, IDiamondCut.FacetCutAction.Replace, _slice(positionSelectors, 0, 26)

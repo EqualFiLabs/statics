@@ -1,9 +1,10 @@
 # ADR: Permissionless Uniswap v4 protocol pools
 
-- Status: Accepted and implemented
+- Status: Partially superseded by `native-v4-lp-fees.md`
 - Date: 2026-08-21
 - Scope: Statics pool creation, PoolKey policy, Statics fee configuration, creator revenue, permanent liquidity, LP rewards, governance, indexing, routing, and DEX market structure
 - Supersedes: `docs/adr/governed-protocol-pools.md` where the decisions conflict
+- Superseded decisions: zero native LP fees and custom Diamond-custodied LP rewards
 
 ## Context
 
@@ -460,6 +461,11 @@ The fallback policy remains explicit:
 - an unavailable basket-staker allocation routes to PoolId-local POL;
 - an unavailable global Statics-staker allocation routes to treasury; and
 - the creator allocation always credits the immutable creator and never falls back.
+
+The hook applies those rules before redeeming PoolManager claims. The Diamond
+rechecks after its token pull; if token callback execution removes the final
+basket denominator in that narrow interval, the already-redeemed basket share
+routes to treasury as a last-line liveness fallback.
 
 ## Creation fee and permissionless creation gate
 

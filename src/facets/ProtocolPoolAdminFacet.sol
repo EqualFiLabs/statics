@@ -2,18 +2,21 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
+import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 
 /// @notice Owner-only administration of protocol-pool creation fee, PoolId-local fee rate, global
 /// basket/general allocation profiles, general-pool decommissioning, and liquidity-manager replacement.
@@ -24,7 +27,9 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     error InvalidLiquidityManager(address manager);
     error LiquidityManagerBindingMismatch(address manager, address expected, address actual);
     error LiquidityManagerUnchanged(address manager);
-    error LiquidityManagerApprovalMismatch(address manager, bool expected);
+    error InvalidPermanentLiquidityHarvester(address harvester);
+    error OnlyPermanentLiquidityHarvester(address caller, address expected);
+    error ActionPaused(uint256 action);
 
     function setPoolCreationFee(uint256 amount) external {
         LibDiamond.enforceIsContractOwner();
@@ -45,7 +50,6 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
             .setBasketFeeAllocation(
                 IStaticsSwapFeeHook.BasketFeeAllocation({
                 polShareBps: allocation.polShareBps,
-                liquidityProviderShareBps: allocation.liquidityProviderShareBps,
                 basketStakerShareBps: allocation.basketStakerShareBps,
                 staticsStakerShareBps: allocation.staticsStakerShareBps,
                 treasuryShareBps: allocation.treasuryShareBps
@@ -53,7 +57,6 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
             );
         emit IStaticsProtocolPools.BasketFeeAllocationSet(
             allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
             allocation.basketStakerShareBps,
             allocation.staticsStakerShareBps,
             allocation.treasuryShareBps
@@ -66,16 +69,12 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
             .setGeneralFeeAllocation(
                 IStaticsSwapFeeHook.GeneralFeeAllocation({
                 polShareBps: allocation.polShareBps,
-                liquidityProviderShareBps: allocation.liquidityProviderShareBps,
                 staticsStakerShareBps: allocation.staticsStakerShareBps,
                 treasuryShareBps: allocation.treasuryShareBps
             })
             );
         emit IStaticsProtocolPools.GeneralFeeAllocationSet(
-            allocation.polShareBps,
-            allocation.liquidityProviderShareBps,
-            allocation.staticsStakerShareBps,
-            allocation.treasuryShareBps
+            allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
         );
     }
 
@@ -90,12 +89,57 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         uint256 before0 = IERC20(currency0).balanceOf(address(this));
         uint256 before1 = IERC20(currency1).balanceOf(address(this));
         hook.decommissionPool(stored.key);
-        (amount0, amount1) = hook.releasePermanentLiquidity(stored.key, address(this));
-        _enforceReceived(currency0, before0, amount0);
-        _enforceReceived(currency1, before1, amount1);
+        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released =
+            hook.releasePermanentLiquidity(stored.key, address(this));
+        amount0 = released.principal0 + released.pendingPol0;
+        amount1 = released.principal1 + released.pendingPol1;
+        _enforceReceived(currency0, before0, amount0 + _distributionTotal(released.distribution0));
+        _enforceReceived(currency1, before1, amount1 + _distributionTotal(released.distribution1));
+        _accrueDistribution(poolId, currency0, released.distribution0);
+        _accrueDistribution(poolId, currency1, released.distribution1);
         _reserveTreasury(currency0, amount0);
         _reserveTreasury(currency1, amount1);
         emit IStaticsProtocolPools.GeneralPoolDecommissioned(poolId, currency0, currency1, amount0, amount1);
+    }
+
+    function setPermanentLiquidityHarvester(address newHarvester) external {
+        LibDiamond.enforceIsContractOwner();
+        if (newHarvester == address(0) || newHarvester == address(this)) {
+            revert InvalidPermanentLiquidityHarvester(newHarvester);
+        }
+        LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
+        address previousHarvester = ps.permanentLiquidityHarvester;
+        ps.permanentLiquidityHarvester = newHarvester;
+        emit IStaticsProtocolPools.PermanentLiquidityHarvesterSet(previousHarvester, newHarvester);
+    }
+
+    function harvestPermanentLiquidityFees(PoolId poolId)
+        external
+        nonReentrant
+        returns (uint256 amount0, uint256 amount1)
+    {
+        LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
+        address harvester = ps.permanentLiquidityHarvester;
+        if (msg.sender != harvester) revert OnlyPermanentLiquidityHarvester(msg.sender, harvester);
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_TREASURY != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_TREASURY);
+        }
+        (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(poolId);
+        address currency0 = Currency.unwrap(key.currency0);
+        address currency1 = Currency.unwrap(key.currency1);
+        uint256 before0 = IERC20(currency0).balanceOf(address(this));
+        uint256 before1 = IERC20(currency1).balanceOf(address(this));
+        (
+            IStaticsSwapFeeHook.FeeDistribution memory distribution0,
+            IStaticsSwapFeeHook.FeeDistribution memory distribution1
+        ) = IStaticsSwapFeeHook(_liquidityStorage().hook).harvestPermanentLiquidityFees(key);
+        amount0 = _distributionTotal(distribution0);
+        amount1 = _distributionTotal(distribution1);
+        _enforceReceived(currency0, before0, amount0);
+        _enforceReceived(currency1, before1, amount1);
+        _accrueDistribution(poolId, currency0, distribution0);
+        _accrueDistribution(poolId, currency1, distribution1);
+        emit IStaticsProtocolPools.PermanentLiquidityFeesHarvested(poolId, msg.sender, amount0, amount1);
     }
 
     function replaceLiquidityManager(address newManager) external {
@@ -114,16 +158,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         _enforceManagerBinding(newManager, positionManager, newBinding.positionManager());
         _enforceManagerBinding(newManager, oldBinding.permit2(), newBinding.permit2());
 
-        IERC721 positions = IERC721(positionManager);
-        positions.setApprovalForAll(oldManager, false);
-        positions.setApprovalForAll(newManager, true);
         ls.manager = newManager;
-        if (positions.isApprovedForAll(address(this), oldManager)) {
-            revert LiquidityManagerApprovalMismatch(oldManager, false);
-        }
-        if (!positions.isApprovedForAll(address(this), newManager)) {
-            revert LiquidityManagerApprovalMismatch(newManager, true);
-        }
         emit IStaticsProtocolPools.LiquidityManagerReplaced(oldManager, newManager);
     }
 
@@ -131,6 +166,29 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         if (amount == 0) return;
         LibCustody.reserve(LibCustody.feeAccount(), token, amount);
         LibGlobalRewards.accrueReservedTreasuryFee(token, amount);
+    }
+
+    function _accrueDistribution(PoolId poolId, address token, IStaticsSwapFeeHook.FeeDistribution memory distribution)
+        private
+    {
+        LibProtocolRevenue.accrueReceived(
+            poolId,
+            token,
+            IStaticsProtocolRevenue.ProtocolFeeDistribution({
+                basketStaker: distribution.basketStaker,
+                staticsStaker: distribution.staticsStaker,
+                creator: distribution.creator,
+                treasury: distribution.treasury
+            })
+        );
+    }
+
+    function _distributionTotal(IStaticsSwapFeeHook.FeeDistribution memory distribution)
+        private
+        pure
+        returns (uint256)
+    {
+        return distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
     }
 
     function _enforceReceived(address token, uint256 beforeBalance, uint256 reported) private view {

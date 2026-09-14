@@ -20,7 +20,6 @@ interface IStaticsBasketLiquidity {
         uint16 inputFeeBps;
         uint16 outputFeeBps;
         uint16 polShareBps;
-        uint16 liquidityProviderShareBps;
         uint16 basketStakerShareBps;
         uint16 staticsStakerShareBps;
         uint16 treasuryShareBps;
