@@ -608,11 +608,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
                 poolId,
                 Currency.unwrap(currency),
                 IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                    basketStaker: pending.basketStaker,
-                    staticsStaker: pending.staticsStaker,
-                    creator: pending.creator,
-                    treasury: pending.treasury
-                })
+                basketStaker: pending.basketStaker,
+                staticsStaker: pending.staticsStaker,
+                creator: pending.creator,
+                treasury: pending.treasury
+            })
             );
         uint256 afterBalance = currency.balanceOfSelf();
         _enforceExactDebit(currency, beforeBalance, afterBalance, total);

@@ -62,11 +62,11 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         IStaticsSwapFeeHook(_liquidityStorage().hook)
             .setBasketFeeAllocation(
                 IStaticsSwapFeeHook.BasketFeeAllocation({
-                    polShareBps: allocation.polShareBps,
-                    basketStakerShareBps: allocation.basketStakerShareBps,
-                    staticsStakerShareBps: allocation.staticsStakerShareBps,
-                    treasuryShareBps: allocation.treasuryShareBps
-                })
+                polShareBps: allocation.polShareBps,
+                basketStakerShareBps: allocation.basketStakerShareBps,
+                staticsStakerShareBps: allocation.staticsStakerShareBps,
+                treasuryShareBps: allocation.treasuryShareBps
+            })
             );
         emit IStaticsProtocolPools.BasketFeeAllocationSet(
             allocation.polShareBps,
@@ -81,10 +81,10 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         IStaticsSwapFeeHook(_liquidityStorage().hook)
             .setGeneralFeeAllocation(
                 IStaticsSwapFeeHook.GeneralFeeAllocation({
-                    polShareBps: allocation.polShareBps,
-                    staticsStakerShareBps: allocation.staticsStakerShareBps,
-                    treasuryShareBps: allocation.treasuryShareBps
-                })
+                polShareBps: allocation.polShareBps,
+                staticsStakerShareBps: allocation.staticsStakerShareBps,
+                treasuryShareBps: allocation.treasuryShareBps
+            })
             );
         emit IStaticsProtocolPools.GeneralFeeAllocationSet(
             allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
