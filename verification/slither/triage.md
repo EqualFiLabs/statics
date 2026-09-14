@@ -2,16 +2,15 @@
 
 The reviewed repository-wide CI artifact covers 185 production Solidity files
 and explicitly excludes 17 test, formal-fixture, and vendor files as finding
-subjects. It normalizes to 615 stable findings: 42 high, 312 medium, 204 low,
-and 57 informational. Every stable fingerprint has an explicit classification
+subjects. It normalizes to 614 stable findings: 42 high, 312 medium, 204 low,
+and 56 informational. Every stable fingerprint has an explicit classification
 and rationale in `baseline.json`; detector families are summarized below but
 are not blanket suppressions for future findings.
 
-One informational `dead-code` finding was confirmed. The unused liquidity
-pause helper it identified has been removed on this branch. The other 614
-reviewed findings are intentional behavior or false positives. A fresh CI
-artifact will retire the removed fingerprint and identify any fingerprints
-introduced by the facet and hook deployability remediations.
+The preceding artifact's one confirmed informational `dead-code` finding
+identified an unused liquidity pause helper. This branch removes it, and the
+fresh CI artifact confirms that fingerprint is gone. All 614 current findings
+are reviewed as intentional behavior or false positives.
 
 ## High
 
@@ -52,7 +51,6 @@ introduced by the facet and hook deployability remediations.
 | --- | ---: | --- | --- |
 | `assembly` | 21 | INTENTIONAL | Assembly implements established Diamond storage/dispatch, calldata, proxy, or exact revert-forwarding patterns. |
 | `cyclomatic-complexity` | 1 | INTENTIONAL | Genesis protocol binding validates a one-time integration boundary in one atomic transition. |
-| `dead-code` | 1 | CONFIRMED, REMOVED | The unused liquidity pause helper was removed during this review. |
 | `low-level-calls` | 14 | INTENTIONAL | Calls are checked dispatch, capability, token-compatibility, or revert-forwarding boundaries. |
 | `missing-inheritance` | 4 | FALSE POSITIVE | Structural suggestions cross interface or legacy-compatibility boundaries and do not indicate missing implementations. |
 | `naming-convention` | 3 | INTENTIONAL | Names preserve established external interfaces or mathematical notation. |

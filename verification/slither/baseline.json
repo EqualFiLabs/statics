@@ -4,13 +4,13 @@
     "High": 42,
     "Medium": 312,
     "Low": 204,
-    "Informational": 57
+    "Informational": 56
   },
   "raw_counts": {
     "High": 42,
     "Medium": 314,
-    "Low": 236,
-    "Informational": 57
+    "Low": 235,
+    "Informational": 56
   },
   "findings": [
     {
@@ -70,12 +70,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/libraries/LibCustody.sol"
       ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#442-458) uses arbitrary from in transferFrom: token.safeTransferFrom(staticsDiamond,address(poolManager),amount) (src/liquidity/StaticsSwapFeeHook.sol#447)",
-      "rationale": "The source is the immutable Statics Diamond, seeding is Diamond-only, and exact sender, PoolManager-receipt, settlement, allowance, and claim-solvency deltas are enforced.",
+      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#117-125) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#120)",
+      "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
       "occurrences": 1,
-      "id": "7375c005f5120c262fc3ce9b"
+      "id": "b8981b4f672d176890441987"
     },
     {
       "impact": "High",
@@ -86,12 +86,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#117-125) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#120)",
-      "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#445-461) uses arbitrary from in transferFrom: token.safeTransferFrom(staticsDiamond,address(poolManager),amount) (src/liquidity/StaticsSwapFeeHook.sol#450)",
+      "rationale": "The source is the immutable Statics Diamond, seeding is Diamond-only, and exact sender, PoolManager-receipt, settlement, allowance, and claim-solvency deltas are enforced.",
       "occurrences": 1,
-      "id": "b8981b4f672d176890441987"
+      "id": "d2ee53aeeb72c03afb7e2f81"
     },
     {
       "impact": "High",
@@ -1174,22 +1174,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#345-351):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 2,
-      "id": "104c6f899e42edeeaa585d0f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.claimGenesis(uint256,address,address) (src/genesis/GenesisLaunchDistributor.sol#285-299):",
@@ -1206,44 +1190,44 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "12766ab747cfec720da9f49c"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "16ca605189119b9a39f37925"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.setGenesisRewardShareBps(uint16) (src/genesis/GenesisLaunchDistributor.sol#385-392):",
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "18ae2ff29e8aac2e25a4a18f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#463-482):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "19698dc795c7d15c15f79c03"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "29725a040b33dfa617d077c8"
     },
     {
       "impact": "Medium",
@@ -1286,6 +1270,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "3134fea6eb8e81b38cb527b6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#441-445):",
@@ -1318,6 +1318,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "37e18ae08e813ea998ab864a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.claimAllGenesisTreasuryRewards(address) (src/genesis/GenesisLaunchDistributor.sol#364-382):",
@@ -1336,58 +1352,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#690-703):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "3b38661749678b41c1e12f0f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#692-705):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "49968175a90952c7a88dad4a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#481-490):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "4cb40197e5032d0a32b29d3e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#460-479):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "57c0fd86c01cbc615bc884ee"
+      "id": "4e988f3ea812b33249ac94a4"
     },
     {
       "impact": "Medium",
@@ -1416,10 +1384,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#460-479):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "65128dc187239be5243e9d38"
+      "id": "5c34bcb441031a797e747211"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#484-493):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "5cf38b602b3c2325de166983"
     },
     {
       "impact": "Medium",
@@ -1446,12 +1430,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 2,
+      "id": "69f04719d5fe01c50244284d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.onGenesisTransition(uint256,address,address,uint16,uint16) (src/genesis/GenesisLaunchDistributor.sol#177-214):",
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "74c2face7498d0a1c07f9850"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 2,
+      "id": "7a7ecebdd60c756142c5bd2f"
     },
     {
       "impact": "Medium",
@@ -1480,10 +1496,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "8ee08a23fde89b41368432b5"
+      "id": "904b60562c5b9a52ac137a1d"
     },
     {
       "impact": "Medium",
@@ -1496,10 +1512,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "909e1375ef4c8ba1da7e2184"
+      "id": "9f46fcb5c8234a579eca10e7"
     },
     {
       "impact": "Medium",
@@ -1512,26 +1528,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#345-351):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 2,
-      "id": "9a648ba7b13a2b97ff080d1f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "a011495ae4371992cb1db95c"
+      "id": "a7868134e03e3f765dd502f8"
     },
     {
       "impact": "Medium",
@@ -1564,22 +1564,6 @@
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "aadd69a23eb234ff23ccb307"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "b20bfa87f11a9aa31fd378ce"
     },
     {
       "impact": "Medium",
@@ -1624,10 +1608,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#463-482):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "d163c1570e037d4815dad291"
+      "id": "c2622fabb932af098e415401"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "d1be78bf66d137d1b4cfbbe4"
     },
     {
       "impact": "Medium",
@@ -1656,10 +1656,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#388-428):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "f35c5c70fb6c181ee2ee2c21"
+      "id": "e51bc833f6dfd7203598305d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#782) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "02eaa12662c176fa4e500932"
     },
     {
       "impact": "Medium",
@@ -1676,6 +1692,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "0707cdbf84dbaed786a5169f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/dollar/DeployStaticsDollar.s.sol"
+      ],
+      "summary": "DeployStaticsDollar.runLocal().config (script/dollar/DeployStaticsDollar.s.sol#324) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "0742b1059dcd0f7912cc1316"
     },
     {
       "impact": "Medium",
@@ -1731,15 +1763,15 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/dollar/DeployStaticsDollar.s.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "DeployStaticsDollar.runLocal().config (script/dollar/DeployStaticsDollar.s.sol#320) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]).currencyCount (src/liquidity/StaticsSwapFeeHook.sol#394) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "18075122510948af0b8d242c"
+      "id": "2a9e7d7e7213f901f048f04b"
     },
     {
       "impact": "Medium",
@@ -1811,15 +1843,15 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "script/DeployStatics.s.sol"
       ],
-      "summary": "StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest).released (src/liquidity/StaticsSwapFeeHook.sol#356) is a local variable never initialized",
+      "summary": "DeployStatics.deploy(DeployStatics.Config).local (script/DeployStatics.s.sol#111) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "4c4fe8ae722f4bea38287894"
+      "id": "48cc0a33b74a5986cc9f075c"
     },
     {
       "impact": "Medium",
@@ -1942,6 +1974,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).staticsStakerToTreasury (src/liquidity/StaticsSwapFeeHook.sol#783) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "7bb056d488414772bced1499"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/SeriesMigrationFacet.sol"
       ],
       "summary": "SeriesMigrationFacet.settleSeriesMigration(uint256,uint256).amounts (src/dollar/periphery/facets/SeriesMigrationFacet.sol#129) is a local variable never initialized",
@@ -1996,6 +2044,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "8615789c013a70d7a921b6af"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest).released (src/liquidity/StaticsSwapFeeHook.sol#359) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "8b67959edcc903fdee41811c"
     },
     {
       "impact": "Medium",
@@ -2102,22 +2166,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]).currencyCount (src/liquidity/StaticsSwapFeeHook.sol#391) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "b00f19678fb8704e2b09a199"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibBasket.sol"
       ],
       "summary": "LibBasket.selectFeeShares(IStaticsBasket.FeeTier[],uint256).selectedThreshold (src/libraries/LibBasket.sol#69) is a local variable never initialized",
@@ -2134,44 +2182,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).staticsStakerToTreasury (src/liquidity/StaticsSwapFeeHook.sol#785) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "bd7a2735115c72708719d98f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
       "summary": "LibGlobalRewards._ensureBookWeights(LibGlobalRewards.RewardBook).bitmap (src/libraries/LibGlobalRewards.sol#891) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "be738a51fa1a7c3cde2a38b4"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStatics.s.sol"
-      ],
-      "summary": "DeployStatics.deploy(DeployStatics.Config).local (script/DeployStatics.s.sol#110) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "bf34c9cdf5bda49cc57aaa18"
     },
     {
       "impact": "Medium",
@@ -2342,22 +2358,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#784) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "f7d8fc19256d05492ca0698e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/libraries/LibCore.sol"
       ],
       "summary": "LibCore.validateOracle(address,address,uint256).configuredGrace (src/dollar/core/libraries/LibCore.sol#28) is a local variable never initialized",
@@ -2476,22 +2476,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "0701fb5a68db975db5543de8"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#411-450) ignores return value by IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#442-445)",
-      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
-      "occurrences": 1,
-      "id": "09f08c1eabd6a08caabf359d"
     },
     {
       "impact": "Medium",
@@ -2979,6 +2963,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet.canonicalPool(uint256,address) (src/facets/BasketLiquidityFacet.sol#287-308) ignores return value by (None,spotTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#296)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "29afe01dc54f391771acc908"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3004,6 +3004,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "2b21b1611fb0651a74523ae0"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._addPermanentLiquidity(PoolKey,PoolId,uint256,uint256) (src/liquidity/StaticsSwapFeeHook.sol#652-671) ignores return value by (sqrtPriceX96,None,None,None) = poolManager.getSlot0(poolId) (src/liquidity/StaticsSwapFeeHook.sol#656)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "2e8bef3514024e33e162661d"
     },
     {
       "impact": "Medium",
@@ -3510,6 +3526,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet.mintBasketLaunch(uint256,address,uint256,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#119-134) ignores return value by LibBasketMint.mintFromPayer(basketId,basketShares,payer,address(this),mintMaximums) (src/facets/BasketLiquidityFacet.sol#133)",
+      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
+      "occurrences": 1,
+      "id": "5940c657e988f51cff4d57ae"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/MorphoViewFacet.sol"
       ],
       "summary": "MorphoViewFacet.morphoPositionMarket(uint256,bytes32) (src/facets/MorphoViewFacet.sol#30-44) ignores return value by LibMorpho.requireMarket(marketId_) (src/facets/MorphoViewFacet.sol#35)",
@@ -3564,6 +3596,22 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "5def5383675cdc657bd3b9c6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook.seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#276-293) ignores return value by poolManager.unlock(abi.encode(UNLOCK_SEED,abi.encode(seeds))) (src/liquidity/StaticsSwapFeeHook.sol#292)",
+      "rationale": "PoolManager unlock success or revert and the callback's checked currency deltas are authoritative; this path has no additional return payload to consume.",
+      "occurrences": 1,
+      "id": "5e513a90440f97aba801dbd3"
     },
     {
       "impact": "Medium",
@@ -4451,6 +4499,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#352-391) ignores return value by IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#383-386)",
+      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
+      "occurrences": 1,
+      "id": "9e024e08526bd71a30714983"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4771,22 +4835,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet.canonicalPool(uint256,address) (src/facets/BasketLiquidityFacet.sol#358-375) ignores return value by (None,spotTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#363)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "baf603357924646edbd1de3f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4828,22 +4876,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "c07702c9f9d9b4dad14c1983"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "ProtocolPoolAdminFacet.harvestPermanentLiquidityFees(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#116-143) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolAdminFacet.sol#127)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "c0914ec4ed87d518f8f409ec"
     },
     {
       "impact": "Medium",
@@ -5078,22 +5110,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet.mintBasketLaunch(uint256,address,uint256,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#132-147) ignores return value by LibBasketMint.mintFromPayer(basketId,basketShares,payer,address(this),mintMaximums) (src/facets/BasketLiquidityFacet.sol#146)",
-      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
-      "occurrences": 1,
-      "id": "cda3deac3c9a587204e11189"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibProtocolRevenue.sol"
       ],
       "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-65) ignores return value by (kind,key,basketId,None) = LibProtocolPools.enforceRegistered(poolId) (src/libraries/LibProtocolRevenue.sol#33-34)",
@@ -5116,22 +5132,6 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "cf189bcf1c382c204ae5b088"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._addPermanentLiquidity(PoolKey,PoolId,uint256,uint256) (src/liquidity/StaticsSwapFeeHook.sol#649-673) ignores return value by (sqrtPriceX96,None,None,None) = poolManager.getSlot0(poolId) (src/liquidity/StaticsSwapFeeHook.sol#653)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "cf304d0b5a1f132682be745a"
     },
     {
       "impact": "Medium",
@@ -5411,6 +5411,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "ProtocolPoolAdminFacet.harvestPermanentLiquidityFees(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#116-143) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolAdminFacet.sol#127)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "e1457154c03c38817bc4e2ee"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5516,22 +5532,6 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "ea06fd6794dedf0d539ab5b4"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook.seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#273-290) ignores return value by poolManager.unlock(abi.encode(UNLOCK_SEED,abi.encode(seeds))) (src/liquidity/StaticsSwapFeeHook.sol#289)",
-      "rationale": "PoolManager unlock success or revert and the callback's checked currency deltas are authoritative; this path has no additional return payload to consume.",
-      "occurrences": 1,
-      "id": "ee41716f8eac4048cf48cb75"
     },
     {
       "impact": "Medium",
@@ -5734,22 +5734,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._assertClaimSolvency(Currency) (src/liquidity/StaticsSwapFeeHook.sol#816-820) has external calls inside a loop: available = poolManager.balanceOf(address(this),currency.toId()) (src/liquidity/StaticsSwapFeeHook.sol#818)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "0c4c3a0f194911da4f580514"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._collectProfits(address[],uint256[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#143-163) has external calls inside a loop: endingBalance = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#154)",
@@ -5772,6 +5756,22 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 6,
       "id": "19c7d6215ec621c449f59416"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#352-391) has external calls inside a loop: tick = IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#387)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "1c3ecfefecd047a774053b09"
     },
     {
       "impact": "Low",
@@ -5846,22 +5846,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._enforcePayerDebits(LibBasket.Basket,address,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#236-251) has external calls inside a loop: balanceAfter = IERC20(asset).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#245)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "26cb81ed21d137ad7c31d4ae"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: amountOut = abi.decode(poolManager.unlock(abi.encode(SwapCall({pool:pool,zeroForOne:zeroForOne,amountIn:amountIn}))),(uint256)) (src/periphery/StaticsFlashArbitrageReceiver.sol#289-292)",
@@ -5884,22 +5868,6 @@
       "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
       "occurrences": 1,
       "id": "312468cf683d16c751961e30"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#388-428) has external calls inside a loop: (callerDelta,feesAccrued) = poolManager.modifyLiquidity(seed.key,params,) (src/liquidity/StaticsSwapFeeHook.sol#404)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "314d7d439cecbfb250c3eca0"
     },
     {
       "impact": "Low",
@@ -6024,10 +5992,10 @@
       "paths": [
         "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "BasketLiquidityFacet._payerBalances(LibBasket.Basket,address) (src/facets/BasketLiquidityFacet.sol#224-234) has external calls inside a loop: balances[i] = IERC20(configured.assets[i]).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#232)",
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#352-391) has external calls inside a loop: key = PoolKey({currency0:currency0,currency1:currency1,fee:IStaticsSwapFeeHook(ls.hook).nativeLpFee(),tickSpacing:CANONICAL_TICK_SPACING,hooks:IHooks(ls.hook)}) (src/facets/BasketLiquidityFacet.sol#363-369)",
       "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
       "occurrences": 1,
-      "id": "5e8a97a1cddc72ff85599017"
+      "id": "6335fcd8eaf5b8c940d1148f"
     },
     {
       "impact": "Low",
@@ -6054,28 +6022,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#411-450) has external calls inside a loop: key = PoolKey({currency0:currency0,currency1:currency1,fee:IStaticsSwapFeeHook(ls.hook).nativeLpFee(),tickSpacing:CANONICAL_TICK_SPACING,hooks:IHooks(ls.hook)}) (src/facets/BasketLiquidityFacet.sol#422-428)",
+      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431) has external calls inside a loop: (callerDelta,feesAccrued) = poolManager.modifyLiquidity(seed.key,params,) (src/liquidity/StaticsSwapFeeHook.sol#407)",
       "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
       "occurrences": 1,
-      "id": "734e6d820d1f2243e1dd86bc"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#411-450) has external calls inside a loop: IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#442-445)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "7b92336f42ab866932241ecd"
+      "id": "7b7c1290e80ff3017bbf8d6e"
     },
     {
       "impact": "Low",
@@ -6118,6 +6070,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._enforcePayerDebits(LibBasket.Basket,address,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#223-238) has external calls inside a loop: balanceAfter = IERC20(asset).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#232)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "7fdf29bb661df17de2b9d7f1"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#445-461) has external calls inside a loop: remainingAllowance = token.allowance(staticsDiamond,address(this)) (src/liquidity/StaticsSwapFeeHook.sol#458)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "7ff2ecd93a902e675d30f4a0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/BorrowLiquidityFacet.sol"
       ],
       "summary": "BorrowLiquidityFacet._mintLiquidityPosition(IStaticsLiquidityManager,BorrowLiquidityFacet.ProvisionContext,BorrowLiquidityFacet.PreparedPool) (src/facets/BorrowLiquidityFacet.sol#242-277) has external calls inside a loop: (movement,refund0,refund1) = manager.mintUserPosition(request,ctx.nftRecipient,ctx.refundRecipient) (src/facets/BorrowLiquidityFacet.sol#262-263)",
@@ -6140,6 +6124,22 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 5,
       "id": "829d38bdb43dd498310a3856"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#445-461) has external calls inside a loop: settled = poolManager.settle() (src/liquidity/StaticsSwapFeeHook.sol#456)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "893731485a0aea6484f4af45"
     },
     {
       "impact": "Low",
@@ -6214,38 +6214,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#442-458) has external calls inside a loop: remainingAllowance = token.allowance(staticsDiamond,address(this)) (src/liquidity/StaticsSwapFeeHook.sol#455)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "9b7f34778f6c6f46ca1779eb"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#442-458) has external calls inside a loop: settled = poolManager.settle() (src/liquidity/StaticsSwapFeeHook.sol#453)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "a68ffaa462f58202fb2b89f3"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#280-300) has external calls inside a loop: inputBefore = inputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#287)",
@@ -6278,60 +6246,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#411-450) has external calls inside a loop: tick = IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#446)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "b44d2794522182c653ea2260"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#442-458) has external calls inside a loop: poolManager.sync(currency) (src/liquidity/StaticsSwapFeeHook.sol#443)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "bf05970aefcf47355c0c2b5b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._pullExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#340-346) has external calls inside a loop: beforeBalance = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#341)",
       "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
       "occurrences": 1,
       "id": "cd40508f5a97a0341efab482"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#740-745) has external calls inside a loop: poolManager.mint(address(this),currency.toId(),amount) (src/liquidity/StaticsSwapFeeHook.sol#742)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "d02dd4212ffa1f25f1129f72"
     },
     {
       "impact": "Low",
@@ -6364,6 +6284,86 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "d3615e9c143ac0c4fd6e2120"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#352-391) has external calls inside a loop: IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#383-386)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "d7fcfc99c3286c467f1dc9ac"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#738-743) has external calls inside a loop: poolManager.mint(address(this),currency.toId(),amount) (src/liquidity/StaticsSwapFeeHook.sol#740)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "dc0682ff550893622c07b06e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._payerBalances(LibBasket.Basket,address) (src/facets/BasketLiquidityFacet.sol#211-221) has external calls inside a loop: balances[i] = IERC20(configured.assets[i]).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#219)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "e95fa705dfbfaa0cafc31c3d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._assertClaimSolvency(Currency) (src/liquidity/StaticsSwapFeeHook.sol#814-818) has external calls inside a loop: available = poolManager.balanceOf(address(this),currency.toId()) (src/liquidity/StaticsSwapFeeHook.sol#816)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "f21f907775c0a962768176c0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#445-461) has external calls inside a loop: poolManager.sync(currency) (src/liquidity/StaticsSwapFeeHook.sol#446)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "f7d0b903a911a622254cfda5"
     },
     {
       "impact": "Low",
@@ -6412,22 +6412,6 @@
       "rationale": "The zero case is either an intentional optional binding or is rejected by the called token/dependency and the protocol's installation or factory validation before value can enter.",
       "occurrences": 1,
       "id": "0ef1f6d3fe3064615057d0b1"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "missing-zero-check",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook.constructor(IPoolManager,address,uint24,uint16,uint16).diamond (src/liquidity/StaticsSwapFeeHook.sol#126) lacks a zero-check on :",
-      "rationale": "Installation validates deployed code and immutable cross-bindings, so a zero constructor dependency cannot be installed into the Diamond or receive protocol funds.",
-      "occurrences": 1,
-      "id": "19d3bcf0aadfa7108d04ee29"
     },
     {
       "impact": "Low",
@@ -6534,6 +6518,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook.constructor(IPoolManager,address,uint24,uint16,uint16,IStaticsPermanentLiquidityMath).diamond (src/liquidity/StaticsSwapFeeHook.sol#130) lacks a zero-check on :",
+      "rationale": "Installation validates deployed code and immutable cross-bindings, so a zero constructor dependency cannot be installed into the Diamond or receive protocol funds.",
+      "occurrences": 1,
+      "id": "c5356ec88ae3dbb675ae82da"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/tokens/StaticsBasketToken.sol"
       ],
       "summary": "StaticsBasketToken.constructor(string,string,address,uint256).protocol_ (src/tokens/StaticsBasketToken.sol#15) lacks a zero-check on :",
@@ -6614,6 +6614,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "149df2f926a33b7c986e3db0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#218-245):",
@@ -6664,26 +6680,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#721-726):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#738-743):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "28db227d6ab901b1391d71d5"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#517-522):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "2e37178094dc8732d8c78a99"
+      "id": "2aab11de7162b793744fea34"
     },
     {
       "impact": "Low",
@@ -6726,22 +6726,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#740-745):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "50965de2be74310566095c52"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#152-169):",
@@ -6760,10 +6744,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#388-428):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#520-525):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "5e7f945737b11e6fe0f8f79d"
+      "id": "63dcaf459fe9de8aa3779d51"
     },
     {
       "impact": "Low",
@@ -6780,22 +6764,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "713dcccefe0c84488eb43f39"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "800b9255ccd06dd7d2d639a6"
     },
     {
       "impact": "Low",
@@ -6870,12 +6838,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "df39e6f244569561abdcfb42"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/diamond/StaticsProtocolInit.sol"
       ],
       "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#107-110):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "e5efae45bc62591cca6337ff"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#719-724):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f8d8fac8b6e3a77747cdaec7"
     },
     {
       "impact": "Low",
@@ -6908,6 +6908,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "045c1bd98886c03f6ea2e4ac"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#690-703):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "0472ca328dc1a47192907a61"
     },
     {
       "impact": "Low",
@@ -6969,12 +6985,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#66-79):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#520-525):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "102a8cf1160948c378006ef3"
+      "id": "0e6ec8542ce316c19843d08e"
     },
     {
       "impact": "Low",
@@ -6987,10 +7003,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#388-428):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "19d4b96ca5b889e544493b1d"
+      "id": "18b46c09ff446e591cfa5118"
     },
     {
       "impact": "Low",
@@ -7084,10 +7100,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "2ff68b27bf45764f59e12b75"
+      "id": "223f02773ba5d80d65d6b240"
     },
     {
       "impact": "Low",
@@ -7100,10 +7116,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook.harvestPermanentLiquidityFees(PoolKey) (src/liquidity/StaticsSwapFeeHook.sol#292-307):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "2ffa8a9c0d534e5379832a5c"
+      "id": "2cc591f3f50c77b5ce04b9f6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "Reentrancy in BasketLiquidityFacet.setCanonicalPoolFeeRate(uint256,address,uint16,uint16) (src/facets/BasketLiquidityFacet.sol#257-266):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "30b05e593cec7f06f77ec72f"
     },
     {
       "impact": "Low",
@@ -7162,76 +7194,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "Reentrancy in BasketLiquidityFacet.clearCanonicalPoolFeeRate(uint256,address) (src/facets/BasketLiquidityFacet.sol#281-288):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "391235b8c024667d045a942e"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#345-351):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 2,
-      "id": "3a3a382b1ad28bffcde214d6"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#47-64):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "40f898636b9a9870edd7e5b5"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#388-428):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 2,
-      "id": "4110afb0af7855b109054ce9"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "442683eea2671a4ce191454f"
+      "id": "4223ebf44aa6d3f310431af7"
     },
     {
       "impact": "Low",
@@ -7248,6 +7216,38 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "48cede54f8f84a91784ca328"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#484-493):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "57223e63dc8822aab73c31c0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#719-724):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "5e3bda9cbc4a1fb6303f1fb1"
     },
     {
       "impact": "Low",
@@ -7303,6 +7303,22 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 2,
+      "id": "663547ec23f0999fed08c92f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7312,22 +7328,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "668e0a442ec9002257da1f03"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "66979c10f3297dffcb03c368"
     },
     {
       "impact": "Low",
@@ -7402,38 +7402,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#481-490):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "6dccb5484667e293087c7437"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "745bf74737b0a0b8d7a96e38"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
@@ -7441,6 +7409,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "753b71fec52cafd0bf3d6391"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook.releasePermanentLiquidity(PoolKey,address) (src/liquidity/StaticsSwapFeeHook.sol#312-332):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "754dec2ce9cae36b3fa14f6f"
     },
     {
       "impact": "Low",
@@ -7500,6 +7484,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 2,
+      "id": "8ed943410f20d33d0d4934d0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "90f423a7a8c593a8ebf47d51"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
@@ -7507,6 +7523,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "92c5d2e7bf13886f53d4e4ab"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#690-703):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "9577e6e0f4c65fc4a23e42f8"
     },
     {
       "impact": "Low",
@@ -7535,42 +7567,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#460-479):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "98a08face29f9e47c40bf58d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#345-351):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 2,
-      "id": "9b0d7f26f1e32ec679d0c343"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "9bd5a6073569e912699a71e1"
+      "id": "98a1b047ca5af79cf2ea4e40"
     },
     {
       "impact": "Low",
@@ -7643,22 +7643,6 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#627-647):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "a438daf90deb59450de898f9"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7678,44 +7662,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#721-726):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "acdfd74bf24282bf49ebccb3"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/libraries/LibCoreAccounting.sol"
       ],
       "summary": "Reentrancy in LibCoreAccounting.routeRetiredSurplus(LibCoreStorage.CS,uint256,uint256,uint256) (src/dollar/core/libraries/LibCoreAccounting.sol#176-189):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "aecd843f7a327e1cc52ab0e6"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#460-479):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "b11776b39437d8e6bfbb882d"
     },
     {
       "impact": "Low",
@@ -7759,12 +7711,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook.releasePermanentLiquidity(PoolKey,address) (src/liquidity/StaticsSwapFeeHook.sol#309-329):",
+      "summary": "Reentrancy in BasketLiquidityFacet.clearCanonicalPoolFeeRate(uint256,address) (src/facets/BasketLiquidityFacet.sol#268-275):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "b8a4ae360743333a9df52b1c"
+      "id": "b82e569601e684a18ec971a8"
     },
     {
       "impact": "Low",
@@ -7777,10 +7729,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#692-705):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#356-389):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "bc00632e9990b30f2969386b"
+      "id": "be0f53ffaf24c7bc48e3040b"
     },
     {
       "impact": "Low",
@@ -7807,12 +7759,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#353-386):",
+      "summary": "Reentrancy in BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#352-391):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "c500fa5315be0a9eabd0fe4d"
+      "id": "c698e0c4e0fd3b87023b30f0"
     },
     {
       "impact": "Low",
@@ -7825,26 +7777,10 @@
       "paths": [
         "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "Reentrancy in BasketLiquidityFacet.setCanonicalPoolFeeRate(uint256,address,uint16,uint16) (src/facets/BasketLiquidityFacet.sol#270-279):",
+      "summary": "Reentrancy in BasketLiquidityFacet.setSwapFeeConfiguration(IStaticsBasketLiquidity.SwapFeeConfiguration) (src/facets/BasketLiquidityFacet.sol#240-255):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "c72350cd138369f72ec6e875"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "Reentrancy in BasketLiquidityFacet.setSwapFeeConfiguration(IStaticsBasketLiquidity.SwapFeeConfiguration) (src/facets/BasketLiquidityFacet.sol#253-268):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "cc91ca49e592123d88eda966"
+      "id": "c8c73dd965e4fd5513b5e378"
     },
     {
       "impact": "Low",
@@ -7872,44 +7808,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "Reentrancy in BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,uint160) (src/facets/BasketLiquidityFacet.sol#411-450):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "d5f0402b7a2564ccf12bc1af"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#692-705):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#463-482):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "dc2a91cb84124a162ab10454"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#517-522):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "dcbef593345fa0788e3cd928"
+      "id": "da89016653564ffe2a6fcda3"
     },
     {
       "impact": "Low",
@@ -7968,12 +7872,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#66-79):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "e2c9cae1b65762d3ebf2fd94"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#184-194):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "ebac242777fc265e9b7c5e83"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#463-482):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f147febd99caac3df449c6ad"
     },
     {
       "impact": "Low",
@@ -8016,12 +7952,76 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f6e665fa0ba747ab60d95995"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#47-64):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f7eedb85f7f0e57a11fe5534"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f9da55d0bccacd38e5746dae"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
       "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#40-45):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "fa2d66a8e3e837cb6f3ff133"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook.harvestPermanentLiquidityFees(PoolKey) (src/liquidity/StaticsSwapFeeHook.sol#295-310):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "fd4732fa8aa2868052bca9f6"
     },
     {
       "impact": "Low",
@@ -8034,10 +8034,10 @@
       "paths": [
         "script/dollar/DeployStaticsDollar.s.sol"
       ],
-      "summary": "DeployStaticsDollarBase._validateProduction(StaticsDollarProductionConfig) (script/dollar/DeployStaticsDollar.s.sol#251-280) tries to limit the gas of an external call that controls implicit decoding",
+      "summary": "DeployStaticsDollarBase._validateProduction(StaticsDollarProductionConfig) (script/dollar/DeployStaticsDollar.s.sol#255-284) tries to limit the gas of an external call that controls implicit decoding",
       "rationale": "The optional mock-marker STATICCALL forwards only 30,000 gas, which bounds returndata production and copy; the decoder runs only after a successful response of at least one word.",
       "occurrences": 1,
-      "id": "1ca6db456fa8c192d6529f37"
+      "id": "9f47cf873a8e28fc3654b36b"
     },
     {
       "impact": "Low",
@@ -9305,22 +9305,6 @@
     },
     {
       "impact": "Informational",
-      "confidence": "Medium",
-      "check": "dead-code",
-      "classification": "CONFIRMED",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._enforceLiquidityAvailable() (src/facets/BasketLiquidityFacet.sol#583-587) is never used and should be removed",
-      "rationale": "The unused duplicate pause helper is removed in the final branch.",
-      "occurrences": 1,
-      "id": "60de68c707b7e673011d8ea8"
-    },
-    {
-      "impact": "Informational",
       "confidence": "High",
       "check": "low-level-calls",
       "classification": "INTENTIONAL",
@@ -9414,6 +9398,22 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "6535edb42bb85fe53810419e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/dollar/DeployStaticsDollar.s.sol"
+      ],
+      "summary": "Low level call in DeployStaticsDollarBase._validateProduction(StaticsDollarProductionConfig) (script/dollar/DeployStaticsDollar.s.sol#255-284):",
+      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
+      "occurrences": 1,
+      "id": "73f28a88a0aa488a1b1f98aa"
     },
     {
       "impact": "Informational",
@@ -9526,22 +9526,6 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "cd68e248972e426a9e139e65"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/dollar/DeployStaticsDollar.s.sol"
-      ],
-      "summary": "Low level call in DeployStaticsDollarBase._validateProduction(StaticsDollarProductionConfig) (script/dollar/DeployStaticsDollar.s.sol#251-280):",
-      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
-      "occurrences": 1,
-      "id": "f6a0ea7a202d68211ef1aa66"
     },
     {
       "impact": "Informational",
@@ -9684,6 +9668,22 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStatics.s.sol"
+      ],
+      "summary": "DeployStatics._deployLiquidityContracts(StaticsDollarStackDeployment,DeployStatics.V4Config,address) (script/DeployStatics.s.sol#174-209) uses literals with too many digits:",
+      "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
+      "occurrences": 1,
+      "id": "356589ba82df9dc73c45fc23"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
       "summary": "DeployStaticsGenesis.staticsImplementationHash() (script/DeployStaticsGenesis.s.sol#480-493) uses literals with too many digits:",
@@ -9757,22 +9757,6 @@
     },
     {
       "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStatics.s.sol"
-      ],
-      "summary": "DeployStatics._deployLiquidityContracts(StaticsDollarStackDeployment,DeployStatics.V4Config,address) (script/DeployStatics.s.sol#173-204) uses literals with too many digits:",
-      "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
-      "occurrences": 1,
-      "id": "fd4cf6bc77539dce91114cff"
-    },
-    {
-      "impact": "Informational",
       "confidence": "High",
       "check": "unimplemented-functions",
       "classification": "FALSE POSITIVE",
@@ -9796,12 +9780,13 @@
         "production-contracts"
       ],
       "paths": [
+        "src/interfaces/IStaticsSwapFeeHook.sol",
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook (src/liquidity/StaticsSwapFeeHook.sol#33-875) does not implement functions:",
+      "summary": "StaticsSwapFeeHook (src/liquidity/StaticsSwapFeeHook.sol#33-873) does not implement functions:",
       "rationale": "The hook implements getHookPermissions directly; Slither fails to recognize the concrete override through the BaseHook and interface inheritance graph.",
       "occurrences": 1,
-      "id": "e7ea0acdf3a7fcf87c519af8"
+      "id": "cdb4e2a58062b87e1cfed736"
     },
     {
       "impact": "Informational",
