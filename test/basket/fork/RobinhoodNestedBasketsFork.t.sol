@@ -15,12 +15,15 @@ import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol"
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
+import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
+import {PathKey} from "@uniswap/v4-periphery/src/libraries/PathKey.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {Permit2SignatureHelpers} from "@uniswap/v4-periphery/test/shared/Permit2SignatureHelpers.sol";
 import {Plan, Planner} from "@uniswap/v4-periphery/test/shared/Planner.sol";
 
 import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsSwapFeeHook} from "../../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsPermanentLiquidityMath} from "../../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
@@ -88,6 +91,8 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
     // Test-only keys sign fork-local Permit2 messages and never hold live funds.
     uint256 internal constant LEAF_SWAPPER_KEY = 0x9045a44c309ea7e3e550ff4bf446b647ba985910dfce59f24c2fb8639480e659;
     uint256 internal constant PARENT_SWAPPER_KEY = 0xc16276e2c1fcc6f2443e8e16b32aee83b00e6bb96d5bc34f647c71f41d31b274;
+    uint256 internal constant CROSS_BASKET_SWAPPER_KEY =
+        0x649c48a3796f71d58037f73df2d7e2742c4ec6b3158bdaa873f82c5ff41998c3;
 
     // Robinhood's deployed Universal Router uses the later v4 single-hop
     // encoding that includes a per-hop minimum price after amountOutMinimum.
@@ -108,6 +113,32 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         address source;
         uint256 swapperKey;
         uint128 amountIn;
+    }
+
+    struct MultiHopSwapRequest {
+        address input;
+        address output;
+        address source;
+        uint256 swapperKey;
+        uint128 amountIn;
+    }
+
+    struct MultiHopSwapResult {
+        address swapper;
+        uint256 amountOut;
+        uint256 quoteGasEstimate;
+        uint256 executionGas;
+    }
+
+    struct FourHopRoute {
+        PathKey[] path;
+        PoolId[4] poolIds;
+        address[5] currencies;
+    }
+
+    struct RouteAccountingSnapshot {
+        uint128[4] lockedLiquidity;
+        uint256[4] pendingDistributions;
     }
 
     IPoolManager internal poolManager;
@@ -363,6 +394,22 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         _executeUniversalRouterSwap(request, key, zeroForOne, uint128(quotedOutput));
     }
 
+    function _quoteAndSwapMultiHopThroughUniversalRouter(MultiHopSwapRequest memory request, PathKey[] memory path)
+        internal
+        returns (MultiHopSwapResult memory result)
+    {
+        (result.amountOut, result.quoteGasEstimate) = quoter.quoteExactInput(
+            IV4Quoter.QuoteExactParams({
+                exactCurrency: Currency.wrap(request.input), path: path, exactAmount: request.amountIn
+            })
+        );
+        assertGt(result.amountOut, 0);
+        assertLe(result.amountOut, type(uint128).max);
+        assertGt(result.quoteGasEstimate, 0);
+        (result.swapper, result.executionGas) =
+            _executeUniversalRouterMultiHopSwap(request, path, uint128(result.amountOut));
+    }
+
     function _executeUniversalRouterSwap(
         SwapRequest memory request,
         PoolKey memory key,
@@ -388,6 +435,36 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         universalRouter.execute(
             abi.encodePacked(PERMIT2_PERMIT_COMMAND, V4_SWAP_COMMAND), inputs, block.timestamp + 1 minutes
         );
+        assertEq(inputBefore - IERC20(request.input).balanceOf(swapper), request.amountIn);
+        assertEq(IERC20(request.output).balanceOf(swapper) - outputBefore, quotedOutput);
+        _assertPermitNonceConsumed(swapper, request.input, nonce);
+    }
+
+    function _executeUniversalRouterMultiHopSwap(
+        MultiHopSwapRequest memory request,
+        PathKey[] memory path,
+        uint128 quotedOutput
+    ) private returns (address swapper, uint256 executionGas) {
+        swapper = vm.addr(request.swapperKey);
+        assertEq(swapper.code.length, 0, "fork swapper must be an EOA");
+        vm.prank(request.source);
+        assertTrue(IERC20(request.input).transfer(swapper, request.amountIn));
+        vm.prank(swapper);
+        assertTrue(IERC20(request.input).approve(address(permit2Contract), request.amountIn));
+
+        (bytes memory encodedPermit, uint48 nonce) =
+            _buildPermitApproval(swapper, request.swapperKey, request.input, request.amountIn);
+        bytes[] memory inputs = new bytes[](2);
+        inputs[0] = encodedPermit;
+        inputs[1] = _encodeMultiHopSwapPlan(path, request.input, request.output, request.amountIn, quotedOutput);
+
+        uint256 inputBefore = IERC20(request.input).balanceOf(swapper);
+        uint256 outputBefore = IERC20(request.output).balanceOf(swapper);
+        vm.prank(swapper);
+        universalRouter.execute(
+            abi.encodePacked(PERMIT2_PERMIT_COMMAND, V4_SWAP_COMMAND), inputs, block.timestamp + 1 minutes
+        );
+        executionGas = vm.lastCallGas().gasTotalUsed;
         assertEq(inputBefore - IERC20(request.input).balanceOf(swapper), request.amountIn);
         assertEq(IERC20(request.output).balanceOf(swapper) - outputBefore, quotedOutput);
         _assertPermitNonceConsumed(swapper, request.input, nonce);
@@ -435,6 +512,150 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         plan.add(Actions.SETTLE_ALL, abi.encode(Currency.wrap(input), amountIn));
         plan.add(Actions.TAKE_ALL, abi.encode(Currency.wrap(output), amountOutMinimum));
         return plan.encode();
+    }
+
+    function _encodeMultiHopSwapPlan(
+        PathKey[] memory path,
+        address input,
+        address output,
+        uint128 amountIn,
+        uint128 amountOutMinimum
+    ) internal pure returns (bytes memory) {
+        Plan memory plan = Planner.init();
+        plan.add(
+            Actions.SWAP_EXACT_IN,
+            abi.encode(
+                IV4Router.ExactInputParams({
+                    currencyIn: Currency.wrap(input),
+                    path: path,
+                    maxHopSlippage: new uint256[](0),
+                    amountIn: amountIn,
+                    amountOutMinimum: amountOutMinimum
+                })
+            )
+        );
+        plan.add(Actions.SETTLE_ALL, abi.encode(Currency.wrap(input), amountIn));
+        plan.add(Actions.TAKE_ALL, abi.encode(Currency.wrap(output), amountOutMinimum));
+        return plan.encode();
+    }
+
+    function _nvdaToAaplRoute() internal view returns (FourHopRoute memory route) {
+        route.currencies[0] = NVDA;
+        route.currencies[1] = leafBasketTokens[0];
+        route.currencies[2] = parentBasketToken;
+        route.currencies[3] = leafBasketTokens[1];
+        route.currencies[4] = AAPL;
+        route.path = new PathKey[](4);
+
+        (route.path[0], route.poolIds[0]) = _routeHop(leafBasketIds[0], NVDA, route.currencies[0], route.currencies[1]);
+        (route.path[1], route.poolIds[1]) =
+            _routeHop(parentBasketId, leafBasketTokens[0], route.currencies[1], route.currencies[2]);
+        (route.path[2], route.poolIds[2]) =
+            _routeHop(parentBasketId, leafBasketTokens[1], route.currencies[2], route.currencies[3]);
+        (route.path[3], route.poolIds[3]) = _routeHop(leafBasketIds[1], AAPL, route.currencies[3], route.currencies[4]);
+    }
+
+    function _routeHop(uint256 basketId, address asset, address input, address output)
+        private
+        view
+        returns (PathKey memory hop, PoolId poolId)
+    {
+        IStaticsBasketLiquidity.CanonicalPoolView memory canonical = basketLiquidity.canonicalPool(basketId, asset);
+        assertTrue(
+            (canonical.currency0 == input && canonical.currency1 == output)
+                || (canonical.currency0 == output && canonical.currency1 == input),
+            "route hop must use its configured canonical pool"
+        );
+        hop = PathKey({
+            intermediateCurrency: Currency.wrap(output),
+            fee: canonical.lpFee,
+            tickSpacing: canonical.tickSpacing,
+            hooks: IHooks(canonical.hook),
+            hookData: ""
+        });
+        poolId = canonical.poolId;
+    }
+
+    function _assertNoDirectPool(address input, address output, PathKey memory terms) internal view {
+        Currency inputCurrency = Currency.wrap(input);
+        Currency outputCurrency = Currency.wrap(output);
+        (Currency currency0, Currency currency1) =
+            inputCurrency < outputCurrency ? (inputCurrency, outputCurrency) : (outputCurrency, inputCurrency);
+        PoolKey memory directKey = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            fee: terms.fee,
+            tickSpacing: terms.tickSpacing,
+            hooks: terms.hooks
+        });
+        PoolId directPoolId = directKey.toId();
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(directPoolId);
+        IStaticsSwapFeeHook.PoolRegistration memory registration = hook.poolRegistration(directPoolId);
+        assertEq(uint256(sqrtPriceX96), 0, "demonstration must not rely on a direct market");
+        assertFalse(registration.registered, "direct market must not be a Statics protocol pool");
+    }
+
+    function _assertNoIntermediateCustody(address swapper, FourHopRoute memory route) internal view {
+        for (uint256 i = 1; i < route.currencies.length - 1; ++i) {
+            IERC20 intermediate = IERC20(route.currencies[i]);
+            assertEq(intermediate.balanceOf(swapper), 0, "swapper retained an intermediate BasketToken");
+            assertEq(
+                intermediate.balanceOf(address(universalRouter)),
+                0,
+                "Universal Router retained an intermediate BasketToken"
+            );
+        }
+    }
+
+    function _takeRouteAccounting(FourHopRoute memory route)
+        internal
+        view
+        returns (RouteAccountingSnapshot memory snapshot)
+    {
+        for (uint256 i; i < route.poolIds.length; ++i) {
+            snapshot.lockedLiquidity[i] = hook.lockedLiquidity(route.poolIds[i]);
+            snapshot.pendingDistributions[i] = _pendingDistributionTotal(
+                route.poolIds[i], Currency.wrap(route.currencies[i]), Currency.wrap(route.currencies[i + 1])
+            );
+        }
+    }
+
+    function _assertRouteAccountingAdvanced(FourHopRoute memory route, RouteAccountingSnapshot memory beforeAction)
+        internal
+        view
+    {
+        for (uint256 i; i < route.poolIds.length; ++i) {
+            assertGt(
+                uint256(hook.lockedLiquidity(route.poolIds[i])),
+                uint256(beforeAction.lockedLiquidity[i]),
+                "every hop must compound swap fees into POL"
+            );
+            assertGt(
+                _pendingDistributionTotal(
+                    route.poolIds[i], Currency.wrap(route.currencies[i]), Currency.wrap(route.currencies[i + 1])
+                ),
+                beforeAction.pendingDistributions[i],
+                "every hop must accrue non-POL protocol fees"
+            );
+        }
+    }
+
+    function _pendingDistributionTotal(PoolId poolId, Currency first, Currency second)
+        private
+        view
+        returns (uint256 total)
+    {
+        IStaticsSwapFeeHook.FeeDistribution memory firstDistribution = hook.pendingFeeDistribution(poolId, first);
+        IStaticsSwapFeeHook.FeeDistribution memory secondDistribution = hook.pendingFeeDistribution(poolId, second);
+        total = _distributionTotal(firstDistribution) + _distributionTotal(secondDistribution);
+    }
+
+    function _distributionTotal(IStaticsSwapFeeHook.FeeDistribution memory distribution)
+        private
+        pure
+        returns (uint256)
+    {
+        return distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
     }
 
     function _assertPermitNonceConsumed(address swapper, address input, uint48 spentNonce) internal view {
@@ -549,6 +770,15 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
 }
 
 contract RobinhoodNestedBasketsForkTest is RobinhoodNestedBasketsForkBase {
+    event NestedRouteMeasured(
+        string route,
+        uint256 poolsTraversed,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 quoteGasEstimate,
+        uint256 executionGas
+    );
+
     struct AccountingSnapshot {
         uint256[9] userBalances;
         uint256[9] treasuryAccruals;
@@ -559,6 +789,47 @@ contract RobinhoodNestedBasketsForkTest is RobinhoodNestedBasketsForkBase {
         uint256[3] leafFeeReserves;
         uint256[3] parentVaults;
         uint256 parentSupply;
+    }
+
+    /// @notice Demonstrates that independently useful basket markets form a shared liquidity graph.
+    /// NVDA reaches AAPL atomically through sAI, sCOMP, and sPLAT without a direct NVDA/AAPL pool.
+    /// The equal launch prices make this a composability proof, not a market-price comparison.
+    function testAtomicFourHopRouteConnectsNVDAAndAAPL() public {
+        _assertAllCanonicalPools();
+        FourHopRoute memory route = _nvdaToAaplRoute();
+        assertEq(route.path.length, 4);
+        _assertNoDirectPool(NVDA, AAPL, route.path[0]);
+
+        address swapper = vm.addr(CROSS_BASKET_SWAPPER_KEY);
+        _assertNoIntermediateCustody(swapper, route);
+        RouteAccountingSnapshot memory beforeAction = _takeRouteAccounting(route);
+
+        MultiHopSwapResult memory result = _quoteAndSwapMultiHopThroughUniversalRouter(
+            MultiHopSwapRequest({
+                input: NVDA, output: AAPL, source: bob, swapperKey: CROSS_BASKET_SWAPPER_KEY, amountIn: 0.01 ether
+            }),
+            route.path
+        );
+
+        assertEq(result.swapper, swapper);
+        assertEq(IERC20(NVDA).balanceOf(swapper), 0);
+        assertEq(IERC20(AAPL).balanceOf(swapper), result.amountOut);
+        _assertNoIntermediateCustody(swapper, route);
+        _assertRouteAccountingAdvanced(route, beforeAction);
+
+        emit log("Composability route: NVDA -> sAI -> sCOMP -> sPLAT -> AAPL");
+        emit log_named_uint("Canonical pools traversed", route.path.length);
+        emit log_named_uint("NVDA input", 0.01 ether);
+        emit log_named_uint("AAPL output", result.amountOut);
+        emit log_named_uint("Universal Router execution gas", result.executionGas);
+        emit NestedRouteMeasured(
+            "NVDA -> sAI -> sCOMP -> sPLAT -> AAPL",
+            route.path.length,
+            0.01 ether,
+            result.amountOut,
+            result.quoteGasEstimate,
+            result.executionGas
+        );
     }
 
     function testNestedBasketsComposeAndUnwindWithFees() public {
