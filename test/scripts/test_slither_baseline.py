@@ -170,6 +170,18 @@ class SlitherBaselineTest(unittest.TestCase):
         self.assertEqual(normalized["counts"], {"High": 2})
         self.assertEqual(len({item["id"] for item in normalized["findings"]}), 2)
 
+    def test_normalize_excludes_cross_scope_reference_from_test_subject(self) -> None:
+        detector = finding("test/Fixture.t.sol", "fixture")
+        referenced = copy.deepcopy(detector["elements"][0])
+        referenced["source_mapping"]["filename_relative"] = "src/genesis/LibExactAssetTransfer.sol"
+        detector["elements"].append(referenced)
+        raw = {"success": True, "results": {"detectors": [detector]}}
+
+        normalized = slither_baseline.normalize(raw)
+
+        self.assertEqual(normalized["findings"], [])
+        self.assertEqual(normalized["counts"], {})
+
     def test_check_rejects_growth_in_reviewed_occurrences(self) -> None:
         detector = finding("src/genesis/LibExactAssetTransfer.sol", "safeTransferFrom")
         baseline_raw = {"success": True, "results": {"detectors": [detector]}}

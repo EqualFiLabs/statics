@@ -183,6 +183,15 @@ def occurrence_key(detector: dict[str, Any], scoped_paths: set[str]) -> str:
     return hashlib.sha256(material.encode()).hexdigest()[:24]
 
 
+def primary_path(detector: dict[str, Any]) -> str | None:
+    """Return the subject element path, excluding cross-scope reference-only findings."""
+    for element in detector.get("elements", []):
+        path = element.get("source_mapping", {}).get("filename_relative")
+        if isinstance(path, str) and path:
+            return path
+    return None
+
+
 def normalize(raw: dict[str, Any], root: Path = ROOT, scope_path: Path = SCOPE_PATH) -> dict[str, Any]:
     if not raw.get("success"):
         raise ValueError(f"Slither did not complete successfully: {raw.get('error')}")
@@ -192,6 +201,8 @@ def normalize(raw: dict[str, Any], root: Path = ROOT, scope_path: Path = SCOPE_P
     raw_findings: list[dict[str, Any]] = []
 
     for detector in raw.get("results", {}).get("detectors", []):
+        if primary_path(detector) not in scoped_paths:
+            continue
         paths = sorted(
             {
                 element.get("source_mapping", {}).get("filename_relative")
