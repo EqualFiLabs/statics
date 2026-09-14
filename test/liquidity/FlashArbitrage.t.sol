@@ -327,14 +327,13 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 stakePositionId = _createStake(_asset(address(assetA)));
         _mintInitialSupply(basketId, basketToken, assets, 100 ether);
         PoolKey memory pool = _initializeAndSeed(basketId, basketToken, address(assetA));
-        basketLiquidity.setSwapFeeConfiguration(
-            IStaticsBasketLiquidity.SwapFeeConfiguration({
-                inputFeeBps: 25,
-                outputFeeBps: 25,
-                polShareBps: 0,
-                basketStakerShareBps: 0,
-                staticsStakerShareBps: 9_000,
-                treasuryShareBps: 500
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25})
+        );
+        protocolPools.setBasketFeeAllocation(
+            IStaticsProtocolPools.BasketFeeAllocation({
+                polShareBps: 0, basketStakerShareBps: 0, staticsStakerShareBps: 9_000, treasuryShareBps: 500
             })
         );
 
@@ -770,14 +769,15 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
     }
 
     function _setHookFees(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) private {
-        basketLiquidity.setSwapFeeConfiguration(
-            IStaticsBasketLiquidity.SwapFeeConfiguration({
-                inputFeeBps: uint16(bound(rawInputFeeBps, 0, 100)),
-                outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100)),
-                polShareBps: 5_000,
-                basketStakerShareBps: 0,
-                staticsStakerShareBps: 4_000,
-                treasuryShareBps: 500
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({
+                inputFeeBps: uint16(bound(rawInputFeeBps, 0, 100)), outputFeeBps: uint16(bound(rawOutputFeeBps, 0, 100))
+            })
+        );
+        protocolPools.setBasketFeeAllocation(
+            IStaticsProtocolPools.BasketFeeAllocation({
+                polShareBps: 5_000, basketStakerShareBps: 0, staticsStakerShareBps: 4_000, treasuryShareBps: 500
             })
         );
     }

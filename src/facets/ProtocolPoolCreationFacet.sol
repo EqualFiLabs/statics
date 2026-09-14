@@ -32,10 +32,9 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant DOMAIN_NAME_HASH = keccak256(bytes("Statics Protocol Pools"));
-    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("1"));
-    bytes32 private constant CREATE_POOL_TYPEHASH = keccak256(
-        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,uint256 nonce,uint256 deadline)"
-    );
+    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("2"));
+    bytes32 private constant CREATE_POOL_TYPEHASH =
+        keccak256("CreatePool(bytes32 poolId,uint160 sqrtPriceX96,address creator,uint256 nonce,uint256 deadline)");
 
     error LiquidityIntegrationNotInstalled();
     error InvalidToken(address token);
@@ -43,7 +42,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     error DeadlineExpired(uint256 deadline);
     error InvalidTickSpacing(int24 tickSpacing);
     error InvalidPoolPrice(uint160 sqrtPriceBPerAX96);
-    error InvalidFeeRate(uint16 inputFeeBps, uint16 outputFeeBps);
+    error InvalidNativeLpFee(uint24 lpFee);
     error PoolAlreadyInitialized(PoolId poolId);
     error PoolAlreadyRegisteredInHook(PoolId poolId);
     error ActionPaused(uint256 action);
@@ -97,7 +96,6 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         stored.registered = true;
 
         hook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, params.creator);
-        hook.setPoolFeeRate(poolId, params.feeRate.inputFeeBps, params.feeRate.outputFeeBps);
         int24 tick = IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
 
         emit IStaticsProtocolPools.ProtocolPoolCreated(
@@ -105,9 +103,8 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
             params.creator,
             Currency.unwrap(quote.key.currency0),
             Currency.unwrap(quote.key.currency1),
+            params.lpFee,
             params.tickSpacing,
-            params.feeRate.inputFeeBps,
-            params.feeRate.outputFeeBps,
             quote.sqrtPriceX96,
             tick
         );
@@ -130,20 +127,17 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         _validateToken(params.tokenB);
         if (params.tokenA == params.tokenB) revert IdenticalTokens(params.tokenA);
         if (!LibProtocolPoolFee.isValidTickSpacing(params.tickSpacing)) revert InvalidTickSpacing(params.tickSpacing);
-        if (!LibProtocolPoolFee.isValidFeeRate(params.feeRate.inputFeeBps, params.feeRate.outputFeeBps)) {
-            revert InvalidFeeRate(params.feeRate.inputFeeBps, params.feeRate.outputFeeBps);
-        }
+        if (!LibProtocolPoolFee.isValidStaticLpFee(params.lpFee)) revert InvalidNativeLpFee(params.lpFee);
         if (params.creator == address(0)) revert InvalidCreator(params.creator);
         quote.sqrtPriceX96 = _sortedSqrtPrice(params.tokenA, params.tokenB, params.sqrtPriceBPerAX96);
         quote.key = PoolKey({
             currency0: params.tokenA < params.tokenB ? Currency.wrap(params.tokenA) : Currency.wrap(params.tokenB),
             currency1: params.tokenA < params.tokenB ? Currency.wrap(params.tokenB) : Currency.wrap(params.tokenA),
-            fee: IStaticsSwapFeeHook(ls.hook).nativeLpFee(),
+            fee: params.lpFee,
             tickSpacing: params.tickSpacing,
             hooks: IHooks(ls.hook)
         });
         quote.poolId = quote.key.toId();
-        quote.feeRate = params.feeRate;
         quote.creationFee = LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount;
         quote.authorizationDigest = _authorizationDigest(quote.poolId, quote.sqrtPriceX96, params);
     }
@@ -170,14 +164,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     ) private view returns (bytes32 digest) {
         bytes32 structHash = keccak256(
             abi.encode(
-                CREATE_POOL_TYPEHASH,
-                PoolId.unwrap(poolId),
-                sqrtPriceX96,
-                params.feeRate.inputFeeBps,
-                params.feeRate.outputFeeBps,
-                params.creator,
-                params.nonce,
-                params.deadline
+                CREATE_POOL_TYPEHASH, PoolId.unwrap(poolId), sqrtPriceX96, params.creator, params.nonce, params.deadline
             )
         );
         digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));

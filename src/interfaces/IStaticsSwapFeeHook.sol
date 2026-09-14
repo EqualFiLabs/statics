@@ -107,7 +107,6 @@ interface IStaticsSwapFeeHook {
     event GeneralFeeAllocationSet(uint16 polShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps);
 
     function staticsDiamond() external view returns (address);
-    function nativeLpFee() external view returns (uint24);
     function permanentLiquidityMath() external view returns (IStaticsPermanentLiquidityMath);
 
     // --- Fee rate (PoolId-local) ---

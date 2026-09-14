@@ -14,7 +14,7 @@ import {LibProtocolPoolFee} from "../../src/libraries/LibProtocolPoolFee.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
-/// @notice Property-level fuzzing over general-pool quote normalization, fee-rate bounds,
+/// @notice Property-level fuzzing over general-pool quote normalization, native LP fee bounds,
 /// tick-spacing bounds, sqrt-price boundaries, and duplicate-market rejection, plus a stateful
 /// creator-revenue liability handler proving aggregate reconciliation, conservation, and isolation.
 contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
@@ -28,17 +28,14 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 512
-    function testFuzzValidFeeRateAcceptedInvalidRejected(uint16 inputFeeBps, uint16 outputFeeBps) public {
+    function testFuzzStaticLpFeeBounds(uint24 lpFee) public {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB));
-        params.feeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps});
-        if (LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) {
+        params.lpFee = lpFee;
+        if (LibProtocolPoolFee.isValidStaticLpFee(lpFee)) {
             IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
-            assertEq(quote.feeRate.inputFeeBps, inputFeeBps);
-            assertEq(quote.feeRate.outputFeeBps, outputFeeBps);
+            assertEq(quote.key.fee, lpFee);
         } else {
-            vm.expectRevert(
-                abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidFeeRate.selector, inputFeeBps, outputFeeBps)
-            );
+            vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidNativeLpFee.selector, lpFee));
             pools.quotePool(params);
         }
     }
@@ -77,18 +74,16 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 256
-    function testFuzzDuplicateMarketRejectedRegardlessOfFeeOrPrice(uint16 rawFee, uint160 rawPrice) public {
+    function testFuzzDuplicateMarketRejectedRegardlessOfPrice(uint160 rawPrice) public {
         IStaticsProtocolPools.CreatePoolParams memory first = _params(address(assetA), address(assetB));
         PoolId poolId = pools.createPool(first, "");
 
-        uint16 inputFee = uint16(bound(rawFee, 0, 200));
         // Keep the requested price within the valid normalized range for this token ordering so the
         // creation reaches the duplicate-registration check rather than price validation. A different
-        // requested Statics fee rate or initial price cannot manufacture a distinct market.
+        // initial price cannot manufacture a distinct PoolId.
         uint160 lowerBound = address(assetA) < address(assetB) ? TickMath.MIN_SQRT_PRICE : (1 << 96);
         uint160 price = uint160(bound(rawPrice, lowerBound, (1 << 96) + 1_000_000));
         IStaticsProtocolPools.CreatePoolParams memory second = _params(address(assetA), address(assetB));
-        second.feeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: inputFee, outputFeeBps: 0});
         second.sqrtPriceBPerAX96 = price;
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -100,6 +95,15 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
         pools.createPool(second, "");
     }
 
+    function testSamePairDifferentLpFeeCreatesDistinctPoolIds() public {
+        IStaticsProtocolPools.CreatePoolParams memory first = _params(address(assetA), address(assetB));
+        IStaticsProtocolPools.CreatePoolParams memory second = _params(address(assetA), address(assetB));
+        second.lpFee = 500;
+        PoolId firstPoolId = pools.createPool(first, "");
+        PoolId secondPoolId = pools.createPool(second, "");
+        assertNotEq(PoolId.unwrap(firstPoolId), PoolId.unwrap(secondPoolId));
+    }
+
     function _params(address tokenA, address tokenB)
         private
         view
@@ -108,9 +112,9 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
         params = IStaticsProtocolPools.CreatePoolParams({
             tokenA: tokenA,
             tokenB: tokenB,
+            lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: 1 << 96,
-            feeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: address(this),
             nonce: 1,
             deadline: block.timestamp + 1 days
@@ -225,9 +229,9 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
         IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
             tokenA: tokenA,
             tokenB: tokenB,
+            lpFee: 3_000,
             tickSpacing: tickSpacing,
             sqrtPriceBPerAX96: 1 << 96,
-            feeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days

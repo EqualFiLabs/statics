@@ -31,7 +31,6 @@ import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 /// creator share totals 10,000 bps. Collected fees remain as PoolManager claims until the next
 /// routing boundary, when non-POL claims are redeemed and routed to the Diamond.
 contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
-    uint24 public constant MAX_NATIVE_LP_FEE_PIPS = 999_999;
     using PoolIdLibrary for PoolKey;
     using SafeCast for uint256;
     using StateLibrary for IPoolManager;
@@ -77,7 +76,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     }
 
     address public immutable staticsDiamond;
-    uint24 public immutable nativeLpFee;
     IStaticsPermanentLiquidityMath private immutable permanentLiquidityCalc;
 
     uint16 private defaultInputFeeBps;
@@ -103,7 +101,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error PoolIsDecommissioned(PoolId poolId);
     error PoolNotDecommissioned(PoolId poolId);
     error NativeCurrencyUnsupported();
-    error NativeLpFeeMismatch(uint24 expected, uint24 actual);
     error IncompatiblePoolCurrency(Currency currency, uint256 requested, uint256 received);
     error UnexpectedTokenDebit(Currency currency, uint256 expected, uint256 actual);
     error UnexpectedTokenAllowance(Currency currency, uint256 remaining);
@@ -128,17 +125,14 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     constructor(
         IPoolManager manager,
         address diamond,
-        uint24 lpFee,
         uint16 inputFeeBps,
         uint16 outputFeeBps,
         IStaticsPermanentLiquidityMath permanentLiquidityMath_
     ) BaseHook(manager) {
-        if (lpFee > MAX_NATIVE_LP_FEE_PIPS) revert InvalidNativeLpFee(lpFee);
         if (address(permanentLiquidityMath_).code.length == 0) {
             revert InvalidPermanentLiquidityMath(address(permanentLiquidityMath_));
         }
         staticsDiamond = diamond;
-        nativeLpFee = lpFee;
         permanentLiquidityCalc = permanentLiquidityMath_;
         _setDefaultFeeRate(inputFeeBps, outputFeeBps);
         _setBasketFeeAllocation(
@@ -233,7 +227,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function registerPool(PoolKey calldata key, PoolKind kind, address creator) external returns (PoolId poolId) {
         _enforceDiamond();
         if (key.currency0.isAddressZero() || key.currency1.isAddressZero()) revert NativeCurrencyUnsupported();
-        if (key.fee != nativeLpFee) revert NativeLpFeeMismatch(nativeLpFee, key.fee);
+        if (!LibProtocolPoolFee.isValidStaticLpFee(key.fee)) revert InvalidNativeLpFee(key.fee);
         if (kind != PoolKind.BasketCanonical && kind != PoolKind.General) revert InvalidPoolKind();
         if (creator == address(0)) revert InvalidCreator(creator);
         poolId = key.toId();
@@ -614,11 +608,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
                 poolId,
                 Currency.unwrap(currency),
                 IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                basketStaker: pending.basketStaker,
-                staticsStaker: pending.staticsStaker,
-                creator: pending.creator,
-                treasury: pending.treasury
-            })
+                    basketStaker: pending.basketStaker,
+                    staticsStaker: pending.staticsStaker,
+                    creator: pending.creator,
+                    treasury: pending.treasury
+                })
             );
         uint256 afterBalance = currency.balanceOfSelf();
         _enforceExactDebit(currency, beforeBalance, afterBalance, total);

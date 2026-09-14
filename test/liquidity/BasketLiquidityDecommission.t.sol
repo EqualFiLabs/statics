@@ -10,6 +10,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
@@ -79,18 +80,19 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
     }
 
     function testGovernanceCanUpdateCappedFeeConfiguration() public {
-        IStaticsBasketLiquidity.SwapFeeConfiguration memory configuration = IStaticsBasketLiquidity.SwapFeeConfiguration({
-            inputFeeBps: 40,
-            outputFeeBps: 60,
-            polShareBps: 6_000,
-            basketStakerShareBps: 0,
-            staticsStakerShareBps: 3_000,
-            treasuryShareBps: 500
-        });
-        basketLiquidity.setSwapFeeConfiguration(configuration);
-        IStaticsBasketLiquidity.SwapFeeConfiguration memory stored = basketLiquidity.swapFeeConfiguration();
-        assertEq(stored.inputFeeBps, 40);
-        assertEq(stored.outputFeeBps, 60);
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.setDefaultProtocolPoolFeeRate(
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+        );
+        protocolPools.setBasketFeeAllocation(
+            IStaticsProtocolPools.BasketFeeAllocation({
+                polShareBps: 6_000, basketStakerShareBps: 0, staticsStakerShareBps: 3_000, treasuryShareBps: 500
+            })
+        );
+        IStaticsProtocolPools.PoolSwapFeeRate memory rate = protocolPools.defaultProtocolPoolFeeRate();
+        IStaticsProtocolPools.BasketFeeAllocation memory stored = protocolPools.basketFeeAllocation();
+        assertEq(rate.inputFeeBps, 40);
+        assertEq(rate.outputFeeBps, 60);
         assertEq(stored.polShareBps, 6_000);
         assertEq(stored.staticsStakerShareBps, 3_000);
     }

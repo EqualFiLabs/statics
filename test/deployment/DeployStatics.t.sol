@@ -135,7 +135,6 @@ contract DeployStaticsTest is Test {
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
             permanentLiquidityHarvester: makeAddr("permanentLiquidityHarvester"),
-            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: deployment.poolManager.codehash,
@@ -156,7 +155,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 36, 282);
+        _assertManifest(diamond, 36, 280);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
         _assertRetiredLiquiditySelectorsAbsent(diamond);
@@ -344,7 +343,6 @@ contract DeployStaticsTest is Test {
             poolManager: address(poolManager),
             positionManager: address(positionManager),
             permit2: address(permit2Contract),
-            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: address(poolManager).codehash,

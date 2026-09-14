@@ -29,6 +29,8 @@ interface IStaticsBasket {
     }
 
     struct PoolLaunchParams {
+        uint24 lpFee;
+        int24 tickSpacing;
         uint160 sqrtPriceAssetPerBasketX96;
         uint256 pairedAssetAmount;
     }

@@ -908,8 +908,9 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](3);
         uint256[] memory maximums = new uint256[](3);
         for (uint256 i; i < 3; ++i) {
-            pools[i] =
-                IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
+            pools[i] = IStaticsBasket.PoolLaunchParams({
+                lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+            });
             maximums[i] = 1_000_000 ether;
         }
         weth.deposit{value: 1_000 ether}();
@@ -926,11 +927,11 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs =
-            abi.encode(poolManager, deployment.diamond, uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath);
+            abi.encode(poolManager, deployment.diamond, uint16(25), uint16(25), permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 3_000, 25, 25, permanentLiquidityMath);
+            new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 25, 25, permanentLiquidityMath);
         assertEq(address(hook), expected);
         MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(deployment.diamond, address(poolManager));
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));

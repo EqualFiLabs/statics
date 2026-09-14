@@ -24,10 +24,6 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
 
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private constant CREATE_POOL_TYPEHASH = keccak256(
-        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,uint256 nonce,uint256 deadline)"
-    );
-
     IStaticsProtocolPools private pools;
     uint256 private constant CREATION_FEE = 0.1 ether;
 
@@ -117,6 +113,15 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertTrue(PoolId.unwrap(first) != PoolId.unwrap(second));
     }
 
+    function testSamePairDifferentLpFeeSucceeds() public {
+        IStaticsProtocolPools.CreatePoolParams memory a = _params(address(assetA), address(assetB), alice);
+        IStaticsProtocolPools.CreatePoolParams memory b = _params(address(assetA), address(assetB), alice);
+        b.lpFee = 500;
+        PoolId first = pools.createPool(a, "");
+        PoolId second = pools.createPool(b, "");
+        assertNotEq(PoolId.unwrap(first), PoolId.unwrap(second));
+    }
+
     function testInvalidTickSpacingAndPriceRejected() public {
         IStaticsProtocolPools.CreatePoolParams memory zeroSpacing = _params(address(assetA), address(assetB), alice);
         zeroSpacing.tickSpacing = 0;
@@ -128,12 +133,14 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         pools.quotePool(identical);
     }
 
-    function testInvalidFeeRateRejected() public {
+    function testDynamicAndOneHundredPercentLpFeesRejected() public {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
-        params.feeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 150, outputFeeBps: 100});
-        vm.expectRevert(
-            abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidFeeRate.selector, uint16(150), uint16(100))
-        );
+        params.lpFee = 0x800000;
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidNativeLpFee.selector, params.lpFee));
+        pools.quotePool(params);
+
+        params.lpFee = 1_000_000;
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidNativeLpFee.selector, params.lpFee));
         pools.quotePool(params);
     }
 
@@ -158,9 +165,11 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertEq(PoolId.unwrap(poolId), PoolId.unwrap(quote.poolId));
         (uint160 livePrice,,,) = poolManager.getSlot0(poolId);
         assertEq(livePrice, quote.sqrtPriceX96);
-        IStaticsProtocolPools.PoolSwapFeeRate memory rate = pools.protocolPoolFeeRate(poolId);
-        assertEq(rate.inputFeeBps, params.feeRate.inputFeeBps);
-        assertEq(rate.outputFeeBps, params.feeRate.outputFeeBps);
+        assertEq(quote.key.fee, params.lpFee);
+        IStaticsProtocolPools.PoolFeeRateView memory rate = pools.protocolPoolFeeRate(poolId);
+        assertEq(rate.inputFeeBps, 25);
+        assertEq(rate.outputFeeBps, 25);
+        assertFalse(rate.overridden);
     }
 
     function testReciprocalPriceNormalization() public view {
@@ -290,6 +299,57 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
 
     // --- Admin ---
 
+    function testGlobalDefaultAndPoolOverridePrecedence() public {
+        IStaticsProtocolPools.CreatePoolParams memory firstParams = _params(address(assetA), address(assetB), alice);
+        IStaticsProtocolPools.CreatePoolParams memory secondParams = _params(address(assetA), address(assetB), alice);
+        secondParams.lpFee = 500;
+        PoolId first = pools.createPool(firstParams, "");
+        PoolId second = pools.createPool(secondParams, "");
+
+        IStaticsProtocolPools.PoolSwapFeeRate memory initial = pools.defaultProtocolPoolFeeRate();
+        assertEq(initial.inputFeeBps, 25);
+        assertEq(initial.outputFeeBps, 25);
+
+        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60}));
+        IStaticsProtocolPools.PoolFeeRateView memory firstRate = pools.protocolPoolFeeRate(first);
+        IStaticsProtocolPools.PoolFeeRateView memory secondRate = pools.protocolPoolFeeRate(second);
+        assertEq(firstRate.inputFeeBps, 40);
+        assertEq(secondRate.outputFeeBps, 60);
+        assertFalse(firstRate.overridden);
+        assertFalse(secondRate.overridden);
+
+        pools.setProtocolPoolFeeRate(first, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 10, outputFeeBps: 20}));
+        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 30, outputFeeBps: 40}));
+        firstRate = pools.protocolPoolFeeRate(first);
+        secondRate = pools.protocolPoolFeeRate(second);
+        assertEq(firstRate.inputFeeBps, 10);
+        assertEq(firstRate.outputFeeBps, 20);
+        assertTrue(firstRate.overridden);
+        assertEq(secondRate.inputFeeBps, 30);
+        assertEq(secondRate.outputFeeBps, 40);
+        assertFalse(secondRate.overridden);
+
+        pools.clearProtocolPoolFeeRate(first);
+        firstRate = pools.protocolPoolFeeRate(first);
+        assertEq(firstRate.inputFeeBps, 30);
+        assertEq(firstRate.outputFeeBps, 40);
+        assertFalse(firstRate.overridden);
+    }
+
+    function testPoolFeeAdministrationIsOwnerOnly() public {
+        PoolId poolId = pools.createPool(_params(address(assetA), address(assetB), alice), "");
+        IStaticsProtocolPools.PoolSwapFeeRate memory rate =
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60});
+        vm.startPrank(bob);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        pools.setDefaultProtocolPoolFeeRate(rate);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        pools.setProtocolPoolFeeRate(poolId, rate);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
+        pools.clearProtocolPoolFeeRate(poolId);
+        vm.stopPrank();
+    }
+
     function testCanonicalCollisionRejected() public {
         (uint256 basketId, address basketToken) = _createDefaultBasket(0, 0);
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
@@ -372,9 +432,9 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         params = IStaticsProtocolPools.CreatePoolParams({
             tokenA: tokenA,
             tokenB: tokenB,
+            lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: SQRT_PRICE_1_1,
-            feeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days

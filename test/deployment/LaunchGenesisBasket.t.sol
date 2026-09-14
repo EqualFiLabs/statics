@@ -57,6 +57,10 @@ contract LaunchGenesisBasketBatchTest is Test {
         assertEq(config.basket.mintFeeTiers.length, 1);
         assertEq(config.basket.redemptionFeeTiers.length, 1);
         assertEq(config.pools.length, 2);
+        assertEq(config.pools[0].lpFee, 3_000);
+        assertEq(config.pools[0].tickSpacing, 10);
+        assertEq(config.pools[1].lpFee, 500);
+        assertEq(config.pools[1].tickSpacing, 20);
         assertEq(config.maxAmountsIn.length, 2);
         assertEq(config.expectedBasketId, 0);
         assertEq(config.launchDeadline, 2_000_000_000);
@@ -77,6 +81,8 @@ contract LaunchGenesisBasketBatchTest is Test {
         for (uint256 i; i < 3; ++i) {
             assertEq(config.basket.bundleAmounts[i], 0.00025 ether);
             assertEq(config.pools[i].pairedAssetAmount, 0.25 ether);
+            assertEq(config.pools[i].lpFee, 3_000);
+            assertEq(config.pools[i].tickSpacing, 10);
             assertEq(config.pools[i].sqrtPriceAssetPerBasketX96, referenceConfig.pools[i].sqrtPriceAssetPerBasketX96);
             assertEq(config.maxAmountsIn[i], 0.50025 ether);
         }
@@ -92,8 +98,12 @@ contract LaunchGenesisBasketBatchTest is Test {
         bundleAmounts[0] = 1 ether;
         bundleAmounts[1] = 2 ether;
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](2);
-        pools[0] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
-        pools[1] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 2 ether});
+        pools[0] = IStaticsBasket.PoolLaunchParams({
+            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+        });
+        pools[1] = IStaticsBasket.PoolLaunchParams({
+            lpFee: 500, tickSpacing: 20, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 2 ether
+        });
         uint256[] memory maximums = new uint256[](2);
         maximums[0] = 10 ether;
         maximums[1] = 20 ether;
@@ -206,7 +216,6 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
             permanentLiquidityHarvester: address(this),
-            nativeLpFee: v4.nativeLpFee,
             inputFeeBps: v4.inputFeeBps,
             outputFeeBps: v4.outputFeeBps,
             poolManagerCodeHash: v4.poolManagerCodeHash,
@@ -237,8 +246,12 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         bundleAmounts[0] = 1 ether;
         bundleAmounts[1] = 1 ether;
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](2);
-        pools[0] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
-        pools[1] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
+        pools[0] = IStaticsBasket.PoolLaunchParams({
+            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+        });
+        pools[1] = IStaticsBasket.PoolLaunchParams({
+            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+        });
         uint256[] memory maximums = new uint256[](2);
         maximums[0] = 10 ether;
         maximums[1] = 10 ether;
@@ -294,7 +307,6 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             poolManager: address(poolManager),
             positionManager: address(positionManager),
             permit2: address(permit2Contract),
-            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: address(poolManager).codehash,

@@ -16,6 +16,12 @@ interface IStaticsProtocolPools {
         uint16 outputFeeBps;
     }
 
+    struct PoolFeeRateView {
+        uint16 inputFeeBps;
+        uint16 outputFeeBps;
+        bool overridden;
+    }
+
     struct BasketFeeAllocation {
         uint16 polShareBps;
         uint16 basketStakerShareBps;
@@ -32,9 +38,9 @@ interface IStaticsProtocolPools {
     struct CreatePoolParams {
         address tokenA;
         address tokenB;
+        uint24 lpFee;
         int24 tickSpacing;
         uint160 sqrtPriceBPerAX96;
-        PoolSwapFeeRate feeRate;
         address creator;
         uint256 nonce;
         uint256 deadline;
@@ -44,7 +50,6 @@ interface IStaticsProtocolPools {
         PoolKey key;
         PoolId poolId;
         uint160 sqrtPriceX96;
-        PoolSwapFeeRate feeRate;
         uint256 creationFee;
         bytes32 authorizationDigest;
     }
@@ -65,15 +70,16 @@ interface IStaticsProtocolPools {
         address indexed creator,
         address indexed currency0,
         address currency1,
+        uint24 lpFee,
         int24 tickSpacing,
-        uint16 inputFeeBps,
-        uint16 outputFeeBps,
         uint160 sqrtPriceX96,
         int24 tick
     );
     event PoolCreationFeeSet(uint256 amount);
     event PoolCreationNonceInvalidated(address indexed creator, uint256 indexed nonce);
+    event DefaultProtocolPoolFeeRateSet(uint16 inputFeeBps, uint16 outputFeeBps);
     event ProtocolPoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps);
+    event ProtocolPoolFeeRateCleared(PoolId indexed poolId);
     event BasketFeeAllocationSet(
         uint16 polShareBps, uint16 basketStakerShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps
     );
@@ -97,7 +103,9 @@ interface IStaticsProtocolPools {
 
     // --- Admin facet ---
     function setPoolCreationFee(uint256 amount) external;
+    function setDefaultProtocolPoolFeeRate(PoolSwapFeeRate calldata feeRate) external;
     function setProtocolPoolFeeRate(PoolId poolId, PoolSwapFeeRate calldata feeRate) external;
+    function clearProtocolPoolFeeRate(PoolId poolId) external;
     function setBasketFeeAllocation(BasketFeeAllocation calldata allocation) external;
     function setGeneralFeeAllocation(GeneralFeeAllocation calldata allocation) external;
     function decommissionGeneralPool(PoolId poolId) external returns (uint256 amount0, uint256 amount1);
@@ -112,7 +120,8 @@ interface IStaticsProtocolPools {
     function isPoolCreationNonceUsed(address creator, uint256 nonce) external view returns (bool used);
     function basketFeeAllocation() external view returns (BasketFeeAllocation memory allocation);
     function generalFeeAllocation() external view returns (GeneralFeeAllocation memory allocation);
-    function protocolPoolFeeRate(PoolId poolId) external view returns (PoolSwapFeeRate memory feeRate);
+    function defaultProtocolPoolFeeRate() external view returns (PoolSwapFeeRate memory feeRate);
+    function protocolPoolFeeRate(PoolId poolId) external view returns (PoolFeeRateView memory feeRate);
     function protocolPoolCreator(PoolId poolId) external view returns (address creator);
     function permanentLiquidityHarvester() external view returns (address harvester);
 }

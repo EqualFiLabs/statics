@@ -37,7 +37,7 @@ contract StaticsPermanentLiquidityHookHalmosTest is SymTest, Test {
         manager = new FormalPermanentPoolManager();
         FormalPermanentLiquidityMath permanentLiquidityMath = new FormalPermanentLiquidityMath();
         hook = new FormalPermanentSwapFeeHook(
-            IPoolManager(address(manager)), address(this), 3_000, 25, 25, permanentLiquidityMath
+            IPoolManager(address(manager)), address(this), 25, 25, permanentLiquidityMath
         );
         (Currency currency0, Currency currency1) = address(tokenA) < address(tokenB)
             ? (Currency.wrap(address(tokenA)), Currency.wrap(address(tokenB)))
@@ -59,6 +59,43 @@ contract StaticsPermanentLiquidityHookHalmosTest is SymTest, Test {
         pure
     {
         revert("no preceding distribution");
+    }
+
+    function check_registeredPoolsAcceptIndependentStaticLpFees(uint24 lpFee) public {
+        vm.assume(lpFee <= 999_999 && lpFee != key.fee);
+        PoolKey memory second = PoolKey({
+            currency0: key.currency0,
+            currency1: key.currency1,
+            fee: lpFee,
+            tickSpacing: key.tickSpacing,
+            hooks: key.hooks
+        });
+        PoolId secondPoolId = hook.registerPool(second, IStaticsSwapFeeHook.PoolKind.General, address(this));
+        assertTrue(hook.poolRegistration(secondPoolId).registered);
+        assertNotEq(PoolId.unwrap(secondPoolId), PoolId.unwrap(poolId));
+    }
+
+    function check_poolOverrideIgnoresGlobalChangesUntilCleared(
+        uint8 defaultInput,
+        uint8 defaultOutput,
+        uint8 overrideInput,
+        uint8 overrideOutput
+    ) public {
+        vm.assume(uint256(defaultInput) + defaultOutput <= 200);
+        vm.assume(uint256(overrideInput) + overrideOutput <= 200);
+        hook.setPoolFeeRate(poolId, overrideInput, overrideOutput);
+        hook.setDefaultFeeRate(defaultInput, defaultOutput);
+
+        IStaticsSwapFeeHook.PoolFeeRate memory overridden = hook.poolFeeRate(poolId);
+        assertEq(overridden.inputFeeBps, overrideInput);
+        assertEq(overridden.outputFeeBps, overrideOutput);
+        assertTrue(overridden.overridden);
+
+        hook.clearPoolFeeRate(poolId);
+        IStaticsSwapFeeHook.PoolFeeRate memory inherited = hook.poolFeeRate(poolId);
+        assertEq(inherited.inputFeeBps, defaultInput);
+        assertEq(inherited.outputFeeBps, defaultOutput);
+        assertFalse(inherited.overridden);
     }
 
     function check_specifiedFeeAllocationEqualsMintedClaim(uint8 chargedUnits) public {
