@@ -239,7 +239,10 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         uint256[] memory maximums = new uint256[](length);
         for (uint256 i; i < length; ++i) {
             pools[i] = IStaticsBasket.PoolLaunchParams({
-                sqrtPriceAssetPerBasketX96: SQRT_PRICE_1_1, pairedAssetAmount: POOL_SEED
+                lpFee: 3_000,
+                tickSpacing: 10,
+                sqrtPriceAssetPerBasketX96: SQRT_PRICE_1_1,
+                pairedAssetAmount: POOL_SEED
             });
             maximums[i] = MAX_LAUNCH_INPUT;
         }
@@ -740,11 +743,10 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
     function _deployHook() internal returns (StaticsSwapFeeHook deployed) {
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath);
+            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
         assertEq(address(deployed), expected);
     }
 
