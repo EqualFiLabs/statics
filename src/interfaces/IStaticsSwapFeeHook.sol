@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IStaticsPermanentLiquidityMath} from "./IStaticsPermanentLiquidityMath.sol";
 
 interface IStaticsSwapFeeHook {
     /// @dev Normalized protocol-pool class. Mirrors `IStaticsProtocolPools.ProtocolPoolKind` but is
@@ -107,6 +108,7 @@ interface IStaticsSwapFeeHook {
 
     function staticsDiamond() external view returns (address);
     function nativeLpFee() external view returns (uint24);
+    function permanentLiquidityMath() external view returns (IStaticsPermanentLiquidityMath);
 
     // --- Fee rate (PoolId-local) ---
     function defaultFeeRate() external view returns (uint16 inputFeeBps, uint16 outputFeeBps);

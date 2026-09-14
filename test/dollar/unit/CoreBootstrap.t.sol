@@ -114,7 +114,7 @@ contract CoreBootstrapTest is Test {
         assertEq(deployment.positionNFT, deployment.diamond);
         assertEq(ownership.owner(), owner);
         assertEq(loupe.facetAddresses().length, 11);
-        assertEq(staticsLoupe.facetAddresses().length, 35);
+        assertEq(staticsLoupe.facetAddresses().length, 36);
         address migrationFacet =
             staticsLoupe.facetAddress(IStaticsDollarSeriesMigration.processSeriesTransition.selector);
         assertNotEq(staticsLoupe.facetAddress(StakingFacet.stakeRiskShares.selector), migrationFacet);

@@ -100,7 +100,8 @@ The hook delegates only the pure full-range liquidity calculation to an
 immutable `StaticsPermanentLiquidityMath` contract so the hook retains explicit
 EIP-170 deployment headroom. The calculator holds no assets or protocol state
 and has no privileged entrypoint. Deployment records its address and runtime
-code hash beside the hook evidence.
+code hash beside the hook evidence, and the installation ceremony validates
+both that runtime hash and the hook's immutable binding.
 
 Decommissioning reports permanent-liquidity principal, unmatched POL, and
 ordinary fee distributions separately. Principal and unmatched POL follow the

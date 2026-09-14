@@ -10,6 +10,7 @@ import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
@@ -146,6 +147,9 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
+        _validateContract(
+            address(hook.permanentLiquidityMath()), keccak256(type(StaticsPermanentLiquidityMath).runtimeCode)
+        );
         if (hook.nativeLpFee() != config.nativeLpFee) {
             revert InvalidNativeLpFee(config.nativeLpFee, hook.nativeLpFee());
         }

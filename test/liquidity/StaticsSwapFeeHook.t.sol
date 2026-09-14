@@ -201,6 +201,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertTrue(permissions.beforeDonate);
         assertEq(hook.staticsDiamond(), address(diamond));
         assertEq(hook.nativeLpFee(), LP_FEE);
+        assertGt(address(hook.permanentLiquidityMath()).code.length, 0);
         assertLe(address(hook).code.length, MAX_HOOK_RUNTIME_SIZE);
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         assertEq(inputFeeBps, INPUT_FEE_BPS);

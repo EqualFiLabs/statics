@@ -34,6 +34,7 @@ import {StaticsDollar} from "../../src/dollar/StaticsDollar.sol";
 import {StaticsDollarRiskShares} from "../../src/dollar/StaticsDollarRiskShares.sol";
 import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
+import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
 import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
@@ -143,30 +144,7 @@ contract DeployStaticsTest is Test {
             hookCodeHash: deployment.swapFeeHook.codehash,
             managerCodeHash: deployment.liquidityManager.codehash
         });
-        StaticsLiquidityConfig memory invalidHashConfig = liquidityConfig;
-        invalidHashConfig.hookCodeHash = bytes32(0);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
-                deployment.swapFeeHook,
-                bytes32(0),
-                deployment.swapFeeHook.codehash
-            )
-        );
-        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject missing hook hash"));
-
-        invalidHashConfig.hookCodeHash = deployment.swapFeeHook.codehash;
-        invalidHashConfig.managerCodeHash = keccak256("wrong manager runtime");
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
-                deployment.liquidityManager,
-                invalidHashConfig.managerCodeHash,
-                deployment.liquidityManager.codehash
-            )
-        );
-        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject wrong manager hash"));
-        invalidHashConfig.managerCodeHash = deployment.liquidityManager.codehash;
+        _assertLiquidityConfigRejectsUntrustedDependencies(ceremony, diamond, deployment, liquidityConfig);
 
         bytes32 salt = keccak256("install Statics liquidity");
         bytes32 operationId = ceremony.schedule(diamond, liquidityConfig, salt);
@@ -235,6 +213,54 @@ contract DeployStaticsTest is Test {
         assertEq(StaticsLiquidityManager(manager).poolManager(), deployment.poolManager);
         assertEq(StaticsLiquidityManager(manager).positionManager(), deployment.positionManager);
         assertEq(StaticsLiquidityManager(manager).permit2(), deployment.permit2);
+    }
+
+    function _assertLiquidityConfigRejectsUntrustedDependencies(
+        ConfigureStaticsLiquidity ceremony,
+        address diamond,
+        StaticsDollarStackDeployment memory deployment,
+        StaticsLiquidityConfig memory liquidityConfig
+    ) private {
+        StaticsLiquidityConfig memory invalidHashConfig = liquidityConfig;
+        invalidHashConfig.hookCodeHash = bytes32(0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
+                deployment.swapFeeHook,
+                bytes32(0),
+                deployment.swapFeeHook.codehash
+            )
+        );
+        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject missing hook hash"));
+
+        invalidHashConfig.hookCodeHash = deployment.swapFeeHook.codehash;
+        invalidHashConfig.managerCodeHash = keccak256("wrong manager runtime");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
+                deployment.liquidityManager,
+                invalidHashConfig.managerCodeHash,
+                deployment.liquidityManager.codehash
+            )
+        );
+        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject wrong manager hash"));
+        invalidHashConfig.managerCodeHash = deployment.liquidityManager.codehash;
+
+        // Synthetic corruption is required to reach the installer's immutable dependency-code rejection branch.
+        bytes memory expectedMathRuntime = deployment.permanentLiquidityMath.code;
+        vm.etch(deployment.permanentLiquidityMath, hex"60006000fd");
+        bytes32 expectedMathHash = keccak256(type(StaticsPermanentLiquidityMath).runtimeCode);
+        bytes32 actualMathHash = deployment.permanentLiquidityMath.codehash;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
+                deployment.permanentLiquidityMath,
+                expectedMathHash,
+                actualMathHash
+            )
+        );
+        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject noncanonical permanent math"));
+        vm.etch(deployment.permanentLiquidityMath, expectedMathRuntime);
     }
 
     function _assertBasketRoutes(address diamond) private view {

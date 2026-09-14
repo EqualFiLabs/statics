@@ -78,7 +78,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     address public immutable staticsDiamond;
     uint24 public immutable nativeLpFee;
-    IStaticsPermanentLiquidityMath private immutable permanentLiquidityMath;
+    IStaticsPermanentLiquidityMath private immutable permanentLiquidityCalc;
 
     uint16 private defaultInputFeeBps;
     uint16 private defaultOutputFeeBps;
@@ -139,7 +139,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         }
         staticsDiamond = diamond;
         nativeLpFee = lpFee;
-        permanentLiquidityMath = permanentLiquidityMath_;
+        permanentLiquidityCalc = permanentLiquidityMath_;
         _setDefaultFeeRate(inputFeeBps, outputFeeBps);
         _setBasketFeeAllocation(
             BasketFeeAllocation({
@@ -657,7 +657,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         int24 tickLower;
         int24 tickUpper;
         (prepared.liquidityAdded, tickLower, tickUpper) =
-            permanentLiquidityMath.fullRangeLiquidity(sqrtPriceX96, key.tickSpacing, available0, available1);
+            permanentLiquidityCalc.fullRangeLiquidity(sqrtPriceX96, key.tickSpacing, available0, available1);
         if (prepared.liquidityAdded == 0) return prepared;
         ModifyLiquidityParams memory params = ModifyLiquidityParams({
             tickLower: tickLower,
@@ -869,5 +869,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     function _enforceDiamond() private view {
         if (msg.sender != staticsDiamond) revert OnlyStaticsDiamond(msg.sender);
+    }
+
+    function permanentLiquidityMath() external view returns (IStaticsPermanentLiquidityMath) {
+        return permanentLiquidityCalc;
     }
 }
