@@ -18,8 +18,8 @@ import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
+import {StaticsFlashArbitrageReceiver} from "../../src/periphery/StaticsFlashArbitrageReceiver.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
-import {FlashArbitrageReceiver, ICanonicalV4SwapRouter} from "../mocks/FlashArbitrageReceiver.sol";
 import {MockFlashBorrower} from "../mocks/MockFlashBorrower.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -35,7 +35,6 @@ struct FlashCompositionConfig {
     address v4BasketToken;
     address poolManager;
     address swapFeeHook;
-    address v4Router;
     PoolKey v4Pool;
 }
 
@@ -65,7 +64,7 @@ contract FlashCompositionHandler is Test {
     MockFlashBorrower public immutable receiver;
     MockFlashBorrower public immutable crossBasketReceiver;
     MockFlashBorrower public immutable fundedCrossBasketReceiver;
-    FlashArbitrageReceiver public immutable v4Receiver;
+    StaticsFlashArbitrageReceiver public immutable v4Receiver;
     bool public principalRestorationBroken;
     bool public flashFeeRoutingBroken;
     bool public failedRouteChangedBooks;
@@ -97,7 +96,7 @@ contract FlashCompositionHandler is Test {
         receiver = new MockFlashBorrower(config.diamond);
         crossBasketReceiver = new MockFlashBorrower(config.diamond);
         fundedCrossBasketReceiver = new MockFlashBorrower(config.diamond);
-        v4Receiver = new FlashArbitrageReceiver(config.diamond, ICanonicalV4SwapRouter(config.v4Router));
+        v4Receiver = new StaticsFlashArbitrageReceiver(config.diamond);
 
         MockERC20(config.assetA).mint(address(receiver), 1_000_000 ether);
         MockERC20(config.assetB).mint(address(receiver), 1_000_000 ether);
@@ -304,10 +303,13 @@ contract FlashCompositionHandler is Test {
     function successfulV4Redeem(uint256 rawShares) external {
         uint256 shares = bound(rawShares, 0.01 ether, 0.1 ether);
         (, uint256[] memory amounts,) = flashLoans.quoteFlashLoan(v4BasketId, shares);
-        try v4Receiver.executeBuyAndRedeem(v4BasketId, shares, v4Pool, amounts[0], 0) {
+        (PoolKey[] memory pools, uint256[] memory inputs, uint256[] memory minimumProfits) = _v4Route(amounts[0], 0);
+        try v4Receiver.executeBuyAndRedeem(v4BasketId, shares, pools, inputs, minimumProfits, block.timestamp) returns (
+            address[] memory, uint256[] memory profits
+        ) {
             v4SuccessObserved = true;
             if (
-                v4Receiver.lastProfit(assetA) == 0
+                profits[0] == 0
                     || custody.reservedByAccount(v4Account, assetA) != baskets.vaultBalance(v4BasketId, assetA)
                     || IERC20(assetA).balanceOf(address(baskets)) < custody.globalReservedByToken(assetA)
             ) v4RouteAccountingBroken = true;
@@ -318,10 +320,25 @@ contract FlashCompositionHandler is Test {
         uint256 shares = bound(rawShares, 0.01 ether, 0.1 ether);
         (, uint256[] memory amounts,) = flashLoans.quoteFlashLoan(v4BasketId, shares);
         bytes32 booksBefore = _v4BooksHash();
-        try v4Receiver.executeBuyAndRedeem(v4BasketId, shares, v4Pool, amounts[0], 1_000_000 ether) {
+        (PoolKey[] memory pools, uint256[] memory inputs, uint256[] memory minimumProfits) =
+            _v4Route(amounts[0], 1_000_000 ether);
+        try v4Receiver.executeBuyAndRedeem(v4BasketId, shares, pools, inputs, minimumProfits, block.timestamp) {
             v4RouteAccountingBroken = true;
         } catch {}
         if (_v4BooksHash() != booksBefore) v4RouteAccountingBroken = true;
+    }
+
+    function _v4Route(uint256 amountIn, uint256 minimumProfit)
+        private
+        view
+        returns (PoolKey[] memory pools, uint256[] memory inputs, uint256[] memory minimumProfits)
+    {
+        pools = new PoolKey[](1);
+        pools[0] = v4Pool;
+        inputs = new uint256[](1);
+        inputs[0] = amountIn;
+        minimumProfits = new uint256[](1);
+        minimumProfits[0] = minimumProfit;
     }
 
     function _booksHash(MockFlashBorrower borrower) private view returns (bytes32) {
@@ -412,7 +429,6 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
                 v4BasketToken: v4BasketToken,
                 poolManager: address(poolManager),
                 swapFeeHook: address(swapFeeHook),
-                v4Router: address(v4Router),
                 v4Pool: v4Pool
             })
         );

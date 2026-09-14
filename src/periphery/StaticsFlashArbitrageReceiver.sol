@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
@@ -17,19 +18,29 @@ import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol
 import {IStaticsFlashBorrower} from "../interfaces/IStaticsFlashBorrower.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 
-/// @notice Permissionless typed receiver for flash-minting a basket and selling it across its canonical pools.
-/// @dev The caller supplies only canonical pool keys, a complete BasketToken allocation, and per-asset net profit
-///      floors. There is no arbitrary-call surface or privileged fee path.
+/// @notice Permissionless typed receiver for canonical-pool basket arbitrage in either price direction.
+/// @dev The caller supplies only canonical pool keys, bounded exact-input amounts, and per-asset net profit floors.
+///      There is no arbitrary-call surface or privileged fee path.
 contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using TransientSlot for *;
 
     bytes32 private constant CALLBACK_SUCCESS = keccak256("IStaticsFlashBorrower.onStaticsFlashLoan");
+    bytes32 private constant REDEEMED_SHARES_SLOT = keccak256("statics.periphery.flash.arbitrage.redeemed.shares");
+    uint8 private constant MINT_AND_SELL = 1;
+    uint8 private constant BUY_AND_REDEEM = 2;
 
-    struct CallbackRoute {
+    struct MintAndSellRoute {
         uint256 basketId;
         uint256 shares;
         PoolKey[] pools;
         uint256[] basketAmountsIn;
+    }
+
+    struct BuyAndRedeemRoute {
+        uint256 basketId;
+        PoolKey[] pools;
+        uint256[] constituentAmountsIn;
     }
 
     struct SwapCall {
@@ -57,6 +68,14 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
 
     event MintAndSellArbitrageExecuted(
         address indexed executor, uint256 indexed basketId, uint256 shares, address[] assets, uint256[] profits
+    );
+    event BuyAndRedeemArbitrageExecuted(
+        address indexed executor,
+        uint256 indexed basketId,
+        uint256 flashShares,
+        uint256 redeemedShares,
+        address[] assets,
+        uint256[] profits
     );
 
     constructor(address staticsDiamond_) {
@@ -87,6 +106,28 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         emit MintAndSellArbitrageExecuted(msg.sender, basketId, shares, assets, profits);
     }
 
+    /// @notice Flash-borrows the basket vector, buys BasketTokens across canonical pools, redeems the complete
+    ///         acquisition, repays every constituent, and transfers the net per-asset profit to the caller.
+    function executeBuyAndRedeem(
+        uint256 basketId,
+        uint256 shares,
+        PoolKey[] calldata pools,
+        uint256[] calldata constituentAmountsIn,
+        uint256[] calldata minimumProfits,
+        uint256 deadline
+    ) external nonReentrant returns (address[] memory assets, uint256[] memory profits) {
+        if (block.timestamp > deadline) revert DeadlineExpired(deadline, block.timestamp);
+
+        uint256[] memory startingBalances;
+        (assets, startingBalances) = _prepareBuyAndRedeem(basketId, shares, pools, constituentAmountsIn, minimumProfits);
+        REDEEMED_SHARES_SLOT.asUint256().tstore(0);
+        _executeBuyAndRedeemFlashRoute(basketId, shares, pools, constituentAmountsIn);
+
+        uint256 redeemedShares = REDEEMED_SHARES_SLOT.asUint256().tload();
+        profits = _collectProfits(assets, minimumProfits, startingBalances, new uint256[](assets.length));
+        emit BuyAndRedeemArbitrageExecuted(msg.sender, basketId, shares, redeemedShares, assets, profits);
+    }
+
     /// @dev Encodes and executes the flash-loan leg carrying the mint-and-sell route.
     function _executeFlashRoute(
         uint256 basketId,
@@ -94,10 +135,23 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         PoolKey[] calldata pools,
         uint256[] calldata basketAmountsIn
     ) private {
-        CallbackRoute memory route = CallbackRoute({
+        MintAndSellRoute memory route = MintAndSellRoute({
             basketId: basketId, shares: shares, pools: pools, basketAmountsIn: basketAmountsIn
         });
-        IStaticsFlashLoan(staticsDiamond).flashLoan(basketId, shares, address(this), abi.encode(route));
+        IStaticsFlashLoan(staticsDiamond).flashLoan(basketId, shares, address(this), abi.encode(MINT_AND_SELL, route));
+    }
+
+    /// @dev Encodes and executes the flash-loan leg carrying the buy-and-redeem route.
+    function _executeBuyAndRedeemFlashRoute(
+        uint256 basketId,
+        uint256 shares,
+        PoolKey[] calldata pools,
+        uint256[] calldata constituentAmountsIn
+    ) private {
+        BuyAndRedeemRoute memory route = BuyAndRedeemRoute({
+            basketId: basketId, pools: pools, constituentAmountsIn: constituentAmountsIn
+        });
+        IStaticsFlashLoan(staticsDiamond).flashLoan(basketId, shares, address(this), abi.encode(BUY_AND_REDEEM, route));
     }
 
     /// @dev Quotes the flash vector, validates the caller's route arrays, and
@@ -118,6 +172,34 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         uint256[] memory maximums = IStaticsBasket(staticsDiamond).quoteMint(basketId, shares);
         if (maximums.length != length || flashAmounts.length != length) revert InvalidRoute();
         (startingBalances, topUps) = _pullTopUps(assets, maximums, flashAmounts);
+    }
+
+    /// @dev Quotes the flash vector, validates complete route arrays, caps each
+    /// constituent purchase at its flash principal, and snapshots route balances.
+    function _prepareBuyAndRedeem(
+        uint256 basketId,
+        uint256 shares,
+        PoolKey[] calldata pools,
+        uint256[] calldata constituentAmountsIn,
+        uint256[] calldata minimumProfits
+    ) private view returns (address[] memory assets, uint256[] memory startingBalances) {
+        uint256[] memory flashAmounts;
+        (assets, flashAmounts,) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId, shares);
+        uint256 length = assets.length;
+        if (
+            pools.length != length || constituentAmountsIn.length != length || minimumProfits.length != length
+                || flashAmounts.length != length
+        ) revert InvalidRoute();
+
+        bool hasInput;
+        startingBalances = new uint256[](length);
+        for (uint256 i; i < length; ++i) {
+            uint256 amountIn = constituentAmountsIn[i];
+            if (amountIn > flashAmounts[i]) revert InvalidRoute();
+            hasInput = hasInput || amountIn != 0;
+            startingBalances[i] = IERC20(assets[i]).balanceOf(address(this));
+        }
+        if (!hasInput) revert InvalidRoute();
     }
 
     /// @dev Snapshots starting balances and pulls any shortfall between the mint
@@ -172,21 +254,54 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
     ) external returns (bytes32) {
         if (msg.sender != staticsDiamond) revert OnlyStaticsDiamond(msg.sender);
         if (initiator != address(this)) revert InvalidInitiator(initiator);
-        CallbackRoute memory route = abi.decode(data, (CallbackRoute));
-        uint256 length = assets.length;
-        if (
-            route.basketId != basketId || route.pools.length != length || route.basketAmountsIn.length != length
-                || amounts.length != length || fees.length != length
-        ) revert InvalidRoute();
-
-        _mintAndSellRoute(basketId, assets, route);
+        uint8 routeKind = abi.decode(data, (uint8));
+        if (routeKind == MINT_AND_SELL) {
+            (, MintAndSellRoute memory route) = abi.decode(data, (uint8, MintAndSellRoute));
+            _validateMintAndSellCallback(basketId, assets.length, amounts.length, fees.length, route);
+            _mintAndSellRoute(basketId, assets, route);
+        } else if (routeKind == BUY_AND_REDEEM) {
+            (, BuyAndRedeemRoute memory route) = abi.decode(data, (uint8, BuyAndRedeemRoute));
+            _validateBuyAndRedeemCallback(basketId, assets.length, amounts.length, fees.length, route);
+            uint256 redeemedShares = _buyAndRedeemRoute(basketId, assets, amounts, route);
+            REDEEMED_SHARES_SLOT.asUint256().tstore(redeemedShares);
+        } else {
+            revert InvalidRoute();
+        }
         _approveRepayments(assets, amounts, fees);
         return CALLBACK_SUCCESS;
     }
 
+    function _validateMintAndSellCallback(
+        uint256 basketId,
+        uint256 assetLength,
+        uint256 amountLength,
+        uint256 feeLength,
+        MintAndSellRoute memory route
+    ) private pure {
+        if (
+            route.basketId != basketId || route.pools.length != assetLength
+                || route.basketAmountsIn.length != assetLength || amountLength != assetLength
+                || feeLength != assetLength
+        ) revert InvalidRoute();
+    }
+
+    function _validateBuyAndRedeemCallback(
+        uint256 basketId,
+        uint256 assetLength,
+        uint256 amountLength,
+        uint256 feeLength,
+        BuyAndRedeemRoute memory route
+    ) private pure {
+        if (
+            route.basketId != basketId || route.pools.length != assetLength
+                || route.constituentAmountsIn.length != assetLength || amountLength != assetLength
+                || feeLength != assetLength
+        ) revert InvalidRoute();
+    }
+
     /// @dev Mints the BasketToken vector, sells every constituent across its
     /// canonical pool, and proves the basket-token balance is restored.
-    function _mintAndSellRoute(uint256 basketId, address[] calldata assets, CallbackRoute memory route)
+    function _mintAndSellRoute(uint256 basketId, address[] calldata assets, MintAndSellRoute memory route)
         private
         returns (address basketToken)
     {
@@ -207,7 +322,7 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         IStaticsBasket basket,
         uint256 basketId,
         address[] calldata assets,
-        CallbackRoute memory route
+        MintAndSellRoute memory route
     ) private {
         uint256 length = assets.length;
         uint256[] memory maximums = basket.quoteMint(basketId, route.shares);
@@ -229,13 +344,43 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         uint256 basketId,
         address basketToken,
         address[] calldata assets,
-        CallbackRoute memory route
+        MintAndSellRoute memory route
     ) private {
         uint256 length = assets.length;
         for (uint256 i; i < length; ++i) {
             _validatePool(basketId, route.pools[i], basketToken, assets[i]);
             uint256 amountIn = route.basketAmountsIn[i];
             if (amountIn != 0) _swapExactInput(route.pools[i], basketToken, assets[i], amountIn);
+        }
+    }
+
+    /// @dev Buys BasketTokens with bounded constituent inputs, redeems only the
+    /// acquired balance, and proves any pre-existing BasketToken balance remains.
+    function _buyAndRedeemRoute(
+        uint256 basketId,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        BuyAndRedeemRoute memory route
+    ) private returns (uint256 redeemedShares) {
+        IStaticsBasket basket = IStaticsBasket(staticsDiamond);
+        address basketToken = basket.basket(basketId).token;
+        uint256 basketBalanceBefore = IERC20(basketToken).balanceOf(address(this));
+        uint256 length = assets.length;
+        for (uint256 i; i < length; ++i) {
+            _validatePool(basketId, route.pools[i], basketToken, assets[i]);
+            uint256 amountIn = route.constituentAmountsIn[i];
+            if (amountIn > amounts[i]) revert InvalidRoute();
+            if (amountIn != 0) _swapExactInput(route.pools[i], assets[i], basketToken, amountIn);
+        }
+
+        uint256 basketBalanceAfterPurchases = IERC20(basketToken).balanceOf(address(this));
+        redeemedShares = basketBalanceAfterPurchases - basketBalanceBefore;
+        if (redeemedShares == 0) revert InvalidRoute();
+        uint256[] memory minimums = basket.quoteRedeem(basketId, redeemedShares);
+        basket.redeem(basketId, redeemedShares, address(this), minimums);
+        uint256 basketBalanceAfterRedemption = IERC20(basketToken).balanceOf(address(this));
+        if (basketBalanceAfterRedemption != basketBalanceBefore) {
+            revert BasketBalanceNotRestored(basketToken, basketBalanceBefore, basketBalanceAfterRedemption);
         }
     }
 

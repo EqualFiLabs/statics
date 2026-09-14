@@ -13,6 +13,8 @@ import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.so
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsProtocolPools} from "../../../src/interfaces/IStaticsProtocolPools.sol";
+import {StaticsFlashArbitrageReceiver} from "../../../src/periphery/StaticsFlashArbitrageReceiver.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsPermanentLiquidityMath} from "../../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {CanonicalV4Router} from "../../helpers/CanonicalPoolTestBase.sol";
@@ -23,6 +25,14 @@ import {MockLaunchLiquidityManager} from "../../mocks/MockLaunchLiquidityManager
 
 contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
     using PoolIdLibrary for PoolKey;
+
+    struct MultiAssetFixture {
+        uint256 basketId;
+        address basketToken;
+        uint256 stakePositionId;
+        address[] assets;
+        PoolKey[] pools;
+    }
 
     string private constant MANIFEST_PATH = "deployments/robinhood-chain-4663.json";
     uint160 private constant SQRT_PRICE_1_1 = 1 << 96;
@@ -53,27 +63,12 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         router = new CanonicalV4Router(poolManager);
     }
 
-    function testBothArbitrageDirectionsUsePinnedRobinhoodPoolManager() public {
-        address[] memory multiAssets = new address[](2);
-        multiAssets[0] = address(assetA);
-        multiAssets[1] = address(assetB);
-        uint256[] memory multiBundle = new uint256[](2);
-        multiBundle[0] = 0.4 ether;
-        multiBundle[1] = 0.4 ether;
-        (uint256 multiBasketId, address multiBasketToken) = _createBasket(multiAssets, multiBundle);
-        address[] memory multiRewardAssets = new address[](3);
-        multiRewardAssets[0] = address(assetA);
-        multiRewardAssets[1] = address(assetB);
-        multiRewardAssets[2] = multiBasketToken;
-        uint256 multiStakePositionId = _createStake(multiRewardAssets);
-        _mintInitialSupply(multiBasketId, multiBasketToken, multiAssets, 100 ether);
-        PoolKey[] memory pools = new PoolKey[](2);
-        pools[0] = _initializeAndSeed(multiBasketId, multiBasketToken, multiAssets[0]);
-        pools[1] = _initializeAndSeed(multiBasketId, multiBasketToken, multiAssets[1]);
+    function testMintAndSellUsesPinnedRobinhoodPoolManager() public {
+        MultiAssetFixture memory fixture = _createMultiAssetFixture(0.4 ether);
         FlashArbitrageReceiver mintReceiver = _newReceiver();
         (, uint256[] memory multiFlashAmounts, uint256[] memory multiFlashFees) =
-            flashLoans.quoteFlashLoan(multiBasketId, 1 ether);
-        uint256[] memory mintMaximums = baskets.quoteMint(multiBasketId, 1 ether);
+            flashLoans.quoteFlashLoan(fixture.basketId, 1 ether);
+        uint256[] memory mintMaximums = baskets.quoteMint(fixture.basketId, 1 ether);
         assetA.mint(address(mintReceiver), mintMaximums[0] - multiFlashAmounts[0] + multiFlashFees[0]);
         assetB.mint(address(mintReceiver), mintMaximums[1] - multiFlashAmounts[1] + multiFlashFees[1]);
         assertLt(assetA.balanceOf(address(mintReceiver)), multiFlashAmounts[0]);
@@ -84,39 +79,72 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         uint256[] memory minimumProfits = new uint256[](2);
         minimumProfits[0] = 0.05 ether;
         minimumProfits[1] = 0.05 ether;
-        mintReceiver.executeMintAndSell(multiBasketId, 1 ether, pools, basketAmountsIn, minimumProfits);
+        mintReceiver.executeMintAndSell(fixture.basketId, 1 ether, fixture.pools, basketAmountsIn, minimumProfits);
+        _harvestPermanentFees(fixture.pools);
         assertGe(mintReceiver.lastProfit(address(assetA)), minimumProfits[0]);
         assertGe(mintReceiver.lastProfit(address(assetB)), minimumProfits[1]);
-        assertGt(hook.lockedLiquidity(pools[0].toId()), 0);
-        assertGt(hook.lockedLiquidity(pools[1].toId()), 0);
-        assertGt(globalRewards.treasuryAccrued(multiBasketToken), 0);
+        assertGt(hook.lockedLiquidity(fixture.pools[0].toId()), 0);
+        assertGt(hook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertGt(globalRewards.treasuryAccrued(fixture.basketToken), 0);
+        address[] memory multiRewardAssets = _rewardAssets(fixture.basketToken);
         vm.prank(alice);
-        uint256[] memory multiPending = globalRewards.pendingRewards(multiStakePositionId, multiRewardAssets);
+        uint256[] memory multiPending = globalRewards.pendingRewards(fixture.stakePositionId, multiRewardAssets);
         assertGt(multiPending[0], 0);
         assertGt(multiPending[1], 0);
         assertGt(multiPending[2], 0);
+    }
 
-        address[] memory singleAssets = new address[](1);
-        singleAssets[0] = address(assetA);
-        uint256[] memory singleBundle = new uint256[](1);
-        singleBundle[0] = 1.5 ether;
-        (uint256 singleBasketId, address singleBasketToken) = _createBasket(singleAssets, singleBundle);
-        address[] memory singleRewardAssets = new address[](2);
-        singleRewardAssets[0] = address(assetA);
-        singleRewardAssets[1] = singleBasketToken;
-        uint256 singleStakePositionId = _createStake(singleRewardAssets);
-        _mintInitialSupply(singleBasketId, singleBasketToken, singleAssets, 100 ether);
-        PoolKey memory singlePool = _initializeAndSeed(singleBasketId, singleBasketToken, singleAssets[0]);
-        FlashArbitrageReceiver redeemReceiver = _newReceiver();
-        (, uint256[] memory singleAmounts,) = flashLoans.quoteFlashLoan(singleBasketId, 1 ether);
-        redeemReceiver.executeBuyAndRedeem(singleBasketId, 1 ether, singlePool, singleAmounts[0], 0.2 ether);
-        assertGe(redeemReceiver.lastProfit(address(assetA)), 0.2 ether);
-        assertGt(hook.lockedLiquidity(singlePool.toId()), 0);
-        assertGt(globalRewards.treasuryAccrued(singleBasketToken), 0);
+    function testProductionBuyAndRedeemUsesPinnedRobinhoodPoolManager() public {
+        MultiAssetFixture memory fixture = _createMultiAssetFixture(1.5 ether);
+        StaticsFlashArbitrageReceiver receiver = new StaticsFlashArbitrageReceiver(address(diamond));
+        uint256[] memory constituentAmountsIn = new uint256[](2);
+        constituentAmountsIn[0] = 0.5 ether;
+        constituentAmountsIn[1] = 0.5 ether;
+        uint256[] memory minimumProfits = new uint256[](2);
+        minimumProfits[0] = 0.2 ether;
+        minimumProfits[1] = 0.2 ether;
+
+        (, uint256[] memory profits) = receiver.executeBuyAndRedeem(
+            fixture.basketId, 1 ether, fixture.pools, constituentAmountsIn, minimumProfits, block.timestamp
+        );
+        _harvestPermanentFees(fixture.pools);
+
+        assertGe(profits[0], minimumProfits[0]);
+        assertGe(profits[1], minimumProfits[1]);
+        assertEq(assetA.balanceOf(address(receiver)), 0);
+        assertEq(assetB.balanceOf(address(receiver)), 0);
+        assertEq(IERC20(fixture.basketToken).balanceOf(address(receiver)), 0);
+        assertGt(hook.lockedLiquidity(fixture.pools[0].toId()), 0);
+        assertGt(hook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertGt(globalRewards.treasuryAccrued(fixture.basketToken), 0);
+        address[] memory multiRewardAssets = _rewardAssets(fixture.basketToken);
         vm.prank(alice);
-        uint256[] memory singlePending = globalRewards.pendingRewards(singleStakePositionId, singleRewardAssets);
-        assertGt(singlePending[0], 0);
-        assertGt(singlePending[1], 0);
+        uint256[] memory multiPending = globalRewards.pendingRewards(fixture.stakePositionId, multiRewardAssets);
+        assertGt(multiPending[0], 0);
+        assertGt(multiPending[1], 0);
+        assertGt(multiPending[2], 0);
+    }
+
+    function _createMultiAssetFixture(uint256 bundleAmount) private returns (MultiAssetFixture memory fixture) {
+        fixture.assets = new address[](2);
+        fixture.assets[0] = address(assetA);
+        fixture.assets[1] = address(assetB);
+        uint256[] memory bundle = new uint256[](2);
+        bundle[0] = bundleAmount;
+        bundle[1] = bundleAmount;
+        (fixture.basketId, fixture.basketToken) = _createBasket(fixture.assets, bundle);
+        fixture.stakePositionId = _createStake(_rewardAssets(fixture.basketToken));
+        _mintInitialSupply(fixture.basketId, fixture.basketToken, fixture.assets, 100 ether);
+        fixture.pools = new PoolKey[](2);
+        fixture.pools[0] = _initializeAndSeed(fixture.basketId, fixture.basketToken, fixture.assets[0]);
+        fixture.pools[1] = _initializeAndSeed(fixture.basketId, fixture.basketToken, fixture.assets[1]);
+    }
+
+    function _rewardAssets(address basketToken) private view returns (address[] memory assets) {
+        assets = new address[](3);
+        assets[0] = address(assetA);
+        assets[1] = address(assetB);
+        assets[2] = basketToken;
     }
 
     function _createBasket(address[] memory assets, uint256[] memory bundleAmounts)
@@ -198,6 +226,14 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         receiver = new FlashArbitrageReceiver(address(diamond), ICanonicalV4SwapRouter(address(router)));
     }
 
+    function _harvestPermanentFees(PoolKey[] memory pools) private {
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.setPermanentLiquidityHarvester(address(this));
+        for (uint256 i; i < pools.length; ++i) {
+            protocolPools.harvestPermanentLiquidityFees(pools[i].toId());
+        }
+    }
+
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         (address expected, bytes32 salt) = HookMiner.find(
@@ -231,10 +267,11 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             return;
         }
         bytes32 expectedBlockHash = vm.parseJsonBytes32(manifest, ".forkBlockHash");
-        uint256 forkId = vm.createSelectFork(rpcUrl, forkBlock + 1);
-        assertEq(blockhash(forkBlock), expectedBlockHash, "fork block hash drift");
-        vm.rollFork(forkId, forkBlock);
+        string memory pinnedBlock =
+            vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(expectedBlockHash), "\",false]"));
+        assertEq(vm.parseJsonBytes32(pinnedBlock, ".hash"), expectedBlockHash, "fork block hash drift");
+        assertEq(vm.parseJsonUint(pinnedBlock, ".number"), forkBlock, "fork block number drift");
+        vm.createSelectFork(rpcUrl, forkBlock);
         assertEq(block.chainid, chainId);
-        assertEq(block.number, forkBlock);
     }
 }
