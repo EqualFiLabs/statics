@@ -150,7 +150,7 @@ contract RobinhoodNestedFlashArbitrageForkTest is RobinhoodNestedBasketsForkBase
         );
         (amountOut,) = quoter.quoteExactInputSingle(
             IV4Quoter.QuoteExactSingleParams({
-                poolKey: pool, zeroForOne: zeroForOne, exactAmount: PURCHASE_PROBE, hookData: ""
+                poolKey: pool, zeroForOne: zeroForOne, exactAmount: uint128(PURCHASE_PROBE), hookData: ""
             })
         );
     }
