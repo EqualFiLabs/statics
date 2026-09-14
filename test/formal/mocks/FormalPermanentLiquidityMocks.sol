@@ -90,11 +90,10 @@ contract FormalPermanentSwapFeeHook is StaticsSwapFeeHook {
     constructor(
         IPoolManager manager,
         address diamond,
-        uint24 lpFee,
         uint16 inputFeeBps,
         uint16 outputFeeBps,
         IStaticsPermanentLiquidityMath permanentLiquidityMath
-    ) StaticsSwapFeeHook(manager, diamond, lpFee, inputFeeBps, outputFeeBps, permanentLiquidityMath) {}
+    ) StaticsSwapFeeHook(manager, diamond, inputFeeBps, outputFeeBps, permanentLiquidityMath) {}
 
     function formalAccrueSwapLegFee(
         PoolId poolId,

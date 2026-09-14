@@ -61,12 +61,19 @@ abstract contract GeneralPoolLifecycleTestBase is CanonicalPoolTestBase {
         internal
         returns (PoolId poolId, PoolKey memory key)
     {
+        return _createGeneralPool(tokenA, tokenB, 3_000, tickSpacing, creator);
+    }
+
+    function _createGeneralPool(address tokenA, address tokenB, uint24 lpFee, int24 tickSpacing, address creator)
+        internal
+        returns (PoolId poolId, PoolKey memory key)
+    {
         IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
             tokenA: tokenA,
             tokenB: tokenB,
+            lpFee: lpFee,
             tickSpacing: tickSpacing,
             sqrtPriceBPerAX96: SQRT_PRICE_1_1_LOCAL,
-            feeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days

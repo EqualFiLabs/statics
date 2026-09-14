@@ -91,7 +91,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         (IStaticsBasket.CreateBasketParams memory params, MockERC20[] memory assets) = _basketParameters(1);
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
         pools[0] = IStaticsBasket.PoolLaunchParams({
-            sqrtPriceAssetPerBasketX96: semanticPrice, pairedAssetAmount: pairedAmount
+            lpFee: 500, tickSpacing: 10, sqrtPriceAssetPerBasketX96: semanticPrice, pairedAssetAmount: pairedAmount
         });
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 1_000_000 ether;
@@ -111,6 +111,8 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
             basketToken < address(assets[0]) ? semanticPrice : uint160(Math.mulDiv(1 << 96, 1 << 96, semanticPrice));
         (uint160 actualPrice,,,) = poolManager.getSlot0(canonical.poolId);
         assertEq(actualPrice, expectedPrice);
+        assertEq(canonical.lpFee, 500);
+        assertEq(canonical.tickSpacing, 10);
         assertGt(balanceBefore - assets[0].balanceOf(alice), pairedAmount);
         assertLe(balanceBefore - assets[0].balanceOf(alice), maximums[0]);
         assertEq(custody.globalReservedByToken(address(assets[0])), assets[0].balanceOf(address(diamond)));
@@ -220,7 +222,10 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
     {
         pools = new IStaticsBasket.PoolLaunchParams[](1);
         pools[0] = IStaticsBasket.PoolLaunchParams({
-            sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: pairedAssetAmount
+            lpFee: 3_000,
+            tickSpacing: 10,
+            sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE,
+            pairedAssetAmount: pairedAssetAmount
         });
     }
 
@@ -241,6 +246,8 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
     function testLaunchRejectsPricesOutsideFullRangeTickBounds() public {
         (IStaticsBasket.CreateBasketParams memory params, MockERC20[] memory assets) = _basketParameters(1);
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
+        pools[0].lpFee = 3_000;
+        pools[0].tickSpacing = 10;
         pools[0].pairedAssetAmount = 1 ether;
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 1_000_000 ether;
@@ -268,6 +275,37 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         }
 
         assertEq(baskets.basketCount(), 0);
+    }
+
+    function testInvalidCreatorPoolConfigurationRollsBackBasketLaunch() public {
+        (IStaticsBasket.CreateBasketParams memory params, MockERC20[] memory assets) = _basketParameters(1);
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, alice);
+        uint256 creationFeeAmount = basketAdmin.creationFee();
+        uint256 treasuryBefore = treasury.balance;
+
+        pools[0].lpFee = 1_000_000;
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BasketLiquidityFacet.InvalidPoolLaunchLpFee.selector, address(assets[0]), uint24(1_000_000)
+            )
+        );
+        baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
+
+        pools[0].lpFee = 3_000;
+        pools[0].tickSpacing = 0;
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BasketLiquidityFacet.InvalidPoolLaunchTickSpacing.selector, address(assets[0]), int24(0)
+            )
+        );
+        baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
+
+        assertEq(baskets.basketCount(), 0);
+        assertEq(treasury.balance, treasuryBefore);
+        assertEq(assets[0].balanceOf(address(diamond)), 0);
     }
 
     function _basketParameters(uint256 count)

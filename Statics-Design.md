@@ -70,9 +70,9 @@ backing or let one basket consume another basket's assets.
 | Basket collateral | Optional BasketToken deposit leg; deposited and locked shares earn isolated basket rewards |
 | Global rewards | Unlimited global assets; each PositionNFT initially selects up to 12 reward assets under a governance-raiseable 64-asset hard ceiling |
 | Non-swap fee split | 90% to matured selected global stake and 10% to treasury; unavailable staker allocation goes to treasury |
-| Canonical swap fees | Separate input and output hook fees; launch default is 50 BPS on each realized leg |
+| Canonical swap fees | Separate input and output hook fees; global default is 25 BPS on each realized leg, with admin PoolId overrides |
 | Swap-fee split | Basket default 15% POL, 30% basket stakers, 30% Statics stakers, 5% creator, 20% treasury; general default 40% POL, 35% Statics stakers, 5% creator, 20% treasury |
-| Protocol-pool native LP fee | Deployment-configured; Robinhood manifests default to 3,000 pips (0.30%) |
+| Protocol-pool native LP fee | Creator-selected static fee per pool, from 0 through 999,999 pips |
 | Permanent liquidity | Hook-owned full-range liquidity, compounded from matched swap-fee inventory |
 | Dollar Risk incentives | Permissionless series funding in collateral, Statics Dollar, or configured STATICS; released only when supplied Risk liquidity is consumed |
 | Flash callbacks | Dedicated basket-vector and single-asset callbacks may compose with ordinary Statics actions when physical liquidity remains; all nested flash modes are blocked |
@@ -227,9 +227,8 @@ account and never increases BasketToken redemption backing.
 | Risk Shares (`ethLEV`) | ERC-1155 | Users or PositionNFT legs | Series-specific residual Dollar risk |
 | User v4 LP NFT | Uniswap PositionManager ERC-721 | User-selected recipient | Ordinary Uniswap v4 liquidity earning the pool's native LP fee |
 
-Every protocol pool uses the hook's immutable deployment-configured native LP
-fee. The checked-in Robinhood manifests default it to 3,000 pips (0.30%). User
-v4 positions earn that fee through ordinary PositionManager accounting while
+Every protocol pool uses its creator-selected static native LP fee. User v4
+positions earn that fee through ordinary PositionManager accounting while
 swaps separately pay the Statics hook's configured bilateral fees.
 
 The standalone release creates exactly 1,000,000,000 STATICS through
@@ -623,21 +622,26 @@ ordinary mint fee, mint BasketTokens, divide them among canonical pools, sell
 them, and retain profit only after every constituent repayment and minimum
 profit is covered.
 
-An underpriced single-asset route can borrow the constituent, buy discounted
-BasketTokens, redeem through the ordinary basket entrypoint, and recognize
-profit only after redemption, flash, price-impact, rounding, and bilateral hook
-fees.
+An underpriced multi-asset route can borrow the complete constituent vector,
+use caller-bounded amounts of each constituent to buy discounted BasketTokens
+through the corresponding canonical pools, redeem the acquired BasketTokens,
+and retain profit only after every constituent repayment and minimum profit is
+covered.
 
 Statics ships a narrow optional `StaticsFlashArbitrageReceiver` for the
-overpriced mint-and-sell direction. A caller supplies a complete allocation
-across canonical pools, per-asset net profit floors, and a deadline. The
-receiver pulls only static-mint top-ups, uses ordinary fee-paying entrypoints,
-approves exact repayment, returns every net profit asset to the caller, and
-retains no route balances. It has no owner, arbitrary calls, venue discovery,
-or privileged fee path. Underpriced buy-and-redeem routes remain the searcher's
-responsibility. Statics provides no receiver allowlist, generic router,
-callback privilege, or fee exemption. Cancun transient storage (EIP-1153) is a
-deployment prerequisite.
+overpriced mint-and-sell and underpriced buy-and-redeem directions. Each route
+requires the complete canonical pool vector, per-asset net profit floors, and a
+deadline. Mint-and-sell pulls only static-mint top-ups. Buy-and-redeem caps each
+exact constituent input at that asset's flash principal, buys through at most
+one canonical pool per constituent, and redeems only the BasketTokens acquired
+by the route. Both paths use ordinary fee-paying entrypoints, approve exact
+repayment, return every net profit asset to the caller, preserve pre-existing
+route balances, and retain no route balances. The receiver has no owner,
+arbitrary calls, external venues, venue discovery, top-ups for buy-and-redeem,
+or privileged fee path. Searchers remain responsible for executable quotes,
+gas, allocations, and minimums. Statics provides no receiver allowlist,
+generic router, callback privilege, or fee exemption. Cancun transient storage
+(EIP-1153) is a deployment prerequisite.
 
 ## Protocol Uniswap v4 Liquidity
 
@@ -646,8 +650,8 @@ currencies are the BasketToken and constituent, with:
 
 | Parameter | Current value |
 | --- | --- |
-| Native v4 LP fee | Deployment-configured; Robinhood default 3,000 pips (0.30%) |
-| Tick spacing | 10 |
+| Native v4 LP fee | Creator-selected static fee from 0 through 999,999 pips |
+| Tick spacing | Creator-selected integer from 1 through 32,767 |
 
 Initialization is atomic with basket creation and uses the creator-supplied
 price and asset budget. A successful creation makes the pool immediately
@@ -656,15 +660,13 @@ standalone initialization, activation, checkpoint,
 or manager-sync action. Liquidity entry uses current pool state and remains
 bounded by caller-supplied token caps and deadlines.
 
-The installed hook rejects native currency and any registered PoolKey whose fee
-does not equal the hook's immutable `nativeLpFee`. Unregistered pools are not
-protocol pools.
+The installed hook rejects native currency, dynamic-fee PoolKeys, and the
+1,000,000-pip fee boundary. Unregistered pools are not protocol pools.
 
 Anyone may also create a **general pool** between any two compatible ERC-20
 assets once permissionless creation is enabled. The creator selects the pair,
-raw-unit initial price, a valid tick spacing (1 through 32,767), and an initial
-`PoolSwapFeeRate`; Statics fixes the installed hook and its configured native
-LP fee.
+raw-unit initial price, a valid tick spacing (1 through 32,767), and a static
+native LP fee (0 through 999,999 pips). Statics fixes the installed hook.
 `createPool(params, creatorAuthorization)` registers the pool with the hook and
 initializes it in PoolManager atomically. Unlike basket launch, general-pool
 creation does not require an initial permanent-liquidity seed — the market may
@@ -677,10 +679,11 @@ creation switch. When it is zero, only the Diamond owner may create a pool
 (with `msg.value == 0`); when it is nonzero, every caller, including the owner,
 must pay the exact fee, which is forwarded atomically to treasury. Creator
 attribution uses EIP-712 authorization (domain `name = "Statics Protocol
-Pools"`, `version = "1"`, current chain, `verifyingContract = StaticsDiamond`)
+Pools"`, `version = "2"`, current chain, `verifyingContract = StaticsDiamond`)
 validated for EOA and ERC-1271 creators through `SignatureChecker`. The signed
-digest binds the PoolId, normalized price, input and output fee, creator,
-unordered nonce, and deadline. When the creation fee is nonzero, a direct
+digest binds the PoolId, normalized price, creator, unordered nonce, and
+deadline. PoolId binds the pair, native LP fee, tick spacing, and mandatory
+hook. When the creation fee is nonzero, a direct
 creator (`creator == msg.sender`) may pass empty authorization and consumes no
 nonce; while creation is disabled the owner may designate any nonzero creator
 without a signature; otherwise the named creator must supply a valid
@@ -688,9 +691,9 @@ authorization whose nonce is consumed. A creator can cancel
 an unused authorization with `invalidatePoolCreationNonce`. Relayed
 authorization does not bind `msg.sender`, so a copied transaction can pay the
 fee and initialize the pool first but cannot replace the creator or change the
-PoolId, price, or fee rate. Creator identity is immutable after registration.
-Distinct tick spacings for the same pair are distinct PoolIds; a different fee
-rate or initial price alone cannot create a new PoolId, and an exact
+PoolId or price. Creator identity is immutable after registration.
+Distinct native LP fees or tick spacings for the same pair are distinct PoolIds;
+a different initial price alone cannot create a new PoolId, and an exact
 PoolKey duplicate reverts.
 
 `protocolPool(poolId)` normalizes both `BasketCanonical` and `General` records,
@@ -706,10 +709,11 @@ array.
 ### Bilateral hook fees
 
 The hook charges separately against realized input and output legs. The launch
-manifest configures 50 BPS on each leg. The swap-fee **rate** is PoolId-local,
-while fee **allocation** is set by two global profiles. Governance may adjust a
-PoolId's rate and the allocation profiles, but the combined input-plus-output
-fee cannot exceed 200 BPS. The creator share is permanently fixed at 500 BPS,
+manifest configures the global default at 25 BPS on each leg. Every pool
+inherits the live default unless governance sets a PoolId override; clearing an
+override restores inheritance. Fee **allocation** is set by two global profiles.
+Governance may adjust the default, PoolId overrides, and allocation profiles,
+but the combined input-plus-output fee cannot exceed 200 BPS. The creator share is permanently fixed at 500 BPS,
 and each configurable profile must total exactly 9,500 BPS so that the profile
 plus the fixed creator share sums to 10,000 BPS.
 
@@ -1337,8 +1341,8 @@ does not substitute for that complete qualification.
 - position-owned self-backed vector lending and debt-proportional recovery;
 - Diamond-wide basket-vector and dedicated single-asset flash loans;
 - atomic creator-funded launch of every basket and canonical constituent pool;
-- canonical zero-native-fee v4 pools with bilateral hook fees, governed
-  per-pool fee rates, and globally configured allocation shares;
+- creator-configured static native-fee v4 pools with bilateral hook fees, a
+  governed global rate plus PoolId overrides, and global allocation shares;
 - hook-owned full-range permanent liquidity and ExitOnly unwind;
 - isolated BasketToken reward indexes, canonical LP NFT reward custody, and
   typed borrow-to-external or PositionNFT-owned liquidity;
@@ -1529,7 +1533,7 @@ creator = floor(charged * 500 / D)
 treasury = charged - POL - basket staker - Statics staker - creator
 ```
 
-At launch, input and output rates are each 50 BPS. Basket pools split
+At launch, the global default input and output rates are each 25 BPS. Basket pools split
 1,500/3,000/3,000/500/2,000 across POL, basket stakers, Statics stakers,
 creator, and treasury. General pools split 4,000/3,500/500/2,000 across POL,
 Statics stakers, creator, and treasury. An unavailable basket-staker allocation
@@ -1577,7 +1581,7 @@ remainder. Clearing the rate override restores the latest global rates.
 24. Flash principal never changes basket vault or custody reservation accounting.
 25. Successful flash settlement restores the starting physical balance and reserves only the exact quoted fee for non-swap routing.
 26. Failed callbacks or repayment checks leave no partial protocol or pool state.
-27. Canonical pools use the installed hook, its immutable configured native LP fee, and tick spacing 10.
+27. Canonical pools use the installed hook and creator-selected valid static native LP fee and tick spacing.
 28. Basket creation registers, initializes, and permanently seeds exactly one canonical pool per constituent or reverts without creating the basket.
 29. Canonical pools are immediately swappable and available to typed liquidity paths after atomic creation and seeding.
 30. Hook input and output fees apply without caller or flash-receiver exemption.

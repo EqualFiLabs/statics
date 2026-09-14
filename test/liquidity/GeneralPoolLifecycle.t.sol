@@ -105,6 +105,26 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
     }
 
+    function testSamePairDifferentNativeFeesSwapAndAccountIndependently() public {
+        address tokenA = _newToken("Fee Alpha");
+        address tokenB = _newToken("Fee Beta");
+        (PoolId poolLow, PoolKey memory keyLow) = _createGeneralPool(tokenA, tokenB, 500, 10, creator);
+        (PoolId poolHigh, PoolKey memory keyHigh) = _createGeneralPool(tokenA, tokenB, 10_000, 10, creator);
+        assertTrue(PoolId.unwrap(poolLow) != PoolId.unwrap(poolHigh));
+        assertEq(keyLow.fee, 500);
+        assertEq(keyHigh.fee, 10_000);
+
+        _mintFullRangeGeneralPosition(keyLow, lp, 5 ether);
+        _mintFullRangeGeneralPosition(keyHigh, makeAddr("fee-high-lp"), 5 ether);
+        _swapGeneralPool(keyLow, trader, true, 0.05 ether);
+        _swapGeneralPool(keyLow, trader, false, 0.05 ether);
+        _swapGeneralPool(keyHigh, trader, true, 0.05 ether);
+        _swapGeneralPool(keyHigh, trader, false, 0.05 ether);
+
+        assertGt(swapFeeHook.lockedLiquidity(poolLow), 0);
+        assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
+    }
+
     function _stakeStaticsFor(address user, address rewardA, address rewardB) private returns (uint256 positionId) {
         uint256 fee = IStaticsPositionFees(address(diamond)).positionCreationFee();
         uint256 stakeAmount = 10 ether;

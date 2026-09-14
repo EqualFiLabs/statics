@@ -15,11 +15,9 @@
     "permit2": "https://github.com/Uniswap/permit2/tree/cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
   },
   "staticsLiquidityCalibration": {
-    "inputFeeBps": 50,
-    "outputFeeBps": 50,
+    "inputFeeBps": 25,
+    "outputFeeBps": 25,
     "hookPermissionMask": "0x10ec",
-    "canonicalLpFeePips": 3000,
-    "canonicalTickSpacing": 10,
     "polShareBps": 1500,
     "basketStakerShareBps": 3000,
     "staticsStakerShareBps": 3000,

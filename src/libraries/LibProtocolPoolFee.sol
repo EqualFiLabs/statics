@@ -17,6 +17,10 @@ library LibProtocolPoolFee {
     /// @dev Maximum combined bilateral swap-fee rate.
     uint256 internal constant MAX_COMBINED_FEE_BPS = 200;
 
+    /// @dev Highest creator-selectable static Uniswap v4 LP fee. Statics intentionally excludes
+    /// the 100% boundary and the dynamic-fee flag.
+    uint24 internal constant MAX_STATIC_LP_FEE_PIPS = 999_999;
+
     /// @dev Inclusive tick-spacing bounds enforced before requesting creator authorization.
     int24 internal constant MIN_TICK_SPACING = 1;
     int24 internal constant MAX_TICK_SPACING = 32_767;
@@ -24,6 +28,11 @@ library LibProtocolPoolFee {
     /// @return valid Whether `inputFeeBps + outputFeeBps` satisfies the canonical Statics bound.
     function isValidFeeRate(uint16 inputFeeBps, uint16 outputFeeBps) internal pure returns (bool valid) {
         return uint256(inputFeeBps) + uint256(outputFeeBps) <= MAX_COMBINED_FEE_BPS;
+    }
+
+    /// @return valid Whether `lpFee` is an allowed static Uniswap v4 fee for a Statics pool.
+    function isValidStaticLpFee(uint24 lpFee) internal pure returns (bool valid) {
+        return lpFee <= MAX_STATIC_LP_FEE_PIPS;
     }
 
     /// @return valid Whether the configurable shares sum to exactly 9,500 bps.

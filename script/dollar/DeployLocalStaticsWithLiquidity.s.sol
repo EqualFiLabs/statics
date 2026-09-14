@@ -53,14 +53,13 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
         address stateView = _deployCode("out/StateView.sol/StateView.json", abi.encode(poolManager), "STATE_VIEW");
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
 
-        bytes memory constructorArgs = abi.encode(
-            IPoolManager(poolManager), deployment.diamond, uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath
-        );
+        bytes memory constructorArgs =
+            abi.encode(IPoolManager(poolManager), deployment.diamond, uint16(25), uint16(25), permanentLiquidityMath);
         (address expectedHook, bytes32 salt) = HookMiner.find(
             FOUNDRY_CREATE2_DEPLOYER, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs
         );
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
-            IPoolManager(poolManager), deployment.diamond, 3_000, 25, 25, permanentLiquidityMath
+            IPoolManager(poolManager), deployment.diamond, 25, 25, permanentLiquidityMath
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager liquidityManager =

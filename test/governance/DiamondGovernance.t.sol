@@ -249,7 +249,9 @@ contract DiamondGovernanceTest is Test {
             loanDuration: 30 days
         });
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
-        pools[0] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
+        pools[0] = IStaticsBasket.PoolLaunchParams({
+            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+        });
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 10 ether;
         _executeThroughTimelock(
@@ -410,7 +412,9 @@ contract DiamondGovernanceTest is Test {
             loanDuration: 30 days
         });
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](1);
-        pools[0] = IStaticsBasket.PoolLaunchParams({sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether});
+        pools[0] = IStaticsBasket.PoolLaunchParams({
+            lpFee: 3_000, tickSpacing: 10, sqrtPriceAssetPerBasketX96: 1 << 96, pairedAssetAmount: 1 ether
+        });
         uint256[] memory maximums = new uint256[](1);
         maximums[0] = 10 ether;
         constituent.mint(stranger, 10 ether);
@@ -427,11 +431,11 @@ contract DiamondGovernanceTest is Test {
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath);
+            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25, permanentLiquidityMath);
+            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
         assertEq(address(hook), expected);
         MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(address(diamond), address(poolManager));
         _executeThroughTimelock(

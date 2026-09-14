@@ -2,15 +2,13 @@
 
 The reviewed repository-wide CI artifact covers 185 production Solidity files
 and explicitly excludes 17 test, formal-fixture, and vendor files as finding
-subjects. It normalizes to 614 stable findings: 42 high, 312 medium, 204 low,
+subjects. It normalizes to 622 stable findings: 44 high, 316 medium, 206 low,
 and 56 informational. Every stable fingerprint has an explicit classification
 and rationale in `baseline.json`; detector families are summarized below but
 are not blanket suppressions for future findings.
 
-The preceding artifact's one confirmed informational `dead-code` finding
-identified an unused liquidity pause helper. This branch removes it, and the
-fresh CI artifact confirms that fingerprint is gone. All 614 current findings
-are reviewed as intentional behavior or false positives.
+All 622 current findings are reviewed as intentional behavior or false
+positives.
 
 ## High
 
@@ -18,7 +16,7 @@ are reviewed as intentional behavior or false positives.
 | --- | ---: | --- | --- |
 | `arbitrary-send-erc20` | 5 | FALSE POSITIVE | Internal exact-transfer helpers receive authenticated or protocol-controlled payers and validate the relevant debit and receipt deltas. |
 | `arbitrary-send-eth` | 3 | 1 FALSE POSITIVE, 2 INTENTIONAL | Genesis donations use an immutable validated Vault; governed treasury and recipient payouts deliberately send native value after state accounting. |
-| `reentrancy-balance` | 26 | FALSE POSITIVE | Reported balance reads and transfers are inside guarded actions, PoolManager unlock callbacks, or exact-delta helpers whose callers establish the authority and accounting boundary. |
+| `reentrancy-balance` | 28 | FALSE POSITIVE | Reported balance reads and transfers are inside guarded actions, PoolManager unlock callbacks, or exact-delta helpers whose callers establish the authority and accounting boundary. |
 | `reentrancy-eth` | 3 | FALSE POSITIVE | WETH unwrap, Vault donation, and Genesis distributor paths use the applicable reentrancy guard and revert atomically on failed settlement. |
 | `unprotected-upgrade` | 1 | FALSE POSITIVE | `StaticsProtocolInit` is a Diamond delegatecall initializer; a direct call cannot mutate Diamond storage. |
 | `weak-prng` | 4 | FALSE POSITIVE | Modulo selects deterministic bounded ring-buffer buckets and is not used as randomness. |
@@ -28,22 +26,22 @@ are reviewed as intentional behavior or false positives.
 | Detector | Count | Classification | Review conclusion |
 | --- | ---: | --- | --- |
 | `divide-before-multiply` | 3 | INTENTIONAL | The affected paths intentionally round at an accounting-bucket or staged fee boundary. |
-| `incorrect-equality` | 27 | FALSE POSITIVE | Exact equality enforces zero state, fixed configuration, caps, sentinels, or conservation checks. |
+| `incorrect-equality` | 28 | FALSE POSITIVE | Exact equality enforces zero state, fixed configuration, caps, sentinels, or conservation checks. |
 | `reentrancy-no-eth` | 31 | INTENTIONAL | Guarded protocol entrypoints and PoolManager callbacks intentionally update accounting around external settlement; liabilities or custody are cleared before transfers where required. |
-| `uninitialized-local` | 45 | FALSE POSITIVE | The values are intentional Solidity-zero accumulators, optional branch results, or bitmaps. |
-| `unused-return` | 206 | INTENTIONAL | Calls are side-effect transitions, capability probes, partial tuple reads, callback boundaries, or Forge JSON serialization; security-sensitive asset movement is checked independently. |
+| `uninitialized-local` | 46 | FALSE POSITIVE | The values are intentional Solidity-zero accumulators, optional branch results, or bitmaps. |
+| `unused-return` | 208 | INTENTIONAL | Calls are side-effect transitions, capability probes, partial tuple reads, callback boundaries, or Forge JSON serialization; security-sensitive asset movement is checked independently. |
 
 ## Low
 
 | Detector | Count | Classification | Review conclusion |
 | --- | ---: | --- | --- |
-| `calls-loop` | 45 | INTENTIONAL | Loops are bounded by protocol configuration or caller-supplied batch size and preserve atomic batch semantics. |
+| `calls-loop` | 46 | INTENTIONAL | Loops are bounded by protocol configuration or caller-supplied batch size and preserve atomic batch semantics. |
 | `missing-zero-check` | 12 | FALSE POSITIVE | The target is validated by the shared installer, binding check, caller, or downstream contract requirement. |
 | `reentrancy-benign` | 19 | INTENTIONAL | The reported ordering occurs within guarded or atomic callback flows and does not expose a value-bearing intermediate state. |
 | `reentrancy-events` | 70 | INTENTIONAL | Events follow successful external settlement so logs describe the committed result; a revert removes the complete transaction and its logs. |
 | `return-bomb` | 1 | FALSE POSITIVE | The low-level capability probe uses a fixed 30,000-gas static call and bounded decoding. |
 | `shadowing-local` | 9 | FALSE POSITIVE | Locals intentionally mirror domain terms without changing storage or dispatch resolution. |
-| `timestamp` | 48 | INTENTIONAL | Timestamps implement explicit deadlines, vesting, maturity, grace periods, and epoch boundaries rather than randomness. |
+| `timestamp` | 49 | INTENTIONAL | Timestamps implement explicit deadlines, vesting, maturity, grace periods, and epoch boundaries rather than randomness. |
 
 ## Informational
 

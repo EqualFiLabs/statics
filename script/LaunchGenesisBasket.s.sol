@@ -127,6 +127,8 @@ contract LaunchGenesisBasket is Script {
         uint256[] memory mintFees = vm.parseJsonUintArray(json, ".mintFeeShares");
         uint256[] memory redemptionMinimums = vm.parseJsonUintArray(json, ".redemptionFeeMinimumShares");
         uint256[] memory redemptionFees = vm.parseJsonUintArray(json, ".redemptionFeeShares");
+        uint256[] memory lpFees = vm.parseJsonUintArray(json, ".lpFees");
+        uint256[] memory tickSpacings = vm.parseJsonUintArray(json, ".tickSpacings");
         uint256[] memory sqrtPrices = vm.parseJsonUintArray(json, ".sqrtPriceAssetPerBasketX96");
         uint256[] memory pairedAmounts = vm.parseJsonUintArray(json, ".pairedAssetAmounts");
 
@@ -144,7 +146,7 @@ contract LaunchGenesisBasket is Script {
             recoveryPenaltyBps: _uint16(json, ".recoveryPenaltyBps"),
             loanDuration: _uint40(json, ".loanDuration")
         });
-        config.pools = _poolParams(sqrtPrices, pairedAmounts);
+        config.pools = _poolParams(lpFees, tickSpacings, sqrtPrices, pairedAmounts);
         config.maxAmountsIn = vm.parseJsonUintArray(json, ".maxAmountsIn");
         config.expectedBasketId = vm.parseJsonUint(json, ".expectedBasketId");
         config.launchDeadline = vm.parseJsonUint(json, ".launchDeadline");
@@ -229,20 +231,33 @@ contract LaunchGenesisBasket is Script {
         }
     }
 
-    function _poolParams(uint256[] memory sqrtPrices, uint256[] memory pairedAmounts)
-        private
-        pure
-        returns (IStaticsBasket.PoolLaunchParams[] memory pools)
-    {
-        if (sqrtPrices.length != pairedAmounts.length) revert InvalidLaunchConfiguration();
+    function _poolParams(
+        uint256[] memory lpFees,
+        uint256[] memory tickSpacings,
+        uint256[] memory sqrtPrices,
+        uint256[] memory pairedAmounts
+    ) private pure returns (IStaticsBasket.PoolLaunchParams[] memory pools) {
+        if (
+            lpFees.length != sqrtPrices.length || tickSpacings.length != sqrtPrices.length
+                || sqrtPrices.length != pairedAmounts.length
+        ) revert InvalidLaunchConfiguration();
         pools = new IStaticsBasket.PoolLaunchParams[](sqrtPrices.length);
         for (uint256 i; i < sqrtPrices.length; ++i) {
+            uint256 lpFee = lpFees[i];
+            uint256 tickSpacing = tickSpacings[i];
             uint256 sqrtPrice = sqrtPrices[i];
+            if (lpFee > 999_999) revert ConfigurationValueOutOfRange("lpFees", lpFee, 999_999);
+            if (tickSpacing == 0 || tickSpacing > 32_767) {
+                revert ConfigurationValueOutOfRange("tickSpacings", tickSpacing, 32_767);
+            }
             if (sqrtPrice > type(uint160).max) {
                 revert ConfigurationValueOutOfRange("sqrtPriceAssetPerBasketX96", sqrtPrice, type(uint160).max);
             }
             pools[i] = IStaticsBasket.PoolLaunchParams({
-                sqrtPriceAssetPerBasketX96: uint160(sqrtPrice), pairedAssetAmount: pairedAmounts[i]
+                lpFee: uint24(lpFee),
+                tickSpacing: int24(uint24(tickSpacing)),
+                sqrtPriceAssetPerBasketX96: uint160(sqrtPrice),
+                pairedAssetAmount: pairedAmounts[i]
             });
         }
     }

@@ -18,7 +18,6 @@ contract ConfigureStaticsLiquidityTest is Test {
             hook: makeAddr("hook"),
             manager: makeAddr("manager"),
             permanentLiquidityHarvester: makeAddr("harvester"),
-            nativeLpFee: 3_000,
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: bytes32(0),

@@ -328,10 +328,9 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath)
+            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath)
         );
-        deployed =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
         assertEq(address(deployed), expected);
     }
 
@@ -344,18 +343,19 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         uint256 forkBlock = vm.parseJsonUint(manifest, ".forkBlock");
         uint256 requestedBlock = vm.envOr("ROBINHOOD_FORK_BLOCK", forkBlock);
         assertEq(requestedBlock, forkBlock, "fork block differs from manifest");
-        if (block.chainid == chainId) {
-            assertEq(block.number, forkBlock, "selected fork is not pinned");
-            return;
-        }
+        if (block.chainid == chainId && block.number == forkBlock) return;
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
             vm.skip(true, "ROBINHOOD_MAINNET is not configured");
             return;
         }
+        bytes32 expectedBlockHash = vm.parseJsonBytes32(manifest, ".forkBlockHash");
+        string memory pinnedBlock =
+            vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(expectedBlockHash), "\",false]"));
+        assertEq(vm.parseJsonBytes32(pinnedBlock, ".hash"), expectedBlockHash, "fork block hash drift");
+        assertEq(vm.parseJsonUint(pinnedBlock, ".number"), forkBlock, "fork block number drift");
         vm.createSelectFork(rpcUrl, forkBlock);
         assertEq(block.chainid, chainId);
-        assertEq(block.number, forkBlock);
     }
 }

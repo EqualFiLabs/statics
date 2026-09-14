@@ -193,14 +193,13 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         diamond.setRewardAssetEligible(Currency.unwrap(key.currency1), true);
     }
 
-    function testMinedAddressEnablesRegistrationAndBilateralFeePermissions() public view {
+    function testMinedAddressEnablesBilateralFeePermissions() public view {
         assertEq(uint160(address(hook)) & Hooks.ALL_HOOK_MASK, REQUIRED_FLAGS);
         Hooks.Permissions memory permissions = hook.getHookPermissions();
         assertTrue(permissions.afterInitialize);
         assertTrue(permissions.beforeSwap);
         assertTrue(permissions.beforeDonate);
         assertEq(hook.staticsDiamond(), address(diamond));
-        assertEq(hook.nativeLpFee(), LP_FEE);
         assertGt(address(hook.permanentLiquidityMath()).code.length, 0);
         assertLe(address(hook).code.length, MAX_HOOK_RUNTIME_SIZE);
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
@@ -223,27 +222,27 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         hook.harvestPermanentLiquidityFees(key);
     }
 
-    function testNativeLpFeeRejectsOneMillionPips() public {
+    function testRegistrationRejectsOneMillionPips() public {
         uint24 invalidFee = 1_000_000;
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath);
-        (, bytes32 salt) =
-            HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        PoolKey memory invalid = _poolKey(currency0, currency1, invalidFee, TICK_SPACING);
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.InvalidNativeLpFee.selector, invalidFee));
-        new StaticsSwapFeeHook{salt: salt}(
-            manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
-        );
+        diamond.registerPool(invalid, IStaticsSwapFeeHook.PoolKind.General, address(this));
+    }
+
+    function testRegistrationAcceptsHeterogeneousStaticLpFees() public {
+        PoolKey memory second = _poolKey(currency0, currency1, 500, TICK_SPACING);
+        PoolId secondPoolId = diamond.registerPool(second, IStaticsSwapFeeHook.PoolKind.General, address(this));
+        assertNotEq(PoolId.unwrap(secondPoolId), PoolId.unwrap(poolId));
+        assertEq(hook.poolRegistration(secondPoolId).registered, true);
     }
 
     function testRejectsMissingPermanentLiquidityMath() public {
         IStaticsPermanentLiquidityMath missing = IStaticsPermanentLiquidityMath(address(0));
-        bytes memory constructorArgs =
-            abi.encode(manager, address(diamond), LP_FEE, INPUT_FEE_BPS, OUTPUT_FEE_BPS, missing);
+        bytes memory constructorArgs = abi.encode(manager, address(diamond), INPUT_FEE_BPS, OUTPUT_FEE_BPS, missing);
         (, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.InvalidPermanentLiquidityMath.selector, address(0)));
-        new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), LP_FEE, INPUT_FEE_BPS, OUTPUT_FEE_BPS, missing);
+        new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), INPUT_FEE_BPS, OUTPUT_FEE_BPS, missing);
     }
 
     function testGeneralPoolCarvesFixedFiveHundredBpsCreatorShare() public {
@@ -409,10 +408,10 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         );
     }
 
-    function testRegistrationRejectsNativeCurrencyMismatchedLpFeeAndInvalidKind() public {
-        PoolKey memory nonzeroFee = _poolKey(currency0, currency1, 1, 20);
-        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.NativeLpFeeMismatch.selector, LP_FEE, uint24(1)));
-        diamond.registerPool(nonzeroFee, IStaticsSwapFeeHook.PoolKind.General, creator);
+    function testRegistrationAcceptsCreatorLpFeeAndRejectsNativeCurrencyAndInvalidKind() public {
+        PoolKey memory creatorFee = _poolKey(currency0, currency1, 1, 20);
+        PoolId creatorFeePoolId = diamond.registerPool(creatorFee, IStaticsSwapFeeHook.PoolKind.General, creator);
+        assertTrue(hook.poolRegistration(creatorFeePoolId).registered);
 
         PoolKey memory nativePool = PoolKey({
             currency0: Currency.wrap(address(0)),
@@ -483,11 +482,11 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     function _deployHook(address diamond_) private returns (StaticsSwapFeeHook deployed) {
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs =
-            abi.encode(manager, diamond_, uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath);
+            abi.encode(manager, diamond_, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         deployed = new StaticsSwapFeeHook{salt: salt}(
-            manager, diamond_, 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
+            manager, diamond_, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
         );
         assertEq(address(deployed), expected);
     }

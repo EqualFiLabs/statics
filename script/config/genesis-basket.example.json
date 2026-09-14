@@ -27,6 +27,14 @@
   "ltvBps": 9000,
   "recoveryPenaltyBps": 500,
   "loanDuration": 2592000,
+  "lpFees": [
+    3000,
+    500
+  ],
+  "tickSpacings": [
+    10,
+    20
+  ],
   "sqrtPriceAssetPerBasketX96": [
     79228162514264337593543950336,
     79228162514264337593543950336

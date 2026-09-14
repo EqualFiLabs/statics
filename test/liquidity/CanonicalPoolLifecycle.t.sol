@@ -6,6 +6,7 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
@@ -13,10 +14,8 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
-    event CanonicalPoolFeeRateSet(
-        uint256 indexed basketId, address indexed asset, bytes32 indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps
-    );
-    event CanonicalPoolFeeRateCleared(uint256 indexed basketId, address indexed asset, bytes32 indexed poolId);
+    event ProtocolPoolFeeRateSet(bytes32 indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps);
+    event ProtocolPoolFeeRateCleared(bytes32 indexed poolId);
 
     function testLaunchHelpersRejectDirectCalls() public {
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](0);
@@ -48,7 +47,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         }
     }
 
-    function testPoolPairAndConfigurationCannotBeSuppliedByCaller() public {
+    function testCreatorSuppliesPoolConfigurationWhileHookRemainsCanonical() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
         assertEq(pool.lpFee, 3_000);
@@ -65,16 +64,20 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
     function testCanonicalPoolFeeOverrideIsOwnerControlledAndUsesRegisteredPool() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
-        basketLiquidity.setCanonicalPoolFeeRate(basketId, assets[0], 40, 60);
+        protocolPools.setProtocolPoolFeeRate(
+            pool.poolId, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+        );
 
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit CanonicalPoolFeeRateSet(basketId, assets[0], PoolId.unwrap(pool.poolId), 40, 60);
-        basketLiquidity.setCanonicalPoolFeeRate(basketId, assets[0], 40, 60);
+        emit ProtocolPoolFeeRateSet(PoolId.unwrap(pool.poolId), 40, 60);
+        protocolPools.setProtocolPoolFeeRate(
+            pool.poolId, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
+        );
 
-        IStaticsBasketLiquidity.PoolFeeRateView memory effective =
-            basketLiquidity.canonicalPoolFeeRate(basketId, assets[0]);
+        IStaticsProtocolPools.PoolFeeRateView memory effective = protocolPools.protocolPoolFeeRate(pool.poolId);
         assertEq(effective.inputFeeBps, 40);
         assertEq(effective.outputFeeBps, 60);
         assertTrue(effective.overridden);
@@ -85,28 +88,26 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, bob, address(this)));
-        basketLiquidity.clearCanonicalPoolFeeRate(basketId, assets[0]);
+        protocolPools.clearProtocolPoolFeeRate(pool.poolId);
 
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit CanonicalPoolFeeRateCleared(basketId, assets[0], PoolId.unwrap(pool.poolId));
-        basketLiquidity.clearCanonicalPoolFeeRate(basketId, assets[0]);
-        effective = basketLiquidity.canonicalPoolFeeRate(basketId, assets[0]);
+        emit ProtocolPoolFeeRateCleared(PoolId.unwrap(pool.poolId));
+        protocolPools.clearProtocolPoolFeeRate(pool.poolId);
+        effective = protocolPools.protocolPoolFeeRate(pool.poolId);
         assertEq(effective.inputFeeBps, 25);
         assertEq(effective.outputFeeBps, 25);
         assertFalse(effective.overridden);
     }
 
-    function testCanonicalPoolFeeRateRejectsUnconfiguredIdentifier() public {
-        (uint256 basketId,) = _createBasketWithAssets(1);
-        address unconfigured = makeAddr("unconfigured");
-        vm.expectRevert(
-            abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, unconfigured)
+    function testProtocolPoolFeeRateRejectsUnregisteredPoolId() public {
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        PoolId unregistered = PoolId.wrap(keccak256("unregistered"));
+        vm.expectRevert();
+        protocolPools.setProtocolPoolFeeRate(
+            unregistered, IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60})
         );
-        basketLiquidity.setCanonicalPoolFeeRate(basketId, unconfigured, 40, 60);
-        vm.expectRevert(
-            abi.encodeWithSelector(BasketLiquidityFacet.CanonicalPoolNotConfigured.selector, basketId, unconfigured)
-        );
-        basketLiquidity.clearCanonicalPoolFeeRate(basketId, unconfigured);
+        vm.expectRevert();
+        protocolPools.clearProtocolPoolFeeRate(unregistered);
     }
 
     function testIntegrationIdentityCanOnlyBeInstalledOnce() public {

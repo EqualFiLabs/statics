@@ -289,20 +289,15 @@ library StaticsSelectors {
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](13);
+        selectors = new bytes4[](8);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
         selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[4] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
-        selectors[5] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[6] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[7] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[8] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
-        selectors[9] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[10] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
-        selectors[11] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
-        selectors[12] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
+        selectors[4] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[5] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[6] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
     }
 
     function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {
@@ -318,28 +313,31 @@ library StaticsSelectors {
     }
 
     function protocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
-        selectors[1] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
-        selectors[2] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
-        selectors[3] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
-        selectors[4] = IStaticsProtocolPools.decommissionGeneralPool.selector;
-        selectors[5] = IStaticsProtocolPools.replaceLiquidityManager.selector;
-        selectors[6] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
-        selectors[7] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
+        selectors[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
+        selectors[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
+        selectors[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
+        selectors[4] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
+        selectors[5] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
+        selectors[6] = IStaticsProtocolPools.decommissionGeneralPool.selector;
+        selectors[7] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        selectors[8] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
+        selectors[9] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
     }
 
     function protocolPoolView() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsProtocolPools.protocolPool.selector;
         selectors[1] = IStaticsProtocolPools.isProtocolPool.selector;
         selectors[2] = IStaticsProtocolPools.poolCreationFee.selector;
         selectors[3] = IStaticsProtocolPools.isPoolCreationNonceUsed.selector;
         selectors[4] = IStaticsProtocolPools.basketFeeAllocation.selector;
         selectors[5] = IStaticsProtocolPools.generalFeeAllocation.selector;
-        selectors[6] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
-        selectors[7] = IStaticsProtocolPools.protocolPoolCreator.selector;
-        selectors[8] = IStaticsProtocolPools.permanentLiquidityHarvester.selector;
+        selectors[6] = IStaticsProtocolPools.defaultProtocolPoolFeeRate.selector;
+        selectors[7] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
+        selectors[8] = IStaticsProtocolPools.protocolPoolCreator.selector;
+        selectors[9] = IStaticsProtocolPools.permanentLiquidityHarvester.selector;
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {

@@ -64,7 +64,7 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 36 facets and 282 selectors on
+The fresh-deployment launcher installs 36 facets and 280 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -138,8 +138,8 @@ not a reason for a protocol registry.
 ## Canonical v4 liquidity boundaries
 
 Every configured basket constituent has one canonical BasketToken/constituent
-pool key with the immutable Statics hook, its deployment-configured native LP
-fee, and tick spacing 10. Basket creation atomically deploys the BasketToken, initializes every
+pool key with the immutable Statics hook and creator-selected static native LP
+fee and tick spacing. Basket creation atomically deploys the BasketToken, initializes every
 constituent pool, registers every key with the manager, mints the aggregate
 pool BasketTokens through ordinary backing and fee accounting, and seeds
 full-range permanent liquidity from creator-supplied assets. All pool and
@@ -177,11 +177,12 @@ StaticsLiquidityManager
 ```
 
 Raw balances at any location are not shared liquidity. The hook charges both
-realized swap legs, rounded up, separately from the deployment-configured native
-LP fee, initially 3,000 pips (0.30%).
-The default fee is 50 basis points on input and 50 basis points on output. The
-swap-fee **rate** is PoolId-local, while fee **allocation** is governed by two
-global profiles. The creator share is permanently fixed at 500 BPS; governance
+realized swap legs, rounded up, separately from each pool's creator-selected
+native LP fee. The global hook-fee default is 25 basis points on input and 25
+basis points on output. Pools inherit the live default unless an administrator
+sets a PoolId-specific override; clearing that override resumes the then-current
+global default. Fee **allocation** is governed separately by two global
+profiles. The creator share is permanently fixed at 500 BPS; governance
 configures the remaining 9,500 BPS through independent basket and general
 allocation profiles. The initial basket-pool split is 15% to POL, 30% to
 deposited BasketToken positions, 30% to global Statics stakers, 5% to the fixed
@@ -192,13 +193,13 @@ allocation redirects to PoolId-local POL. An unavailable global
 Statics-staker allocation redirects to treasury. The fixed creator allocation
 never falls back and always credits the immutable creator.
 
-This global allocation is the default distribution beside the PoolId-local
-rate. Basket-specific entrypoints resolve a canonical pool by `basketId` and
+Basket-specific entrypoints resolve a canonical pool by `basketId` and
 constituent, while protocol-pool entrypoints address either pool class directly
-by PoolId. Timelocked governance may adjust a PoolId's input/output rate with
-`setProtocolPoolFeeRate` (combined at most 200 BPS) and may reconfigure the
-basket and general allocation profiles with `setBasketFeeAllocation` and
-`setGeneralFeeAllocation`. Each configurable profile must total exactly 9,500
+by PoolId. Timelocked governance may update the inherited default with
+`setDefaultProtocolPoolFeeRate`, set an override with `setProtocolPoolFeeRate`,
+or remove one with `clearProtocolPoolFeeRate`; every combined rate is capped at
+200 BPS. Governance may separately reconfigure the basket and general allocation
+profiles with `setBasketFeeAllocation` and `setGeneralFeeAllocation`. Each configurable profile must total exactly 9,500
 BPS so that the profile plus the fixed 500-BPS creator share sums to 10,000
 BPS; POL may explicitly be set to zero.
 Profile changes never rewrite accrued creator credits, basket
@@ -216,7 +217,7 @@ general pools in a fresh namespace (`statics.storage.protocol.pools.v2`). A
 general pool is a permissionless Statics-hook PoolKey between any two compatible
 ERC-20s, with no basket association. Anyone may create one — subject to the
 independent pool creation fee and EIP-712 creator authorization — selecting a
-valid tick spacing, initial price, and initial Statics fee rate. Creation does
+valid static native LP fee, tick spacing, and initial price. Creation does
 not require an initial permanent-liquidity seed; the market may begin with zero
 liquidity and grow POL from swap activity. Registration does not admit either
 asset as basket backing, Dollar collateral, or a borrowable asset, and a pool's

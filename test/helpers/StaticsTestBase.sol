@@ -239,7 +239,10 @@ abstract contract StaticsTestBase is Test {
             MockERC20(assets[i]).mint(creator, 1_000_000 ether);
             IERC20(assets[i]).approve(address(diamond), 1_000_000 ether);
             pools[i] = IStaticsBasket.PoolLaunchParams({
-                sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: 1 ether
+                lpFee: 3_000,
+                tickSpacing: 10,
+                sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE,
+                pairedAssetAmount: 1 ether
             });
             maximums[i] = 1_000_000 ether;
         }
@@ -254,7 +257,10 @@ abstract contract StaticsTestBase is Test {
         pools = new IStaticsBasket.PoolLaunchParams[](length);
         for (uint256 i; i < length; ++i) {
             pools[i] = IStaticsBasket.PoolLaunchParams({
-                sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE, pairedAssetAmount: 1 ether
+                lpFee: 3_000,
+                tickSpacing: 10,
+                sqrtPriceAssetPerBasketX96: DEFAULT_LAUNCH_SQRT_PRICE,
+                pairedAssetAmount: 1 ether
             });
         }
     }
@@ -305,10 +311,10 @@ abstract contract StaticsTestBase is Test {
     function _deployLocalHook(IPoolManager manager) private returns (StaticsSwapFeeHook deployed) {
         StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs =
-            abi.encode(manager, address(diamond), uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath);
+            abi.encode(manager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 3_000, 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25, permanentLiquidityMath);
         assertEq(address(deployed), expected);
     }
 }
