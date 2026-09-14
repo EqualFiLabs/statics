@@ -562,24 +562,34 @@ reverts all protocol and external-pool changes atomically.
 
 An overpriced route can borrow constituents, mint, sell BasketTokens across
 canonical pools, repay every asset, and retain per-asset profit. An underpriced
-route can borrow a constituent, buy discounted BasketTokens, redeem, repay, and
-retain underlying profit. Both routes must account for basket fees, flash fees,
-rounding, price impact, and both hook fee legs before enforcing minimum profit.
+route can borrow the complete constituent vector, use selected constituents to
+buy discounted BasketTokens across their canonical pools, redeem the acquired
+BasketTokens, repay every asset, and retain per-asset profit. Both routes must
+account for basket fees, flash fees, rounding, price impact, and both hook fee
+legs before enforcing minimum profit.
 
 Statics ships the optional, narrowly typed
-`StaticsFlashArbitrageReceiver.executeMintAndSell` route for overpriced
-baskets. The caller supplies a complete BasketToken allocation across the
-basket's canonical pools, a deadline, and a net minimum profit for every
-constituent. The receiver pulls only the small constituent top-ups required by
-the static mint fee, uses the ordinary fee-paying `mint` entrypoint, settles
-swaps directly with the configured v4 PoolManager, approves exact flash
-repayment, returns profits to the caller, and retains no route balances.
+`StaticsFlashArbitrageReceiver` with two entrypoints:
+
+- `executeMintAndSell` accepts a complete BasketToken allocation across the
+  basket's canonical pools and pulls only the constituent top-ups required by
+  the static mint fee.
+- `executeBuyAndRedeem` accepts one exact constituent-input cap per canonical
+  pool. Each nonzero input must fit within that asset's flash principal. The
+  receiver redeems only the BasketTokens acquired by those swaps; it cannot use
+  a caller top-up or a pre-existing BasketToken balance to complete the route.
+
+Both entrypoints require a deadline and a net minimum profit for every
+constituent. They use ordinary fee-paying basket entrypoints, settle swaps
+directly with the configured v4 PoolManager, approve exact flash repayment,
+return profits to the caller, preserve pre-existing balances, and retain no
+route balances.
 
 The receiver is permissionless but is not a generic router: it has no owner,
 allowlist, arbitrary target-and-calldata execution, callback privilege, or fee
-exemption. It does not implement the underpriced buy-and-redeem direction or
-search for profitable allocations. Searchers remain responsible for fresh
-quotes, gas, allocation selection, and minimums. Cancun/EIP-1153 is required.
+exemption. It does not route through external venues or search for profitable
+allocations. Searchers remain responsible for fresh executable quotes, gas,
+allocation selection, and minimums. Cancun/EIP-1153 is required.
 Basket-to-basket, asset-to-asset, and cross-mode nested flash loans are all
 blocked.
 See `docs/adr/composable-flash-loan-callbacks.md`.

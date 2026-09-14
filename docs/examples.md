@@ -196,18 +196,34 @@ An arbitrageur can:
 
 The route must cover mint fees, both applicable hook fee legs, flash fees,
 rounding, price impact, and gas. Statics' optional
-`StaticsFlashArbitrageReceiver` implements only this typed mint-and-sell
-direction and retains no balances or arbitrary call authority.
+`StaticsFlashArbitrageReceiver.executeMintAndSell` implements this typed route
+and retains no route balances or arbitrary call authority.
 
 ## Arbitraging an underpriced BasketToken
 
-If a BasketToken trades below executable redemption value, an arbitrageur can
-flash-borrow a constituent, buy discounted BasketTokens, redeem them for the
-fixed constituent vector, sell or retain what is needed for repayment, and keep
-only the net remainder.
+If a BasketToken trades below executable redemption value, an arbitrageur can:
 
-Statics does not provide a generic underpriced-route executor. Searchers choose
-venues, source quotes, and enforce their own deadlines and profit floors.
+1. flash-borrow the complete constituent vector for a chosen basket share
+   amount;
+2. spend a caller-capped amount of one or more constituents in that asset's
+   canonical pool to buy BasketTokens;
+3. redeem only the BasketTokens acquired by those swaps through the ordinary
+   public entrypoint;
+4. repay every constituent principal plus its exact quoted flash fee; and
+5. keep only the per-asset remainder above configured minimum profit.
+
+`StaticsFlashArbitrageReceiver.executeBuyAndRedeem` implements this bounded
+canonical-pool route. The caller supplies the complete canonical pool vector,
+one exact-input amount per constituent, a deadline, and a minimum profit for
+every constituent. Each input is capped by its corresponding flash principal;
+the receiver accepts no route top-up, preserves any pre-existing balances, and
+returns every profit asset to the caller.
+
+The helper is not a generic underpriced-route executor. It does not use external
+venues, trade constituent proceeds after redemption, or discover profitable
+allocations. Searchers source executable quotes and choose inputs and minimums
+that cover redemption fees, bilateral hook fees, flash fees, rounding, price
+impact, and gas.
 
 ## Using pegged Statics Dollar collateral
 

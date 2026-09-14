@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-22
-- Amended: 2026-09-11
+- Amended: 2026-09-14
 - Scope: Basket-vector and single-asset flash loans, callback composition, custody, fees, and governance
 
 ## Context
@@ -102,11 +102,19 @@ reverts the complete transaction.
 
 ## Arbitrage integration contract
 
-The optional `StaticsFlashArbitrageReceiver` remains a narrowly typed
-overpriced-basket mint-and-sell receiver. It uses the basket callback, binds
-swaps to configured canonical pools, enforces per-asset profit floors, returns
-profit to the caller, and exposes no owner, allowlist, or arbitrary-call path.
-Searchers implement other strategies and single-asset receivers themselves.
+The optional `StaticsFlashArbitrageReceiver` is a narrowly typed bidirectional
+canonical-pool receiver. `executeMintAndSell` borrows the basket vector, mints,
+and sells a complete BasketToken allocation. `executeBuyAndRedeem` borrows the
+basket vector, spends caller-capped constituent inputs across the matching
+canonical pools, and redeems only the BasketTokens acquired by the route. The
+buy-and-redeem path accepts no caller top-up and caps each constituent input at
+that asset's flash principal.
+
+Both entrypoints use the basket callback, bind every swap to the configured
+canonical pool for that constituent, enforce per-asset profit floors and a
+deadline, preserve pre-existing balances, return profit to the caller, and
+expose no owner, allowlist, external venue, or arbitrary-call path. Searchers
+implement other strategies and single-asset receivers themselves.
 
 Routes must account for basket fees, flash fees, hook fees, price impact,
 rounding, gas, approvals, and token behavior. The protocol does not discover

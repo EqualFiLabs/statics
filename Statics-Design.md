@@ -623,21 +623,26 @@ ordinary mint fee, mint BasketTokens, divide them among canonical pools, sell
 them, and retain profit only after every constituent repayment and minimum
 profit is covered.
 
-An underpriced single-asset route can borrow the constituent, buy discounted
-BasketTokens, redeem through the ordinary basket entrypoint, and recognize
-profit only after redemption, flash, price-impact, rounding, and bilateral hook
-fees.
+An underpriced multi-asset route can borrow the complete constituent vector,
+use caller-bounded amounts of each constituent to buy discounted BasketTokens
+through the corresponding canonical pools, redeem the acquired BasketTokens,
+and retain profit only after every constituent repayment and minimum profit is
+covered.
 
 Statics ships a narrow optional `StaticsFlashArbitrageReceiver` for the
-overpriced mint-and-sell direction. A caller supplies a complete allocation
-across canonical pools, per-asset net profit floors, and a deadline. The
-receiver pulls only static-mint top-ups, uses ordinary fee-paying entrypoints,
-approves exact repayment, returns every net profit asset to the caller, and
-retains no route balances. It has no owner, arbitrary calls, venue discovery,
-or privileged fee path. Underpriced buy-and-redeem routes remain the searcher's
-responsibility. Statics provides no receiver allowlist, generic router,
-callback privilege, or fee exemption. Cancun transient storage (EIP-1153) is a
-deployment prerequisite.
+overpriced mint-and-sell and underpriced buy-and-redeem directions. Each route
+requires the complete canonical pool vector, per-asset net profit floors, and a
+deadline. Mint-and-sell pulls only static-mint top-ups. Buy-and-redeem caps each
+exact constituent input at that asset's flash principal, buys through at most
+one canonical pool per constituent, and redeems only the BasketTokens acquired
+by the route. Both paths use ordinary fee-paying entrypoints, approve exact
+repayment, return every net profit asset to the caller, preserve pre-existing
+route balances, and retain no route balances. The receiver has no owner,
+arbitrary calls, external venues, venue discovery, top-ups for buy-and-redeem,
+or privileged fee path. Searchers remain responsible for executable quotes,
+gas, allocations, and minimums. Statics provides no receiver allowlist,
+generic router, callback privilege, or fee exemption. Cancun transient storage
+(EIP-1153) is a deployment prerequisite.
 
 ## Protocol Uniswap v4 Liquidity
 
