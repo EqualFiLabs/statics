@@ -204,8 +204,9 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
             parentAssets[i] = leafBasketTokens[i];
             parentBundles[i] = 1 ether;
         }
-        (parentBasketId, parentBasketToken) =
-            _launchBasket(_basketParams("Nested Composite", "sCOMP", parentAssets, parentBundles), alice);
+        (parentBasketId, parentBasketToken) = _launchBasketAtPrice(
+            _basketParams("Nested Composite", "sCOMP", parentAssets, parentBundles), alice, _parentLaunchSqrtPrice()
+        );
     }
 
     function _basketParams(
@@ -234,6 +235,14 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         internal
         returns (uint256 basketId, address basketToken)
     {
+        return _launchBasketAtPrice(params, payer, SQRT_PRICE_1_1);
+    }
+
+    function _launchBasketAtPrice(
+        IStaticsBasket.CreateBasketParams memory params,
+        address payer,
+        uint160 sqrtPriceAssetPerBasketX96
+    ) internal returns (uint256 basketId, address basketToken) {
         uint256 length = params.assets.length;
         IStaticsBasket.PoolLaunchParams[] memory pools = new IStaticsBasket.PoolLaunchParams[](length);
         uint256[] memory maximums = new uint256[](length);
@@ -241,7 +250,7 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
             pools[i] = IStaticsBasket.PoolLaunchParams({
                 lpFee: 3_000,
                 tickSpacing: 10,
-                sqrtPriceAssetPerBasketX96: SQRT_PRICE_1_1,
+                sqrtPriceAssetPerBasketX96: sqrtPriceAssetPerBasketX96,
                 pairedAssetAmount: POOL_SEED
             });
             maximums[i] = MAX_LAUNCH_INPUT;
@@ -249,6 +258,10 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         uint256 creationFee = basketAdmin.creationFee();
         vm.prank(payer);
         return baskets.createBasket{value: creationFee}(params, pools, maximums, block.timestamp + 1 hours);
+    }
+
+    function _parentLaunchSqrtPrice() internal pure virtual returns (uint160) {
+        return SQRT_PRICE_1_1;
     }
 
     function _leafAssets(uint256 leaf) internal pure returns (address[] memory assets) {
