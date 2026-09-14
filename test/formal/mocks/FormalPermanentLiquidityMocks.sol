@@ -10,9 +10,24 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {IStaticsPermanentLiquidityMath} from "../../../src/interfaces/IStaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract FormalPermanentToken {}
+
+contract FormalPermanentLiquidityMath is IStaticsPermanentLiquidityMath {
+    function fullRangeLiquidity(uint160, int24, uint256 amount0, uint256 amount1)
+        external
+        pure
+        override
+        returns (uint128 liquidity, int24 tickLower, int24 tickUpper)
+    {
+        uint256 minimum = amount0 < amount1 ? amount0 : amount1;
+        liquidity = uint128(minimum);
+        tickLower = -887270;
+        tickUpper = 887270;
+    }
+}
 
 contract FormalPermanentPoolManager {
     mapping(address owner => mapping(uint256 id => uint256 amount)) public balanceOf;
@@ -72,9 +87,14 @@ contract FormalPermanentPoolManager {
 }
 
 contract FormalPermanentSwapFeeHook is StaticsSwapFeeHook {
-    constructor(IPoolManager manager, address diamond, uint24 lpFee, uint16 inputFeeBps, uint16 outputFeeBps)
-        StaticsSwapFeeHook(manager, diamond, lpFee, inputFeeBps, outputFeeBps)
-    {}
+    constructor(
+        IPoolManager manager,
+        address diamond,
+        uint24 lpFee,
+        uint16 inputFeeBps,
+        uint16 outputFeeBps,
+        IStaticsPermanentLiquidityMath permanentLiquidityMath
+    ) StaticsSwapFeeHook(manager, diamond, lpFee, inputFeeBps, outputFeeBps, permanentLiquidityMath) {}
 
     function formalAccrueSwapLegFee(
         PoolId poolId,

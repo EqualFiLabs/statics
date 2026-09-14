@@ -37,6 +37,7 @@ import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
+import {StaticsPermanentLiquidityMath} from "src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
 import {MockLaunchLiquidityManager} from "test/mocks/MockLaunchLiquidityManager.sol";
 
@@ -923,11 +924,13 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     function _installBasketLaunchLiquidity() private {
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs =
-            abi.encode(poolManager, deployment.diamond, uint24(3_000), uint16(25), uint16(25));
+            abi.encode(poolManager, deployment.diamond, uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 3_000, 25, 25);
+        StaticsSwapFeeHook hook =
+            new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 3_000, 25, 25, permanentLiquidityMath);
         assertEq(address(hook), expected);
         MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(deployment.diamond, address(poolManager));
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));

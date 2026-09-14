@@ -18,6 +18,7 @@ import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol"
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
+import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {BorrowLiquidityFacet} from "../../src/facets/BorrowLiquidityFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
@@ -100,7 +101,8 @@ abstract contract DeployStaticsProtocol {
         returns (address diamond, address positionNFT)
     {
         ProtocolParts memory parts = _deployProtocolParts();
-        IDiamondCut.FacetCut[] memory cut = _protocolCut(parts, address(new BasketLiquidityFacet()));
+        IDiamondCut.FacetCut[] memory cut =
+            _protocolCut(parts, address(new BasketLiquidityFacet()), address(new BasketLiquidityLifecycleFacet()));
         LibPeriphery.InitArgs memory dollarArgs = LibPeriphery.InitArgs({
             pool: config.pool,
             weth: config.weth,
@@ -163,12 +165,12 @@ abstract contract DeployStaticsProtocol {
         parts.morphoView = address(new MorphoViewFacet());
     }
 
-    function _protocolCut(ProtocolParts memory parts, address basketLiquidity)
+    function _protocolCut(ProtocolParts memory parts, address basketLiquidity, address basketLiquidityLifecycle)
         internal
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](35);
+        cut = new IDiamondCut.FacetCut[](36);
         cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
         cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
         cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
@@ -234,6 +236,9 @@ abstract contract DeployStaticsProtocol {
         );
         cut[34] = IDiamondCut.FacetCut(
             parts.morphoRecovery, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoRecovery()
+        );
+        cut[35] = IDiamondCut.FacetCut(
+            basketLiquidityLifecycle, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketLiquidityLifecycle()
         );
     }
 

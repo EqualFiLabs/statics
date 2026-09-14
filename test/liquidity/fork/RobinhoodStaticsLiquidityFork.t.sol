@@ -25,6 +25,7 @@ import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiq
 import {IStaticsBasketRewards} from "../../../src/interfaces/IStaticsBasketRewards.sol";
 import {IStaticsBorrowLiquidity} from "../../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsPermanentLiquidityMath} from "../../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
 
@@ -318,13 +319,15 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         (address expected, bytes32 salt) = HookMiner.find(
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25))
+            abi.encode(poolManager, address(diamond), uint24(3_000), uint16(25), uint16(25), permanentLiquidityMath)
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25);
+        deployed =
+            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 3_000, 25, 25, permanentLiquidityMath);
         assertEq(address(deployed), expected);
     }
 

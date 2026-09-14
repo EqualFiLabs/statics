@@ -20,6 +20,7 @@ import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract HookInvariantFeeReceiver {
@@ -239,11 +240,15 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs =
-            abi.encode(manager, address(receiver), uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
+        bytes memory constructorArgs = abi.encode(
+            manager, address(receiver), uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
+        );
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(receiver), 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        deployed = new StaticsSwapFeeHook{salt: salt}(
+            manager, address(receiver), 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
+        );
         assertEq(address(deployed), expected);
     }
 }

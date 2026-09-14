@@ -13,6 +13,7 @@ import {
 } from "./dollar/DeployStaticsDollar.s.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
@@ -176,12 +177,14 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         address create2Deployer
     ) private {
         _validateV4(config);
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         bytes memory constructorArgs = abi.encode(
             IPoolManager(config.poolManager),
             deployment.diamond,
             config.nativeLpFee,
             config.inputFeeBps,
-            config.outputFeeBps
+            config.outputFeeBps,
+            permanentLiquidityMath
         );
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
@@ -190,7 +193,8 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
             deployment.diamond,
             config.nativeLpFee,
             config.inputFeeBps,
-            config.outputFeeBps
+            config.outputFeeBps,
+            permanentLiquidityMath
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager manager =
@@ -199,6 +203,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         deployment.poolManager = config.poolManager;
         deployment.positionManager = config.positionManager;
         deployment.permit2 = config.permit2;
+        deployment.permanentLiquidityMath = address(permanentLiquidityMath);
         deployment.swapFeeHook = address(hook);
         deployment.liquidityManager = address(manager);
     }

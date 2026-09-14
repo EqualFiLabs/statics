@@ -96,6 +96,12 @@ pending, the routing boundary rechecks it: an unavailable basket-staker share
 becomes POL and an unavailable Statics-staker share becomes treasury. This keeps
 swaps, harvesting, and unwind live after the final eligible staker exits.
 
+The hook delegates only the pure full-range liquidity calculation to an
+immutable `StaticsPermanentLiquidityMath` contract so the hook retains explicit
+EIP-170 deployment headroom. The calculator holds no assets or protocol state
+and has no privileged entrypoint. Deployment records its address and runtime
+code hash beside the hook evidence.
+
 Decommissioning reports permanent-liquidity principal, unmatched POL, and
 ordinary fee distributions separately. Principal and unmatched POL follow the
 pool unwind policy, while eligible staker, creator, and treasury distributions

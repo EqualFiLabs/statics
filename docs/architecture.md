@@ -64,7 +64,7 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 36 facets and 283 selectors on
+The fresh-deployment launcher installs 36 facets and 282 selectors on
 `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
@@ -168,7 +168,8 @@ StaticsDiamond
 
 StaticsSwapFeeHook
 ├── per-pool/per-currency pending POL
-└── hook-owned full-range v4 liquidity
+├── hook-owned full-range v4 liquidity
+└── immutable stateless full-range liquidity calculator
 
 StaticsLiquidityManager
 ├── normalized protocol-pool validation by PoolId

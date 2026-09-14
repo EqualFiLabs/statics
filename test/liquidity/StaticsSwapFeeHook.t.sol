@@ -19,6 +19,8 @@ import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {IStaticsPermanentLiquidityMath} from "../../src/interfaces/IStaticsPermanentLiquidityMath.sol";
+import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract HookCompatibilityERC20 is ERC20 {
@@ -163,6 +165,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     uint16 private constant OUTPUT_FEE_BPS = 25;
     uint24 private constant LP_FEE = 3_000;
     int24 private constant TICK_SPACING = 10;
+    uint256 private constant MAX_HOOK_RUNTIME_SIZE = 24_320;
     uint160 private constant REQUIRED_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -198,6 +201,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertTrue(permissions.beforeDonate);
         assertEq(hook.staticsDiamond(), address(diamond));
         assertEq(hook.nativeLpFee(), LP_FEE);
+        assertLe(address(hook).code.length, MAX_HOOK_RUNTIME_SIZE);
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         assertEq(inputFeeBps, INPUT_FEE_BPS);
         assertEq(outputFeeBps, OUTPUT_FEE_BPS);
@@ -220,11 +224,25 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
 
     function testNativeLpFeeRejectsOneMillionPips() public {
         uint24 invalidFee = 1_000_000;
-        bytes memory constructorArgs = abi.encode(manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
+        bytes memory constructorArgs =
+            abi.encode(manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath);
         (, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.InvalidNativeLpFee.selector, invalidFee));
-        new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        new StaticsSwapFeeHook{salt: salt}(
+            manager, address(diamond), invalidFee, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
+        );
+    }
+
+    function testRejectsMissingPermanentLiquidityMath() public {
+        IStaticsPermanentLiquidityMath missing = IStaticsPermanentLiquidityMath(address(0));
+        bytes memory constructorArgs =
+            abi.encode(manager, address(diamond), LP_FEE, INPUT_FEE_BPS, OUTPUT_FEE_BPS, missing);
+        (, bytes32 salt) =
+            HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
+        vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.InvalidPermanentLiquidityMath.selector, address(0)));
+        new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), LP_FEE, INPUT_FEE_BPS, OUTPUT_FEE_BPS, missing);
     }
 
     function testGeneralPoolCarvesFixedFiveHundredBpsCreatorShare() public {
@@ -462,10 +480,14 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     }
 
     function _deployHook(address diamond_) private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, diamond_, uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
+        bytes memory constructorArgs =
+            abi.encode(manager, diamond_, uint24(3_000), INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, diamond_, 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        deployed = new StaticsSwapFeeHook{salt: salt}(
+            manager, diamond_, 3_000, INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
+        );
         assertEq(address(deployed), expected);
     }
 

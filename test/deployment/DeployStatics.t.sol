@@ -178,7 +178,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 35, 282);
+        _assertManifest(diamond, 36, 282);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
         _assertRetiredLiquiditySelectorsAbsent(diamond);
@@ -218,6 +218,7 @@ contract DeployStaticsTest is Test {
         assertTrue(integrationInstalled);
         assertTrue(managerInstalled);
         assertEq(poolManager, deployment.poolManager);
+        assertGt(deployment.permanentLiquidityMath.code.length, 0);
         assertEq(hook, deployment.swapFeeHook);
         assertEq(manager, deployment.liquidityManager);
         assertEq(StaticsSwapFeeHook(payable(hook)).staticsDiamond(), diamond);

@@ -289,21 +289,25 @@ library StaticsSelectors {
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](14);
+        selectors = new bytes4[](13);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
         selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
         selectors[4] = IStaticsBasketLiquidity.setSwapFeeConfiguration.selector;
-        selectors[5] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
-        selectors[6] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[7] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[8] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[9] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
-        selectors[10] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[11] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
-        selectors[12] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
-        selectors[13] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
+        selectors[5] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[6] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[7] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[8] = IStaticsBasketLiquidity.swapFeeConfiguration.selector;
+        selectors[9] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[10] = IStaticsBasketLiquidity.setCanonicalPoolFeeRate.selector;
+        selectors[11] = IStaticsBasketLiquidity.clearCanonicalPoolFeeRate.selector;
+        selectors[12] = IStaticsBasketLiquidity.canonicalPoolFeeRate.selector;
+    }
+
+    function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
     }
 
     function protocolPoolCreation() internal pure returns (bytes4[] memory selectors) {

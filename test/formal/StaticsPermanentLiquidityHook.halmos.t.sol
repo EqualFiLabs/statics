@@ -16,6 +16,7 @@ import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol"
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {
     FormalPermanentPoolManager,
+    FormalPermanentLiquidityMath,
     FormalPermanentSwapFeeHook,
     FormalPermanentToken
 } from "./mocks/FormalPermanentLiquidityMocks.sol";
@@ -34,7 +35,10 @@ contract StaticsPermanentLiquidityHookHalmosTest is SymTest, Test {
         FormalPermanentToken tokenA = new FormalPermanentToken();
         FormalPermanentToken tokenB = new FormalPermanentToken();
         manager = new FormalPermanentPoolManager();
-        hook = new FormalPermanentSwapFeeHook(IPoolManager(address(manager)), address(this), 3_000, 25, 25);
+        FormalPermanentLiquidityMath permanentLiquidityMath = new FormalPermanentLiquidityMath();
+        hook = new FormalPermanentSwapFeeHook(
+            IPoolManager(address(manager)), address(this), 3_000, 25, 25, permanentLiquidityMath
+        );
         (Currency currency0, Currency currency1) = address(tokenA) < address(tokenB)
             ? (Currency.wrap(address(tokenA)), Currency.wrap(address(tokenB)))
             : (Currency.wrap(address(tokenB)), Currency.wrap(address(tokenA)));

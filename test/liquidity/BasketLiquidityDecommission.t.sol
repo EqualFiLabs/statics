@@ -10,7 +10,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
-import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
+import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
@@ -60,7 +60,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
     }
 
     function testPoolCannotUnwindEarlyOrSwapAfterDecommission() public {
-        vm.expectPartialRevert(BasketLiquidityFacet.BasketNotExitOnly.selector);
+        vm.expectPartialRevert(BasketLiquidityLifecycleFacet.BasketNotExitOnly.selector);
         basketLiquidity.unwindBasketLiquidity(basketId, constituent);
 
         governance.decommissionBasket(basketId);

@@ -330,7 +330,7 @@ The launcher validates governance addresses, Dollar risk parameters, oracle boun
 
 ```text
 StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           36 facets, 283 selectors
+StaticsDiamond:           36 facets, 282 selectors
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
