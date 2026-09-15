@@ -252,7 +252,7 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
     uint256 internal constant REDEMPTION_FEE_SHARES = 0.005 ether;
     uint256 internal constant TERM_COMPONENT_USDG = 1_000_000;
     uint256 internal constant PT_VALUE_PROBE = 0.01 ether;
-    uint256 internal constant PT_SETUP_FUNDING = 10 ether;
+    uint256 internal constant PT_SETUP_FUNDING = 6 ether;
     uint40 internal constant TERM_LOAN_DURATION = 14 days;
     uint256 internal constant SLIPPAGE_BPS = 100;
     uint256 internal constant BPS = 10_000;
@@ -308,8 +308,6 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
         basketLiquidity.installLiquidityManager(address(liquidityManager));
         canonicalRouter = new CanonicalV4Router(poolManager);
         pendleSwapRouter = new PendleForkSwapRouter();
-
-        _deriveTermBundles();
     }
 
     function _fundAliceWithPts() internal {
@@ -318,6 +316,7 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
             vm.prank(alice);
             IERC20(_termMarket(i).pt).forceApprove(address(diamond), type(uint256).max);
         }
+        _deriveTermBundles();
     }
 
     function _fundAliceWithLiveUsdg(uint256 amount) internal {

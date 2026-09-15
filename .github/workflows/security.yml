@@ -140,6 +140,18 @@ jobs:
       - name: Run nested flash-arbitrage fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodNestedFlashArbitrageFork.t.sol -vv
+      - name: Run Pendle PT basket-composition fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodPendleBasketFork.t.sol -vv
+      - name: Run Pendle PT-backed lending fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodPendleLendingFork.t.sol -vv
+      - name: Run Pendle PT parity-arbitrage fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodPendleParityArbitrageFork.t.sol -vv
+      - name: Run Pendle external-venue arbitrage fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodPendleExternalArbitrageFork.t.sol -vv
       - name: Run Blend basket composition fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/basket/fork/RobinhoodBlendBasketFork.t.sol -vv
