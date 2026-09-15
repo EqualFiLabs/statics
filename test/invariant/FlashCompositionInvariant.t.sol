@@ -435,10 +435,6 @@ contract FlashCompositionInvariantTest is StdInvariant, CanonicalPoolTestBase {
         address compositionReceiver = address(handler.receiver());
         vm.prank(alice);
         IERC20(firstBasketToken).transfer(compositionReceiver, 100 ether);
-        // The handler repeatedly redeems during callbacks, which requires independent
-        // physical slack while its flash principal is temporarily outside the Diamond.
-        assetA.mint(address(diamond), 10_000 ether);
-        assetB.mint(address(diamond), 10_000 ether);
         handler.successfulV4Redeem(0.05 ether);
         assertTrue(handler.v4SuccessObserved());
         targetContract(address(handler));
