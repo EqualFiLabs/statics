@@ -95,6 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ROBINHOOD_MAINNET: ${{ secrets.ROBINHOOD_MAINNET }}
+      ROBINHOOD_RPC_URL: ${{ secrets.ROBINHOOD_MAINNET }}
       REQUIRE_DOPPLER_FORK_PROOF: "true"
       REQUIRE_ROBINHOOD_FORK: "true"
     steps:
@@ -139,3 +140,9 @@ jobs:
       - name: Run nested flash-arbitrage fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodNestedFlashArbitrageFork.t.sol -vv
+      - name: Run Blend basket composition fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodBlendBasketFork.t.sol -vv
+      - name: Run Blend flash-arbitrage fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodBlendFlashArbitrageFork.t.sol -vv
