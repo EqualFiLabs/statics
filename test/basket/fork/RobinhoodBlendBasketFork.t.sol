@@ -46,43 +46,43 @@ interface IBlendHook {
 ///
 /// The tests prove discovery, canonical-pool launch, fee-bearing mint/redemption, and optional
 /// look-through reads without adding any Blend-specific production logic to Statics.
-contract RobinhoodBlendBasketForkTest is StaticsTestBase {
+abstract contract RobinhoodBlendBasketForkBase is StaticsTestBase {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
-    string private constant CHAIN_MANIFEST = "deployments/robinhood-chain-4663.json";
+    string internal constant CHAIN_MANIFEST = "deployments/robinhood-chain-4663.json";
 
-    address private constant BLEND_FACTORY = 0x40bd43B7ff1D673e03B129dCE371761a6E81E305;
-    address private constant BLEND_HOOK = 0x219B93D7c067f3cCc9E25aecDbecf1279D1Fc888;
-    address private constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
-    address private constant SHARED_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
+    address internal constant BLEND_FACTORY = 0x40bd43B7ff1D673e03B129dCE371761a6E81E305;
+    address internal constant BLEND_HOOK = 0x219B93D7c067f3cCc9E25aecDbecf1279D1Fc888;
+    address internal constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
+    address internal constant SHARED_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
 
     uint256 private constant BLEND_REGISTRY_INDEX = 1;
-    address private constant BLEND_AI = 0x425031AD34E45D9A35f903f0369466Ea529F6A81;
-    address private constant BLEND_AI_HOLDER = 0x914AadaBE98d9fc4293EC67cF28537acb3117822;
-    address private constant NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
-    address private constant GOOGL = 0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3;
-    address private constant MSFT = 0xe93237C50D904957Cf27E7B1133b510C669c2e74;
+    address internal constant BLEND_AI = 0x425031AD34E45D9A35f903f0369466Ea529F6A81;
+    address internal constant BLEND_AI_HOLDER = 0x914AadaBE98d9fc4293EC67cF28537acb3117822;
+    address internal constant NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
+    address internal constant GOOGL = 0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3;
+    address internal constant MSFT = 0xe93237C50D904957Cf27E7B1133b510C669c2e74;
 
     uint256 private constant FORK_BLOCK = 63_211_853;
     bytes32 private constant FORK_BLOCK_HASH = 0xbe73a3e0b16be6199ff78bea03c50b3ad3006a4ed5ae20f7844369629b311ff8;
     uint256 private constant HOLDER_FUNDING = 50 ether;
-    uint256 private constant BUNDLE_AMOUNT = 1 ether;
+    uint256 internal constant BUNDLE_AMOUNT = 1 ether;
     uint256 private constant POOL_SEED = 1 ether;
-    uint256 private constant MINT_FEE_SHARES = 0.01 ether;
-    uint256 private constant REDEMPTION_FEE_SHARES = 0.005 ether;
+    uint256 internal constant MINT_FEE_SHARES = 0.01 ether;
+    uint256 internal constant REDEMPTION_FEE_SHARES = 0.005 ether;
     uint160 private constant SQRT_PRICE_1_1 = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
 
-    IPoolManager private poolManager;
-    IPositionManager private positionManager;
-    IAllowanceTransfer private permit2;
-    StaticsSwapFeeHook private staticsHook;
-    StaticsLiquidityManager private liquidityManager;
-    uint256 private staticsBasketId;
-    address private staticsBasketToken;
+    IPoolManager internal poolManager;
+    IPositionManager internal positionManager;
+    IAllowanceTransfer internal permit2;
+    StaticsSwapFeeHook internal staticsHook;
+    StaticsLiquidityManager internal liquidityManager;
+    uint256 internal staticsBasketId;
+    address internal staticsBasketToken;
 
     struct LifecycleSnapshot {
         uint256 userBlend;
@@ -95,7 +95,7 @@ contract RobinhoodBlendBasketForkTest is StaticsTestBase {
         uint256 diamondBalance;
     }
 
-    function setUp() public override {
+    function setUp() public virtual override {
         if (!_selectPinnedFork()) return;
         super.setUp();
 
@@ -117,7 +117,7 @@ contract RobinhoodBlendBasketForkTest is StaticsTestBase {
         (staticsBasketId, staticsBasketToken) = _launchStaticsBlendBasket();
     }
 
-    function testLiveBlendShareCreatesCanonicalStaticsPool() public view {
+    function _proveLiveBlendShareCreatesCanonicalStaticsPool() internal view {
         IStaticsBasket.BasketView memory configured = baskets.basket(staticsBasketId);
         assertEq(configured.assets.length, 1);
         assertEq(configured.assets[0], BLEND_AI);
@@ -140,7 +140,7 @@ contract RobinhoodBlendBasketForkTest is StaticsTestBase {
         assertNotEq(PoolId.unwrap(canonical.poolId), PoolId.unwrap(blendKey.toId()));
     }
 
-    function testLiveBlendShareMintsAndRedeemsThroughGenericCustody() public {
+    function _proveLiveBlendShareMintsAndRedeemsThroughGenericCustody() internal {
         uint256 shares = 2 ether;
         uint256[] memory mintQuote = baskets.quoteMint(staticsBasketId, shares);
         assertEq(mintQuote.length, 1);
@@ -222,7 +222,7 @@ contract RobinhoodBlendBasketForkTest is StaticsTestBase {
         assertEq(IERC20(BLEND_AI).balanceOf(address(diamond)), custody.globalReservedByToken(BLEND_AI));
     }
 
-    function testLiveBlendCompositionRemainsReadableOutsideStaticsCore() public {
+    function _proveLiveBlendCompositionRemainsReadableOutsideStaticsCore() internal {
         IBlendBasket blend = IBlendBasket(BLEND_AI);
         address[] memory constituents = blend.constituents();
         assertEq(constituents.length, 3);
@@ -345,5 +345,19 @@ contract RobinhoodBlendBasketForkTest is StaticsTestBase {
 
     function _installLocalLiquidityIntegration() internal pure override returns (bool) {
         return false;
+    }
+}
+
+contract RobinhoodBlendBasketForkTest is RobinhoodBlendBasketForkBase {
+    function testLiveBlendShareCreatesCanonicalStaticsPool() public view {
+        _proveLiveBlendShareCreatesCanonicalStaticsPool();
+    }
+
+    function testLiveBlendShareMintsAndRedeemsThroughGenericCustody() public {
+        _proveLiveBlendShareMintsAndRedeemsThroughGenericCustody();
+    }
+
+    function testLiveBlendCompositionRemainsReadableOutsideStaticsCore() public {
+        _proveLiveBlendCompositionRemainsReadableOutsideStaticsCore();
     }
 }
