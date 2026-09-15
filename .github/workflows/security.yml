@@ -155,3 +155,9 @@ jobs:
       - name: Run Blend flash-arbitrage fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodBlendFlashArbitrageFork.t.sol -vv
+      - name: Run Blend single-asset flash fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodBlendSingleAssetFlashFork.t.sol -vv
+      - name: Run Blend flash-mint rollback fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodBlendSelfFundingFlashFork.t.sol -vv
