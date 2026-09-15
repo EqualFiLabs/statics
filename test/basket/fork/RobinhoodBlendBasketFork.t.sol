@@ -65,7 +65,9 @@ abstract contract RobinhoodBlendBasketForkBase is StaticsTestBase {
     address internal constant MSFT = 0xe93237C50D904957Cf27E7B1133b510C669c2e74;
 
     uint256 private constant FORK_BLOCK = 63_211_853;
-    bytes32 private constant FORK_BLOCK_HASH = 0xbe73a3e0b16be6199ff78bea03c50b3ad3006a4ed5ae20f7844369629b311ff8;
+    // The first transaction in L2 block FORK_BLOCK + 1 anchors the fork to the
+    // complete end state of FORK_BLOCK without relying on newer RPC cheatcodes.
+    bytes32 private constant FORK_ANCHOR_TX = 0xb6775674e90a127241c2426e756377aee4ccb9db0793f7cd4949a4ecc67282e1;
     uint256 private constant HOLDER_FUNDING = 50 ether;
     uint256 internal constant BUNDLE_AMOUNT = 1 ether;
     uint256 private constant POOL_SEED = 1 ether;
@@ -334,11 +336,7 @@ abstract contract RobinhoodBlendBasketForkBase is StaticsTestBase {
             vm.skip(true, "ROBINHOOD_RPC_URL is not configured");
             return false;
         }
-        string memory pinnedBlock =
-            vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(FORK_BLOCK_HASH), "\",false]"));
-        assertEq(vm.parseJsonBytes32(pinnedBlock, ".hash"), FORK_BLOCK_HASH, "fork block hash drift");
-        assertEq(vm.parseJsonUint(pinnedBlock, ".number"), FORK_BLOCK, "fork block number drift");
-        vm.createSelectFork(rpcUrl, FORK_BLOCK);
+        vm.createSelectFork(rpcUrl, FORK_ANCHOR_TX);
         assertEq(block.chainid, 4_663, "fork chain id drift");
         return true;
     }
