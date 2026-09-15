@@ -146,6 +146,9 @@ jobs:
       - name: Run Blend ordinary lifecycle fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/basket/fork/RobinhoodBlendLifecycleFork.t.sol -vv
+      - name: Run Blend-backed Statics lending fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodBlendLendingFork.t.sol -vv
       - name: Run Blend composition-value fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/basket/fork/RobinhoodBlendCompositionValueFork.t.sol -vv
