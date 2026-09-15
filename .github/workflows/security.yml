@@ -143,6 +143,15 @@ jobs:
       - name: Run Blend basket composition fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/basket/fork/RobinhoodBlendBasketFork.t.sol -vv
+      - name: Run Blend ordinary lifecycle fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodBlendLifecycleFork.t.sol -vv
+      - name: Run Blend composition-value fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/basket/fork/RobinhoodBlendCompositionValueFork.t.sol -vv
+      - name: Run Blend cross-hook routing fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/liquidity/fork/RobinhoodBlendCrossHookFork.t.sol -vv
       - name: Run Blend flash-arbitrage fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodBlendFlashArbitrageFork.t.sol -vv
