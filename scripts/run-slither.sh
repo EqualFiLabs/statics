@@ -19,9 +19,11 @@ export FOUNDRY_PROFILE=slither
 python3 "$ROOT/scripts/slither_baseline.py" scope --output "$SCOPE_REPORT"
 
 # Slither's Foundry adapter normally invokes `forge clean` and a forced build.
-# Build once through the repository-approved path, then make Slither consume only
-# the resulting build-info. It may still call the read-only `forge config --json`.
-forge build --build-info
+# Build only the reviewed production roots through the repository-approved path,
+# then make Slither consume only that build-info. This keeps test harnesses out of
+# detector analysis while preserving every file enforced by scope.json. Slither
+# may still call the read-only `forge config --json`.
+forge build --build-info src script
 
 set +e
 "$SLITHER_BIN" . \

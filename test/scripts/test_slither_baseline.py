@@ -62,6 +62,7 @@ class SlitherBaselineTest(unittest.TestCase):
         self.assertIs(doppler_config["profile"]["formal"]["dynamic_test_linking"], False)
         slither_runner = (ROOT / "scripts" / "run-slither.sh").read_text(encoding="utf-8")
         self.assertIn("export FOUNDRY_PROFILE=slither", slither_runner)
+        self.assertIn("forge build --build-info src script", slither_runner)
 
     def test_formal_workflow_initializes_native_doppler_dependencies(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
