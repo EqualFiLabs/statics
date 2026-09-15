@@ -108,6 +108,10 @@ jobs:
             lib/solady \
             lib/v4-core \
             lib/v4-periphery
+          git -C verification/doppler/vendor/doppler/lib/v4-core submodule sync
+          git -C verification/doppler/vendor/doppler/lib/v4-core submodule update --init --depth=1 \
+            lib/solmate \
+            lib/openzeppelin-contracts
       - name: Install Python
         uses: actions/setup-python@v5
         with:
