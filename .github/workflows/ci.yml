@@ -54,7 +54,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.7.1
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Test baseline tooling
         run: python test/scripts/test_slither_baseline.py
       - name: Check reviewed baseline
@@ -121,7 +121,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.7.1
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Prove ${{ matrix.target }} invariants
         env:
           HALMOS_BIN: ${{ github.workspace }}/.halmos-venv/bin/halmos
@@ -173,7 +173,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.7.1
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Test reusable deployment
         run: forge test --root verification/morpho --match-path test/DeployMorphoTestnet.t.sol -vv
 
@@ -206,7 +206,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.7.1
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Check formatting of changed Solidity files
         shell: bash
         run: |
@@ -260,7 +260,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: stable
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Build
         run: forge build
       - name: Normalize V4 deployment artifacts
