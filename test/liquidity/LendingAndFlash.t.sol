@@ -13,6 +13,7 @@ import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketCollateral} from "../../src/interfaces/IStaticsBasketCollateral.sol";
+import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
 import {FlashLoanFacet} from "../../src/facets/FlashLoanFacet.sol";
 import {LendingFacet} from "../../src/facets/LendingFacet.sol";
@@ -739,11 +740,8 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 basketId, address token) = _createDefaultBasket(0.01 ether, 0);
         _mintShares(basketId, token, alice, 10 ether);
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        (, uint256[] memory flashAmounts, uint256[] memory fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
+        (,, uint256[] memory fees) = flashLoans.quoteFlashLoan(basketId, 1 ether);
         uint256[] memory maximums = baskets.quoteMint(basketId, 1 ether);
-        // Mint reservations need independent physical slack while principal is out.
-        assetA.mint(address(diamond), flashAmounts[0]);
-        assetB.mint(address(diamond), flashAmounts[1]);
         assetA.mint(address(receiver), maximums[0] + fees[0]);
         assetB.mint(address(receiver), maximums[1] + fees[1]);
         receiver.approveProtocol(address(assetA), type(uint256).max);
@@ -760,10 +758,6 @@ contract LendingAndFlashTest is StaticsTestBase {
         (uint256 basketId, address token) = _createDefaultBasket(0, 0);
         _mintShares(basketId, token, alice, 10 ether);
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
-        (, uint256[] memory flashAmounts,) = flashLoans.quoteFlashLoan(basketId, 1 ether);
-        // Redemption needs separate unreserved liquidity while flash principal is out.
-        assetA.mint(address(diamond), flashAmounts[0]);
-        assetB.mint(address(diamond), flashAmounts[1]);
         vm.prank(alice);
         IERC20(token).transfer(address(receiver), 1 ether);
         receiver.setReentryData(
@@ -776,6 +770,25 @@ contract LendingAndFlashTest is StaticsTestBase {
         assertEq(IERC20(token).balanceOf(address(receiver)), 0);
         assertGt(assetA.balanceOf(address(receiver)), 0);
         assertGt(assetB.balanceOf(address(receiver)), 0);
+    }
+
+    function testFlashDeficitDoesNotExposeLoanedSurplusAsUnreserved() public {
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        _mintShares(basketId, token, alice, 10 ether);
+        uint256 donatedSurplus = 3 ether;
+        uint256 amount = 4 ether;
+        assetA.mint(address(diamond), donatedSurplus);
+        MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
+        uint256 fee = flashLoans.quoteFlashLoanAsset(address(assetA), amount);
+        assetA.mint(address(receiver), fee);
+        receiver.setReentryData(abi.encodeCall(IStaticsCustody.unreservedBalance, (address(assetA))));
+
+        receiver.executeAsset(address(assetA), amount, bytes("surplus isolation"));
+
+        assertTrue(receiver.reentrySucceeded());
+        assertEq(abi.decode(receiver.reentryResult(), (uint256)), 0);
+        assertEq(custody.unreservedBalance(address(assetA)), donatedSurplus);
+        assertEq(assetA.balanceOf(address(diamond)), custody.globalReservedByToken(address(assetA)) + donatedSurplus);
     }
 
     function testFlashCallbackCannotNestFlashLoan() public {
