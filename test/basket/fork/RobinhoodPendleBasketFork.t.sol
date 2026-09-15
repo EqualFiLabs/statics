@@ -50,7 +50,7 @@ contract RobinhoodPendleBasketForkTest is RobinhoodPendleForkBase {
         termLaunchGas = gasBefore - gasleft();
     }
 
-    function testLivePendlePtsCreateCanonicalStaticsBaskets() public view {
+    function testLivePendlePtsCreateCanonicalStaticsBaskets() public {
         IStaticsBasket.BasketView memory wrapper = baskets.basket(wrapperBasketId);
         assertEq(wrapper.token, wrapperBasketToken);
         assertEq(wrapper.assets.length, 1);
