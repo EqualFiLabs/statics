@@ -14,8 +14,9 @@ included nor explicitly excluded.
 ## Reproduce
 
 GitHub Actions is the release-evidence runner. It pins Python 3.12, Foundry
-1.7.1, and Slither 0.11.6 and publishes the complete `slither-results/`
-directory. The same campaign can be reproduced with:
+`nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab` (`1.8.2-nightly`), and
+Slither 0.11.6 and publishes the complete `slither-results/` directory. The
+same campaign can be reproduced with:
 
 ```sh
 python3.12 -m venv .slither-venv
