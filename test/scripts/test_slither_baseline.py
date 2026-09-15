@@ -63,6 +63,15 @@ class SlitherBaselineTest(unittest.TestCase):
         slither_runner = (ROOT / "scripts" / "run-slither.sh").read_text(encoding="utf-8")
         self.assertIn("export FOUNDRY_PROFILE=slither", slither_runner)
 
+    def test_formal_workflow_initializes_native_doppler_dependencies(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        doppler_v4_core = "verification/doppler/vendor/doppler/lib/v4-core"
+
+        self.assertIn(f"git -C {doppler_v4_core} submodule sync", workflow)
+        self.assertIn(f"git -C {doppler_v4_core} submodule update --init --depth=1", workflow)
+        self.assertIn("lib/solmate", workflow)
+        self.assertIn("lib/openzeppelin-contracts", workflow)
+
     def test_repository_scope_covers_every_owned_solidity_file(self) -> None:
         passes, report = slither_baseline.resolve_scope()
 
