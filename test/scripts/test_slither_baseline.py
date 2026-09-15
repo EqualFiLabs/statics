@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -50,6 +51,18 @@ def finding(path: str, node: str, start: int = 100) -> dict:
 
 
 class SlitherBaselineTest(unittest.TestCase):
+    def test_verification_profiles_disable_dynamic_test_linking(self) -> None:
+        with (ROOT / "foundry.toml").open("rb") as config_file:
+            config = tomllib.load(config_file)
+
+        self.assertIs(config["profile"]["formal"]["dynamic_test_linking"], False)
+        self.assertIs(config["profile"]["slither"]["dynamic_test_linking"], False)
+        with (ROOT / "verification" / "doppler" / "foundry.toml").open("rb") as config_file:
+            doppler_config = tomllib.load(config_file)
+        self.assertIs(doppler_config["profile"]["formal"]["dynamic_test_linking"], False)
+        slither_runner = (ROOT / "scripts" / "run-slither.sh").read_text(encoding="utf-8")
+        self.assertIn("export FOUNDRY_PROFILE=slither", slither_runner)
+
     def test_repository_scope_covers_every_owned_solidity_file(self) -> None:
         passes, report = slither_baseline.resolve_scope()
 

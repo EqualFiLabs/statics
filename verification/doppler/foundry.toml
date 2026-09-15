@@ -29,3 +29,5 @@ tab_width = 4
 
 [profile.formal]
 out = "out-formal"
+# Keep the Halmos harness's PinnedMulticurveHarness deployment as a native CREATE.
+dynamic_test_linking = false
