@@ -500,6 +500,7 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
             IPendleRouterStatic(PENDLE_ROUTER_STATIC).swapSyForExactPtStatic(configured.market, exactPtOut);
         uint256 underlyingNeeded = _underlyingForSy(configured, syIn);
         uint256 usdgBefore = IERC20(USDG).balanceOf(actor);
+        uint256 syBefore = IERC20(configured.sy).balanceOf(actor);
         _v3ExactOutput(actor, configured, USDG, configured.underlying, underlyingNeeded);
 
         vm.startPrank(actor);
@@ -510,6 +511,14 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
         pendleSwapRouter.buyExactPt(configured.market, exactPtOut, syOut, actor);
         IERC20(configured.sy).forceApprove(address(pendleSwapRouter), 0);
         vm.stopPrank();
+
+        uint256 remainingSy = IERC20(configured.sy).balanceOf(actor) - syBefore;
+        if (remainingSy != 0) {
+            vm.prank(actor);
+            uint256 recoveredUnderlying =
+                IPendleSY(configured.sy).redeem(actor, remainingSy, configured.underlying, 1, false);
+            _v3ExactInput(actor, configured, configured.underlying, USDG, recoveredUnderlying);
+        }
         usdgSpent = usdgBefore - IERC20(USDG).balanceOf(actor);
     }
 
