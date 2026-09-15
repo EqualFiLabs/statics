@@ -706,7 +706,7 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
         return uint160(Math.mulDiv(ratioRoot, 1 << 96, SHARE_SCALE));
     }
 
-    function _assertInfrastructure(string memory manifest) private view {
+    function _assertInfrastructure(string memory manifest) private {
         assertEq(address(poolManager), SHARED_POOL_MANAGER);
         assertEq(address(poolManager).codehash, vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"));
         assertEq(
