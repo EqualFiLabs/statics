@@ -3,11 +3,15 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 
 library LibCustody {
     using SafeERC20 for IERC20;
+    using TransientSlot for *;
 
     bytes32 internal constant CUSTODY_STORAGE_POSITION = keccak256("statics.custody.storage.v1");
+    bytes32 internal constant FLASH_RESERVATION_DEFICIT_DOMAIN =
+        keccak256("statics.custody.flash.reservation.deficit.v1");
     bytes32 internal constant DOLLAR_ACCOUNT = keccak256("statics.custody.account.dollar");
     bytes32 internal constant FEE_ACCOUNT = keccak256("statics.custody.account.fees");
     bytes32 internal constant STAKING_ACCOUNT = keccak256("statics.custody.account.staking");
@@ -66,7 +70,7 @@ library LibCustody {
     }
 
     function unreservedBalance(address token) internal view returns (uint256 available) {
-        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 balance = _reservationBackingBalance(token);
         uint256 reserved = globalReserved(token);
         return balance > reserved ? balance - reserved : 0;
     }
@@ -74,7 +78,7 @@ library LibCustody {
     function reserve(bytes32 account, address token, uint256 amount) internal {
         if (amount == 0) return;
         CustodyStorage storage cs = custodyStorage();
-        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 balance = _reservationBackingBalance(token);
         uint256 globallyReserved = cs.globalReservedByToken[token];
         uint256 available = balance > globallyReserved ? balance - globallyReserved : 0;
         if (amount > available) revert InsufficientUnreserved(token, amount, available);
@@ -177,6 +181,24 @@ library LibCustody {
         return _pushMeasured(token, receiver, amount);
     }
 
+    /// @dev Records only the portion of an atomic flash loan that temporarily
+    ///      under-backs existing reservations. Loaned unreserved balance never
+    ///      becomes reservation capacity during the receiver callback.
+    function checkpointFlashReservationDeficit(address token) internal {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 reserved = globalReserved(token);
+        if (reserved > balance) {
+            _flashReservationDeficitSlot(token).asUint256().tstore(reserved - balance);
+        }
+    }
+
+    /// @dev Clears the atomic receivable and restores the ordinary physical
+    ///      backing invariant before flash-fee accounting continues.
+    function clearFlashReservationDeficit(address token) internal {
+        _flashReservationDeficitSlot(token).asUint256().tstore(0);
+        _enforceGlobalBacking(token);
+    }
+
     function beginUnreservedDebit(address token, uint256 maximumDebit) internal view returns (uint256 beforeBalance) {
         uint256 available = unreservedBalance(token);
         if (maximumDebit > available) revert InsufficientUnreserved(token, maximumDebit, available);
@@ -211,7 +233,15 @@ library LibCustody {
 
     function _enforceGlobalBacking(address token) private view {
         uint256 reserved = globalReserved(token);
-        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 balance = _reservationBackingBalance(token);
         if (balance < reserved) revert GlobalReservationShortfall(token, reserved, balance);
+    }
+
+    function _reservationBackingBalance(address token) private view returns (uint256) {
+        return IERC20(token).balanceOf(address(this)) + _flashReservationDeficitSlot(token).asUint256().tload();
+    }
+
+    function _flashReservationDeficitSlot(address token) private pure returns (bytes32) {
+        return keccak256(abi.encode(FLASH_RESERVATION_DEFICIT_DOMAIN, token));
     }
 }

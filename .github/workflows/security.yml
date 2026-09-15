@@ -42,7 +42,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.7.1
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Build
         run: forge build
       - name: Normalize V4 deployment artifacts
@@ -123,7 +123,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: 1.7.1
+          version: nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab
       - name: Require configured fork RPCs
         shell: bash
         run: |

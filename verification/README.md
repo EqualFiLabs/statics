@@ -22,6 +22,10 @@ without causing CI to prove any target twice. CI uploads each symbolic result se
 artifact. Local development should use focused Foundry tests and, when required, the hosted Certora
 run; rerunning the full Halmos or Slither jobs locally is not required release evidence.
 
+The root and Doppler `formal` Foundry profiles keep dynamic test linking disabled. This preserves
+native contract creation in the symbolic harnesses because Halmos 0.3.3 does not execute Foundry's
+injected `vm.deployCode` helper calls.
+
 The standalone launch-liquidity hook has a separate [verification ledger](./launch-liquidity.md)
 covering its fee callbacks, configuration authority, hostile-token rejection, and externally owned
 PositionManager lifecycle.

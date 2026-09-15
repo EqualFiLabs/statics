@@ -44,10 +44,10 @@
       "paths": [
         "src/libraries/LibCustody.sol"
       ],
-      "summary": "LibCustody.pull(address,address,uint256) (src/libraries/LibCustody.sol#107-113) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#109)",
+      "summary": "LibCustody.pull(address,address,uint256) (src/libraries/LibCustody.sol#111-117) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#113)",
       "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
       "occurrences": 1,
-      "id": "24df853d171eb10ca2d8a77c"
+      "id": "1622fc9376f35d138b474d48"
     },
     {
       "impact": "High",
@@ -76,10 +76,10 @@
       "paths": [
         "src/libraries/LibCustody.sol"
       ],
-      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#117-125) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#120)",
+      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#121-129) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#124)",
       "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
       "occurrences": 1,
-      "id": "b8981b4f672d176890441987"
+      "id": "e684002d3cadc28fa9b39097"
     },
     {
       "impact": "High",
@@ -844,10 +844,10 @@
       "paths": [
         "src/libraries/LibCustody.sol"
       ],
-      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#74-84) uses a dangerous strict equality:",
+      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#78-88) uses a dangerous strict equality:",
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
-      "id": "361b450fc15cdadd30eb1790"
+      "id": "48ce4c853520e5cf46bb0734"
     },
     {
       "impact": "Medium",
@@ -1708,10 +1708,10 @@
       "paths": [
         "src/facets/FlashLoanFacet.sol"
       ],
-      "summary": "FlashLoanFacet._quote(LibBasket.Basket,uint256).hasAmount (src/facets/FlashLoanFacet.sol#196) is a local variable never initialized",
+      "summary": "FlashLoanFacet._quote(LibBasket.Basket,uint256).hasAmount (src/facets/FlashLoanFacet.sol#198) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "0707cdbf84dbaed786a5169f"
+      "id": "af479744efc67c7fdcaf7615"
     },
     {
       "impact": "Medium",
@@ -5804,10 +5804,10 @@
       "paths": [
         "src/facets/FlashLoanFacet.sol"
       ],
-      "summary": "FlashLoanFacet._lendAsset(address,uint256,address) (src/facets/FlashLoanFacet.sol#138-151) has external calls inside a loop: startingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#139)",
+      "summary": "FlashLoanFacet._lendAsset(address,uint256,address) (src/facets/FlashLoanFacet.sol#138-152) has external calls inside a loop: startingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#139)",
       "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
       "occurrences": 2,
-      "id": "006882e30ee4415e0c78fbdf"
+      "id": "912c5fb909560fe9bb20c219"
     },
     {
       "impact": "Low",
@@ -5916,10 +5916,10 @@
       "paths": [
         "src/facets/FlashLoanFacet.sol"
       ],
-      "summary": "FlashLoanFacet._collectRepayment(address,uint256,uint256,uint256,address) (src/facets/FlashLoanFacet.sol#153-169) has external calls inside a loop: endingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#163)",
+      "summary": "FlashLoanFacet._collectRepayment(address,uint256,uint256,uint256,address) (src/facets/FlashLoanFacet.sol#154-171) has external calls inside a loop: endingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#164)",
       "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
       "occurrences": 2,
-      "id": "256516f0fe1c911a9185418c"
+      "id": "1d448b2884c05ba8dcd48e1f"
     },
     {
       "impact": "Low",
@@ -7024,7 +7024,7 @@
       "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "05098254df245dc0009a9e90"
+      "id": "4717ef2e712b7ab9e84629f0"
     },
     {
       "impact": "Low",
@@ -7058,7 +7058,7 @@
       "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "0ad02863c7fd5c2418486d7b"
+      "id": "bb950f9edb81c04faa19f388"
     },
     {
       "impact": "Low",
@@ -7155,7 +7155,7 @@
       "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#209-221):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "1f9915e3719ef2aa3824d712"
+      "id": "b319cbaac600e66f7e701458"
     },
     {
       "impact": "Low",
@@ -7540,7 +7540,7 @@
       "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#187-197):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "753b71fec52cafd0bf3d6391"
+      "id": "0e56f7e960e6f4c5e82880c0"
     },
     {
       "impact": "Low",
@@ -7605,7 +7605,7 @@
       "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "8ce2811673ac4992c0cab85c"
+      "id": "9bf051cdc57f195ddbc4bd65"
     },
     {
       "impact": "Low",
@@ -7622,7 +7622,7 @@
       "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#199-207):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "92c5d2e7bf13886f53d4e4ab"
+      "id": "ff7eacbdf0fe98a5aef83316"
     },
     {
       "impact": "Low",
@@ -7655,7 +7655,7 @@
       "summary": "Reentrancy in LibGenesisRewards.claimAllTreasury(address) (src/libraries/LibGenesisRewards.sol#248-261):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "9ec4c999abbe41af090f5fc1"
+      "id": "d401b8ea4c414a7075d611a4"
     },
     {
       "impact": "Low",
@@ -7913,7 +7913,7 @@
       "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "cfb1cd804660cf574bc6d148"
+      "id": "dfadacb24a1a812aaafbdf92"
     },
     {
       "impact": "Low",
@@ -9254,10 +9254,10 @@
       "paths": [
         "src/libraries/LibCustody.sol"
       ],
-      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#33-38) uses assembly",
+      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#37-42) uses assembly",
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
-      "id": "9da03488d1fdd6e03d932fd3"
+      "id": "2ac8789090dd5ff53a47e833"
     },
     {
       "impact": "Informational",

@@ -148,6 +148,7 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
         if (spent != amount || received != amount) {
             revert IncompatibleFlashAsset(asset, amount, spent, received);
         }
+        LibCustody.checkpointFlashReservationDeficit(asset);
     }
 
     function _collectRepayment(address asset, uint256 amount, uint256 fee, uint256 startingUnreserved, address receiver)
@@ -165,6 +166,7 @@ contract FlashLoanFacet is IStaticsFlashLoan, ReentrancyGuardTransient {
         if (endingBalance < requiredBalance) {
             revert InsufficientRepayment(asset, requiredBalance, endingBalance);
         }
+        LibCustody.clearFlashReservationDeficit(asset);
         LibGlobalRewards.accrueUnreservedNonSwapFee(asset, fee);
     }
 

@@ -56,7 +56,11 @@ same OpenZeppelin `ReentrancyGuard` namespaced storage slot under delegatecall.
 `FlashLoanFacet` instead uses OpenZeppelin's transient guard and acquires the
 persistent slot only during disbursement and repayment. Its callback can
 therefore use ordinary basket mint and redemption, while nested flash loans
-remain blocked. This design requires Cancun/EIP-1153. The PositionNFT uses
+remain blocked. Per-token transient custody deficits represent only reserved
+principal temporarily outside the Diamond; loaned unreserved balance remains
+unavailable for new reservations. Repayment must restore raw physical backing
+before the deficit clears and flash fees accrue. This design requires
+Cancun/EIP-1153. The PositionNFT uses
 OpenZeppelin's constructorless ERC-721 implementation for the same reason; it
 does not introduce a UUPS, transparent, beacon, or ERC-1967 proxy. EIP-2535
 Diamond cuts remain the sole implementation upgrade mechanism.
