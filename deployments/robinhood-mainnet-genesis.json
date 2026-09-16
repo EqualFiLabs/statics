@@ -206,8 +206,9 @@
     "feeReceiverBindingsFinal": true,
     "activationRegistryBindingsFinal": true,
     "launchDistributorBindingsFinal": true,
-    "governanceOwnershipAccepted": false,
-    "governanceOwnershipStatus": "pending Safe acceptance on fee receiver, activation registry, Genesis Vault, Operators NFT, and launch distributor"
+    "governanceOwnershipAccepted": true,
+    "governanceOwnershipStatus": "accepted by launch governance Safe; Phase 1 timelock migration pending",
+    "phaseOneTimelockMigrationComplete": false
   },
   "rpcProvisioning": {
     "dedicatedBrowserRpcUrl": null,
