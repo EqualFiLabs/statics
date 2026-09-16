@@ -187,23 +187,6 @@ library LibMorpho {
         }
     }
 
-    function isAccountEmpty(uint256 positionId) internal view returns (bool) {
-        MorphoStorage storage ms = morphoStorage();
-        if (ms.accounts[positionId] == address(0)) return true;
-        PositionMarkets storage position = ms.positions[positionId];
-        for (uint256 i; i < position.ids.length; ++i) {
-            bytes32 id = position.ids[i];
-            PositionMarket storage tracked = position.positions[id];
-            if (tracked.trackedCollateral != 0) return false;
-            (bool success, bytes memory result) = address(ms.morpho)
-                .staticcall(abi.encodeCall(IMorphoBlue.position, (MorphoMarketId.wrap(id), ms.accounts[positionId])));
-            if (!success || result.length < 96) return false;
-            MorphoPosition memory actual = abi.decode(result, (MorphoPosition));
-            if (actual.collateral != 0 || actual.borrowShares != 0) return false;
-        }
-        return true;
-    }
-
     function enforceRecoveryAuthorized(uint256 positionId, address actor) internal view returns (bool closedPosition) {
         MorphoStorage storage ms = morphoStorage();
         address beneficiary = LibPosition.positionStorage().morphoRecoveryBeneficiary[positionId];

@@ -13,6 +13,7 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibPositionSVG} from "../metadata/LibPositionSVG.sol";
 import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
+import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "./LibPosition.sol";
 
@@ -125,7 +126,9 @@ contract PositionNFTFacet is
         if (state.unresolvedObligationCount != 0) {
             revert PositionHasUnresolvedObligations(positionId, state.unresolvedObligationCount);
         }
-        LibMorpho.enforceAccountEmpty(positionId);
+        if (LibMorpho.morphoStorage().initialized) {
+            IStaticsMorpho(address(this)).enforceMorphoAccountEmpty(positionId);
+        }
         ps.morphoRecoveryBeneficiary[positionId] = owner;
         LibPosition.incrementNonce(positionId);
         _burn(positionId);
@@ -167,7 +170,13 @@ contract PositionNFTFacet is
             structuralBlockers := shr(64, sload(state.slot))
         }
         if (_ownerOf(positionId) != address(0) && structuralBlockers == 0) {
-            closable = LibMorpho.isAccountEmpty(positionId);
+            if (!LibMorpho.morphoStorage().initialized) return true;
+            uint256 selector = uint32(IStaticsMorpho.enforceMorphoAccountEmpty.selector);
+            assembly ("memory-safe") {
+                mstore(0, selector)
+                mstore(32, positionId)
+                closable := staticcall(gas(), address(), 28, 36, 0, 0)
+            }
         }
     }
 
