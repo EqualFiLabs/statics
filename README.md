@@ -324,16 +324,40 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
 The reviewed deployment manifest and transaction records provide the canonical
 release evidence for an already completed launch.
 
-The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
+The staged production entry point is
+`script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
+`StaticsTimelock`, the 25-facet multi-asset `StaticsDiamond`, and the immutable
+canonical-liquidity hook and manager. It hard-codes basket and general-pool
+creation fees to zero, retaining owner-only curated creation, while accepting
+the PositionNFT fee and single-asset flash fee as deployment inputs. Hook and
+manager installation remains a separate timelocked ceremony.
+
+Phase 1 includes baskets, global STATICS staking, PositionNFT accounts,
+self-secured basket credit, flash loans/arbitrage, general and canonical pools,
+protocol revenue, permanent liquidity, and Genesis integration/rewards/recovery.
+It excludes the Dollar, Morpho, and advanced borrow-to-liquidity surfaces. The
+complete decision and authority model are recorded in the
+[staged-launch ADR](./docs/adr/staged-phase-one-launch.md).
+
+The canonical fresh full-stack entry point remains
+`script/DeployStatics.s.sol:DeployStatics`. It additionally deploys the Dollar
+Core, Dollar tokens, Dollar periphery, Morpho facets, and BorrowLiquidity. A
+live Phase 1 Diamond must instead gain Phase 2 through a separately reviewed,
+timelocked upgrade ceremony; that future ceremony is intentionally not bundled
+with the Phase 1 launch.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           36 facets, 280 selectors
+Phase 1 StaticsDiamond:   25 facets, 204 selectors
+Full StaticsDiamond:      36 facets, 287 selectors
+StaticsDollarCoreDiamond: 11 facets, 95 selectors (full stack only)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
+
+For the Phase 1 launcher, `Core.*` does not exist and the Diamond alone is owned
+by `StaticsTimelock`.
 
 ### Local Anvil
 
@@ -507,6 +531,8 @@ USDstx, 1,000 STATICS, and 0.001 of each stock fixture.
 Focused deployment proofs:
 
 ```shell
+forge test --match-path test/deployment/DeployStaticsPhaseOne.t.sol -vv
+forge test --match-path test/deployment/ConfigureStaticsGenesisGovernance.t.sol -vv
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
 forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
@@ -524,7 +550,39 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
   -vv
 ```
 
-After explicit authorization, the protocol deployment command is:
+After explicit authorization, the Phase 1 protocol deployment command is:
+
+```shell
+forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  -vv
+```
+
+No transaction is performed by this repository change. Simulate and inspect
+the exact deployment before any separately authorized broadcast.
+
+After deployment, prepare the Genesis ownership migration without signing or
+broadcasting a Safe transaction:
+
+```shell
+STATICS_TIMELOCK_ADDRESS="$STATICS_TIMELOCK_ADDRESS" \
+GENESIS_MIGRATION_TIMELOCK_SALT="$GENESIS_MIGRATION_TIMELOCK_SALT" \
+forge script \
+  script/ConfigureStaticsGenesisGovernance.s.sol:ConfigureStaticsGenesisGovernance \
+  --sig "run()" \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  -vv
+```
+
+Submit the returned six calls as one atomic governance-Safe batch. The first
+five nominate the timelock as pending owner; the sixth schedules the timelock's
+atomic acceptance batch. After the delay, any executor may call `runExecute()`.
+The tool refuses mismatched runtime hashes, owners, pending owners, targets, or
+timelock roles.
+
+The later full-stack deployment command is:
 
 ```shell
 forge script script/DeployStatics.s.sol:DeployStatics \
@@ -754,6 +812,8 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_DOLLAR_DEBT_CEILING` | Initial volatile-profile issuance ceiling |
 | `STATICS_DOLLAR_RISK_URI` | ERC-1155 metadata URI for Risk Share series |
 | `STATICS_DIAMOND_ADDRESS` | Existing Diamond used by post-deployment ceremonies |
+| `STATICS_TIMELOCK_ADDRESS` | Phase 1 timelock used by the Genesis ownership-migration proposal |
+| `GENESIS_MIGRATION_TIMELOCK_SALT` | Unique salt binding the atomic Genesis ownership-acceptance batch |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
 | `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deployed v4 liquidity manager |

@@ -179,7 +179,8 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **36 facets / 283 selectors** on `StaticsDiamond`; and
+- **25 facets / 204 selectors** on the staged Phase 1 `StaticsDiamond`;
+- **36 facets / 287 selectors** on the full-stack `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations are verified through deployment-test loupe
@@ -1136,11 +1137,13 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
-One `StaticsTimelock` owns both Diamonds. Its constructor selects two minutes
-for Robinhood testnet and local development, while Robinhood mainnet and other
-chains default to 24 hours. The configured multisig is proposer and canceller,
-execution is open after delay,
-and the emergency guardian is not a timelock canceller.
+Phase 1 uses one `StaticsTimelock` to own `StaticsDiamond`; the later full stack
+uses the same timelock ownership model for both Diamonds. Its constructor
+selects two minutes for Robinhood testnet and local development, while Robinhood
+mainnet and other chains default to 24 hours. The configured multisig is
+proposer and canceller, execution is open after delay, and the emergency
+guardian is an additional canceller without proposal authority. The two roles
+may share one Safe at the cost of independent veto separation.
 
 The timelock currently controls Diamond cuts, economic configuration, lifecycle
 release and decommissioning, hook fee configuration,

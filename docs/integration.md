@@ -11,10 +11,12 @@ Most applications need:
   temporary Genesis rewards;
 - `IStaticsGenesisIntegration` at `StaticsDiamond` for permanent Genesis
   rewards, Position linkage, and recovery after the governed handoff;
-- `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
-  and ordinary Statics Dollar gateway address;
-- `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
-- `StaticsDollar` and `StaticsDollarRiskShares`;
+- `StaticsDiamond`, the PositionNFT, basket, global-reward, and
+  canonical-liquidity address, plus the ordinary Statics Dollar gateway only
+  after Phase 2;
+- `StaticsDollarCoreDiamond` for Phase 2 advanced Dollar state and direct
+  operations;
+- the Phase 2 `StaticsDollar` and `StaticsDollarRiskShares` tokens;
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
 - one `StaticsBasketToken` address per discovered basket;
@@ -44,7 +46,7 @@ Use compiled ABIs from these sources:
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
 | PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect metadata, and close positions |
-| Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
+| Basket and emergency lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read action pauses, basket status, global swap stops, and PoolId quarantine; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
 | Dollar Risk liquidity | `src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol` | Stake consumable Risk Shares, inspect liquidity, withdraw unconsumed shares, and claim fill proceeds |
@@ -93,6 +95,11 @@ Pairing-vault and advanced Dollar position functions are exposed by the live
 facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes
 remain authoritative.
+
+The staged Phase 1 deployment does not install the BorrowLiquidity, Dollar,
+Morpho, Risk Shares, or series-migration routes listed above. Integrators must
+feature-detect their ERC-165 interfaces and selector routes instead of assuming
+that a Phase 1 Diamond exposes future Phase 2 functionality.
 
 `IStaticsSwapFeeHook` exposes hook fee configuration, pending
 permanent-liquidity inventory, and locked liquidity. The installed manager is
@@ -800,7 +807,8 @@ Index these event families, then reconcile with current views:
   `BorrowedLiquidityProvided`, manager `UserPositionMinted`, and PositionManager
   `Transfer`;
 - lifecycle: `BasketQuarantined`, `BasketQuarantineReleased`,
-  `BasketDecommissioned`, `ActionsPaused`, and `ActionsUnpaused`;
+  `BasketDecommissioned`, `ActionsPaused`, `ActionsUnpaused`,
+  `ProtocolSwapsPauseSet`, and `ProtocolPoolQuarantineSet`;
 - shared positions: ERC-721 `Transfer` and `Approval`, `PositionCreated`,
   `PositionClosed`, `PositionLegAttached`, `PositionLegDetached`, and
   `PositionStateChanged`; and
