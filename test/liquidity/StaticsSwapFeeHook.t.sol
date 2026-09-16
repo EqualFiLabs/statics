@@ -44,6 +44,7 @@ contract HookDiamondMock {
     mapping(address asset => uint256 amount) public stakerFees;
     mapping(address asset => uint256 amount) public creatorFees;
     mapping(address asset => uint256 amount) public treasuryFees;
+    mapping(PoolId poolId => bool quarantined) public swapQuarantined;
 
     function configureHook(address hook_) external {
         require(hook == address(0));
@@ -143,6 +144,14 @@ contract HookDiamondMock {
         IStaticsSwapFeeHook(hook).setBasketFeeAllocation(allocation);
     }
 
+    function setSwapQuarantine(PoolId poolId, bool quarantined) external {
+        swapQuarantined[poolId] = quarantined;
+    }
+
+    function protocolPoolSwapsBlocked(PoolId poolId) external view returns (bool blocked) {
+        return swapQuarantined[PoolId.wrap(bytes32(0))] || swapQuarantined[poolId];
+    }
+
     function seed(IStaticsSwapFeeHook.PermanentLiquiditySeed[] calldata seeds) external {
         uint256 length = seeds.length;
         for (uint256 i; i < length; ++i) {
@@ -220,6 +229,38 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
     function testOnlyDiamondCanHarvestPermanentLiquidityFees() public {
         vm.expectRevert(abi.encodeWithSelector(StaticsSwapFeeHook.OnlyStaticsDiamond.selector, address(this)));
         hook.harvestPermanentLiquidityFees(key);
+    }
+
+    function testGlobalSwapPauseRejectsSwapsUntilDiamondRestoresThem() public {
+        PoolId globalQuarantine = PoolId.wrap(bytes32(0));
+        diamond.setSwapQuarantine(globalQuarantine, true);
+        assertTrue(diamond.swapQuarantined(globalQuarantine));
+        vm.expectRevert(
+            _wrappedHookRevert(
+                IHooks.beforeSwap.selector, abi.encodeWithSelector(StaticsSwapFeeHook.SwapsQuarantined.selector, poolId)
+            )
+        );
+        swap(key, true, -int256(0.001 ether), "");
+
+        diamond.setSwapQuarantine(globalQuarantine, false);
+        assertFalse(diamond.swapQuarantined(globalQuarantine));
+        swap(key, true, -int256(0.001 ether), "");
+    }
+
+    function testPoolQuarantineRejectsOnlySelectedPoolUntilReleased() public {
+        PoolKey memory second = _registerInitialize(currency0, currency1, 20);
+        diamond.setSwapQuarantine(poolId, true);
+        assertTrue(diamond.swapQuarantined(poolId));
+        vm.expectRevert(
+            _wrappedHookRevert(
+                IHooks.beforeSwap.selector, abi.encodeWithSelector(StaticsSwapFeeHook.SwapsQuarantined.selector, poolId)
+            )
+        );
+        swap(key, true, -int256(0.001 ether), "");
+
+        swap(second, true, -int256(0.001 ether), "");
+        diamond.setSwapQuarantine(poolId, false);
+        swap(key, true, -int256(0.001 ether), "");
     }
 
     function testRegistrationRejectsOneMillionPips() public {

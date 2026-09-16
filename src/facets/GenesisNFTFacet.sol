@@ -16,6 +16,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibGovernance} from "../libraries/LibGovernance.sol";
 
 contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
     error GenesisIntegrationNotReady();
@@ -29,8 +30,12 @@ contract GenesisNFTFacet is IStaticsGenesisIntegration, ReentrancyGuard {
     error UnauthorizedTreasury(address caller);
     error GenesisDistributorNotActive(address activeDistributor);
     error GenesisConsumerPredecessorNotFinalized(address predecessor);
+    error ActionPaused(uint256 action);
 
     function linkGenesis(uint256 positionId, uint256 genesisId) external nonReentrant {
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_STAKE != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_STAKE);
+        }
         if (!LibGenesisIntegration.integrationReady()) revert GenesisIntegrationNotReady();
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         uint256 existingPosition = gs.linkedPosition[genesisId];

@@ -44,6 +44,10 @@ contract HookInvariantFeeReceiver {
         return false;
     }
 
+    function protocolPoolSwapsBlocked(PoolId) external pure returns (bool) {
+        return false;
+    }
+
     function routeProtocolSwapFees(
         PoolId,
         address asset,

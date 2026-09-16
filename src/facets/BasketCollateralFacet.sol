@@ -10,6 +10,7 @@ import {LibBasketCollateral} from "../libraries/LibBasketCollateral.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract BasketCollateralFacet is ReentrancyGuard {
@@ -17,6 +18,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
     error InvalidShares();
     error InvalidReceiver();
     error InsufficientTransferReceived(address token, uint256 required, uint256 received);
+    error ActionPaused(uint256 action);
 
     function createAndDepositBasketCollateral(uint256 basketId, uint256 shares, address receiver)
         external
@@ -24,6 +26,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
         nonReentrant
         returns (uint256 positionId)
     {
+        _enforceStakeIngressAvailable();
         if (shares == 0) revert InvalidShares();
         if (receiver == address(0)) revert InvalidReceiver();
         LibBasket.Basket storage configured = _getBasket(LibBasket.basketStorage(), basketId);
@@ -37,6 +40,7 @@ contract BasketCollateralFacet is ReentrancyGuard {
     }
 
     function depositBasketCollateral(uint256 positionId, uint256 basketId, uint256 shares) external nonReentrant {
+        _enforceStakeIngressAvailable();
         if (shares == 0) revert InvalidShares();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
@@ -91,5 +95,11 @@ contract BasketCollateralFacet is ReentrancyGuard {
     {
         configured = bs.baskets[basketId];
         if (configured.token == address(0)) revert BasketNotFound(basketId);
+    }
+
+    function _enforceStakeIngressAvailable() private view {
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_STAKE != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_STAKE);
+        }
     }
 }

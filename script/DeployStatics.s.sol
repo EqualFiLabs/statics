@@ -259,6 +259,8 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         proposers[0] = config.multisig;
         address[] memory executors = new address[](1);
         executors[0] = address(0);
-        timelock = new StaticsTimelock(proposers, executors, address(0));
+        address[] memory cancellers = new address[](1);
+        cancellers[0] = config.guardian;
+        timelock = new StaticsTimelock(proposers, executors, cancellers, address(0));
     }
 }

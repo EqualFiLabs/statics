@@ -30,6 +30,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         nonReentrant
         returns (uint256 positionId)
     {
+        _enforceStakeIngressAvailable();
         if (amount == 0) revert InvalidAmount();
         if (receiver == address(0)) revert InvalidReceiver();
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
@@ -41,6 +42,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function stake(uint256 positionId, uint256 amount) external nonReentrant {
+        _enforceStakeIngressAvailable();
         if (amount == 0) revert InvalidAmount();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
@@ -69,6 +71,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function optInRewardAssets(uint256 positionId, address[] calldata assets) external nonReentrant {
+        _enforceStakeIngressAvailable();
         if (assets.length == 0) revert InvalidRewardAssets();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
@@ -257,5 +260,11 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         rs.totalStaked += amount;
         LibGlobalRewards.activateStakingLeg(positionId);
         emit Staked(positionId, msg.sender, amount, position.balance);
+    }
+
+    function _enforceStakeIngressAvailable() private view {
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_STAKE != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_STAKE);
+        }
     }
 }

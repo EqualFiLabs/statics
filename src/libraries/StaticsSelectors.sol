@@ -52,7 +52,7 @@ library StaticsSelectors {
     }
 
     function governance() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](16);
         selectors[0] = IStaticsGovernance.guardian.selector;
         selectors[1] = IStaticsGovernance.pausedActions.selector;
         selectors[2] = IStaticsGovernance.isPaused.selector;
@@ -62,6 +62,13 @@ library StaticsSelectors {
         selectors[6] = IStaticsGovernance.quarantineBasket.selector;
         selectors[7] = IStaticsGovernance.releaseBasketQuarantine.selector;
         selectors[8] = IStaticsGovernance.decommissionBasket.selector;
+        selectors[9] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        selectors[10] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        selectors[11] = IStaticsGovernance.quarantineProtocolPool.selector;
+        selectors[12] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        selectors[13] = IStaticsGovernance.protocolSwapsPaused.selector;
+        selectors[14] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        selectors[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {

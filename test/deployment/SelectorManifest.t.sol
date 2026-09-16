@@ -16,6 +16,7 @@ import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol"
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {
     IStaticsPosition,
@@ -25,6 +26,28 @@ import {
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testGovernanceSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.governance();
+        bytes4[] memory expected = new bytes4[](16);
+        expected[0] = IStaticsGovernance.guardian.selector;
+        expected[1] = IStaticsGovernance.pausedActions.selector;
+        expected[2] = IStaticsGovernance.isPaused.selector;
+        expected[3] = IStaticsGovernance.setGuardian.selector;
+        expected[4] = IStaticsGovernance.pause.selector;
+        expected[5] = IStaticsGovernance.unpause.selector;
+        expected[6] = IStaticsGovernance.quarantineBasket.selector;
+        expected[7] = IStaticsGovernance.releaseBasketQuarantine.selector;
+        expected[8] = IStaticsGovernance.decommissionBasket.selector;
+        expected[9] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        expected[10] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        expected[11] = IStaticsGovernance.quarantineProtocolPool.selector;
+        expected[12] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        expected[13] = IStaticsGovernance.protocolSwapsPaused.selector;
+        expected[14] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        expected[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        _assertExact(actual, expected);
+    }
+
     function testFlashLoanSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.flashLoan();
         bytes4[] memory expected = new bytes4[](7);

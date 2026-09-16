@@ -11,11 +11,13 @@ import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibBasketRewards} from "../libraries/LibBasketRewards.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract BasketMintFacet is ReentrancyGuard {
     error BasketNotFound(uint256 basketId);
     error InvalidReceiver();
+    error ActionPaused(uint256 action);
 
     function mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
         external
@@ -31,6 +33,7 @@ contract BasketMintFacet is ReentrancyGuard {
         address receiver,
         uint256[] calldata maxAmountsIn
     ) external payable nonReentrant returns (uint256 positionId, uint256[] memory amountsIn) {
+        _enforceStakeIngressAvailable();
         if (receiver == address(0)) revert InvalidReceiver();
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
             receiver, LibPosition.BASKET_MODULE, bytes32(basketId)
@@ -47,6 +50,7 @@ contract BasketMintFacet is ReentrancyGuard {
         nonReentrant
         returns (uint256[] memory amountsIn)
     {
+        _enforceStakeIngressAvailable();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
         amountsIn = _mint(basketId, shares, address(this), maxAmountsIn);
@@ -76,5 +80,11 @@ contract BasketMintFacet is ReentrancyGuard {
     {
         configured = bs.baskets[basketId];
         if (configured.token == address(0)) revert BasketNotFound(basketId);
+    }
+
+    function _enforceStakeIngressAvailable() private view {
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_STAKE != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_STAKE);
+        }
     }
 }
