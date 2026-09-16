@@ -131,6 +131,22 @@ case "$TARGET" in
     run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-overspend 8 \
       out-formal-genesis '^check_claimFundedCompoundingRejectsOverspend'
     ;;
+  phase-one)
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-pause-authority 8 \
+      out-formal-genesis '^check_onlyGuardianOrOwnerCanStopAllProtocolSwaps'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-restore-authority 8 \
+      out-formal-genesis '^check_guardianCannotRestoreProtocolSwaps'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-pool-quarantine-isolation 8 \
+      out-formal-genesis '^check_poolQuarantineRemainsIsolatedUntilGlobalPause'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-stake-exit-liveness 8 \
+      out-formal-genesis '^check_guardianStakePauseCannotPauseRedeem'
+    run_halmos "$ROOT" PhaseOneFlashCustodyHalmosTest phase-one-flash-reservation-capacity 8 \
+      out-formal-genesis '^check_flashPrincipalCannotBecomeReservationCapacity'
+    run_halmos "$ROOT" PhaseOneFlashCustodyHalmosTest phase-one-flash-repayment 8 \
+      out-formal-genesis '^check_exactRepaymentRestoresBackingAndReservesOnlyFee'
+    run_halmos "$ROOT" PhaseOneFlashCustodyHalmosTest phase-one-flash-underpayment 8 \
+      out-formal-genesis '^check_anyUnderpaymentFailsFinalSolvency'
+    ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
       "$0" "$target"
@@ -140,6 +156,7 @@ case "$TARGET" in
   all)
     "$0" established
     "$0" permanent-liquidity
+    "$0" phase-one
     ;;
   *)
     printf 'unknown formal target: %s\n' "$TARGET" >&2

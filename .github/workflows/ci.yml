@@ -79,6 +79,7 @@ jobs:
         target:
           - established
           - permanent-liquidity
+          - phase-one
     steps:
       - name: Checkout
         uses: actions/checkout@v4
