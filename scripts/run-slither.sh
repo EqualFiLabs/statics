@@ -12,6 +12,10 @@ RUN_LOG="$RESULTS_DIR/run.log"
 mkdir -p "$RESULTS_DIR"
 cd "$ROOT"
 
+# Keep the build configuration identical when Forge creates build-info and when
+# Slither asks the Foundry adapter for project metadata.
+export FOUNDRY_PROFILE=slither
+
 python3 "$ROOT/scripts/slither_baseline.py" scope --output "$SCOPE_REPORT"
 
 # Slither's Foundry adapter normally invokes `forge clean` and a forced build.

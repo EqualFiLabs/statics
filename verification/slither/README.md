@@ -14,8 +14,9 @@ included nor explicitly excluded.
 ## Reproduce
 
 GitHub Actions is the release-evidence runner. It pins Python 3.12, Foundry
-1.7.1, and Slither 0.11.6 and publishes the complete `slither-results/`
-directory. The same campaign can be reproduced with:
+`nightly-bdd1162b2c24814d2424ffad4f8c587827f1a6ab` (`1.8.2-nightly`), and
+Slither 0.11.6 and publishes the complete `slither-results/` directory. The
+same campaign can be reproduced with:
 
 ```sh
 python3.12 -m venv .slither-venv
@@ -23,11 +24,14 @@ python3.12 -m venv .slither-venv
 SLITHER_BIN="$PWD/.slither-venv/bin/slither" scripts/run-slither.sh
 ```
 
-The runner performs a normal `forge build --build-info` and then passes
-`--foundry-ignore-compile` to Slither. This is required because the default
-Slither Foundry adapter invokes `forge clean` and a forced build, which are not
-allowed by this repository. Raw machine-specific output is written to the
-ignored `slither-results/` directory.
+The runner uses the `slither` Foundry profile, performs a normal
+`forge build --build-info`, and then passes `--foundry-ignore-compile` to
+Slither. The profile disables Foundry's dynamic test linker because its
+ephemeral `foundry-pp` sources cannot be reopened from cached build-info by
+Crytic Compile. Ignoring Slither's compile step is still required because the
+default Slither Foundry adapter invokes `forge clean` and a forced build, which
+are not allowed by this repository. Raw machine-specific output is written to
+the ignored `slither-results/` directory.
 
 `baseline.json` contains a classification and rationale for each exact reviewed
 finding fingerprint; detector-wide defaults are not applied. Repeated findings

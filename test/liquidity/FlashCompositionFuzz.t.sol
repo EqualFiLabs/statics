@@ -22,9 +22,8 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         MockERC20 tokenB = new MockERC20("Decimal B", "DB", decimalsB);
         uint256 basketId;
         address basketToken;
-        uint256[] memory amounts;
-        (basketId, basketToken, amounts) =
-            _seedDecimalFlashBasket(tokenA, tokenB, decimalsA, decimalsB, flashFeeBps, shares);
+        (basketId, basketToken) = _seedDecimalFlashBasket(tokenA, tokenB, decimalsA, decimalsB, flashFeeBps);
+        (, uint256[] memory amounts,) = flashLoans.quoteFlashLoan(basketId, shares);
 
         MockFlashBorrower receiver = new MockFlashBorrower(address(diamond));
         vm.prank(alice);
@@ -34,10 +33,6 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         );
         uint256 vaultABefore = baskets.vaultBalance(basketId, address(tokenA));
         uint256 vaultBBefore = baskets.vaultBalance(basketId, address(tokenB));
-        // Keep the ordinary redemption physically backed while principal is lent.
-        tokenA.mint(address(diamond), amounts[0]);
-        tokenB.mint(address(diamond), amounts[1]);
-
         receiver.execute(basketId, shares, bytes("decimal composition"));
 
         assertTrue(receiver.reentrySucceeded());
@@ -53,9 +48,8 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         MockERC20 tokenB,
         uint8 decimalsA,
         uint8 decimalsB,
-        uint16 flashFeeBps,
-        uint256 shares
-    ) private returns (uint256 basketId, address basketToken, uint256[] memory amounts) {
+        uint16 flashFeeBps
+    ) private returns (uint256 basketId, address basketToken) {
         address[] memory assets = new address[](2);
         assets[0] = address(tokenA);
         assets[1] = address(tokenB);
@@ -86,6 +80,5 @@ contract FlashCompositionFuzzTest is StaticsTestBase {
         baskets.mint(basketId, 10 ether, alice, initialMaximums);
         vm.stopPrank();
         basketToken = baskets.basket(basketId).token;
-        (, amounts,) = flashLoans.quoteFlashLoan(basketId, shares);
     }
 }

@@ -68,3 +68,11 @@ src = "src/genesis"
 test = "test/formal"
 script = "verification/formal-script"
 out = "out-formal-genesis"
+# Halmos 0.3.3 cannot execute the vm.deployCode calls inserted by Foundry's
+# dynamic test linker. Keep formal harness deployments as native CREATEs.
+dynamic_test_linking = false
+
+[profile.slither]
+# Slither reuses Foundry build-info with compilation disabled. Dynamic linking
+# references ephemeral foundry-pp sources that are unavailable to Crytic Compile.
+dynamic_test_linking = false
