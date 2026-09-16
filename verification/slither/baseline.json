@@ -60,10 +60,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#439-455) uses arbitrary from in transferFrom: token.safeTransferFrom(staticsDiamond,address(poolManager),amount) (src/liquidity/StaticsSwapFeeHook.sol#444)",
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#444-460) uses arbitrary from in transferFrom: token.safeTransferFrom(staticsDiamond,address(poolManager),amount) (src/liquidity/StaticsSwapFeeHook.sol#449)",
       "rationale": "The source is the immutable Statics Diamond, seeding is Diamond-only, and exact sender, PoolManager-receipt, settlement, allowance, and claim-solvency deltas are enforced.",
       "occurrences": 1,
-      "id": "4f79918fca04a57c0485504c"
+      "id": "2ee2e15184e7a32dae95c5e4"
     },
     {
       "impact": "High",
@@ -839,22 +839,6 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol"
-      ],
-      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#78-88) uses a dangerous strict equality:",
-      "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
-      "occurrences": 1,
-      "id": "48ce4c853520e5cf46bb0734"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -896,6 +880,22 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "452038b6d57697c33a4226c5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#78-88) uses a dangerous strict equality:",
+      "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
+      "occurrences": 1,
+      "id": "48ce4c853520e5cf46bb0734"
     },
     {
       "impact": "Medium",
@@ -1212,10 +1212,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#342-348):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 2,
-      "id": "0a7b69f962f31df9003da31e"
+      "occurrences": 1,
+      "id": "0fc9e6acd3df3fad3c45fb90"
     },
     {
       "impact": "Medium",
@@ -1260,10 +1260,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#462-482):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "24bbc3687a080045365e78bf"
+      "id": "1ad57375224bc23370f5e3b8"
     },
     {
       "impact": "Medium",
@@ -1276,26 +1276,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "2c4282bf6184ebac53fd7480"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#457-476):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "2d1168caac47d0e770e96af0"
+      "id": "1edb72232f2f81a2e202408f"
     },
     {
       "impact": "Medium",
@@ -1328,6 +1312,22 @@
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "2ecafb7d996d1250a3c66620"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#484-493):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "316a936bd75b9c55ea6815bd"
     },
     {
       "impact": "Medium",
@@ -1386,22 +1386,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "3f93a7201f4949477a7b9808"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.checkpointGenesisRecovery(uint256,address) (src/genesis/GenesisLaunchDistributor.sol#235-246):",
@@ -1418,12 +1402,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#690-703):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "5b7b52d9f92f89236b13c374"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "64ec5c553f57b16ae1ea806b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisActivationRegistry.sol"
       ],
       "summary": "Reentrancy in GenesisActivationRegistry.activate(uint256,uint8) (src/genesis/GenesisActivationRegistry.sol#110-130):",
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "665424c2b90f1759b2c0981c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "6aeac4b6aebec322c9079d9d"
     },
     {
       "impact": "Medium",
@@ -1452,10 +1484,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#342-348):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 2,
-      "id": "7bdee80d08e3f1cea2e114db"
+      "occurrences": 1,
+      "id": "7767469130bffbc8f86712f2"
     },
     {
       "impact": "Medium",
@@ -1484,10 +1516,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#684-697):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "86823a2062b8565d3ddfa584"
+      "id": "819e5c801f43c9410045b535"
     },
     {
       "impact": "Medium",
@@ -1500,10 +1532,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "94aea560dc13d92a625a1b8b"
+      "id": "a7b425db397964e6966ec715"
     },
     {
       "impact": "Medium",
@@ -1546,6 +1578,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "b0a52236b7a7d850a84831bf"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
@@ -1564,10 +1612,42 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "bb60c70820210b96df77fa74"
+      "id": "b53667ebc41dd23f470c6a77"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "bf4bfe4e1344599418b4dda7"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
+      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
+      "occurrences": 1,
+      "id": "bfbf3b8a8485d36884a874b8"
     },
     {
       "impact": "Medium",
@@ -1596,42 +1676,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#385-425):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#462-482):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
       "occurrences": 1,
-      "id": "cda33aee774d43648c77cca2"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "cf2c45db7b8257741ddc9df9"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "e4482f54257761ef45474c8b"
+      "id": "cd33000d946557406b5ef8f5"
     },
     {
       "impact": "Medium",
@@ -1648,70 +1696,6 @@
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "e49bb1ac9d1e7fe86dbbbc06"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "edceb19c54803f5106c0ce97"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#457-476):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "f2392cf8a3b15bad31fe37cb"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "reentrancy-no-eth",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#478-487):",
-      "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
-      "id": "fe34aace70c61e0365e83e2e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/FlashLoanFacet.sol"
-      ],
-      "summary": "FlashLoanFacet._quote(LibBasket.Basket,uint256).hasAmount (src/facets/FlashLoanFacet.sol#198) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "af479744efc67c7fdcaf7615"
     },
     {
       "impact": "Medium",
@@ -1754,12 +1738,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
+        "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#104) is a local variable never initialized",
+      "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#731) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "0fa7f25b75e8b120db3f9f25"
+      "id": "1476e7d131de8e44b3806744"
     },
     {
       "impact": "Medium",
@@ -1770,12 +1754,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#731) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]).currencyCount (src/liquidity/StaticsSwapFeeHook.sol#393) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "1476e7d131de8e44b3806744"
+      "id": "149bd4ad9b3880e0f71de608"
     },
     {
       "impact": "Medium",
@@ -1850,22 +1834,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#776) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "4878f075457f5f1584bc060a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._mintRouteBasket(IStaticsBasket,uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute).totalBasketAmountIn (src/periphery/StaticsFlashArbitrageReceiver.sol#330) is a local variable never initialized",
@@ -1882,12 +1850,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/libraries/LibLoanOrigination.sol"
       ],
-      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]).currencyCount (src/liquidity/StaticsSwapFeeHook.sol#388) is a local variable never initialized",
+      "summary": "LibLoanOrigination.quote(LibBasket.Basket,uint256).hasPrincipal (src/libraries/LibLoanOrigination.sol#185) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "5371cb1dff6078993ba8b74f"
+      "id": "56c1be55c766287acf6f52c5"
     },
     {
       "impact": "Medium",
@@ -1898,12 +1866,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibLoanOrigination.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "LibLoanOrigination.quote(LibBasket.Basket,uint256).hasPrincipal (src/libraries/LibLoanOrigination.sol#185) is a local variable never initialized",
+      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).staticsStakerToTreasury (src/liquidity/StaticsSwapFeeHook.sol#783) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "56c1be55c766287acf6f52c5"
+      "id": "590b0ccb124583799172c6ef"
     },
     {
       "impact": "Medium",
@@ -1984,6 +1952,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "7070815d359a4ea9e370979e"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest).released (src/liquidity/StaticsSwapFeeHook.sol#358) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "71fe0f4add2ad23a63901e40"
     },
     {
       "impact": "Medium",
@@ -2186,44 +2170,28 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/FlashLoanFacet.sol"
+      ],
+      "summary": "FlashLoanFacet._quote(LibBasket.Basket,uint256).hasAmount (src/facets/FlashLoanFacet.sol#198) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "af479744efc67c7fdcaf7615"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibBasket.sol"
       ],
       "summary": "LibBasket.selectFeeShares(IStaticsBasket.FeeTier[],uint256).selectedThreshold (src/libraries/LibBasket.sol#69) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "b2bef1a8cfc478019a4ac957"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest).released (src/liquidity/StaticsSwapFeeHook.sol#353) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "b352b7a2a92f5e99c4f26fa5"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).staticsStakerToTreasury (src/liquidity/StaticsSwapFeeHook.sol#777) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "b48509e127d610817fa212b2"
     },
     {
       "impact": "Medium",
@@ -2346,12 +2314,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#782) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "e391448b52c80061b5b83cbf"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibGenesisRewards.sol"
       ],
       "summary": "LibGenesisRewards.allocate(LibGenesisIntegration.GenesisStorage,address,uint256).genesisAmount (src/libraries/LibGenesisRewards.sol#317) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "e7c20ad0a428f539eed01a45"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#107) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "e920f0f9f125e9c546b2911b"
     },
     {
       "impact": "Medium",
@@ -2554,22 +2554,6 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,inputFeeBps,config.inputFeeBps) (script/DeployStaticsLaunchLiquidity.s.sol#228)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "0bd98dc2ff05b2f93e93cda3"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/PrepareStaticsPositionActions.s.sol"
       ],
       "summary": "PrepareStaticsPositionActions.writeArtifact(string,string,PrepareStaticsPositionActions.PositionActionConfig,uint256) (script/PrepareStaticsPositionActions.s.sol#103-131) ignores return value by vm.serializeAddress(objectKey,currency0,Currency.unwrap(config.currency0)) (script/PrepareStaticsPositionActions.s.sol#116)",
@@ -2586,12 +2570,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/facets/GovernanceFacet.sol"
       ],
-      "summary": "StaticsSwapFeeHook._addPermanentLiquidity(PoolKey,PoolId,uint256,uint256) (src/liquidity/StaticsSwapFeeHook.sol#646-665) ignores return value by (sqrtPriceX96,None,None,None) = poolManager.getSlot0(poolId) (src/liquidity/StaticsSwapFeeHook.sol#650)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "summary": "GovernanceFacet.releaseProtocolPoolQuarantine(PoolId) (src/facets/GovernanceFacet.sol#108-113) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/GovernanceFacet.sol#110)",
+      "rationale": "The registry call is validation-only: it must revert for an unknown pool, while the returned pool metadata is not needed to release quarantine.",
       "occurrences": 1,
-      "id": "0c13eeab4a3ac3b5e3a23407"
+      "id": "0ced38f469a0f911e2129720"
     },
     {
       "impact": "Medium",
@@ -2640,22 +2624,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "0f410d426fa309caa54f1340"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,hookRuntimeCodeHash,address(deployment.hook).codehash) (script/DeployStaticsLaunchLiquidity.s.sol#225)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "0fd41f32e9c24eee26e729a7"
     },
     {
       "impact": "Medium",
@@ -2746,6 +2714,22 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,hook,address(deployment.hook)) (script/DeployStaticsLaunchLiquidity.s.sol#205)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "14c95426c7cbeb717c1ea7ba"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/PrepareStaticsPositionMint.s.sol"
       ],
       "summary": "PrepareStaticsPositionMint.writeArtifact(string,string,PrepareStaticsPositionMint.PositionMintConfig,uint256) (script/PrepareStaticsPositionMint.s.sol#149-180) ignores return value by vm.serializeBytes32(objectKey,poolId,PoolId.unwrap(key.toId())) (script/PrepareStaticsPositionMint.s.sol#167)",
@@ -2764,10 +2748,10 @@
       "paths": [
         "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,chainId,config.chainId) (script/DeployStaticsLaunchLiquidity.s.sol#202)",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,nativeLpFeePips,config.nativeLpFee) (script/DeployStaticsLaunchLiquidity.s.sol#227)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "18f4e10c199598a4599538a4"
+      "id": "15f9cc106939e77508d9e3d7"
     },
     {
       "impact": "Medium",
@@ -2780,26 +2764,10 @@
       "paths": [
         "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,governance,config.governance) (script/DeployStaticsLaunchLiquidity.s.sol#212)",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,timelock,address(deployment.timelock)) (script/DeployStaticsLaunchLiquidity.s.sol#204)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "19e30d5c63778d5f8fe67dc2"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,positionOwner,config.positionOwner) (script/DeployStaticsLaunchLiquidity.s.sol#214)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "1da771f0758c2a5e21e9630f"
+      "id": "167c6fb455a9904c204a7b69"
     },
     {
       "impact": "Medium",
@@ -2832,22 +2800,6 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "225a2f84b224d9af96db0cfa"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#90-126) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#117)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "22ca2659ef2c0fb50aed99fd"
     },
     {
       "impact": "Medium",
@@ -2912,22 +2864,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "2510e0b959ab0aa58784be78"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,permit2RuntimeCodeHash,config.permit2CodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#222)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "25eda045deb2948d92b41bac"
     },
     {
       "impact": "Medium",
@@ -3015,22 +2951,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#128-139) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#137)",
-      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
-      "occurrences": 1,
-      "id": "28070cacde92e58f63ba49a5"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3104,6 +3024,22 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "2ef4d10bff4673abb3bb2d75"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeInt(objectKey,tickLower,config.tickLower) (script/DeployStaticsLaunchLiquidity.s.sol#231)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "2f5cb12a39d1cab787d0e1ba"
     },
     {
       "impact": "Medium",
@@ -3196,10 +3132,10 @@
       "paths": [
         "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,amount0Max,config.amount0Max) (script/DeployStaticsLaunchLiquidity.s.sol#235)",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,hookPermissionMask,REQUIRED_HOOK_FLAGS) (script/DeployStaticsLaunchLiquidity.s.sol#226)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "39b7abd73ecbaa5d3dac5379"
+      "id": "38d8fc028c1f63fc46328397"
     },
     {
       "impact": "Medium",
@@ -3370,6 +3306,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook.seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#275-292) ignores return value by poolManager.unlock(abi.encode(UNLOCK_SEED,abi.encode(seeds))) (src/liquidity/StaticsSwapFeeHook.sol#291)",
+      "rationale": "PoolManager unlock success or revert and the callback's checked currency deltas are authoritative; this path has no additional return payload to consume.",
+      "occurrences": 1,
+      "id": "43a7202ed8bd9ec6efba594b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
       "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote) (src/facets/ProtocolPoolCreationFacet.sol#86-111) ignores return value by hook.registerPool(quote.key,IStaticsSwapFeeHook.PoolKind.General,params.creator) (src/facets/ProtocolPoolCreationFacet.sol#98)",
@@ -3392,6 +3344,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "4405d4223665344fc6961145"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,poolId,PoolId.unwrap(deployment.poolId)) (script/DeployStaticsLaunchLiquidity.s.sol#218)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "443942a86aba4124ed970678"
     },
     {
       "impact": "Medium",
@@ -3447,15 +3415,15 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
+        "src/dollar/core/facets/CoreMintFacet.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,hook,address(deployment.hook)) (script/DeployStaticsLaunchLiquidity.s.sol#205)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "summary": "CoreMintFacet._previewRecombine(LibCoreStorage.CS,uint256,uint256) (src/dollar/core/facets/CoreMintFacet.sol#546-600) ignores return value by (gross,None,None) = LibCoreRecovery.expiredBookSlice(cs.expiredRecoveryBook[seriesId],staticsDollarAmount) (src/dollar/core/facets/CoreMintFacet.sol#567)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
-      "id": "4a1090e6d284f36b25f1bab9"
+      "id": "4a341f6346da735ce1b78466"
     },
     {
       "impact": "Medium",
@@ -3471,23 +3439,7 @@
       "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,statics,config.statics) (script/DeployStaticsLaunchLiquidity.s.sol#210)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "4a170884b6b9090200bb3d6a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/dollar/core/facets/CoreMintFacet.sol"
-      ],
-      "summary": "CoreMintFacet._previewRecombine(LibCoreStorage.CS,uint256,uint256) (src/dollar/core/facets/CoreMintFacet.sol#546-600) ignores return value by (gross,None,None) = LibCoreRecovery.expiredBookSlice(cs.expiredRecoveryBook[seriesId],staticsDollarAmount) (src/dollar/core/facets/CoreMintFacet.sol#567)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "4a341f6346da735ce1b78466"
+      "id": "4bbffe30322219acb4305126"
     },
     {
       "impact": "Medium",
@@ -3514,22 +3466,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#184-194) ignores return value by LibPosition.activateLeg(positionId,moduleType,localPositionId) (src/position/PositionNFTFacet.sol#191)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "4c9c55219896f64fe27a936e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/SeriesMigrationFacet.sol"
       ],
       "summary": "SeriesMigrationFacet._stakeMigrated(LibPeriphery.PS,uint256,uint256,uint256) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#283-308) ignores return value by LibPosition.activateLeg(positionId,LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#289)",
@@ -3543,15 +3479,15 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
+        "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "PositionNFTFacet.syncPositionOwnerIndex(uint256) (src/position/PositionNFTFacet.sol#98-102) ignores return value by LibPosition.syncOwnerIndex(positionId,owner) (src/position/PositionNFTFacet.sol#100)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,pairedTokenRuntimeCodeHash,config.pairedTokenCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#224)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "4d86f9c1df3c92fdf9c808a2"
+      "id": "4e46a1220e21384ef001aa14"
     },
     {
       "impact": "Medium",
@@ -3690,12 +3626,76 @@
         "production-contracts"
       ],
       "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet._update(address,uint256,address) (src/position/PositionNFTFacet.sol#200-207) ignores return value by LibPosition.syncOwnerIndex(tokenId,to) (src/position/PositionNFTFacet.sol#206)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "occurrences": 1,
+      "id": "5bb7dfaadee69d4c85acae1a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,amount1Max,config.amount1Max) (script/DeployStaticsLaunchLiquidity.s.sol#236)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "5dd0f4c9a5f0f88f885449ea"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._settleRedemptionShares(LibPeriphery.PS,PairingVaultFacet.RedemptionContext,PairingVaultFacet.ConsumedLiquidity,PairingVaultFacet.RedemptionDistribution) (src/dollar/periphery/facets/PairingVaultFacet.sol#276-300) ignores return value by LibCustody.finishUnreservedDebit(ctx.collateralToken,collateralBefore,distribution.toInsurance) (src/dollar/periphery/facets/PairingVaultFacet.sol#298)",
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "5def5383675cdc657bd3b9c6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,feeReceiver,config.feeReceiver) (script/DeployStaticsLaunchLiquidity.s.sol#213)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "5f92942218d14de370813b50"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,deployer,deployer) (script/DeployStaticsLaunchLiquidity.s.sol#203)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "60a0e073b8fbaef03d885294"
     },
     {
       "impact": "Medium",
@@ -3783,22 +3783,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,pairedToken,config.pairedToken) (script/DeployStaticsLaunchLiquidity.s.sol#211)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "67064888420f0880893ea200"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -3808,22 +3792,6 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "685a979d5f2398e96199fc6c"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,positionManager,config.positionManager) (script/DeployStaticsLaunchLiquidity.s.sol#208)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "68a6a96a1e7791025f63acb6"
     },
     {
       "impact": "Medium",
@@ -3927,22 +3895,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,deployer,deployer) (script/DeployStaticsLaunchLiquidity.s.sol#203)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "6d2cc5643572a6efea739d72"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -3975,6 +3927,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,positionManagerRuntimeCodeHash,config.positionManagerCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#221)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "71012e5afb6746c29268b455"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -3984,6 +3952,22 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "71582a697b7fa8e530f800b4"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,chainId,config.chainId) (script/DeployStaticsLaunchLiquidity.s.sol#202)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "71e4e5190f4a93982bb30fcd"
     },
     {
       "impact": "Medium",
@@ -4010,12 +3994,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#131-142) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#140)",
+      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
+      "occurrences": 1,
+      "id": "754678f6b98b2fd0d7fe3c6a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "StaticsDollarGatewayFacet._executePeggedRedemption(LibPeriphery.PS,uint256,uint256,uint256,address,IStaticsDollarCoreTypes.PeggedRedemptionPreview) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#654-682) ignores return value by LibCustody.finishUnreservedDebit(ps.staticsDollar,staticsDollarBefore,staticsDollarAmount) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#672)",
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "777172bed1c1869222f32c61"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketCollateralFacet.sol"
+      ],
+      "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#69-83) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#74)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "occurrences": 1,
+      "id": "789349a3b237e8aa4a9b466f"
     },
     {
       "impact": "Medium",
@@ -4055,22 +4071,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,permit2,config.permit2) (script/DeployStaticsLaunchLiquidity.s.sol#209)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "7b144376af17f17545b1f11d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -4080,22 +4080,6 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "7bc5dfac39b3d8e5b9e66238"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeInt(objectKey,tickLower,config.tickLower) (script/DeployStaticsLaunchLiquidity.s.sol#231)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "7be2afef8791c2da5a4adfa8"
     },
     {
       "impact": "Medium",
@@ -4160,6 +4144,38 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "830589c2e5cf4158cd76cace"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GenesisNFTFacet.sol"
+      ],
+      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#35-62) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#58)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "occurrences": 1,
+      "id": "83a20e0562e39c8033abe25a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GovernanceFacet.sol"
+      ],
+      "summary": "GovernanceFacet.quarantineProtocolPool(PoolId) (src/facets/GovernanceFacet.sol#101-106) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/GovernanceFacet.sol#103)",
+      "rationale": "The registry call is validation-only: it must revert for an unknown pool, while the returned pool metadata is not needed to quarantine it.",
+      "occurrences": 1,
+      "id": "851fe724ff1765ab354c173b"
     },
     {
       "impact": "Medium",
@@ -4327,22 +4343,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,hookPermissionMask,REQUIRED_HOOK_FLAGS) (script/DeployStaticsLaunchLiquidity.s.sol#226)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "8c4d10f25eb827d3d03c5414"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -4352,6 +4352,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "8dd7d3318141d77ba2971552"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,poolManager,config.poolManager) (script/DeployStaticsLaunchLiquidity.s.sol#207)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "8ef170e0927181293c255d28"
     },
     {
       "impact": "Medium",
@@ -4407,38 +4423,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,poolManagerRuntimeCodeHash,config.poolManagerCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#220)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "907c28b4ba89a6ed2a92a56d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,positionManagerRuntimeCodeHash,config.positionManagerCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#221)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "90aa386d38c057c9c855e551"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -4463,7 +4447,23 @@
       "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,staticsRuntimeCodeHash,config.staticsCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#223)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "98425b6994a32f14d17cf9d2"
+      "id": "91c0ba1472ffced63bf8eb1c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._addPermanentLiquidity(PoolKey,PoolId,uint256,uint256) (src/liquidity/StaticsSwapFeeHook.sol#652-671) ignores return value by (sqrtPriceX96,None,None,None) = poolManager.getSlot0(poolId) (src/liquidity/StaticsSwapFeeHook.sol#656)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "981c43184e1f929fd2495f67"
     },
     {
       "impact": "Medium",
@@ -4480,6 +4480,22 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "9862c52e0e51965076491ddb"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet.syncPositionOwnerIndex(uint256) (src/position/PositionNFTFacet.sol#99-103) ignores return value by LibPosition.syncOwnerIndex(positionId,owner) (src/position/PositionNFTFacet.sol#101)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "occurrences": 1,
+      "id": "98bdce2b4014fffa199cc863"
     },
     {
       "impact": "Medium",
@@ -4583,15 +4599,15 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "StaticsSwapFeeHook.seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#270-287) ignores return value by poolManager.unlock(abi.encode(UNLOCK_SEED,abi.encode(seeds))) (src/liquidity/StaticsSwapFeeHook.sol#286)",
-      "rationale": "PoolManager unlock success or revert and the callback's checked currency deltas are authoritative; this path has no additional return payload to consume.",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,sqrtPriceX96,config.sqrtPriceX96) (script/DeployStaticsLaunchLiquidity.s.sol#233)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "9c4bfe750eb7569821f3c5a5"
+      "id": "9ef7690f636f5809520e9f6d"
     },
     {
       "impact": "Medium",
@@ -4618,38 +4634,6 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,liquidity,config.liquidity) (script/DeployStaticsLaunchLiquidity.s.sol#234)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "a3fd4e39ac3be32a24c2586a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,create2Salt,deployment.create2Salt) (script/DeployStaticsLaunchLiquidity.s.sol#219)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "a40cdee4b7b31cf77e030a82"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/ConfigureStaticsMorpho.s.sol"
       ],
       "summary": "ConfigureStaticsMorpho.seedLiquidity(address,StaticsMorphoConfig,uint256,uint256,address) (script/ConfigureStaticsMorpho.s.sol#213-235) ignores return value by factory.supply(basketMarketParams(config),assetsPerMarket,0,lender,) (script/ConfigureStaticsMorpho.s.sol#233)",
@@ -4666,60 +4650,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GenesisNFTFacet.sol"
-      ],
-      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#33-57) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#53)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "a5c2827d999bf5d09ed87dd1"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._prepareArbitrage(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#159-175) ignores return value by (assets,flashAmounts,None) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId,shares) (src/periphery/StaticsFlashArbitrageReceiver.sol#167)",
       "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
       "occurrences": 1,
       "id": "a92c1f8daf76405f9c6d0005"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,pairedTokenRuntimeCodeHash,config.pairedTokenCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#224)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "a9f6e65e165bf4fdff3c3215"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,sqrtPriceX96,config.sqrtPriceX96) (script/DeployStaticsLaunchLiquidity.s.sol#233)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "aa5cd40aedea35aa5aa422e8"
     },
     {
       "impact": "Medium",
@@ -4752,22 +4688,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b02740d9b5c3173ebcecad62"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketCollateralFacet.sol"
-      ],
-      "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#65-79) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#70)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "b166619ede68e747fac64aea"
     },
     {
       "impact": "Medium",
@@ -4816,22 +4736,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b5325c451d4854a8cad0bde2"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,feeClaimRedeemer,address(deployment.feeClaimRedeemer)) (script/DeployStaticsLaunchLiquidity.s.sol#206)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "b61acb4fdc57e7053a057d42"
     },
     {
       "impact": "Medium",
@@ -4906,6 +4810,38 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,liquidity,config.liquidity) (script/DeployStaticsLaunchLiquidity.s.sol#234)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "bca1efe9e4f7d2ac66d501be"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,amount0Max,config.amount0Max) (script/DeployStaticsLaunchLiquidity.s.sol#235)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "bd6aca03ee97c45a20c7427c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/PrepareStaticsPoolLaunch.s.sol"
       ],
       "summary": "PrepareStaticsPoolLaunch.writeArtifact(string,string,PrepareStaticsPoolLaunch.PoolLaunchConfig,uint256) (script/PrepareStaticsPoolLaunch.s.sol#192-231) ignores return value by vm.serializeUint(objectKey,sqrtPriceX96,config.sqrtPriceX96) (script/PrepareStaticsPoolLaunch.s.sol#217)",
@@ -4954,6 +4890,22 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,pairedToken,config.pairedToken) (script/DeployStaticsLaunchLiquidity.s.sol#211)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "c0d6befd311ff527d2750f3f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/PrepareStaticsLaunchPosition.s.sol"
       ],
       "summary": "PrepareStaticsLaunchPosition.writeArtifact(string,string,PrepareStaticsLaunchPosition.LaunchConfig,uint256) (script/PrepareStaticsLaunchPosition.s.sol#147-172) ignores return value by vm.serializeAddress(objectKey,positionOwner,config.positionOwner) (script/PrepareStaticsLaunchPosition.s.sol#162)",
@@ -4986,12 +4938,44 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,create2Salt,deployment.create2Salt) (script/DeployStaticsLaunchLiquidity.s.sol#219)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "c269ad95c20ff70f726cb4f4"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/PrepareStaticsPoolLaunch.s.sol"
       ],
       "summary": "PrepareStaticsPoolLaunch.writeArtifact(string,string,PrepareStaticsPoolLaunch.PoolLaunchConfig,uint256) (script/PrepareStaticsPoolLaunch.s.sol#192-231) ignores return value by vm.serializeAddress(objectKey,hook,config.hook) (script/PrepareStaticsPoolLaunch.s.sol#207)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "c2d208a07f773c01f9a0377f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,poolManagerRuntimeCodeHash,config.poolManagerCodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#220)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "c2f01bd6ac1aef8e47951e55"
     },
     {
       "impact": "Medium",
@@ -5095,22 +5079,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,timelock,address(deployment.timelock)) (script/DeployStaticsLaunchLiquidity.s.sol#204)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "c9967f38e0c5ce91a41af41c"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -5120,6 +5088,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "c9e53ef38bb89bc43cd4a4fe"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeInt(objectKey,tickSpacing,config.tickSpacing) (script/DeployStaticsLaunchLiquidity.s.sol#230)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "cab467767ca664070b7804d6"
     },
     {
       "impact": "Medium",
@@ -5191,15 +5175,15 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
+        "src/facets/BasketCollateralFacet.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,amount1Max,config.amount1Max) (script/DeployStaticsLaunchLiquidity.s.sol#236)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "summary": "BasketCollateralFacet.withdrawBasketCollateral(uint256,uint256,uint256,address) (src/facets/BasketCollateralFacet.sol#54-67) ignores return value by LibCustody.pushReserved(LibCustody.basketAccount(basketId),configured.token,receiver,shares,shares) (src/facets/BasketCollateralFacet.sol#64)",
+      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
-      "id": "ccacc99f9dc291010bae1ea3"
+      "id": "cdd6771da13c3a7b93c613b4"
     },
     {
       "impact": "Medium",
@@ -5232,6 +5216,22 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "cf189bcf1c382c204ae5b088"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,feeClaimRedeemer,address(deployment.feeClaimRedeemer)) (script/DeployStaticsLaunchLiquidity.s.sol#206)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "cf7881d338c3bcad25f3ec7e"
     },
     {
       "impact": "Medium",
@@ -5290,6 +5290,22 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,permit2RuntimeCodeHash,config.permit2CodeHash) (script/DeployStaticsLaunchLiquidity.s.sol#222)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "d2b03121cc0baee12526a42d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/PrepareStaticsPoolLaunch.s.sol"
       ],
       "summary": "PrepareStaticsPoolLaunch.writeArtifact(string,string,PrepareStaticsPoolLaunch.PoolLaunchConfig,uint256) (script/PrepareStaticsPoolLaunch.s.sol#192-231) ignores return value by vm.serializeUint(objectKey,nativeLpFeePips,config.nativeLpFee) (script/PrepareStaticsPoolLaunch.s.sol#215)",
@@ -5322,12 +5338,44 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,governance,config.governance) (script/DeployStaticsLaunchLiquidity.s.sol#212)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "d4659ef6a7729326763a16b1"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/PrepareStaticsPositionMint.s.sol"
       ],
       "summary": "PrepareStaticsPositionMint.writeArtifact(string,string,PrepareStaticsPositionMint.PositionMintConfig,uint256) (script/PrepareStaticsPositionMint.s.sol#149-180) ignores return value by vm.serializeAddress(objectKey,positionManager,config.positionManager) (script/PrepareStaticsPositionMint.s.sol#163)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "d4a003af116775d6e3cae501"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,permit2,config.permit2) (script/DeployStaticsLaunchLiquidity.s.sol#209)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "d4cb51832588b3b0602e3b8a"
     },
     {
       "impact": "Medium",
@@ -5351,15 +5399,31 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
+        "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "PositionNFTFacet._update(address,uint256,address) (src/position/PositionNFTFacet.sol#196-203) ignores return value by LibPosition.syncOwnerIndex(tokenId,to) (src/position/PositionNFTFacet.sol#202)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,positionManager,config.positionManager) (script/DeployStaticsLaunchLiquidity.s.sol#208)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "d81f4b0b78885b14a499f47f"
+      "id": "d6d3d9b411d1d9631107d726"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,outputFeeBps,config.outputFeeBps) (script/DeployStaticsLaunchLiquidity.s.sol#229)",
+      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
+      "occurrences": 1,
+      "id": "d6e646fef53ffe07b9d1d75e"
     },
     {
       "impact": "Medium",
@@ -5402,12 +5466,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
+        "script/PrepareStaticsPositionActions.s.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeInt(objectKey,tickSpacing,config.tickSpacing) (script/DeployStaticsLaunchLiquidity.s.sol#230)",
+      "summary": "PrepareStaticsPositionActions.writeArtifact(string,string,PrepareStaticsPositionActions.PositionActionConfig,uint256) (script/PrepareStaticsPositionActions.s.sol#103-131) ignores return value by vm.serializeUint(objectKey,deadline,deadline) (script/PrepareStaticsPositionActions.s.sol#125)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "dc05a09e6852781bb1225ad4"
+      "id": "dc263f28b2f4b6dcd8a5c791"
     },
     {
       "impact": "Medium",
@@ -5418,12 +5482,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/PrepareStaticsPositionActions.s.sol"
+        "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "PrepareStaticsPositionActions.writeArtifact(string,string,PrepareStaticsPositionActions.PositionActionConfig,uint256) (script/PrepareStaticsPositionActions.s.sol#103-131) ignores return value by vm.serializeUint(objectKey,deadline,deadline) (script/PrepareStaticsPositionActions.s.sol#125)",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,hookRuntimeCodeHash,address(deployment.hook).codehash) (script/DeployStaticsLaunchLiquidity.s.sol#225)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "dc263f28b2f4b6dcd8a5c791"
+      "id": "dc74e7ef41919d981073a879"
     },
     {
       "impact": "Medium",
@@ -5456,6 +5520,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "dd48e0ed3d5d8430dca5537f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#93-129) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#120)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "dde8879e45d7d1fed2237fed"
     },
     {
       "impact": "Medium",
@@ -5514,22 +5594,6 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,nativeLpFeePips,config.nativeLpFee) (script/DeployStaticsLaunchLiquidity.s.sol#227)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "e233b3804ab5ca5e74db516a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/PrepareStaticsPositionActions.s.sol"
       ],
       "summary": "PrepareStaticsPositionActions.writeArtifact(string,string,PrepareStaticsPositionActions.PositionActionConfig,uint256) (script/PrepareStaticsPositionActions.s.sol#103-131) ignores return value by vm.serializeAddress(objectKey,recipient,config.recipient) (script/PrepareStaticsPositionActions.s.sol#124)",
@@ -5548,10 +5612,10 @@
       "paths": [
         "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,outputFeeBps,config.outputFeeBps) (script/DeployStaticsLaunchLiquidity.s.sol#229)",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeUint(objectKey,inputFeeBps,config.inputFeeBps) (script/DeployStaticsLaunchLiquidity.s.sol#228)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "e63193a48fe725016ed83215"
+      "id": "e45d2e47823fd90133713010"
     },
     {
       "impact": "Medium",
@@ -5568,38 +5632,6 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "e6fe440f5130520fc00ca5ea"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeBytes32(objectKey,poolId,PoolId.unwrap(deployment.poolId)) (script/DeployStaticsLaunchLiquidity.s.sol#218)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "e808540072ea7cb406a657a1"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,feeReceiver,config.feeReceiver) (script/DeployStaticsLaunchLiquidity.s.sol#213)",
-      "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
-      "occurrences": 1,
-      "id": "e94f610281618d0a8101c31c"
     },
     {
       "impact": "Medium",
@@ -5660,10 +5692,10 @@
       "paths": [
         "script/DeployStaticsLaunchLiquidity.s.sol"
       ],
-      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,poolManager,config.poolManager) (script/DeployStaticsLaunchLiquidity.s.sol#207)",
+      "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeAddress(objectKey,positionOwner,config.positionOwner) (script/DeployStaticsLaunchLiquidity.s.sol#214)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "f0c30bd1d25028dc1f6105af"
+      "id": "ed171a579fd3945bbba14f16"
     },
     {
       "impact": "Medium",
@@ -5706,12 +5738,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketCollateralFacet.sol"
+        "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "BasketCollateralFacet.withdrawBasketCollateral(uint256,uint256,uint256,address) (src/facets/BasketCollateralFacet.sol#50-63) ignores return value by LibCustody.pushReserved(LibCustody.basketAccount(basketId),configured.token,receiver,shares,shares) (src/facets/BasketCollateralFacet.sol#60)",
-      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
+      "summary": "PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#188-198) ignores return value by LibPosition.activateLeg(positionId,moduleType,localPositionId) (src/position/PositionNFTFacet.sol#195)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "f752e84a24cc47e352e0def1"
+      "id": "f33b0b4c9d2e07aae8ac1890"
     },
     {
       "impact": "Medium",
@@ -5759,7 +5791,7 @@
       "summary": "DeployStaticsLaunchLiquidity.writeArtifact(string,DeployStaticsLaunchLiquidity.Config,DeployStaticsLaunchLiquidity.Deployment,address) (script/DeployStaticsLaunchLiquidity.s.sol#197-240) ignores return value by vm.serializeInt(objectKey,tickUpper,config.tickUpper) (script/DeployStaticsLaunchLiquidity.s.sol#232)",
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
-      "id": "fec442c10b9b8cc4d41b5caa"
+      "id": "ff12c0ae0011eddb960fb38e"
     },
     {
       "impact": "Medium",
@@ -5802,22 +5834,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/FlashLoanFacet.sol"
-      ],
-      "summary": "FlashLoanFacet._lendAsset(address,uint256,address) (src/facets/FlashLoanFacet.sol#138-152) has external calls inside a loop: startingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#139)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 2,
-      "id": "912c5fb909560fe9bb20c219"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#493-504) has external calls inside a loop: senderAfter = token.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#497)",
@@ -5840,6 +5856,22 @@
       "rationale": "The caller chooses a finite batch size and every iteration is independently authorized; an oversized batch only reverts that optional transaction.",
       "occurrences": 1,
       "id": "0a82ea6908842a930da1e981"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._assertClaimSolvency(Currency) (src/liquidity/StaticsSwapFeeHook.sol#814-818) has external calls inside a loop: available = poolManager.balanceOf(address(this),currency.toId()) (src/liquidity/StaticsSwapFeeHook.sol#816)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "0fb93a51c647ca62a982fbd5"
     },
     {
       "impact": "Low",
@@ -5882,6 +5914,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/FlashLoanFacet.sol"
+      ],
+      "summary": "FlashLoanFacet._collectRepayment(address,uint256,uint256,uint256,address) (src/facets/FlashLoanFacet.sol#154-171) has external calls inside a loop: endingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#164)",
+      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "occurrences": 2,
+      "id": "1d448b2884c05ba8dcd48e1f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#493-504) has external calls inside a loop: receiverBefore = token.balanceOf(receiver) (src/periphery/StaticsFlashArbitrageReceiver.sol#495)",
@@ -5904,22 +5952,6 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "225278dc450729612f297c0d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/FlashLoanFacet.sol"
-      ],
-      "summary": "FlashLoanFacet._collectRepayment(address,uint256,uint256,uint256,address) (src/facets/FlashLoanFacet.sol#154-171) has external calls inside a loop: endingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#164)",
-      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
-      "occurrences": 2,
-      "id": "1d448b2884c05ba8dcd48e1f"
     },
     {
       "impact": "Low",
@@ -6039,6 +6071,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#444-460) has external calls inside a loop: settled = poolManager.settle() (src/liquidity/StaticsSwapFeeHook.sol#455)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "5387b6165187702b6ee2210b"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -6048,6 +6096,22 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "54522424c40bb85781966b36"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#444-460) has external calls inside a loop: poolManager.sync(currency) (src/liquidity/StaticsSwapFeeHook.sol#445)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "552ca002d84068f61c4d108c"
     },
     {
       "impact": "Low",
@@ -6071,15 +6135,15 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "script/ConfigureStaticsGenesisGovernance.s.sol"
       ],
-      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#385-425) has external calls inside a loop: (callerDelta,feesAccrued) = poolManager.modifyLiquidity(seed.key,params,) (src/liquidity/StaticsSwapFeeHook.sol#401)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "5ec8af6211eb60d3bf7b0727"
+      "summary": "ConfigureStaticsGenesisGovernance._validateOwnership(GenesisGovernanceMigrationConfig,address,address) (script/ConfigureStaticsGenesisGovernance.s.sol#144-160) has external calls inside a loop: actualPendingOwner = target.pendingOwner() (script/ConfigureStaticsGenesisGovernance.s.sol#155)",
+      "rationale": "The migration target array is fixed to the five live Genesis Ownable2Step contracts, and each pendingOwner read is required before execution.",
+      "occurrences": 4,
+      "id": "5aff4bb1e9622e248d855635"
     },
     {
       "impact": "Low",
@@ -6154,22 +6218,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._assertClaimSolvency(Currency) (src/liquidity/StaticsSwapFeeHook.sol#808-812) has external calls inside a loop: available = poolManager.balanceOf(address(this),currency.toId()) (src/liquidity/StaticsSwapFeeHook.sol#810)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "71a03fd760d6ea35a42ba42e"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "GenesisLaunchDistributor.claimAllGenesisRewards(uint256[],address) (src/genesis/GenesisLaunchDistributor.sol#337-361) has external calls inside a loop: tokenOwner = genesis.ownerOf(genesisId) (src/genesis/GenesisLaunchDistributor.sol#347)",
@@ -6208,22 +6256,6 @@
       "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 2,
       "id": "801fb3c84a44a3ef9df81b28"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#439-455) has external calls inside a loop: settled = poolManager.settle() (src/liquidity/StaticsSwapFeeHook.sol#450)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "811d38cf2920aba6d83d664e"
     },
     {
       "impact": "Low",
@@ -6282,12 +6314,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+        "src/facets/FlashLoanFacet.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._pullTopUps(address[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#207-221) has external calls inside a loop: startingBalances[i] = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#216)",
-      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
-      "occurrences": 1,
-      "id": "92ba9b0a5ad3e3da2072e374"
+      "summary": "FlashLoanFacet._lendAsset(address,uint256,address) (src/facets/FlashLoanFacet.sol#138-152) has external calls inside a loop: startingBalance = IERC20(asset).balanceOf(address(this)) (src/facets/FlashLoanFacet.sol#139)",
+      "rationale": "The loop is bounded by the validated basket/route asset arrays, and external calls are necessary for atomic per-asset transfers and exact-delta checks.",
+      "occurrences": 2,
+      "id": "912c5fb909560fe9bb20c219"
     },
     {
       "impact": "Low",
@@ -6298,12 +6330,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#732-737) has external calls inside a loop: poolManager.mint(address(this),currency.toId(),amount) (src/liquidity/StaticsSwapFeeHook.sol#734)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "summary": "StaticsFlashArbitrageReceiver._pullTopUps(address[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#207-221) has external calls inside a loop: startingBalances[i] = asset.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#216)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "9a407df0f9c24617a8a599bb"
+      "id": "92ba9b0a5ad3e3da2072e374"
     },
     {
       "impact": "Low",
@@ -6375,15 +6407,15 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "script/ConfigureStaticsGenesisGovernance.s.sol"
       ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#439-455) has external calls inside a loop: remainingAllowance = token.allowance(staticsDiamond,address(this)) (src/liquidity/StaticsSwapFeeHook.sol#452)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "c70bf73726ca5f16f80aff5a"
+      "summary": "ConfigureStaticsGenesisGovernance._validateOwnership(GenesisGovernanceMigrationConfig,address,address) (script/ConfigureStaticsGenesisGovernance.s.sol#144-160) has external calls inside a loop: actualOwner = target.owner() (script/ConfigureStaticsGenesisGovernance.s.sol#151)",
+      "rationale": "The migration target array is fixed to the five live Genesis Ownable2Step contracts, and each owner read is required before execution.",
+      "occurrences": 4,
+      "id": "c5037933caad1c8243ed1c0d"
     },
     {
       "impact": "Low",
@@ -6444,10 +6476,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#439-455) has external calls inside a loop: poolManager.sync(currency) (src/liquidity/StaticsSwapFeeHook.sol#440)",
+      "summary": "StaticsSwapFeeHook._settleFromDiamond(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#444-460) has external calls inside a loop: remainingAllowance = token.allowance(staticsDiamond,address(this)) (src/liquidity/StaticsSwapFeeHook.sol#457)",
       "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
       "occurrences": 1,
-      "id": "df1bec44518abb148d019e9e"
+      "id": "d421cc5609951b5c44e40738"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#738-743) has external calls inside a loop: poolManager.mint(address(this),currency.toId(),amount) (src/liquidity/StaticsSwapFeeHook.sol#740)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "d99b8dc91b499face270b89a"
     },
     {
       "impact": "Low",
@@ -6464,6 +6512,22 @@
       "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
       "occurrences": 1,
       "id": "e032668ba068adb25c9de811"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430) has external calls inside a loop: (callerDelta,feesAccrued) = poolManager.modifyLiquidity(seed.key,params,) (src/liquidity/StaticsSwapFeeHook.sol#406)",
+      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "occurrences": 1,
+      "id": "e62d7df7bf83d9bec7529ec4"
     },
     {
       "impact": "Low",
@@ -6570,22 +6634,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook.constructor(IPoolManager,address,uint16,uint16,IStaticsPermanentLiquidityMath).diamond (src/liquidity/StaticsSwapFeeHook.sol#127) lacks a zero-check on :",
-      "rationale": "Installation validates deployed code and immutable cross-bindings, so a zero constructor dependency cannot be installed into the Diamond or receive protocol funds.",
-      "occurrences": 1,
-      "id": "8a813737dd86a82e36fa893c"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "missing-zero-check",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault.redeemGenesis(uint256,address).receiver (src/genesis/StaticsGenesisVault.sol#236) lacks a zero-check on :",
@@ -6608,6 +6656,22 @@
       "rationale": "The constructor immediately queries the supplied Diamond and requires an installed PoolManager with code; the zero address cannot satisfy that integration check.",
       "occurrences": 1,
       "id": "9746eb1230ba875f36a42cbd"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook.constructor(IPoolManager,address,uint16,uint16,IStaticsPermanentLiquidityMath).diamond (src/liquidity/StaticsSwapFeeHook.sol#132) lacks a zero-check on :",
+      "rationale": "Installation validates deployed code and immutable cross-bindings, so a zero constructor dependency cannot be installed into the Diamond or receive protocol funds.",
+      "occurrences": 1,
+      "id": "97636a760d6900781aadf470"
     },
     {
       "impact": "Low",
@@ -6746,6 +6810,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#719-724):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "1c842fffb7e01fab9918842a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/diamond/StaticsProtocolInit.sol"
       ],
       "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#83-103):",
@@ -6764,26 +6844,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#514-519):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#738-743):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "35641dadecad3eb7b423736d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "3ad762b8562fd09fba9d06fa"
+      "id": "36eb0d48aa0911753dcb8068"
     },
     {
       "impact": "Low",
@@ -6842,60 +6906,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#732-737):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "5a41b33a98eeff1f4fc45f80"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "713dcccefe0c84488eb43f39"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#713-718):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "7cf55d1745a732e6572c84d2"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#385-425):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "9255085275b3c8e154cdbba4"
     },
     {
       "impact": "Low",
@@ -6928,6 +6944,38 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a57b27956b2543ccea0ea604"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#520-525):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "a6e4af8b3d3b81116d2fd86d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "b29cbe6da31c4b5c15d1a319"
     },
     {
       "impact": "Low",
@@ -6986,12 +7034,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "eb122d32ac8cfe3735392d18"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "Reentrancy in StaticsFeeReceiver._fundReserve(uint256) (src/genesis/StaticsFeeReceiver.sol#249-278):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "fe9e69039ae2876663cc1bf2"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook.releasePermanentLiquidity(PoolKey,address) (src/liquidity/StaticsSwapFeeHook.sol#311-331):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "01a05c9a750f7d066f8374a5"
     },
     {
       "impact": "Low",
@@ -7008,23 +7088,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "045c1bd98886c03f6ea2e4ac"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "4717ef2e712b7ab9e84629f0"
     },
     {
       "impact": "Low",
@@ -7052,13 +7115,12 @@
       ],
       "paths": [
         "src/libraries/LibCustody.sol",
-        "src/libraries/LibGlobalRewards.sol",
-        "src/libraries/LibLoanOrigination.sol"
+        "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
+      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#187-197):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "bb950f9edb81c04faa19f388"
+      "id": "0e56f7e960e6f4c5e82880c0"
     },
     {
       "impact": "Low",
@@ -7071,10 +7133,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#457-476):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "0f8d632a3f3daa9599815acc"
+      "id": "17c212b43854976b1bb026a6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#484-493):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "18ff19bafbc94aeecd5b6fd8"
     },
     {
       "impact": "Low",
@@ -7101,12 +7179,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#342-348):",
+      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#50-60):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "1bed4d4e32dd6c3cd21a17ff"
+      "id": "1c20ed6e01dce259a54d305b"
     },
     {
       "impact": "Low",
@@ -7149,55 +7227,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#209-221):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "b319cbaac600e66f7e701458"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._afterSwap(address,PoolKey,SwapParams,BalanceDelta,bytes) (src/liquidity/StaticsSwapFeeHook.sol#478-487):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "1ff270fe7634da9f90d8bc74"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "219e975b2f02b1ce05947c60"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibMorpho.sol"
       ],
       "summary": "Reentrancy in LibMorpho.ensureAccount(uint256) (src/libraries/LibMorpho.sol#105-117):",
@@ -7216,10 +7245,58 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#684-697):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "301268f490d448f23e3dde88"
+      "id": "2434e5975722419cbe950616"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#462-482):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "2ef95535788711ba838ce04a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "2f4c4cf34131596c6018f295"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "3170e7a84ed9c06614dd8424"
     },
     {
       "impact": "Low",
@@ -7236,22 +7313,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "31b4dbf2fcf6cc798766aa78"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "32fbb654df2e1a8f2474645f"
     },
     {
       "impact": "Low",
@@ -7307,6 +7368,39 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook.harvestPermanentLiquidityFees(PoolKey) (src/liquidity/StaticsSwapFeeHook.sol#294-309):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "40aa4bab9d73fc4a224c118c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "4717ef2e712b7ab9e84629f0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7328,58 +7422,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#462-482):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "4c1b2d7896e054185d162004"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#514-519):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "4e42d723318713368fdb7d89"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#457-476):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "54b960c238da8ffefec48749"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "594b027519338e371a7b2426"
+      "id": "50a62a76ce75d749ce8ab6b0"
     },
     {
       "impact": "Low",
@@ -7419,22 +7465,6 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#44-48):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "60ddf44861513296640f6dde"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7444,22 +7474,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "61b275e8b47185194ca5b82e"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#50-60):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "64e62361d48a9b055e2a8c29"
     },
     {
       "impact": "Low",
@@ -7534,23 +7548,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#187-197):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "0e56f7e960e6f4c5e82880c0"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibGenesisRewards.sol"
       ],
       "summary": "Reentrancy in LibGenesisRewards.setRewardShare(uint16) (src/libraries/LibGenesisRewards.sol#263-272):",
@@ -7580,6 +7577,86 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "7eadbacc14ed315c91db8e02"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "7f428ec174a1624460c180db"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#719-724):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "81823f39ac1ced4992aec1c6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "8216f0492b47d4488877e515"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "8956d7b000c05b07edf7cf31"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7589,40 +7666,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "8ac456f830f3d7e4508052f7"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "9bf051cdc57f195ddbc4bd65"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#199-207):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "ff7eacbdf0fe98a5aef83316"
     },
     {
       "impact": "Low",
@@ -7652,10 +7695,10 @@
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.claimAllTreasury(address) (src/libraries/LibGenesisRewards.sol#248-261):",
+      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "d401b8ea4c414a7075d611a4"
+      "id": "9bf051cdc57f195ddbc4bd65"
     },
     {
       "impact": "Low",
@@ -7746,22 +7789,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#624-644):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "adc885b3181601b605710279"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/libraries/LibCoreAccounting.sol"
       ],
       "summary": "Reentrancy in LibCoreAccounting.routeRetiredSurplus(LibCoreStorage.CS,uint256,uint256,uint256) (src/dollar/core/libraries/LibCoreAccounting.sol#176-189):",
@@ -7795,12 +7822,31 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#385-425):",
+      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#209-221):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "bb83acef639e5f99bc7651b9"
+      "id": "b319cbaac600e66f7e701458"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGlobalRewards.sol",
+        "src/libraries/LibLoanOrigination.sol"
+      ],
+      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "bb950f9edb81c04faa19f388"
     },
     {
       "impact": "Low",
@@ -7843,12 +7889,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook.harvestPermanentLiquidityFees(PoolKey) (src/liquidity/StaticsSwapFeeHook.sol#289-304):",
+      "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#179-189):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "c34f487cd121391ca15db56e"
+      "id": "c15634da4999f41c8e519810"
     },
     {
       "impact": "Low",
@@ -7861,10 +7907,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook.releasePermanentLiquidity(PoolKey,address) (src/liquidity/StaticsSwapFeeHook.sol#306-326):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "c95fbcd799e71c308a30b701"
+      "id": "cfc4e0d7bba08a3f01956561"
     },
     {
       "impact": "Low",
@@ -7877,26 +7923,10 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#342-348):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "ca6e7dd93669908236d0f365"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#684-697):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "cbd1a76c24c3f694c1851de5"
+      "id": "d29697ab6e207bb398a7d0fd"
     },
     {
       "impact": "Low",
@@ -7910,10 +7940,10 @@
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
+      "summary": "Reentrancy in LibGenesisRewards.claimAllTreasury(address) (src/libraries/LibGenesisRewards.sol#248-261):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "dfadacb24a1a812aaafbdf92"
+      "id": "d401b8ea4c414a7075d611a4"
     },
     {
       "impact": "Low",
@@ -7926,10 +7956,26 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#713-718):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#690-703):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "d54fbb051def6eb499907e48"
+      "id": "d6b3aa0317d75a4abb0df512"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "db430d97c15cb90a940a787b"
     },
     {
       "impact": "Low",
@@ -7956,12 +8002,13 @@
         "production-contracts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#210-217):",
+      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "e0101e1cc40fcf6f80278caa"
+      "id": "dfadacb24a1a812aaafbdf92"
     },
     {
       "impact": "Low",
@@ -7990,10 +8037,26 @@
       "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#184-194):",
+      "summary": "Reentrancy in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#205-212):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "ebac242777fc265e9b7c5e83"
+      "id": "e7b07ca84689626739ca7bec"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#44-48):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "e9385375fb6ae75b1aadd9aa"
     },
     {
       "impact": "Low",
@@ -8010,38 +8073,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "ef21e6950f7b2ee6f19ba787"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "f10c3c8cb5a0e176fceb99fe"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#385-425):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 2,
-      "id": "f17e63f8939aa947d33db5e9"
     },
     {
       "impact": "Low",
@@ -8102,10 +8133,43 @@
       "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#350-383):",
+      "summary": "Reentrancy in StaticsSwapFeeHook._accrueSwapLegFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsSwapFeeHook.sol#520-525):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "fb00beb020b73602f842fe70"
+      "id": "f721a61943a5018d3172db78"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsSwapFeeHook._collectNativeFees(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#690-703):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f9c96ef05f17287abfe5ab29"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#199-207):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "ff7eacbdf0fe98a5aef83316"
     },
     {
       "impact": "Low",
@@ -9156,6 +9220,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#37-42) uses assembly",
+      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "occurrences": 1,
+      "id": "2ac8789090dd5ff53a47e833"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibProtocolRevenue.sol"
       ],
       "summary": "LibProtocolRevenue.protocolRevenueStorage() (src/libraries/LibProtocolRevenue.sol#67-72) uses assembly",
@@ -9194,6 +9274,22 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "6e3a66855e63dbbb329a22df"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGovernance.sol"
+      ],
+      "summary": "LibGovernance.governanceStorage() (src/libraries/LibGovernance.sol#27-32) uses assembly",
+      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "occurrences": 1,
+      "id": "75a74578ed71ba82c777d21d"
     },
     {
       "impact": "Informational",
@@ -9252,38 +9348,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol"
-      ],
-      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#37-42) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
-      "occurrences": 1,
-      "id": "2ac8789090dd5ff53a47e833"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGovernance.sol"
-      ],
-      "summary": "LibGovernance.governanceStorage() (src/libraries/LibGovernance.sol#23-28) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
-      "occurrences": 1,
-      "id": "a21e60e2bad42bf6ce994acc"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/position/LibPosition.sol"
       ],
       "summary": "LibPosition.positionStorage() (src/position/LibPosition.sol#45-50) uses assembly",
@@ -9302,10 +9366,10 @@
       "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "PositionNFTFacet.isPositionClosable(uint256) (src/position/PositionNFTFacet.sol#162-177) uses assembly",
+      "summary": "PositionNFTFacet.isPositionClosable(uint256) (src/position/PositionNFTFacet.sol#162-172) uses assembly",
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
-      "id": "cd11c4c87926c38da796e403"
+      "id": "d166c19501d3ec81db00e274"
     },
     {
       "impact": "Informational",
@@ -9476,6 +9540,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Low level call in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#205-212):",
+      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
+      "occurrences": 1,
+      "id": "5d5f7a7b7bc89651453ff0cf"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "Low level call in StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#201-233):",
@@ -9514,22 +9594,6 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "962f33274b8de73be8057270"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Low level call in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#210-217):",
-      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
-      "occurrences": 1,
-      "id": "a0da90548800fc23feb07af4"
     },
     {
       "impact": "Informational",
@@ -9670,13 +9734,13 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/core/interfaces/ICoreBootstrapWiring.sol",
-        "src/dollar/periphery/facets/StakingFacet.sol"
+        "src/interfaces/IPositionOwnerIndex.sol",
+        "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "StakingFacet (src/dollar/periphery/facets/StakingFacet.sol#18-410) should inherit from ICoreBootstrapWiring (src/dollar/core/interfaces/ICoreBootstrapWiring.sol#4-10)",
+      "summary": "PositionNFTFacet (src/position/PositionNFTFacet.sol#19-213) should inherit from IPositionOwnerIndex (src/interfaces/IPositionOwnerIndex.sol#7-18)",
       "rationale": "The contract implements the selector structurally behind a Diamond or adapter boundary; inheriting this narrow consumer-side interface would add coupling without changing runtime conformance.",
       "occurrences": 1,
-      "id": "b3075f5b45db79ed80474e00"
+      "id": "af02dc935e52a2d82c183ebd"
     },
     {
       "impact": "Informational",
@@ -9687,13 +9751,13 @@
         "production-contracts"
       ],
       "paths": [
-        "src/interfaces/IPositionOwnerIndex.sol",
-        "src/position/PositionNFTFacet.sol"
+        "src/dollar/core/interfaces/ICoreBootstrapWiring.sol",
+        "src/dollar/periphery/facets/StakingFacet.sol"
       ],
-      "summary": "PositionNFTFacet (src/position/PositionNFTFacet.sol#19-218) should inherit from IPositionOwnerIndex (src/interfaces/IPositionOwnerIndex.sol#7-18)",
+      "summary": "StakingFacet (src/dollar/periphery/facets/StakingFacet.sol#18-410) should inherit from ICoreBootstrapWiring (src/dollar/core/interfaces/ICoreBootstrapWiring.sol#4-10)",
       "rationale": "The contract implements the selector structurally behind a Diamond or adapter boundary; inheriting this narrow consumer-side interface would add coupling without changing runtime conformance.",
       "occurrences": 1,
-      "id": "d0584e5e8fb1bc50d44768f6"
+      "id": "b3075f5b45db79ed80474e00"
     },
     {
       "impact": "Informational",
@@ -9784,6 +9848,38 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsLaunchLiquidity.s.sol"
+      ],
+      "summary": "DeployStaticsLaunchLiquidity.deploy(DeployStaticsLaunchLiquidity.Config,address) (script/DeployStaticsLaunchLiquidity.s.sol#94-139) uses literals with too many digits:",
+      "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
+      "occurrences": 1,
+      "id": "25c29416ec38e5e5ee44b9c2"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#140-173) uses literals with too many digits:",
+      "rationale": "The literal is the exact Uniswap v4 hook permission mask used to mine the deterministic Phase 1 hook address.",
+      "occurrences": 1,
+      "id": "55eb60ea9e1479bcf04cf7c6"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
       "summary": "DeployStaticsGenesis.staticsImplementationHash() (script/DeployStaticsGenesis.s.sol#480-493) uses literals with too many digits:",
@@ -9841,39 +9937,6 @@
     },
     {
       "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsLaunchLiquidity.s.sol"
-      ],
-      "summary": "DeployStaticsLaunchLiquidity.deploy(DeployStaticsLaunchLiquidity.Config,address) (script/DeployStaticsLaunchLiquidity.s.sol#94-139) uses literals with too many digits:",
-      "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
-      "occurrences": 1,
-      "id": "ed51707fe1734c61e4a02fee"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "unimplemented-functions",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/interfaces/IStaticsSwapFeeHook.sol",
-        "src/liquidity/StaticsSwapFeeHook.sol"
-      ],
-      "summary": "StaticsSwapFeeHook (src/liquidity/StaticsSwapFeeHook.sol#33-871) does not implement functions:",
-      "rationale": "The hook implements getHookPermissions directly; Slither fails to recognize the concrete override through the BaseHook and interface inheritance graph.",
-      "occurrences": 1,
-      "id": "864624d55badd36301713334"
-    },
-    {
-      "impact": "Informational",
       "confidence": "High",
       "check": "unimplemented-functions",
       "classification": "FALSE POSITIVE",
@@ -9887,6 +9950,23 @@
       "rationale": "The hook implements getHookPermissions directly; Slither fails to recognize the concrete override through the BaseHook and interface inheritance graph.",
       "occurrences": 1,
       "id": "a265655850387b90bbb8f50c"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "unimplemented-functions",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/interfaces/IStaticsSwapFeeHook.sol",
+        "src/liquidity/StaticsSwapFeeHook.sol"
+      ],
+      "summary": "StaticsSwapFeeHook (src/liquidity/StaticsSwapFeeHook.sol#37-877) does not implement functions:",
+      "rationale": "The hook implements getHookPermissions directly; Slither fails to recognize the concrete override through the BaseHook and interface inheritance graph.",
+      "occurrences": 1,
+      "id": "ce04226558eb6d3b965a811c"
     },
     {
       "impact": "Informational",
