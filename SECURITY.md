@@ -148,10 +148,13 @@ ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs 14 facets and 106 selectors for the Diamond
-kernel, general Statics-hook pools, protocol revenue and POL, PositionNFT, and
-global STATICS staking/reward opt-ins. It does not install or advertise basket,
-credit, flash-loan, Genesis-integration, Dollar, Morpho, liquidity-manager,
+The Phase 1 launcher installs 18 facets and 122 selectors for the Diamond
+kernel, public general Statics-hook pools, a separate permissioned venue path,
+protocol revenue and public POL, PositionNFT, reward restrictions, and global
+STATICS staking/reward opt-ins. Permissioned pools use their own hook,
+creator-bound controller, trusted exact-input router, and non-transferable LP
+positions. They create no Statics POL. It does not install or advertise basket,
+credit, flash-loan, Genesis-integration, Dollar, Morpho, `StaticsLiquidityManager`,
 BorrowLiquidity, ERC-1155 receiver, or series-migration interfaces.
 
 The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
@@ -161,6 +164,14 @@ position-notional, volume, or pool-count caps. Curated creation, timelocked
 administration, guardian stops, monitoring, and asset disclosure are the
 accepted initial controls. They reduce exposure but do not create a
 protocol-level endorsement of curated assets.
+
+The reward-restriction map is a technical delivery policy, not an asset
+allowlist or legal classification. The guardian may add a restriction
+immediately; only the timelock may remove one. Existing earned claims and exit
+paths remain available. For permissioned pools, creator and treasury revenue
+remain in the original output currency. If both currencies are restricted, the
+pool-specific allocation is overridden with an 80% creator / 20% treasury
+split and no reward liability.
 
 Phase 2 adds baskets, self-secured credit, flash composition, and advanced
 liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector

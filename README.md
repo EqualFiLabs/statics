@@ -326,18 +326,24 @@ release evidence for an already completed launch.
 
 The staged production entry point is
 `script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
-`StaticsTimelock`, the 14-facet `StaticsDiamond`, the final reusable swap hook,
-and its permanent-liquidity math dependency. It hard-codes the general-pool
-creation fee to zero, retaining owner-only curated creation, while accepting
-the PositionNFT fee as a deployment input. Hook and POL-harvester installation
-remain a separate two-call timelocked ceremony.
+`StaticsTimelock`, the 18-facet `StaticsDiamond`, separate permissionless and
+permissioned swap hooks, a default venue-controller factory, and the public
+hook's permanent-liquidity math dependency. It hard-codes the general-pool
+creation fee to zero, retaining owner-only curated public creation, while
+accepting the PositionNFT fee as a deployment input. The exact-0.8.26
+permissioned router, non-transferable position manager, and owner-claims
+companion are deployed separately before both hooks and all trusted periphery
+are installed in one six-call timelocked ceremony.
 
 Phase 1 includes arbitrary Statics-hooked ERC-20 pairs, protocol fee routing,
 permanent liquidity, PositionNFT accounts, and global STATICS staking with
-per-position reward opt-ins. It excludes every basket, credit, flash-loan,
-Genesis-integration, Dollar, Morpho, liquidity-manager, and
-borrow-to-liquidity selector. The complete four-phase decision and authority
-model are recorded in the
+per-position reward opt-ins. It also includes a separate permissioned market
+path with creator-operated controllers, approved traders and LPs,
+non-transferable LP NFTs, reward restrictions, and creator/timelock-agreed
+PoolId-local economics. Permissioned pools have no Statics POL. It excludes
+every basket, credit, flash-loan, Genesis-integration, Dollar, Morpho,
+`StaticsLiquidityManager`, and borrow-to-liquidity selector. The complete
+four-phase decision and authority model are recorded in the
 [staged-launch ADR](./docs/adr/staged-phase-one-launch.md).
 
 The canonical fresh full-stack entry point remains
@@ -350,18 +356,18 @@ and permissionless execute calldata.
 
 All staged and fresh cuts are derived from
 `script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
-Diamond through every timelocked batch, then compares all 287 selector routes
+Diamond through every timelocked batch, then compares all 303 selector routes
 and implementation runtime hashes, plus all 95 Dollar Core selector routes and
 runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-Phase 1 StaticsDiamond:   14 facets, 106 selectors
-Phase 2 StaticsDiamond:   26 facets, 202 selectors cumulative
-Phase 3 StaticsDiamond:   31 facets, 260 selectors cumulative
-Phase 4 StaticsDiamond:   36 facets, 287 selectors cumulative
-Full StaticsDiamond:      36 facets, 287 selectors
+Phase 1 StaticsDiamond:   18 facets, 122 selectors
+Phase 2 StaticsDiamond:   30 facets, 218 selectors cumulative
+Phase 3 StaticsDiamond:   35 facets, 276 selectors cumulative
+Phase 4 StaticsDiamond:   40 facets, 303 selectors cumulative
+Full StaticsDiamond:      40 facets, 303 selectors
 StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -571,10 +577,22 @@ forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
   -vv
 ```
 
-No transaction is performed by this repository change. Simulate and inspect
-the exact deployment before any separately authorized broadcast.
+Deploy the exact-0.8.26 permissioned periphery after the Diamond and hooks, and
+record the three emitted addresses and runtime hashes:
 
-After deployment, prepare the single timelock scheduling call for the two-call
+```shell
+forge script \
+  script/DeployStaticsPermissionedPeriphery.s.sol:DeployStaticsPermissionedPeriphery \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  -vv
+```
+
+No transaction is performed by this repository change. Simulate and inspect
+each exact deployment before any separately authorized broadcast.
+
+After deployment, prepare the single timelock scheduling call for the six-call
 Phase 1 liquidity configuration without signing or broadcasting a Safe
 transaction:
 
@@ -847,6 +865,13 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_PERMIT2_ADDRESS` | Existing Permit2 used by the Phase 2 liquidity manager |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
 | `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
+| `STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS` | Deployed separate permissioned exact-input output-fee hook |
+| `STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned hook |
+| `STATICS_PERMISSIONED_ROUTER_ADDRESS` | Exact-input trusted router for permissioned pools |
+| `STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned router |
+| `STATICS_PERMISSIONED_POSITION_MANAGER_ADDRESS` | Non-transferable approved-LP v4 Position Manager |
+| `STATICS_PERMISSIONED_POSITION_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned Position Manager |
+| `STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH` | Exact runtime hash of the companion claim-backed unwind proceeds contract |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deferred v4 liquidity manager used only after its selectors are added in Phase 2 |
 | `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash required by the later Phase 2 manager installation |
 | `STATICS_PERMANENT_LIQUIDITY_HARVESTER` | Initial address authorized to harvest native fees earned by permanent liquidity into treasury accounting |

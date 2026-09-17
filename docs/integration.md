@@ -96,19 +96,32 @@ facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes
 remain authoritative.
 
-The staged Phase 1 deployment installs only arbitrary Statics-hooked pools,
-their revenue/POL paths, PositionNFT, and global STATICS staking/reward opt-ins.
-Phase 2 adds baskets, credit, flash composition, and advanced liquidity; Phase
-3 adds Dollar; Phase 4 adds Morpho. The cumulative selector counts are 106,
-202, 260, and 287. Integrators must feature-detect complete ERC-165 interfaces
-and individual selector routes instead of assuming that a live Diamond exposes
-a later phase.
+The staged Phase 1 deployment installs parallel public and permissioned
+Statics-hooked pools, their separate fee paths, PositionNFT, and global STATICS
+staking/reward opt-ins. Public pools retain bilateral hook fees and POL.
+Permissioned pools use a separate hook address, exact-input trusted router,
+non-transferable LP positions, creator-selected controller and native v4 fee,
+and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
+flash composition, and advanced liquidity; Phase 3 adds Dollar; Phase 4 adds
+Morpho. The cumulative selector counts are 122, 218, 276, and 303. Integrators
+must feature-detect complete ERC-165 interfaces and individual selector routes
+instead of assuming that a live Diamond exposes a later phase.
 
 `IStaticsSwapFeeHook` exposes hook fee configuration, pending
 permanent-liquidity inventory, and locked liquidity. Phase 1 relies on ordinary
 Uniswap v4 periphery for user LP positions and does not install a Statics
 liquidity manager. Canonical permanent liquidity is hook-owned and has no
 protocol PositionManager token ID.
+
+`IStaticsPermissionedPools` exposes permissioned pool creation quotes,
+creator-authorized economics, and PoolId-local views. A trusted periphery
+reports the real user through `IMsgSender`; direct or untrusted wrappers are
+rejected. External permissioned swaps are exact-input only. The default general
+allocation is 80% creator, 10% treasury, and 10% global STATICS stakers. If the
+output is reward-restricted, only the staker share may be normalized through
+the paired currency. If both currencies are restricted, no conversion or
+reward liability is created: 80% remains creator revenue and 20% accrues to
+treasury. Creator revenue is claimed by PoolId and currency.
 
 The standalone STATICS/WETH market is the Doppler pool recorded by the launch
 manifest. Applications should use Doppler/Uniswap v4 quoting and routing for

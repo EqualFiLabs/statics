@@ -179,10 +179,10 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **14 facets / 106 selectors** on the staged Phase 1 `StaticsDiamond`;
-- **26 facets / 202 selectors** after Phase 2;
-- **31 facets / 260 selectors** after Phase 3;
-- **36 facets / 287 selectors** on the full-stack `StaticsDiamond`; and
+- **18 facets / 122 selectors** on the staged Phase 1 `StaticsDiamond`;
+- **30 facets / 218 selectors** after Phase 2;
+- **35 facets / 276 selectors** after Phase 3;
+- **40 facets / 303 selectors** on the full-stack `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
 These source expectations come from one canonical four-phase plan and are

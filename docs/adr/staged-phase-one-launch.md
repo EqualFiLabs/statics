@@ -20,7 +20,7 @@ phase-specific one-time initialization.
 - the fresh full-stack launcher concatenates those same four cuts instead of maintaining a second
   handwritten full manifest.
 
-The complete plan contains 287 selectors. CI deploys Phase 1, advances the same Diamond through all
+The complete plan contains 303 selectors. CI deploys Phase 1, advances the same Diamond through all
 four timelocked batches, and compares every final selector and implementation runtime hash with a
 fresh full deployment. A selector addition or reassignment must therefore update the canonical
 phase plan; the staged and fresh paths cannot silently diverge.
@@ -35,7 +35,7 @@ handoff cannot bind.
 
 ## Phase 1: arbitrary hooked pairs and STATICS staking
 
-Phase 1 installs 14 facets and 106 selectors for:
+Phase 1 installs 18 facets and 122 selectors for:
 
 - the Diamond cut, loupe, ownership, and timelocked governance kernel;
 - general Uniswap v4 pools between arbitrary compatible ERC-20s using the reusable
@@ -45,25 +45,37 @@ Phase 1 installs 14 facets and 106 selectors for:
 - PositionNFT creation, ownership, transfer, closure, and the global STATICS staking and reward
   opt-in lifecycle;
 - the custody views and treasury configuration needed by those installed paths; and
-- global and PoolId-local swap stops plus staking and liquidity ingress pauses.
+- global and PoolId-local swap stops plus staking and liquidity ingress pauses;
+- a separate permissioned v4 hook, creator-bound venue controllers, trusted swap and liquidity
+  periphery, non-transferable approved-LP positions, and PoolId-local SLA economics;
+- a guardian-add/timelock-remove reward-restriction policy that preserves existing claims; and
+- permissioned output-fee routing with no POL: rewardable pairs default to 80% creator, 10%
+  treasury, and 10% STATICS stakers, while a pair with two restricted currencies routes 80% to the
+  creator and 20% to treasury with no reward liability.
 
 It omits every basket, self-secured-credit, flash-loan, Genesis-integration, Dollar, Morpho,
 basket-liquidity-manager, and borrow-to-liquidity selector. It does not advertise a protocol
 interface unless that interface's complete selector set is installed.
 
-The phase deploys 19 contracts: 14 facet implementations, `StaticsPhaseOneInit`,
-`StaticsDiamond`, `StaticsTimelock`, `StaticsPermanentLiquidityMath`, and `StaticsSwapFeeHook`. It
-reuses the chain's PoolManager, WETH, and deployed STATICS token. Uniswap v4 pools are PoolManager
-state, not separately deployed pool contracts.
+The initial phase launcher deploys 25 contracts: 18 facet implementations, `StaticsPhaseOneInit`,
+`StaticsDiamond`, `StaticsTimelock`, `StaticsPermanentLiquidityMath`, `StaticsSwapFeeHook`,
+`StaticsPermissionedSwapFeeHook`, and `DefaultVenueControllerFactory`. A separate exact-0.8.26
+periphery script deploys `StaticsPermissionedRouter`, `StaticsPermissionedPositionManager`, and its
+companion `PermissionedPositionClaims`. It reuses the chain's PoolManager, quoter, Permit2, WETH,
+and deployed STATICS token. Uniswap v4 pools are PoolManager state, not separately deployed pool
+contracts.
 
-The separate Phase 1 configuration batch binds the PoolManager/hook pair and sets the native-POL
-fee harvester. `StaticsLiquidityManager` is not present yet. The general-pool creation fee starts at
-zero, which under current semantics keeps creation owner-curated rather than enabling free public
-creation.
+The separate six-call Phase 1 configuration batch atomically binds both PoolManager/hook paths,
+trusts the exact-input permissioned router, non-transferable position manager, and quoter, and sets
+the public native-POL fee harvester. Every runtime hash and immutable binding, including the
+permissioned claims companion, is verified before installation. `StaticsLiquidityManager` is not
+present yet. The general-pool creation fee starts at zero, which under current semantics keeps
+public creation owner-curated rather than enabling free public creation. Permissioned creation is
+always owner/timelock executed and requires exact creator EIP-712 or ERC-1271 authorization.
 
 ## Phase 2: baskets, credit, flash composition, and Genesis integration
 
-Phase 2 adds 96 selectors for a cumulative 202 selectors across 26 facets. It installs:
+Phase 2 adds 96 selectors for a cumulative 218 selectors across 30 facets. It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
@@ -87,7 +99,7 @@ PositionManager, and Permit2 runtimes and bindings.
 
 ## Phase 3: Statics Dollar
 
-Phase 3 adds 58 selectors for a cumulative 260 selectors across 31 facets. It adds Dollar custody,
+Phase 3 adds 58 selectors for a cumulative 276 selectors across 35 facets. It adds Dollar custody,
 Risk Share staking and incentives, fee routing, the pairing vault, the Dollar gateway, and series
 migration.
 
@@ -104,7 +116,7 @@ atomically install and initialize the periphery before finalizing the core-to-Di
 
 ## Phase 4: Morpho
 
-Phase 4 adds 27 selectors for the final 287 selectors across 36 facets. It installs the remaining
+Phase 4 adds 27 selectors for the final 303 selectors across 40 facets. It installs the remaining
 Position portfolio view plus Morpho administration, actions, settlement, recovery, and views.
 
 The phase deploys five Morpho facet implementations and `StaticsPhaseFourInit`: six contracts.
@@ -143,11 +155,12 @@ replacement cut; later activation scripts fail closed on an unexpected earlier r
 
 ## Audit boundary
 
-Phase 1's deployed audit surface remains its 106 reachable selectors, facet paths and shared
-libraries, Diamond kernel and initializer, timelock, hook, permanent-liquidity math, and deployment
-ceremonies. Each later audit covers its selector and contract delta plus every new interaction with
-the cumulative installed surface. Preparing all phases now prevents tooling drift; it does not
-collapse the four audit scopes into one launch decision.
+Phase 1's deployed audit surface remains its 122 reachable selectors, facet paths and shared
+libraries, Diamond kernel and initializer, timelock, both hooks, permissioned periphery and claims,
+venue controller, permanent-liquidity math, and deployment ceremonies. Each later audit covers its
+selector and contract delta plus every new interaction with the cumulative installed surface.
+Preparing all phases now prevents tooling drift; it does not collapse the four audit scopes into one
+launch decision.
 
 The launch does not add TVL, per-pool volume, position-notional, or pool-count caps. Accepted
 controls are curated initial creation, timelocked changes, guardian stops, exact runtime manifests,
