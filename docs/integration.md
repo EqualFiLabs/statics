@@ -99,9 +99,10 @@ remain authoritative.
 The staged Phase 1 deployment installs only arbitrary Statics-hooked pools,
 their revenue/POL paths, PositionNFT, and global STATICS staking/reward opt-ins.
 Phase 2 adds baskets, credit, flash composition, and advanced liquidity; Phase
-3 adds Dollar; Phase 4 adds Morpho. Integrators must feature-detect complete
-ERC-165 interfaces and individual selector routes instead of assuming that a
-live Diamond exposes a later phase.
+3 adds Dollar; Phase 4 adds Morpho. The cumulative selector counts are 106,
+202, 260, and 287. Integrators must feature-detect complete ERC-165 interfaces
+and individual selector routes instead of assuming that a live Diamond exposes
+a later phase.
 
 `IStaticsSwapFeeHook` exposes hook fee configuration, pending
 permanent-liquidity inventory, and locked liquidity. Phase 1 relies on ordinary

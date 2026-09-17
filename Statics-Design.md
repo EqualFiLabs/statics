@@ -180,15 +180,19 @@ StaticsDiamond
 The current launcher and deployment tests expect:
 
 - **14 facets / 106 selectors** on the staged Phase 1 `StaticsDiamond`;
+- **26 facets / 202 selectors** after Phase 2;
+- **31 facets / 260 selectors** after Phase 3;
 - **36 facets / 287 selectors** on the full-stack `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
-These source expectations are verified through deployment-test loupe
-enumeration. Governed upgrades can change the live selector set without
-changing either Diamond address, so current deployed state belongs in the
-deployment manifest rather than this design document. Structural Position
-changes require an explicit storage-compatibility and migration design; they
-must not be inferred safe from the fresh-launch selector manifest.
+These source expectations come from one canonical four-phase plan and are
+verified through deployment-test loupe enumeration plus final staged-to-fresh
+runtime parity for both Diamonds. Governed upgrades can change the live
+selector set without changing either Diamond address, so current deployed
+state belongs in the deployment manifest rather than this design document.
+Structural Position changes require an explicit storage-compatibility and
+migration design; they must not be inferred safe from the fresh-launch
+selector manifest.
 
 Checked-in Core rehearsal snapshots record the selector shape before and after
 the rehearsed terminal governance cut. That rehearsal deliberately removes

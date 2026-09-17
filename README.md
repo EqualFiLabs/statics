@@ -342,17 +342,27 @@ model are recorded in the
 
 The canonical fresh full-stack entry point remains
 `script/DeployStatics.s.sol:DeployStatics`. It remains a regression reference,
-not the upgrade path for a live phased Diamond. Phase 2 adds baskets, credit,
-flash composition, and advanced liquidity; Phase 3 adds Statics Dollar; Phase
-4 adds Morpho. Each live transition requires a separately reviewed timelocked
-selector cut and phase-specific initializer.
+not the upgrade path for a live phased Diamond. The concrete Phase 2, 3, and 4
+implementation/deployment entry points are `runPhaseTwo()`, `runPhaseThree()`,
+and `runPhaseFour()` on `script/DeployStaticsPhases.s.sol:DeployStaticsPhases`.
+They deploy each phase's contracts and emit the exact Safe-to-timelock schedule
+and permissionless execute calldata.
+
+All staged and fresh cuts are derived from
+`script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
+Diamond through every timelocked batch, then compares all 287 selector routes
+and implementation runtime hashes, plus all 95 Dollar Core selector routes and
+runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
 Phase 1 StaticsDiamond:   14 facets, 106 selectors
+Phase 2 StaticsDiamond:   26 facets, 202 selectors cumulative
+Phase 3 StaticsDiamond:   31 facets, 260 selectors cumulative
+Phase 4 StaticsDiamond:   36 facets, 287 selectors cumulative
 Full StaticsDiamond:      36 facets, 287 selectors
-StaticsDollarCoreDiamond: 11 facets, 95 selectors (full stack only)
+StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
@@ -581,6 +591,22 @@ After the delay, any address may call `runExecute()` because execution is open.
 The ceremony refuses mismatched runtime hashes, immutable bindings, hook flags,
 fee settings, selector closure, or pre-existing installation state. It does not
 call or reconfigure any deployed Genesis contract.
+
+Prepare later phases from the exact preceding phase with:
+
+```shell
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseTwo()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseThree()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseFour()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+```
+
+Add `--broadcast` only after explicit authorization and review of the preceding
+phase, dependency runtimes, deployed addresses, and emitted timelock calldata.
+Phase 2's Genesis handoff remains separate and operates against the existing
+Genesis deployment; it does not redeploy or transfer those contracts.
 
 The later full-stack deployment command is:
 
@@ -811,13 +837,23 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_DOLLAR_PRICE_BAND_BPS` | Initial volatile-profile transition band |
 | `STATICS_DOLLAR_DEBT_CEILING` | Initial volatile-profile issuance ceiling |
 | `STATICS_DOLLAR_RISK_URI` | ERC-1155 metadata URI for Risk Share series |
+| `STATICS_DOLLAR_BASE_BPS` | Initial share of Dollar fees routed to the base reward path; defaults to 7,000 bps |
+| `STATICS_DOLLAR_INSURANCE_BPS` | Initial share of Dollar fees routed to insurance; defaults to 3,000 bps and must sum with base to 10,000 |
+| `STATICS_DOLLAR_REDEMPTION_FEE_BPS` | Initial pairing-vault redemption fee; defaults to 50 bps |
+| `STATICS_DOLLAR_REDEMPTION_SUPPLIER_SHARE_BPS` | Initial supplier share of pairing-vault redemption fees; defaults to 8,000 bps |
 | `STATICS_DIAMOND_ADDRESS` | Existing Diamond used by post-deployment ceremonies |
+| `STATICS_POOL_MANAGER_ADDRESS` | Existing v4 PoolManager already bound to the Phase 1 hook |
+| `STATICS_POSITION_MANAGER_ADDRESS` | Existing v4 PositionManager used by the Phase 2 liquidity manager |
+| `STATICS_PERMIT2_ADDRESS` | Existing Permit2 used by the Phase 2 liquidity manager |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
 | `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
 | `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deferred v4 liquidity manager used only after its selectors are added in Phase 2 |
 | `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash required by the later Phase 2 manager installation |
 | `STATICS_PERMANENT_LIQUIDITY_HARVESTER` | Initial address authorized to harvest native fees earned by permanent liquidity into treasury accounting |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
+| `STATICS_PHASE_TWO_TIMELOCK_SALT` | Unique salt binding the basket/credit/flash activation batch |
+| `STATICS_PHASE_THREE_TIMELOCK_SALT` | Unique salt binding the Dollar activation and core-finalization batch |
+| `STATICS_PHASE_FOUR_TIMELOCK_SALT` | Unique salt binding the Morpho selector activation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |
 | `STATICS_MORPHO_ADDRESS` | Reusable chain-local Morpho Blue deployment |

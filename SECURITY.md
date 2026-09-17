@@ -163,8 +163,11 @@ accepted initial controls. They reduce exposure but do not create a
 protocol-level endorsement of curated assets.
 
 Phase 2 adds baskets, self-secured credit, flash composition, and advanced
-liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. Every transition
-requires its own reviewed timelocked selector cut and storage initialization.
+liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
+deltas and one-time initializers exist now and derive from one canonical plan.
+CI proves staged-to-fresh selector and runtime parity for both Diamonds, and
+later-phase preparation rejects drifted earlier facet bytecode. Every live
+transition still requires its own review and timelocked execution.
 
 ## Economic and liveness assumptions
 

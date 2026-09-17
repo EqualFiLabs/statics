@@ -70,12 +70,13 @@ Statics-hooked pairs, PositionNFT accounts, and global STATICS staking on
 The full-stack fresh-deployment launcher installs 36 facets and 287 selectors
 on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
-`script/dollar/DeployStaticsProtocol.s.sol` and
+`script/libraries/StaticsProtocolPlan.sol` and
 `script/dollar/DeployCoreBootstrap.s.sol`; deployment tests enumerate every
-installed selector, verify its routed facet and that every facet has runtime
-code, and assert those fresh-launch totals. Runtime hashes are recorded in
-release and rehearsal manifests rather than asserted by the fresh-deployment
-manifest test. Later governed upgrades can change the deployed selector set;
+installed selector, verify its routed facet and runtime code, assert all four
+cumulative totals, and compare the completed staged Diamond against a fresh
+full deployment selector by selector. The same rehearsal compares all Dollar
+Core selector runtimes, while later-phase preparation rejects drifted earlier
+facet bytecode. Later governed upgrades can change the deployed selector set;
 the current deployment manifest records that live release state.
 
 ## One address without one economic book
