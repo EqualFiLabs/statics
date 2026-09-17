@@ -363,7 +363,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertGt(basketTreasuryDelta, 0);
         // The non-POL reservation now also covers the fixed 500-bps creator credit, so the fee-account
         // reserve delta equals treasury accrual plus the creator credit for this leg.
-        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(alice, basketToken);
+        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(pool.toId(), basketToken);
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), basketToken) - basketFeeReserveBefore,
             basketTreasuryDelta + basketCreatorCredit

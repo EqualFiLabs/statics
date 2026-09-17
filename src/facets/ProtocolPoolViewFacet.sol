@@ -7,25 +7,30 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibPermissionedPools} from "../libraries/LibPermissionedPools.sol";
 
 /// @notice Bounded protocol-pool resolution and configuration views.
 contract ProtocolPoolViewFacet {
     error LiquidityIntegrationNotInstalled();
+    error PublicProtocolPoolRequired(PoolId poolId);
 
     function protocolPool(PoolId poolId) external view returns (IStaticsProtocolPools.ProtocolPoolView memory pool) {
         (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset) =
             LibProtocolPools.resolve(poolId);
         bool registered = kind != IStaticsProtocolPools.ProtocolPoolKind.None;
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(_liquidityStorage().hook);
+        bool permissioned = kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral;
         pool = IStaticsProtocolPools.ProtocolPoolView({
             poolId: poolId,
             key: key,
             kind: kind,
-            decommissioned: registered && hook.poolDecommissioned(poolId),
+            decommissioned: permissioned
+                ? LibPermissionedPools.resolve(poolId).decommissioned
+                : registered && hook.poolDecommissioned(poolId),
             basketId: basketId,
             basketAsset: basketAsset,
             creator: LibProtocolPools.creatorOf(poolId),
-            permanentLiquidity: registered ? hook.lockedLiquidity(poolId) : 0
+            permanentLiquidity: registered && !permissioned ? hook.lockedLiquidity(poolId) : 0
         });
     }
 
@@ -72,7 +77,10 @@ contract ProtocolPoolViewFacet {
         view
         returns (IStaticsProtocolPools.PoolFeeRateView memory feeRate)
     {
-        LibProtocolPools.enforceRegistered(poolId);
+        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = LibProtocolPools.enforceRegistered(poolId);
+        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
+            revert PublicProtocolPoolRequired(poolId);
+        }
         IStaticsSwapFeeHook.PoolFeeRate memory stored =
             IStaticsSwapFeeHook(_liquidityStorage().hook).poolFeeRate(poolId);
         feeRate = IStaticsProtocolPools.PoolFeeRateView({

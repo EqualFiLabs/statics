@@ -11,9 +11,9 @@ import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {GeneralPoolLifecycleTestBase} from "../helpers/GeneralPoolLifecycleTestBase.sol";
 
-/// @notice Proves multi-asset creator-credit aggregation and cross-pool global Statics-staker reward
-/// aggregation for a single creator operating several general markets. Fee routing is driven through
-/// the installed hook context so exact per-asset accounting can be asserted directly.
+/// @notice Proves PoolId-local creator credits, aggregate creator liabilities, and cross-pool global
+/// Statics-staker reward aggregation. Fee routing is driven through the installed hook context so
+/// exact per-pool and per-asset accounting can be asserted directly.
 contract GeneralPoolAggregationTest is GeneralPoolLifecycleTestBase {
     IStaticsProtocolRevenue private revenue;
     IStaticsGlobalRewards private staticsStakers;
@@ -26,7 +26,7 @@ contract GeneralPoolAggregationTest is GeneralPoolLifecycleTestBase {
         staticsStakers = IStaticsGlobalRewards(address(diamond));
     }
 
-    function testCreatorCreditAggregatesAcrossPoolsPerAssetAndReconciles() public {
+    function testCreatorCreditRemainsPoolLocalAndAggregateReconciles() public {
         // A shared asset (USDC-like) participates in three markets created by the same creator.
         address shared = _newToken("Shared");
         address tokenX = _newToken("TokenX");
@@ -42,19 +42,21 @@ contract GeneralPoolAggregationTest is GeneralPoolLifecycleTestBase {
         // Route creator credit in tokenX from the XY pool.
         _routeCreator(poolXY, tokenX, 300);
 
-        // Per-asset creator credit sums across pools; identity is one immutable creator.
-        assertEq(revenue.creatorRevenue(creator, shared), 1_200);
-        assertEq(revenue.creatorRevenue(creator, tokenX), 300);
+        // Credits remain isolated by PoolId even when the creator and revenue asset are shared.
+        assertEq(revenue.creatorRevenue(poolXShared, shared), 500);
+        assertEq(revenue.creatorRevenue(poolYShared, shared), 700);
+        assertEq(revenue.creatorRevenue(poolXY, tokenX), 300);
 
         // Aggregate liability reconciles with the outstanding per-asset credit.
         assertEq(revenue.totalCreatorRevenue(shared), 1_200);
         assertEq(revenue.totalCreatorRevenue(tokenX), 300);
 
-        // A claim of one asset decrements only that asset's aggregate.
+        // A claim from one pool does not clear the same creator's credit in another pool.
         vm.prank(creator);
-        revenue.claimCreatorRevenue(shared, creator, 0);
-        assertEq(revenue.creatorRevenue(creator, shared), 0);
-        assertEq(revenue.totalCreatorRevenue(shared), 0);
+        revenue.claimCreatorRevenue(poolXShared, shared, creator, 0);
+        assertEq(revenue.creatorRevenue(poolXShared, shared), 0);
+        assertEq(revenue.creatorRevenue(poolYShared, shared), 700);
+        assertEq(revenue.totalCreatorRevenue(shared), 700);
         assertEq(revenue.totalCreatorRevenue(tokenX), 300);
     }
 
@@ -69,9 +71,9 @@ contract GeneralPoolAggregationTest is GeneralPoolLifecycleTestBase {
         _routeCreator(poolA, shared, 400);
         _routeCreator(poolB, shared, 600);
 
-        // Per-creator credit is isolated; aggregate is their sum for the shared asset.
-        assertEq(revenue.creatorRevenue(creator, shared), 400);
-        assertEq(revenue.creatorRevenue(second, shared), 600);
+        // Per-pool credit is isolated; aggregate is their sum for the shared asset.
+        assertEq(revenue.creatorRevenue(poolA, shared), 400);
+        assertEq(revenue.creatorRevenue(poolB, shared), 600);
         assertEq(revenue.totalCreatorRevenue(shared), 1_000);
     }
 

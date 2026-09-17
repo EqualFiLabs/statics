@@ -30,6 +30,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     error InvalidPermanentLiquidityHarvester(address harvester);
     error OnlyPermanentLiquidityHarvester(address caller, address expected);
     error ActionPaused(uint256 action);
+    error PublicProtocolPoolRequired(PoolId poolId);
 
     function setPoolCreationFee(uint256 amount) external {
         LibDiamond.enforceIsContractOwner();
@@ -45,14 +46,14 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
 
     function setProtocolPoolFeeRate(PoolId poolId, IStaticsProtocolPools.PoolSwapFeeRate calldata feeRate) external {
         LibDiamond.enforceIsContractOwner();
-        LibProtocolPools.enforceRegistered(poolId);
+        _enforcePublicProtocolPool(poolId);
         IStaticsSwapFeeHook(_liquidityStorage().hook).setPoolFeeRate(poolId, feeRate.inputFeeBps, feeRate.outputFeeBps);
         emit IStaticsProtocolPools.ProtocolPoolFeeRateSet(poolId, feeRate.inputFeeBps, feeRate.outputFeeBps);
     }
 
     function clearProtocolPoolFeeRate(PoolId poolId) external {
         LibDiamond.enforceIsContractOwner();
-        LibProtocolPools.enforceRegistered(poolId);
+        _enforcePublicProtocolPool(poolId);
         IStaticsSwapFeeHook(_liquidityStorage().hook).clearPoolFeeRate(poolId);
         emit IStaticsProtocolPools.ProtocolPoolFeeRateCleared(poolId);
     }
@@ -62,11 +63,11 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         IStaticsSwapFeeHook(_liquidityStorage().hook)
             .setBasketFeeAllocation(
                 IStaticsSwapFeeHook.BasketFeeAllocation({
-                polShareBps: allocation.polShareBps,
-                basketStakerShareBps: allocation.basketStakerShareBps,
-                staticsStakerShareBps: allocation.staticsStakerShareBps,
-                treasuryShareBps: allocation.treasuryShareBps
-            })
+                    polShareBps: allocation.polShareBps,
+                    basketStakerShareBps: allocation.basketStakerShareBps,
+                    staticsStakerShareBps: allocation.staticsStakerShareBps,
+                    treasuryShareBps: allocation.treasuryShareBps
+                })
             );
         emit IStaticsProtocolPools.BasketFeeAllocationSet(
             allocation.polShareBps,
@@ -81,10 +82,10 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         IStaticsSwapFeeHook(_liquidityStorage().hook)
             .setGeneralFeeAllocation(
                 IStaticsSwapFeeHook.GeneralFeeAllocation({
-                polShareBps: allocation.polShareBps,
-                staticsStakerShareBps: allocation.staticsStakerShareBps,
-                treasuryShareBps: allocation.treasuryShareBps
-            })
+                    polShareBps: allocation.polShareBps,
+                    staticsStakerShareBps: allocation.staticsStakerShareBps,
+                    treasuryShareBps: allocation.treasuryShareBps
+                })
             );
         emit IStaticsProtocolPools.GeneralFeeAllocationSet(
             allocation.polShareBps, allocation.staticsStakerShareBps, allocation.treasuryShareBps
@@ -137,7 +138,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_TREASURY != 0) {
             revert ActionPaused(LibGovernance.PAUSE_TREASURY);
         }
-        (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(poolId);
+        (, PoolKey memory key,,) = _enforcePublicProtocolPool(poolId);
         address currency0 = Currency.unwrap(key.currency0);
         address currency1 = Currency.unwrap(key.currency1);
         uint256 before0 = IERC20(currency0).balanceOf(address(this));
@@ -217,5 +218,16 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {
         ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
+    }
+
+    function _enforcePublicProtocolPool(PoolId poolId)
+        private
+        view
+        returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
+    {
+        (kind, key, basketId, basketAsset) = LibProtocolPools.enforceRegistered(poolId);
+        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
+            revert PublicProtocolPoolRequired(poolId);
+        }
     }
 }

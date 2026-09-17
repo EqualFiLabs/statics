@@ -23,6 +23,11 @@ library LibBasketLiquidity {
         bool integrationInstalled;
         address manager;
         bool managerInstalled;
+        address permissionedHook;
+        address permissionedRouter;
+        address permissionedPositionManager;
+        address permissionedQuoter;
+        bool permissionedIntegrationInstalled;
         mapping(uint256 basketId => mapping(address asset => CanonicalPool pool)) canonicalPools;
         mapping(PoolId poolId => PoolAssociation association) poolAssociations;
     }

@@ -16,6 +16,7 @@ import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModu
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
+import {IStaticsPermissionedSwapFeeHook} from "../interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketLiquidityMath} from "../libraries/LibBasketLiquidityMath.sol";
@@ -33,6 +34,7 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
     error LiquidityIntegrationAlreadyInstalled();
     error LiquidityIntegrationNotInstalled();
     error LiquidityManagerAlreadyInstalled();
+    error PermissionedLiquidityIntegrationAlreadyInstalled();
     error LiquidityManagerNotInstalled();
     error InvalidIntegrationContract(address target);
     error InvalidIntegrationBinding(address target, address expected, address actual);
@@ -51,6 +53,9 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
 
     event LiquidityIntegrationInstalled(address indexed poolManager, address indexed hook);
     event LiquidityManagerInstalled(address indexed manager);
+    event PermissionedLiquidityIntegrationInstalled(
+        address indexed hook, address indexed router, address indexed positionManager, address quoter
+    );
     event CanonicalPoolInitialized(
         uint256 indexed basketId,
         address indexed asset,
@@ -86,6 +91,32 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         ls.manager = manager;
         ls.managerInstalled = true;
         emit LiquidityManagerInstalled(manager);
+    }
+
+    function installPermissionedPoolIntegration(address hook, address router, address positionManager, address quoter)
+        external
+    {
+        LibDiamond.enforceIsContractOwner();
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
+        if (ls.permissionedIntegrationInstalled) revert PermissionedLiquidityIntegrationAlreadyInstalled();
+        _enforceContract(hook);
+        _enforceContract(router);
+        _enforceContract(positionManager);
+        _enforceContract(quoter);
+        _enforceBinding(hook, address(this), IStaticsPermissionedSwapFeeHook(hook).staticsDiamond());
+        _enforceBinding(hook, ls.poolManager, address(StaticsSwapFeeHookLike(hook).poolManager()));
+        _enforceBinding(router, ls.poolManager, address(StaticsSwapFeeHookLike(router).poolManager()));
+        _enforceBinding(router, hook, PermissionedPeripheryLike(router).permissionedHook());
+        _enforceBinding(positionManager, ls.poolManager, address(StaticsSwapFeeHookLike(positionManager).poolManager()));
+        _enforceBinding(positionManager, hook, PermissionedPeripheryLike(positionManager).permissionedHook());
+        _enforceBinding(quoter, ls.poolManager, address(StaticsSwapFeeHookLike(quoter).poolManager()));
+        ls.permissionedHook = hook;
+        ls.permissionedRouter = router;
+        ls.permissionedPositionManager = positionManager;
+        ls.permissionedQuoter = quoter;
+        ls.permissionedIntegrationInstalled = true;
+        emit PermissionedLiquidityIntegrationInstalled(hook, router, positionManager, quoter);
     }
 
     function launchBasketPools(
@@ -240,6 +271,21 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
         return (ls.manager, ls.managerInstalled);
     }
 
+    function permissionedLiquidityIntegration()
+        external
+        view
+        returns (address hook, address router, address positionManager, address quoter, bool installed)
+    {
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        return (
+            ls.permissionedHook,
+            ls.permissionedRouter,
+            ls.permissionedPositionManager,
+            ls.permissionedQuoter,
+            ls.permissionedIntegrationInstalled
+        );
+    }
+
     function canonicalPool(uint256 basketId, address asset)
         external
         view
@@ -361,4 +407,8 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
 
 interface StaticsSwapFeeHookLike {
     function poolManager() external view returns (IPoolManager);
+}
+
+interface PermissionedPeripheryLike {
+    function permissionedHook() external view returns (address);
 }

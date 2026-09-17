@@ -22,6 +22,7 @@ import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
+import {IStaticsPermissionedPools} from "../interfaces/IStaticsPermissionedPools.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
@@ -383,7 +384,7 @@ library StaticsSelectors {
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
@@ -392,12 +393,16 @@ library StaticsSelectors {
         selectors[5] = IStaticsBasketLiquidity.liquidityManager.selector;
         selectors[6] = IStaticsBasketLiquidity.canonicalPool.selector;
         selectors[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
     }
 
     function phaseOneLiquidityIntegration() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[2] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[3] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
     }
 
     function phaseTwoBasketLiquidity() internal pure returns (bytes4[] memory selectors) {
@@ -420,6 +425,29 @@ library StaticsSelectors {
         selectors[0] = IStaticsProtocolPools.quotePool.selector;
         selectors[1] = IStaticsProtocolPools.createPool.selector;
         selectors[2] = IStaticsProtocolPools.invalidatePoolCreationNonce.selector;
+    }
+
+    function permissionedPoolCreation() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsPermissionedPools.quotePermissionedPool.selector;
+        selectors[1] = IStaticsPermissionedPools.createPermissionedPool.selector;
+        selectors[2] = IStaticsPermissionedPools.invalidatePermissionedAuthorizationNonce.selector;
+    }
+
+    function permissionedPoolAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsPermissionedPools.applyPermissionedPoolTerms.selector;
+        selectors[1] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
+        selectors[2] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
+        selectors[3] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
+        selectors[4] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+    }
+
+    function permissionedPoolView() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsPermissionedPools.permissionedPool.selector;
+        selectors[1] = IStaticsPermissionedPools.isPermissionedPool.selector;
+        selectors[2] = IStaticsPermissionedPools.isPermissionedAuthorizationNonceUsed.selector;
     }
 
     function protocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
