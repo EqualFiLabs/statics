@@ -179,7 +179,7 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **25 facets / 204 selectors** on the staged Phase 1 `StaticsDiamond`;
+- **14 facets / 106 selectors** on the staged Phase 1 `StaticsDiamond`;
 - **36 facets / 287 selectors** on the full-stack `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
@@ -1137,8 +1137,15 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
-Phase 1 uses one `StaticsTimelock` to own `StaticsDiamond`; the later full stack
-uses the same timelock ownership model for both Diamonds. Its constructor
+Phase 1 uses one `StaticsTimelock` to own `StaticsDiamond`; later phases retain
+that Diamond and add selectors through reviewed timelocked cuts. The fresh full
+stack reference uses the same timelock ownership model for both Diamonds. The
+four production phases are: arbitrary Statics-hooked pairs plus global STATICS
+staking; baskets plus self-secured credit and related composition; Statics
+Dollar; then Morpho. The already deployed standalone Genesis launch is outside
+this selector sequence and is not modified by a phased-launch ceremony.
+
+The timelock constructor
 selects two minutes for Robinhood testnet and local development, while Robinhood
 mainnet and other chains default to 24 hours. The configured multisig is
 proposer and canceller, execution is open after delay, and the emergency

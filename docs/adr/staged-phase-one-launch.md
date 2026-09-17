@@ -1,104 +1,120 @@
-# ADR: Staged Statics protocol launch
+# ADR: Staged Statics selector deployment
 
 - Status: Accepted
 - Date: 2026-09-16
-- Scope: production Diamond composition, emergency authority, Genesis ownership, and release sequencing
+- Scope: production Diamond composition, audit boundaries, and release sequencing
 
 ## Decision
 
-Statics will launch the multi-asset protocol in two independently reviewed phases. The standalone
-Genesis launch is already deployed; the Statics Diamond is not. Phase 1 therefore uses a fresh,
-minimal Diamond composition instead of preserving selectors for features that have never been
-deployed.
+Statics will deploy one `StaticsDiamond` incrementally. Each launch phase is defined by the selectors
+actually installed in that Diamond, not by a separate protocol deployment or a compatibility shim.
+Later phases retain the same Diamond address and use timelocked `diamondCut(Add)` operations with
+phase-specific initialization.
 
-Phase 1 includes:
+The standalone Genesis launch is already deployed and is outside this sequence. No phased-launch
+script redeploys, reconfigures, or transfers ownership of any Genesis contract. A later Diamond-side
+Genesis integration must bind to the deployed contracts as they exist and receive its own review.
 
-- basket creation, minting, redemption, lifecycle, rewards, and canonical liquidity;
-- global STATICS staking and selected-asset rewards;
-- PositionNFT accounts and self-secured basket credit;
-- basket-vector and single-asset flash loans plus the flash-arbitrage receiver surface;
-- general Statics-hook pools, protocol fee routing, and permanent liquidity;
-- Genesis Operator linking, rewards, recovery, and the existing standalone Genesis contracts; and
-- custody, governance, loupe, ownership, and Diamond upgrade infrastructure required by those flows.
+### Phase 1: arbitrary hooked pairs and STATICS staking
 
-Phase 2 adds the separate Statics Dollar Core, USDstx and Risk Shares, the Dollar gateway and risk
-liquidity flows, Morpho integration, and advanced borrow-to-liquidity flows. The existing
-`DeployStatics.s.sol` remains the canonical fresh-deployment reference for the full composition.
-Extending a live Phase 1 Diamond will require a separately reviewed timelocked facet-addition and
-initialization ceremony; that future Phase 2 operation is not part of this launch.
+Phase 1 installs 14 facets and 106 selectors for:
 
-`DeployStaticsPhaseOne.s.sol` installs 25 facets and 204 selectors. It does not install or advertise
-the BorrowLiquidity, Dollar, Morpho, ERC-1155 receiver, or series-migration interfaces. A PositionNFT
-without a Morpho account can close without the Morpho view facet, so the excluded integration does
-not become an accidental Phase 1 dependency.
+- the Diamond cut, loupe, ownership, and timelocked governance kernel;
+- general Uniswap v4 pools between arbitrary compatible ERC-20s using the reusable
+  `StaticsSwapFeeHook`;
+- governed bilateral hook fees, creator revenue, treasury accounting, global STATICS-staker
+  rewards, automatic matched POL formation, and explicit native-POL fee harvesting;
+- PositionNFT creation, ownership, transfer, closure, and the global STATICS staking and reward
+  opt-in lifecycle;
+- the custody views and treasury configuration needed by those installed paths; and
+- global and PoolId-local swap stops plus staking and liquidity ingress pauses.
 
-## Curated launch without economic caps
+It deliberately omits every basket, self-secured-credit, flash-loan, Genesis-integration, Dollar,
+Morpho, basket-liquidity-manager, and borrow-to-liquidity selector. It also does not advertise a
+protocol interface unless that interface's complete selector set is installed.
 
-Both basket creation and general-pool creation initialize with an exact native creation fee of zero.
-Under the existing Statics semantics, zero does not mean free permissionless creation: it restricts
-creation to the Diamond owner. Governance can curate the initial asset and pool surface through the
-timelock.
+The launcher uses the dedicated `StaticsPhaseOneInit` constructor-time initializer so basket,
+flash-loan, Dollar, and Morpho storage is not initialized merely because later source exists in the
+repository. Future phase initializers must use a new one-time initialization version or an
+equivalent namespaced guard; they cannot replay Phase 1 initialization. The launcher also deploys
+the final reusable swap hook and its permanent-liquidity math contract against the chain's existing
+v4 `PoolManager`. Phase 1 does not deploy or install
+`StaticsLiquidityManager`; ordinary LPs can use the existing Uniswap v4 periphery. The separate
+`ConfigureStaticsPhaseOneLiquidity` ceremony schedules exactly two calls through the owner
+timelock: bind the PoolManager/hook pair and set the native-POL fee harvester. Before producing or
+executing that batch, the ceremony requires the exact 14-facet/106-selector Phase 1 manifest.
 
-The deployment does not add TVL, per-basket issuance, position-notional, flash-loan-notional,
-borrow-notional, or pool-count caps. Those limits would constrain legitimate protocol revenue and
-composability while providing only a partial substitute for review. The accepted mitigation is
-curated creation, delayed upgrades and configuration, emergency stop authority, public monitoring,
-and explicit asset-risk disclosure.
+The general-pool creation fee initializes to zero. Under existing protocol semantics, zero keeps
+creation owner-only; it does not enable free public creation. Governance can curate the initial pool
+set and later open permissionless creation by setting a nonzero exact fee.
+
+### Phase 2: baskets and self-secured credit
+
+Phase 2 will add the reviewed selector and initializer delta for static baskets, basket mint and
+redemption, basket rewards and collateral, self-secured credit, basket canonical liquidity,
+flash-loan and flash-arbitrage composition, and advanced borrow-to-liquidity flows. Diamond-side
+Genesis Operator linkage, rewards, and recovery may be added here only against the already deployed
+Genesis contracts; the standalone Genesis system itself remains unchanged.
+
+The Phase 2 cut and initializer are intentionally not bundled into the Phase 1 release. They require
+a separate audit of the added facets, shared-library interactions, storage initialization, and
+Phase-1-to-Phase-2 transition.
+
+### Phase 3: Statics Dollar
+
+Phase 3 will deploy the separate Statics Dollar Core and its token contracts, then add the Dollar
+gateway, Risk Share liquidity, fee routing, and series-migration selectors to `StaticsDiamond`.
+The Core remains its own custody and solvency boundary while using the existing PositionNFT address.
+
+### Phase 4: Morpho
+
+Phase 4 will add the Morpho administration, action, settlement, recovery, and view selectors after
+the Dollar and oracle dependencies are production-qualified. It requires a separate external-market,
+oracle, liquidation, and account-recovery review.
+
+## Selector and initialization rules
+
+Every phase transition must:
+
+1. begin from the exact deployed loupe manifest and runtime hashes;
+2. add or replace only the selectors approved for that phase;
+3. execute a phase-specific, one-time initializer atomically with the cut when new storage requires
+   initialization;
+4. advertise ERC-165 protocol interfaces only after their complete selector surface exists;
+5. prove that all callback dependencies of the newly reachable paths are already installed; and
+6. record the resulting selector-to-facet map and runtime hashes in the deployment manifest.
+
+The full-stack `DeployStatics.s.sol` launcher remains a fresh-deployment reference and regression
+target. It is not the upgrade procedure for a live phased Diamond.
+
+## Audit boundary
+
+Phase 1's deployed audit surface is the 106 reachable selectors, their facet code paths and shared
+libraries, the Diamond kernel and initialization, `StaticsTimelock`, `StaticsSwapFeeHook`,
+`StaticsPermanentLiquidityMath`, and the Phase 1 deployment/configuration ceremonies. Uninstalled
+facet selectors cannot be dispatched through the Diamond and are not presented as live Phase 1
+features.
+
+That is a real audit reduction, but not a claim that file count alone defines risk. Review still has
+to cover shared storage layouts, external v4 assumptions, upgrade authority, and any internal
+library code reachable from an installed selector. Each later audit covers both its new delta and
+the interactions it creates with the cumulative installed surface.
+
+The launch does not add TVL, per-pool volume, position-notional, or pool-count caps. Those limits
+would materially restrict permissionless composability and revenue while providing only a partial
+substitute for review. The accepted controls are owner-curated initial creation, timelocked changes,
+guardian stops, explicit runtime manifests, public monitoring, and phase-specific audits.
 
 ## Authority and emergency controls
 
-The Phase 1 `StaticsTimelock` starts with its chain-specific delay, the governance Safe as proposer,
-open execution after the delay, and the guardian as an explicit canceller. Open execution does not
-bypass the delay or proposer authorization.
+`StaticsTimelock` owns the Diamond. The governance Safe is the proposer, execution is open only after
+the delay, and the guardian is an additional canceller. The guardian can reduce exposure by pausing
+new staking or liquidity actions and by stopping all protocol-pool swaps or quarantining one
+registered PoolId. Only the timelock can restore those paths, change configuration, or cut facets.
 
-The guardian may only reduce exposure. It can:
+Unstaking, reward claims, reward opt-out, and Position closure remain available during a staking
+ingress pause. The governance Safe and guardian may be the same address, but separate authorities
+provide stronger veto independence.
 
-- pause new mint, borrow, extension, flash, liquidity, treasury-distribution, and staking ingress;
-- quarantine an active basket;
-- stop all Statics-hook swaps or isolate one registered protocol pool; and
-- cancel a pending timelock operation.
-
-Only the timelock owner can restore paused actions, release basket or pool quarantine, decommission a
-basket, change configuration, or upgrade the Diamond. Redemption, collateral withdrawal, unstaking,
-Genesis unlinking, repayment, and recovery remain available while staking ingress is paused.
-
-The governance Safe and guardian may be the same address. This is operationally simpler but removes
-independent veto separation: compromise or unavailability affects both proposal and emergency roles.
-Using distinct authorities remains preferable when the operational setup can support it.
-
-## Genesis ownership migration
-
-The five mutable Genesis contracts are currently owned by the launch governance Safe through
-OpenZeppelin `Ownable2Step`:
-
-- `StaticsFeeReceiver`;
-- `GenesisActivationRegistry`;
-- `StaticsGenesisVault`;
-- `StaticsGenesis` (Operators NFT); and
-- `GenesisLaunchDistributor`.
-
-`ConfigureStaticsGenesisGovernance.s.sol` builds a read-only six-call Safe proposal. The first five
-calls nominate the Phase 1 timelock as pending owner; the sixth schedules one timelocked batch in
-which the timelock accepts all five ownership transfers. The tool requires exact runtime hashes,
-current Safe ownership, empty pending-owner slots, the expected proposer role, a nonzero delay, open
-execution, and unique targets. Acceptance is atomic after the delay.
-
-`StaticsTreasuryVesting.recipientAdmin` is immutable and remains the launch governance Safe. This is
-an intentional exception: the deployed contract has no ownership transfer or admin-rotation path,
-and changing it would require replacing an already-live immutable custody commitment.
-
-## Verification boundary
-
-Focused Foundry tests prove the exact Phase 1 selector and interface manifest, configuration values,
-timelock roles, excluded Phase 2 routes, Position closure without Morpho, liquidity dependency
-bindings, emergency stop/restore authority, and the atomic Genesis migration ceremony.
-
-The `phase-one` Halmos target separately checks stop authority, restoration asymmetry, pool isolation,
-stake-versus-redeem pause separation, flash reservation capacity, exact flash repayment, and
-underpayment rejection. Slither already classifies every owned production Solidity source under
-`src/` and every production ceremony under `script/`; both new scripts are therefore in the mandatory
-scope without adding an exclusion.
-
-These controls reduce incident blast radius but do not replace an external audit. Phase 2 requires a
-separate release decision and review of its larger oracle, solvency, liquidation, and external-market
-surface.
+These controls reduce incident blast radius; they do not replace an external audit. No transaction
+or production deployment is authorized by this ADR or its implementation.

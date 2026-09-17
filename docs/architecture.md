@@ -64,9 +64,11 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The staged Phase 1 launcher installs 25 facets and 204 selectors on
-`StaticsDiamond`. The full-stack fresh-deployment launcher installs 36 facets
-and 287 selectors on `StaticsDiamond`, and 11 facets and 95 selectors on
+The staged Phase 1 launcher installs 14 facets and 106 selectors for arbitrary
+Statics-hooked pairs, PositionNFT accounts, and global STATICS staking on
+`StaticsDiamond`. It deploys the reusable hook but no basket liquidity manager.
+The full-stack fresh-deployment launcher installs 36 facets and 287 selectors
+on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/dollar/DeployStaticsProtocol.s.sol` and
 `script/dollar/DeployCoreBootstrap.s.sol`; deployment tests enumerate every
@@ -307,8 +309,9 @@ maintain a second upgrade policy beside ownership.
 ## Governance boundary
 
 The Phase 1 launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
-of `StaticsDiamond`; the later full-stack launcher applies the same ownership
-model to both Diamonds. Core administration derives from the Core Diamond owner
+of `StaticsDiamond`. Later phases add selectors to that same address; the
+full-stack fresh-deployment reference applies the same ownership model to both
+Diamonds. Core administration derives from the Core Diamond owner
 and does not maintain a second protocol-governor role, internal proposal queue,
 or irreversible configuration locks. The timelock constructor selects two
 minutes for Robinhood testnet and local development, while Robinhood mainnet
@@ -318,10 +321,11 @@ multisig proposes and may cancel scheduled operations, while execution is open
 after the current delay. The emergency guardian is an additional canceller but
 does not gain proposal authority.
 
-The basket guardian can immediately pause exposure-increasing actions,
-quarantine baskets, and stop all or individual registered protocol-pool swaps.
-Only timelocked governance can unpause, restore swaps, release quarantine, or
-mark a basket `ExitOnly`. The Dollar guardian can pause profile operations,
+The Phase 1 guardian can immediately pause new global staking and liquidity
+actions and stop all or individual registered protocol-pool swaps. Basket
+pause, quarantine, and decommission selectors are not installed until the
+basket phase. Only timelocked governance can unpause or restore Phase 1 paths.
+The Dollar guardian can pause profile operations,
 reduce a debt ceiling, or enter reduce-only mode, but cannot block proportional
 holder exits, create profiles, restore operations, increase risk, or change an
 oracle. A Dollar profile can be permanently retired only from reduce-only mode;

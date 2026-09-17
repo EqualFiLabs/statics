@@ -1,8 +1,8 @@
 # Statics security model
 
 Statics holds user assets. The standalone Genesis release is deployed on
-Robinhood Chain with source-verified contracts; the Phase 1 multi-asset Diamond
-and later Statics Dollar stack remain subject to independent review before
+Robinhood Chain with source-verified contracts; the Phase 1 DEX-and-staking
+Diamond and later selector phases remain subject to independent review before
 production use. The repository test suite is not an external audit. The
 repository also records a public Robinhood Chain testnet integration beta.
 
@@ -88,21 +88,22 @@ profile 1) during runoff.
 
 ## Authority
 
-- Phase 1 deploys one `StaticsTimelock` as owner of `StaticsDiamond`. The later
-  full-stack composition uses the same ownership model for both
-  `StaticsDiamond` and `StaticsDollarCoreDiamond`. The delay initializes to 24
-  hours on production chains and can change only through a scheduled timelock
-  call to the timelock itself.
+- Phase 1 deploys one `StaticsTimelock` as owner of `StaticsDiamond`. Later
+  phases retain that Diamond and add only their reviewed selector and
+  initializer delta. The fresh full-stack reference uses the same ownership
+  model for both `StaticsDiamond` and `StaticsDollarCoreDiamond`. The delay
+  initializes to 24 hours on production chains and can change only through a
+  scheduled timelock call to the timelock itself.
 - The configured multisig is the timelock proposer and, under OpenZeppelin's
   proposer-role initialization, a canceller. Execution is open after the
   current delay. The emergency guardian is also an explicit timelock canceller,
   allowing it to veto a pending operation without gaining proposal or execution
   authority.
-- The guardian can pause minting, borrowing, extension, flash loans, liquidity,
-  treasury distribution, and staking ingress; quarantine an active basket; and
-  stop all Statics-hook swaps or quarantine one registered protocol pool. It
-  cannot unpause actions, restore swaps, release a quarantine, decommission a
-  basket, or pause redemption.
+- In Phase 1 the guardian can pause liquidity, treasury distribution, and
+  global staking ingress and can stop all Statics-hook swaps or quarantine one
+  registered protocol pool. It cannot unpause actions, restore swaps, release a
+  pool quarantine, or change configuration. Additional pause and lifecycle
+  paths become reachable only when their later-phase selectors are installed.
 - The governance Safe and guardian may be the same address, but doing so removes
   independence between the proposal and emergency-veto roles. A compromise or
   availability failure then affects both authorities.
@@ -140,29 +141,30 @@ profile 1) during runoff.
 
 Diamond ownership uses immediate ERC-173 transfer by the current owner. A
 governance migration must execute through the timelock and verify Diamond
-owners, guardian roles, and treasury configuration after execution. The five
-mutable standalone Genesis contracts use `Ownable2Step`; their current Safe
-owner nominates the Phase 1 timelock and schedules one atomic timelocked batch
-of ownership acceptances. `StaticsTreasuryVesting.recipientAdmin` is an
-immutable launch-Safe authority and cannot migrate without replacing the
-already-deployed contract.
+owners, guardian roles, and treasury configuration after execution. The
+already deployed standalone Genesis contracts and their existing authorities
+are outside the phased Diamond launch. No Phase 1 deployment or configuration
+ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs basket, global STATICS staking, PositionNFT,
-self-secured credit, flash-loan, general-pool, canonical-liquidity, protocol
-revenue, and Genesis integration facets. It does not install or advertise the
-Dollar, Morpho, BorrowLiquidity, Dollar risk-liquidity, ERC-1155 receiver, or
-series-migration interfaces. Those features are Phase 2.
+The Phase 1 launcher installs 14 facets and 106 selectors for the Diamond
+kernel, general Statics-hook pools, protocol revenue and POL, PositionNFT, and
+global STATICS staking/reward opt-ins. It does not install or advertise basket,
+credit, flash-loan, Genesis-integration, Dollar, Morpho, liquidity-manager,
+BorrowLiquidity, ERC-1155 receiver, or series-migration interfaces.
 
-Basket and general-pool creation fees are fixed to zero at Phase 1 deployment.
-Under the protocol's existing creation semantics, zero retains owner-only
-curation; it does not open free permissionless creation. The launch does not
-add TVL, per-basket issuance, position-notional, flash-loan-notional,
-borrow-notional, or pool-count caps. Curated creation, timelocked
+The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
+protocol's existing creation semantics, zero retains owner-only curation; it
+does not open free permissionless creation. The launch does not add TVL,
+position-notional, volume, or pool-count caps. Curated creation, timelocked
 administration, guardian stops, monitoring, and asset disclosure are the
 accepted initial controls. They reduce exposure but do not create a
 protocol-level endorsement of curated assets.
+
+Phase 2 adds baskets, self-secured credit, flash composition, and advanced
+liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. Every transition
+requires its own reviewed timelocked selector cut and storage initialization.
 
 ## Economic and liveness assumptions
 
@@ -171,10 +173,9 @@ BasketTokens, including collateral locked for a basket loan, enter the isolated
 basket reward denominator. Global rewards separately require staking the
 deployment-configured ERC-20 in a PositionNFT. Position owners or approved
 operators must claim rewards through transactions; nothing runs in the
-background. A guardian staking pause blocks new global stake, reward-asset
-opt-ins, basket-collateral deposits, mint-to-collateral, and Genesis links. It
-does not block unstaking, reward-asset opt-outs, basket-collateral withdrawals,
-or Genesis unlinking. Undeployed global stake has no cooldown, but stake
+background. A guardian staking pause blocks new global stake and reward-asset
+opt-ins. It does not block unstaking, reward-asset opt-outs, reward claims, or
+Position closure. Undeployed global stake has no cooldown, but stake
 supplied to Morpho must first be recalled. Initial stake, reward-asset
 selections, and top-ups mature through a per-asset hourly ring no earlier than
 24 hours after scheduling. Basket collateral uses the same delayed hourly

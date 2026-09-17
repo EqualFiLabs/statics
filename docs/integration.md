@@ -9,19 +9,19 @@ Most applications need:
 - `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
   `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
   temporary Genesis rewards;
-- `IStaticsGenesisIntegration` at `StaticsDiamond` for permanent Genesis
-  rewards, Position linkage, and recovery after the governed handoff;
-- `StaticsDiamond`, the PositionNFT, basket, global-reward, and
-  canonical-liquidity address, plus the ordinary Statics Dollar gateway only
-  after Phase 2;
-- `StaticsDollarCoreDiamond` for Phase 2 advanced Dollar state and direct
-  operations;
-- the Phase 2 `StaticsDollar` and `StaticsDollarRiskShares` tokens;
+- `IStaticsGenesisIntegration` at `StaticsDiamond` only after its later-phase
+  selectors are installed for permanent Genesis rewards, Position linkage, and
+  recovery;
+- `StaticsDiamond` as the Phase 1 PositionNFT, global-reward, general-pool, and
+  protocol-revenue address, with basket and Dollar surfaces added later;
+- `StaticsDollarCoreDiamond` for Phase 3 Dollar state and direct operations;
+- the Phase 3 `StaticsDollar` and `StaticsDollarRiskShares` tokens;
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
-- one `StaticsBasketToken` address per discovered basket;
-- the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
-  canonical Uniswap v4 pools.
+- one `StaticsBasketToken` address per discovered basket after Phase 2; and
+- the installed `StaticsSwapFeeHook` for Phase 1 general pools, plus
+  `StaticsLiquidityManager` only after the basket/advanced-liquidity selectors
+  are installed.
 
 Do not configure a separate user router, periphery, or PositionNFT address.
 
@@ -96,15 +96,18 @@ facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes
 remain authoritative.
 
-The staged Phase 1 deployment does not install the BorrowLiquidity, Dollar,
-Morpho, Risk Shares, or series-migration routes listed above. Integrators must
-feature-detect their ERC-165 interfaces and selector routes instead of assuming
-that a Phase 1 Diamond exposes future Phase 2 functionality.
+The staged Phase 1 deployment installs only arbitrary Statics-hooked pools,
+their revenue/POL paths, PositionNFT, and global STATICS staking/reward opt-ins.
+Phase 2 adds baskets, credit, flash composition, and advanced liquidity; Phase
+3 adds Dollar; Phase 4 adds Morpho. Integrators must feature-detect complete
+ERC-165 interfaces and individual selector routes instead of assuming that a
+live Diamond exposes a later phase.
 
 `IStaticsSwapFeeHook` exposes hook fee configuration, pending
-permanent-liquidity inventory, and locked liquidity. The installed manager is
-used for typed user PositionManager NFT creation; canonical permanent liquidity
-is hook-owned and has no protocol PositionManager token ID.
+permanent-liquidity inventory, and locked liquidity. Phase 1 relies on ordinary
+Uniswap v4 periphery for user LP positions and does not install a Statics
+liquidity manager. Canonical permanent liquidity is hook-owned and has no
+protocol PositionManager token ID.
 
 The standalone STATICS/WETH market is the Doppler pool recorded by the launch
 manifest. Applications should use Doppler/Uniswap v4 quoting and routing for

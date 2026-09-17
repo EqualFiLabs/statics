@@ -1,10 +1,10 @@
 # Statics Genesis and Phase 1 verification
 
-This directory records machine-checked properties for the standalone STATICS
-Genesis launch, the staged Phase 1 Diamond, and their permanent integration. It
-distinguishes protocol mechanics from dependency and market assumptions. None
-of these proofs attests an ETH/USD price, future valuation, trading volume,
-arbitrage behavior, or future reserve value.
+This directory records machine-checked properties for the already deployed
+standalone STATICS Genesis launch and the separate staged Phase 1 DEX and
+staking Diamond. It distinguishes protocol mechanics from dependency and
+market assumptions. None of these proofs attests an ETH/USD price, future
+valuation, trading volume, arbitrage behavior, or future reserve value.
 
 ## Reproducing the mandatory proofs
 
@@ -73,10 +73,7 @@ PositionManager lifecycle.
 | In the fixed bilateral General-pool scenario, a modeled debit above pending POL reverts atomically without leaving claims, distributions, pending POL, burned totals, or locked liquidity | `StaticsSwapFeeHook` | Halmos against production hook plus minimal PoolManager model | CI gate |
 | Only the configured guardian or Diamond owner can stop all protocol-pool swaps, while only the owner can restore them | `GovernanceFacet` | Halmos against production facet and storage libraries plus Foundry | CI gate |
 | Pool quarantine remains PoolId-local unless the global swap stop is active, and restoring the global stop does not silently release a local quarantine | `GovernanceFacet` | Halmos against production facet and registry library plus Foundry | CI gate |
-| Guardian staking pause cannot set the redemption pause bit; real exit flows remain executable in the focused facet suites | `GovernanceFacet`, staking ingress facets | Halmos authority proof plus real-flow Foundry | CI gate |
-| Flash principal temporarily outside custody cannot become callback reservation capacity | `LibCustody`, `FlashLoanFacet` | Halmos against production custody library plus real flash-flow Foundry | CI gate |
-| Exact flash repayment restores raw backing, preserves pre-flash unreserved liquidity, and reserves only the fee | `LibCustody`, `FlashLoanFacet` | Halmos against production custody library and final-solvency transition plus real flash-flow Foundry | CI gate |
-| Any one-unit-or-greater flash underpayment fails the final solvency requirement before fee reservation | `LibCustody`, `FlashLoanFacet` | Halmos bounded transition plus real flash-flow Foundry | CI gate |
+| Guardian staking pause cannot set the redemption pause bit or another owner-only action; real Phase 1 unstake and Position-close flows remain executable | `GovernanceFacet`, `GlobalRewardsFacet` | Halmos authority proof plus real-flow Foundry | CI gate |
 
 The permanent-liquidity Halmos target proves the hook's bounded symbolic
 accounting against a minimal PoolManager model. It does not prove real
@@ -86,16 +83,11 @@ boundaries. Its branch-feasibility pruning queries are capped at 100 ms; Halmos
 conservatively explores both directions when such a query times out, while the
 assertion solver remains unbounded.
 
-The Phase 1 flash harness executes the production `LibCustody` reserve,
-flash-debit, transient-deficit, backing-clear, and fee-reservation paths against
-an exact-transfer ERC-20. Its small `finishFlash` wrapper reproduces
-`FlashLoanFacet`'s final `globalReserved + startingUnreserved + fee` solvency
-check; it does not symbolically execute callback dispatch, SafeERC20 behavior,
-or the facet's reentrancy guards. The adjacent real Diamond flash tests cover
-those integration boundaries. The emergency-control harness executes the
-production `GovernanceFacet`, `LibGovernance`, `LibDiamond`, and registered-pool
-resolution logic. Exit-liveness claims beyond pause-bit separation come from
-the real staking, basket-collateral, and Genesis integration tests.
+The Phase 1 emergency-control harness executes the production
+`GovernanceFacet`, `LibGovernance`, `LibDiamond`, and registered-pool resolution
+logic. Exit-liveness beyond pause-bit separation comes from the real Phase 1
+global-staking round trip. Flash-loan properties remain part of the later full
+protocol verification set; flash selectors are not deployed in Phase 1.
 
 `Mandatory` means `scripts/run-formal.sh all` must pass. The Certora specs under
 `certora/` are the selective aggregate-accounting layer and are not repository
