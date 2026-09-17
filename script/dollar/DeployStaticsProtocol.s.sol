@@ -32,11 +32,9 @@ import {StaticsProtocolInit} from "../../src/diamond/StaticsProtocolInit.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {SeriesMigrationFacet} from "../../src/dollar/periphery/facets/SeriesMigrationFacet.sol";
-import {IStaticsDollarSeriesMigration} from "../../src/dollar/interfaces/IStaticsDollarSeriesMigration.sol";
 import {StakingFacet} from "../../src/dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../../src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 import {LibPeriphery} from "../../src/dollar/periphery/libraries/LibPeriphery.sol";
-import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
@@ -44,48 +42,9 @@ import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
+import {StaticsProtocolParts, StaticsProtocolPlan} from "../libraries/StaticsProtocolPlan.sol";
 
 abstract contract DeployStaticsProtocol {
-    struct ProtocolParts {
-        address cut;
-        address loupe;
-        address ownership;
-        address governance;
-        address position;
-        address positionPortfolio;
-        address custody;
-        address basketCreation;
-        address basketMint;
-        address basketRedemption;
-        address basketView;
-        address basketCollateral;
-        address basketRewards;
-        address globalRewards;
-        address basketAdmin;
-        address basketLiquidity;
-        address basketLiquidityLifecycle;
-        address borrowLiquidity;
-        address lending;
-        address flashLoan;
-        address interfaceInit;
-        address staking;
-        address seriesMigration;
-        address fee;
-        address vault;
-        address gateway;
-        address init;
-        address protocolPoolCreation;
-        address protocolPoolAdmin;
-        address protocolPoolView;
-        address protocolRevenue;
-        address genesisNFT;
-        address morphoActions;
-        address morphoRecovery;
-        address morphoSettlement;
-        address morphoAdmin;
-        address morphoView;
-    }
-
     struct ProtocolDeploymentConfig {
         address pool;
         address weth;
@@ -113,7 +72,7 @@ abstract contract DeployStaticsProtocol {
         internal
         returns (address diamond, address positionNFT)
     {
-        ProtocolParts memory parts = _deployProtocolParts();
+        StaticsProtocolParts memory parts = _deployProtocolParts();
         IDiamondCut.FacetCut[] memory cut = _protocolCut(parts);
         LibPeriphery.InitArgs memory dollarArgs = LibPeriphery.InitArgs({
             pool: config.pool,
@@ -143,7 +102,7 @@ abstract contract DeployStaticsProtocol {
         internal
         returns (address diamond, address positionNFT)
     {
-        ProtocolParts memory parts = _deployPhaseOneProtocolParts();
+        StaticsProtocolParts memory parts = _deployPhaseOneProtocolParts();
         parts.init = address(new StaticsPhaseOneInit());
         IDiamondCut.FacetCut[] memory cut = _phaseOneProtocolCut(parts);
         StaticsDiamond deployedDiamond = new StaticsDiamond(
@@ -167,9 +126,18 @@ abstract contract DeployStaticsProtocol {
         return (address(deployedDiamond), address(deployedDiamond));
     }
 
-    function _deployProtocolParts() internal returns (ProtocolParts memory parts) {
+    function _deployProtocolParts() internal returns (StaticsProtocolParts memory parts) {
         parts = _deployPhaseOneProtocolParts();
         parts.init = address(new StaticsProtocolInit());
+        parts = _deployPhaseTwoProtocolParts(parts);
+        parts = _deployPhaseThreeProtocolParts(parts);
+        parts = _deployPhaseFourProtocolParts(parts);
+    }
+
+    function _deployPhaseTwoProtocolParts(StaticsProtocolParts memory parts)
+        internal
+        returns (StaticsProtocolParts memory)
+    {
         parts.positionPortfolio = address(new PositionPortfolioFacet());
         parts.basketCreation = address(new BasketCreationFacet());
         parts.basketMint = address(new BasketMintFacet());
@@ -182,19 +150,34 @@ abstract contract DeployStaticsProtocol {
         parts.flashLoan = address(new FlashLoanFacet());
         parts.genesisNFT = address(new GenesisNFTFacet());
         parts.borrowLiquidity = address(new BorrowLiquidityFacet());
-        parts.staking = address(new StakingFacet());
+        return parts;
+    }
+
+    function _deployPhaseThreeProtocolParts(StaticsProtocolParts memory parts)
+        internal
+        returns (StaticsProtocolParts memory)
+    {
+        parts.dollarStaking = address(new StakingFacet());
         parts.seriesMigration = address(new SeriesMigrationFacet());
-        parts.fee = address(new FeeRouterFacet());
-        parts.vault = address(new PairingVaultFacet());
-        parts.gateway = address(new StaticsDollarGatewayFacet());
+        parts.feeRouter = address(new FeeRouterFacet());
+        parts.pairingVault = address(new PairingVaultFacet());
+        parts.dollarGateway = address(new StaticsDollarGatewayFacet());
+        return parts;
+    }
+
+    function _deployPhaseFourProtocolParts(StaticsProtocolParts memory parts)
+        internal
+        returns (StaticsProtocolParts memory)
+    {
         parts.morphoActions = address(new MorphoFacet());
         parts.morphoRecovery = address(new MorphoRecoveryFacet());
         parts.morphoSettlement = address(new MorphoSettlementFacet());
         parts.morphoAdmin = address(new MorphoAdminFacet());
         parts.morphoView = address(new MorphoViewFacet());
+        return parts;
     }
 
-    function _deployPhaseOneProtocolParts() internal returns (ProtocolParts memory parts) {
+    function _deployPhaseOneProtocolParts() internal returns (StaticsProtocolParts memory parts) {
         parts.cut = address(new DiamondCutFacet());
         parts.loupe = address(new DiamondLoupeFacet());
         parts.ownership = address(new OwnershipFacet());
@@ -211,199 +194,39 @@ abstract contract DeployStaticsProtocol {
         parts.protocolRevenue = address(new ProtocolRevenueFacet());
     }
 
-    function _phaseOneProtocolCut(ProtocolParts memory parts)
+    function _phaseOneProtocolCut(StaticsProtocolParts memory parts)
         internal
         pure
         returns (IDiamondCut.FacetCut[] memory cut)
     {
-        cut = new IDiamondCut.FacetCut[](14);
-        cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
-        cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
-        cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
-        cut[3] = IDiamondCut.FacetCut(
-            parts.governance, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneGovernance()
-        );
-        cut[4] = IDiamondCut.FacetCut(parts.position, IDiamondCut.FacetCutAction.Add, StaticsSelectors.position());
-        cut[5] = IDiamondCut.FacetCut(parts.custody, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneCustody());
-        cut[6] = IDiamondCut.FacetCut(
-            parts.basketAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneTreasuryAdmin()
-        );
-        cut[7] = IDiamondCut.FacetCut(
-            parts.basketLiquidity, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneLiquidityIntegration()
-        );
-        cut[8] =
-            IDiamondCut.FacetCut(parts.globalRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.globalRewards());
-        cut[9] =
-            IDiamondCut.FacetCut(parts.interfaceInit, IDiamondCut.FacetCutAction.Add, StaticsSelectors.interfaceInit());
-        cut[10] = IDiamondCut.FacetCut(
-            parts.protocolPoolCreation, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolCreation()
-        );
-        cut[11] = IDiamondCut.FacetCut(
-            parts.protocolPoolAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneProtocolPoolAdmin()
-        );
-        cut[12] = IDiamondCut.FacetCut(
-            parts.protocolPoolView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneProtocolPoolView()
-        );
-        cut[13] = IDiamondCut.FacetCut(
-            parts.protocolRevenue, IDiamondCut.FacetCutAction.Add, StaticsSelectors.phaseOneProtocolRevenue()
-        );
+        return StaticsProtocolPlan.phaseOne(parts);
     }
 
-    function _baseProtocolCut(ProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](25);
-        cut[0] = IDiamondCut.FacetCut(parts.cut, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondCut());
-        cut[1] = IDiamondCut.FacetCut(parts.loupe, IDiamondCut.FacetCutAction.Add, StaticsSelectors.diamondLoupe());
-        cut[2] = IDiamondCut.FacetCut(parts.ownership, IDiamondCut.FacetCutAction.Add, StaticsSelectors.ownership());
-        cut[3] = IDiamondCut.FacetCut(parts.governance, IDiamondCut.FacetCutAction.Add, StaticsSelectors.governance());
-        cut[4] = IDiamondCut.FacetCut(parts.position, IDiamondCut.FacetCutAction.Add, StaticsSelectors.position());
-        cut[5] = IDiamondCut.FacetCut(parts.custody, IDiamondCut.FacetCutAction.Add, StaticsSelectors.custody());
-        cut[6] = IDiamondCut.FacetCut(
-            parts.basketCreation, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketCreation()
-        );
-        cut[7] = IDiamondCut.FacetCut(parts.basketMint, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketMint());
-        cut[8] = IDiamondCut.FacetCut(
-            parts.basketRedemption, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketRedemption()
-        );
-        cut[9] = IDiamondCut.FacetCut(parts.basketView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketView());
-        cut[10] =
-            IDiamondCut.FacetCut(parts.basketAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketAdmin());
-        cut[11] = IDiamondCut.FacetCut(parts.lending, IDiamondCut.FacetCutAction.Add, StaticsSelectors.lending());
-        cut[12] = IDiamondCut.FacetCut(parts.flashLoan, IDiamondCut.FacetCutAction.Add, StaticsSelectors.flashLoan());
-        cut[13] =
-            IDiamondCut.FacetCut(parts.interfaceInit, IDiamondCut.FacetCutAction.Add, StaticsSelectors.interfaceInit());
-        cut[14] = IDiamondCut.FacetCut(
-            parts.basketCollateral, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketCollateral()
-        );
-        cut[15] = IDiamondCut.FacetCut(
-            parts.basketLiquidity, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketLiquidity()
-        );
-        cut[16] =
-            IDiamondCut.FacetCut(parts.globalRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.globalRewards());
-        cut[17] =
-            IDiamondCut.FacetCut(parts.basketRewards, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketRewards());
-        cut[18] = IDiamondCut.FacetCut(
-            parts.positionPortfolio, IDiamondCut.FacetCutAction.Add, StaticsSelectors.positionPortfolio()
-        );
-        cut[19] = IDiamondCut.FacetCut(
-            parts.protocolPoolCreation, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolCreation()
-        );
-        cut[20] = IDiamondCut.FacetCut(
-            parts.protocolPoolAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolAdmin()
-        );
-        cut[21] = IDiamondCut.FacetCut(
-            parts.protocolPoolView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolPoolView()
-        );
-        cut[22] = IDiamondCut.FacetCut(
-            parts.protocolRevenue, IDiamondCut.FacetCutAction.Add, StaticsSelectors.protocolRevenue()
-        );
-        cut[23] = IDiamondCut.FacetCut(parts.genesisNFT, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesisNFT());
-        cut[24] = IDiamondCut.FacetCut(
-            parts.basketLiquidityLifecycle, IDiamondCut.FacetCutAction.Add, StaticsSelectors.basketLiquidityLifecycle()
-        );
+    function _phaseTwoProtocolCut(StaticsProtocolParts memory parts)
+        internal
+        pure
+        returns (IDiamondCut.FacetCut[] memory cut)
+    {
+        return StaticsProtocolPlan.phaseTwo(parts);
     }
 
-    function _protocolCut(ProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        IDiamondCut.FacetCut[] memory base = _baseProtocolCut(parts);
-        cut = new IDiamondCut.FacetCut[](36);
-        for (uint256 i; i < base.length; ++i) {
-            cut[i] = base[i];
-        }
-        cut[25] = IDiamondCut.FacetCut(parts.staking, IDiamondCut.FacetCutAction.Add, _dollarStakingSelectors());
-        cut[26] = IDiamondCut.FacetCut(parts.fee, IDiamondCut.FacetCutAction.Add, _dollarFeeSelectors());
-        cut[27] = IDiamondCut.FacetCut(parts.vault, IDiamondCut.FacetCutAction.Add, _dollarVaultSelectors());
-        cut[28] = IDiamondCut.FacetCut(parts.gateway, IDiamondCut.FacetCutAction.Add, _dollarGatewaySelectors());
-        cut[29] = IDiamondCut.FacetCut(
-            parts.borrowLiquidity, IDiamondCut.FacetCutAction.Add, StaticsSelectors.borrowLiquidity()
-        );
-        cut[30] =
-            IDiamondCut.FacetCut(parts.morphoAdmin, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoAdmin());
-        cut[31] =
-            IDiamondCut.FacetCut(parts.morphoActions, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoActions());
-        cut[32] = IDiamondCut.FacetCut(
-            parts.morphoSettlement, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoSettlement()
-        );
-        cut[33] = IDiamondCut.FacetCut(parts.morphoView, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoView());
-        cut[34] = IDiamondCut.FacetCut(
-            parts.seriesMigration, IDiamondCut.FacetCutAction.Add, _dollarSeriesMigrationSelectors()
-        );
-        cut[35] = IDiamondCut.FacetCut(
-            parts.morphoRecovery, IDiamondCut.FacetCutAction.Add, StaticsSelectors.morphoRecovery()
-        );
+    function _phaseThreeProtocolCut(StaticsProtocolParts memory parts)
+        internal
+        pure
+        returns (IDiamondCut.FacetCut[] memory cut)
+    {
+        return StaticsProtocolPlan.phaseThree(parts);
     }
 
-    function _dollarStakingSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](22);
-        s[0] = StakingFacet.createAndStakeRiskShares.selector;
-        s[1] = StakingFacet.stakeRiskShares.selector;
-        s[2] = StakingFacet.unstakeRiskShares.selector;
-        s[3] = StakingFacet.claimRiskProceeds.selector;
-        s[4] = StakingFacet.closeRiskLiquidity.selector;
-        s[5] = StakingFacet.riskLiquidity.selector;
-        s[6] = StakingFacet.totalRiskLiquidity.selector;
-        s[7] = StakingFacet.riskLiquidityScaleRay.selector;
-        s[8] = StakingFacet.positionSeriesCount.selector;
-        s[9] = StakingFacet.positionSeriesAt.selector;
-        s[10] = StakingFacet.reservedBalance.selector;
-        s[11] = StakingFacet.onERC1155Received.selector;
-        s[12] = StakingFacet.onERC1155BatchReceived.selector;
-        s[13] = StakingFacet.pool.selector;
-        s[14] = StakingFacet.staticsDollar.selector;
-        s[15] = StakingFacet.staticsDollarRisk.selector;
-        s[16] = StakingFacet.positionNFT.selector;
-        s[17] = StakingFacet.fundRiskCollateralIncentives.selector;
-        s[18] = StakingFacet.fundRiskDollarIncentives.selector;
-        s[19] = StakingFacet.fundRiskStaticsIncentives.selector;
-        s[20] = StakingFacet.riskIncentives.selector;
-        s[21] = StakingFacet.finalizeRiskIncentives.selector;
+    function _phaseFourProtocolCut(StaticsProtocolParts memory parts)
+        internal
+        pure
+        returns (IDiamondCut.FacetCut[] memory cut)
+    {
+        return StaticsProtocolPlan.phaseFour(parts);
     }
 
-    function _dollarSeriesMigrationSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](3);
-        s[0] = IStaticsDollarSeriesMigration.processSeriesTransition.selector;
-        s[1] = IStaticsDollarSeriesMigration.settleSeriesMigration.selector;
-        s[2] = IStaticsDollarSeriesMigration.seriesMigration.selector;
-    }
-
-    function _dollarFeeSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](7);
-        s[0] = FeeRouterFacet.onSeriesFee.selector;
-        s[1] = FeeRouterFacet.onPeggedProfileFee.selector;
-        s[2] = FeeRouterFacet.onRetiredSurplus.selector;
-        s[3] = FeeRouterFacet.routePendingInsurance.selector;
-        s[4] = FeeRouterFacet.setSplit.selector;
-        s[5] = FeeRouterFacet.splits.selector;
-        s[6] = FeeRouterFacet.pendingInsurance.selector;
-    }
-
-    function _dollarVaultSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](6);
-        s[0] = PairingVaultFacet.redeem.selector;
-        s[1] = PairingVaultFacet.redeemToETH.selector;
-        s[2] = PairingVaultFacet.previewRedeem.selector;
-        s[3] = PairingVaultFacet.setRedemptionParams.selector;
-        s[4] = PairingVaultFacet.redemptionParams.selector;
-        s[5] = PairingVaultFacet.redeemableLiquidity.selector;
-    }
-
-    function _dollarGatewaySelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](18);
-        s[0] = StaticsDollarGatewayFacet.depositETH.selector;
-        s[1] = StaticsDollarGatewayFacet.depositWETH.selector;
-        s[2] = StaticsDollarGatewayFacet.recombineToWETH.selector;
-        s[3] = StaticsDollarGatewayFacet.recombineToWETHWithPermit.selector;
-        s[4] = StaticsDollarGatewayFacet.recombineToETH.selector;
-        s[5] = StaticsDollarGatewayFacet.recombineToETHWithPermit.selector;
-        s[6] = StaticsDollarGatewayFacet.weth.selector;
-        s[7] = StaticsDollarGatewayFacet.wethProfileId.selector;
-        s[8] = StaticsDollarGatewayFacet.previewPeggedMint.selector;
-        s[9] = StaticsDollarGatewayFacet.mintPegged.selector;
-        s[10] = StaticsDollarGatewayFacet.mintPeggedWithPermit.selector;
-        s[11] = StaticsDollarGatewayFacet.quoteMintPeggedAndRecombine.selector;
-        s[12] = StaticsDollarGatewayFacet.mintPeggedAndRecombine.selector;
-        s[13] = StaticsDollarGatewayFacet.mintPeggedAndRecombineWithPermit.selector;
-        s[14] = StaticsDollarGatewayFacet.previewPeggedRedemption.selector;
-        s[15] = StaticsDollarGatewayFacet.redeemPegged.selector;
-        s[16] = StaticsDollarGatewayFacet.redeemPeggedWithPermit.selector;
-        s[17] = StaticsDollarGatewayFacet.peggedRedemptionStatus.selector;
+    function _protocolCut(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
+        return StaticsProtocolPlan.cumulative(parts, 4);
     }
 }
