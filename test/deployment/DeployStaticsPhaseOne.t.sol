@@ -262,6 +262,31 @@ contract DeployStaticsPhaseOneTest is Test {
         deployer.deploy(config);
     }
 
+    function testMainnetLaunchRequiresDeployedGenesisBindings() public {
+        vm.chainId(4663);
+        DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
+        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
+        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
+        string memory manifest = vm.readFile("deployments/robinhood-mainnet-genesis.json");
+        address expectedStatics = vm.parseJsonAddress(manifest, ".contracts.staticsToken.address");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployStaticsPhaseOne.InvalidGenesisBinding.selector, expectedStatics, address(statics)
+            )
+        );
+        deployer.deploy(
+            DeployStaticsPhaseOne.Config({
+                multisig: makeAddr("multisig"),
+                guardian: makeAddr("guardian"),
+                treasury: makeAddr("treasury"),
+                stakingToken: address(statics),
+                weth: address(weth),
+                positionCreationFeeAmount: 0
+            })
+        );
+    }
+
     function _deployDefault(address multisig, address guardian)
         private
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock, MockERC20 statics)

@@ -345,6 +345,7 @@ contract CoreBootstrapTest is Test {
         args = CoreInit.InitArgs({
             staticsDollar: staticsDollar,
             staticsDollarRisk: staticsDollarRisk,
+            bootstrapAuthority: address(this),
             initialOracle: oracle,
             requiredSequencerUptimeFeed: address(0),
             minimumSequencerGracePeriod: 0,

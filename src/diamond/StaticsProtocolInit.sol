@@ -1,39 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
-import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
-import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
-import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
-import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
-import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
-import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
-import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
-import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
-import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
-import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
-import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
-import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
-import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
-import {IStaticsPosition, IStaticsPositionFees} from "../interfaces/IStaticsPosition.sol";
-import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
-import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
-import {IERC5192} from "../interfaces/IERC5192.sol";
-import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
-import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
-import {IStaticsDollarRiskLiquidity} from "../dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
-import {IStaticsDollarRiskIncentives} from "../dollar/interfaces/IStaticsDollarRiskIncentives.sol";
-import {IStaticsDollarSeriesMigration} from "../dollar/interfaces/IStaticsDollarSeriesMigration.sol";
-import {IStaticsDollarGateway} from "../dollar/interfaces/IStaticsDollarGateway.sol";
 import {LibPeriphery} from "../dollar/periphery/libraries/LibPeriphery.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
+import {LibDeploymentPhases} from "../libraries/LibDeploymentPhases.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
-import {LibFlashLoan} from "../libraries/LibFlashLoan.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
@@ -119,12 +92,8 @@ contract StaticsProtocolInit is ERC721Upgradeable {
             args.poolCreationFeeAmount,
             args.singleAssetFlashFeeBps
         );
-        LibPeriphery.initialize(args.dollar);
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        ds.supportedInterfaces[type(IERC1155Receiver).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsDollarRiskLiquidity).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsDollarRiskIncentives).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsDollarSeriesMigration).interfaceId] = true;
+        LibDeploymentPhases.initializePhaseThree(args.dollar);
+        LibDeploymentPhases.initializePhaseFour();
     }
 
     function _initializeProtocol(
@@ -138,42 +107,15 @@ contract StaticsProtocolInit is ERC721Upgradeable {
     ) private {
         if (guardian == address(0)) revert InvalidGuardian();
         if (treasury == address(0) || treasury == address(this)) revert InvalidTreasury();
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-
         __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
-        LibFlashLoan.initialize(singleAssetFlashFeeBps);
-
-        ds.supportedInterfaces[type(IStaticsGovernance).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsGlobalRewards).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsGenesisIntegration).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBasketLiquidity).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBorrowLiquidity).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsCustody).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsLending).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsFlashLoan).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsProtocolPools).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsProtocolRevenue).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsDollarGateway).interfaceId] = true;
-        ds.supportedInterfaces[type(IERC721).interfaceId] = true;
-        ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;
-        ds.supportedInterfaces[type(IModularPositionNFT).interfaceId] = true;
-        ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
-        ds.supportedInterfaces[type(IERC5192).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsPositionPortfolio).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsMorpho).interfaceId] = true;
+        LibDeploymentPhases.initializePhaseOneInterfaces();
 
         LibGovernance.governanceStorage().guardian = guardian;
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         bs.treasury = treasury;
-        bs.creationFeeAmount = creationFeeAmount;
         LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount = poolCreationFeeAmount;
+        LibDeploymentPhases.initializePhaseTwo(creationFeeAmount, singleAssetFlashFeeBps);
     }
 }

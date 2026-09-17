@@ -10,6 +10,7 @@ import {console2} from "forge-std/console2.sol";
 import {DeployStaticsProtocol} from "./dollar/DeployStaticsProtocol.s.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
+import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 
@@ -44,6 +45,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
 
     error InvalidConfig();
     error InvalidChain(uint256 expected, uint256 actual);
+    error InvalidGenesisBinding(address expected, address actual);
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
@@ -154,6 +156,23 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
                 || config.stakingToken == address(0) || config.weth == address(0)
                 || config.stakingToken.code.length == 0 || config.weth.code.length == 0
         ) revert InvalidConfig();
+        _validateMainnetGenesisBindings(config);
+    }
+
+    function _validateMainnetGenesisBindings(Config memory config) private view {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) return;
+        string memory manifest = vm.readFile("deployments/robinhood-mainnet-genesis.json");
+        uint256 expectedChainId = vm.parseJsonUint(manifest, ".network.chainId");
+        if (block.chainid != expectedChainId) revert InvalidChain(expectedChainId, block.chainid);
+
+        address expectedStatics = vm.parseJsonAddress(manifest, ".contracts.staticsToken.address");
+        address expectedWeth = vm.parseJsonAddress(manifest, ".externalDependencies.weth.address");
+        address expectedTreasury = vm.parseJsonAddress(manifest, ".roles.treasury");
+        if (config.stakingToken != expectedStatics) revert InvalidGenesisBinding(expectedStatics, config.stakingToken);
+        if (config.weth != expectedWeth) revert InvalidGenesisBinding(expectedWeth, config.weth);
+        if (config.treasury != expectedTreasury) revert InvalidGenesisBinding(expectedTreasury, config.treasury);
+        _validateContract(config.stakingToken, vm.parseJsonBytes32(manifest, ".contracts.staticsToken.runtimeCodeHash"));
+        _validateContract(config.weth, vm.parseJsonBytes32(manifest, ".externalDependencies.weth.runtimeCodeHash"));
     }
 
     function _validateV4(V4Config memory config) private view {
@@ -191,8 +210,12 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
 
     function _logDeployment(StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) private view {
         console2.log("STATICS_DIAMOND_ADDRESS", deployment.diamond);
+        console2.log("STATICS_DIAMOND_RUNTIME_CODE_HASH");
+        console2.logBytes32(deployment.diamond.codehash);
         console2.log("STATICS_POSITION_NFT_ADDRESS", deployment.positionNFT);
         console2.log("STATICS_TIMELOCK_ADDRESS", address(timelock));
+        console2.log("STATICS_TIMELOCK_RUNTIME_CODE_HASH");
+        console2.logBytes32(address(timelock).codehash);
         console2.log("WETH_ADDRESS", deployment.weth);
         console2.log("STATICS_POOL_MANAGER_ADDRESS", deployment.poolManager);
         console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_ADDRESS", deployment.permanentLiquidityMath);
@@ -201,5 +224,15 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         console2.log("STATICS_SWAP_FEE_HOOK_ADDRESS", deployment.swapFeeHook);
         console2.log("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.swapFeeHook.codehash);
+        address[] memory facets = IDiamondLoupe(deployment.diamond).facetAddresses();
+        for (uint256 i; i < facets.length; ++i) {
+            console2.log("STATICS_PHASE_ONE_FACET_ADDRESS", facets[i]);
+            console2.log("STATICS_PHASE_ONE_FACET_RUNTIME_CODE_HASH");
+            console2.logBytes32(facets[i].codehash);
+            console2.log(
+                "STATICS_PHASE_ONE_FACET_SELECTOR_COUNT",
+                IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length
+            );
+        }
     }
 }
