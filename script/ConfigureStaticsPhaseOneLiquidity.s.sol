@@ -10,6 +10,7 @@ import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
+import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {StaticsSelectors} from "../src/libraries/StaticsSelectors.sol";
 import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
@@ -27,12 +28,14 @@ struct StaticsPhaseOneLiquidityConfig {
 
 /// @notice Timelock ceremony for installing only the v4 dependencies used by the Phase 1 DEX.
 contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig {
+    uint256 private constant LOCAL_CHAIN_ID = 31_337;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
 
     error InvalidDiamond(address diamond);
     error InvalidTimelock(address timelock);
+    error InvalidTimelockDelay(uint256 expected, uint256 actual);
     error InvalidContract(address target);
     error InvalidCodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidBinding(address target, address expected, address actual);
@@ -124,7 +127,11 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         }
         address owner = IERC173(diamond).owner();
         if (owner.code.length == 0) revert InvalidTimelock(owner);
+        _validateContract(owner, keccak256(type(StaticsTimelock).runtimeCode));
         timelock = TimelockController(payable(owner));
+        uint256 expectedDelay = _expectedInitialDelay();
+        uint256 actualDelay = timelock.getMinDelay();
+        if (actualDelay != expectedDelay) revert InvalidTimelockDelay(expectedDelay, actualDelay);
 
         _validatePhaseOneSelectors(diamond);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
@@ -222,6 +229,11 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
     function _binding(address target, address expected, address actual) private pure {
         if (expected != actual) revert InvalidBinding(target, expected, actual);
+    }
+
+    function _expectedInitialDelay() private view returns (uint256) {
+        if (block.chainid == ROBINHOOD_TESTNET_CHAIN_ID || block.chainid == LOCAL_CHAIN_ID) return 2 minutes;
+        return 24 hours;
     }
 
     function _loadRobinhoodConfig() private view returns (StaticsPhaseOneLiquidityConfig memory config) {

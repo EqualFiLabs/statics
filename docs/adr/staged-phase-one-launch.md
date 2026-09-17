@@ -42,7 +42,8 @@ v4 `PoolManager`. Phase 1 does not deploy or install
 `StaticsLiquidityManager`; ordinary LPs can use the existing Uniswap v4 periphery. The separate
 `ConfigureStaticsPhaseOneLiquidity` ceremony schedules exactly two calls through the owner
 timelock: bind the PoolManager/hook pair and set the native-POL fee harvester. Before producing or
-executing that batch, the ceremony requires the exact 14-facet/106-selector Phase 1 manifest.
+executing that batch, the ceremony requires the exact 14-facet/106-selector Phase 1 manifest, exact
+`StaticsTimelock` runtime, and chain-appropriate initial delay.
 
 The general-pool creation fee initializes to zero. Under existing protocol semantics, zero keeps
 creation owner-only; it does not enable free public creation. Governance can curate the initial pool

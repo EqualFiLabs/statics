@@ -9,6 +9,7 @@ import {
 } from "../../script/ConfigureStaticsPhaseOneLiquidity.s.sol";
 import {DeployStaticsPhaseOne, StaticsPhaseOneDeployment} from "../../script/DeployStaticsPhaseOne.s.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -21,6 +22,8 @@ contract PhaseOneUnexpectedFacet {
         return true;
     }
 }
+
+contract PhaseOneFakeTimelock {}
 
 contract ConfigureStaticsPhaseOneLiquidityTest is Test {
     function testBatchContainsOnlyPhaseOneHookAndHarvesterCalls() public {
@@ -130,6 +133,36 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 14, 15));
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
+    }
+
+    function testCeremonyRejectsOwnerThatIsNotExactStaticsTimelock() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        PhaseOneFakeTimelock fakeTimelock = new PhaseOneFakeTimelock();
+        vm.prank(address(timelock));
+        IERC173(deployment.diamond).transferOwnership(address(fakeTimelock));
+
+        StaticsPhaseOneLiquidityConfig memory config = StaticsPhaseOneLiquidityConfig({
+            poolManager: address(poolManager),
+            hook: deployment.swapFeeHook,
+            permanentLiquidityHarvester: makeAddr("harvester"),
+            inputFeeBps: 25,
+            outputFeeBps: 25,
+            poolManagerCodeHash: address(poolManager).codehash,
+            hookCodeHash: deployment.swapFeeHook.codehash
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.InvalidCodeHash.selector,
+                address(fakeTimelock),
+                keccak256(type(StaticsTimelock).runtimeCode),
+                address(fakeTimelock).codehash
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject fake timelock"));
     }
 
     function _deployPhaseOne(address multisig, address poolManager)
