@@ -140,6 +140,12 @@ case "$TARGET" in
       out-formal-genesis '^check_poolQuarantineRemainsIsolatedUntilGlobalPause'
     run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-stake-pause-separation 8 \
       out-formal-genesis '^check_guardianStakePauseCannotSetOwnerOnlyAction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-add-authority 8 \
+      out-formal-genesis '^check_onlyGuardianOrOwnerCanAddRewardRestriction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-remove-authority 8 \
+      out-formal-genesis '^check_onlyOwnerCanRemoveRewardRestriction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
+      out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
     ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
