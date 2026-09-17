@@ -23,8 +23,8 @@ contract PhaseOneEmergencyControlsHalmosTest is SymTest, Test {
         check_poolQuarantineRemainsIsolatedUntilGlobalPause();
     }
 
-    function testRepresentativeStakePausePreservesRedeem() public {
-        check_guardianStakePauseCannotPauseRedeem();
+    function testRepresentativeStakePauseIsNarrow() public {
+        check_guardianStakePauseCannotSetOwnerOnlyAction();
     }
 
     function check_onlyGuardianOrOwnerCanStopAllProtocolSwaps(address caller) public {
@@ -74,13 +74,14 @@ contract PhaseOneEmergencyControlsHalmosTest is SymTest, Test {
         assertFalse(governance.protocolPoolSwapsBlocked(first));
     }
 
-    function check_guardianStakePauseCannotPauseRedeem() public {
+    function check_guardianStakePauseCannotSetOwnerOnlyAction() public {
         uint256 stake = governance.pauseStakeMask();
         uint256 redeem = governance.pauseRedeemMask();
         vm.prank(governance.GUARDIAN());
         governance.pause(stake);
         assertTrue(governance.isPaused(stake));
         assertFalse(governance.isPaused(redeem));
+        assertEq(governance.pausedActions(), stake);
 
         vm.prank(governance.GUARDIAN());
         (bool guardianPausedRedeem,) = address(governance).call(abi.encodeCall(governance.pause, (redeem)));

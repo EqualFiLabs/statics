@@ -6138,22 +6138,6 @@
         "production-scripts"
       ],
       "paths": [
-        "script/ConfigureStaticsGenesisGovernance.s.sol"
-      ],
-      "summary": "ConfigureStaticsGenesisGovernance._validateOwnership(GenesisGovernanceMigrationConfig,address,address) (script/ConfigureStaticsGenesisGovernance.s.sol#144-160) has external calls inside a loop: actualPendingOwner = target.pendingOwner() (script/ConfigureStaticsGenesisGovernance.s.sol#155)",
-      "rationale": "The migration target array is fixed to the five live Genesis Ownable2Step contracts, and each pendingOwner read is required before execution.",
-      "occurrences": 4,
-      "id": "5aff4bb1e9622e248d855635"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/LaunchGenesisBasket.s.sol"
       ],
       "summary": "LaunchGenesisBasket._validateLaunch(address,address,GenesisBasketLaunchConfig) (script/LaunchGenesisBasket.s.sol#179-211) has external calls inside a loop: protocolPool = IStaticsProtocolPools(diamond).protocolPool(pool.poolId) (script/LaunchGenesisBasket.s.sol#198-199)",
@@ -6400,22 +6384,6 @@
       "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
       "id": "bcef9736dd4fad0ac915537a"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/ConfigureStaticsGenesisGovernance.s.sol"
-      ],
-      "summary": "ConfigureStaticsGenesisGovernance._validateOwnership(GenesisGovernanceMigrationConfig,address,address) (script/ConfigureStaticsGenesisGovernance.s.sol#144-160) has external calls inside a loop: actualOwner = target.owner() (script/ConfigureStaticsGenesisGovernance.s.sol#151)",
-      "rationale": "The migration target array is fixed to the five live Genesis Ownable2Step contracts, and each owner read is required before execution.",
-      "occurrences": 4,
-      "id": "c5037933caad1c8243ed1c0d"
     },
     {
       "impact": "Low",
