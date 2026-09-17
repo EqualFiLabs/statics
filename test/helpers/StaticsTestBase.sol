@@ -44,6 +44,7 @@ import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFa
 import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
+import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
 import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
@@ -60,7 +61,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](29);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](30);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -90,6 +91,7 @@ contract StaticsTestDeployer {
         cut[26] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
         cut[27] = _cut(address(new MorphoRecoveryFacet()), StaticsSelectors.morphoRecovery());
         cut[28] = _cut(address(new BasketLiquidityLifecycleFacet()), StaticsSelectors.basketLiquidityLifecycle());
+        cut[29] = _cut(address(new RewardPolicyFacet()), StaticsSelectors.rewardPolicy());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,

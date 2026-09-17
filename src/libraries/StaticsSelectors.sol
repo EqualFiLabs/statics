@@ -21,6 +21,7 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
@@ -36,6 +37,13 @@ import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
 library StaticsSelectors {
+    function rewardPolicy() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsRewardPolicy.addRewardRestriction.selector;
+        selectors[1] = IStaticsRewardPolicy.removeRewardRestriction.selector;
+        selectors[2] = IStaticsRewardPolicy.rewardRestricted.selector;
+    }
+
     function diamondCut() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = IDiamondCut.diamondCut.selector;
