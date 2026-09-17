@@ -19,6 +19,7 @@ import {IStaticsDollarGateway} from "../../src/dollar/interfaces/IStaticsDollarG
 import {IStaticsDollarRiskIncentives} from "../../src/dollar/interfaces/IStaticsDollarRiskIncentives.sol";
 import {IStaticsDollarRiskLiquidity} from "../../src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol";
 import {IStaticsDollarSeriesMigration} from "../../src/dollar/interfaces/IStaticsDollarSeriesMigration.sol";
+import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
@@ -38,16 +39,29 @@ import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {IStaticsPosition, IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
+import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
+import {StaticsPermissionedSwapFeeHook} from "../../src/liquidity/StaticsPermissionedSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {CanonicalV4Router} from "../helpers/CanonicalPoolTestBase.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
 contract PhaseOnePoolManagerMock {}
 
+contract PhaseOnePermissionedBindingMock {
+    address public immutable poolManager;
+    address public immutable permissionedHook;
+
+    constructor(address manager, address hook) {
+        poolManager = manager;
+        permissionedHook = hook;
+    }
+}
+
 contract DeployStaticsPhaseOneTest is Test {
-    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 14;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 106;
+    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 18;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 122;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -85,6 +99,7 @@ contract DeployStaticsPhaseOneTest is Test {
 
         assertEq(deployment.positionNFT, diamond);
         assertEq(deployment.weth, address(weth));
+        assertTrue(deployment.defaultVenueControllerFactory.code.length != 0);
         assertEq(IERC173(diamond).owner(), address(timelock));
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
@@ -174,7 +189,7 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), governanceSafe));
     }
 
-    function testPhaseOneDeploysReusableHookWithoutLiquidityManager() public {
+    function testPhaseOneDeploysBothHooksWithoutLiquidityManager() public {
         DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
         MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
@@ -201,6 +216,11 @@ contract DeployStaticsPhaseOneTest is Test {
         assertEq(hook.staticsDiamond(), deployment.diamond);
         assertEq(address(hook.poolManager()), address(poolManager));
         assertGt(deployment.permanentLiquidityMath.code.length, 0);
+        StaticsPermissionedSwapFeeHook permissionedHook =
+            StaticsPermissionedSwapFeeHook(deployment.permissionedSwapFeeHook);
+        assertGt(deployment.permissionedSwapFeeHook.code.length, 0);
+        assertEq(permissionedHook.staticsDiamond(), deployment.diamond);
+        assertEq(address(permissionedHook.poolManager()), address(poolManager));
 
         vm.prank(address(timelock));
         IStaticsBasketLiquidity(deployment.diamond)
@@ -214,6 +234,51 @@ contract DeployStaticsPhaseOneTest is Test {
         IDiamondLoupe loupe = IDiamondLoupe(deployment.diamond);
         assertEq(loupe.facetAddress(IStaticsBasketLiquidity.installLiquidityManager.selector), address(0));
         assertEq(loupe.facetAddress(IStaticsProtocolPools.replaceLiquidityManager.selector), address(0));
+    }
+
+    function testPermissionedInstallRejectsPeripheryBoundToAnotherHook() public {
+        DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
+        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
+        MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
+        PhaseOnePoolManagerMock poolManager = new PhaseOnePoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) = deployer.deployWithLiquidity(
+            DeployStaticsPhaseOne.Config({
+                multisig: makeAddr("multisig"),
+                guardian: makeAddr("guardian"),
+                treasury: makeAddr("treasury"),
+                stakingToken: address(statics),
+                weth: address(weth),
+                positionCreationFeeAmount: 0
+            }),
+            DeployStaticsPhaseOne.V4Config({
+                poolManager: address(poolManager),
+                inputFeeBps: 25,
+                outputFeeBps: 25,
+                poolManagerCodeHash: address(poolManager).codehash
+            })
+        );
+        PhaseOnePermissionedBindingMock wrongPeriphery =
+            new PhaseOnePermissionedBindingMock(address(poolManager), makeAddr("wrong-permissioned-hook"));
+
+        vm.startPrank(address(timelock));
+        IStaticsBasketLiquidity(deployment.diamond)
+            .installCanonicalPoolIntegration(address(poolManager), deployment.swapFeeHook);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BasketLiquidityFacet.InvalidIntegrationBinding.selector,
+                address(wrongPeriphery),
+                deployment.permissionedSwapFeeHook,
+                wrongPeriphery.permissionedHook()
+            )
+        );
+        IStaticsBasketLiquidity(deployment.diamond)
+            .installPermissionedPoolIntegration(
+                deployment.permissionedSwapFeeHook,
+                address(wrongPeriphery),
+                address(wrongPeriphery),
+                address(wrongPeriphery)
+            );
+        vm.stopPrank();
     }
 
     function testPhaseOneCreatesAndSwapsGeneralPoolThroughInstalledClosure() public {
@@ -231,8 +296,8 @@ contract DeployStaticsPhaseOneTest is Test {
         _swap(router, pool.key, rewardAssets[0], trader, true);
         _swap(router, pool.key, rewardAssets[1], trader, false);
 
-        uint256 creatorRevenue = fixture.revenue.creatorRevenue(fixture.creator, rewardAssets[0])
-            + fixture.revenue.creatorRevenue(fixture.creator, rewardAssets[1]);
+        uint256 creatorRevenue = fixture.revenue.creatorRevenue(pool.poolId, rewardAssets[0])
+            + fixture.revenue.creatorRevenue(pool.poolId, rewardAssets[1]);
         assertGt(creatorRevenue, 0);
         assertGt(fixture.rewards.treasuryAccrued(rewardAssets[0]) + fixture.rewards.treasuryAccrued(rewardAssets[1]), 0);
         vm.prank(makeAddr("staker"));
@@ -317,6 +382,8 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(loupe.facetAddress(IStaticsProtocolPools.createPool.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsProtocolPools.setGeneralFeeAllocation.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsProtocolRevenue.routeProtocolSwapFees.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsRewardPolicy.addRewardRestriction.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsPermissionedPools.createPermissionedPool.selector) != address(0));
     }
 
     function _assertDeferredSelectorsAbsent(address diamond) private view {

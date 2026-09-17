@@ -11,11 +11,53 @@ import {DeployStaticsPhaseOne, StaticsPhaseOneDeployment} from "../../script/Dep
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
+import {IStaticsPermissionedSwapFeeHook} from "../../src/interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
 contract PhaseOneCeremonyPoolManagerMock {}
+
+contract PhaseOneCeremonyDependencyMock {}
+
+contract PhaseOneCeremonyClaimsMock {
+    address public immutable poolManager;
+    address public immutable permissionedHook;
+    address public positionManager;
+
+    constructor(address manager, address hook) {
+        poolManager = manager;
+        permissionedHook = hook;
+    }
+
+    function bindPositionManager(address manager) external {
+        require(positionManager == address(0));
+        positionManager = manager;
+    }
+}
+
+contract PhaseOneCeremonyPeripheryMock {
+    address public immutable poolManager;
+    address public immutable permit2;
+    address public immutable permissionedHook;
+    address public immutable positionClaims;
+
+    constructor(address manager, address permit, address hook, address claims) {
+        poolManager = manager;
+        permit2 = permit;
+        permissionedHook = hook;
+        positionClaims = claims;
+    }
+}
+
+contract PhaseOneCeremonyQuoterMock {
+    address public immutable poolManager;
+
+    constructor(address manager) {
+        poolManager = manager;
+    }
+}
 
 contract PhaseOneUnexpectedFacet {
     function unexpectedSelector() external pure returns (bool) {
@@ -26,34 +68,53 @@ contract PhaseOneUnexpectedFacet {
 contract PhaseOneFakeTimelock {}
 
 contract ConfigureStaticsPhaseOneLiquidityTest is Test {
-    function testBatchContainsOnlyPhaseOneHookAndHarvesterCalls() public {
+    function testBatchContainsOnlyPhaseOneLiquidityCalls() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         address diamond = makeAddr("diamond");
         StaticsPhaseOneLiquidityConfig memory config = StaticsPhaseOneLiquidityConfig({
             poolManager: makeAddr("poolManager"),
             hook: makeAddr("hook"),
+            permissionedHook: makeAddr("permissionedHook"),
+            permissionedRouter: makeAddr("permissionedRouter"),
+            permissionedPositionManager: makeAddr("permissionedPositionManager"),
+            permissionedQuoter: makeAddr("permissionedQuoter"),
+            permit2: makeAddr("permit2"),
             permanentLiquidityHarvester: makeAddr("harvester"),
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: bytes32(0),
-            hookCodeHash: bytes32(0)
+            hookCodeHash: bytes32(0),
+            permissionedHookCodeHash: bytes32(0),
+            permissionedRouterCodeHash: bytes32(0),
+            permissionedPositionManagerCodeHash: bytes32(0),
+            permissionedPositionClaimsCodeHash: bytes32(0),
+            permissionedQuoterCodeHash: bytes32(0),
+            permit2CodeHash: bytes32(0)
         });
 
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             ceremony.buildBatch(diamond, config);
 
-        assertEq(targets.length, 2);
-        assertEq(values.length, 2);
-        assertEq(payloads.length, 2);
-        assertEq(targets[0], diamond);
-        assertEq(targets[1], diamond);
-        assertEq(values[0], 0);
-        assertEq(values[1], 0);
+        assertEq(targets.length, 6);
+        assertEq(values.length, 6);
+        assertEq(payloads.length, 6);
+        for (uint256 i; i < targets.length; ++i) {
+            assertEq(targets[i], diamond);
+            assertEq(values[i], 0);
+        }
         assertEq(_selector(payloads[0]), IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector);
-        assertEq(_selector(payloads[1]), IStaticsProtocolPools.setPermanentLiquidityHarvester.selector);
+        assertEq(_selector(payloads[1]), IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector);
+        assertEq(_selector(payloads[2]), IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector);
+        assertEq(_selector(payloads[3]), IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector);
+        assertEq(_selector(payloads[4]), IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector);
+        assertEq(_selector(payloads[5]), IStaticsProtocolPools.setPermanentLiquidityHarvester.selector);
         assertEq(_addressArgument(payloads[0], 0), config.poolManager);
         assertEq(_addressArgument(payloads[0], 1), config.hook);
-        assertEq(_addressArgument(payloads[1], 0), config.permanentLiquidityHarvester);
+        assertEq(_addressArgument(payloads[1], 0), config.permissionedHook);
+        assertEq(_addressArgument(payloads[1], 1), config.permissionedRouter);
+        assertEq(_addressArgument(payloads[1], 2), config.permissionedPositionManager);
+        assertEq(_addressArgument(payloads[1], 3), config.permissionedQuoter);
+        assertEq(_addressArgument(payloads[5], 0), config.permanentLiquidityHarvester);
     }
 
     function testTimelockBatchInstallsOnlyPhaseOneLiquidityDependencies() public {
@@ -62,15 +123,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
             _deployPhaseOne(address(ceremony), address(poolManager));
         address harvester = makeAddr("harvester");
-        StaticsPhaseOneLiquidityConfig memory config = StaticsPhaseOneLiquidityConfig({
-            poolManager: address(poolManager),
-            hook: deployment.swapFeeHook,
-            permanentLiquidityHarvester: harvester,
-            inputFeeBps: 25,
-            outputFeeBps: 25,
-            poolManagerCodeHash: address(poolManager).codehash,
-            hookCodeHash: deployment.swapFeeHook.codehash
-        });
+        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), harvester);
 
         bytes32 salt = keccak256("install Phase 1 liquidity");
         (bytes32 operationId, uint256 delay) = _schedule(ceremony, deployment.diamond, config, salt, address(timelock));
@@ -85,15 +138,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
         (StaticsPhaseOneDeployment memory deployment,) = _deployPhaseOne(address(ceremony), address(poolManager));
-        StaticsPhaseOneLiquidityConfig memory config = StaticsPhaseOneLiquidityConfig({
-            poolManager: address(poolManager),
-            hook: deployment.swapFeeHook,
-            permanentLiquidityHarvester: makeAddr("harvester"),
-            inputFeeBps: 25,
-            outputFeeBps: 25,
-            poolManagerCodeHash: address(poolManager).codehash,
-            hookCodeHash: bytes32(0)
-        });
+        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
+        config.hookCodeHash = bytes32(0);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -121,17 +167,9 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.prank(address(timelock));
         IDiamondCut(deployment.diamond).diamondCut(cut, address(0), "");
 
-        StaticsPhaseOneLiquidityConfig memory config = StaticsPhaseOneLiquidityConfig({
-            poolManager: address(poolManager),
-            hook: deployment.swapFeeHook,
-            permanentLiquidityHarvester: makeAddr("harvester"),
-            inputFeeBps: 25,
-            outputFeeBps: 25,
-            poolManagerCodeHash: address(poolManager).codehash,
-            hookCodeHash: deployment.swapFeeHook.codehash
-        });
+        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
 
-        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 14, 15));
+        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 18, 19));
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
     }
 
@@ -144,15 +182,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.prank(address(timelock));
         IERC173(deployment.diamond).transferOwnership(address(fakeTimelock));
 
-        StaticsPhaseOneLiquidityConfig memory config = StaticsPhaseOneLiquidityConfig({
-            poolManager: address(poolManager),
-            hook: deployment.swapFeeHook,
-            permanentLiquidityHarvester: makeAddr("harvester"),
-            inputFeeBps: 25,
-            outputFeeBps: 25,
-            poolManagerCodeHash: address(poolManager).codehash,
-            hookCodeHash: deployment.swapFeeHook.codehash
-        });
+        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -187,6 +217,43 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         );
     }
 
+    function _config(StaticsPhaseOneDeployment memory deployment, address poolManager, address harvester)
+        private
+        returns (StaticsPhaseOneLiquidityConfig memory config)
+    {
+        PhaseOneCeremonyDependencyMock permit2 = new PhaseOneCeremonyDependencyMock();
+        PhaseOneCeremonyClaimsMock claims =
+            new PhaseOneCeremonyClaimsMock(poolManager, deployment.permissionedSwapFeeHook);
+        PhaseOneCeremonyPeripheryMock router = new PhaseOneCeremonyPeripheryMock(
+            poolManager, address(permit2), deployment.permissionedSwapFeeHook, address(0)
+        );
+        PhaseOneCeremonyPeripheryMock positionManager = new PhaseOneCeremonyPeripheryMock(
+            poolManager, address(permit2), deployment.permissionedSwapFeeHook, address(claims)
+        );
+        claims.bindPositionManager(address(positionManager));
+        PhaseOneCeremonyQuoterMock quoter = new PhaseOneCeremonyQuoterMock(poolManager);
+        config = StaticsPhaseOneLiquidityConfig({
+            poolManager: poolManager,
+            hook: deployment.swapFeeHook,
+            permissionedHook: deployment.permissionedSwapFeeHook,
+            permissionedRouter: address(router),
+            permissionedPositionManager: address(positionManager),
+            permissionedQuoter: address(quoter),
+            permit2: address(permit2),
+            permanentLiquidityHarvester: harvester,
+            inputFeeBps: 25,
+            outputFeeBps: 25,
+            poolManagerCodeHash: poolManager.codehash,
+            hookCodeHash: deployment.swapFeeHook.codehash,
+            permissionedHookCodeHash: deployment.permissionedSwapFeeHook.codehash,
+            permissionedRouterCodeHash: address(router).codehash,
+            permissionedPositionManagerCodeHash: address(positionManager).codehash,
+            permissionedPositionClaimsCodeHash: address(claims).codehash,
+            permissionedQuoterCodeHash: address(quoter).codehash,
+            permit2CodeHash: address(permit2).codehash
+        });
+    }
+
     function _schedule(
         ConfigureStaticsPhaseOneLiquidity ceremony,
         address diamond,
@@ -213,6 +280,13 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         assertTrue(installed);
         assertEq(installedPoolManager, poolManager);
         assertEq(installedHook, deployment.swapFeeHook);
+        (address hook, address router, address positionManager, address quoter, bool permissionedInstalled) =
+            IStaticsBasketLiquidity(deployment.diamond).permissionedLiquidityIntegration();
+        assertTrue(permissionedInstalled);
+        assertEq(hook, deployment.permissionedSwapFeeHook);
+        assertTrue(IStaticsPermissionedSwapFeeHook(hook).trustedPeriphery(router));
+        assertTrue(IStaticsPermissionedSwapFeeHook(hook).trustedPeriphery(positionManager));
+        assertTrue(IStaticsPermissionedSwapFeeHook(hook).trustedPeriphery(quoter));
         assertEq(IStaticsProtocolPools(deployment.diamond).permanentLiquidityHarvester(), harvester);
     }
 

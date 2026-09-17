@@ -13,6 +13,8 @@ import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
+import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
@@ -58,9 +60,11 @@ contract SelectorManifestTest is Test {
         treasury[1] = IStaticsBasketAdmin.treasury.selector;
         _assertExact(StaticsSelectors.phaseOneTreasuryAdmin(), treasury);
 
-        bytes4[] memory liquidity = new bytes4[](2);
+        bytes4[] memory liquidity = new bytes4[](4);
         liquidity[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         liquidity[1] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        liquidity[2] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        liquidity[3] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
         _assertExact(StaticsSelectors.phaseOneLiquidityIntegration(), liquidity);
 
         bytes4[] memory admin = new bytes4[](8);
@@ -200,7 +204,7 @@ contract SelectorManifestTest is Test {
 
     function testLiquiditySelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.basketLiquidity();
-        bytes4[] memory expected = new bytes4[](8);
+        bytes4[] memory expected = new bytes4[](10);
         expected[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         expected[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         expected[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
@@ -209,6 +213,8 @@ contract SelectorManifestTest is Test {
         expected[5] = IStaticsBasketLiquidity.liquidityManager.selector;
         expected[6] = IStaticsBasketLiquidity.canonicalPool.selector;
         expected[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        expected[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        expected[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
 
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
@@ -232,6 +238,34 @@ contract SelectorManifestTest is Test {
         expected[1] = IStaticsProtocolPools.createPool.selector;
         expected[2] = IStaticsProtocolPools.invalidatePoolCreationNonce.selector;
         _assertExact(actual, expected);
+    }
+
+    function testPermissionedAndRewardPolicySelectorManifestsAreExact() public pure {
+        bytes4[] memory reward = new bytes4[](3);
+        reward[0] = IStaticsRewardPolicy.addRewardRestriction.selector;
+        reward[1] = IStaticsRewardPolicy.removeRewardRestriction.selector;
+        reward[2] = IStaticsRewardPolicy.rewardRestricted.selector;
+        _assertExact(StaticsSelectors.rewardPolicy(), reward);
+
+        bytes4[] memory creation = new bytes4[](3);
+        creation[0] = IStaticsPermissionedPools.quotePermissionedPool.selector;
+        creation[1] = IStaticsPermissionedPools.createPermissionedPool.selector;
+        creation[2] = IStaticsPermissionedPools.invalidatePermissionedAuthorizationNonce.selector;
+        _assertExact(StaticsSelectors.permissionedPoolCreation(), creation);
+
+        bytes4[] memory admin = new bytes4[](5);
+        admin[0] = IStaticsPermissionedPools.applyPermissionedPoolTerms.selector;
+        admin[1] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
+        admin[2] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
+        admin[3] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
+        admin[4] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        _assertExact(StaticsSelectors.permissionedPoolAdmin(), admin);
+
+        bytes4[] memory views = new bytes4[](3);
+        views[0] = IStaticsPermissionedPools.permissionedPool.selector;
+        views[1] = IStaticsPermissionedPools.isPermissionedPool.selector;
+        views[2] = IStaticsPermissionedPools.isPermissionedAuthorizationNonceUsed.selector;
+        _assertExact(StaticsSelectors.permissionedPoolView(), views);
     }
 
     function testProtocolPoolAdminSelectorManifestIsExactAndCollisionFree() public pure {

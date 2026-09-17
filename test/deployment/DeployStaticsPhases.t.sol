@@ -32,6 +32,7 @@ import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
+import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDeploymentPhases} from "../../src/libraries/LibDeploymentPhases.sol";
 import {MockETHUSDOracle} from "../../src/dollar/mocks/MockETHUSDOracle.sol";
@@ -49,11 +50,49 @@ contract StagedPositionManagerMock {
     }
 }
 
+contract StagedPermissionedClaimsMock {
+    address public immutable poolManager;
+    address public immutable permissionedHook;
+    address public positionManager;
+
+    constructor(address manager, address hook) {
+        poolManager = manager;
+        permissionedHook = hook;
+    }
+
+    function bindPositionManager(address manager) external {
+        require(positionManager == address(0));
+        positionManager = manager;
+    }
+}
+
+contract StagedPermissionedPeripheryMock {
+    address public immutable poolManager;
+    address public immutable permit2;
+    address public immutable permissionedHook;
+    address public immutable positionClaims;
+
+    constructor(address manager, address permit, address hook, address claims) {
+        poolManager = manager;
+        permit2 = permit;
+        permissionedHook = hook;
+        positionClaims = claims;
+    }
+}
+
+contract StagedQuoterMock {
+    address public immutable poolManager;
+
+    constructor(address manager) {
+        poolManager = manager;
+    }
+}
+
 contract DeployStaticsPhasesTest is Test {
-    uint256 private constant PHASE_ONE_SELECTORS = 106;
-    uint256 private constant PHASE_TWO_SELECTORS = 202;
-    uint256 private constant PHASE_THREE_SELECTORS = 260;
-    uint256 private constant PHASE_FOUR_SELECTORS = 287;
+    uint256 private constant PHASE_ONE_SELECTORS = 122;
+    uint256 private constant PHASE_TWO_SELECTORS = 218;
+    uint256 private constant PHASE_THREE_SELECTORS = 276;
+    uint256 private constant PHASE_FOUR_SELECTORS = 303;
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
 
     struct Fixture {
@@ -65,6 +104,10 @@ contract DeployStaticsPhasesTest is Test {
         StagedDependencyMock poolManager;
         StagedPositionManagerMock positionManager;
         StagedDependencyMock permit2;
+        StagedPermissionedPeripheryMock permissionedRouter;
+        StagedPermissionedPeripheryMock permissionedPositionManager;
+        StagedPermissionedClaimsMock permissionedPositionClaims;
+        StagedQuoterMock permissionedQuoter;
     }
 
     function testCanonicalPlanPartitionsEverySelectorExactlyOnce() public pure {
@@ -91,7 +134,7 @@ contract DeployStaticsPhasesTest is Test {
     function testStagedDeploymentReachesFreshDeploymentParity() public {
         Fixture memory fixture = _phaseOneFixture();
         address diamond = fixture.phaseOne.diamond;
-        _assertManifest(diamond, 14, PHASE_ONE_SELECTORS);
+        _assertManifest(diamond, 18, PHASE_ONE_SELECTORS);
         assertEq(_activePhase(diamond), 1);
 
         DeployStaticsPhases.PhaseTwoConfig memory phaseTwoConfig = _phaseTwoConfig(fixture, 0.01 ether);
@@ -100,7 +143,7 @@ contract DeployStaticsPhasesTest is Test {
             fixture.phases.buildPhaseTwoBatch(diamond, phaseTwo, phaseTwoConfig);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase two"));
 
-        _assertManifest(diamond, 26, PHASE_TWO_SELECTORS);
+        _assertManifest(diamond, 30, PHASE_TWO_SELECTORS);
         assertEq(_activePhase(diamond), 2);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
         assertEq(IStaticsFlashLoan(diamond).singleAssetFlashFeeBps(), 5);
@@ -118,7 +161,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseThreeBatch(diamond, phaseThree);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase three"));
 
-        _assertManifest(diamond, 31, PHASE_THREE_SELECTORS);
+        _assertManifest(diamond, 35, PHASE_THREE_SELECTORS);
         assertEq(_activePhase(diamond), 3);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsCustody).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
@@ -132,7 +175,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseFourBatch(diamond, phaseFour);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase four"));
 
-        _assertManifest(diamond, 36, PHASE_FOUR_SELECTORS);
+        _assertManifest(diamond, 40, PHASE_FOUR_SELECTORS);
         assertEq(_activePhase(diamond), 4);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionPortfolio).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsMorpho).interfaceId));
@@ -233,9 +276,37 @@ contract DeployStaticsPhasesTest is Test {
                 poolManagerCodeHash: address(fixture.poolManager).codehash
             })
         );
+        fixture.permissionedPositionClaims =
+            new StagedPermissionedClaimsMock(address(fixture.poolManager), fixture.phaseOne.permissionedSwapFeeHook);
+        fixture.permissionedRouter = new StagedPermissionedPeripheryMock(
+            address(fixture.poolManager), address(fixture.permit2), fixture.phaseOne.permissionedSwapFeeHook, address(0)
+        );
+        fixture.permissionedPositionManager = new StagedPermissionedPeripheryMock(
+            address(fixture.poolManager),
+            address(fixture.permit2),
+            fixture.phaseOne.permissionedSwapFeeHook,
+            address(fixture.permissionedPositionClaims)
+        );
+        fixture.permissionedPositionClaims.bindPositionManager(address(fixture.permissionedPositionManager));
+        fixture.permissionedQuoter = new StagedQuoterMock(address(fixture.poolManager));
         vm.prank(address(fixture.timelock));
         IStaticsBasketLiquidity(fixture.phaseOne.diamond)
             .installCanonicalPoolIntegration(address(fixture.poolManager), fixture.phaseOne.swapFeeHook);
+        vm.startPrank(address(fixture.timelock));
+        IStaticsBasketLiquidity(fixture.phaseOne.diamond)
+            .installPermissionedPoolIntegration(
+                fixture.phaseOne.permissionedSwapFeeHook,
+                address(fixture.permissionedRouter),
+                address(fixture.permissionedPositionManager),
+                address(fixture.permissionedQuoter)
+            );
+        IStaticsPermissionedPools(fixture.phaseOne.diamond)
+            .setPermissionedTrustedPeriphery(address(fixture.permissionedRouter), true);
+        IStaticsPermissionedPools(fixture.phaseOne.diamond)
+            .setPermissionedTrustedPeriphery(address(fixture.permissionedPositionManager), true);
+        IStaticsPermissionedPools(fixture.phaseOne.diamond)
+            .setPermissionedTrustedPeriphery(address(fixture.permissionedQuoter), true);
+        vm.stopPrank();
     }
 
     function _phaseThreeConfig(Fixture memory fixture, address diamond, address oracle)
@@ -280,10 +351,19 @@ contract DeployStaticsPhasesTest is Test {
             positionManager: address(fixture.positionManager),
             permit2: address(fixture.permit2),
             swapFeeHook: fixture.phaseOne.swapFeeHook,
+            permissionedSwapFeeHook: fixture.phaseOne.permissionedSwapFeeHook,
+            permissionedRouter: address(fixture.permissionedRouter),
+            permissionedPositionManager: address(fixture.permissionedPositionManager),
+            permissionedQuoter: address(fixture.permissionedQuoter),
             poolManagerCodeHash: address(fixture.poolManager).codehash,
             positionManagerCodeHash: address(fixture.positionManager).codehash,
             permit2CodeHash: address(fixture.permit2).codehash,
             swapFeeHookCodeHash: fixture.phaseOne.swapFeeHook.codehash,
+            permissionedSwapFeeHookCodeHash: fixture.phaseOne.permissionedSwapFeeHook.codehash,
+            permissionedRouterCodeHash: address(fixture.permissionedRouter).codehash,
+            permissionedPositionManagerCodeHash: address(fixture.permissionedPositionManager).codehash,
+            permissionedPositionClaimsCodeHash: address(fixture.permissionedPositionClaims).codehash,
+            permissionedQuoterCodeHash: address(fixture.permissionedQuoter).codehash,
             creationFeeAmount: creationFeeAmount,
             singleAssetFlashFeeBps: 5
         });

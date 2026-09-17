@@ -16,6 +16,10 @@ import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFa
 import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
+import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
+import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCreationFacet.sol";
+import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
+import {PermissionedPoolViewFacet} from "../../src/facets/PermissionedPoolViewFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
@@ -192,6 +196,10 @@ abstract contract DeployStaticsProtocol {
         parts.protocolPoolAdmin = address(new ProtocolPoolAdminFacet());
         parts.protocolPoolView = address(new ProtocolPoolViewFacet());
         parts.protocolRevenue = address(new ProtocolRevenueFacet());
+        parts.rewardPolicy = address(new RewardPolicyFacet());
+        parts.permissionedPoolCreation = address(new PermissionedPoolCreationFacet());
+        parts.permissionedPoolAdmin = address(new PermissionedPoolAdminFacet());
+        parts.permissionedPoolView = address(new PermissionedPoolViewFacet());
     }
 
     function _phaseOneProtocolCut(StaticsProtocolParts memory parts)

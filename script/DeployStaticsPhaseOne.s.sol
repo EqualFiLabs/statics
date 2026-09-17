@@ -12,7 +12,9 @@ import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
+import {StaticsPermissionedSwapFeeHook} from "../src/liquidity/StaticsPermissionedSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
+import {DefaultVenueControllerFactory} from "../src/permissioned/DefaultVenueControllerFactory.sol";
 
 struct StaticsPhaseOneDeployment {
     address diamond;
@@ -21,6 +23,8 @@ struct StaticsPhaseOneDeployment {
     address poolManager;
     address permanentLiquidityMath;
     address swapFeeHook;
+    address permissionedSwapFeeHook;
+    address defaultVenueControllerFactory;
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
@@ -54,6 +58,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
+    uint160 private constant REQUIRED_PERMISSIONED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG
+        | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG
+        | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_DONATE_FLAG;
     address public constant FOUNDRY_CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     function run() external returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) {
@@ -108,6 +115,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             })
         );
         deployment.weth = config.weth;
+        deployment.defaultVenueControllerFactory = address(new DefaultVenueControllerFactory());
     }
 
     function _deployTimelock(address multisig, address guardian) private returns (StaticsTimelock timelock) {
@@ -145,9 +153,24 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
 
+        bytes memory permissionedConstructorArgs = abi.encode(IPoolManager(config.poolManager), deployment.diamond);
+        (address expectedPermissionedHook, bytes32 permissionedSalt) = HookMiner.find(
+            create2Deployer,
+            REQUIRED_PERMISSIONED_HOOK_FLAGS,
+            type(StaticsPermissionedSwapFeeHook).creationCode,
+            permissionedConstructorArgs
+        );
+        StaticsPermissionedSwapFeeHook permissionedHook = new StaticsPermissionedSwapFeeHook{salt: permissionedSalt}(
+            IPoolManager(config.poolManager), deployment.diamond
+        );
+        if (address(permissionedHook) != expectedPermissionedHook) {
+            revert HookAddressMismatch(expectedPermissionedHook, address(permissionedHook));
+        }
+
         deployment.poolManager = config.poolManager;
         deployment.permanentLiquidityMath = address(permanentLiquidityMath);
         deployment.swapFeeHook = address(hook);
+        deployment.permissionedSwapFeeHook = address(permissionedHook);
     }
 
     function _validateConfig(Config memory config) private view {
@@ -224,6 +247,12 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         console2.log("STATICS_SWAP_FEE_HOOK_ADDRESS", deployment.swapFeeHook);
         console2.log("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.swapFeeHook.codehash);
+        console2.log("STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS", deployment.permissionedSwapFeeHook);
+        console2.log("STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH");
+        console2.logBytes32(deployment.permissionedSwapFeeHook.codehash);
+        console2.log("STATICS_DEFAULT_VENUE_CONTROLLER_FACTORY", deployment.defaultVenueControllerFactory);
+        console2.log("STATICS_DEFAULT_VENUE_CONTROLLER_FACTORY_RUNTIME_CODE_HASH");
+        console2.logBytes32(deployment.defaultVenueControllerFactory.codehash);
         address[] memory facets = IDiamondLoupe(deployment.diamond).facetAddresses();
         for (uint256 i; i < facets.length; ++i) {
             console2.log("STATICS_PHASE_ONE_FACET_ADDRESS", facets[i]);

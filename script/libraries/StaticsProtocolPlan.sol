@@ -39,6 +39,10 @@ struct StaticsProtocolParts {
     address protocolPoolAdmin;
     address protocolPoolView;
     address protocolRevenue;
+    address rewardPolicy;
+    address permissionedPoolCreation;
+    address permissionedPoolAdmin;
+    address permissionedPoolView;
     address genesisNFT;
     address morphoActions;
     address morphoRecovery;
@@ -57,7 +61,7 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](14);
+        cut = new IDiamondCut.FacetCut[](18);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
@@ -72,6 +76,10 @@ library StaticsProtocolPlan {
         cut[11] = _add(parts.protocolPoolAdmin, StaticsSelectors.phaseOneProtocolPoolAdmin());
         cut[12] = _add(parts.protocolPoolView, StaticsSelectors.phaseOneProtocolPoolView());
         cut[13] = _add(parts.protocolRevenue, StaticsSelectors.phaseOneProtocolRevenue());
+        cut[14] = _add(parts.rewardPolicy, StaticsSelectors.rewardPolicy());
+        cut[15] = _add(parts.permissionedPoolCreation, StaticsSelectors.permissionedPoolCreation());
+        cut[16] = _add(parts.permissionedPoolAdmin, StaticsSelectors.permissionedPoolAdmin());
+        cut[17] = _add(parts.permissionedPoolView, StaticsSelectors.permissionedPoolView());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
