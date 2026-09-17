@@ -167,7 +167,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         IDiamondLoupe.Facet[] memory facets = IDiamondLoupe(diamond).facets();
         if (facets.length != 14) revert UnexpectedFacetCount(14, facets.length);
 
-        uint256 selectorCount;
+        uint256 selectorCount = 0;
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }

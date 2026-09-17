@@ -643,6 +643,22 @@
     },
     {
       "impact": "High",
+      "confidence": "High",
+      "check": "unprotected-upgrade",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsPhaseOneInit.sol"
+      ],
+      "summary": "StaticsPhaseOneInit (src/diamond/StaticsPhaseOneInit.sol#22-57) is an upgradeable contract that does not protect its initialize functions: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#34-56). Anyone can delete the contract with: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#34-56)",
+      "rationale": "StaticsPhaseOneInit is a Diamond constructor delegatecall initializer, not an independently upgradeable asset holder; direct calls can mutate only the disposable initializer instance.",
+      "occurrences": 1,
+      "id": "b8e87548ab67e696b11642ed"
+    },
+    {
+      "impact": "High",
       "confidence": "Medium",
       "check": "weak-prng",
       "classification": "FALSE POSITIVE",
@@ -4023,22 +4039,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketCollateralFacet.sol"
-      ],
-      "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#69-83) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#74)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "789349a3b237e8aa4a9b466f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4144,22 +4144,6 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "830589c2e5cf4158cd76cace"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GenesisNFTFacet.sol"
-      ],
-      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#35-62) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#58)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "83a20e0562e39c8033abe25a"
     },
     {
       "impact": "Medium",
@@ -4650,6 +4634,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GenesisNFTFacet.sol"
+      ],
+      "summary": "GenesisNFTFacet.linkGenesis(uint256,uint256) (src/facets/GenesisNFTFacet.sol#33-57) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GENESIS_MODULE,bytes32(genesisId)) (src/facets/GenesisNFTFacet.sol#53)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "occurrences": 1,
+      "id": "a5c2827d999bf5d09ed87dd1"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._prepareArbitrage(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#159-175) ignores return value by (assets,flashAmounts,None) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId,shares) (src/periphery/StaticsFlashArbitrageReceiver.sol#167)",
@@ -4688,6 +4688,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b02740d9b5c3173ebcecad62"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketCollateralFacet.sol"
+      ],
+      "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#65-79) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#70)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "occurrences": 1,
+      "id": "b166619ede68e747fac64aea"
     },
     {
       "impact": "Medium",
@@ -5168,22 +5184,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "cc90e65cec96c4f8d0a90f9a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketCollateralFacet.sol"
-      ],
-      "summary": "BasketCollateralFacet.withdrawBasketCollateral(uint256,uint256,uint256,address) (src/facets/BasketCollateralFacet.sol#54-67) ignores return value by LibCustody.pushReserved(LibCustody.basketAccount(basketId),configured.token,receiver,shares,shares) (src/facets/BasketCollateralFacet.sol#64)",
-      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
-      "occurrences": 1,
-      "id": "cdd6771da13c3a7b93c613b4"
     },
     {
       "impact": "Medium",
@@ -5744,6 +5744,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "f33b0b4c9d2e07aae8ac1890"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketCollateralFacet.sol"
+      ],
+      "summary": "BasketCollateralFacet.withdrawBasketCollateral(uint256,uint256,uint256,address) (src/facets/BasketCollateralFacet.sol#50-63) ignores return value by LibCustody.pushReserved(LibCustody.basketAccount(basketId),configured.token,receiver,shares,shares) (src/facets/BasketCollateralFacet.sol#60)",
+      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
+      "occurrences": 1,
+      "id": "f752e84a24cc47e352e0def1"
     },
     {
       "impact": "Medium",
@@ -6725,6 +6741,22 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsPhaseOneInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#34-56):",
+      "rationale": "The initializer runs once by constructor delegatecall before the Diamond is exposed; the facet cut has no initialization callback and the remaining operations are internal storage initialization without an attacker-controlled call.",
+      "occurrences": 1,
+      "id": "7eabb56c4f8f5555ad52392a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -7147,22 +7179,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#50-60):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "1c20ed6e01dce259a54d305b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsLaunchLiquidityHook.sol"
       ],
       "summary": "Reentrancy in StaticsLaunchLiquidityHook._routeFee(PoolId,Currency,uint256,uint256,bool) (src/liquidity/StaticsLaunchLiquidityHook.sol#251-255):",
@@ -7211,12 +7227,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#188-198):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "23037b589aac4753a9269c52"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._releasePermanentLiquidity(StaticsSwapFeeHook.ReleaseRequest) (src/liquidity/StaticsSwapFeeHook.sol#355-388):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "2434e5975722419cbe950616"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#51-61):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "4c06b8d81a0caa9cf126628a"
     },
     {
       "impact": "Low",
@@ -7841,6 +7889,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#214-221):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "bf0621de32037d463333dfbc"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
@@ -7859,10 +7923,10 @@
       "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
-      "summary": "Reentrancy in PositionNFTFacet._createPosition(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#179-189):",
+      "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#45-49):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "c15634da4999f41c8e519810"
+      "id": "c72ed9db35bc191c0607fb20"
     },
     {
       "impact": "Low",
@@ -7993,38 +8057,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "e232c1d750ca99cbe4707734"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Reentrancy in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#205-212):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "e7b07ca84689626739ca7bec"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#44-48):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "e9385375fb6ae75b1aadd9aa"
     },
     {
       "impact": "Low",
@@ -9268,6 +9300,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet.isPositionClosable(uint256) (src/position/PositionNFTFacet.sol#165-181) uses assembly",
+      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "occurrences": 1,
+      "id": "80e553f9951e1fc29dce7944"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/libraries/LibPeriphery.sol"
       ],
       "summary": "LibPeriphery.s() (src/dollar/periphery/libraries/LibPeriphery.sol#155-160) uses assembly",
@@ -9322,22 +9370,6 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "c80babdce320ad0080b8bfea"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "PositionNFTFacet.isPositionClosable(uint256) (src/position/PositionNFTFacet.sol#162-172) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
-      "occurrences": 1,
-      "id": "d166c19501d3ec81db00e274"
     },
     {
       "impact": "Informational",
@@ -9508,22 +9540,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Low level call in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#205-212):",
-      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
-      "occurrences": 1,
-      "id": "5d5f7a7b7bc89651453ff0cf"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "Low level call in StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#201-233):",
@@ -9578,6 +9594,22 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "a70e10629faf916970408c88"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Low level call in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#214-221):",
+      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
+      "occurrences": 1,
+      "id": "af1fb93c583df5c3bb0690f3"
     },
     {
       "impact": "Informational",
@@ -9668,6 +9700,23 @@
         "production-contracts"
       ],
       "paths": [
+        "src/interfaces/IPositionOwnerIndex.sol",
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "PositionNFTFacet (src/position/PositionNFTFacet.sol#20-222) should inherit from IPositionOwnerIndex (src/interfaces/IPositionOwnerIndex.sol#7-18)",
+      "rationale": "The contract implements the selector structurally behind a Diamond or adapter boundary; inheriting this narrow consumer-side interface would add coupling without changing runtime conformance.",
+      "occurrences": 1,
+      "id": "0fe37cd7ee8b0305e44406a9"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/core/facets/CoreGovernanceFacet.sol",
         "src/dollar/periphery/facets/FeeRouterFacet.sol"
       ],
@@ -9692,23 +9741,6 @@
       "rationale": "The contract implements the selector structurally behind a Diamond or adapter boundary; inheriting this narrow consumer-side interface would add coupling without changing runtime conformance.",
       "occurrences": 1,
       "id": "80b6818871eca78ba0d9bff1"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "missing-inheritance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/interfaces/IPositionOwnerIndex.sol",
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "PositionNFTFacet (src/position/PositionNFTFacet.sol#19-213) should inherit from IPositionOwnerIndex (src/interfaces/IPositionOwnerIndex.sol#7-18)",
-      "rationale": "The contract implements the selector structurally behind a Diamond or adapter boundary; inheriting this narrow consumer-side interface would add coupling without changing runtime conformance.",
-      "occurrences": 1,
-      "id": "af02dc935e52a2d82c183ebd"
     },
     {
       "impact": "Informational",
@@ -9832,22 +9864,6 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#140-173) uses literals with too many digits:",
-      "rationale": "The literal is the exact Uniswap v4 hook permission mask used to mine the deterministic Phase 1 hook address.",
-      "occurrences": 1,
-      "id": "55eb60ea9e1479bcf04cf7c6"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/DeployStaticsGenesis.s.sol"
       ],
       "summary": "DeployStaticsGenesis.staticsImplementationHash() (script/DeployStaticsGenesis.s.sol#480-493) uses literals with too many digits:",
@@ -9870,6 +9886,22 @@
       "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
       "occurrences": 1,
       "id": "985d07e7f19aad6309e158ff"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#121-149) uses literals with too many digits:",
+      "rationale": "The literal is the exact Uniswap v4 hook permission mask used to mine the deterministic Phase 1 hook address.",
+      "occurrences": 1,
+      "id": "a70d0aed04d256c55bcf10f0"
     },
     {
       "impact": "Informational",
