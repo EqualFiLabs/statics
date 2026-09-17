@@ -634,12 +634,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
+        "src/diamond/StaticsPhaseOneInit.sol"
       ],
-      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#42-179) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#57-75)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#77-79)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#83-103)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#107-110). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#83-103)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#107-110)",
-      "rationale": "StaticsProtocolInit is a Diamond delegatecall initializer, not an independently upgradeable asset holder; direct calls can mutate only the disposable initializer instance.",
+      "summary": "StaticsPhaseOneInit (src/diamond/StaticsPhaseOneInit.sol#16-43) is an upgradeable contract that does not protect its initialize functions: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#28-42). Anyone can delete the contract with: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#28-42)",
+      "rationale": "These contracts are one-shot Diamond delegatecall initializers, not independently upgradeable asset holders; direct calls mutate only the disposable initializer instance and cannot alter a deployed Diamond.",
       "occurrences": 1,
-      "id": "7f725aa67e81d502d82de6a9"
+      "id": "82ffed8bf47c965ef33304a2"
     },
     {
       "impact": "High",
@@ -650,12 +650,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/diamond/StaticsPhaseOneInit.sol"
+        "src/diamond/StaticsProtocolInit.sol"
       ],
-      "summary": "StaticsPhaseOneInit (src/diamond/StaticsPhaseOneInit.sol#22-57) is an upgradeable contract that does not protect its initialize functions: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#34-56). Anyone can delete the contract with: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#34-56)",
-      "rationale": "StaticsPhaseOneInit is a Diamond constructor delegatecall initializer, not an independently upgradeable asset holder; direct calls can mutate only the disposable initializer instance.",
+      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#15-121) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#30-48)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#50-52)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-76)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-76)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83)",
+      "rationale": "These contracts are one-shot Diamond delegatecall initializers, not independently upgradeable asset holders; direct calls mutate only the disposable initializer instance and cannot alter a deployed Diamond.",
       "occurrences": 1,
-      "id": "b8e87548ab67e696b11642ed"
+      "id": "cca817456cf41645c0521eb9"
     },
     {
       "impact": "High",
@@ -1735,6 +1735,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseDiamond(address,uint8).empty (script/DeployStaticsPhases.s.sol#468) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
+      "occurrences": 1,
+      "id": "558167b2065b7bbf733ee746"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1744,6 +1760,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "0ede9d7aa3f90c769ab6b655"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address).empty (script/DeployStaticsPhases.s.sol#617) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
+      "occurrences": 1,
+      "id": "91c9fe477f3239f40a193df0"
     },
     {
       "impact": "Medium",
@@ -1767,6 +1799,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address).count (script/DeployStaticsPhases.s.sol#700) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
+      "occurrences": 1,
+      "id": "b977b0749ab1225eef4f8161"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1783,6 +1831,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address).cursor (script/DeployStaticsPhases.s.sol#705) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
+      "occurrences": 1,
+      "id": "daa6cf5780dff66dbba867ee"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1792,6 +1856,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator or boolean sentinel before conditional updates.",
       "occurrences": 1,
       "id": "28b3d8721a770638ab1a5369"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._cutSelectors(IDiamondCut.FacetCut[]).cursor (script/DeployStaticsPhases.s.sol#716) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
+      "occurrences": 1,
+      "id": "f629030656b3399a0bee0d6f"
     },
     {
       "impact": "Medium",
@@ -5847,6 +5927,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#697-712) has external calls inside a loop: count += loupe.facetFunctionSelectors(facets[i]).length (script/DeployStaticsPhases.s.sol#702)",
+      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "occurrences": 7,
+      "id": "6d8a6b31350dcff307ac1bb2"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -6346,12 +6442,92 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#697-712) has external calls inside a loop: facetSelectors = loupe.facetFunctionSelectors(facets[i_scope_0]) (script/DeployStaticsPhases.s.sol#707)",
+      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "occurrences": 7,
+      "id": "95d2ddc46852b2a6fdbd53ba"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateFacetSet(address,bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#662-672) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(selectors[i]) (script/DeployStaticsPhases.s.sol#669)",
+      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "occurrences": 7,
+      "id": "9826d69e5edc2bf597657789"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateSharedFacetSet(address,bytes4[],bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#674-685) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(deferred[i]) (script/DeployStaticsPhases.s.sol#682)",
+      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "occurrences": 7,
+      "id": "9af59a7b4618b06616683e16"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#211-237) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#232-235)",
+      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "occurrences": 1,
+      "id": "a4d842a2370281e9b829563b"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/LaunchGenesisBasket.s.sol"
       ],
       "summary": "LaunchGenesisBasket._validateLaunch(address,address,GenesisBasketLaunchConfig) (script/LaunchGenesisBasket.s.sol#179-211) has external calls inside a loop: launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i] || baskets.vaultBalance(basketId,asset) == 0 || pool.asset != asset || pool.basketToken != launched.token || pool.hook != hook || IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId) == 0 || protocolPool.kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical || protocolPool.basketId != basketId || protocolPool.basketAsset != asset || protocolPool.decommissioned (script/LaunchGenesisBasket.s.sol#201-207)",
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "a9ca01cbf862290147b3586a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._logDiamondFacets(address) (script/DeployStaticsPhases.s.sol#840-851) has external calls inside a loop: console.log(STATICS_DOLLAR_CORE_FACET_SELECTOR_COUNT,IDiamondLoupe(diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhases.s.sol#846-849)",
+      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "occurrences": 1,
+      "id": "bcd82725da53eeb951e35f41"
     },
     {
       "impact": "Low",
@@ -6741,22 +6917,6 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsPhaseOneInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#34-56):",
-      "rationale": "The initializer runs once by constructor delegatecall before the Diamond is exposed; the facet cut has no initialization callback and the remaining operations are internal storage initialization without an attacker-controlled call.",
-      "occurrences": 1,
-      "id": "7eabb56c4f8f5555ad52392a"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -6768,6 +6928,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "01d516192a9b297c7fc3925f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsPhaseOneInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#28-42):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "0aad5be2e935c4ce5be0563e"
     },
     {
       "impact": "Low",
@@ -6826,28 +7002,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#83-103):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "25b905f9774529d23d57dfc6"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#738-743):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "36eb0d48aa0911753dcb8068"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-76):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "60ee8955a1774e2198950c2c"
     },
     {
       "impact": "Low",
@@ -6864,6 +7040,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "3bef814fcd941cf30fa4a104"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "9f2d93e4bfb0f3e8cd6f9c87"
     },
     {
       "impact": "Low",
@@ -7008,22 +7200,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "bbc62d1543cb6026745e4403"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#107-110):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "e5efae45bc62591cca6337ff"
     },
     {
       "impact": "Low",
@@ -7259,22 +7435,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/position/PositionNFTFacet.sol"
-      ],
-      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#51-61):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "4c06b8d81a0caa9cf126628a"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#462-482):",
@@ -7295,8 +7455,24 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "2f4c4cf34131596c6018f295"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/dollar/core/CoreInit.sol"
+      ],
+      "summary": "Reentrancy in CoreInit.genesis(IDiamondCut.FacetCut[],CoreInit.InitArgs) (src/dollar/core/CoreInit.sol#56-59):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "3a4f3ad8b7e4ef1f3caca9d8"
     },
     {
       "impact": "Low",
@@ -7436,6 +7612,39 @@
         "production-contracts"
       ],
       "paths": [
+        "src/position/PositionNFTFacet.sol"
+      ],
+      "summary": "Reentrancy in PositionNFTFacet.createPositionForModule(address,bytes32,bytes32) (src/position/PositionNFTFacet.sol#51-61):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "4c06b8d81a0caa9cf126628a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-76):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "4d2cc29756a617aac75e3b5b"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._beforeSwap(address,PoolKey,SwapParams,bytes) (src/liquidity/StaticsSwapFeeHook.sol#462-482):",
@@ -7506,6 +7715,23 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "668e0a442ec9002257da1f03"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "6e8244fd2a4fdc95529349bf"
     },
     {
       "impact": "Low",
@@ -7757,22 +7983,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/core/CoreInit.sol"
-      ],
-      "summary": "Reentrancy in CoreInit.genesis(IDiamondCut.FacetCut[],CoreInit.InitArgs) (src/dollar/core/CoreInit.sol#55-58):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "a15f4a9a884d40addeab8c7d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/ProtocolPoolAdminFacet.sol"
       ],
       "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#46-51):",
@@ -8006,7 +8216,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "db430d97c15cb90a940a787b"
     },
     {
@@ -9364,6 +9574,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#49-54) uses assembly",
+      "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
+      "occurrences": 1,
+      "id": "be739d79c83af42a43090d71"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/position/LibPosition.sol"
       ],
       "summary": "LibPosition.positionStorage() (src/position/LibPosition.sol#45-50) uses assembly",
@@ -9466,6 +9692,54 @@
       "rationale": "The binding function is a one-time fail-closed compatibility probe with explicit independent checks; it has no iterative or user-controlled state-machine branching.",
       "occurrences": 1,
       "id": "0aaff7ab4a44cb8becc487c4"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "dead-code",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/dollar/DeployStaticsProtocol.s.sol"
+      ],
+      "summary": "DeployStaticsProtocol._phaseTwoProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#205-211) is never used and should be removed",
+      "rationale": "These internal wrappers deliberately mirror the canonical phase builders for derived deployment harnesses and add no reachable production execution path.",
+      "occurrences": 1,
+      "id": "0ed17748884a1cd36a5c28ac"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "dead-code",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/dollar/DeployStaticsProtocol.s.sol"
+      ],
+      "summary": "DeployStaticsProtocol._phaseFourProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#221-227) is never used and should be removed",
+      "rationale": "These internal wrappers deliberately mirror the canonical phase builders for derived deployment harnesses and add no reachable production execution path.",
+      "occurrences": 1,
+      "id": "36e132b5251931f271509b3c"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "dead-code",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/dollar/DeployStaticsProtocol.s.sol"
+      ],
+      "summary": "DeployStaticsProtocol._phaseThreeProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#213-219) is never used and should be removed",
+      "rationale": "These internal wrappers deliberately mirror the canonical phase builders for derived deployment harnesses and add no reachable production execution path.",
+      "occurrences": 1,
+      "id": "775f8c2da988c0ce44c0b632"
     },
     {
       "impact": "Informational",
@@ -9827,6 +10101,38 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "01a50cf0ee791cc3531e9736"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "0fef5bbdbf12120495cba52f"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
       "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
@@ -9838,6 +10144,22 @@
       "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
       "occurrences": 1,
       "id": "1245445468dcbb481ec93a89"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#413-440) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "138b0ae7e7e42b003b388348"
     },
     {
       "impact": "Informational",
@@ -9859,6 +10181,102 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "2857bbc1ecc763c3b6545b56"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "3058d3df475f70120ecdd582"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "338ad9388723bb7a6b8981c8"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "5186acf64d19149f4db59d7d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "573a48741390ee3ba1f88573"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "57423b491623f4e4bbaf4595"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
       "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
@@ -9870,6 +10288,134 @@
       "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
       "occurrences": 1,
       "id": "59b0135512ebdad5fdd82312"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#413-440) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "65709a95b7e69afe14922584"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "6bc3a4f720d47383338b729a"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "7c429f04f07acb830693ba6c"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "809e6e016262670bd726eb55"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "831af0fd658ea1ee8d957520"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "885c645efcd3a39654725ecb"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "8926f771dcbc19b98dc417d7"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "8e3098b53c329b4faba22048"
     },
     {
       "impact": "Informational",
@@ -9891,17 +10437,33 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "INTENTIONAL",
+      "classification": "FALSE POSITIVE",
       "passes": [
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
+        "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#121-149) uses literals with too many digits:",
-      "rationale": "The literal is the exact Uniswap v4 hook permission mask used to mine the deterministic Phase 1 hook address.",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
       "occurrences": 1,
-      "id": "a70d0aed04d256c55bcf10f0"
+      "id": "aab2a35cdb84544f23542e60"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "ab150cd9a712f2640eea2ac6"
     },
     {
       "impact": "Informational",
@@ -9923,6 +10485,182 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "b795943045e32502bf40e125"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "b9738e84fb0c81d0f8989aa5"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "c11949b418655a5f2dbd75e4"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "c32f69b572a942fcbc435b92"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "cd8a5594fcdaa1269993eaf0"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "cdccc2f796244c1351a2f2b7"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "cf2bf9ca9dd9df909369aadf"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "d81908c419d9f0a2be3a0a9e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "db359d9742a3110caa9f3583"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "e1f8eb614e0bdfe112d1cb4e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "e69dba756a77580d0c519dca"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -9934,6 +10672,54 @@
       "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
       "occurrences": 1,
       "id": "e824f9fd88e991ceee8cbf57"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#123-151) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "ef78f424cc9921bc4d40c080"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "f1766e41a5ab29df17eb6f7b"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#413-440) uses literals with too many digits:",
+      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "occurrences": 1,
+      "id": "fd0b270c0d0152b785725d0f"
     },
     {
       "impact": "Informational",
