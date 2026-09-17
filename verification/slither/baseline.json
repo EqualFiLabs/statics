@@ -1630,7 +1630,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "b53667ebc41dd23f470c6a77"
     },
     {
@@ -1662,7 +1662,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#347-353):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "bfbf3b8a8485d36884a874b8"
     },
     {
