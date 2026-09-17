@@ -4,8 +4,10 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
+import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
@@ -26,6 +28,72 @@ import {
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testPhaseOneSelectorSubsetsAreExactAndCollisionFree() public pure {
+        bytes4[] memory governance = new bytes4[](13);
+        governance[0] = IStaticsGovernance.guardian.selector;
+        governance[1] = IStaticsGovernance.pausedActions.selector;
+        governance[2] = IStaticsGovernance.isPaused.selector;
+        governance[3] = IStaticsGovernance.setGuardian.selector;
+        governance[4] = IStaticsGovernance.pause.selector;
+        governance[5] = IStaticsGovernance.unpause.selector;
+        governance[6] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        governance[7] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        governance[8] = IStaticsGovernance.quarantineProtocolPool.selector;
+        governance[9] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        governance[10] = IStaticsGovernance.protocolSwapsPaused.selector;
+        governance[11] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        governance[12] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        _assertExact(StaticsSelectors.phaseOneGovernance(), governance);
+
+        bytes4[] memory custody = new bytes4[](5);
+        custody[0] = IStaticsCustody.globalReservedByToken.selector;
+        custody[1] = IStaticsCustody.reservedByAccount.selector;
+        custody[2] = IStaticsCustody.unreservedBalance.selector;
+        custody[3] = IStaticsCustody.feeCustodyAccount.selector;
+        custody[4] = IStaticsCustody.stakingCustodyAccount.selector;
+        _assertExact(StaticsSelectors.phaseOneCustody(), custody);
+
+        bytes4[] memory treasury = new bytes4[](2);
+        treasury[0] = IStaticsBasketAdmin.setTreasury.selector;
+        treasury[1] = IStaticsBasketAdmin.treasury.selector;
+        _assertExact(StaticsSelectors.phaseOneTreasuryAdmin(), treasury);
+
+        bytes4[] memory liquidity = new bytes4[](2);
+        liquidity[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
+        liquidity[1] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        _assertExact(StaticsSelectors.phaseOneLiquidityIntegration(), liquidity);
+
+        bytes4[] memory admin = new bytes4[](8);
+        admin[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
+        admin[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
+        admin[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
+        admin[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
+        admin[4] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
+        admin[5] = IStaticsProtocolPools.decommissionGeneralPool.selector;
+        admin[6] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
+        admin[7] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
+        _assertExact(StaticsSelectors.phaseOneProtocolPoolAdmin(), admin);
+
+        bytes4[] memory views = new bytes4[](9);
+        views[0] = IStaticsProtocolPools.protocolPool.selector;
+        views[1] = IStaticsProtocolPools.isProtocolPool.selector;
+        views[2] = IStaticsProtocolPools.poolCreationFee.selector;
+        views[3] = IStaticsProtocolPools.isPoolCreationNonceUsed.selector;
+        views[4] = IStaticsProtocolPools.generalFeeAllocation.selector;
+        views[5] = IStaticsProtocolPools.defaultProtocolPoolFeeRate.selector;
+        views[6] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
+        views[7] = IStaticsProtocolPools.protocolPoolCreator.selector;
+        views[8] = IStaticsProtocolPools.permanentLiquidityHarvester.selector;
+        _assertExact(StaticsSelectors.phaseOneProtocolPoolView(), views);
+
+        bytes4[] memory revenue = new bytes4[](4);
+        revenue[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
+        revenue[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
+        revenue[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
+        revenue[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
+        _assertExact(StaticsSelectors.phaseOneProtocolRevenue(), revenue);
+    }
+
     function testGovernanceSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.governance();
         bytes4[] memory expected = new bytes4[](16);

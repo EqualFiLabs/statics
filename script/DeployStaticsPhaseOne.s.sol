@@ -10,30 +10,21 @@ import {console2} from "forge-std/console2.sol";
 import {DeployStaticsProtocol} from "./dollar/DeployStaticsProtocol.s.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
-import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
-
-interface IPhaseOnePositionManagerBindings {
-    function poolManager() external view returns (address);
-    function permit2() external view returns (address);
-}
 
 struct StaticsPhaseOneDeployment {
     address diamond;
     address positionNFT;
     address weth;
     address poolManager;
-    address positionManager;
-    address permit2;
     address permanentLiquidityMath;
     address swapFeeHook;
-    address liquidityManager;
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
-/// @dev Basket and general-pool creation fees are deliberately fixed at zero. In the
-/// current protocol semantics that keeps creation owner-curated without an economic cap.
+/// @dev The general-pool creation fee is deliberately fixed at zero. Under current semantics this
+/// keeps creation owner-curated until governance deliberately enables permissionless creation.
 contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploymentConfig {
     struct Config {
         address multisig;
@@ -42,25 +33,19 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address stakingToken;
         address weth;
         uint256 positionCreationFeeAmount;
-        uint256 singleAssetFlashFeeBps;
     }
 
     struct V4Config {
         address poolManager;
-        address positionManager;
-        address permit2;
         uint16 inputFeeBps;
         uint16 outputFeeBps;
         bytes32 poolManagerCodeHash;
-        bytes32 positionManagerCodeHash;
-        bytes32 permit2CodeHash;
     }
 
     error InvalidConfig();
     error InvalidChain(uint256 expected, uint256 actual);
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
-    error InvalidV4Binding(address target, address expected, address actual);
     error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
     error HookAddressMismatch(address expected, address actual);
 
@@ -77,8 +62,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             treasury: vm.envAddress("TREASURY"),
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             weth: vm.envAddress("WETH_ADDRESS"),
-            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
-            singleAssetFlashFeeBps: vm.envUint("STATICS_SINGLE_ASSET_FLASH_FEE_BPS")
+            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT")
         });
         V4Config memory v4 = _loadRobinhoodV4Config();
 
@@ -111,17 +95,14 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         _validateConfig(config);
         timelock = _deployTimelock(config.multisig, config.guardian);
         (deployment.diamond, deployment.positionNFT) = _deployPhaseOneStaticsProtocol(
-            ProtocolDeploymentConfig({
-                pool: address(0),
+            PhaseOneProtocolDeploymentConfig({
                 weth: config.weth,
                 finalOwner: address(timelock),
                 guardian: config.guardian,
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,
-                creationFeeAmount: 0,
                 positionCreationFeeAmount: config.positionCreationFeeAmount,
-                poolCreationFeeAmount: 0,
-                singleAssetFlashFeeBps: config.singleAssetFlashFeeBps
+                poolCreationFeeAmount: 0
             })
         );
         deployment.weth = config.weth;
@@ -161,15 +142,10 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             permanentLiquidityMath
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
-        StaticsLiquidityManager manager =
-            new StaticsLiquidityManager(deployment.diamond, config.positionManager, config.poolManager, config.permit2);
 
         deployment.poolManager = config.poolManager;
-        deployment.positionManager = config.positionManager;
-        deployment.permit2 = config.permit2;
         deployment.permanentLiquidityMath = address(permanentLiquidityMath);
         deployment.swapFeeHook = address(hook);
-        deployment.liquidityManager = address(manager);
     }
 
     function _validateConfig(Config memory config) private view {
@@ -186,16 +162,6 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
                 || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
         ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
-        _validateContract(config.positionManager, config.positionManagerCodeHash);
-        _validateContract(config.permit2, config.permit2CodeHash);
-        address boundPoolManager = IPhaseOnePositionManagerBindings(config.positionManager).poolManager();
-        if (boundPoolManager != config.poolManager) {
-            revert InvalidV4Binding(config.positionManager, config.poolManager, boundPoolManager);
-        }
-        address boundPermit2 = IPhaseOnePositionManagerBindings(config.positionManager).permit2();
-        if (boundPermit2 != config.permit2) {
-            revert InvalidV4Binding(config.positionManager, config.permit2, boundPermit2);
-        }
     }
 
     function _validateContract(address target, bytes32 expectedHash) private view {
@@ -217,13 +183,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         }
         config = V4Config({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
-            positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
-            permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
-            poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
-            positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
-            permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")
+            poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash")
         });
     }
 
@@ -233,16 +195,11 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         console2.log("STATICS_TIMELOCK_ADDRESS", address(timelock));
         console2.log("WETH_ADDRESS", deployment.weth);
         console2.log("STATICS_POOL_MANAGER_ADDRESS", deployment.poolManager);
-        console2.log("STATICS_POSITION_MANAGER_ADDRESS", deployment.positionManager);
-        console2.log("STATICS_PERMIT2_ADDRESS", deployment.permit2);
         console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_ADDRESS", deployment.permanentLiquidityMath);
         console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.permanentLiquidityMath.codehash);
         console2.log("STATICS_SWAP_FEE_HOOK_ADDRESS", deployment.swapFeeHook);
         console2.log("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.swapFeeHook.codehash);
-        console2.log("STATICS_LIQUIDITY_MANAGER_ADDRESS", deployment.liquidityManager);
-        console2.log("STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH");
-        console2.logBytes32(deployment.liquidityManager.codehash);
     }
 }

@@ -125,9 +125,6 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsDollarRiskLiquidity).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsDollarRiskIncentives).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsDollarSeriesMigration).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsBorrowLiquidity).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsDollarGateway).interfaceId] = true;
-        ds.supportedInterfaces[type(IStaticsMorpho).interfaceId] = true;
     }
 
     function _initializeProtocol(
@@ -156,11 +153,13 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IStaticsGlobalRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsGenesisIntegration).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketLiquidity).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBorrowLiquidity).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsCustody).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsLending).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsFlashLoan).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsProtocolPools).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsProtocolRevenue).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsDollarGateway).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
@@ -169,6 +168,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
         ds.supportedInterfaces[type(IERC5192).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionPortfolio).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsMorpho).interfaceId] = true;
 
         LibGovernance.governanceStorage().guardian = guardian;
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();

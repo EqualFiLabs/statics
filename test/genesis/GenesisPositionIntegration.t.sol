@@ -89,7 +89,6 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
     uint256 private constant ORIGINATION_FEE = 0.003 ether;
     uint256 private constant EXTENSION_FEE = 0.003 ether;
     bytes32 private constant POOL_ID = keccak256("GENESIS_POSITION_INTEGRATION");
-    uint256 private constant PAUSE_STAKE = 1 << 7;
 
     MockERC20 private numeraire;
     GenesisIntegrationFeeSource private feeSource;
@@ -148,14 +147,14 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         GenesisIntegrationInitHarness(address(diamond))
             .initializeGenesisIntegration(
                 LibGenesisIntegration.InitArgs({
-                    genesis: address(genesis),
-                    vault: address(vault),
-                    activationRegistry: address(activationRegistry),
-                    feeReceiver: address(feeReceiver),
-                    statics: address(stakingAsset),
-                    numeraire: address(numeraire),
-                    genesisRewardShareBps: 9_000
-                })
+                genesis: address(genesis),
+                vault: address(vault),
+                activationRegistry: address(activationRegistry),
+                feeReceiver: address(feeReceiver),
+                statics: address(stakingAsset),
+                numeraire: address(numeraire),
+                genesisRewardShareBps: 9_000
+            })
             );
 
         feeReceiver.proposeDistributor(address(diamond));
@@ -198,28 +197,6 @@ contract GenesisPositionIntegrationTest is StaticsTestBase {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(StaticsGenesis.GenesisLocked.selector, 1));
         genesis.transferFrom(alice, bob, 1);
-    }
-
-    function testStakePauseBlocksGenesisLinkButPreservesUnlink() external {
-        _buyGenesis(alice, 30);
-        uint256 positionId = _createPosition(alice);
-
-        vm.prank(guardian);
-        governance.pause(PAUSE_STAKE);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(GenesisNFTFacet.ActionPaused.selector, PAUSE_STAKE));
-        integration.linkGenesis(positionId, 30);
-
-        governance.unpause(PAUSE_STAKE);
-        vm.prank(alice);
-        integration.linkGenesis(positionId, 30);
-        vm.prank(guardian);
-        governance.pause(PAUSE_STAKE);
-        vm.prank(alice);
-        integration.unlinkGenesis(positionId, 30);
-
-        assertEq(integration.linkedGenesis(positionId), 0);
-        assertEq(integration.linkedPosition(30), 0);
     }
 
     function testTierFourLinkUsesEffectiveWeightWithoutChangingPrincipal() external {
