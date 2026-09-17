@@ -11,7 +11,7 @@ compiler-selection units are excluded individually with a concrete reason. The
 scope check fails before Slither runs if a new owned Solidity file is neither
 included nor explicitly excluded.
 
-The staged Phase 1 launcher and its two-call liquidity configuration ceremony
+The staged Phase 1 launcher and its six-call liquidity configuration ceremony
 are production scripts, so they enter this mandatory scope automatically. No
 new exclusion or detector-family suppression is added for the staged launch.
 A separate file-list expansion would be misleading because all owned

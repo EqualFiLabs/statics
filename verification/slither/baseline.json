@@ -138,6 +138,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#330-339):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "0087b74d3d035085c2dfa3bf"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager._executePosition(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#74-109):",
@@ -250,6 +266,54 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#341-354):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "36a289a17056bea6ed58b64d"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#341-354):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "37e82186a197228bcdfc1b26"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
+      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "occurrences": 1,
+      "id": "48c87a9ba1a254b2e11d48aa"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager._executePosition(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#74-109):",
@@ -282,6 +346,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#341-354):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "551ebdac931b5c1d5bfaff9e"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#304-317):",
@@ -304,6 +384,22 @@
       "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
       "occurrences": 1,
       "id": "5ac50faf6b4c2f2d40a2b59e"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81):",
+      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "occurrences": 1,
+      "id": "60b1b0cb0aa754a163a8529f"
     },
     {
       "impact": "High",
@@ -378,12 +474,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#330-339):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "75e50007b16928f8e9539f1f"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._route(PoolId,Currency,LibPermissionedFeeMath.Distribution) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#305-328):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "89f6270872dcf0c442da6212"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/MorphoSettlementFacet.sol"
       ],
       "summary": "Reentrancy in MorphoSettlementFacet.recoverMorphoAccountToken(uint256,address,uint256,address,uint256) (src/facets/MorphoSettlementFacet.sol#42-61):",
       "rationale": "The enclosing Diamond entrypoint is non-reentrant, authorization and accounting are checkpointed, and post-call balance deltas validate the immutable Morpho integration result.",
       "occurrences": 1,
       "id": "8f0d314d2b6684355a3a3c8b"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
+      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "occurrences": 1,
+      "id": "987a011c14e65063aef7509e"
     },
     {
       "impact": "High",
@@ -416,6 +560,22 @@
       "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
       "id": "9f336c80a70f5af89b027fb8"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81):",
+      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "occurrences": 1,
+      "id": "9f701137778a5819f225268a"
     },
     {
       "impact": "High",
@@ -474,6 +634,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
+      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "occurrences": 1,
+      "id": "b2fe16085b3c14c89675434a"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#341-354):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "bae5de2d21d0cb95582c1fc6"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "Reentrancy in StaticsDollarGatewayFacet._recombineToVolatile(LibPeriphery.PS,StaticsDollarGatewayFacet.PeggedRecombineRequest,StaticsDollarGatewayFacet.PeggedRecombinePrepared) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#537-567):",
@@ -512,6 +704,22 @@
       "rationale": "The enclosing Diamond entrypoint is non-reentrant, authorization and accounting are checkpointed, and post-call balance deltas validate the immutable Morpho integration result.",
       "occurrences": 1,
       "id": "cde4451dede39f5c536211b7"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
+      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "occurrences": 1,
+      "id": "d8d9ee882375c963daa11e20"
     },
     {
       "impact": "High",
@@ -700,10 +908,10 @@
       "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibGlobalRewards._addPendingBucket(LibGlobalRewards.RewardBook,uint40,uint256,uint256) (src/libraries/LibGlobalRewards.sol#803-813) uses a weak PRNG: \"index = uint8((uint256(book.bucketCursor) + offset) % REWARD_BUCKET_COUNT) (src/libraries/LibGlobalRewards.sol#809)\"",
-      "rationale": "Modulo arithmetic advances a deterministic bounded reward ring-buffer cursor; it is scheduling math and is never used as randomness or to select a winner.",
+      "summary": "LibGlobalRewards._rollMatured(address,LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#753-779) uses a weak PRNG: \"book.bucketCursor = uint8((uint256(cursor) + elapsed) % REWARD_BUCKET_COUNT) (src/libraries/LibGlobalRewards.sol#777)\"",
+      "rationale": "Modulo arithmetic selects deterministic bounded reward ring-buffer buckets; it is not randomness and cannot select a beneficiary or economic outcome.",
       "occurrences": 1,
-      "id": "8f7a6eb96ac74fabda682b96"
+      "id": "70a13e284add9ab85fc2f2a7"
     },
     {
       "impact": "High",
@@ -716,10 +924,10 @@
       "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibGlobalRewards._rollMatured(address,LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#750-776) uses a weak PRNG: \"book.bucketCursor = uint8((uint256(cursor) + elapsed) % REWARD_BUCKET_COUNT) (src/libraries/LibGlobalRewards.sol#774)\"",
-      "rationale": "Modulo arithmetic advances a deterministic bounded reward ring-buffer cursor; it is scheduling math and is never used as randomness or to select a winner.",
+      "summary": "LibGlobalRewards._addPendingBucket(LibGlobalRewards.RewardBook,uint40,uint256,uint256) (src/libraries/LibGlobalRewards.sol#806-816) uses a weak PRNG: \"index = uint8((uint256(book.bucketCursor) + offset) % REWARD_BUCKET_COUNT) (src/libraries/LibGlobalRewards.sol#812)\"",
+      "rationale": "Modulo arithmetic selects deterministic bounded reward ring-buffer buckets; it is not randomness and cannot select a beneficiary or economic outcome.",
       "occurrences": 1,
-      "id": "ad3f4aca05657fc15199d8e8"
+      "id": "8935e2229f7bed37fccc3731"
     },
     {
       "impact": "Medium",
@@ -1120,6 +1328,22 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "c64879a770905b4bce14e24f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81) uses a dangerous strict equality:",
+      "rationale": "Exact sender-debit and receiver-credit equality is the compatibility boundary that rejects partial, fee-on-transfer, or otherwise inexact delivery before deciding whether to use the PoolManager-backed credit fallback.",
+      "occurrences": 1,
+      "id": "e7119edf3b0b07b32ef1db06"
     },
     {
       "impact": "Medium",
@@ -1735,22 +1959,6 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validatePhaseDiamond(address,uint8).empty (script/DeployStaticsPhases.s.sol#468) is a local variable never initialized",
-      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
-      "occurrences": 1,
-      "id": "558167b2065b7bbf733ee746"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1760,54 +1968,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "0ede9d7aa3f90c769ab6b655"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address).empty (script/DeployStaticsPhases.s.sol#617) is a local variable never initialized",
-      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
-      "occurrences": 1,
-      "id": "91c9fe477f3239f40a193df0"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGlobalRewards.sol"
-      ],
-      "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#731) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "1476e7d131de8e44b3806744"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address).count (script/DeployStaticsPhases.s.sol#700) is a local variable never initialized",
-      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
-      "occurrences": 1,
-      "id": "b977b0749ab1225eef4f8161"
     },
     {
       "impact": "Medium",
@@ -1831,15 +1991,15 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
+        "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address).cursor (script/DeployStaticsPhases.s.sol#705) is a local variable never initialized",
-      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
+      "summary": "LibGlobalRewards._accrueReservedNonSwapFee(address,uint256).stakerAmount (src/libraries/LibGlobalRewards.sol#144) is a local variable never initialized",
+      "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
       "occurrences": 1,
-      "id": "daa6cf5780dff66dbba867ee"
+      "id": "21a8203eab4d01fdec539a86"
     },
     {
       "impact": "Medium",
@@ -1863,22 +2023,6 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._cutSelectors(IDiamondCut.FacetCut[]).cursor (script/DeployStaticsPhases.s.sol#716) is a local variable never initialized",
-      "rationale": "Solidity zero-initializes memory locals; these values are deliberately empty structs or zero accumulators populated or read only after that defined initialization.",
-      "occurrences": 1,
-      "id": "f629030656b3399a0bee0d6f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1888,6 +2032,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "307ffbacec92697c114a8797"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseDiamond(address,uint8).empty (script/DeployStaticsPhases.s.sol#591) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "34663cdda7161bb9bac1bbae"
     },
     {
       "impact": "Medium",
@@ -1911,6 +2071,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address).empty (script/DeployStaticsPhases.s.sol#752) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "3b2156ed8897cd604eb48e7a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1927,6 +2103,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address).count (script/DeployStaticsPhases.s.sol#835) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "4798bc4060822ea33ffc5f1f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -1936,6 +2128,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator or boolean sentinel before conditional updates.",
       "occurrences": 1,
       "id": "52359527405b827d9a42c6b3"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsPermissionedSwapFeeHook.sol#207) is a local variable never initialized",
+      "rationale": "The memory context and normalized distribution intentionally begin at Solidity zero; every required field is assigned before use and zero normalized amounts deliberately skip optional routing.",
+      "occurrences": 1,
+      "id": "5321152d3e9a4567e5ac5c16"
     },
     {
       "impact": "Medium",
@@ -2007,6 +2215,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._ensureBookWeights(LibGlobalRewards.RewardBook).bitmap (src/libraries/LibGlobalRewards.sol#894) is a local variable never initialized",
+      "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
+      "occurrences": 1,
+      "id": "62477eaeedab5f9d4773d1cf"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -2026,12 +2250,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/core/libraries/LibCoreAccounting.sol"
+        "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibCoreAccounting.insuranceContribution(IStaticsDollarCoreTypes.StableCollateralProfile,uint256,uint256,uint256).low (src/dollar/core/libraries/LibCoreAccounting.sol#212) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "summary": "LibGlobalRewards._increasePending(uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook,uint256,uint16).priorCredit (src/libraries/LibGlobalRewards.sol#666) is a local variable never initialized",
+      "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
       "occurrences": 1,
-      "id": "6a8fc9ce071665e8d58f1efe"
+      "id": "68dfac6f62d6b5506b044293"
     },
     {
       "impact": "Medium",
@@ -2042,12 +2266,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "src/dollar/core/libraries/LibCoreAccounting.sol"
       ],
-      "summary": "LibGlobalRewards._accrueReservedNonSwapFee(address,uint256).stakerAmount (src/libraries/LibGlobalRewards.sol#142) is a local variable never initialized",
+      "summary": "LibCoreAccounting.insuranceContribution(IStaticsDollarCoreTypes.StableCollateralProfile,uint256,uint256,uint256).low (src/dollar/core/libraries/LibCoreAccounting.sol#212) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
-      "id": "7070815d359a4ea9e370979e"
+      "id": "6a8fc9ce071665e8d58f1efe"
     },
     {
       "impact": "Medium",
@@ -2096,6 +2320,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "7ab794e76bbfcdd231d82152"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address).cursor (script/DeployStaticsPhases.s.sol#840) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "7e93f8a0cce95ac3da061b4e"
     },
     {
       "impact": "Medium",
@@ -2170,6 +2410,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta).normalized (src/liquidity/StaticsPermissionedSwapFeeHook.sol#240) is a local variable never initialized",
+      "rationale": "The memory context and normalized distribution intentionally begin at Solidity zero; every required field is assigned before use and zero normalized amounts deliberately skip optional routing.",
+      "occurrences": 1,
+      "id": "90cd0d3dd6a518ccdc62d3c8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibBasketRewards.sol"
       ],
       "summary": "LibBasketRewards._settleAsset(LibBasketRewards.RewardStorage,LibBasketRewards.PositionRewards,uint256,uint256,address,uint256).added (src/libraries/LibBasketRewards.sol#316) is a local variable never initialized",
@@ -2208,22 +2464,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "9ba00fd369d970a12ca71186"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGlobalRewards.sol"
-      ],
-      "summary": "LibGlobalRewards._increasePending(uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook,uint256,uint16).priorCredit (src/libraries/LibGlobalRewards.sol#663) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "ac0a7f30caab0bbc2ad98c4e"
     },
     {
       "impact": "Medium",
@@ -2295,15 +2535,15 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "LibGlobalRewards._ensureBookWeights(LibGlobalRewards.RewardBook).bitmap (src/libraries/LibGlobalRewards.sol#891) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "summary": "DeployStaticsPhases._cutSelectors(IDiamondCut.FacetCut[]).cursor (script/DeployStaticsPhases.s.sol#851) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
       "occurrences": 1,
-      "id": "be738a51fa1a7c3cde2a38b4"
+      "id": "b400fd8f747689b3239ea9fd"
     },
     {
       "impact": "Medium",
@@ -2384,6 +2624,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "d8925adc4ab1db51e9e0eeab"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#734) is a local variable never initialized",
+      "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
+      "occurrences": 1,
+      "id": "dd9a2b7ffc1facd058a78136"
     },
     {
       "impact": "Medium",
@@ -2586,6 +2842,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.routeProtocolSwapFees(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/facets/ProtocolRevenueFacet.sol#33-46) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#37)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "058f1205fb42269e377e6363"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._recombineForRedemption(LibPeriphery.PS,PairingVaultFacet.RedemptionContext,PairingVaultFacet.RedemptionRequest) (src/dollar/periphery/facets/PairingVaultFacet.sol#231-257) ignores return value by (recombinationStatus,None) = ctx.core.recombineManaged(request.seriesId,ctx.fill,ctx.fill,0,address(this)) (src/dollar/periphery/facets/PairingVaultFacet.sol#250-251)",
@@ -2682,6 +2954,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.activateStakingLeg(uint256) (src/libraries/LibGlobalRewards.sol#528-534) ignores return value by LibPosition.activateLeg(positionId,LibPosition.STAKING_MODULE,bytes32(uint256(1))) (src/libraries/LibGlobalRewards.sol#532)",
+      "rationale": "Leg activation is used for its guarded state transition and reverts on failure; the caller does not need the returned module-local value.",
+      "occurrences": 1,
+      "id": "0d49893964730841e9a26164"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._redeem(PairingVaultFacet.RedemptionRequest) (src/dollar/periphery/facets/PairingVaultFacet.sol#167-200) ignores return value by (status,unhealthyBitmap,None,None) = ctx.core.checkpointGlobalCollateralExit() (src/dollar/periphery/facets/PairingVaultFacet.sol#175)",
@@ -2698,12 +2986,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#273-318) ignores return value by IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#310-313)",
-      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
+      "summary": "PermissionedPositionClaims.deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#61-66) ignores return value by poolManager.unlock(abi.encode(DEPOSIT,poolId,owner,currency,amount)) (src/permissioned/PermissionedPositionClaims.sol#65)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
       "occurrences": 1,
-      "id": "0f33a97dde7d82d456a5b8aa"
+      "id": "0e06673e7316525201604cb1"
     },
     {
       "impact": "Medium",
@@ -2874,12 +3162,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/StaticsPermissionedRouter.sol"
+      ],
+      "summary": "StaticsPermissionedRouter.swapExactInputSingle(IV4Router.ExactInputSingleParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#34-60) ignores return value by poolManager.unlock(abi.encode(actions,actionParams)) (src/permissioned/StaticsPermissionedRouter.sol#58)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
+      "occurrences": 1,
+      "id": "1a92349387f90881db27f882"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#76-85) ignores return value by (None,None,None,None,None,None,owner,None) = params.decodeMintParams() (src/permissioned/StaticsPermissionedPositionManager.sol#78)",
+      "rationale": "Only the decoded owner field is required to enforce caller-bound mint ownership; the remaining tuple fields are consumed later by the inherited PositionManager action handler.",
+      "occurrences": 1,
+      "id": "1c451d260f0b14b67781cff9"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "GenesisLaunchDistributor._accrue() (src/genesis/GenesisLaunchDistributor.sol#441-445) ignores return value by feeReceiver.harvest() (src/genesis/GenesisLaunchDistributor.sol#442)",
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "1ff6a49648887d48c323af4e"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.creatorRevenue(PoolId,address) (src/facets/ProtocolRevenueFacet.sol#63-66) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#64)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "21e9f8848dbf3a2afc0143bc"
     },
     {
       "impact": "Medium",
@@ -2956,10 +3292,10 @@
       "paths": [
         "src/facets/ProtocolRevenueFacet.sol"
       ],
-      "summary": "ProtocolRevenueFacet.claimCreatorRevenue(address,address,uint256) (src/facets/ProtocolRevenueFacet.sol#46-58) ignores return value by (None,received) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/ProtocolRevenueFacet.sol#55)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "summary": "ProtocolRevenueFacet.claimCreatorRevenue(PoolId,address,address,uint256) (src/facets/ProtocolRevenueFacet.sol#48-61) ignores return value by (None,received) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/ProtocolRevenueFacet.sol#58)",
+      "rationale": "The received amount is consumed as the transfer result; the omitted tuple member is not needed because reserved accounting and the exact requested amount gate the withdrawal.",
       "occurrences": 1,
-      "id": "2510e0b959ab0aa58784be78"
+      "id": "25b200753e76cfea78b9b40a"
     },
     {
       "impact": "Medium",
@@ -3079,22 +3415,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet.mintBasketLaunch(uint256,address,uint256,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#115-130) ignores return value by LibBasketMint.mintFromPayer(basketId,basketShares,payer,address(this),mintMaximums) (src/facets/BasketLiquidityFacet.sol#129)",
-      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
-      "occurrences": 1,
-      "id": "2addaa0c5206baef0de52ba3"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3175,22 +3495,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#46-51) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolAdminFacet.sol#48)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "3419dc01fe09e9234908d59d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3200,6 +3504,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "36dc4d8e1b93f3739a040b61"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolViewFacet.sol"
+      ],
+      "summary": "ProtocolPoolViewFacet.protocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolViewFacet.sol#75-89) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolViewFacet.sol#80)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "37662b03b8160278494b2954"
     },
     {
       "impact": "Medium",
@@ -3466,12 +3786,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
+        "src/facets/PermissionedPoolAdminFacet.sol"
       ],
-      "summary": "ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#53-58) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolAdminFacet.sol#55)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "summary": "PermissionedPoolAdminFacet.permissionedTermsDigest(PoolId,IStaticsPermissionedSwapFeeHook.PoolEconomics,uint256,uint256,bytes32) (src/facets/PermissionedPoolAdminFacet.sol#83-92) ignores return value by LibPermissionedPools.enforceRegistered(poolId) (src/facets/PermissionedPoolAdminFacet.sol#90)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
       "occurrences": 1,
-      "id": "46a0705fd40ce15972f4e916"
+      "id": "46a3356103cf2cfb1e2ad90d"
     },
     {
       "impact": "Medium",
@@ -3488,22 +3808,6 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "4709583eda626e5f9f693a0b"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolRevenueFacet.sol"
-      ],
-      "summary": "ProtocolRevenueFacet.canAccrueBasketRewards(PoolId) (src/facets/ProtocolRevenueFacet.sol#68-72) ignores return value by (kind,None,basketId,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolRevenueFacet.sol#69)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "474054b22a98e069a53c3e83"
     },
     {
       "impact": "Medium",
@@ -3568,6 +3872,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "4cd329f74217d024457a6b7b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/PermissionedPoolCreationFacet.sol"
+      ],
+      "summary": "PermissionedPoolCreationFacet.createPermissionedPool(IStaticsPermissionedPools.CreatePermissionedPoolParams,bytes) (src/facets/PermissionedPoolCreationFacet.sol#62-95) ignores return value by hook.registerPool(quote.key,params.controller,params.creator,params.economics) (src/facets/PermissionedPoolCreationFacet.sol#92)",
+      "rationale": "Pool registration is the required state transition and reverts on failure; the returned PoolId is already deterministically derived from the validated PoolKey.",
+      "occurrences": 1,
+      "id": "4dae04d1a6914e7d082fb26b"
     },
     {
       "impact": "Medium",
@@ -4311,22 +4631,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGlobalRewards.sol"
-      ],
-      "summary": "LibGlobalRewards.activateStakingLeg(uint256) (src/libraries/LibGlobalRewards.sol#525-531) ignores return value by LibPosition.activateLeg(positionId,LibPosition.STAKING_MODULE,bytes32(uint256(1))) (src/libraries/LibGlobalRewards.sol#529)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "899b949e2b5a4b3abf5e3ffb"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4522,12 +4826,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsSwapFeeHook.sol"
+        "src/facets/PermissionedPoolCreationFacet.sol"
       ],
-      "summary": "StaticsSwapFeeHook._addPermanentLiquidity(PoolKey,PoolId,uint256,uint256) (src/liquidity/StaticsSwapFeeHook.sol#652-671) ignores return value by (sqrtPriceX96,None,None,None) = poolManager.getSlot0(poolId) (src/liquidity/StaticsSwapFeeHook.sol#656)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "summary": "PermissionedPoolCreationFacet.createPermissionedPool(IStaticsPermissionedPools.CreatePermissionedPoolParams,bytes) (src/facets/PermissionedPoolCreationFacet.sol#62-95) ignores return value by (initializedPrice,None,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/PermissionedPoolCreationFacet.sol#84)",
+      "rationale": "The tuple read intentionally consumes only the initialized-price or spot-tick field needed by this path; the remaining PoolManager state is irrelevant here.",
       "occurrences": 1,
-      "id": "981c43184e1f929fd2495f67"
+      "id": "92faaa1a3cdc09a5f6436885"
     },
     {
       "impact": "Medium",
@@ -4538,12 +4842,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/liquidity/StaticsSwapFeeHook.sol"
       ],
-      "summary": "BasketLiquidityFacet.canonicalPool(uint256,address) (src/facets/BasketLiquidityFacet.sol#243-264) ignores return value by (None,spotTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#252)",
+      "summary": "StaticsSwapFeeHook._addPermanentLiquidity(PoolKey,PoolId,uint256,uint256) (src/liquidity/StaticsSwapFeeHook.sol#652-671) ignores return value by (sqrtPriceX96,None,None,None) = poolManager.getSlot0(poolId) (src/liquidity/StaticsSwapFeeHook.sol#656)",
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
-      "id": "9862c52e0e51965076491ddb"
+      "id": "981c43184e1f929fd2495f67"
     },
     {
       "impact": "Medium",
@@ -4730,12 +5034,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#319-364) ignores return value by IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#356-359)",
+      "rationale": "Pool registration is the required state transition and reverts on failure; the returned PoolId is already deterministically derived from the validated PoolKey.",
+      "occurrences": 1,
+      "id": "a5ff78755cadfb6f90c7f8c8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._prepareArbitrage(uint256,uint256,PoolKey[],uint256[],uint256[]) (src/periphery/StaticsFlashArbitrageReceiver.sol#159-175) ignores return value by (assets,flashAmounts,None) = IStaticsFlashLoan(staticsDiamond).quoteFlashLoan(basketId,shares) (src/periphery/StaticsFlashArbitrageReceiver.sol#167)",
       "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
       "occurrences": 1,
       "id": "a92c1f8daf76405f9c6d0005"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.canAccrueBasketRewards(PoolId) (src/facets/ProtocolRevenueFacet.sol#72-76) ignores return value by (kind,None,basketId,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolRevenueFacet.sol#73)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "abad9e1fc3810811cbef1214"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims.claim(PoolId,Currency,address,uint256) (src/permissioned/PermissionedPositionClaims.sol#83-94) ignores return value by poolManager.unlock(abi.encode(WITHDRAW,poolId,msg.sender,currency,receiver,amount)) (src/permissioned/PermissionedPositionClaims.sol#93)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
+      "occurrences": 1,
+      "id": "af209a4ac171b2a6547b3b1e"
     },
     {
       "impact": "Medium",
@@ -4807,6 +5159,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolViewFacet.sol"
+      ],
+      "summary": "ProtocolPoolViewFacet.isProtocolPool(PoolId) (src/facets/ProtocolPoolViewFacet.sol#37-40) ignores return value by (kind,None,None,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolPoolViewFacet.sol#38)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "b2ef20b9cc64e2ef8bbb2230"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4864,6 +5232,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b70a139bda48cb56d175a115"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedRouter.sol"
+      ],
+      "summary": "StaticsPermissionedRouter.swapExactInput(IV4Router.ExactInputParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#62-89) ignores return value by poolManager.unlock(abi.encode(actions,actionParams)) (src/permissioned/StaticsPermissionedRouter.sol#87)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
+      "occurrences": 1,
+      "id": "b755e397c44f780d05639bc4"
     },
     {
       "impact": "Medium",
@@ -4976,6 +5360,22 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "c07702c9f9d9b4dad14c1983"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#76-85) ignores return value by (None,None,None,None,None,owner_scope_0,None) = params.decodeMintFromDeltasParams() (src/permissioned/StaticsPermissionedPositionManager.sol#81)",
+      "rationale": "Only the decoded owner field is required to enforce caller-bound mint ownership; the remaining tuple fields are consumed later by the inherited PositionManager action handler.",
+      "occurrences": 1,
+      "id": "c0d1d612484d6de164b48265"
     },
     {
       "impact": "Medium",
@@ -5274,12 +5674,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibProtocolRevenue.sol"
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
       ],
-      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-65) ignores return value by (kind,key,basketId,None) = LibProtocolPools.enforceRegistered(poolId) (src/libraries/LibProtocolRevenue.sol#33-34)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "summary": "StaticsPermissionedPositionManager.forceUnwind(uint256,uint128,uint128,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#50-74) ignores return value by poolManager.unlock(abi.encode(actions,params)) (src/permissioned/StaticsPermissionedPositionManager.sol#68)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
       "occurrences": 1,
-      "id": "cf02fd9a7ee6f176bb8be4e7"
+      "id": "ccdd6ed335c3367cd35ef8fd"
     },
     {
       "impact": "Medium",
@@ -5312,22 +5712,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "cf7881d338c3bcad25f3ec7e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolViewFacet.sol"
-      ],
-      "summary": "ProtocolPoolViewFacet.isProtocolPool(PoolId) (src/facets/ProtocolPoolViewFacet.sol#32-35) ignores return value by (kind,None,None,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolPoolViewFacet.sol#33)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "cfaa8dccef1f465f84bc6b05"
     },
     {
       "impact": "Medium",
@@ -5376,6 +5760,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "d2b03121cc0baee12526a42d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibProtocolRevenue.sol"
+      ],
+      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-69) ignores return value by (kind,key,basketId,None) = LibProtocolPools.enforceRegistered(poolId) (src/libraries/LibProtocolRevenue.sol#33-34)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "d2e70f3383c505f92d3c372f"
     },
     {
       "impact": "Medium",
@@ -5456,6 +5856,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "d4cb51832588b3b0602e3b8a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet.canonicalPool(uint256,address) (src/facets/BasketLiquidityFacet.sol#289-310) ignores return value by (None,spotTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#298)",
+      "rationale": "The tuple read intentionally consumes only the initialized-price or spot-tick field needed by this path; the remaining PoolManager state is irrelevant here.",
+      "occurrences": 1,
+      "id": "d5b3f45c054b556bb6f01ddd"
     },
     {
       "impact": "Medium",
@@ -5658,12 +6074,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
+        "src/libraries/LibProtocolRevenue.sol"
       ],
-      "summary": "ProtocolPoolAdminFacet.harvestPermanentLiquidityFees(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#129-156) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolAdminFacet.sol#140)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-69) ignores return value by LibBasketRewards.accrueReserved(basketId,LibBasket.basketStorage().baskets[basketId],asset,distribution.basketStaker) (src/libraries/LibProtocolRevenue.sol#54-56)",
+      "rationale": "Reward accrual is used for its exact reserved-accounting state transition; the prevalidated distribution amount is authoritative and failure reverts the complete fee route.",
       "occurrences": 1,
-      "id": "e08efae3b6cfdc3768d43ae4"
+      "id": "e0c8131a0511714b1dcc30f8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet.mintBasketLaunch(uint256,address,uint256,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#146-161) ignores return value by LibBasketMint.mintFromPayer(basketId,basketShares,payer,address(this),mintMaximums) (src/facets/BasketLiquidityFacet.sol#160)",
+      "rationale": "Minting is used for its exact requested-share state transition; launch accounting and payer debit checks validate the resulting balances, so the helper's duplicate return is unnecessary.",
+      "occurrences": 1,
+      "id": "e15b873cc8a77534ddb989fe"
     },
     {
       "impact": "Medium",
@@ -5751,22 +6183,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolViewFacet.sol"
-      ],
-      "summary": "ProtocolPoolViewFacet.protocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolViewFacet.sol#70-81) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolViewFacet.sol#75)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
-      "occurrences": 1,
-      "id": "eb6e09f6dbce9a1dddf6cf09"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5847,22 +6263,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibProtocolRevenue.sol"
-      ],
-      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-65) ignores return value by LibBasketRewards.accrueReserved(basketId,LibBasket.basketStorage().baskets[basketId],asset,distribution.basketStaker) (src/libraries/LibProtocolRevenue.sol#50-52)",
-      "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
-      "occurrences": 1,
-      "id": "fa2a7f65aac4250a54e03dca"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5930,12 +6330,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
+        "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#697-712) has external calls inside a loop: count += loupe.facetFunctionSelectors(facets[i]).length (script/DeployStaticsPhases.s.sol#702)",
-      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
-      "occurrences": 7,
-      "id": "6d8a6b31350dcff307ac1bb2"
+      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#234-266) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#261-264)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "079ee304f5fdb3d5a84d9f7f"
     },
     {
       "impact": "Low",
@@ -6000,6 +6400,22 @@
       "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
       "id": "11c87ec89130add478a16ef9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#832-847) has external calls inside a loop: count += loupe.facetFunctionSelectors(facets[i]).length (script/DeployStaticsPhases.s.sol#837)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "16c7cdd27f6311d92e6dae71"
     },
     {
       "impact": "Low",
@@ -6106,12 +6522,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#273-318) has external calls inside a loop: tick = IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#314)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: amountOut = abi.decode(poolManager.unlock(abi.encode(SwapCall({pool:pool,zeroForOne:zeroForOne,amountIn:amountIn}))),(uint256)) (src/periphery/StaticsFlashArbitrageReceiver.sol#434-437)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "32159be06fd924230b66031e"
+      "id": "39a0105bafdceae77ecc0c1f"
     },
     {
       "impact": "Low",
@@ -6119,15 +6535,15 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
+        "production-scripts"
       ],
       "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+        "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: amountOut = abi.decode(poolManager.unlock(abi.encode(SwapCall({pool:pool,zeroForOne:zeroForOne,amountIn:amountIn}))),(uint256)) (src/periphery/StaticsFlashArbitrageReceiver.sol#434-437)",
-      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "summary": "DeployStaticsPhases._logDiamondFacets(address) (script/DeployStaticsPhases.s.sol#975-986) has external calls inside a loop: console.log(STATICS_DOLLAR_CORE_FACET_SELECTOR_COUNT,IDiamondLoupe(diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhases.s.sol#981-984)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 1,
-      "id": "39a0105bafdceae77ecc0c1f"
+      "id": "3a38fdab86e610d2dd994e1a"
     },
     {
       "impact": "Low",
@@ -6279,6 +6695,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateFacetSet(address,bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#797-807) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(selectors[i]) (script/DeployStaticsPhases.s.sol#804)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "64fd664e3dbf5b6c4465e916"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -6304,6 +6736,22 @@
       "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 2,
       "id": "68407191d05299d27a08de4e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedRouter.sol"
+      ],
+      "summary": "StaticsPermissionedRouter._pay(Currency,address,uint256) (src/permissioned/StaticsPermissionedRouter.sol#95-101) has external calls inside a loop: permit2.transferFrom(payer,address(poolManager),uint160(amount),Currency.unwrap(currency)) (src/permissioned/StaticsPermissionedRouter.sol#99)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "6b402a4f7784f121614e48f5"
     },
     {
       "impact": "Low",
@@ -6439,63 +6887,31 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
+        "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#697-712) has external calls inside a loop: facetSelectors = loupe.facetFunctionSelectors(facets[i_scope_0]) (script/DeployStaticsPhases.s.sol#707)",
-      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
-      "occurrences": 7,
-      "id": "95d2ddc46852b2a6fdbd53ba"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validateFacetSet(address,bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#662-672) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(selectors[i]) (script/DeployStaticsPhases.s.sol#669)",
-      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
-      "occurrences": 7,
-      "id": "9826d69e5edc2bf597657789"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validateSharedFacetSet(address,bytes4[],bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#674-685) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(deferred[i]) (script/DeployStaticsPhases.s.sol#682)",
-      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
-      "occurrences": 7,
-      "id": "9af59a7b4618b06616683e16"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#211-237) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#232-235)",
-      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#319-364) has external calls inside a loop: tick = IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#360)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 1,
-      "id": "a4d842a2370281e9b829563b"
+      "id": "973a6b1faf005029da6cd3ef"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#832-847) has external calls inside a loop: facetSelectors = loupe.facetFunctionSelectors(facets[i_scope_0]) (script/DeployStaticsPhases.s.sol#842)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "9cc17c216e3118b732c00ebf"
     },
     {
       "impact": "Low",
@@ -6524,10 +6940,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._logDiamondFacets(address) (script/DeployStaticsPhases.s.sol#840-851) has external calls inside a loop: console.log(STATICS_DOLLAR_CORE_FACET_SELECTOR_COUNT,IDiamondLoupe(diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhases.s.sol#846-849)",
-      "rationale": "These are read-only deployment preflight or logging calls over bounded facet and selector manifests; any failure aborts before broadcast and no protocol state is mutated.",
-      "occurrences": 1,
-      "id": "bcd82725da53eeb951e35f41"
+      "summary": "DeployStaticsPhases._validateSharedFacetSet(address,bytes4[],bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#809-820) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(deferred[i]) (script/DeployStaticsPhases.s.sol#817)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "af7ea49498adf52e1fd3d123"
     },
     {
       "impact": "Low",
@@ -6554,12 +6970,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "BasketLiquidityFacet._enforcePayerDebits(LibBasket.Basket,address,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#216-231) has external calls inside a loop: balanceAfter = IERC20(asset).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#225)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: outputBefore = outputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#433)",
+      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 1,
-      "id": "baba2c82bfd06667e3625590"
+      "id": "bcef9736dd4fad0ac915537a"
     },
     {
       "impact": "Low",
@@ -6570,12 +6986,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+        "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: outputBefore = outputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#433)",
-      "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
+      "summary": "BasketLiquidityFacet._enforcePayerDebits(LibBasket.Basket,address,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#247-262) has external calls inside a loop: balanceAfter = IERC20(asset).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#256)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 1,
-      "id": "bcef9736dd4fad0ac915537a"
+      "id": "c526c984ff023912324f1b89"
     },
     {
       "impact": "Low",
@@ -6608,6 +7024,22 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "d1822f16f933ba199dcea1e7"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._payerBalances(LibBasket.Basket,address) (src/facets/BasketLiquidityFacet.sol#235-245) has external calls inside a loop: balances[i] = IERC20(configured.assets[i]).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#243)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "d3185522fcf3b88023d78c30"
     },
     {
       "impact": "Low",
@@ -6666,22 +7098,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._payerBalances(LibBasket.Basket,address) (src/facets/BasketLiquidityFacet.sol#204-214) has external calls inside a loop: balances[i] = IERC20(configured.assets[i]).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#212)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
-      "occurrences": 1,
-      "id": "e032668ba068adb25c9de811"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430) has external calls inside a loop: (callerDelta,feesAccrued) = poolManager.modifyLiquidity(seed.key,params,) (src/liquidity/StaticsSwapFeeHook.sol#406)",
@@ -6700,10 +7116,10 @@
       "paths": [
         "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#273-318) has external calls inside a loop: IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#310-313)",
-      "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#319-364) has external calls inside a loop: IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#356-359)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 1,
-      "id": "f0aa1332a3401bf3835032df"
+      "id": "f23833f3c9a9345c97146397"
     },
     {
       "impact": "Low",
@@ -6736,6 +7152,22 @@
       "rationale": "Installation validates deployed code and immutable cross-bindings, so a zero constructor dependency cannot be installed into the Diamond or receive protocol funds.",
       "occurrences": 1,
       "id": "1dabd3646eb6be28221cfd37"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims.constructor(IPoolManager,address,IStaticsPermissionedSwapFeeHook).positionManager_ (src/permissioned/PermissionedPositionClaims.sol#46) lacks a zero-check on :",
+      "rationale": "The claims companion is constructed only by the PositionManager with address(this); the supported deployment also verifies the immutable binding, so a zero position-manager binding is unreachable.",
+      "occurrences": 1,
+      "id": "1ebe1854bc305f2327706134"
     },
     {
       "impact": "Low",
@@ -7002,28 +7434,28 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
+      "rationale": "Claim settlement runs inside the authenticated PoolManager callback and records credit only after exact settlement; nested lifecycle entry is blocked and a failed callback reverts all intermediate state.",
+      "occurrences": 1,
+      "id": "21e58ea95f6e4938a4b8806c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._mintClaim(Currency,uint256) (src/liquidity/StaticsSwapFeeHook.sol#738-743):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "36eb0d48aa0911753dcb8068"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-76):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "60ee8955a1774e2198950c2c"
     },
     {
       "impact": "Low",
@@ -7045,17 +7477,17 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
       ],
       "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._normalize(PoolKey,Currency,Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#278-303):",
+      "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
       "occurrences": 1,
-      "id": "9f2d93e4bfb0f3e8cd6f9c87"
+      "id": "44b663498ddff24d99cc3414"
     },
     {
       "impact": "Low",
@@ -7082,12 +7514,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#203-267):",
+      "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
+      "occurrences": 1,
+      "id": "4bdebc90bf718aa005927ba6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "Reentrancy in GenesisLaunchDistributor.registerGenesis(uint256) (src/genesis/GenesisLaunchDistributor.sol#152-169):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "598bdf070594cd40bb5f572b"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#56-76):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "60ee8955a1774e2198950c2c"
     },
     {
       "impact": "Low",
@@ -7120,6 +7584,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "98054ca1a627dff9b18f430f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "9f2d93e4bfb0f3e8cd6f9c87"
     },
     {
       "impact": "Low",
@@ -7307,6 +7787,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#80-93):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "1515dd32c683115421fbe622"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
@@ -7361,22 +7857,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "1cc4545fc8e1cc00ef347492"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#40-44):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "1f5b90b19b382036a6b24dab"
     },
     {
       "impact": "Low",
@@ -7462,22 +7942,6 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/dollar/core/CoreInit.sol"
-      ],
-      "summary": "Reentrancy in CoreInit.genesis(IDiamondCut.FacetCut[],CoreInit.InitArgs) (src/dollar/core/CoreInit.sol#56-59):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "3a4f3ad8b7e4ef1f3caca9d8"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -7558,6 +8022,38 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/dollar/core/CoreInit.sol"
+      ],
+      "summary": "Reentrancy in CoreInit.genesis(IDiamondCut.FacetCut[],CoreInit.InitArgs) (src/dollar/core/CoreInit.sol#56-59):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "3a4f3ad8b7e4ef1f3caca9d8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#41-45):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "400fe300147d928ad491e146"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -7602,6 +8098,24 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "48cede54f8f84a91784ca328"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGlobalRewards.sol",
+        "src/libraries/LibLoanOrigination.sol"
+      ],
+      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "49ec8902e1758cf9e0ef351f"
     },
     {
       "impact": "Low",
@@ -7706,6 +8220,22 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#61-78):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "65d32c851b742d7223eebe98"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7715,23 +8245,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "668e0a442ec9002257da1f03"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol",
-        "src/libraries/LibDeploymentPhases.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "6e8244fd2a4fdc95529349bf"
     },
     {
       "impact": "Low",
@@ -7780,6 +8293,39 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "6cd5df98f943480bf918033e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#80-83):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "6e8244fd2a4fdc95529349bf"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#203-267):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "7187f58d884f6ae3d395fc5a"
     },
     {
       "impact": "Low",
@@ -7874,7 +8420,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "8216f0492b47d4488877e515"
     },
     {
@@ -7899,6 +8445,22 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "Reentrancy in BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#319-364):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "8a03cb0a6fb48219ed2a1ac0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7908,6 +8470,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "8ac456f830f3d7e4508052f7"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#54-59):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "8d8a5d47cbd6dc6c6affcfde"
     },
     {
       "impact": "Low",
@@ -7948,6 +8526,22 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims.unlockCallback(bytes) (src/permissioned/PermissionedPositionClaims.sol#100-118):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "9f6e3bf93fea9c9b05259a9d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7973,22 +8567,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a0de3fe2d881c62d9f20bc59"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#46-51):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "a5ba21d951852eb77fcfff68"
     },
     {
       "impact": "Low",
@@ -8065,40 +8643,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGlobalRewards.sol",
-        "src/libraries/LibLoanOrigination.sol"
-      ],
-      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "bb950f9edb81c04faa19f388"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#60-77):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "bbd502c8b4b142306424616c"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet._forwardPositionCreationFee(uint256) (src/position/PositionNFTFacet.sol#214-221):",
@@ -8131,12 +8675,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/PermissionedPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPoolAdminFacet.setPermissionedTrustedPeriphery(address,bool) (src/facets/PermissionedPoolAdminFacet.sol#77-81):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "c30136e5bc7e355405724c25"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#45-49):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "c72ed9db35bc191c0607fb20"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#47-52):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "ce76d03fc706136b54ed85ff"
     },
     {
       "impact": "Low",
@@ -8228,6 +8804,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "dcb52728710bc4a20a2cffe3"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/core/libraries/LibCoreAccounting.sol"
       ],
       "summary": "Reentrancy in LibCoreAccounting.collectSeriesFee(LibCoreStorage.CS,address,address,uint256,uint256,IStaticsDollarCoreTypes.FeeKind) (src/dollar/core/libraries/LibCoreAccounting.sol#134-151):",
@@ -8251,54 +8843,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "dfadacb24a1a812aaafbdf92"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#53-58):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "e232c1d750ca99cbe4707734"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#79-92):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "ef21e6950f7b2ee6f19ba787"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "Reentrancy in BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#273-318):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "f1b723a0a9e922a5849aa723"
     },
     {
       "impact": "Low",
@@ -8483,6 +9027,22 @@
       "check": "shadowing-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager.constructor(IPoolManager,IAllowanceTransfer,uint256,IPositionDescriptor,IWETH9,IStaticsPermissionedSwapFeeHook).unsubscribeGasLimit (src/permissioned/StaticsPermissionedPositionManager.sol#37) shadows:",
+      "rationale": "The constructor parameter intentionally matches the inherited PositionManager domain term and is forwarded directly; no storage or dispatch resolution is shadowed.",
+      "occurrences": 1,
+      "id": "bfe49df58a30554adde99cd5"
+    },
+    {
+      "impact": "Low",
+      "confidence": "High",
+      "check": "shadowing-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -8566,6 +9126,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._duePendingStake(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#830-841) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
+      "occurrences": 1,
+      "id": "0a6d2cad290be895a8985c31"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting.vestingComplete() (src/genesis/StaticsTreasuryVesting.sol#168-170) uses timestamp for comparisons",
@@ -8588,6 +9164,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "0d6d43e5cad2b4cd1e573525"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._rollMatured(address,LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#753-779) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
+      "occurrences": 1,
+      "id": "11fa40ed92d22f38537a453f"
     },
     {
       "impact": "Low",
@@ -8678,22 +9270,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
-      ],
-      "summary": "LibGlobalRewards._duePendingStake(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#827-838) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
-      "occurrences": 1,
-      "id": "2afe6b56c4df96aaa20fd0fa"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver.executeMintAndSell(uint256,uint256,PoolKey[],uint256[],uint256[],uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#90-107) uses timestamp for comparisons",
@@ -8742,12 +9318,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "src/permissioned/StaticsPermissionedRouter.sol"
       ],
-      "summary": "LibGlobalRewards._duePendingWeight(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#840-853) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "StaticsPermissionedRouter.swapExactInputSingle(IV4Router.ExactInputSingleParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#34-60) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
-      "id": "32c0aa7071640da70a753b49"
+      "id": "3f34055a0e758be31965ab3f"
     },
     {
       "impact": "Low",
@@ -8760,10 +9336,10 @@
       "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibGlobalRewards.selectionView(uint256,address) (src/libraries/LibGlobalRewards.sol#499-523) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "LibGlobalRewards._increasePending(uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook,uint256,uint16) (src/libraries/LibGlobalRewards.sol#656-689) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
-      "id": "40d15e16ac43923dc010343d"
+      "id": "487e038aedaedb264b34bdf6"
     },
     {
       "impact": "Low",
@@ -8780,6 +9356,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "6039ae8a49d0ae9480e39dfd"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards._addPendingBucket(LibGlobalRewards.RewardBook,uint40,uint256,uint256) (src/libraries/LibGlobalRewards.sol#806-816) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
+      "occurrences": 1,
+      "id": "650dc37dedd33fb2cb42e600"
     },
     {
       "impact": "Low",
@@ -8822,12 +9414,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "LibGlobalRewards._addPendingBucket(LibGlobalRewards.RewardBook,uint40,uint256,uint256) (src/libraries/LibGlobalRewards.sol#803-813) uses timestamp for comparisons",
+      "summary": "StaticsGenesisVault.drawGenesisCredit(uint256,uint256) (src/genesis/StaticsGenesisVault.sol#288-313) uses timestamp for comparisons",
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
-      "id": "72fde0576b632dc89f8815a4"
+      "id": "75e80483cfaac15e1b9bb89f"
     },
     {
       "impact": "Low",
@@ -8838,12 +9430,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/genesis/StaticsGenesisVault.sol"
+        "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "StaticsGenesisVault.drawGenesisCredit(uint256,uint256) (src/genesis/StaticsGenesisVault.sol#288-313) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "LibGlobalRewards._duePendingWeight(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#843-856) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
-      "id": "75e80483cfaac15e1b9bb89f"
+      "id": "76f37533021ea20218bfbf58"
     },
     {
       "impact": "Low",
@@ -8950,12 +9542,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "src/facets/PermissionedPoolAdminFacet.sol"
       ],
-      "summary": "LibGlobalRewards._increasePending(uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook,uint256,uint16) (src/libraries/LibGlobalRewards.sol#653-686) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "PermissionedPoolAdminFacet.applyPermissionedPoolTerms(PoolId,IStaticsPermissionedSwapFeeHook.PoolEconomics,uint256,uint256,bytes32,bytes) (src/facets/PermissionedPoolAdminFacet.sol#31-56) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
-      "id": "9e74c33da74f785ed086baad"
+      "id": "a1cf371b7cd65610e1ea46dc"
     },
     {
       "impact": "Low",
@@ -9059,6 +9651,22 @@
       "check": "timestamp",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/PermissionedPoolCreationFacet.sol"
+      ],
+      "summary": "PermissionedPoolCreationFacet.createPermissionedPool(IStaticsPermissionedPools.CreatePermissionedPoolParams,bytes) (src/facets/PermissionedPoolCreationFacet.sol#62-95) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
+      "occurrences": 1,
+      "id": "b840741d7628ec1b63181bdf"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9112,10 +9720,10 @@
       "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
-      "summary": "LibGlobalRewards._needsCheckpoint(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#855-877) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "LibGlobalRewards._needsCheckpoint(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#858-880) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
-      "id": "c949e0b8e2d0ab1723f7a274"
+      "id": "cbcd1526434204c8dd87f742"
     },
     {
       "impact": "Low",
@@ -9222,6 +9830,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.selectionView(uint256,address) (src/libraries/LibGlobalRewards.sol#502-526) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
+      "occurrences": 1,
+      "id": "da4c27f0bce7163ebb2ebcaa"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibLoanOrigination.sol"
       ],
       "summary": "LibLoanOrigination._createLoan(LibBasket.Basket,LibLoanOrigination.OriginationRequest,IStaticsLending.BorrowQuote,LibLoanOrigination.OriginationState) (src/libraries/LibLoanOrigination.sol#102-124) uses timestamp for comparisons",
@@ -9270,12 +9894,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGlobalRewards.sol"
+        "src/permissioned/StaticsPermissionedRouter.sol"
       ],
-      "summary": "LibGlobalRewards._rollMatured(address,LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#750-776) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "StaticsPermissionedRouter.swapExactInput(IV4Router.ExactInputParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#62-89) uses timestamp for comparisons",
+      "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
-      "id": "eac5b616d2ecb16e9bd28cc3"
+      "id": "ec535896767a6315521fdf06"
     },
     {
       "impact": "Low",
@@ -9366,12 +9990,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibBasketLiquidity.sol"
+      ],
+      "summary": "LibBasketLiquidity.liquidityStorage() (src/libraries/LibBasketLiquidity.sol#35-40) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "07f3a5100c96a3d5f37ac896"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibPositionPortfolio.sol"
       ],
       "summary": "LibPositionPortfolio.portfolioStorage() (src/libraries/LibPositionPortfolio.sol#27-32) uses assembly",
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "08ecb483e9486cd15797319e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibPermissionedPools.sol"
+      ],
+      "summary": "LibPermissionedPools.permissionedPoolStorage() (src/libraries/LibPermissionedPools.sol#30-35) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "166e27fdb6a69fdc39466d00"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGlobalRewards.sol"
+      ],
+      "summary": "LibGlobalRewards.rewardStorage() (src/libraries/LibGlobalRewards.sol#99-104) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "19063e8ab3eef3acf799ddd5"
     },
     {
       "impact": "Informational",
@@ -9414,6 +10086,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibProtocolRevenue.sol"
+      ],
+      "summary": "LibProtocolRevenue.protocolRevenueStorage() (src/libraries/LibProtocolRevenue.sol#71-76) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "26da9614a50d20500ef9a963"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibMorpho.sol"
       ],
       "summary": "LibMorpho.morphoStorage() (src/libraries/LibMorpho.sol#71-76) uses assembly",
@@ -9446,22 +10134,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibProtocolRevenue.sol"
-      ],
-      "summary": "LibProtocolRevenue.protocolRevenueStorage() (src/libraries/LibProtocolRevenue.sol#67-72) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
-      "occurrences": 1,
-      "id": "317f07a058134785abcfa1ce"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibBasketCollateral.sol"
       ],
       "summary": "LibBasketCollateral.collateralStorage() (src/libraries/LibBasketCollateral.sol#25-30) uses assembly",
@@ -9478,12 +10150,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibBasketLiquidity.sol"
+        "src/libraries/LibRewardPolicy.sol"
       ],
-      "summary": "LibBasketLiquidity.liquidityStorage() (src/libraries/LibBasketLiquidity.sol#30-35) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "summary": "LibRewardPolicy.rewardPolicyStorage() (src/libraries/LibRewardPolicy.sol#11-16) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
       "occurrences": 1,
-      "id": "6e3a66855e63dbbb329a22df"
+      "id": "7143919324a3846bb44f481c"
     },
     {
       "impact": "Informational",
@@ -9574,6 +10246,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibProtocolPools.sol"
+      ],
+      "summary": "LibProtocolPools.protocolPoolStorage() (src/libraries/LibProtocolPools.sol#38-43) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "9decae90da97c99f1778cebd"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibDeploymentPhases.sol"
       ],
       "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#49-54) uses assembly",
@@ -9596,38 +10284,6 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "c80babdce320ad0080b8bfea"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGlobalRewards.sol"
-      ],
-      "summary": "LibGlobalRewards.rewardStorage() (src/libraries/LibGlobalRewards.sol#97-102) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
-      "occurrences": 1,
-      "id": "d83e52f64e396922be0ad658"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibProtocolPools.sol"
-      ],
-      "summary": "LibProtocolPools.protocolPoolStorage() (src/libraries/LibProtocolPools.sol#37-42) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
-      "occurrences": 1,
-      "id": "e6e6038e6fc35089dc5532a2"
     },
     {
       "impact": "Informational",
@@ -9695,19 +10351,19 @@
     },
     {
       "impact": "Informational",
-      "confidence": "Medium",
-      "check": "dead-code",
+      "confidence": "High",
+      "check": "cyclomatic-complexity",
       "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
-        "script/dollar/DeployStaticsProtocol.s.sol"
+        "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsProtocol._phaseTwoProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#205-211) is never used and should be removed",
-      "rationale": "These internal wrappers deliberately mirror the canonical phase builders for derived deployment harnesses and add no reachable production execution path.",
+      "summary": "DeployStaticsPhases.deployPhaseTwo(DeployStaticsPhases.PhaseTwoConfig) (script/DeployStaticsPhases.s.sol#285-362) has a high cyclomatic complexity (12).",
+      "rationale": "The one-time phase deployment keeps cross-contract runtime and binding validation atomic; its branches reject distinct incomplete or mismatched deployment states.",
       "occurrences": 1,
-      "id": "0ed17748884a1cd36a5c28ac"
+      "id": "f7d04cbe92786a78385c48b3"
     },
     {
       "impact": "Informational",
@@ -9720,10 +10376,10 @@
       "paths": [
         "script/dollar/DeployStaticsProtocol.s.sol"
       ],
-      "summary": "DeployStaticsProtocol._phaseFourProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#221-227) is never used and should be removed",
-      "rationale": "These internal wrappers deliberately mirror the canonical phase builders for derived deployment harnesses and add no reachable production execution path.",
+      "summary": "DeployStaticsProtocol._phaseFourProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#229-235) is never used and should be removed",
+      "rationale": "The internal phase-cut helper is retained as an explicit reusable composition boundary for derived deployment tooling even though the current fresh deployment calls the cumulative plan directly.",
       "occurrences": 1,
-      "id": "36e132b5251931f271509b3c"
+      "id": "511c97da773cb67ba54add61"
     },
     {
       "impact": "Informational",
@@ -9736,10 +10392,26 @@
       "paths": [
         "script/dollar/DeployStaticsProtocol.s.sol"
       ],
-      "summary": "DeployStaticsProtocol._phaseThreeProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#213-219) is never used and should be removed",
-      "rationale": "These internal wrappers deliberately mirror the canonical phase builders for derived deployment harnesses and add no reachable production execution path.",
+      "summary": "DeployStaticsProtocol._phaseThreeProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#221-227) is never used and should be removed",
+      "rationale": "The internal phase-cut helper is retained as an explicit reusable composition boundary for derived deployment tooling even though the current fresh deployment calls the cumulative plan directly.",
       "occurrences": 1,
-      "id": "775f8c2da988c0ce44c0b632"
+      "id": "714f30fbc4f5baeee8d0a76f"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "dead-code",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/dollar/DeployStaticsProtocol.s.sol"
+      ],
+      "summary": "DeployStaticsProtocol._phaseTwoProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#213-219) is never used and should be removed",
+      "rationale": "The internal phase-cut helper is retained as an explicit reusable composition boundary for derived deployment tooling even though the current fresh deployment calls the cumulative plan directly.",
+      "occurrences": 1,
+      "id": "b4ea49a47876b535eb996801"
     },
     {
       "impact": "Informational",
@@ -9788,6 +10460,22 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "2bfe6c287638eb76fac8ddbf"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Low level call in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81):",
+      "rationale": "The low-level ERC-20 transfer probe deliberately tolerates revert, false, or missing return data so an undeliverable owner payout can fall back to credit; exact debit and receipt deltas are verified.",
+      "occurrences": 1,
+      "id": "37d307426f4a4de666dc79f2"
     },
     {
       "impact": "Informational",
@@ -10090,44 +10778,49 @@
         "production-contracts"
       ],
       "paths": [
-        "src/interfaces/IStaticsGlobalRewards.sol"
+        "src/interfaces/IStaticsGlobalRewards.sol",
+        "src/interfaces/IStaticsPermissionedRouter.sol",
+        "src/interfaces/IStaticsPermissionedSwapFeeHook.sol",
+        "src/interfaces/IVenueController.sol"
       ],
       "summary": "Version constraint >=0.8.26<0.9.0 is too complex.",
-      "rationale": "Compiler versions are deliberately pinned per owned unit and third-party integration boundary; Foundry compilation restrictions select the required compiler without a floating production build.",
+      "rationale": "Shared interfaces use a compatible pragma range while Foundry and CI pin the reviewed compiler versions, including the exact 0.8.26 permissioned periphery compilation boundary.",
       "occurrences": 1,
-      "id": "9300c417f184223f63939c1f"
+      "id": "39421d532c5721c3f1418449"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "solc-version",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/interfaces/IStaticsPermissionedRouter.sol",
+        "src/interfaces/IStaticsPermissionedSwapFeeHook.sol",
+        "src/interfaces/IVenueController.sol"
+      ],
+      "summary": "Version constraint >=0.8.26<0.9.0 is too complex.",
+      "rationale": "Shared interfaces use a compatible pragma range while Foundry and CI pin the reviewed compiler versions, including the exact 0.8.26 permissioned periphery compilation boundary.",
+      "occurrences": 1,
+      "id": "8ef38dbb20fee654af07a189"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "01a50cf0ee791cc3531e9736"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
-      "occurrences": 1,
-      "id": "0fef5bbdbf12120495cba52f"
+      "id": "02cccef62534e52d5840b36d"
     },
     {
       "impact": "Informational",
@@ -10149,17 +10842,113 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#131-174) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "149c3da2e30fdd72b794127b"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#413-440) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "138b0ae7e7e42b003b388348"
+      "id": "15d5e03b5da75669922aaae3"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "15f334c7a16cbc6305501af1"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "1744b6a484fa01c6c1c49dd4"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#719-743) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "1eca2d93ead73d3780c1cd21"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "1f59a4052d4b671416e979b4"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "214edec86045e641a4e79e2a"
     },
     {
       "impact": "Informational",
@@ -10181,97 +10970,97 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "2857bbc1ecc763c3b6545b56"
+      "id": "416526e14eccb842e79c365f"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "3058d3df475f70120ecdd582"
+      "id": "424639a5bbdb6e7be70637ae"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "338ad9388723bb7a6b8981c8"
+      "id": "48394cfd184c180326af5a16"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#719-743) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "5186acf64d19149f4db59d7d"
+      "id": "48b31f0309fd36290010a7c6"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#719-743) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "573a48741390ee3ba1f88573"
+      "id": "49e91965cefa6f4a5847c937"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "57423b491623f4e4bbaf4595"
+      "id": "52bbf21c26af230e3c6f9f8c"
     },
     {
       "impact": "Informational",
@@ -10293,129 +11082,129 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#413-440) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#719-743) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "65709a95b7e69afe14922584"
+      "id": "5fb493f8f11c14bf61eac963"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "6bc3a4f720d47383338b729a"
+      "id": "6d0d73c038f19e9a96d8937c"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "7c429f04f07acb830693ba6c"
+      "id": "6d1595b308cd2c428281ee6b"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "809e6e016262670bd726eb55"
+      "id": "6e878e3d25372a0aba55f66d"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "831af0fd658ea1ee8d957520"
+      "id": "71454bb6ac10b185904abfe9"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "885c645efcd3a39654725ecb"
+      "id": "7db16b61326c89ef3359bd85"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "8926f771dcbc19b98dc417d7"
+      "id": "8935889384365962cce43f76"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "8e3098b53c329b4faba22048"
+      "id": "8b7fa4cad86872dbf6bfd09b"
     },
     {
       "impact": "Informational",
@@ -10437,33 +11226,33 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "aab2a35cdb84544f23542e60"
+      "id": "9b65195bd2d0c64775a2289e"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#609-648) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "ab150cd9a712f2640eea2ac6"
+      "id": "a2888c01e8db8df8b554ace5"
     },
     {
       "impact": "Informational",
@@ -10485,177 +11274,177 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "b795943045e32502bf40e125"
+      "id": "bb1ce3d8f2f856b69f9d1b5b"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "b9738e84fb0c81d0f8989aa5"
+      "id": "bd22b33025977da293e331d8"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "c11949b418655a5f2dbd75e4"
+      "id": "bf2b5f3c98e06c28f3147fdb"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "c32f69b572a942fcbc435b92"
+      "id": "c10f8f6e30ae17064610568f"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "cd8a5594fcdaa1269993eaf0"
+      "id": "c58a3ad54fcad8701c24c692"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#515-582) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "cdccc2f796244c1351a2f2b7"
+      "id": "c62ff57e254581af2f1b61e3"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#491-518) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "cf2bf9ca9dd9df909369aadf"
+      "id": "d23f8d03ef5f5f6e2ba552c4"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#584-608) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#650-717) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "d81908c419d9f0a2be3a0a9e"
+      "id": "d2bc39baffa4ef63eca24029"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#486-513) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#491-518) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "db359d9742a3110caa9f3583"
+      "id": "dbbab70f1659e1ce5dd09ecf"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
+        "script/DeployStaticsPhaseOne.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#131-174) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "e1f8eb614e0bdfe112d1cb4e"
+      "id": "e339ff11a43fc64f56e33256"
     },
     {
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "e69dba756a77580d0c519dca"
+      "id": "e42bdc200d59b9a884ecae6d"
     },
     {
       "impact": "Informational",
@@ -10677,49 +11466,33 @@
       "impact": "Informational",
       "confidence": "Medium",
       "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#123-151) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
-      "occurrences": 1,
-      "id": "ef78f424cc9921bc4d40c080"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-scripts"
       ],
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#610-660) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#491-518) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "f1766e41a5ab29df17eb6f7b"
+      "id": "fe68028e820470c1f7bf697e"
     },
     {
       "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
+      "confidence": "High",
+      "check": "unimplemented-functions",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
-      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#413-440) uses literals with too many digits:",
-      "rationale": "The flagged expression is typed runtime code, creation code, or selector logic rather than a handwritten numeric literal; no decimal digit-grouping ambiguity exists.",
+      "summary": "StaticsPermissionedSwapFeeHook (src/liquidity/StaticsPermissionedSwapFeeHook.sol#31-412) does not implement functions:",
+      "rationale": "The concrete permissioned hook explicitly implements getHookPermissions; Slither reports the inherited BaseHook declaration from a separate compilation unit despite the runtime override.",
       "occurrences": 1,
-      "id": "fd0b270c0d0152b785725d0f"
+      "id": "04fe9e254f43a041ea517a49"
     },
     {
       "impact": "Informational",
