@@ -2,7 +2,7 @@
 
 The reviewed repository-wide CI artifact covers 213 production Solidity files
 and explicitly excludes 17 test, formal-fixture, and vendor files as finding
-subjects. It normalizes to 723 stable findings: 58 high, 336 medium, 227 low,
+subjects. It normalizes to 725 stable findings: 58 high, 337 medium, 228 low,
 and 102 informational. Every stable fingerprint has an explicit classification
 and rationale in `baseline.json`; detector families are summarized below but
 are not blanket suppressions for future findings.
@@ -29,7 +29,7 @@ positives.
 | `incorrect-equality` | 29 | 28 FALSE POSITIVE, 1 INTENTIONAL | Exact equality enforces zero state, fixed configuration, caps, sentinels, transfer compatibility, or conservation checks. |
 | `reentrancy-no-eth` | 31 | INTENTIONAL | Guarded protocol entrypoints and PoolManager callbacks intentionally update accounting around external settlement; liabilities or custody are cleared before transfers where required. |
 | `uninitialized-local` | 53 | FALSE POSITIVE | The values are intentional Solidity-zero accumulators, optional branch results, memory contexts, or bitmaps. |
-| `unused-return` | 220 | INTENTIONAL | Calls are side-effect transitions, capability probes, partial tuple reads, callback boundaries, or Forge JSON serialization; security-sensitive asset movement is checked independently. |
+| `unused-return` | 221 | INTENTIONAL | Calls are side-effect transitions, capability probes, partial tuple reads, callback boundaries, or Forge JSON serialization; security-sensitive asset movement is checked independently. |
 
 ## Low
 
@@ -41,7 +41,7 @@ positives.
 | `reentrancy-events` | 75 | 3 FALSE POSITIVE, 72 INTENTIONAL | Events follow successful external settlement so logs describe the committed result; a revert removes the complete transaction and its logs. |
 | `return-bomb` | 1 | FALSE POSITIVE | The low-level capability probe uses a fixed 30,000-gas static call and bounded decoding. |
 | `shadowing-local` | 10 | FALSE POSITIVE | Locals intentionally mirror domain terms without changing storage or dispatch resolution. |
-| `timestamp` | 53 | INTENTIONAL | Timestamps implement explicit deadlines, vesting, maturity, grace periods, and epoch boundaries rather than randomness. |
+| `timestamp` | 54 | INTENTIONAL | Timestamps implement explicit deadlines, vesting, maturity, grace periods, and epoch boundaries rather than randomness. |
 
 ## Informational
 
