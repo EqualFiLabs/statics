@@ -144,8 +144,11 @@ case "$TARGET" in
       out-formal-genesis '^check_onlyGuardianOrOwnerCanAddRewardRestriction'
     run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-remove-authority 8 \
       out-formal-genesis '^check_onlyOwnerCanRemoveRewardRestriction'
-    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
-      out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
+    # The production fee helper uses full-precision mulDiv. As with permanent-liquidity math,
+    # conservatively explore both sides when branch-feasibility pruning exceeds the bound.
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
+        out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
     ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
