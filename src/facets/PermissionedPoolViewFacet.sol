@@ -16,14 +16,15 @@ contract PermissionedPoolViewFacet {
         returns (IStaticsPermissionedPools.PermissionedPoolView memory pool)
     {
         LibPermissionedPools.PermissionedPool storage stored = LibPermissionedPools.enforceRegistered(poolId);
+        IStaticsPermissionedSwapFeeHook hook = _hook();
         pool = IStaticsPermissionedPools.PermissionedPoolView({
             poolId: poolId,
             key: stored.key,
             creator: stored.creator,
-            controller: stored.controller,
+            controller: hook.poolRegistration(poolId).controller,
             decommissioned: stored.decommissioned,
             configurationNonce: stored.configurationNonce,
-            economics: _hook().poolEconomics(poolId)
+            economics: hook.poolEconomics(poolId)
         });
     }
 

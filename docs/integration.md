@@ -103,7 +103,7 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and advanced liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 122, 218, 276, and 303. Integrators
+Morpho. The cumulative selector counts are 124, 220, 278, and 305. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
@@ -114,7 +114,10 @@ liquidity manager. Canonical permanent liquidity is hook-owned and has no
 protocol PositionManager token ID.
 
 `IStaticsPermissionedPools` exposes permissioned pool creation quotes,
-creator-authorized economics, and PoolId-local views. A trusted periphery
+creator-authorized economics and controller replacement, and PoolId-local
+views. Controller replacement requires the creator's exact authorization and
+timelock execution, installs only a compatible controller that already reports
+the pool halted, and preserves the PoolId and current liquidity. A trusted periphery
 reports the real user through `IMsgSender`; direct or untrusted wrappers are
 rejected. External permissioned swaps are exact-input only. The default general
 allocation is 80% creator, 10% treasury, and 10% global STATICS stakers. If the

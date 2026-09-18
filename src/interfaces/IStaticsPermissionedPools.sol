@@ -58,6 +58,13 @@ interface IStaticsPermissionedPools {
         IStaticsPermissionedSwapFeeHook.PoolEconomics oldEconomics,
         IStaticsPermissionedSwapFeeHook.PoolEconomics newEconomics
     );
+    event PermissionedPoolControllerReplaced(
+        PoolId indexed poolId,
+        address indexed oldController,
+        address indexed newController,
+        uint256 nonce,
+        bytes32 agreementHash
+    );
     event PermissionedPoolDecommissioned(PoolId indexed poolId);
     event PermissionedTrustedPeripherySet(address indexed periphery, bool trusted);
 
@@ -77,6 +84,15 @@ interface IStaticsPermissionedPools {
         bytes32 agreementHash,
         bytes calldata creatorAuthorization
     ) external;
+    function replacePermissionedPoolController(
+        PoolId poolId,
+        address currentController,
+        address newController,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 agreementHash,
+        bytes calldata creatorAuthorization
+    ) external;
     function invalidatePermissionedConfigurationNonce(PoolId poolId, uint256 nonce) external;
     function decommissionPermissionedPool(PoolId poolId) external;
     function setPermissionedTrustedPeriphery(address periphery, bool trusted) external;
@@ -86,6 +102,14 @@ interface IStaticsPermissionedPools {
     function permissionedTermsDigest(
         PoolId poolId,
         IStaticsPermissionedSwapFeeHook.PoolEconomics calldata economics,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 agreementHash
+    ) external view returns (bytes32 digest);
+    function permissionedControllerReplacementDigest(
+        PoolId poolId,
+        address currentController,
+        address newController,
         uint256 nonce,
         uint256 deadline,
         bytes32 agreementHash

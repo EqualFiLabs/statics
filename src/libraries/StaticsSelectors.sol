@@ -435,12 +435,14 @@ library StaticsSelectors {
     }
 
     function permissionedPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](7);
         selectors[0] = IStaticsPermissionedPools.applyPermissionedPoolTerms.selector;
-        selectors[1] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
-        selectors[2] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
-        selectors[3] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
-        selectors[4] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        selectors[1] = IStaticsPermissionedPools.replacePermissionedPoolController.selector;
+        selectors[2] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
+        selectors[3] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
+        selectors[4] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
+        selectors[5] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        selectors[6] = IStaticsPermissionedPools.permissionedControllerReplacementDigest.selector;
     }
 
     function permissionedPoolView() internal pure returns (bytes4[] memory selectors) {

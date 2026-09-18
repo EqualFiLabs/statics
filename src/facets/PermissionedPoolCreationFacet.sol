@@ -87,7 +87,6 @@ contract PermissionedPoolCreationFacet is ReentrancyGuard {
         LibPermissionedPools.PermissionedPool storage stored = ps.pools[poolId];
         stored.key = quote.key;
         stored.creator = params.creator;
-        stored.controller = params.controller;
         stored.registered = true;
         hook.registerPool(quote.key, params.controller, params.creator, params.economics);
         int24 tick = IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);

@@ -19,12 +19,16 @@ contract PermissionedPoolAdminFacet is ReentrancyGuard {
     bytes32 private constant TERMS_TYPEHASH = keccak256(
         "PermissionedPoolTerms(bytes32 poolId,bytes32 economicsHash,uint256 nonce,uint256 deadline,bytes32 agreementHash)"
     );
+    bytes32 private constant CONTROLLER_REPLACEMENT_TYPEHASH = keccak256(
+        "PermissionedPoolControllerReplacement(bytes32 poolId,address currentController,address newController,uint256 nonce,uint256 deadline,bytes32 agreementHash)"
+    );
 
     error PermissionedLiquidityIntegrationNotInstalled();
     error DeadlineExpired(uint256 deadline);
     error InvalidEconomics();
     error InvalidCreatorAuthorization(address creator);
     error InvalidConfigurationNonce(PoolId poolId, uint256 expected, uint256 provided);
+    error UnexpectedPoolController(PoolId poolId, address expected, address actual);
     error OnlyPoolCreator(address caller, address creator);
     error PoolAlreadyDecommissioned(PoolId poolId);
 
@@ -53,6 +57,40 @@ contract PermissionedPoolAdminFacet is ReentrancyGuard {
         pool.configurationNonce = nonce + 1;
         hook.setPoolEconomics(poolId, economics);
         emit IStaticsPermissionedPools.PermissionedPoolTermsChanged(poolId, nonce, agreementHash, previous, economics);
+    }
+
+    function replacePermissionedPoolController(
+        PoolId poolId,
+        address currentController,
+        address newController,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 agreementHash,
+        bytes calldata creatorAuthorization
+    ) external nonReentrant {
+        LibDiamond.enforceIsContractOwner();
+        if (deadline < block.timestamp) revert DeadlineExpired(deadline);
+        LibPermissionedPools.PermissionedPool storage pool = LibPermissionedPools.enforceRegistered(poolId);
+        if (pool.decommissioned) revert PoolAlreadyDecommissioned(poolId);
+        if (pool.configurationNonce != nonce) {
+            revert InvalidConfigurationNonce(poolId, pool.configurationNonce, nonce);
+        }
+        IStaticsPermissionedSwapFeeHook hook = _hook();
+        address registeredController = hook.poolRegistration(poolId).controller;
+        if (registeredController != currentController) {
+            revert UnexpectedPoolController(poolId, currentController, registeredController);
+        }
+        bytes32 digest =
+            _controllerReplacementDigest(poolId, currentController, newController, nonce, deadline, agreementHash);
+        if (!SignatureChecker.isValidSignatureNow(pool.creator, digest, creatorAuthorization)) {
+            revert InvalidCreatorAuthorization(pool.creator);
+        }
+
+        pool.configurationNonce = nonce + 1;
+        hook.setPoolController(poolId, newController);
+        emit IStaticsPermissionedPools.PermissionedPoolControllerReplaced(
+            poolId, currentController, newController, nonce, agreementHash
+        );
     }
 
     function invalidatePermissionedConfigurationNonce(PoolId poolId, uint256 nonce) external {
@@ -91,6 +129,18 @@ contract PermissionedPoolAdminFacet is ReentrancyGuard {
         return _termsDigest(poolId, economics, nonce, deadline, agreementHash);
     }
 
+    function permissionedControllerReplacementDigest(
+        PoolId poolId,
+        address currentController,
+        address newController,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 agreementHash
+    ) external view returns (bytes32 digest) {
+        LibPermissionedPools.enforceRegistered(poolId);
+        return _controllerReplacementDigest(poolId, currentController, newController, nonce, deadline, agreementHash);
+    }
+
     function _termsDigest(
         PoolId poolId,
         IStaticsPermissionedSwapFeeHook.PoolEconomics calldata economics,
@@ -100,6 +150,28 @@ contract PermissionedPoolAdminFacet is ReentrancyGuard {
     ) private view returns (bytes32) {
         bytes32 structHash = keccak256(
             abi.encode(TERMS_TYPEHASH, PoolId.unwrap(poolId), _economicsHash(economics), nonce, deadline, agreementHash)
+        );
+        return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
+    }
+
+    function _controllerReplacementDigest(
+        PoolId poolId,
+        address currentController,
+        address newController,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 agreementHash
+    ) private view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                CONTROLLER_REPLACEMENT_TYPEHASH,
+                PoolId.unwrap(poolId),
+                currentController,
+                newController,
+                nonce,
+                deadline,
+                agreementHash
+            )
         );
         return keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
     }

@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -70,6 +71,46 @@ contract MockReceiverRestrictedERC20 is ERC20 {
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to == blockedReceiver) revert("RECEIVER_RESTRICTED");
         super._update(from, to, value);
+    }
+}
+
+contract BreakableVenueController is IVenueController, IERC165 {
+    address public override operator;
+    bool public broken;
+
+    error BrokenController();
+    error OnlyOperator(address caller);
+
+    constructor(address operator_) {
+        operator = operator_;
+    }
+
+    function breakController() external {
+        if (msg.sender != operator) revert OnlyOperator(msg.sender);
+        broken = true;
+    }
+
+    function permissions(PoolId, address) external view returns (uint256 flags) {
+        _enforceWorking();
+        return 0;
+    }
+
+    function assetStatus(address) external view returns (TradingStatus status) {
+        _enforceWorking();
+        return TradingStatus.Active;
+    }
+
+    function poolStatus(PoolId) external view returns (TradingStatus status) {
+        _enforceWorking();
+        return TradingStatus.Active;
+    }
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IVenueController).interfaceId || interfaceId == type(IERC165).interfaceId;
+    }
+
+    function _enforceWorking() private view {
+        if (broken) revert BrokenController();
     }
 }
 
@@ -483,7 +524,226 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         permissionedPools.applyPermissionedPoolTerms(poolId, changed, 0, deadline, agreementHash, authorization);
     }
 
-    function testErc1271CreatorCanAuthorizeCreationAndTerms() public {
+    function testCreatorAuthorizedControllerReplacementStartsHaltedAndConsumesNonce() public {
+        (PoolId poolId, PoolKey memory key, DefaultVenueController oldController) = _createDefaultPool(
+            address(new MockERC20("Controller A", "cA", 18)), address(new MockERC20("Controller B", "cB", 18)), 500, 100
+        );
+        _mintFullRangePosition(key, oldController, lp, 20 ether);
+        DefaultVenueController newController = new DefaultVenueController(creator);
+        vm.prank(creator);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreementHash = keccak256("controller-provider-migration");
+        bytes memory authorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, creatorKey
+        );
+
+        vm.prank(creator);
+        vm.expectRevert();
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, authorization
+        );
+
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, authorization
+        );
+        IStaticsPermissionedPools.PermissionedPoolView memory configured = permissionedPools.permissionedPool(poolId);
+        assertEq(configured.controller, address(newController));
+        assertEq(configured.configurationNonce, 1);
+        assertEq(permissionedHook.poolRegistration(poolId).controller, address(newController));
+
+        _setPermissions(oldController, poolId, trader, SWAP_ALLOWED);
+        _swapForOutput(key, oldController, trader, Currency.unwrap(key.currency1), 1 ether, false);
+
+        _setPermissions(newController, poolId, trader, SWAP_ALLOWED);
+        vm.prank(creator);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Active);
+        _swapForOutput(key, newController, trader, Currency.unwrap(key.currency1), 1 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PermissionedPoolAdminFacet.InvalidConfigurationNonce.selector, poolId, uint256(1), uint256(0)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, authorization
+        );
+    }
+
+    function testControllerReplacementRejectsUnsafeOrStaleTargets() public {
+        (PoolId poolId,, DefaultVenueController oldController) = _createDefaultPool(
+            address(new MockERC20("Guard A", "gA", 18)), address(new MockERC20("Guard B", "gB", 18)), 500, 100
+        );
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreementHash = keccak256("guarded-controller-migration");
+        DefaultVenueController activeController = new DefaultVenueController(creator);
+        bytes memory activeAuthorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(activeController), 0, deadline, agreementHash, creatorKey
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsPermissionedSwapFeeHook.ControllerPoolNotHalted.selector, poolId, address(activeController)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(activeController), 0, deadline, agreementHash, activeAuthorization
+        );
+
+        BreakableVenueController zeroOperator = new BreakableVenueController(address(0));
+        bytes memory zeroOperatorAuthorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(zeroOperator), 0, deadline, agreementHash, creatorKey
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsPermissionedSwapFeeHook.InvalidControllerOperator.selector, address(zeroOperator)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(zeroOperator), 0, deadline, agreementHash, zeroOperatorAuthorization
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PermissionedPoolAdminFacet.UnexpectedPoolController.selector,
+                poolId,
+                address(activeController),
+                address(oldController)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(activeController), address(oldController), 0, deadline, agreementHash, ""
+        );
+    }
+
+    function testControllerReplacementRejectsUnauthorizedInvalidAndDecommissionedChanges() public {
+        (PoolId poolId,, DefaultVenueController oldController) = _createDefaultPool(
+            address(new MockERC20("Reject A", "rjA", 18)), address(new MockERC20("Reject B", "rjB", 18)), 500, 100
+        );
+        DefaultVenueController newController = new DefaultVenueController(creator);
+        vm.prank(creator);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreementHash = keccak256("rejected-controller-migration");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(PermissionedPoolAdminFacet.InvalidCreatorAuthorization.selector, creator)
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, ""
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(PermissionedPoolAdminFacet.DeadlineExpired.selector, block.timestamp - 1)
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(newController), 0, block.timestamp - 1, agreementHash, ""
+        );
+
+        bytes memory sameAuthorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(oldController), 0, deadline, agreementHash, creatorKey
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsPermissionedSwapFeeHook.ControllerAlreadySet.selector, poolId, address(oldController)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(oldController), 0, deadline, agreementHash, sameAuthorization
+        );
+
+        MockERC20 invalidController = new MockERC20("Not Controller", "NO", 18);
+        bytes memory invalidAuthorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(invalidController), 0, deadline, agreementHash, creatorKey
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StaticsPermissionedSwapFeeHook.InvalidController.selector, address(invalidController)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(invalidController), 0, deadline, agreementHash, invalidAuthorization
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(StaticsPermissionedSwapFeeHook.OnlyStaticsDiamond.selector, address(this))
+        );
+        permissionedHook.setPoolController(poolId, address(newController));
+
+        permissionedPools.decommissionPermissionedPool(poolId);
+        bytes memory decommissionedAuthorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, creatorKey
+        );
+        vm.expectRevert(abi.encodeWithSelector(PermissionedPoolAdminFacet.PoolAlreadyDecommissioned.selector, poolId));
+        permissionedPools.replacePermissionedPoolController(
+            poolId,
+            address(oldController),
+            address(newController),
+            0,
+            deadline,
+            agreementHash,
+            decommissionedAuthorization
+        );
+    }
+
+    function testControllerReplacementDoesNotCallBrokenOldController() public {
+        BreakableVenueController oldController = new BreakableVenueController(creator);
+        (PoolId poolId,) = _createPoolWithController(
+            address(new MockERC20("Broken A", "bA", 18)),
+            address(new MockERC20("Broken B", "bB", 18)),
+            500,
+            _economics(100, 8_000, 1_000, 1_000),
+            address(oldController)
+        );
+        vm.prank(creator);
+        oldController.breakController();
+        DefaultVenueController newController = new DefaultVenueController(creator);
+        vm.prank(creator);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreementHash = keccak256("broken-controller-recovery");
+
+        permissionedPools.replacePermissionedPoolController(
+            poolId,
+            address(oldController),
+            address(newController),
+            0,
+            deadline,
+            agreementHash,
+            _controllerReplacementAuthorization(
+                poolId, address(oldController), address(newController), 0, deadline, agreementHash, creatorKey
+            )
+        );
+        assertEq(permissionedPools.permissionedPool(poolId).controller, address(newController));
+    }
+
+    function testTermsAndControllerReplacementShareConfigurationNonce() public {
+        (PoolId poolId,, DefaultVenueController oldController) = _createDefaultPool(
+            address(new MockERC20("Shared A", "sA", 18)), address(new MockERC20("Shared B", "sB", 18)), 500, 100
+        );
+        DefaultVenueController newController = new DefaultVenueController(creator);
+        vm.prank(creator);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreementHash = keccak256("shared-configuration-sequence");
+        bytes memory replacementAuthorization = _controllerReplacementAuthorization(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, creatorKey
+        );
+        IStaticsPermissionedSwapFeeHook.PoolEconomics memory changed = _economics(90, 7_500, 1_500, 1_000);
+        bytes memory termsAuthorization =
+            _sign(creatorKey, permissionedPools.permissionedTermsDigest(poolId, changed, 0, deadline, agreementHash));
+        permissionedPools.applyPermissionedPoolTerms(poolId, changed, 0, deadline, agreementHash, termsAuthorization);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PermissionedPoolAdminFacet.InvalidConfigurationNonce.selector, poolId, uint256(1), uint256(0)
+            )
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(oldController), address(newController), 0, deadline, agreementHash, replacementAuthorization
+        );
+    }
+
+    function testErc1271CreatorCanAuthorizeCreationTermsAndControllerReplacement() public {
         (address walletOwner, uint256 walletOwnerKey) = makeAddrAndKey("permissioned-wallet-owner");
         MockERC1271Wallet wallet = new MockERC1271Wallet(walletOwner);
         DefaultVenueController controller = new DefaultVenueController(walletOwner);
@@ -507,6 +767,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(permissionedPools.permissionedPool(poolId).creator, address(wallet));
         _applyWalletTerms(poolId, walletOwnerKey);
         assertEq(permissionedPools.permissionedPool(poolId).economics.allocation.creatorShareBps, 7_500);
+        _applyWalletControllerReplacement(poolId, controller, walletOwner, walletOwnerKey);
     }
 
     function testTermsAuthorizationRejectsWrongChainAndInvalidatedNonce() public {
@@ -579,15 +840,19 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
     function testHaltedOperatorUnwindCreditsOnlyUndeliverableOwnerAsset() public {
         MockReceiverRestrictedERC20 restricted = new MockReceiverRestrictedERC20("Blocked", "BLK");
         MockERC20 healthy = new MockERC20("Healthy", "HLT", 18);
-        (PoolId poolId, PoolKey memory key, DefaultVenueController controller) =
+        (PoolId poolId, PoolKey memory key, DefaultVenueController oldController) =
             _createDefaultPool(address(restricted), address(healthy), 3_000, 100);
-        uint256 tokenId = _mintFullRangePosition(key, controller, lp, 20 ether);
+        uint256 tokenId = _mintFullRangePosition(key, oldController, lp, 20 ether);
         restricted.setBlockedReceiver(lp);
-        vm.prank(creator);
-        controller.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        address newOperator = makeAddr("replacement-venue-operator");
+        DefaultVenueController newController =
+            _replaceWithHaltedController(poolId, address(oldController), newOperator, 0, keccak256("unwind migration"));
 
         uint256 healthyBefore = healthy.balanceOf(lp);
         vm.prank(creator);
+        vm.expectRevert();
+        permissionedPositionManager.forceUnwind(tokenId, 0, 0, "");
+        vm.prank(newOperator);
         permissionedPositionManager.forceUnwind(tokenId, 0, 0, "");
         vm.expectRevert();
         permissionedPositionManager.ownerOf(tokenId);
@@ -596,11 +861,17 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         Currency restrictedCurrency = Currency.wrap(address(restricted));
         uint256 credit = positionClaims.creditOf(poolId, lp, restrictedCurrency);
         assertGt(credit, 0);
-        address alternate = makeAddr("eligible-proceeds-receiver");
-        _setPermissions(controller, poolId, alternate, LIQUIDITY_ALLOWED);
+        restricted.setBlockedReceiver(address(0));
+        uint256 ownerClaim = credit / 2;
+        uint256 ownerBalanceBefore = restricted.balanceOf(lp);
         vm.prank(lp);
-        positionClaims.claim(poolId, restrictedCurrency, alternate, credit);
-        assertEq(restricted.balanceOf(alternate), credit);
+        positionClaims.claim(poolId, restrictedCurrency, lp, ownerClaim);
+        assertEq(restricted.balanceOf(lp) - ownerBalanceBefore, ownerClaim);
+        address alternate = makeAddr("eligible-proceeds-receiver");
+        _setPermissionsAs(newController, poolId, alternate, LIQUIDITY_ALLOWED, newOperator);
+        vm.prank(lp);
+        positionClaims.claim(poolId, restrictedCurrency, alternate, credit - ownerClaim);
+        assertEq(restricted.balanceOf(alternate), credit - ownerClaim);
         assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), 0);
     }
 
@@ -622,6 +893,16 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         IStaticsPermissionedSwapFeeHook.PoolEconomics memory economics
     ) private returns (PoolId poolId, PoolKey memory key, DefaultVenueController controller) {
         controller = new DefaultVenueController(creator);
+        (poolId, key) = _createPoolWithController(tokenA, tokenB, lpFee, economics, address(controller));
+    }
+
+    function _createPoolWithController(
+        address tokenA,
+        address tokenB,
+        uint24 lpFee,
+        IStaticsPermissionedSwapFeeHook.PoolEconomics memory economics,
+        address controller
+    ) private returns (PoolId poolId, PoolKey memory key) {
         IStaticsPermissionedPools.CreatePermissionedPoolParams memory params =
             IStaticsPermissionedPools.CreatePermissionedPoolParams({
                 tokenA: tokenA,
@@ -630,7 +911,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
                 tickSpacing: 10,
                 sqrtPriceBPerAX96: 1 << 96,
                 creator: creator,
-                controller: address(controller),
+                controller: controller,
                 economics: economics,
                 authorizationNonce: 1,
                 deadline: block.timestamp + 1 days,
@@ -645,6 +926,40 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(address(registered.key.hooks), address(permissionedHook));
         assertEq(registered.creator, creator);
         assertEq(registered.permanentLiquidity, 0);
+    }
+
+    function _controllerReplacementAuthorization(
+        PoolId poolId,
+        address currentController,
+        address newController,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 agreementHash,
+        uint256 signerKey
+    ) private returns (bytes memory authorization) {
+        bytes32 digest = permissionedPools.permissionedControllerReplacementDigest(
+            poolId, currentController, newController, nonce, deadline, agreementHash
+        );
+        return _sign(signerKey, digest);
+    }
+
+    function _replaceWithHaltedController(
+        PoolId poolId,
+        address oldController,
+        address newOperator,
+        uint256 nonce,
+        bytes32 agreementHash
+    ) private returns (DefaultVenueController newController) {
+        newController = new DefaultVenueController(newOperator);
+        vm.prank(newOperator);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes memory authorization = _controllerReplacementAuthorization(
+            poolId, oldController, address(newController), nonce, deadline, agreementHash, creatorKey
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, oldController, address(newController), nonce, deadline, agreementHash, authorization
+        );
     }
 
     function _economics(uint16 venueFeeBps, uint16 creatorShareBps, uint16 treasuryShareBps, uint16 stakerShareBps)
@@ -672,6 +987,33 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         permissionedPools.applyPermissionedPoolTerms(
             poolId, changed, 0, deadline, agreementHash, _sign(walletOwnerKey, digest)
         );
+    }
+
+    function _applyWalletControllerReplacement(
+        PoolId poolId,
+        DefaultVenueController controller,
+        address walletOwner,
+        uint256 walletOwnerKey
+    ) private {
+        DefaultVenueController newController = new DefaultVenueController(walletOwner);
+        vm.prank(walletOwner);
+        newController.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreementHash = keccak256("wallet-controller-migration");
+        bytes32 digest = permissionedPools.permissionedControllerReplacementDigest(
+            poolId, address(controller), address(newController), 1, deadline, agreementHash
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId,
+            address(controller),
+            address(newController),
+            1,
+            deadline,
+            agreementHash,
+            _sign(walletOwnerKey, digest)
+        );
+        assertEq(permissionedPools.permissionedPool(poolId).controller, address(newController));
+        assertEq(permissionedPools.permissionedPool(poolId).configurationNonce, 2);
     }
 
     function _mintFullRangePosition(
@@ -755,11 +1097,21 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
     }
 
     function _setPermissions(DefaultVenueController controller, PoolId poolId, address account, uint256 flags) private {
+        _setPermissionsAs(controller, poolId, account, flags, creator);
+    }
+
+    function _setPermissionsAs(
+        DefaultVenueController controller,
+        PoolId poolId,
+        address account,
+        uint256 flags,
+        address controllerOperator
+    ) private {
         address[] memory accounts = new address[](1);
         accounts[0] = account;
         uint256[] memory permissionFlags = new uint256[](1);
         permissionFlags[0] = flags;
-        vm.prank(creator);
+        vm.prank(controllerOperator);
         controller.setPermissions(poolId, accounts, permissionFlags);
     }
 

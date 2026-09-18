@@ -37,6 +37,9 @@ interface IStaticsPermissionedSwapFeeHook {
         PoolEconomics economics
     );
     event PermissionedPoolEconomicsSet(PoolId indexed poolId, PoolEconomics oldEconomics, PoolEconomics newEconomics);
+    event PermissionedPoolControllerSet(
+        PoolId indexed poolId, address indexed oldController, address indexed newController
+    );
     event PermissionedPoolDecommissioned(PoolId indexed poolId);
     event TrustedPermissionedPeripherySet(address indexed periphery, bool trusted);
     event PermissionedVenueFeeCharged(
@@ -62,6 +65,7 @@ interface IStaticsPermissionedSwapFeeHook {
         external
         returns (PoolId poolId);
     function setPoolEconomics(PoolId poolId, PoolEconomics calldata economics) external;
+    function setPoolController(PoolId poolId, address controller) external;
     function decommissionPool(PoolKey calldata key) external;
     function setTrustedPeriphery(address periphery, bool trusted) external;
     function poolRegistration(PoolId poolId) external view returns (PoolRegistration memory registration);

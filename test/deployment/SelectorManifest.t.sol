@@ -253,12 +253,14 @@ contract SelectorManifestTest is Test {
         creation[2] = IStaticsPermissionedPools.invalidatePermissionedAuthorizationNonce.selector;
         _assertExact(StaticsSelectors.permissionedPoolCreation(), creation);
 
-        bytes4[] memory admin = new bytes4[](5);
+        bytes4[] memory admin = new bytes4[](7);
         admin[0] = IStaticsPermissionedPools.applyPermissionedPoolTerms.selector;
-        admin[1] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
-        admin[2] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
-        admin[3] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
-        admin[4] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        admin[1] = IStaticsPermissionedPools.replacePermissionedPoolController.selector;
+        admin[2] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
+        admin[3] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
+        admin[4] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
+        admin[5] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        admin[6] = IStaticsPermissionedPools.permissionedControllerReplacementDigest.selector;
         _assertExact(StaticsSelectors.permissionedPoolAdmin(), admin);
 
         bytes4[] memory views = new bytes4[](3);

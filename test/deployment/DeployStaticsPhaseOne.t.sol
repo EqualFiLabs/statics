@@ -61,7 +61,7 @@ contract PhaseOnePermissionedBindingMock {
 
 contract DeployStaticsPhaseOneTest is Test {
     uint256 private constant EXPECTED_PHASE_ONE_FACETS = 18;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 122;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 124;
 
     struct PhaseOneDexFixture {
         address diamond;

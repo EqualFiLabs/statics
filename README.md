@@ -356,18 +356,18 @@ and permissionless execute calldata.
 
 All staged and fresh cuts are derived from
 `script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
-Diamond through every timelocked batch, then compares all 303 selector routes
+Diamond through every timelocked batch, then compares all 305 selector routes
 and implementation runtime hashes, plus all 95 Dollar Core selector routes and
 runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-Phase 1 StaticsDiamond:   18 facets, 122 selectors
-Phase 2 StaticsDiamond:   30 facets, 218 selectors cumulative
-Phase 3 StaticsDiamond:   35 facets, 276 selectors cumulative
-Phase 4 StaticsDiamond:   40 facets, 303 selectors cumulative
-Full StaticsDiamond:      40 facets, 303 selectors
+Phase 1 StaticsDiamond:   18 facets, 124 selectors
+Phase 2 StaticsDiamond:   30 facets, 220 selectors cumulative
+Phase 3 StaticsDiamond:   35 facets, 278 selectors cumulative
+Phase 4 StaticsDiamond:   40 facets, 305 selectors cumulative
+Full StaticsDiamond:      40 facets, 305 selectors
 StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock

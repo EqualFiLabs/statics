@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
 import {IMsgSender} from "@uniswap/v4-periphery/src/interfaces/IMsgSender.sol";
@@ -61,6 +62,9 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
     error PoolNotRegistered(PoolId poolId);
     error PoolIsDecommissioned(PoolId poolId);
     error InvalidController(address controller);
+    error InvalidControllerOperator(address controller);
+    error ControllerAlreadySet(PoolId poolId, address controller);
+    error ControllerPoolNotHalted(PoolId poolId, address controller);
     error InvalidCreator(address creator);
     error InvalidEconomics();
     error InvalidNativeLpFee(uint24 fee);
@@ -99,10 +103,10 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
         if (key.currency0.isAddressZero() || key.currency1.isAddressZero()) revert NativeCurrencyUnsupported();
         if (address(key.hooks) != address(this)) revert PoolNotRegistered(key.toId());
         if (!LibProtocolPoolFee.isValidStaticLpFee(key.fee)) revert InvalidNativeLpFee(key.fee);
-        if (controller.code.length == 0) revert InvalidController(controller);
         if (creator == address(0)) revert InvalidCreator(creator);
         _validateEconomics(economics);
         poolId = key.toId();
+        _validateController(controller);
         if (registrations[poolId].registered) revert PoolAlreadyRegistered(poolId);
         registrations[poolId] = PoolRegistration({
             currency0: key.currency0,
@@ -123,6 +127,19 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
         PoolEconomics memory previous = economicsByPool[poolId];
         economicsByPool[poolId] = economics;
         emit PermissionedPoolEconomicsSet(poolId, previous, economics);
+    }
+
+    function setPoolController(PoolId poolId, address controller) external {
+        _enforceDiamond();
+        PoolRegistration storage registration = _enforceActive(poolId);
+        address previous = registration.controller;
+        if (controller == previous) revert ControllerAlreadySet(poolId, controller);
+        _validateController(controller);
+        if (IVenueController(controller).poolStatus(poolId) != IVenueController.TradingStatus.Halted) {
+            revert ControllerPoolNotHalted(poolId, controller);
+        }
+        registration.controller = controller;
+        emit PermissionedPoolControllerSet(poolId, previous, controller);
     }
 
     function decommissionPool(PoolKey calldata key) external {
@@ -403,6 +420,20 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
         // facets and revenue accounting independently require basketStakerShareBps == 0.
         if (economics.venueFeeBps > BPS || economics.additionalRewardRestrictedMask > 3 || total != BPS) {
             revert InvalidEconomics();
+        }
+    }
+
+    function _validateController(address controller) private view {
+        if (controller.code.length == 0) revert InvalidController(controller);
+        try IERC165(controller).supportsInterface(type(IVenueController).interfaceId) returns (bool supported) {
+            if (!supported) revert InvalidController(controller);
+        } catch {
+            revert InvalidController(controller);
+        }
+        try IVenueController(controller).operator() returns (address operator) {
+            if (operator == address(0)) revert InvalidControllerOperator(controller);
+        } catch {
+            revert InvalidController(controller);
         }
     }
 

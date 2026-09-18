@@ -13,7 +13,6 @@ library LibPermissionedPools {
     struct PermissionedPool {
         PoolKey key;
         address creator;
-        address controller;
         uint256 configurationNonce;
         bool registered;
         bool decommissioned;

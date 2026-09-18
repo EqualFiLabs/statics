@@ -148,11 +148,11 @@ ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs 18 facets and 122 selectors for the Diamond
+The Phase 1 launcher installs 18 facets and 124 selectors for the Diamond
 kernel, public general Statics-hook pools, a separate permissioned venue path,
 protocol revenue and public POL, PositionNFT, reward restrictions, and global
 STATICS staking/reward opt-ins. Permissioned pools use their own hook,
-creator-bound controller, trusted exact-input router, and non-transferable LP
+creator-selected controller, trusted exact-input router, and non-transferable LP
 positions. They create no Statics POL. It does not install or advertise basket,
 credit, flash-loan, Genesis-integration, Dollar, Morpho, `StaticsLiquidityManager`,
 BorrowLiquidity, ERC-1155 receiver, or series-migration interfaces.
@@ -172,6 +172,14 @@ paths remain available. For permissioned pools, creator and treasury revenue
 remain in the original output currency. If both currencies are restricted, the
 pool-specific allocation is overridden with an 80% creator / 20% treasury
 split and no reward liability.
+
+A permissioned pool's controller may be replaced only through an exact creator
+EIP-712 or ERC-1271 authorization accepted by the Diamond owner through the
+timelock. The replacement must be a compatible controller with a nonzero
+operator and must report the pool halted before installation. Replacement does
+not call or require consent from the old controller, preserving recovery from a
+broken or abandoned provider. The pool key, creator, economics, liquidity, and
+user exit rights do not change, and the guardian cannot replace controllers.
 
 Phase 2 adds baskets, self-secured credit, flash composition, and advanced
 liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
