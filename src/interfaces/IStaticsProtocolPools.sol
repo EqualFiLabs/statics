@@ -8,7 +8,8 @@ interface IStaticsProtocolPools {
     enum ProtocolPoolKind {
         None,
         BasketCanonical,
-        General
+        General,
+        PermissionedGeneral
     }
 
     struct PoolSwapFeeRate {

@@ -160,12 +160,14 @@ contract GeneralPoolCreatorRevenueHandler is Test {
         vm.stopPrank();
     }
 
-    function claim(uint256 rawCreator) external {
-        address creator = creators[rawCreator % creators.length];
-        uint256 credit = REVENUE.creatorRevenue(creator, ASSET);
+    function claim(uint256 rawPool) external {
+        uint256 index = rawPool % poolIds.length;
+        PoolId poolId = poolIds[index];
+        address creator = creators[index];
+        uint256 credit = REVENUE.creatorRevenue(poolId, ASSET);
         if (credit == 0) return;
         vm.prank(creator);
-        (uint256 amount, uint256 received) = REVENUE.claimCreatorRevenue(ASSET, creator, 0);
+        (uint256 amount, uint256 received) = REVENUE.claimCreatorRevenue(poolId, ASSET, creator, 0);
         if (amount > credit || received > amount) overpaidClaims++;
     }
 
@@ -175,6 +177,10 @@ contract GeneralPoolCreatorRevenueHandler is Test {
 
     function creatorAt(uint256 i) external view returns (address) {
         return creators[i];
+    }
+
+    function poolIdAt(uint256 i) external view returns (PoolId) {
+        return poolIds[i];
     }
 
     function feeAssetAddress() external view returns (address) {
@@ -213,7 +219,7 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
     function invariantAggregateEqualsSumOfCredits() public view {
         uint256 sum;
         for (uint256 i; i < handler.creatorCount(); ++i) {
-            sum += revenue.creatorRevenue(handler.creatorAt(i), handler.feeAssetAddress());
+            sum += revenue.creatorRevenue(handler.poolIdAt(i), handler.feeAssetAddress());
         }
         assertEq(revenue.totalCreatorRevenue(handler.feeAssetAddress()), sum);
     }

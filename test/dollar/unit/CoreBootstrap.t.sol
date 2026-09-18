@@ -114,7 +114,7 @@ contract CoreBootstrapTest is Test {
         assertEq(deployment.positionNFT, deployment.diamond);
         assertEq(ownership.owner(), owner);
         assertEq(loupe.facetAddresses().length, 11);
-        assertEq(staticsLoupe.facetAddresses().length, 36);
+        assertEq(staticsLoupe.facetAddresses().length, 40);
         address migrationFacet =
             staticsLoupe.facetAddress(IStaticsDollarSeriesMigration.processSeriesTransition.selector);
         assertNotEq(staticsLoupe.facetAddress(StakingFacet.stakeRiskShares.selector), migrationFacet);
@@ -345,6 +345,7 @@ contract CoreBootstrapTest is Test {
         args = CoreInit.InitArgs({
             staticsDollar: staticsDollar,
             staticsDollarRisk: staticsDollarRisk,
+            bootstrapAuthority: address(this),
             initialOracle: oracle,
             requiredSequencerUptimeFeed: address(0),
             minimumSequencerGracePeriod: 0,

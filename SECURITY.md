@@ -1,10 +1,10 @@
 # Statics security model
 
 Statics holds user assets. The standalone Genesis release is deployed on
-Robinhood Chain with source-verified contracts; the broader multi-asset and
-Statics Dollar Diamonds remain subject to independent review before production
-use. The repository test suite is not an external audit. The repository also
-records a public Robinhood Chain testnet integration beta.
+Robinhood Chain with source-verified contracts; the Phase 1 DEX-and-staking
+Diamond and later selector phases remain subject to independent review before
+production use. The repository test suite is not an external audit. The
+repository also records a public Robinhood Chain testnet integration beta.
 
 ## Permissionless constituent risk
 
@@ -88,17 +88,28 @@ profile 1) during runoff.
 
 ## Authority
 
-- One `StaticsTimelock` owns both `StaticsDiamond` and
-  `StaticsDollarCoreDiamond`. Its delay initializes to 24 hours and can change
-  only through a scheduled timelock call to the timelock itself.
-- The configured multisig is the timelock proposer and canceller. Execution is
-  open after the current delay. The emergency guardian is not a timelock
-  canceller and cannot veto its own governed rotation.
-- The basket guardian can pause minting, borrowing, extension, and flash loans
-  and quarantine an active basket. It cannot unpause actions, release a
-  quarantine, decommission a basket, or pause redemption.
+- Phase 1 deploys one `StaticsTimelock` as owner of `StaticsDiamond`. Later
+  phases retain that Diamond and add only their reviewed selector and
+  initializer delta. The fresh full-stack reference uses the same ownership
+  model for both `StaticsDiamond` and `StaticsDollarCoreDiamond`. The delay
+  initializes to 24 hours on production chains and can change only through a
+  scheduled timelock call to the timelock itself.
+- The configured multisig is the timelock proposer and, under OpenZeppelin's
+  proposer-role initialization, a canceller. Execution is open after the
+  current delay. The emergency guardian is also an explicit timelock canceller,
+  allowing it to veto a pending operation without gaining proposal or execution
+  authority.
+- In Phase 1 the guardian can pause liquidity, treasury distribution, and
+  global staking ingress and can stop all Statics-hook swaps or quarantine one
+  registered protocol pool. It cannot unpause actions, restore swaps, release a
+  pool quarantine, or change configuration. Additional pause and lifecycle
+  paths become reachable only when their later-phase selectors are installed.
+- The governance Safe and guardian may be the same address, but doing so removes
+  independence between the proposal and emergency-veto roles. A compromise or
+  availability failure then affects both authorities.
 - Timelocked governance can upgrade either Diamond, manage basket-level global
-  settings and pauses, release quarantine, and mark baskets `ExitOnly`.
+  settings and pauses, restore swaps, release quarantine, and mark baskets
+  `ExitOnly`.
 - The Dollar profile guardian can perform only the emergency actions exposed by
   Dollar Core governance. Core configuration derives directly from the Core
   Diamond owner, which is the same timelock; there is no second protocol
@@ -129,8 +140,53 @@ profile 1) during runoff.
   must execute through the timelock.
 
 Diamond ownership uses immediate ERC-173 transfer by the current owner. A
-governance migration must execute through the timelock and verify both Diamond
-owners, the guardian roles, and the treasury after execution.
+governance migration must execute through the timelock and verify Diamond
+owners, guardian roles, and treasury configuration after execution. The
+already deployed standalone Genesis contracts and their existing authorities
+are outside the phased Diamond launch. No Phase 1 deployment or configuration
+ceremony calls them, transfers their ownership, or changes their bindings.
+
+## Staged production surface
+
+The Phase 1 launcher installs 18 facets and 124 selectors for the Diamond
+kernel, public general Statics-hook pools, a separate permissioned venue path,
+protocol revenue and public POL, PositionNFT, reward restrictions, and global
+STATICS staking/reward opt-ins. Permissioned pools use their own hook,
+creator-selected controller, trusted exact-input router, and non-transferable LP
+positions. They create no Statics POL. It does not install or advertise basket,
+credit, flash-loan, Genesis-integration, Dollar, Morpho, `StaticsLiquidityManager`,
+BorrowLiquidity, ERC-1155 receiver, or series-migration interfaces.
+
+The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
+protocol's existing creation semantics, zero retains owner-only curation; it
+does not open free permissionless creation. The launch does not add TVL,
+position-notional, volume, or pool-count caps. Curated creation, timelocked
+administration, guardian stops, monitoring, and asset disclosure are the
+accepted initial controls. They reduce exposure but do not create a
+protocol-level endorsement of curated assets.
+
+The reward-restriction map is a technical delivery policy, not an asset
+allowlist or legal classification. The guardian may add a restriction
+immediately; only the timelock may remove one. Existing earned claims and exit
+paths remain available. For permissioned pools, creator and treasury revenue
+remain in the original output currency. If both currencies are restricted, the
+pool-specific allocation is overridden with an 80% creator / 20% treasury
+split and no reward liability.
+
+A permissioned pool's controller may be replaced only through an exact creator
+EIP-712 or ERC-1271 authorization accepted by the Diamond owner through the
+timelock. The replacement must be a compatible controller with a nonzero
+operator and must report the pool halted before installation. Replacement does
+not call or require consent from the old controller, preserving recovery from a
+broken or abandoned provider. The pool key, creator, economics, liquidity, and
+user exit rights do not change, and the guardian cannot replace controllers.
+
+Phase 2 adds baskets, self-secured credit, flash composition, and advanced
+liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
+deltas and one-time initializers exist now and derive from one canonical plan.
+CI proves staged-to-fresh selector and runtime parity for both Diamonds, and
+later-phase preparation rejects drifted earlier facet bytecode. Every live
+transition still requires its own review and timelocked execution.
 
 ## Economic and liveness assumptions
 
@@ -139,12 +195,14 @@ BasketTokens, including collateral locked for a basket loan, enter the isolated
 basket reward denominator. Global rewards separately require staking the
 deployment-configured ERC-20 in a PositionNFT. Position owners or approved
 operators must claim rewards through transactions; nothing runs in the
-background. Undeployed global stake has no cooldown, but stake supplied to
-Morpho must first be recalled. Initial stake, reward-asset selections, and
-top-ups mature through a per-asset hourly ring no earlier than 24 hours after
-scheduling. Basket collateral uses the same delayed hourly eligibility model,
-but unlocked and undeployed shares have no separate withdrawal-time gate. Fee
-and position interactions roll due buckets. Dollar passive Risk Share reward
+background. A guardian staking pause blocks new global stake and reward-asset
+opt-ins. It does not block unstaking, reward-asset opt-outs, reward claims, or
+Position closure. Undeployed global stake has no cooldown, but stake
+supplied to Morpho must first be recalled. Initial stake, reward-asset
+selections, and top-ups mature through a per-asset hourly ring no earlier than
+24 hours after scheduling. Basket collateral uses the same delayed hourly
+eligibility model, but unlocked and undeployed shares have no separate
+withdrawal-time gate. Fee and position interactions roll due buckets. Dollar passive Risk Share reward
 eligibility does not exist: supplied Risk Shares are immediately consumable by
 the pairing vault and earn only through actual consumption.
 

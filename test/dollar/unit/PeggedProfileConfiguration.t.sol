@@ -32,7 +32,7 @@ contract PeggedProfileConfigurationTest is Test {
         proposers[0] = address(ceremony);
         address[] memory executors = new address[](1);
         executors[0] = address(0);
-        timelock = new StaticsTimelock(proposers, executors, address(0));
+        timelock = new StaticsTimelock(proposers, executors, new address[](0), address(0));
 
         CanonicalWETH9 weth = new CanonicalWETH9();
         MockETHUSDOracle wethOracle = new MockETHUSDOracle(2_500e18, 30 days);

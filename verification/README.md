@@ -1,10 +1,10 @@
-# STATICS Genesis verification
+# Statics Genesis and Phase 1 verification
 
-This directory records machine-checked properties for the standalone STATICS
-Genesis launch and its permanent Diamond integration. It distinguishes protocol
-mechanics from dependency and market assumptions. None of these proofs attests
-an ETH/USD price, future valuation, trading volume, arbitrage behavior, or future
-reserve value.
+This directory records machine-checked properties for the already deployed
+standalone STATICS Genesis launch and the separate staged Phase 1 DEX and
+staking Diamond. It distinguishes protocol mechanics from dependency and
+market assumptions. None of these proofs attests an ETH/USD price, future
+valuation, trading volume, arbitrage behavior, or future reserve value.
 
 ## Reproducing the mandatory proofs
 
@@ -15,12 +15,14 @@ a pull request, use the repository's CI checks as the release evidence:
 gh pr checks --watch
 ```
 
-The workflow splits `scripts/run-formal.sh established` and
-`scripts/run-formal.sh permanent-liquidity` across independent jobs, and also runs Slither and the
-full Foundry suite on clean runners. `scripts/run-formal.sh all` remains the single local entrypoint
-without causing CI to prove any target twice. CI uploads each symbolic result set as a separate
-artifact. Local development should use focused Foundry tests and, when required, the hosted Certora
-run; rerunning the full Halmos or Slither jobs locally is not required release evidence.
+The workflow splits `scripts/run-formal.sh established`,
+`scripts/run-formal.sh permanent-liquidity`, and
+`scripts/run-formal.sh phase-one` across independent jobs, and also runs Slither
+and the full Foundry suite on clean runners. `scripts/run-formal.sh all` remains
+the single non-CI aggregate entrypoint without causing CI to prove any target
+twice. CI uploads each symbolic result set as a separate artifact. Local
+development should use focused Foundry tests; Halmos and Certora execution uses
+the dedicated formal box or CI rather than the local development host.
 
 The root and Doppler `formal` Foundry profiles keep dynamic test linking disabled. This preserves
 native contract creation in the symbolic harnesses because Halmos 0.3.3 does not execute Foundry's
@@ -69,6 +71,9 @@ PositionManager lifecycle.
 | Every General-pool swap-leg accrual from 1 through 255 fee units mints an equal ERC-6909 claim and allocates it exactly among POL, Statics stakers, creator, and treasury | `StaticsSwapFeeHook` | Halmos against the production accrual primitive plus minimal PoolManager model | CI gate |
 | In the fixed bilateral General-pool scenario, automatic POL compounding burns exactly the modeled claims consumed by `modifyLiquidity` and preserves the remaining liabilities | `StaticsSwapFeeHook` | Halmos against production hook plus minimal PoolManager model | CI gate |
 | In the fixed bilateral General-pool scenario, a modeled debit above pending POL reverts atomically without leaving claims, distributions, pending POL, burned totals, or locked liquidity | `StaticsSwapFeeHook` | Halmos against production hook plus minimal PoolManager model | CI gate |
+| Only the configured guardian or Diamond owner can stop all protocol-pool swaps, while only the owner can restore them | `GovernanceFacet` | Halmos against production facet and storage libraries plus Foundry | CI gate |
+| Pool quarantine remains PoolId-local unless the global swap stop is active, and restoring the global stop does not silently release a local quarantine | `GovernanceFacet` | Halmos against production facet and registry library plus Foundry | CI gate |
+| Guardian staking pause cannot set the redemption pause bit or another owner-only action; real Phase 1 unstake and Position-close flows remain executable | `GovernanceFacet`, `GlobalRewardsFacet` | Halmos authority proof plus real-flow Foundry | CI gate |
 
 The permanent-liquidity Halmos target proves the hook's bounded symbolic
 accounting against a minimal PoolManager model. It does not prove real
@@ -77,6 +82,12 @@ correctness; the focused live-PoolManager Foundry suites cover those integration
 boundaries. Its branch-feasibility pruning queries are capped at 100 ms; Halmos
 conservatively explores both directions when such a query times out, while the
 assertion solver remains unbounded.
+
+The Phase 1 emergency-control harness executes the production
+`GovernanceFacet`, `LibGovernance`, `LibDiamond`, and registered-pool resolution
+logic. Exit-liveness beyond pause-bit separation comes from the real Phase 1
+global-staking round trip. Flash-loan properties remain part of the later full
+protocol verification set; flash selectors are not deployed in Phase 1.
 
 `Mandatory` means `scripts/run-formal.sh all` must pass. The Certora specs under
 `certora/` are the selective aggregate-accounting layer and are not repository

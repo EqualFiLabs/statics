@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.26;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {IStaticsPermissionedSwapFeeHook} from "../interfaces/IStaticsPermissionedSwapFeeHook.sol";
+import {IVenueController} from "../interfaces/IVenueController.sol";
+
+/// @notice PoolManager-claim-backed owner credits for permissioned unwind proceeds that a token
+/// cannot deliver to the position owner at unwind time.
+contract PermissionedPositionClaims is IUnlockCallback {
+    using SafeERC20 for IERC20;
+
+    uint8 private constant DEPOSIT = 1;
+    uint8 private constant WITHDRAW = 2;
+    uint256 private constant LIQUIDITY_ALLOWED = 1 << 1;
+
+    IPoolManager public immutable poolManager;
+    address public immutable positionManager;
+    IStaticsPermissionedSwapFeeHook public immutable permissionedHook;
+
+    mapping(PoolId poolId => mapping(address owner => mapping(Currency currency => uint256 amount))) private credits;
+
+    error OnlyPositionManager(address caller);
+    error OnlyVenueOperator(address caller, address operator);
+    error PoolNotHalted(PoolId poolId);
+    error OnlyPoolManager(address caller);
+    error InvalidReceiver(address receiver);
+    error InsufficientCredit(uint256 requested, uint256 available);
+    error ReceiverNotEligible(PoolId poolId, address receiver);
+    error IncompatibleTokenTransfer(Currency currency, uint256 expected, uint256 observed);
+    error UnexpectedSettlement(Currency currency, uint256 expected, uint256 observed);
+    error InvalidUnlockAction(uint8 action);
+
+    event PositionProceedsCredited(
+        PoolId indexed poolId, address indexed owner, Currency indexed currency, uint256 amount
+    );
+    event PositionProceedsClaimed(
+        PoolId indexed poolId, address indexed owner, Currency indexed currency, address receiver, uint256 amount
+    );
+
+    constructor(IPoolManager manager, address positionManager_, IStaticsPermissionedSwapFeeHook hook) {
+        poolManager = manager;
+        positionManager = positionManager_;
+        permissionedHook = hook;
+    }
+
+    function enforceForceUnwind(PoolId poolId, address caller) external view {
+        if (msg.sender != positionManager) revert OnlyPositionManager(msg.sender);
+        IStaticsPermissionedSwapFeeHook.PoolRegistration memory registration = permissionedHook.poolRegistration(poolId);
+        IVenueController controller = IVenueController(registration.controller);
+        address operator = controller.operator();
+        if (caller != operator) revert OnlyVenueOperator(caller, operator);
+        if (controller.poolStatus(poolId) != IVenueController.TradingStatus.Halted) revert PoolNotHalted(poolId);
+    }
+
+    function deliverOrCredit(PoolId poolId, address owner, Currency currency, uint256 amount) external {
+        if (msg.sender != positionManager) revert OnlyPositionManager(msg.sender);
+        if (amount == 0) return;
+        if (_tryDeliver(owner, currency, amount)) return;
+        poolManager.unlock(abi.encode(DEPOSIT, poolId, owner, currency, amount));
+    }
+
+    function _tryDeliver(address owner, Currency currency, uint256 amount) private returns (bool delivered) {
+        IERC20 token = IERC20(Currency.unwrap(currency));
+        uint256 senderBefore = token.balanceOf(address(this));
+        uint256 receiverBefore = token.balanceOf(owner);
+        (bool callOk, bytes memory result) = address(token).call(abi.encodeCall(IERC20.transfer, (owner, amount)));
+        bool returnedSuccess = callOk && (result.length == 0 || (result.length >= 32 && abi.decode(result, (bool))));
+        uint256 senderAfter = token.balanceOf(address(this));
+        uint256 receiverAfter = token.balanceOf(owner);
+        uint256 debit = senderBefore >= senderAfter ? senderBefore - senderAfter : 0;
+        uint256 received = receiverAfter >= receiverBefore ? receiverAfter - receiverBefore : 0;
+        if (returnedSuccess && debit == amount && received == amount) return true;
+        if (debit != 0 || received != 0) revert IncompatibleTokenTransfer(currency, amount, received);
+        return false;
+    }
+
+    function claim(PoolId poolId, Currency currency, address receiver, uint256 amount) external {
+        if (receiver == address(0)) revert InvalidReceiver(receiver);
+        uint256 available = credits[poolId][msg.sender][currency];
+        if (amount == 0 || amount > available) revert InsufficientCredit(amount, available);
+        IStaticsPermissionedSwapFeeHook.PoolRegistration memory registration = permissionedHook.poolRegistration(poolId);
+        if (
+            IVenueController(registration.controller).permissions(poolId, receiver) & LIQUIDITY_ALLOWED == 0
+                && receiver != msg.sender
+        ) revert ReceiverNotEligible(poolId, receiver);
+        credits[poolId][msg.sender][currency] = available - amount;
+        poolManager.unlock(abi.encode(WITHDRAW, poolId, msg.sender, currency, receiver, amount));
+    }
+
+    function creditOf(PoolId poolId, address owner, Currency currency) external view returns (uint256 amount) {
+        return credits[poolId][owner][currency];
+    }
+
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        if (msg.sender != address(poolManager)) revert OnlyPoolManager(msg.sender);
+        uint8 action = abi.decode(data, (uint8));
+        if (action == DEPOSIT) {
+            (, PoolId poolId, address owner, Currency currency, uint256 amount) =
+                abi.decode(data, (uint8, PoolId, address, Currency, uint256));
+            _depositClaims(poolId, owner, currency, amount);
+            return "";
+        }
+        if (action == WITHDRAW) {
+            (, PoolId poolId, address owner, Currency currency, address receiver, uint256 amount) =
+                abi.decode(data, (uint8, PoolId, address, Currency, address, uint256));
+            poolManager.burn(address(this), currency.toId(), amount);
+            poolManager.take(currency, receiver, amount);
+            emit PositionProceedsClaimed(poolId, owner, currency, receiver, amount);
+            return "";
+        }
+        revert InvalidUnlockAction(action);
+    }
+
+    function _depositClaims(PoolId poolId, address owner, Currency currency, uint256 amount) private {
+        IERC20 token = IERC20(Currency.unwrap(currency));
+        uint256 senderBefore = token.balanceOf(address(this));
+        uint256 managerBefore = token.balanceOf(address(poolManager));
+        poolManager.sync(currency);
+        token.safeTransfer(address(poolManager), amount);
+        uint256 settled = poolManager.settle();
+        if (settled != amount) revert UnexpectedSettlement(currency, amount, settled);
+        uint256 senderAfter = token.balanceOf(address(this));
+        uint256 managerAfter = token.balanceOf(address(poolManager));
+        uint256 spent = senderBefore >= senderAfter ? senderBefore - senderAfter : 0;
+        uint256 received = managerAfter >= managerBefore ? managerAfter - managerBefore : 0;
+        if (spent != amount || received != amount) revert IncompatibleTokenTransfer(currency, amount, received);
+        poolManager.mint(address(this), currency.toId(), amount);
+        credits[poolId][owner][currency] += amount;
+        emit PositionProceedsCredited(poolId, owner, currency, amount);
+    }
+}

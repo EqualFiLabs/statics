@@ -324,16 +324,57 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
 The reviewed deployment manifest and transaction records provide the canonical
 release evidence for an already completed launch.
 
-The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
+The staged production entry point is
+`script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
+`StaticsTimelock`, the 18-facet `StaticsDiamond`, separate permissionless and
+permissioned swap hooks, a default venue-controller factory, and the public
+hook's permanent-liquidity math dependency. It hard-codes the general-pool
+creation fee to zero, retaining owner-only curated public creation, while
+accepting the PositionNFT fee as a deployment input. The exact-0.8.26
+permissioned router, non-transferable position manager, and owner-claims
+companion are deployed separately before both hooks and all trusted periphery
+are installed in one six-call timelocked ceremony.
+
+Phase 1 includes arbitrary Statics-hooked ERC-20 pairs, protocol fee routing,
+permanent liquidity, PositionNFT accounts, and global STATICS staking with
+per-position reward opt-ins. It also includes a separate permissioned market
+path with creator-operated controllers, approved traders and LPs,
+non-transferable LP NFTs, reward restrictions, and creator/timelock-agreed
+PoolId-local economics. Permissioned pools have no Statics POL. It excludes
+every basket, credit, flash-loan, Genesis-integration, Dollar, Morpho,
+`StaticsLiquidityManager`, and borrow-to-liquidity selector. The complete
+four-phase decision and authority model are recorded in the
+[staged-launch ADR](./docs/adr/staged-phase-one-launch.md).
+
+The canonical fresh full-stack entry point remains
+`script/DeployStatics.s.sol:DeployStatics`. It remains a regression reference,
+not the upgrade path for a live phased Diamond. The concrete Phase 2, 3, and 4
+implementation/deployment entry points are `runPhaseTwo()`, `runPhaseThree()`,
+and `runPhaseFour()` on `script/DeployStaticsPhases.s.sol:DeployStaticsPhases`.
+They deploy each phase's contracts and emit the exact Safe-to-timelock schedule
+and permissionless execute calldata.
+
+All staged and fresh cuts are derived from
+`script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
+Diamond through every timelocked batch, then compares all 305 selector routes
+and implementation runtime hashes, plus all 95 Dollar Core selector routes and
+runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           36 facets, 280 selectors
+Phase 1 StaticsDiamond:   18 facets, 124 selectors
+Phase 2 StaticsDiamond:   30 facets, 220 selectors cumulative
+Phase 3 StaticsDiamond:   35 facets, 278 selectors cumulative
+Phase 4 StaticsDiamond:   40 facets, 305 selectors cumulative
+Full StaticsDiamond:      40 facets, 305 selectors
+StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
+
+For the Phase 1 launcher, `Core.*` does not exist and the Diamond alone is owned
+by `StaticsTimelock`.
 
 ### Local Anvil
 
@@ -507,6 +548,8 @@ USDstx, 1,000 STATICS, and 0.001 of each stock fixture.
 Focused deployment proofs:
 
 ```shell
+forge test --match-path test/deployment/DeployStaticsPhaseOne.t.sol -vv
+forge test --match-path test/deployment/ConfigureStaticsPhaseOneLiquidity.t.sol -vv
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
 forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
@@ -524,7 +567,66 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
   -vv
 ```
 
-After explicit authorization, the protocol deployment command is:
+After explicit authorization, the Phase 1 protocol deployment command is:
+
+```shell
+forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  -vv
+```
+
+Deploy the exact-0.8.26 permissioned periphery after the Diamond and hooks, and
+record the three emitted addresses and runtime hashes:
+
+```shell
+forge script \
+  script/DeployStaticsPermissionedPeriphery.s.sol:DeployStaticsPermissionedPeriphery \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  -vv
+```
+
+No transaction is performed by this repository change. Simulate and inspect
+each exact deployment before any separately authorized broadcast.
+
+After deployment, prepare the single timelock scheduling call for the six-call
+Phase 1 liquidity configuration without signing or broadcasting a Safe
+transaction:
+
+```shell
+forge script \
+  script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
+  --sig "runPrepare()" \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  -vv
+```
+
+Submit the returned timelock scheduling calldata through the governance Safe.
+After the delay, any address may call `runExecute()` because execution is open.
+The ceremony refuses mismatched runtime hashes, immutable bindings, hook flags,
+fee settings, selector closure, or pre-existing installation state. It does not
+call or reconfigure any deployed Genesis contract.
+
+Prepare later phases from the exact preceding phase with:
+
+```shell
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseTwo()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseThree()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseFour()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+```
+
+Add `--broadcast` only after explicit authorization and review of the preceding
+phase, dependency runtimes, deployed addresses, and emitted timelock calldata.
+Phase 2's Genesis handoff remains separate and operates against the existing
+Genesis deployment; it does not redeploy or transfer those contracts.
+
+The later full-stack deployment command is:
 
 ```shell
 forge script script/DeployStatics.s.sol:DeployStatics \
@@ -733,7 +835,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 |---|---|
 | `PRIVATE_KEY` | Local broadcaster key; never commit a populated value |
 | `MULTISIG` | Initial timelock proposer and governance authority |
-| `GUARDIAN` | Basket and initial Dollar emergency guardian |
+| `GUARDIAN` | Phase 1 staking/liquidity emergency guardian and later module guardian |
 | `TREASURY` | Shared protocol treasury |
 | `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
@@ -753,13 +855,30 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_DOLLAR_PRICE_BAND_BPS` | Initial volatile-profile transition band |
 | `STATICS_DOLLAR_DEBT_CEILING` | Initial volatile-profile issuance ceiling |
 | `STATICS_DOLLAR_RISK_URI` | ERC-1155 metadata URI for Risk Share series |
+| `STATICS_DOLLAR_BASE_BPS` | Initial share of Dollar fees routed to the base reward path; defaults to 7,000 bps |
+| `STATICS_DOLLAR_INSURANCE_BPS` | Initial share of Dollar fees routed to insurance; defaults to 3,000 bps and must sum with base to 10,000 |
+| `STATICS_DOLLAR_REDEMPTION_FEE_BPS` | Initial pairing-vault redemption fee; defaults to 50 bps |
+| `STATICS_DOLLAR_REDEMPTION_SUPPLIER_SHARE_BPS` | Initial supplier share of pairing-vault redemption fees; defaults to 8,000 bps |
 | `STATICS_DIAMOND_ADDRESS` | Existing Diamond used by post-deployment ceremonies |
+| `STATICS_POOL_MANAGER_ADDRESS` | Existing v4 PoolManager already bound to the Phase 1 hook |
+| `STATICS_POSITION_MANAGER_ADDRESS` | Existing v4 PositionManager used by the Phase 2 liquidity manager |
+| `STATICS_PERMIT2_ADDRESS` | Existing Permit2 used by the Phase 2 liquidity manager |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
 | `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
-| `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deployed v4 liquidity manager |
-| `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed v4 liquidity manager; required by installation |
+| `STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS` | Deployed separate permissioned exact-input output-fee hook |
+| `STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned hook |
+| `STATICS_PERMISSIONED_ROUTER_ADDRESS` | Exact-input trusted router for permissioned pools |
+| `STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned router |
+| `STATICS_PERMISSIONED_POSITION_MANAGER_ADDRESS` | Non-transferable approved-LP v4 Position Manager |
+| `STATICS_PERMISSIONED_POSITION_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned Position Manager |
+| `STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH` | Exact runtime hash of the companion claim-backed unwind proceeds contract |
+| `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deferred v4 liquidity manager used only after its selectors are added in Phase 2 |
+| `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash required by the later Phase 2 manager installation |
 | `STATICS_PERMANENT_LIQUIDITY_HARVESTER` | Initial address authorized to harvest native fees earned by permanent liquidity into treasury accounting |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
+| `STATICS_PHASE_TWO_TIMELOCK_SALT` | Unique salt binding the basket/credit/flash activation batch |
+| `STATICS_PHASE_THREE_TIMELOCK_SALT` | Unique salt binding the Dollar activation and core-finalization batch |
+| `STATICS_PHASE_FOUR_TIMELOCK_SALT` | Unique salt binding the Morpho selector activation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |
 | `STATICS_MORPHO_ADDRESS` | Reusable chain-local Morpho Blue deployment |

@@ -179,15 +179,20 @@ StaticsDiamond
 
 The current launcher and deployment tests expect:
 
-- **36 facets / 283 selectors** on `StaticsDiamond`; and
+- **18 facets / 122 selectors** on the staged Phase 1 `StaticsDiamond`;
+- **30 facets / 218 selectors** after Phase 2;
+- **35 facets / 276 selectors** after Phase 3;
+- **40 facets / 303 selectors** on the full-stack `StaticsDiamond`; and
 - **11 facets / 95 selectors** on `StaticsDollarCoreDiamond`.
 
-These source expectations are verified through deployment-test loupe
-enumeration. Governed upgrades can change the live selector set without
-changing either Diamond address, so current deployed state belongs in the
-deployment manifest rather than this design document. Structural Position
-changes require an explicit storage-compatibility and migration design; they
-must not be inferred safe from the fresh-launch selector manifest.
+These source expectations come from one canonical four-phase plan and are
+verified through deployment-test loupe enumeration plus final staged-to-fresh
+runtime parity for both Diamonds. Governed upgrades can change the live
+selector set without changing either Diamond address, so current deployed
+state belongs in the deployment manifest rather than this design document.
+Structural Position changes require an explicit storage-compatibility and
+migration design; they must not be inferred safe from the fresh-launch
+selector manifest.
 
 Checked-in Core rehearsal snapshots record the selector shape before and after
 the rehearsed terminal governance cut. That rehearsal deliberately removes
@@ -1136,11 +1141,20 @@ keepers and failed unwind attempts.
 
 ## Governance and Upgradeability
 
-One `StaticsTimelock` owns both Diamonds. Its constructor selects two minutes
-for Robinhood testnet and local development, while Robinhood mainnet and other
-chains default to 24 hours. The configured multisig is proposer and canceller,
-execution is open after delay,
-and the emergency guardian is not a timelock canceller.
+Phase 1 uses one `StaticsTimelock` to own `StaticsDiamond`; later phases retain
+that Diamond and add selectors through reviewed timelocked cuts. The fresh full
+stack reference uses the same timelock ownership model for both Diamonds. The
+four production phases are: arbitrary Statics-hooked pairs plus global STATICS
+staking; baskets plus self-secured credit and related composition; Statics
+Dollar; then Morpho. The already deployed standalone Genesis launch is outside
+this selector sequence and is not modified by a phased-launch ceremony.
+
+The timelock constructor
+selects two minutes for Robinhood testnet and local development, while Robinhood
+mainnet and other chains default to 24 hours. The configured multisig is
+proposer and canceller, execution is open after delay, and the emergency
+guardian is an additional canceller without proposal authority. The two roles
+may share one Safe at the cost of independent veto separation.
 
 The timelock currently controls Diamond cuts, economic configuration, lifecycle
 release and decommissioning, hook fee configuration,

@@ -49,8 +49,8 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         _swapGeneralPool(key, trader, true, 0.02 ether);
         _swapGeneralPool(key, trader, false, 0.02 ether);
 
-        assertGt(revenue.creatorRevenue(creator, tokenA), 0);
-        assertGt(revenue.creatorRevenue(creator, tokenB), 0);
+        assertGt(revenue.creatorRevenue(poolId, tokenA), 0);
+        assertGt(revenue.creatorRevenue(poolId, tokenB), 0);
         assertGt(swapFeeHook.lockedLiquidity(poolId), 0);
         address[] memory rewardAssets = new address[](2);
         rewardAssets[0] = tokenA;
@@ -66,9 +66,9 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), lp);
 
         uint256 creatorBefore = IERC20(tokenA).balanceOf(creator);
-        uint256 creatorOwed = revenue.creatorRevenue(creator, tokenA);
+        uint256 creatorOwed = revenue.creatorRevenue(poolId, tokenA);
         vm.prank(creator);
-        (uint256 claimed,) = revenue.claimCreatorRevenue(tokenA, creator, 0);
+        (uint256 claimed,) = revenue.claimCreatorRevenue(poolId, tokenA, creator, 0);
         assertEq(claimed, creatorOwed);
         assertEq(IERC20(tokenA).balanceOf(creator) - creatorBefore, creatorOwed);
 

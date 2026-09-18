@@ -25,6 +25,10 @@ import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 
+interface IStaticsSwapQuarantine {
+    function protocolPoolSwapsBlocked(PoolId poolId) external view returns (bool blocked);
+}
+
 /// @notice Canonical Statics bilateral swap-fee hook. The hook holds PoolId-local fee rates and two
 /// global allocation profiles (basket canonical and general). The fixed 500-bps creator allocation is
 /// carved from the fee before applying the configurable profile shares, so every profile plus the
@@ -121,6 +125,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error IncompleteSpecifiedFill(int256 expected, int256 actual);
     error InvalidNativeLpFee(uint24 fee);
     error InvalidPermanentLiquidityMath(address target);
+    error SwapsQuarantined(PoolId poolId);
 
     constructor(
         IPoolManager manager,
@@ -462,6 +467,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         PoolId poolId = key.toId();
         _enforceRegistered(poolId);
         if (poolDecommissioned[poolId]) revert PoolIsDecommissioned(poolId);
+        if (IStaticsSwapQuarantine(staticsDiamond).protocolPoolSwapsBlocked(poolId)) revert SwapsQuarantined(poolId);
         _routeDistribution(poolId, key.currency0);
         _routeDistribution(poolId, key.currency1);
         bool exactInput = params.amountSpecified < 0;
@@ -608,11 +614,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
                 poolId,
                 Currency.unwrap(currency),
                 IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                basketStaker: pending.basketStaker,
-                staticsStaker: pending.staticsStaker,
-                creator: pending.creator,
-                treasury: pending.treasury
-            })
+                    basketStaker: pending.basketStaker,
+                    staticsStaker: pending.staticsStaker,
+                    creator: pending.creator,
+                    treasury: pending.treasury
+                })
             );
         uint256 afterBalance = currency.balanceOfSelf();
         _enforceExactDebit(currency, beforeBalance, afterBalance, total);

@@ -6,6 +6,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketLiquidity} from "./LibBasketLiquidity.sol";
+import {LibPermissionedPools} from "./LibPermissionedPools.sol";
 
 /// @notice Normalized protocol-pool registry resolving both basket canonical and general pools.
 /// @dev Uses a fresh namespaced storage version so the layout cannot be confused with the replaced
@@ -65,6 +66,11 @@ library LibProtocolPools {
         if (general.registered && PoolId.unwrap(general.key.toId()) == PoolId.unwrap(poolId)) {
             return (IStaticsProtocolPools.ProtocolPoolKind.General, general.key, 0, address(0));
         }
+
+        LibPermissionedPools.PermissionedPool storage permissioned = LibPermissionedPools.resolve(poolId);
+        if (permissioned.registered && PoolId.unwrap(permissioned.key.toId()) == PoolId.unwrap(poolId)) {
+            return (IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral, permissioned.key, 0, address(0));
+        }
     }
 
     /// @dev Normalized immutable creator resolver. Basket canonical -> basket creator; general ->
@@ -77,6 +83,9 @@ library LibProtocolPools {
         }
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.General) {
             return protocolPoolStorage().generalPools[poolId].creator;
+        }
+        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
+            return LibPermissionedPools.resolve(poolId).creator;
         }
         return address(0);
     }

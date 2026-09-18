@@ -64,15 +64,20 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 36 facets and 280 selectors on
-`StaticsDiamond`, and 11 facets and 95 selectors on
+The staged Phase 1 launcher installs 18 facets and 124 selectors for arbitrary
+Statics-hooked pairs, permissioned venues, PositionNFT accounts, and global
+STATICS staking on `StaticsDiamond`. It deploys the reusable public and
+permissioned hooks but no basket liquidity manager. The full-stack
+fresh-deployment launcher installs 40 facets and 305 selectors
+on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
-`script/dollar/DeployStaticsProtocol.s.sol` and
+`script/libraries/StaticsProtocolPlan.sol` and
 `script/dollar/DeployCoreBootstrap.s.sol`; deployment tests enumerate every
-installed selector, verify its routed facet and that every facet has runtime
-code, and assert those fresh-launch totals. Runtime hashes are recorded in
-release and rehearsal manifests rather than asserted by the fresh-deployment
-manifest test. Later governed upgrades can change the deployed selector set;
+installed selector, verify its routed facet and runtime code, assert all four
+cumulative totals, and compare the completed staged Diamond against a fresh
+full deployment selector by selector. The same rehearsal compares all Dollar
+Core selector runtimes, while later-phase preparation rejects drifted earlier
+facet bytecode. Later governed upgrades can change the deployed selector set;
 the current deployment manifest records that live release state.
 
 ## One address without one economic book
@@ -305,19 +310,24 @@ maintain a second upgrade policy beside ownership.
 
 ## Governance boundary
 
-The canonical launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
-of both Diamonds. Core administration derives from the Core Diamond owner; it
-does not maintain a second protocol-governor role, internal proposal queue, or
-irreversible configuration locks. The timelock constructor selects two minutes
-for Robinhood testnet and local development, while Robinhood mainnet and other
-chains default to 24 hours. After deployment, the delay can change only
-through a scheduled timelock call to the timelock itself. The configured multisig proposes
-and may cancel scheduled operations, while execution is open after the current
-delay. The emergency guardian is not a timelock canceller.
+The Phase 1 launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
+of `StaticsDiamond`. Later phases add selectors to that same address; the
+full-stack fresh-deployment reference applies the same ownership model to both
+Diamonds. Core administration derives from the Core Diamond owner
+and does not maintain a second protocol-governor role, internal proposal queue,
+or irreversible configuration locks. The timelock constructor selects two
+minutes for Robinhood testnet and local development, while Robinhood mainnet
+and other chains default to 24 hours. After deployment, the delay can change
+only through a scheduled timelock call to the timelock itself. The configured
+multisig proposes and may cancel scheduled operations, while execution is open
+after the current delay. The emergency guardian is an additional canceller but
+does not gain proposal authority.
 
-The basket guardian can immediately pause exposure-increasing actions and
-quarantine baskets. Only timelocked governance can unpause, release quarantine,
-or mark a basket `ExitOnly`. The Dollar guardian can pause profile operations,
+The Phase 1 guardian can immediately pause new global staking and liquidity
+actions and stop all or individual registered protocol-pool swaps. Basket
+pause, quarantine, and decommission selectors are not installed until the
+basket phase. Only timelocked governance can unpause or restore Phase 1 paths.
+The Dollar guardian can pause profile operations,
 reduce a debt ceiling, or enter reduce-only mode, but cannot block proportional
 holder exits, create profiles, restore operations, increase risk, or change an
 oracle. A Dollar profile can be permanently retired only from reduce-only mode;

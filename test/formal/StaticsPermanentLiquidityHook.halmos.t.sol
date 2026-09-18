@@ -54,6 +54,10 @@ contract StaticsPermanentLiquidityHookHalmosTest is SymTest, Test {
         return false;
     }
 
+    function protocolPoolSwapsBlocked(PoolId) external pure returns (bool) {
+        return false;
+    }
+
     function routeProtocolSwapFees(PoolId, address, IStaticsProtocolRevenue.ProtocolFeeDistribution calldata)
         external
         pure

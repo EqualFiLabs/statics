@@ -9,17 +9,19 @@ Most applications need:
 - `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
   `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
   temporary Genesis rewards;
-- `IStaticsGenesisIntegration` at `StaticsDiamond` for permanent Genesis
-  rewards, Position linkage, and recovery after the governed handoff;
-- `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
-  and ordinary Statics Dollar gateway address;
-- `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
-- `StaticsDollar` and `StaticsDollarRiskShares`;
+- `IStaticsGenesisIntegration` at `StaticsDiamond` only after its later-phase
+  selectors are installed for permanent Genesis rewards, Position linkage, and
+  recovery;
+- `StaticsDiamond` as the Phase 1 PositionNFT, global-reward, general-pool, and
+  protocol-revenue address, with basket and Dollar surfaces added later;
+- `StaticsDollarCoreDiamond` for Phase 3 Dollar state and direct operations;
+- the Phase 3 `StaticsDollar` and `StaticsDollarRiskShares` tokens;
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
-- one `StaticsBasketToken` address per discovered basket;
-- the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
-  canonical Uniswap v4 pools.
+- one `StaticsBasketToken` address per discovered basket after Phase 2; and
+- the installed `StaticsSwapFeeHook` for Phase 1 general pools, plus
+  `StaticsLiquidityManager` only after the basket/advanced-liquidity selectors
+  are installed.
 
 Do not configure a separate user router, periphery, or PositionNFT address.
 
@@ -44,7 +46,7 @@ Use compiled ABIs from these sources:
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
 | PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect metadata, and close positions |
-| Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
+| Basket and emergency lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read action pauses, basket status, global swap stops, and PoolId quarantine; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
 | Dollar Risk liquidity | `src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol` | Stake consumable Risk Shares, inspect liquidity, withdraw unconsumed shares, and claim fill proceeds |
@@ -94,10 +96,35 @@ facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes
 remain authoritative.
 
+The staged Phase 1 deployment installs parallel public and permissioned
+Statics-hooked pools, their separate fee paths, PositionNFT, and global STATICS
+staking/reward opt-ins. Public pools retain bilateral hook fees and POL.
+Permissioned pools use a separate hook address, exact-input trusted router,
+non-transferable LP positions, creator-selected controller and native v4 fee,
+and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
+flash composition, and advanced liquidity; Phase 3 adds Dollar; Phase 4 adds
+Morpho. The cumulative selector counts are 124, 220, 278, and 305. Integrators
+must feature-detect complete ERC-165 interfaces and individual selector routes
+instead of assuming that a live Diamond exposes a later phase.
+
 `IStaticsSwapFeeHook` exposes hook fee configuration, pending
-permanent-liquidity inventory, and locked liquidity. The installed manager is
-used for typed user PositionManager NFT creation; canonical permanent liquidity
-is hook-owned and has no protocol PositionManager token ID.
+permanent-liquidity inventory, and locked liquidity. Phase 1 relies on ordinary
+Uniswap v4 periphery for user LP positions and does not install a Statics
+liquidity manager. Canonical permanent liquidity is hook-owned and has no
+protocol PositionManager token ID.
+
+`IStaticsPermissionedPools` exposes permissioned pool creation quotes,
+creator-authorized economics and controller replacement, and PoolId-local
+views. Controller replacement requires the creator's exact authorization and
+timelock execution, installs only a compatible controller that already reports
+the pool halted, and preserves the PoolId and current liquidity. A trusted periphery
+reports the real user through `IMsgSender`; direct or untrusted wrappers are
+rejected. External permissioned swaps are exact-input only. The default general
+allocation is 80% creator, 10% treasury, and 10% global STATICS stakers. If the
+output is reward-restricted, only the staker share may be normalized through
+the paired currency. If both currencies are restricted, no conversion or
+reward liability is created: 80% remains creator revenue and 20% accrues to
+treasury. Creator revenue is claimed by PoolId and currency.
 
 The standalone STATICS/WETH market is the Doppler pool recorded by the launch
 manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
@@ -800,7 +827,8 @@ Index these event families, then reconcile with current views:
   `BorrowedLiquidityProvided`, manager `UserPositionMinted`, and PositionManager
   `Transfer`;
 - lifecycle: `BasketQuarantined`, `BasketQuarantineReleased`,
-  `BasketDecommissioned`, `ActionsPaused`, and `ActionsUnpaused`;
+  `BasketDecommissioned`, `ActionsPaused`, `ActionsUnpaused`,
+  `ProtocolSwapsPauseSet`, and `ProtocolPoolQuarantineSet`;
 - shared positions: ERC-721 `Transfer` and `Approval`, `PositionCreated`,
   `PositionClosed`, `PositionLegAttached`, `PositionLegDetached`, and
   `PositionStateChanged`; and

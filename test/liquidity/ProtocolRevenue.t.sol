@@ -57,17 +57,17 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         vm.prank(address(swapFeeHook));
         revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, creatorAmount, treasuryAmount));
 
-        assertEq(revenue.creatorRevenue(creator, tokenA), creatorAmount);
+        assertEq(revenue.creatorRevenue(poolId, tokenA), creatorAmount);
         assertEq(revenue.totalCreatorRevenue(tokenA), creatorAmount);
 
         address receiver = makeAddr("revenue-receiver");
         uint256 receiverBefore = IERC20(tokenA).balanceOf(receiver);
         vm.prank(creator);
-        (uint256 amount, uint256 received) = revenue.claimCreatorRevenue(tokenA, receiver, creatorAmount);
+        (uint256 amount, uint256 received) = revenue.claimCreatorRevenue(poolId, tokenA, receiver, creatorAmount);
         assertEq(amount, creatorAmount);
         assertEq(received, creatorAmount);
         assertEq(IERC20(tokenA).balanceOf(receiver) - receiverBefore, creatorAmount);
-        assertEq(revenue.creatorRevenue(creator, tokenA), 0);
+        assertEq(revenue.creatorRevenue(poolId, tokenA), 0);
         assertEq(revenue.totalCreatorRevenue(tokenA), 0);
     }
 
@@ -78,18 +78,18 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 500, 0));
         revenue.routeProtocolSwapFees(poolId, tokenB, _distribution(0, 0, 700, 0));
         vm.stopPrank();
-        assertEq(revenue.creatorRevenue(creator, tokenA), 500);
-        assertEq(revenue.creatorRevenue(creator, tokenB), 700);
+        assertEq(revenue.creatorRevenue(poolId, tokenA), 500);
+        assertEq(revenue.creatorRevenue(poolId, tokenB), 700);
     }
 
     function testClaimRejectsZeroReceiverAndEmptyCredit() public {
         vm.prank(creator);
         vm.expectRevert(ProtocolRevenueFacet.InvalidReceiver.selector);
-        revenue.claimCreatorRevenue(tokenA, address(0), 0);
+        revenue.claimCreatorRevenue(poolId, tokenA, address(0), 0);
 
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(ProtocolRevenueFacet.NoCreatorRevenue.selector, creator, tokenA));
-        revenue.claimCreatorRevenue(tokenA, makeAddr("r"), 0);
+        revenue.claimCreatorRevenue(poolId, tokenA, makeAddr("r"), 0);
     }
 
     function testClaimEnforcesMinimumOutput() public {
@@ -98,9 +98,9 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 500, 0));
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(ProtocolRevenueFacet.MinimumOutputNotMet.selector, tokenA, 500, 501));
-        revenue.claimCreatorRevenue(tokenA, makeAddr("r"), 501);
+        revenue.claimCreatorRevenue(poolId, tokenA, makeAddr("r"), 501);
         // credit preserved after failed claim
-        assertEq(revenue.creatorRevenue(creator, tokenA), 500);
+        assertEq(revenue.creatorRevenue(poolId, tokenA), 500);
     }
 
     function testGeneralPoolRejectsBasketStakerShare() public {

@@ -10,6 +10,7 @@ import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 import {LibMorpho} from "./LibMorpho.sol";
 import {LibIndexMath} from "./LibIndexMath.sol";
+import {LibRewardPolicy} from "./LibRewardPolicy.sol";
 
 library LibGlobalRewards {
     using SafeCast for uint256;
@@ -93,6 +94,7 @@ library LibGlobalRewards {
     error InvalidRewardMultiplier(uint16 multiplierBps);
     error InvalidCheckpointAssetCount(uint256 count);
     error RewardBookNeedsCheckpoint(address asset);
+    error RewardAssetRestricted(address asset);
 
     function rewardStorage() internal pure returns (RewardStorage storage rs) {
         bytes32 position = REWARD_STORAGE_POSITION;
@@ -140,7 +142,7 @@ library LibGlobalRewards {
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
         uint256 stakerAmount;
-        if (book.eligibleWeight != 0) {
+        if (!LibRewardPolicy.isRestricted(asset) && book.eligibleWeight != 0) {
             stakerAmount = Math.mulDiv(grossFee, STAKER_SHARE_BPS, LibBasket.BPS);
             _increaseIndex(book, stakerAmount, book.eligibleWeight);
         }
@@ -156,7 +158,7 @@ library LibGlobalRewards {
         _rollMatured(asset, book);
         // A swap share can be classified before the last eligible position exits. Preserve routing
         // liveness by applying the documented Statics-staker-to-treasury fallback at settlement.
-        if (book.eligibleWeight == 0) {
+        if (LibRewardPolicy.isRestricted(asset) || book.eligibleWeight == 0) {
             rs.treasuryAccrued[asset] += amount;
             emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, 0, amount, book.indexRay);
             return;
@@ -173,6 +175,7 @@ library LibGlobalRewards {
 
     function optIn(uint256 positionId, address asset) internal {
         if (asset == address(0)) revert InvalidRewardAsset(asset);
+        if (LibRewardPolicy.isRestricted(asset)) revert RewardAssetRestricted(asset);
         RewardStorage storage rs = rewardStorage();
         StakePosition storage position = rs.positions[positionId];
         if (position.optedInIndexPlusOne[asset] != 0) revert RewardAssetAlreadyOptedIn(positionId, asset);

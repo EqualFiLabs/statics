@@ -131,6 +131,25 @@ case "$TARGET" in
     run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-overspend 8 \
       out-formal-genesis '^check_claimFundedCompoundingRejectsOverspend'
     ;;
+  phase-one)
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-pause-authority 8 \
+      out-formal-genesis '^check_onlyGuardianOrOwnerCanStopAllProtocolSwaps'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-restore-authority 8 \
+      out-formal-genesis '^check_guardianCannotRestoreProtocolSwaps'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-pool-quarantine-isolation 8 \
+      out-formal-genesis '^check_poolQuarantineRemainsIsolatedUntilGlobalPause'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-stake-pause-separation 8 \
+      out-formal-genesis '^check_guardianStakePauseCannotSetOwnerOnlyAction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-add-authority 8 \
+      out-formal-genesis '^check_onlyGuardianOrOwnerCanAddRewardRestriction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-remove-authority 8 \
+      out-formal-genesis '^check_onlyOwnerCanRemoveRewardRestriction'
+    # The production fee helper uses full-precision mulDiv. As with permanent-liquidity math,
+    # conservatively explore both sides when branch-feasibility pruning exceeds the bound.
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
+        out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
+    ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
       "$0" "$target"
@@ -140,6 +159,7 @@ case "$TARGET" in
   all)
     "$0" established
     "$0" permanent-liquidity
+    "$0" phase-one
     ;;
   *)
     printf 'unknown formal target: %s\n' "$TARGET" >&2
