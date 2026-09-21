@@ -97,6 +97,7 @@ contract MockReceiverRestrictedERC20 is ERC20 {
 contract BreakableVenueController is IVenueController, IERC165 {
     address public override operator;
     bool public broken;
+    TradingStatus private poolTradingStatus;
 
     error BrokenController();
     error OnlyOperator(address caller);
@@ -108,6 +109,11 @@ contract BreakableVenueController is IVenueController, IERC165 {
     function breakController() external {
         if (msg.sender != operator) revert OnlyOperator(msg.sender);
         broken = true;
+    }
+
+    function setPoolStatus(TradingStatus status_) external {
+        if (msg.sender != operator) revert OnlyOperator(msg.sender);
+        poolTradingStatus = status_;
     }
 
     function permissions(PoolId, address) external view returns (uint256 flags) {
@@ -122,7 +128,7 @@ contract BreakableVenueController is IVenueController, IERC165 {
 
     function poolStatus(PoolId) external view returns (TradingStatus status) {
         _enforceWorking();
-        return TradingStatus.Active;
+        return poolTradingStatus;
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
@@ -970,6 +976,51 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), 0);
     }
 
+    function testOwnerCanClaimBackedCreditWhenControllerFails() public {
+        MockReceiverRestrictedERC20 restricted = new MockReceiverRestrictedERC20("Claim Blocked", "cBLK");
+        MockERC20 healthy = new MockERC20("Claim Healthy", "cHLT", 18);
+        (PoolId poolId, PoolKey memory key, DefaultVenueController originalController) =
+            _createDefaultPool(address(restricted), address(healthy), 3_000, 100);
+        uint256 tokenId = _mintFullRangePosition(key, originalController, lp, 20 ether);
+        restricted.setBlockedReceiver(lp);
+
+        address unwindOperator = makeAddr("credit-unwind-operator");
+        DefaultVenueController unwindController = _replaceWithHaltedController(
+            poolId, address(originalController), unwindOperator, 0, keccak256("credit unwind controller")
+        );
+        vm.prank(unwindOperator);
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
+
+        Currency restrictedCurrency = Currency.wrap(address(restricted));
+        uint256 credit = positionClaims.creditOf(poolId, lp, restrictedCurrency);
+        assertGt(credit, 1);
+        assertEq(poolManager.balanceOf(address(positionClaims), restrictedCurrency.toId()), credit);
+
+        BreakableVenueController brokenController = new BreakableVenueController(creator);
+        vm.prank(creator);
+        brokenController.setPoolStatus(IVenueController.TradingStatus.Halted);
+        _replaceControllerWithAuthorization(
+            poolId, address(unwindController), address(brokenController), 1, keccak256("broken credit controller")
+        );
+        vm.prank(creator);
+        brokenController.breakController();
+        restricted.setBlockedReceiver(address(0));
+
+        uint256 ownerClaim = credit / 2;
+        uint256 ownerBalanceBefore = restricted.balanceOf(lp);
+        vm.prank(lp);
+        positionClaims.claim(poolId, restrictedCurrency, lp, ownerClaim);
+        assertEq(restricted.balanceOf(lp) - ownerBalanceBefore, ownerClaim);
+        assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), credit - ownerClaim);
+        assertEq(poolManager.balanceOf(address(positionClaims), restrictedCurrency.toId()), credit - ownerClaim);
+
+        vm.prank(lp);
+        vm.expectRevert(BreakableVenueController.BrokenController.selector);
+        positionClaims.claim(poolId, restrictedCurrency, makeAddr("alternate-credit-receiver"), credit - ownerClaim);
+        assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), credit - ownerClaim);
+        assertEq(poolManager.balanceOf(address(positionClaims), restrictedCurrency.toId()), credit - ownerClaim);
+    }
+
     function testHaltedOperatorUnwindCannotBeVetoedBySubscriber() public {
         MockERC20 tokenA = new MockERC20("Subscriber A", "sA", 18);
         MockERC20 tokenB = new MockERC20("Subscriber B", "sB", 18);
@@ -1087,6 +1138,22 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         );
         permissionedPools.replacePermissionedPoolController(
             poolId, oldController, address(newController), nonce, deadline, agreementHash, authorization
+        );
+    }
+
+    function _replaceControllerWithAuthorization(
+        PoolId poolId,
+        address oldController,
+        address newController,
+        uint256 nonce,
+        bytes32 agreementHash
+    ) private {
+        uint256 deadline = block.timestamp + 1 days;
+        bytes memory authorization = _controllerReplacementAuthorization(
+            poolId, oldController, newController, nonce, deadline, agreementHash, creatorKey
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, oldController, newController, nonce, deadline, agreementHash, authorization
         );
     }
 

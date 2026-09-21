@@ -122,8 +122,8 @@ contract PermissionedPositionClaims is IUnlockCallback, ReentrancyGuard {
         if (amount == 0 || amount > available) revert InsufficientCredit(amount, available);
         IStaticsPermissionedSwapFeeHook.PoolRegistration memory registration = permissionedHook.poolRegistration(poolId);
         if (
-            IVenueController(registration.controller).permissions(poolId, receiver) & LIQUIDITY_ALLOWED == 0
-                && receiver != msg.sender
+            receiver != msg.sender
+                && IVenueController(registration.controller).permissions(poolId, receiver) & LIQUIDITY_ALLOWED == 0
         ) revert ReceiverNotEligible(poolId, receiver);
         credits[poolId][msg.sender][currency] = available - amount;
         poolManager.unlock(abi.encode(WITHDRAW, poolId, msg.sender, currency, receiver, amount));
