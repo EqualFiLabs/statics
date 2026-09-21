@@ -414,7 +414,9 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertGt(creatorAmount, 0);
         assertGt(treasuryAmount, 0);
         assertGt(normalizedReward, 0);
-        assertApproxEqAbs(creatorAmount, treasuryAmount * 8, 8);
+        // The treasury receives every remainder from the 80/10/5/5 floor-rounded split.
+        // This can move its 1:8 ratio to the creator share by at most 20 wei.
+        assertApproxEqAbs(creatorAmount, treasuryAmount * 8, 20);
         assertEq(globalRewards.rewardAsset(restricted).indexedReserve, 0);
         assertEq(revenue.creatorRevenue(poolId, rewardable), 0);
     }
