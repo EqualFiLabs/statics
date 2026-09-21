@@ -1,5 +1,17 @@
 {
   "schema": 2,
+  "counts": {
+    "High": 58,
+    "Medium": 345,
+    "Low": 230,
+    "Informational": 104
+  },
+  "raw_counts": {
+    "High": 58,
+    "Medium": 347,
+    "Low": 292,
+    "Informational": 104
+  },
   "findings": [
     {
       "impact": "High",
@@ -234,22 +246,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._route(PoolId,Currency,LibPermissionedFeeMath.Distribution) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#322-345):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
-      "occurrences": 1,
-      "id": "2a310b0b4ecf902987455a27"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
@@ -266,12 +262,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+        "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "2d77d741a18be51a791dac9c"
+      "id": "3c439996ff973e7850998d10"
     },
     {
       "impact": "High",
@@ -282,12 +278,44 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
-      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#347-356):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "48c87a9ba1a254b2e11d48aa"
+      "id": "3e516a18f55e760580689a56"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "3ff102f93d8757d055a0c144"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#347-356):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "428433be57de86eda073d6c6"
     },
     {
       "impact": "High",
@@ -362,44 +390,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
-      "occurrences": 1,
-      "id": "5d0f0907fa1d54dacc6b4c0e"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81):",
-      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
-      "occurrences": 1,
-      "id": "60b1b0cb0aa754a163a8529f"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager._executePosition(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#74-109):",
       "rationale": "The public value-moving entrypoint is non-reentrant and the callback flow validates exact token debits, receipts, refunds, and final zero-residual conditions.",
       "occurrences": 1,
       "id": "64205707b136a5ddb637f172"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "6441ac1cbad65d7f0748b082"
     },
     {
       "impact": "High",
@@ -458,6 +470,54 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "835ade4526ca940e0cb49884"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "8b4d87f6691ffe80d8eea09f"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "8b842fff6f88854f5e653847"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/MorphoSettlementFacet.sol"
       ],
       "summary": "Reentrancy in MorphoSettlementFacet.recoverMorphoAccountToken(uint256,address,uint256,address,uint256) (src/facets/MorphoSettlementFacet.sol#42-61):",
@@ -476,10 +536,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
-      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "987a011c14e65063aef7509e"
+      "id": "9c1891eef3b341cb45849250"
     },
     {
       "impact": "High",
@@ -512,22 +572,6 @@
       "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
       "id": "9f336c80a70f5af89b027fb8"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81):",
-      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
-      "occurrences": 1,
-      "id": "9f701137778a5819f225268a"
     },
     {
       "impact": "High",
@@ -588,26 +632,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
-      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
+      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "b2fe16085b3c14c89675434a"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#347-356):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
-      "occurrences": 1,
-      "id": "bb6185eb17211de5432c428b"
+      "id": "ba84bbf97f6d4d37aac65ee4"
     },
     {
       "impact": "High",
@@ -666,22 +694,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
-      "rationale": "The settlement path is reachable only from the authenticated PositionManager/PoolManager callback boundary. PoolManager and PositionManager locks prevent a nested lifecycle, claim withdrawals debit credit before unlock, and exact token deltas are checked before new credit is recorded.",
-      "occurrences": 1,
-      "id": "d8d9ee882375c963daa11e20"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager._executePosition(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#74-109):",
@@ -698,12 +710,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+        "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#347-356):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "e82056cf32cde0add377185f"
+      "id": "e62d5cf982f378a1a2d210fd"
     },
     {
       "impact": "High",
@@ -733,9 +745,25 @@
         "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "f00e3736460c94c2579a730c"
+      "id": "eff6c698140947d319c5bd50"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._route(PoolId,Currency,LibPermissionedFeeMath.Distribution) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#322-345):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "occurrences": 1,
+      "id": "f3737b0104f7b92f6491faf4"
     },
     {
       "impact": "High",
@@ -768,22 +796,6 @@
       "rationale": "The enclosing Diamond entrypoint is non-reentrant, authorization and accounting are checkpointed, and post-call balance deltas validate the immutable Morpho integration result.",
       "occurrences": 1,
       "id": "fa16a4c31fe7cd7ed06e5e2a"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#358-371):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token/manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
-      "occurrences": 1,
-      "id": "ffa60acce4d5ad4fc78882b9"
     },
     {
       "impact": "High",
@@ -997,6 +1009,22 @@
       "impact": "Medium",
       "confidence": "High",
       "check": "incorrect-equality",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117) uses a dangerous strict equality:",
+      "rationale": "These equalities form the ERC-20 compatibility boundary: empty return data is accepted only when the transfer call succeeds, while exact sender debit and receiver credit reject partial or fee-on-transfer delivery before selecting the backed-credit fallback.",
+      "occurrences": 1,
+      "id": "05c594e972f9f47f5080ff0f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
         "production-contracts"
@@ -1157,6 +1185,22 @@
       "impact": "Medium",
       "confidence": "High",
       "check": "incorrect-equality",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117) uses a dangerous strict equality:",
+      "rationale": "These equalities form the ERC-20 compatibility boundary: empty return data is accepted only when the transfer call succeeds, while exact sender debit and receiver credit reject partial or fee-on-transfer delivery before selecting the backed-credit fallback.",
+      "occurrences": 1,
+      "id": "55839c739b0aa3b48868be8f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
         "production-scripts"
@@ -1232,6 +1276,22 @@
       "rationale": "Strict equality is required here to fail closed on a deployment artifact, code, hash, fixed share, or ceremony invariant; it is not used as a price trigger.",
       "occurrences": 1,
       "id": "8190603879774fe2c348eed6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims._deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#98-102) uses a dangerous strict equality:",
+      "rationale": "The zero comparison is an explicit no-op guard before any external transfer or accounting update; it does not control authorization, pricing, or a value-bearing boundary.",
+      "occurrences": 1,
+      "id": "8bf4bb433623c18554e8c7a5"
     },
     {
       "impact": "Medium",
@@ -1328,22 +1388,6 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "c64879a770905b4bce14e24f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81) uses a dangerous strict equality:",
-      "rationale": "Exact sender-debit and receiver-credit equality is the compatibility boundary that rejects partial, fee-on-transfer, or otherwise inexact delivery before deciding whether to use the PoolManager-backed credit fallback.",
-      "occurrences": 1,
-      "id": "e7119edf3b0b07b32ef1db06"
     },
     {
       "impact": "Medium",
@@ -2749,9 +2793,9 @@
         "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
       "summary": "StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta).normalized (src/liquidity/StaticsPermissionedSwapFeeHook.sol#257) is a local variable never initialized",
-      "rationale": "The memory context and normalized distribution intentionally begin at Solidity zero; every required field is assigned before use and zero normalized amounts deliberately skip optional routing.",
+      "rationale": "The memory distribution intentionally starts at Solidity zero; every required field is assigned before use and a zero normalized amount deliberately skips optional routing.",
       "occurrences": 1,
-      "id": "f4e6cd68e3d55ef8dd4bface"
+      "id": "fa6994d4dba0f203002a5328"
     },
     {
       "impact": "Medium",
@@ -2832,6 +2876,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "022a658a9c1499ba944454d2"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (tokenId_scope_1,None,None,None) = params.decodeIncreaseLiquidityFromDeltasParams() (src/permissioned/StaticsPermissionedPositionManager.sol#75)",
+      "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
+      "occurrences": 1,
+      "id": "02f47d02d396e61746d17491"
     },
     {
       "impact": "Medium",
@@ -3002,22 +3062,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "PermissionedPositionClaims.deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#61-66) ignores return value by poolManager.unlock(abi.encode(DEPOSIT,poolId,owner,currency,amount)) (src/permissioned/PermissionedPositionClaims.sol#65)",
-      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
-      "occurrences": 1,
-      "id": "0e06673e7316525201604cb1"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/BasketRedemptionFacet.sol"
       ],
       "summary": "BasketRedemptionFacet._redeemAsset(LibBasket.BasketStorage,LibBasket.Basket,BasketRedemptionFacet.RedeemSettlement,uint256,uint256,uint256) (src/facets/BasketRedemptionFacet.sol#118-139) ignores return value by (None,received) = LibCustody.pushReserved(settlement.custodyAccount,asset,settlement.receiver,payout,payout) (src/facets/BasketRedemptionFacet.sol#135-136)",
@@ -3040,6 +3084,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "10961d3f1b82d9e9342dfb31"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (tokenId,liquidity,None,None,None) = params.decodeModifyLiquidityParams() (src/permissioned/StaticsPermissionedPositionManager.sol#72)",
+      "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
+      "occurrences": 1,
+      "id": "11b71825f167c1b873890b4c"
     },
     {
       "impact": "Medium",
@@ -3184,22 +3244,6 @@
       "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
       "occurrences": 1,
       "id": "1a92349387f90881db27f882"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/StaticsPermissionedPositionManager.sol"
-      ],
-      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#76-85) ignores return value by (None,None,None,None,None,None,owner,None) = params.decodeMintParams() (src/permissioned/StaticsPermissionedPositionManager.sol#78)",
-      "rationale": "Only the decoded owner field is required to enforce caller-bound mint ownership; the remaining tuple fields are consumed later by the inherited PositionManager action handler.",
-      "occurrences": 1,
-      "id": "1c451d260f0b14b67781cff9"
     },
     {
       "impact": "Medium",
@@ -3472,6 +3516,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "2f5cb12a39d1cab787d0e1ba"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims.forceUnwind(uint256,uint128,uint128,bytes) (src/permissioned/PermissionedPositionClaims.sol#65-88) ignores return value by (key,None) = manager.getPoolAndPositionInfo(tokenId) (src/permissioned/PermissionedPositionClaims.sol#70)",
+      "rationale": "The claims companion needs only the PoolKey for hook authentication and settlement. PositionInfo remains owned and consumed by the PositionManager during the subsequent authenticated burn.",
+      "occurrences": 1,
+      "id": "2fa0ac1d719ad82be3d221b4"
     },
     {
       "impact": "Medium",
@@ -3799,6 +3859,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPermissionedPeriphery.s.sol"
+      ],
+      "summary": "DeployStaticsPermissionedPeriphery.deploy(DeployStaticsPermissionedPeriphery.Config) (script/DeployStaticsPermissionedPeriphery.s.sol#55-95) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPermissionedPeriphery.s.sol#60)",
+      "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
+      "occurrences": 1,
+      "id": "448c0dd8b6efc0ab0826c892"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -4032,6 +4108,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "5bb7dfaadee69d4c85acae1a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#186-201) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#200)",
+      "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
+      "occurrences": 1,
+      "id": "5bc992ae9dd4f39f8d22b21f"
     },
     {
       "impact": "Medium",
@@ -4423,6 +4515,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (None,None,None,None,None,owner_scope_0,None) = params.decodeMintFromDeltasParams() (src/permissioned/StaticsPermissionedPositionManager.sol#69)",
+      "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
+      "occurrences": 1,
+      "id": "787b0578c721f4676845a262"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4448,6 +4556,22 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "791679177c6bbd545abf238a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (None,None,None,None,None,None,owner,None) = params.decodeMintParams() (src/permissioned/StaticsPermissionedPositionManager.sol#66)",
+      "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
+      "occurrences": 1,
+      "id": "7b5c4b54218bd576ec1d28b1"
     },
     {
       "impact": "Medium",
@@ -4538,6 +4662,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims.claim(PoolId,Currency,address,uint256) (src/permissioned/PermissionedPositionClaims.sol#119-130) ignores return value by poolManager.unlock(abi.encode(WITHDRAW,poolId,msg.sender,currency,receiver,amount)) (src/permissioned/PermissionedPositionClaims.sol#129)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; callback failures bubble and revert the transaction, while its opaque bytes return value carries no protocol decision.",
+      "occurrences": 1,
+      "id": "8316e1dcfc646ef21cb61e66"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/GovernanceFacet.sol"
       ],
       "summary": "GovernanceFacet.quarantineProtocolPool(PoolId) (src/facets/GovernanceFacet.sol#101-106) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/GovernanceFacet.sol#103)",
@@ -4560,6 +4700,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "861bff440288f1743c911d8c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager.executeForceUnwind(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#57-62) ignores return value by poolManager.unlock(unlockData) (src/permissioned/StaticsPermissionedPositionManager.sol#61)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; callback failures bubble and revert the transaction, while its opaque bytes return value carries no protocol decision.",
+      "occurrences": 1,
+      "id": "868dac2ba2b7cf963fcb23de"
     },
     {
       "impact": "Medium",
@@ -4983,6 +5139,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims._deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#98-102) ignores return value by poolManager.unlock(abi.encode(DEPOSIT,poolId,owner,currency,amount)) (src/permissioned/PermissionedPositionClaims.sol#101)",
+      "rationale": "The unlock call is used for its atomic callback and settlement effects; callback failures bubble and revert the transaction, while its opaque bytes return value carries no protocol decision.",
+      "occurrences": 1,
+      "id": "a09da7dca27de7f8499c8bd4"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5056,22 +5228,6 @@
       "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
       "occurrences": 1,
       "id": "abad9e1fc3810811cbef1214"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "PermissionedPositionClaims.claim(PoolId,Currency,address,uint256) (src/permissioned/PermissionedPositionClaims.sol#83-94) ignores return value by poolManager.unlock(abi.encode(WITHDRAW,poolId,msg.sender,currency,receiver,amount)) (src/permissioned/PermissionedPositionClaims.sol#93)",
-      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
-      "occurrences": 1,
-      "id": "af209a4ac171b2a6547b3b1e"
     },
     {
       "impact": "Medium",
@@ -5344,22 +5500,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "c07702c9f9d9b4dad14c1983"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/StaticsPermissionedPositionManager.sol"
-      ],
-      "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#76-85) ignores return value by (None,None,None,None,None,owner_scope_0,None) = params.decodeMintFromDeltasParams() (src/permissioned/StaticsPermissionedPositionManager.sol#81)",
-      "rationale": "Only the decoded owner field is required to enforce caller-bound mint ownership; the remaining tuple fields are consumed later by the inherited PositionManager action handler.",
-      "occurrences": 1,
-      "id": "c0d1d612484d6de164b48265"
     },
     {
       "impact": "Medium",
@@ -5648,22 +5788,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "cc90e65cec96c4f8d0a90f9a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/StaticsPermissionedPositionManager.sol"
-      ],
-      "summary": "StaticsPermissionedPositionManager.forceUnwind(uint256,uint128,uint128,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#50-74) ignores return value by poolManager.unlock(abi.encode(actions,params)) (src/permissioned/StaticsPermissionedPositionManager.sol#68)",
-      "rationale": "The unlock call is used for its atomic callback and settlement effects; failures bubble, while the caller verifies the resulting balance/accounting state instead of consuming the callback's opaque bytes.",
-      "occurrences": 1,
-      "id": "ccdd6ed335c3367cd35ef8fd"
     },
     {
       "impact": "Medium",
@@ -6215,6 +6339,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#196-229) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#206)",
+      "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
+      "occurrences": 1,
+      "id": "eef8407ba9ae17d426913992"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -6336,22 +6476,6 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "00236109116c494e09934ef2"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#234-266) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#261-264)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 1,
-      "id": "079ee304f5fdb3d5a84d9f7f"
     },
     {
       "impact": "Low",
@@ -7018,6 +7142,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._enforceIncreaseOwner(uint256) (src/permissioned/StaticsPermissionedPositionManager.sol#86-95) has external calls inside a loop: IVenueController(registration.controller).permissions(poolId,owner) & LIQUIDITY_ALLOWED == 0 (src/permissioned/StaticsPermissionedPositionManager.sol#92)",
+      "rationale": "The inherited action stream is caller-supplied and gas-bounded. Each exposure-increasing action deliberately performs current hook and controller checks; a failed or reverting controller blocks only the increase, while decrease, collection, burn, and claim exits remain ungated.",
+      "occurrences": 2,
+      "id": "c5eb3625958f57e3f9717bea"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._validatePool(uint256,PoolKey,address,address) (src/periphery/StaticsFlashArbitrageReceiver.sol#472-483) has external calls inside a loop: canonical = IStaticsBasketLiquidity(staticsDiamond).canonicalPool(basketId,asset) (src/periphery/StaticsFlashArbitrageReceiver.sol#475-476)",
@@ -7095,6 +7235,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#236-268) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#263-266)",
+      "rationale": "The deployment logging loop is bounded by the canonical phase manifest and performs read-only evidence calls.",
+      "occurrences": 1,
+      "id": "d779bf5095197a65f8095f32"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7146,6 +7302,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager._enforceIncreaseOwner(uint256) (src/permissioned/StaticsPermissionedPositionManager.sol#86-95) has external calls inside a loop: registration = permissionedHook.poolRegistration(poolId) (src/permissioned/StaticsPermissionedPositionManager.sol#91)",
+      "rationale": "The inherited action stream is caller-supplied and gas-bounded. Each exposure-increasing action deliberately performs current hook and controller checks; a failed or reverting controller blocks only the increase, while decrease, collection, burn, and claim exits remain ungated.",
+      "occurrences": 2,
+      "id": "f533f45256b77603768babdd"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._swapExactInput(PoolKey,address,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#425-445) has external calls inside a loop: inputAfter = inputToken.balanceOf(address(this)) (src/periphery/StaticsFlashArbitrageReceiver.sol#438)",
@@ -7168,22 +7340,6 @@
       "rationale": "Installation validates deployed code and immutable cross-bindings, so a zero constructor dependency cannot be installed into the Diamond or receive protocol funds.",
       "occurrences": 1,
       "id": "1dabd3646eb6be28221cfd37"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "missing-zero-check",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "PermissionedPositionClaims.constructor(IPoolManager,address,IStaticsPermissionedSwapFeeHook).positionManager_ (src/permissioned/PermissionedPositionClaims.sol#46) lacks a zero-check on :",
-      "rationale": "The claims companion is constructed only by the PositionManager with address(this); the supported deployment also verifies the immutable binding, so a zero position-manager binding is unreachable.",
-      "occurrences": 1,
-      "id": "1ebe1854bc305f2327706134"
     },
     {
       "impact": "Low",
@@ -7364,6 +7520,22 @@
     {
       "impact": "Low",
       "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "PermissionedPositionClaims.constructor(IPoolManager,address,IStaticsPermissionedSwapFeeHook).positionManager_ (src/permissioned/PermissionedPositionClaims.sol#57) lacks a zero-check on :",
+      "rationale": "The claims companion is constructed only by the PositionManager with address(this), and deployment verifies the immutable binding, so a zero position-manager binding is unreachable.",
+      "occurrences": 1,
+      "id": "f8979f5464af78b2acf95f02"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
       "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
@@ -7452,10 +7624,26 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
-      "rationale": "Claim settlement runs inside the authenticated PoolManager callback and records credit only after exact settlement; nested lifecycle entry is blocked and a failed callback reverts all intermediate state.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "rationale": "Claim settlement runs inside the authenticated PoolManager callback and records credit only after exact settlement; the outer public entrypoint is nonReentrant, nested lifecycle entry is locked, and any failed callback reverts all intermediate state.",
       "occurrences": 1,
-      "id": "21e58ea95f6e4938a4b8806c"
+      "id": "2907a9d5e00275195036cdf7"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._normalize(PoolKey,Currency,Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#295-320):",
+      "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
+      "occurrences": 1,
+      "id": "3300af952edd7310f0d1d41e"
     },
     {
       "impact": "Low",
@@ -7546,12 +7734,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/tokens/StaticsGenesis.sol"
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#220-284):",
+      "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
       "occurrences": 1,
-      "id": "713dcccefe0c84488eb43f39"
+      "id": "67aa1ff693c92a86a87c8974"
     },
     {
       "impact": "Low",
@@ -7562,12 +7750,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+        "src/tokens/StaticsGenesis.sol"
       ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#220-284):",
-      "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
+      "summary": "Reentrancy in StaticsGenesis.recoverToVault(uint256,address) (src/tokens/StaticsGenesis.sol#226-249):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "7150e65a396ece5b3a0127f0"
+      "id": "713dcccefe0c84488eb43f39"
     },
     {
       "impact": "Low",
@@ -7632,22 +7820,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a6e4af8b3d3b81116d2fd86d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._normalize(PoolKey,Currency,Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#295-320):",
-      "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
-      "occurrences": 1,
-      "id": "aa6ee444a59a2a230903b60d"
     },
     {
       "impact": "Low",
@@ -7921,6 +8093,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "2434e5975722419cbe950616"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims.unlockCallback(bytes) (src/permissioned/PermissionedPositionClaims.sol#136-154):",
+      "rationale": "Events are emitted only after authenticated, exact settlement has completed. Public entrypoints are nonReentrant, PoolManager callbacks are sender-authenticated, and any callback failure reverts both state and logs.",
+      "occurrences": 1,
+      "id": "2480223ef9191acd609ae493"
     },
     {
       "impact": "Low",
@@ -8400,6 +8588,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+      ],
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#220-284):",
+      "rationale": "Events are emitted after the relevant external settlement so logs describe committed results; the PoolManager lock and hook sender checks prevent nested lifecycle entry, and any failure reverts the logs.",
+      "occurrences": 1,
+      "id": "802d309ee3170f3d80b2da06"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._recordNativeFees(PoolId,Currency,uint128) (src/liquidity/StaticsSwapFeeHook.sol#719-724):",
@@ -8420,8 +8624,24 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#390-430):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 2,
+      "occurrences": 1,
       "id": "8216f0492b47d4488877e515"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "rationale": "Events are emitted only after authenticated, exact settlement has completed. Public entrypoints are nonReentrant, PoolManager callbacks are sender-authenticated, and any callback failure reverts both state and logs.",
+      "occurrences": 1,
+      "id": "88b053289c2bf92244fcdf9c"
     },
     {
       "impact": "Low",
@@ -8519,22 +8739,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "9bf051cdc57f195ddbc4bd65"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims.unlockCallback(bytes) (src/permissioned/PermissionedPositionClaims.sol#100-118):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "9f6e3bf93fea9c9b05259a9d"
     },
     {
       "impact": "Low",
@@ -8707,22 +8911,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
-      ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#220-284):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "cf029d58fa9794286398e9c4"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#630-650):",
@@ -8794,22 +8982,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 2,
       "id": "db430d97c15cb90a940a787b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#120-136):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "dcb52728710bc4a20a2cffe3"
     },
     {
       "impact": "Low",
@@ -9043,22 +9215,6 @@
       "check": "shadowing-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/StaticsPermissionedPositionManager.sol"
-      ],
-      "summary": "StaticsPermissionedPositionManager.constructor(IPoolManager,IAllowanceTransfer,uint256,IPositionDescriptor,IWETH9,IStaticsPermissionedSwapFeeHook).unsubscribeGasLimit (src/permissioned/StaticsPermissionedPositionManager.sol#37) shadows:",
-      "rationale": "The constructor parameter intentionally matches the inherited PositionManager domain term and is forwarded directly; no storage or dispatch resolution is shadowed.",
-      "occurrences": 1,
-      "id": "bfe49df58a30554adde99cd5"
-    },
-    {
-      "impact": "Low",
-      "confidence": "High",
-      "check": "shadowing-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9116,6 +9272,22 @@
       "rationale": "The names are deliberately scoped loop, tuple, or branch temporaries and do not shadow storage or alter which accounting value is read.",
       "occurrences": 1,
       "id": "edd69d5b4bc304da366a0038"
+    },
+    {
+      "impact": "Low",
+      "confidence": "High",
+      "check": "shadowing-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager.constructor(IPoolManager,IAllowanceTransfer,uint256,IPositionDescriptor,IWETH9,IStaticsPermissionedSwapFeeHook).unsubscribeGasLimit (src/permissioned/StaticsPermissionedPositionManager.sol#42) shadows:",
+      "rationale": "The constructor parameter intentionally matches the inherited PositionManager domain term and is forwarded directly; no storage or dispatch resolution is shadowed.",
+      "occurrences": 1,
+      "id": "f9d2b375a13d3f0910ace25c"
     },
     {
       "impact": "Low",
@@ -10502,12 +10674,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
+        "src/genesis/StaticsGenesisVault.sol"
       ],
-      "summary": "Low level call in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#68-81):",
-      "rationale": "The low-level ERC-20 transfer probe deliberately tolerates revert, false, or missing return data so an undeliverable owner payout can fall back to credit; exact debit and receipt deltas are verified.",
+      "summary": "Low level call in StaticsGenesisVault._collectCreditServiceFee(uint256) (src/genesis/StaticsGenesisVault.sol#652-661):",
+      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
-      "id": "37d307426f4a4de666dc79f2"
+      "id": "53b0479c043c88b0402e46e7"
     },
     {
       "impact": "Informational",
@@ -10518,12 +10690,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/genesis/StaticsGenesisVault.sol"
+        "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Low level call in StaticsGenesisVault._collectCreditServiceFee(uint256) (src/genesis/StaticsGenesisVault.sol#652-661):",
-      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
+      "summary": "Low level call in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117):",
+      "rationale": "The low-level ERC-20 transfer probe deliberately tolerates revert, false, or missing return data so an undeliverable owner payout can fall back to credit; nonReentrant entrypoints and exact debit and receipt checks protect the accounting boundary.",
       "occurrences": 1,
-      "id": "53b0479c043c88b0402e46e7"
+      "id": "58ca857a65614db16ba3f1c4"
     },
     {
       "impact": "Informational",
@@ -10756,6 +10928,23 @@
     {
       "impact": "Informational",
       "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/permissioned/PermissionedPositionClaims.sol",
+        "src/permissioned/StaticsPermissionedPositionManager.sol"
+      ],
+      "summary": "StaticsPermissionedPositionManager (src/permissioned/StaticsPermissionedPositionManager.sol#23-110) should inherit from IPermissionedPositionManagerClaims (src/permissioned/PermissionedPositionClaims.sol#17-21)",
+      "rationale": "The contract implements the consumer interface structurally, including inherited owner and pool reads; nominally inheriting the claims-local interface would add coupling without changing runtime conformance.",
+      "occurrences": 1,
+      "id": "c7153c1141298a241ec9eae3"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
       "check": "naming-convention",
       "classification": "INTENTIONAL",
       "passes": [
@@ -10768,6 +10957,22 @@
       "rationale": "The uppercase identifier is an immutable/public constant or an externally defined compatibility selector, so preserving its established ABI name is intentional.",
       "occurrences": 1,
       "id": "0bc769054d4069cbf41bc2c6"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "naming-convention",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
+      ],
+      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#54) is not in mixedCase",
+      "rationale": "WETH9 is an externally defined upstream compatibility selector, so preserving its established ABI name is intentional.",
+      "occurrences": 1,
+      "id": "320e96741e5aa55d6f14685c"
     },
     {
       "impact": "Informational",
@@ -10869,22 +11074,6 @@
       "rationale": "The literal is an exact code hash, CREATE2 address, hook mask, fixed-point value, or SVG payload where digit grouping would be invalid or less auditable.",
       "occurrences": 1,
       "id": "1245445468dcbb481ec93a89"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#131-174) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "149c3da2e30fdd72b794127b"
     },
     {
       "impact": "Informational",
@@ -11244,6 +11433,22 @@
       "check": "too-many-digits",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#132-175) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "8dcd7884be0ee63126e6956d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -11269,6 +11474,22 @@
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
       "id": "9b65195bd2d0c64775a2289e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#132-175) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "9fdde30a511d35a53c3317b8"
     },
     {
       "impact": "Informational",
@@ -11455,22 +11676,6 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#131-174) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "e339ff11a43fc64f56e33256"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
       "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#745-795) uses literals with too many digits:",
@@ -11524,7 +11729,7 @@
       "summary": "StaticsPermissionedSwapFeeHook (src/liquidity/StaticsPermissionedSwapFeeHook.sol#32-443) does not implement functions:",
       "rationale": "The concrete permissioned hook explicitly implements getHookPermissions; Slither reports the inherited BaseHook declaration from a separate compilation unit despite the runtime override.",
       "occurrences": 1,
-      "id": "5feafbe8a432045d6efa41c8"
+      "id": "9ee161f1d14dfd263409986f"
     },
     {
       "impact": "Informational",

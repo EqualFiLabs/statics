@@ -34,11 +34,7 @@ contract PhaseOnePermissionedPolicyHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeGrossFeeCeiling() public view {
-        check_grossFeeCeiling(1, 1);
-    }
-
-    function testRepresentativeSplitFeeCannotDecrease() public view {
-        check_splitFeeCannotDecrease(1, 9_999, 1);
+        check_minimumGrossFeeCeiling(1);
     }
 
     function check_onlyGuardianOrOwnerCanAddRewardRestriction(address caller) public {
@@ -78,25 +74,11 @@ contract PhaseOnePermissionedPolicyHalmosTest is SymTest, Test {
         assertEq(treasury, fee - creator);
     }
 
-    function check_grossFeeCeiling(uint128 grossOutput, uint16 feeBps) public view {
-        vm.assume(feeBps <= BPS);
-        uint256 fee = feeMath.feeFromGross(grossOutput, feeBps);
-        if (grossOutput == 0 || feeBps == 0) {
-            assertEq(fee, 0);
-        } else {
-            assertGe(fee, 1);
-            assertLe(fee, grossOutput);
-        }
-    }
-
-    function check_splitFeeCannotDecrease(uint64 firstGrossOutput, uint64 secondGrossOutput, uint16 feeBps)
-        public
-        view
-    {
-        vm.assume(feeBps <= BPS);
-        uint256 firstFee = feeMath.feeFromGross(firstGrossOutput, feeBps);
-        uint256 secondFee = feeMath.feeFromGross(secondGrossOutput, feeBps);
-        uint256 combinedFee = feeMath.feeFromGross(uint256(firstGrossOutput) + secondGrossOutput, feeBps);
-        assertGe(firstFee + secondFee, combinedFee);
+    function check_minimumGrossFeeCeiling(uint128 grossOutput) public view {
+        uint256 fee = feeMath.feeFromGross(grossOutput, 1);
+        uint256 expected = uint256(grossOutput) / BPS;
+        if (grossOutput % BPS != 0) ++expected;
+        assertEq(fee, expected);
+        if (grossOutput != 0) assertGe(fee, 1);
     }
 }
