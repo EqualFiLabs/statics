@@ -21,7 +21,7 @@ struct StaticsPermissionedPeripheryDeployment {
 /// @notice Deploys the exact-0.8.26 permissioned v4 periphery after the Phase 1 Diamond and hook exist.
 /// @dev Installation and trusted-periphery activation remain a separate atomic timelock ceremony.
 contract DeployStaticsPermissionedPeriphery is Script {
-    uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
+    uint256 private constant POSITION_MANAGER_RUNTIME_LIMIT = 24_576 - 1_024;
 
     struct Config {
         address poolManager;
@@ -84,9 +84,9 @@ contract DeployStaticsPermissionedPeriphery is Script {
         _binding(deployment.positionManager, config.poolManager, address(positionManager.poolManager()));
         _binding(deployment.positionManager, config.permit2, address(positionManager.permit2()));
         _binding(deployment.positionManager, config.permissionedHook, address(positionManager.permissionedHook()));
-        if (deployment.positionManager.code.length > EIP170_RUNTIME_LIMIT) {
+        if (deployment.positionManager.code.length > POSITION_MANAGER_RUNTIME_LIMIT) {
             revert RuntimeTooLarge(
-                deployment.positionManager, deployment.positionManager.code.length, EIP170_RUNTIME_LIMIT
+                deployment.positionManager, deployment.positionManager.code.length, POSITION_MANAGER_RUNTIME_LIMIT
             );
         }
     }

@@ -3,17 +3,28 @@ pragma solidity 0.8.26;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
+import {PositionInfo} from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {IVenueController} from "../interfaces/IVenueController.sol";
 
+interface IPermissionedPositionManagerClaims {
+    function getPoolAndPositionInfo(uint256 tokenId) external view returns (PoolKey memory key, PositionInfo info);
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+    function executeForceUnwind(uint256 tokenId, bytes calldata unlockData) external;
+}
+
 /// @notice PoolManager-claim-backed owner credits for permissioned unwind proceeds that a token
 /// cannot deliver to the position owner at unwind time.
-contract PermissionedPositionClaims is IUnlockCallback {
+contract PermissionedPositionClaims is IUnlockCallback, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using PoolIdLibrary for PoolKey;
 
     uint8 private constant DEPOSIT = 1;
     uint8 private constant WITHDRAW = 2;
@@ -25,9 +36,9 @@ contract PermissionedPositionClaims is IUnlockCallback {
 
     mapping(PoolId poolId => mapping(address owner => mapping(Currency currency => uint256 amount))) private credits;
 
-    error OnlyPositionManager(address caller);
     error OnlyVenueOperator(address caller, address operator);
     error PoolNotHalted(PoolId poolId);
+    error InvalidPermissionedPool(address hook);
     error OnlyPoolManager(address caller);
     error InvalidReceiver(address receiver);
     error InsufficientCredit(uint256 requested, uint256 available);
@@ -49,8 +60,34 @@ contract PermissionedPositionClaims is IUnlockCallback {
         permissionedHook = hook;
     }
 
-    function enforceForceUnwind(PoolId poolId, address caller) external view {
-        if (msg.sender != positionManager) revert OnlyPositionManager(msg.sender);
+    /// @notice Closes a position after its venue operator has halted the pool.
+    /// @dev Settlement is owner-bound and falls back to PoolManager-claim-backed credit when direct delivery fails.
+    function forceUnwind(uint256 tokenId, uint128 amount0Min, uint128 amount1Min, bytes calldata hookData)
+        external
+        nonReentrant
+    {
+        IPermissionedPositionManagerClaims manager = IPermissionedPositionManagerClaims(positionManager);
+        (PoolKey memory key,) = manager.getPoolAndPositionInfo(tokenId);
+        if (address(key.hooks) != address(permissionedHook)) revert InvalidPermissionedPool(address(key.hooks));
+        PoolId poolId = key.toId();
+        _enforceForceUnwind(poolId, msg.sender);
+
+        address owner = manager.ownerOf(tokenId);
+        uint256 balance0Before = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
+        uint256 balance1Before = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        bytes memory actions = abi.encodePacked(bytes1(uint8(Actions.BURN_POSITION)), bytes1(uint8(Actions.TAKE_PAIR)));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, amount0Min, amount1Min, hookData);
+        params[1] = abi.encode(key.currency0, key.currency1, address(this));
+        manager.executeForceUnwind(tokenId, abi.encode(actions, params));
+
+        uint256 amount0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this)) - balance0Before;
+        uint256 amount1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this)) - balance1Before;
+        _deliverOrCredit(poolId, owner, key.currency0, amount0);
+        _deliverOrCredit(poolId, owner, key.currency1, amount1);
+    }
+
+    function _enforceForceUnwind(PoolId poolId, address caller) private view {
         IStaticsPermissionedSwapFeeHook.PoolRegistration memory registration = permissionedHook.poolRegistration(poolId);
         IVenueController controller = IVenueController(registration.controller);
         address operator = controller.operator();
@@ -58,8 +95,7 @@ contract PermissionedPositionClaims is IUnlockCallback {
         if (controller.poolStatus(poolId) != IVenueController.TradingStatus.Halted) revert PoolNotHalted(poolId);
     }
 
-    function deliverOrCredit(PoolId poolId, address owner, Currency currency, uint256 amount) external {
-        if (msg.sender != positionManager) revert OnlyPositionManager(msg.sender);
+    function _deliverOrCredit(PoolId poolId, address owner, Currency currency, uint256 amount) private {
         if (amount == 0) return;
         if (_tryDeliver(owner, currency, amount)) return;
         poolManager.unlock(abi.encode(DEPOSIT, poolId, owner, currency, amount));
@@ -80,7 +116,7 @@ contract PermissionedPositionClaims is IUnlockCallback {
         return false;
     }
 
-    function claim(PoolId poolId, Currency currency, address receiver, uint256 amount) external {
+    function claim(PoolId poolId, Currency currency, address receiver, uint256 amount) external nonReentrant {
         if (receiver == address(0)) revert InvalidReceiver(receiver);
         uint256 available = credits[poolId][msg.sender][currency];
         if (amount == 0 || amount > available) revert InsufficientCredit(amount, available);

@@ -57,6 +57,6 @@ contract DeployStaticsPermissionedPeripheryTest is Test {
         assertEq(positionManager.permissionedHook(), address(hook));
         assertEq(positionManager.positionClaims(), deployment.positionClaims);
         assertTrue(deployment.positionClaims.code.length != 0);
-        assertLe(deployment.positionManager.code.length, 24_576);
+        assertLe(deployment.positionManager.code.length, 24_576 - 1_024);
     }
 }

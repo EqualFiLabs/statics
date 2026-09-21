@@ -40,6 +40,7 @@ import {MockERC1271Wallet} from "../mocks/MockERC1271Wallet.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
 interface IPermissionedPositionClaimsTest {
+    function forceUnwind(uint256 tokenId, uint128 amount0Min, uint128 amount1Min, bytes calldata hookData) external;
     function claim(PoolId poolId, Currency currency, address receiver, uint256 amount) external;
     function creditOf(PoolId poolId, address owner, Currency currency) external view returns (uint256 amount);
 }
@@ -52,7 +53,6 @@ interface IPermissionedPositionManagerTest is IPositionManager {
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
     function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external;
     function positionClaims() external view returns (address claims);
-    function forceUnwind(uint256 tokenId, uint128 amount0Min, uint128 amount1Min, bytes calldata hookData) external;
 }
 
 contract MockReceiverRestrictedERC20 is ERC20 {
@@ -124,7 +124,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
     uint256 private constant BPS = 10_000;
     uint256 private constant SWAP_ALLOWED = 1 << 0;
     uint256 private constant LIQUIDITY_ALLOWED = 1 << 1;
-    uint256 private constant POSITION_MANAGER_SIZE_LIMIT = 24_576;
+    uint256 private constant POSITION_MANAGER_SIZE_LIMIT = 24_576 - 1_024;
 
     IStaticsPermissionedPools private permissionedPools;
     IStaticsProtocolPools private protocolPools;
@@ -851,9 +851,9 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         uint256 healthyBefore = healthy.balanceOf(lp);
         vm.prank(creator);
         vm.expectRevert();
-        permissionedPositionManager.forceUnwind(tokenId, 0, 0, "");
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
         vm.prank(newOperator);
-        permissionedPositionManager.forceUnwind(tokenId, 0, 0, "");
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
         vm.expectRevert();
         permissionedPositionManager.ownerOf(tokenId);
         assertGt(healthy.balanceOf(lp), healthyBefore);
@@ -875,7 +875,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), 0);
     }
 
-    function testPermissionedPositionManagerFitsEip170() public view {
+    function testPermissionedPositionManagerRetainsRuntimeHeadroom() public view {
         assertLe(address(permissionedPositionManager).code.length, POSITION_MANAGER_SIZE_LIMIT);
     }
 
