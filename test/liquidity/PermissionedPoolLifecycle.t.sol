@@ -6,6 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -16,9 +17,12 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IPositionDescriptor} from "@uniswap/v4-periphery/src/interfaces/IPositionDescriptor.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {ISubscriber} from "@uniswap/v4-periphery/src/interfaces/ISubscriber.sol";
 import {IV4Quoter} from "@uniswap/v4-periphery/src/interfaces/IV4Quoter.sol";
 import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
+import {ERC721PermitHash} from "@uniswap/v4-periphery/src/libraries/ERC721PermitHash.sol";
+import {PositionInfo} from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import {V4Quoter} from "@uniswap/v4-periphery/src/lens/V4Quoter.sol";
 
 import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
@@ -47,12 +51,28 @@ interface IPermissionedPositionClaimsTest {
 
 interface IPermissionedPositionManagerTest is IPositionManager {
     error PositionTransferDisabled();
+    error PositionOwnerNotEligible(PoolId poolId, address owner);
 
     function ownerOf(uint256 tokenId) external view returns (address owner);
+    function approve(address spender, uint256 tokenId) external;
+    function setApprovalForAll(address operator, bool approved) external;
     function transferFrom(address from, address to, uint256 tokenId) external;
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
     function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external;
     function positionClaims() external view returns (address claims);
+}
+
+contract RevertingBurnSubscriber is ISubscriber {
+    error BurnRejected();
+
+    function notifySubscribe(uint256, bytes memory) external pure {}
+    function notifyUnsubscribe(uint256) external pure {}
+
+    function notifyBurn(uint256, address, PositionInfo, uint256, BalanceDelta) external pure {
+        revert BurnRejected();
+    }
+
+    function notifyModifyLiquidity(uint256, int256, BalanceDelta) external pure {}
 }
 
 contract MockReceiverRestrictedERC20 is ERC20 {
@@ -442,6 +462,81 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
             IERC20(Currency.unwrap(key.currency0)).balanceOf(lp) > balance0Before
                 || IERC20(Currency.unwrap(key.currency1)).balanceOf(lp) > balance1Before
         );
+    }
+
+    function testRevokedOwnerCannotIncreaseThroughApprovedDelegateOrOperator() public {
+        (PoolId poolId, PoolKey memory key, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Delegated A", "dA", 18)), address(new MockERC20("Delegated B", "dB", 18)), 3_000, 100
+        );
+        address delegate = makeAddr("eligible-position-delegate");
+        uint256 approvedTokenId = _mintFullRangePosition(key, controller, lp, 20 ether);
+        uint256 operatorTokenId = _mintFullRangePosition(key, controller, lp, 20 ether);
+        _setPermissions(controller, poolId, delegate, LIQUIDITY_ALLOWED);
+
+        vm.startPrank(lp);
+        permissionedPositionManager.approve(delegate, approvedTokenId);
+        permissionedPositionManager.setApprovalForAll(delegate, true);
+        vm.stopPrank();
+        _setPermissions(controller, poolId, lp, 0);
+
+        bytes memory expected =
+            abi.encodeWithSelector(IPermissionedPositionManagerTest.PositionOwnerNotEligible.selector, poolId, lp);
+        _increasePosition(approvedTokenId, key, delegate, 1 ether, expected);
+        _increasePositionFromDeltas(operatorTokenId, key, delegate, 1 ether, expected);
+    }
+
+    function testRevokedOwnerCannotIncreaseThroughPermitDelegateOrOperator() public {
+        (address owner, uint256 ownerKey) = makeAddrAndKey("permitted-position-owner");
+        (PoolId poolId, PoolKey memory key, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Permit A", "pA", 18)), address(new MockERC20("Permit B", "pB", 18)), 3_000, 100
+        );
+        address delegate = makeAddr("eligible-permit-delegate");
+        uint256 permitTokenId = _mintFullRangePosition(key, controller, owner, 20 ether);
+        uint256 permitForAllTokenId = _mintFullRangePosition(key, controller, owner, 20 ether);
+        _setPermissions(controller, poolId, delegate, LIQUIDITY_ALLOWED);
+        _permitPosition(ownerKey, delegate, permitTokenId, 71);
+        _permitAllPositions(ownerKey, owner, delegate, 72);
+        _setPermissions(controller, poolId, owner, 0);
+
+        bytes memory expected =
+            abi.encodeWithSelector(IPermissionedPositionManagerTest.PositionOwnerNotEligible.selector, poolId, owner);
+        _increasePosition(permitTokenId, key, delegate, 1 ether, expected);
+        _increasePositionFromDeltas(permitForAllTokenId, key, delegate, 1 ether, expected);
+    }
+
+    function testEligibleOwnerAndDelegateCanIncreaseWhileRevokedOwnerCanExit() public {
+        (PoolId poolId, PoolKey memory key, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Eligible A", "eA", 18)), address(new MockERC20("Eligible B", "eB", 18)), 3_000, 100
+        );
+        address delegate = makeAddr("eligible-owner-delegate");
+        uint256 tokenId = _mintFullRangePosition(key, controller, lp, 20 ether);
+        _setPermissions(controller, poolId, delegate, LIQUIDITY_ALLOWED);
+        vm.prank(lp);
+        permissionedPositionManager.approve(delegate, tokenId);
+
+        uint128 initialLiquidity = permissionedPositionManager.getPositionLiquidity(tokenId);
+        _increasePosition(tokenId, key, delegate, 1 ether);
+        uint128 afterDirectIncrease = permissionedPositionManager.getPositionLiquidity(tokenId);
+        assertGt(afterDirectIncrease, initialLiquidity);
+        _increasePositionFromDeltas(tokenId, key, delegate, 1 ether);
+        assertGt(permissionedPositionManager.getPositionLiquidity(tokenId), afterDirectIncrease);
+
+        _swapForOutput(key, controller, trader, Currency.unwrap(key.currency1), 1 ether);
+        _setPermissions(controller, poolId, lp, 0);
+        uint256 balance0BeforeCollection = IERC20(Currency.unwrap(key.currency0)).balanceOf(lp);
+        uint256 balance1BeforeCollection = IERC20(Currency.unwrap(key.currency1)).balanceOf(lp);
+        _collectPositionFees(tokenId, key, lp);
+        assertTrue(
+            IERC20(Currency.unwrap(key.currency0)).balanceOf(lp) > balance0BeforeCollection
+                || IERC20(Currency.unwrap(key.currency1)).balanceOf(lp) > balance1BeforeCollection
+        );
+        _swapForOutput(key, controller, trader, Currency.unwrap(key.currency1), 1 ether);
+        _collectPositionFeesFromDeltas(tokenId, key, lp);
+        _decreasePosition(tokenId, key, lp, 0);
+        _decreasePosition(tokenId, key, lp, permissionedPositionManager.getPositionLiquidity(tokenId));
+        _burnPosition(tokenId, key, lp);
+        vm.expectRevert();
+        permissionedPositionManager.ownerOf(tokenId);
     }
 
     function testExternalExactOutputIsRejected() public {
@@ -875,6 +970,39 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), 0);
     }
 
+    function testHaltedOperatorUnwindCannotBeVetoedBySubscriber() public {
+        MockERC20 tokenA = new MockERC20("Subscriber A", "sA", 18);
+        MockERC20 tokenB = new MockERC20("Subscriber B", "sB", 18);
+        (PoolId poolId, PoolKey memory key, DefaultVenueController oldController) =
+            _createDefaultPool(address(tokenA), address(tokenB), 3_000, 100);
+        uint256 tokenId = _mintFullRangePosition(key, oldController, lp, 20 ether);
+        RevertingBurnSubscriber hostileSubscriber = new RevertingBurnSubscriber();
+        vm.prank(lp);
+        permissionedPositionManager.subscribe(tokenId, address(hostileSubscriber), "");
+
+        vm.expectRevert();
+        _burnPosition(tokenId, key, lp);
+        assertEq(permissionedPositionManager.ownerOf(tokenId), lp);
+        assertEq(address(permissionedPositionManager.subscriber(tokenId)), address(hostileSubscriber));
+
+        address newOperator = makeAddr("subscriber-unwind-operator");
+        _replaceWithHaltedController(
+            poolId, address(oldController), newOperator, 0, keccak256("subscriber unwind migration")
+        );
+        uint256 balance0Before = IERC20(Currency.unwrap(key.currency0)).balanceOf(lp);
+        uint256 balance1Before = IERC20(Currency.unwrap(key.currency1)).balanceOf(lp);
+        vm.prank(newOperator);
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
+
+        vm.expectRevert();
+        permissionedPositionManager.ownerOf(tokenId);
+        assertEq(address(permissionedPositionManager.subscriber(tokenId)), address(0));
+        assertTrue(
+            IERC20(Currency.unwrap(key.currency0)).balanceOf(lp) > balance0Before
+                || IERC20(Currency.unwrap(key.currency1)).balanceOf(lp) > balance1Before
+        );
+    }
+
     function testPermissionedPositionManagerRetainsRuntimeHeadroom() public view {
         assertLe(address(permissionedPositionManager).code.length, POSITION_MANAGER_SIZE_LIMIT);
     }
@@ -1061,6 +1189,129 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         params[1] = abi.encode(key.currency0, key.currency1, ActionConstants.MSG_SENDER);
         vm.prank(owner);
         permissionedPositionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1 hours);
+    }
+
+    function _increasePosition(uint256 tokenId, PoolKey memory key, address executor, uint256 liquidity) private {
+        _increasePosition(tokenId, key, executor, liquidity, "");
+    }
+
+    function _increasePosition(
+        uint256 tokenId,
+        PoolKey memory key,
+        address executor,
+        uint256 liquidity,
+        bytes memory expectedRevert
+    ) private {
+        uint256 amount0Max = 10 ether;
+        uint256 amount1Max = 10 ether;
+        MockERC20(Currency.unwrap(key.currency0)).mint(executor, amount0Max);
+        MockERC20(Currency.unwrap(key.currency1)).mint(executor, amount1Max);
+        _approvePermit2(executor, Currency.unwrap(key.currency0), address(permissionedPositionManager), amount0Max);
+        _approvePermit2(executor, Currency.unwrap(key.currency1), address(permissionedPositionManager), amount1Max);
+
+        bytes memory actions = abi.encodePacked(
+            bytes1(uint8(Actions.INCREASE_LIQUIDITY)),
+            bytes1(uint8(Actions.CLOSE_CURRENCY)),
+            bytes1(uint8(Actions.CLOSE_CURRENCY))
+        );
+        bytes[] memory params = new bytes[](3);
+        params[0] = abi.encode(tokenId, liquidity, uint128(amount0Max), uint128(amount1Max), bytes(""));
+        params[1] = abi.encode(key.currency0);
+        params[2] = abi.encode(key.currency1);
+        vm.prank(executor);
+        if (expectedRevert.length != 0) vm.expectRevert(expectedRevert);
+        permissionedPositionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1 hours);
+    }
+
+    function _increasePositionFromDeltas(uint256 tokenId, PoolKey memory key, address executor, uint256 amount)
+        private
+    {
+        _increasePositionFromDeltas(tokenId, key, executor, amount, "");
+    }
+
+    function _increasePositionFromDeltas(
+        uint256 tokenId,
+        PoolKey memory key,
+        address executor,
+        uint256 amount,
+        bytes memory expectedRevert
+    ) private {
+        MockERC20(Currency.unwrap(key.currency0)).mint(executor, amount);
+        MockERC20(Currency.unwrap(key.currency1)).mint(executor, amount);
+        _approvePermit2(executor, Currency.unwrap(key.currency0), address(permissionedPositionManager), amount);
+        _approvePermit2(executor, Currency.unwrap(key.currency1), address(permissionedPositionManager), amount);
+
+        bytes memory actions = abi.encodePacked(
+            bytes1(uint8(Actions.SETTLE)),
+            bytes1(uint8(Actions.SETTLE)),
+            bytes1(uint8(Actions.INCREASE_LIQUIDITY_FROM_DELTAS)),
+            bytes1(uint8(Actions.CLOSE_CURRENCY)),
+            bytes1(uint8(Actions.CLOSE_CURRENCY))
+        );
+        bytes[] memory params = new bytes[](5);
+        params[0] = abi.encode(key.currency0, amount, true);
+        params[1] = abi.encode(key.currency1, amount, true);
+        params[2] = abi.encode(tokenId, uint128(amount), uint128(amount), bytes(""));
+        params[3] = abi.encode(key.currency0);
+        params[4] = abi.encode(key.currency1);
+        vm.prank(executor);
+        if (expectedRevert.length != 0) vm.expectRevert(expectedRevert);
+        permissionedPositionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1 hours);
+    }
+
+    function _burnPosition(uint256 tokenId, PoolKey memory key, address owner) private {
+        bytes memory actions = abi.encodePacked(bytes1(uint8(Actions.BURN_POSITION)), bytes1(uint8(Actions.TAKE_PAIR)));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, uint128(0), uint128(0), bytes(""));
+        params[1] = abi.encode(key.currency0, key.currency1, ActionConstants.MSG_SENDER);
+        vm.prank(owner);
+        permissionedPositionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1 hours);
+    }
+
+    function _collectPositionFees(uint256 tokenId, PoolKey memory key, address owner) private {
+        bytes memory actions =
+            abi.encodePacked(bytes1(uint8(Actions.INCREASE_LIQUIDITY)), bytes1(uint8(Actions.TAKE_PAIR)));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), bytes(""));
+        params[1] = abi.encode(key.currency0, key.currency1, ActionConstants.MSG_SENDER);
+        vm.prank(owner);
+        permissionedPositionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1 hours);
+    }
+
+    function _collectPositionFeesFromDeltas(uint256 tokenId, PoolKey memory key, address owner) private {
+        bytes memory actions =
+            abi.encodePacked(bytes1(uint8(Actions.INCREASE_LIQUIDITY_FROM_DELTAS)), bytes1(uint8(Actions.TAKE_PAIR)));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, uint128(0), uint128(0), bytes(""));
+        params[1] = abi.encode(key.currency0, key.currency1, ActionConstants.MSG_SENDER);
+        vm.prank(owner);
+        permissionedPositionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1 hours);
+    }
+
+    function _permitPosition(uint256 ownerKey, address delegate, uint256 tokenId, uint256 nonce) private {
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                permissionedPositionManager.DOMAIN_SEPARATOR(),
+                ERC721PermitHash.hashPermit(delegate, tokenId, nonce, deadline)
+            )
+        );
+        vm.prank(delegate);
+        permissionedPositionManager.permit(delegate, tokenId, deadline, nonce, _sign(ownerKey, digest));
+    }
+
+    function _permitAllPositions(uint256 ownerKey, address owner, address delegate, uint256 nonce) private {
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                permissionedPositionManager.DOMAIN_SEPARATOR(),
+                ERC721PermitHash.hashPermitForAll(delegate, true, nonce, deadline)
+            )
+        );
+        vm.prank(delegate);
+        permissionedPositionManager.permitForAll(owner, delegate, true, deadline, nonce, _sign(ownerKey, digest));
     }
 
     function _swapForOutput(
