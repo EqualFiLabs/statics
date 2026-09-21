@@ -14,6 +14,7 @@ interface IPermissionedPeripheryBindings {
     function permit2() external view returns (address);
     function permissionedHook() external view returns (address);
     function positionClaims() external view returns (address);
+    function WETH9() external view returns (address);
 }
 
 contract PermissionedPeripheryDependencyMock {}
@@ -55,6 +56,7 @@ contract DeployStaticsPermissionedPeripheryTest is Test {
         assertEq(positionManager.poolManager(), address(manager));
         assertEq(positionManager.permit2(), permit2);
         assertEq(positionManager.permissionedHook(), address(hook));
+        assertEq(positionManager.WETH9(), weth);
         assertEq(positionManager.positionClaims(), deployment.positionClaims);
         assertTrue(deployment.positionClaims.code.length != 0);
         assertLe(deployment.positionManager.code.length, 24_576 - 1_024);

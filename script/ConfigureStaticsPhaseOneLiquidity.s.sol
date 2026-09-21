@@ -17,6 +17,7 @@ import {StaticsSelectors} from "../src/libraries/StaticsSelectors.sol";
 import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsPermissionedSwapFeeHook} from "../src/liquidity/StaticsPermissionedSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
+import {RobinhoodWethVerifier} from "./libraries/RobinhoodWethVerifier.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
 struct StaticsPhaseOneLiquidityConfig {
@@ -27,6 +28,7 @@ struct StaticsPhaseOneLiquidityConfig {
     address permissionedPositionManager;
     address permissionedQuoter;
     address permit2;
+    address weth;
     address permanentLiquidityHarvester;
     uint16 inputFeeBps;
     uint16 outputFeeBps;
@@ -38,6 +40,7 @@ struct StaticsPhaseOneLiquidityConfig {
     bytes32 permissionedPositionClaimsCodeHash;
     bytes32 permissionedQuoterCodeHash;
     bytes32 permit2CodeHash;
+    bytes32 wethCodeHash;
 }
 
 interface IPermissionedRouterBindings {
@@ -48,6 +51,7 @@ interface IPermissionedRouterBindings {
 
 interface IPermissionedPositionManagerBindings is IPermissionedRouterBindings {
     function positionClaims() external view returns (address);
+    function WETH9() external view returns (address);
 }
 
 interface IPermissionedPositionClaimsBindings {
@@ -198,6 +202,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _validateContract(config.permissionedPositionManager, config.permissionedPositionManagerCodeHash);
         _validateContract(config.permissionedQuoter, config.permissionedQuoterCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
+        _validateContract(config.weth, config.wethCodeHash);
+        RobinhoodWethVerifier.validateMainnet(vm, config.weth);
 
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
@@ -338,6 +344,9 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(type(uint16).max, inputFee, type(uint16).max, outputFee);
         }
+        string memory wethPath = block.chainid == ROBINHOOD_MAINNET_CHAIN_ID
+            ? ".contracts.weth.runtimeCodeHash"
+            : ".staticsDollarDependencies.weth.runtimeCodeHash";
         config = StaticsPhaseOneLiquidityConfig({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             hook: vm.envAddress("STATICS_SWAP_FEE_HOOK_ADDRESS"),
@@ -346,6 +355,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             permissionedPositionManager: vm.envAddress("STATICS_PERMISSIONED_POSITION_MANAGER_ADDRESS"),
             permissionedQuoter: vm.parseJsonAddress(manifest, ".contracts.quoter.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
+            weth: vm.envAddress("WETH_ADDRESS"),
             permanentLiquidityHarvester: vm.envAddress("STATICS_PERMANENT_LIQUIDITY_HARVESTER"),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
@@ -358,7 +368,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             ),
             permissionedPositionClaimsCodeHash: vm.envBytes32("STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH"),
             permissionedQuoterCodeHash: vm.parseJsonBytes32(manifest, ".contracts.quoter.runtimeCodeHash"),
-            permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")
+            permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash"),
+            wethCodeHash: vm.parseJsonBytes32(manifest, wethPath)
         });
     }
 
@@ -372,6 +383,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _binding(config.permissionedPositionManager, config.poolManager, positionManager.poolManager());
         _binding(config.permissionedPositionManager, config.permit2, positionManager.permit2());
         _binding(config.permissionedPositionManager, config.permissionedHook, positionManager.permissionedHook());
+        _binding(config.permissionedPositionManager, config.weth, positionManager.WETH9());
         address claimsAddress = positionManager.positionClaims();
         _validateContract(claimsAddress, config.permissionedPositionClaimsCodeHash);
         IPermissionedPositionClaimsBindings claims = IPermissionedPositionClaimsBindings(claimsAddress);

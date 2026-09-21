@@ -11,6 +11,7 @@ import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../src/interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {StaticsPermissionedPositionManager} from "../src/permissioned/StaticsPermissionedPositionManager.sol";
 import {StaticsPermissionedRouter} from "../src/permissioned/StaticsPermissionedRouter.sol";
+import {RobinhoodWethVerifier} from "./libraries/RobinhoodWethVerifier.sol";
 
 struct StaticsPermissionedPeripheryDeployment {
     address router;
@@ -56,6 +57,7 @@ contract DeployStaticsPermissionedPeriphery is Script {
         _contract(config.permit2);
         _contract(config.positionDescriptor);
         _contract(config.weth);
+        RobinhoodWethVerifier.validateMainnet(vm, config.weth);
         _contract(config.permissionedHook);
         IStaticsPermissionedSwapFeeHook hook = IStaticsPermissionedSwapFeeHook(config.permissionedHook);
         _binding(
@@ -84,6 +86,7 @@ contract DeployStaticsPermissionedPeriphery is Script {
         _binding(deployment.positionManager, config.poolManager, address(positionManager.poolManager()));
         _binding(deployment.positionManager, config.permit2, address(positionManager.permit2()));
         _binding(deployment.positionManager, config.permissionedHook, address(positionManager.permissionedHook()));
+        _binding(deployment.positionManager, config.weth, address(positionManager.WETH9()));
         if (deployment.positionManager.code.length > POSITION_MANAGER_RUNTIME_LIMIT) {
             revert RuntimeTooLarge(
                 deployment.positionManager, deployment.positionManager.code.length, POSITION_MANAGER_RUNTIME_LIMIT

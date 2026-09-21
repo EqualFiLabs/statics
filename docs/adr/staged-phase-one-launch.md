@@ -30,8 +30,9 @@ launcher redeploys, reconfigures, upgrades, or transfers ownership of a Genesis 
 only installs the Diamond-side integration surface and its initializer. Binding that surface uses
 the existing split-governance handoff against the deployed Genesis contracts. On Robinhood
 mainnet, the Phase 1 launcher requires the exact STATICS token, WETH, treasury, and token runtime
-hashes recorded by the Genesis deployment manifest, so it cannot create a Diamond that the later
-handoff cannot bind.
+hashes recorded by the Genesis deployment manifest. It also verifies the canonical WETH proxy,
+implementation, ProxyAdmin, ProxyAdmin owner, owner implementation, and admin backlink against the
+Robinhood manifest, so it cannot create a Diamond that the later handoff cannot bind.
 
 ## Phase 1: arbitrary hooked pairs and STATICS staking
 
@@ -71,8 +72,9 @@ contracts.
 The separate six-call Phase 1 configuration batch atomically binds both PoolManager/hook paths,
 trusts the exact-input permissioned router, non-transferable position manager, and quoter, and sets
 the public native-POL fee harvester. Every runtime hash and immutable binding, including the
-permissioned claims companion, is verified before installation. `StaticsLiquidityManager` is not
-present yet. The general-pool creation fee starts at zero, which under current semantics keeps
+permissioned claims companion and the position manager's canonical WETH binding, is verified
+before installation. `StaticsLiquidityManager` is not present yet. The general-pool creation fee
+starts at zero, which under current semantics keeps
 public creation owner-curated rather than enabling free public creation. Permissioned creation is
 always owner/timelock executed and requires exact creator EIP-712 or ERC-1271 authorization.
 

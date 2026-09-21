@@ -15,6 +15,7 @@ import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLi
 import {StaticsPermissionedSwapFeeHook} from "../src/liquidity/StaticsPermissionedSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 import {DefaultVenueControllerFactory} from "../src/permissioned/DefaultVenueControllerFactory.sol";
+import {RobinhoodWethVerifier} from "./libraries/RobinhoodWethVerifier.sol";
 
 struct StaticsPhaseOneDeployment {
     address diamond;
@@ -196,6 +197,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         if (config.treasury != expectedTreasury) revert InvalidGenesisBinding(expectedTreasury, config.treasury);
         _validateContract(config.stakingToken, vm.parseJsonBytes32(manifest, ".contracts.staticsToken.runtimeCodeHash"));
         _validateContract(config.weth, vm.parseJsonBytes32(manifest, ".externalDependencies.weth.runtimeCodeHash"));
+        RobinhoodWethVerifier.validateMainnet(vm, config.weth);
     }
 
     function _validateV4(V4Config memory config) private view {

@@ -42,12 +42,14 @@ contract PhaseOneCeremonyPeripheryMock {
     address public immutable permit2;
     address public immutable permissionedHook;
     address public immutable positionClaims;
+    address public immutable WETH9;
 
-    constructor(address manager, address permit, address hook, address claims) {
+    constructor(address manager, address permit, address hook, address claims, address weth) {
         poolManager = manager;
         permit2 = permit;
         permissionedHook = hook;
         positionClaims = claims;
+        WETH9 = weth;
     }
 }
 
@@ -79,6 +81,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             permissionedPositionManager: makeAddr("permissionedPositionManager"),
             permissionedQuoter: makeAddr("permissionedQuoter"),
             permit2: makeAddr("permit2"),
+            weth: makeAddr("weth"),
             permanentLiquidityHarvester: makeAddr("harvester"),
             inputFeeBps: 25,
             outputFeeBps: 25,
@@ -89,7 +92,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             permissionedPositionManagerCodeHash: bytes32(0),
             permissionedPositionClaimsCodeHash: bytes32(0),
             permissionedQuoterCodeHash: bytes32(0),
-            permit2CodeHash: bytes32(0)
+            permit2CodeHash: bytes32(0),
+            wethCodeHash: bytes32(0)
         });
 
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
@@ -173,6 +177,26 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
     }
 
+    function testCeremonyRejectsPositionManagerBoundToAnotherWeth() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment,) = _deployPhaseOne(address(ceremony), address(poolManager));
+        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
+        PhaseOneCeremonyDependencyMock wrongWeth = new PhaseOneCeremonyDependencyMock();
+        config.weth = address(wrongWeth);
+        config.wethCodeHash = address(wrongWeth).codehash;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.InvalidBinding.selector,
+                config.permissionedPositionManager,
+                address(wrongWeth),
+                deployment.weth
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject wrong position manager weth"));
+    }
+
     function testCeremonyRejectsOwnerThatIsNotExactStaticsTimelock() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
@@ -225,10 +249,10 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         PhaseOneCeremonyClaimsMock claims =
             new PhaseOneCeremonyClaimsMock(poolManager, deployment.permissionedSwapFeeHook);
         PhaseOneCeremonyPeripheryMock router = new PhaseOneCeremonyPeripheryMock(
-            poolManager, address(permit2), deployment.permissionedSwapFeeHook, address(0)
+            poolManager, address(permit2), deployment.permissionedSwapFeeHook, address(0), address(0)
         );
         PhaseOneCeremonyPeripheryMock positionManager = new PhaseOneCeremonyPeripheryMock(
-            poolManager, address(permit2), deployment.permissionedSwapFeeHook, address(claims)
+            poolManager, address(permit2), deployment.permissionedSwapFeeHook, address(claims), deployment.weth
         );
         claims.bindPositionManager(address(positionManager));
         PhaseOneCeremonyQuoterMock quoter = new PhaseOneCeremonyQuoterMock(poolManager);
@@ -240,6 +264,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             permissionedPositionManager: address(positionManager),
             permissionedQuoter: address(quoter),
             permit2: address(permit2),
+            weth: deployment.weth,
             permanentLiquidityHarvester: harvester,
             inputFeeBps: 25,
             outputFeeBps: 25,
@@ -250,7 +275,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             permissionedPositionManagerCodeHash: address(positionManager).codehash,
             permissionedPositionClaimsCodeHash: address(claims).codehash,
             permissionedQuoterCodeHash: address(quoter).codehash,
-            permit2CodeHash: address(permit2).codehash
+            permit2CodeHash: address(permit2).codehash,
+            wethCodeHash: deployment.weth.codehash
         });
     }
 

@@ -130,6 +130,9 @@ jobs:
           test -n "$ROBINHOOD_MAINNET"
       - name: Run Doppler fork proof
         run: forge test --match-path test/genesis/fork/DopplerGenesisLaunchFork.t.sol -vv
+      - name: Run Phase 1 WETH authority fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/deployment/fork/RobinhoodWethVerifierFork.t.sol -vv
       - name: Run permanent-liquidity fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv
