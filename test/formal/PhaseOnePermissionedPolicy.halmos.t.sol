@@ -33,6 +33,14 @@ contract PhaseOnePermissionedPolicyHalmosTest is SymTest, Test {
         check_bothRestrictedDistributionConservesFee(1_000_003);
     }
 
+    function testRepresentativeGrossFeeCeiling() public view {
+        check_grossFeeCeiling(1, 1);
+    }
+
+    function testRepresentativeSplitFeeCannotDecrease() public view {
+        check_splitFeeCannotDecrease(1, 9_999, 1);
+    }
+
     function check_onlyGuardianOrOwnerCanAddRewardRestriction(address caller) public {
         vm.assume(caller != address(0));
         vm.assume(caller != address(policy));
@@ -68,5 +76,27 @@ contract PhaseOnePermissionedPolicyHalmosTest is SymTest, Test {
         assertEq(basketStaker, 0);
         assertEq(creator, fee * 8_000 / BPS);
         assertEq(treasury, fee - creator);
+    }
+
+    function check_grossFeeCeiling(uint128 grossOutput, uint16 feeBps) public view {
+        vm.assume(feeBps <= BPS);
+        uint256 fee = feeMath.feeFromGross(grossOutput, feeBps);
+        if (grossOutput == 0 || feeBps == 0) {
+            assertEq(fee, 0);
+        } else {
+            assertGe(fee, 1);
+            assertLe(fee, grossOutput);
+        }
+    }
+
+    function check_splitFeeCannotDecrease(uint64 firstGrossOutput, uint64 secondGrossOutput, uint16 feeBps)
+        public
+        view
+    {
+        vm.assume(feeBps <= BPS);
+        uint256 firstFee = feeMath.feeFromGross(firstGrossOutput, feeBps);
+        uint256 secondFee = feeMath.feeFromGross(secondGrossOutput, feeBps);
+        uint256 combinedFee = feeMath.feeFromGross(uint256(firstGrossOutput) + secondGrossOutput, feeBps);
+        assertGe(firstFee + secondFee, combinedFee);
     }
 }

@@ -229,7 +229,7 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
         int128 signedOutput = params.zeroForOne ? delta.amount1() : delta.amount0();
         if (signedOutput <= 0) revert ExactOutputNotAllowed();
         context.grossOutput = uint256(uint128(signedOutput));
-        context.fee = Math.mulDiv(context.grossOutput, economics.venueFeeBps, BPS);
+        context.fee = LibPermissionedFeeMath.feeFromGross(context.grossOutput, economics.venueFeeBps);
         if (context.fee == 0) return 0;
 
         bool outputRestricted =

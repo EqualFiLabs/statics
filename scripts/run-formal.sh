@@ -149,6 +149,12 @@ case "$TARGET" in
     HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
       run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
         out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-gross-fee-ceiling 8 \
+        out-formal-genesis '^check_grossFeeCeiling'
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-split-fee-monotonicity 8 \
+        out-formal-genesis '^check_splitFeeCannotDecrease'
     ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do

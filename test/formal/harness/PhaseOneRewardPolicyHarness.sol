@@ -17,6 +17,10 @@ contract PhaseOneRewardPolicyHarness is RewardPolicyFacet {
 }
 
 contract PhaseOnePermissionedFeeMathHarness {
+    function feeFromGross(uint256 grossOutput, uint16 feeBps) external pure returns (uint256 fee) {
+        return LibPermissionedFeeMath.feeFromGross(grossOutput, feeBps);
+    }
+
     function bothRestrictedDistribution(uint128 rawFee)
         external
         pure

@@ -53,7 +53,8 @@ Phase 1 installs 18 facets and 124 selectors for:
 - a guardian-add/timelock-remove reward-restriction policy that preserves existing claims; and
 - permissioned output-fee routing with no POL: rewardable pairs default to 80% creator, 10%
   treasury, and 10% STATICS stakers, while a pair with two restricted currencies routes 80% to the
-  creator and 20% to treasury with no reward liability.
+  creator and 20% to treasury with no reward liability. Gross-output fees round up, matching the
+  public hook so every positive output and positive configured fee produces a nonzero charge.
 
 It omits every basket, self-secured-credit, flash-loan, Genesis-integration, Dollar, Morpho,
 basket-liquidity-manager, and borrow-to-liquidity selector. It does not advertise a protocol

@@ -16,6 +16,11 @@ library LibPermissionedFeeMath {
         uint256 treasury;
     }
 
+    /// @notice Charges a gross-output fee with the same ceiling semantics as the public hook.
+    function feeFromGross(uint256 grossOutput, uint16 feeBps) internal pure returns (uint256 fee) {
+        return Math.mulDiv(grossOutput, feeBps, BPS, Math.Rounding.Ceil);
+    }
+
     function split(uint256 fee, IStaticsPermissionedSwapFeeHook.FeeAllocation memory allocation)
         internal
         pure
