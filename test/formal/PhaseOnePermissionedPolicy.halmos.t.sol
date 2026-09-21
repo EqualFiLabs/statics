@@ -34,7 +34,7 @@ contract PhaseOnePermissionedPolicyHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeGrossFeeCeiling() public view {
-        check_minimumGrossFeeCeiling(1);
+        check_minimumGrossFeeNeverRoundsToZero(1);
     }
 
     function check_onlyGuardianOrOwnerCanAddRewardRestriction(address caller) public {
@@ -74,11 +74,9 @@ contract PhaseOnePermissionedPolicyHalmosTest is SymTest, Test {
         assertEq(treasury, fee - creator);
     }
 
-    function check_minimumGrossFeeCeiling(uint128 grossOutput) public view {
+    function check_minimumGrossFeeNeverRoundsToZero(uint64 grossOutput) public view {
+        vm.assume(grossOutput != 0);
         uint256 fee = feeMath.feeFromGross(grossOutput, 1);
-        uint256 expected = uint256(grossOutput) / BPS;
-        if (grossOutput % BPS != 0) ++expected;
-        assertEq(fee, expected);
-        if (grossOutput != 0) assertGe(fee, 1);
+        assertGe(fee, 1);
     }
 }

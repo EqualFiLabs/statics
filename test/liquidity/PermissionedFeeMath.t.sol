@@ -36,6 +36,14 @@ contract PermissionedFeeMathTest is Test {
         assertEq(feeMath.feeFromGross(37, 10_000), 37);
     }
 
+    function testFuzzPositiveConfiguredFeeNeverRoundsToZero(uint256 grossOutput, uint256 feeBps) public view {
+        grossOutput = bound(grossOutput, 1, type(uint128).max);
+        feeBps = bound(feeBps, 1, 10_000);
+        uint256 fee = feeMath.feeFromGross(grossOutput, uint16(feeBps));
+        assertGe(fee, 1);
+        assertLe(fee, grossOutput);
+    }
+
     function testFuzzSplitSwapsCannotReduceFee(uint64 firstGrossOutput, uint64 secondGrossOutput, uint16 feeBps)
         public
         view

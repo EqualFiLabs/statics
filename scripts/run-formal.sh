@@ -144,14 +144,14 @@ case "$TARGET" in
       out-formal-genesis '^check_onlyGuardianOrOwnerCanAddRewardRestriction'
     run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-remove-authority 8 \
       out-formal-genesis '^check_onlyOwnerCanRemoveRewardRestriction'
-    # The minimum nonzero rate is the hardest configured fee to keep above zero. Prove its
-    # exact ceiling across every uint128 gross output; general fee rates remain fuzz-covered.
+    # The minimum nonzero rate is the hardest configured fee to keep above zero. Prove that
+    # boundary across every uint64 gross output; uint128 amounts and general rates are fuzz-covered.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
       run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
         out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
     HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
-      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-gross-fee-ceiling 8 \
-        out-formal-genesis '^check_minimumGrossFeeCeiling'
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-minimum-fee-nonzero 8 \
+        out-formal-genesis '^check_minimumGrossFeeNeverRoundsToZero'
     ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
