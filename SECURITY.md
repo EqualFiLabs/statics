@@ -218,10 +218,14 @@ creation initializes and seeds its canonical pools atomically. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
 exact payment while the fee is nonzero. The bilateral default initializes to
-25 BPS per leg. Governance may change the global default and set or clear
-registered PoolId overrides; creators cannot administer hook fees or allocation
-profiles. Governance also controls the creation gate and irreversible
-general-pool decommissioning.
+5 BPS per leg. A general-pool creator may select a higher initial rate, but each
+leg must be at least the live default and the combined rate cannot exceed 200
+BPS. Selecting the exact default leaves the pool inheriting future default
+changes; selecting either leg above the default installs a fixed PoolId
+override for both legs. Governance may change the global default and set or
+clear registered PoolId overrides after creation. Creators cannot change hook
+fees after creation or administer allocation profiles. Governance also controls
+the creation gate and irreversible general-pool decommissioning.
 Permanent-liquidity compounding and eligible post-decommission unwind are
 permissionless.
 

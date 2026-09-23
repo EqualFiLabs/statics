@@ -183,10 +183,13 @@ StaticsLiquidityManager
 
 Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, separately from each pool's creator-selected
-native LP fee. The global hook-fee default is 25 basis points on input and 25
-basis points on output. Pools inherit the live default unless an administrator
-sets a PoolId-specific override; clearing that override resumes the then-current
-global default. Fee **allocation** is governed separately by two global
+native LP fee. The global hook-fee default is 5 basis points on input and 5
+basis points on output. Basket pools inherit the live default. A general-pool
+creator may select higher initial rates when each leg is at least the live
+default and their sum does not exceed 200 BPS. Selecting the exact default
+continues inheritance; selecting a higher rate stores both legs as a PoolId
+override. An administrator may replace or clear an override after creation,
+while creators have no post-creation setter. Fee **allocation** is governed separately by two global
 profiles. The creator share is permanently fixed at 500 BPS; governance
 configures the remaining 9,500 BPS through independent basket and general
 allocation profiles. The initial basket-pool split is 15% to POL, 30% to
@@ -220,9 +223,10 @@ Protocol seeding and swap-fee routing remain the only POL inventory sources.
 The normalized registry recognizes existing basket canonical pools and stores
 general pools in a fresh namespace (`statics.storage.protocol.pools.v2`). A
 general pool is a permissionless Statics-hook PoolKey between any two compatible
-ERC-20s, with no basket association. Anyone may create one — subject to the
-independent pool creation fee and EIP-712 creator authorization — selecting a
-valid static native LP fee, tick spacing, and initial price. Creation does
+ERC-20s, with no basket association. Anyone may create one, subject to the
+independent pool creation fee and EIP-712 creator authorization, selecting a
+valid static native LP fee, tick spacing, initial price, and bounded initial
+hook-fee rate. Creation does
 not require an initial permanent-liquidity seed; the market may begin with zero
 liquidity and grow POL from swap activity. Registration does not admit either
 asset as basket backing, Dollar collateral, or a borrowable asset, and a pool's

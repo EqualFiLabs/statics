@@ -374,8 +374,8 @@ Display input and output hook fees separately from native v4 LP fees:
 
 ```text
 native v4 LP fee: creator selected per pool (static, 0 through 999,999 pips)
-default input hook fee:  25 BPS on the realized input leg
-default output hook fee: 25 BPS on the realized output leg
+default input hook fee:   5 BPS on the realized input leg
+default output hook fee:  5 BPS on the realized output leg
 launch split: 15% permanent liquidity / 30% deposited BasketTokens /
               30% global Statics stakers /
               5% creator (fixed) / 20% treasury
@@ -398,14 +398,15 @@ normalized sorted price, exact `creationFee`, and EIP-712
 `authorizationDigest`. The creator supplies two token addresses, a static
 `lpFee` from 0 through 999,999 pips, a valid `tickSpacing` from 1 through
 32,767, the initial price as `sqrtPriceBPerAX96` in raw-unit B-per-A
-orientation, the creator identity, an unordered `nonce`, and a `deadline`.
+orientation, a nested `initialFeeRate`, the creator identity, an unordered
+`nonce`, and a `deadline`.
 Statics sorts the currencies and always installs the mandatory Statics hook.
 Dynamic-fee pools and the 1,000,000-pip boundary are rejected.
 
 General-pool creation is separate from liquidity provision. A successful
 `createPool` establishes the PoolId, price, native LP fee, tick spacing,
-creator, hook-fee policy inheritance, hook registration, and protocol
-registration; it does not require an
+creator, initial hook-fee policy, hook registration, and protocol registration;
+it does not require an
 initial permanent-liquidity seed and the market may begin with zero liquidity.
 Basket canonical launch retains its own mandatory creator-funded seed.
 
@@ -418,11 +419,12 @@ amount, which is forwarded atomically to treasury. Read it through
 `POOL_CREATION_FEE_AMOUNT`.
 
 Creator attribution uses EIP-712 authorization under the domain
-`name = "Statics Protocol Pools"`, `version = "2"`, the current `chainId`, and
+`name = "Statics Protocol Pools"`, `version = "3"`, the current `chainId`, and
 `verifyingContract = StaticsDiamond`. `SignatureChecker` validates both EOA and
-ERC-1271 creators. The signed digest binds the PoolId, normalized price,
-creator, nonce, and deadline. Because PoolId commits to the currencies, native
-LP fee, tick spacing, and hook, those parameters cannot be changed by a relayer.
+ERC-1271 creators. The signed digest binds the PoolId, normalized price, input
+hook fee, output hook fee, creator, nonce, and deadline. Because PoolId commits
+to the currencies, native LP fee, tick spacing, and hook, those parameters
+cannot be changed by a relayer.
 Three paths apply:
 when the creation fee is nonzero, a direct creator (`creator == msg.sender`) may
 pass empty authorization and consumes no nonce; while creation is disabled the
@@ -431,7 +433,7 @@ the named creator must supply a valid authorization and its unordered nonce is
 consumed. Relayed authorizations
 deliberately do not bind `msg.sender`, so a copied transaction may pay the fee
 and initialize the pool first but can never replace the creator or change the
-PoolId or price. Cancel an unused authorization with
+PoolId, price, or initial hook fees. Cancel an unused authorization with
 `invalidatePoolCreationNonce(nonce)` and check state through
 `isPoolCreationNonceUsed(creator, nonce)`.
 
@@ -440,14 +442,20 @@ PoolIds and independent markets. An initial-price change alone does not create
 a new PoolId, so a second creation with the same currencies, native LP fee,
 tick spacing, and Statics hook reverts as a duplicate.
 
-Hook-fee **rate** and fee **allocation** are separate policy dimensions.
-Creators do not select the hook fee. New basket and general pools inherit the
-live global default, initially 25 BPS input plus 25 BPS output. Timelocked
-governance may update it with `setDefaultProtocolPoolFeeRate(feeRate)`, affecting
-every non-overridden pool immediately. It may set an exception with
+Hook-fee **rate** and fee **allocation** are separate policy dimensions. New
+basket pools inherit the live global default, initially 5 BPS input plus 5 BPS
+output. A general-pool creator supplies `initialFeeRate`. Each selected leg must
+be at least the live default at transaction execution and the combined rate must
+satisfy `inputFeeBps + outputFeeBps <= 200`. Selecting the exact default stores
+no override, so the pool inherits future default changes. Selecting either leg
+above the default stores both selected legs as a fixed PoolId override.
+
+Timelocked governance may update the default with
+`setDefaultProtocolPoolFeeRate(feeRate)`, affecting every non-overridden pool
+immediately. It may replace a pool rate with
 `setProtocolPoolFeeRate(poolId, feeRate)` and restore inheritance with
-`clearProtocolPoolFeeRate(poolId)`. Every rate satisfies
-`inputFeeBps + outputFeeBps <= 200`. Read the global rate through
+`clearProtocolPoolFeeRate(poolId)`. Creators have no post-creation rate setter.
+Read the global rate through
 `defaultProtocolPoolFeeRate()` and the effective rate plus `overridden` flag
 through `protocolPoolFeeRate(poolId)`.
 

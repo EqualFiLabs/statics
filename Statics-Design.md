@@ -70,7 +70,7 @@ backing or let one basket consume another basket's assets.
 | Basket collateral | Optional BasketToken deposit leg; deposited and locked shares earn isolated basket rewards |
 | Global rewards | Unlimited global assets; each PositionNFT initially selects up to 12 reward assets under a governance-raiseable 64-asset hard ceiling |
 | Non-swap fee split | 90% to matured selected global stake and 10% to treasury; unavailable staker allocation goes to treasury |
-| Canonical swap fees | Separate input and output hook fees; global default is 25 BPS on each realized leg, with admin PoolId overrides |
+| Canonical swap fees | Separate input and output hook fees; global default is 5 BPS on each realized leg, with bounded creator selection at general-pool creation and admin PoolId overrides |
 | Swap-fee split | Basket default 15% POL, 30% basket stakers, 30% Statics stakers, 5% creator, 20% treasury; general default 40% POL, 35% Statics stakers, 5% creator, 20% treasury |
 | Protocol-pool native LP fee | Creator-selected static fee per pool, from 0 through 999,999 pips |
 | Permanent liquidity | Hook-owned full-range liquidity, compounded from matched swap-fee inventory |
@@ -670,8 +670,10 @@ The installed hook rejects native currency, dynamic-fee PoolKeys, and the
 
 Anyone may also create a **general pool** between any two compatible ERC-20
 assets once permissionless creation is enabled. The creator selects the pair,
-raw-unit initial price, a valid tick spacing (1 through 32,767), and a static
-native LP fee (0 through 999,999 pips). Statics fixes the installed hook.
+raw-unit initial price, a valid tick spacing (1 through 32,767), a static
+native LP fee (0 through 999,999 pips), and an initial bilateral hook-fee rate.
+Each hook-fee leg must be at least the live governed default at execution and
+both legs together cannot exceed 200 BPS. Statics fixes the installed hook.
 `createPool(params, creatorAuthorization)` registers the pool with the hook and
 initializes it in PoolManager atomically. Unlike basket launch, general-pool
 creation does not require an initial permanent-liquidity seed — the market may
@@ -684,11 +686,11 @@ creation switch. When it is zero, only the Diamond owner may create a pool
 (with `msg.value == 0`); when it is nonzero, every caller, including the owner,
 must pay the exact fee, which is forwarded atomically to treasury. Creator
 attribution uses EIP-712 authorization (domain `name = "Statics Protocol
-Pools"`, `version = "2"`, current chain, `verifyingContract = StaticsDiamond`)
+Pools"`, `version = "3"`, current chain, `verifyingContract = StaticsDiamond`)
 validated for EOA and ERC-1271 creators through `SignatureChecker`. The signed
-digest binds the PoolId, normalized price, creator, unordered nonce, and
-deadline. PoolId binds the pair, native LP fee, tick spacing, and mandatory
-hook. When the creation fee is nonzero, a direct
+digest binds the PoolId, normalized price, both initial hook-fee legs, creator,
+unordered nonce, and deadline. PoolId binds the pair, native LP fee, tick
+spacing, and mandatory hook. When the creation fee is nonzero, a direct
 creator (`creator == msg.sender`) may pass empty authorization and consumes no
 nonce; while creation is disabled the owner may designate any nonzero creator
 without a signature; otherwise the named creator must supply a valid
@@ -696,10 +698,14 @@ authorization whose nonce is consumed. A creator can cancel
 an unused authorization with `invalidatePoolCreationNonce`. Relayed
 authorization does not bind `msg.sender`, so a copied transaction can pay the
 fee and initialize the pool first but cannot replace the creator or change the
-PoolId or price. Creator identity is immutable after registration.
+PoolId, price, or initial hook fees. Creator identity is immutable after
+registration.
 Distinct native LP fees or tick spacings for the same pair are distinct PoolIds;
-a different initial price alone cannot create a new PoolId, and an exact
-PoolKey duplicate reverts.
+a different initial price or hook fee alone cannot create a new PoolId, and an
+exact PoolKey duplicate reverts. Selecting the exact live hook default leaves
+the pool inheriting future default changes. Selecting either leg above the
+default stores both selected legs as a fixed PoolId override. Governance may
+replace or clear that override; the creator has no post-creation fee setter.
 
 `protocolPool(poolId)` normalizes both `BasketCanonical` and `General` records,
 and `protocolPoolCreator(poolId)` returns the immutable creator. General
@@ -714,11 +720,15 @@ array.
 ### Bilateral hook fees
 
 The hook charges separately against realized input and output legs. The launch
-manifest configures the global default at 25 BPS on each leg. Every pool
-inherits the live default unless governance sets a PoolId override; clearing an
-override restores inheritance. Fee **allocation** is set by two global profiles.
-Governance may adjust the default, PoolId overrides, and allocation profiles,
-but the combined input-plus-output fee cannot exceed 200 BPS. The creator share is permanently fixed at 500 BPS,
+manifest configures the global default at 5 BPS on each leg. Basket pools
+inherit the live default. A general-pool creator may select a higher initial
+rate when each leg is at least the live default and their sum does not exceed
+200 BPS. An exact-default selection continues to inherit; a higher selection
+stores both legs as a PoolId override. Clearing an override restores
+inheritance. Fee **allocation** is set by two global profiles. Governance may
+adjust the default, PoolId overrides, and allocation profiles, but the combined
+input-plus-output fee cannot exceed 200 BPS. Creators have no post-creation rate
+setter. The creator share is permanently fixed at 500 BPS,
 and each configurable profile must total exactly 9,500 BPS so that the profile
 plus the fixed creator share sums to 10,000 BPS.
 
@@ -1547,7 +1557,7 @@ creator = floor(charged * 500 / D)
 treasury = charged - POL - basket staker - Statics staker - creator
 ```
 
-At launch, the global default input and output rates are each 25 BPS. Basket pools split
+At launch, the global default input and output rates are each 5 BPS. Basket pools split
 1,500/3,000/3,000/500/2,000 across POL, basket stakers, Statics stakers,
 creator, and treasury. General pools split 4,000/3,500/500/2,000 across POL,
 Statics stakers, creator, and treasury. An unavailable basket-staker allocation
