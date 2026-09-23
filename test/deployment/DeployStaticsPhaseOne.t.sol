@@ -463,6 +463,7 @@ contract DeployStaticsPhaseOneTest is Test {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: 1 << 96,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: fixture.creator,
             nonce: 1,
             deadline: block.timestamp + 1 days

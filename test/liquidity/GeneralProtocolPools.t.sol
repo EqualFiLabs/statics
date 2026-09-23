@@ -172,6 +172,65 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertFalse(rate.overridden);
     }
 
+    function testHigherCreatorSelectedFeeInstallsPoolOverride() public {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
+        params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 60});
+
+        PoolId poolId = pools.createPool(params, "");
+        IStaticsProtocolPools.PoolFeeRateView memory rate = pools.protocolPoolFeeRate(poolId);
+        assertEq(rate.inputFeeBps, 25);
+        assertEq(rate.outputFeeBps, 60);
+        assertTrue(rate.overridden);
+
+        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 40}));
+        rate = pools.protocolPoolFeeRate(poolId);
+        assertEq(rate.inputFeeBps, 25);
+        assertEq(rate.outputFeeBps, 60);
+        assertTrue(rate.overridden);
+
+        pools.clearProtocolPoolFeeRate(poolId);
+        rate = pools.protocolPoolFeeRate(poolId);
+        assertEq(rate.inputFeeBps, 40);
+        assertEq(rate.outputFeeBps, 40);
+        assertFalse(rate.overridden);
+    }
+
+    function testCreatorSelectedFeeCannotUndercutEitherDefaultLeg() public {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
+        params.initialFeeRate.inputFeeBps = 24;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProtocolPoolCreationFacet.InitialFeeRateBelowDefault.selector,
+                uint16(24),
+                uint16(25),
+                uint16(25),
+                uint16(25)
+            )
+        );
+        pools.quotePool(params);
+
+        params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 24});
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProtocolPoolCreationFacet.InitialFeeRateBelowDefault.selector,
+                uint16(25),
+                uint16(24),
+                uint16(25),
+                uint16(25)
+            )
+        );
+        pools.quotePool(params);
+    }
+
+    function testCreatorSelectedFeeCannotExceedCombinedCeiling() public {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
+        params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 100, outputFeeBps: 101});
+        vm.expectRevert(
+            abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, uint16(100), uint16(101))
+        );
+        pools.quotePool(params);
+    }
+
     function testReciprocalPriceNormalization() public view {
         IStaticsProtocolPools.CreatePoolParams memory forward = _params(address(assetA), address(assetB), alice);
         forward.sqrtPriceBPerAX96 = SQRT_PRICE_1_1 * 2;
@@ -199,6 +258,47 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         assertTrue(pools.isPoolCreationNonceUsed(creator, params.nonce));
     }
 
+    function testEoaCreatorAuthorizationCommitsToBothInitialFeeLegs() public {
+        pools.setPoolCreationFee(CREATION_FEE);
+        (address creator, uint256 pk) = makeAddrAndKey("fee-authorizing-creator");
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), creator);
+        params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60});
+        bytes memory sig = _sign(pk, pools.quotePool(params).authorizationDigest);
+        vm.deal(bob, 1 ether);
+
+        params.initialFeeRate.inputFeeBps = 41;
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidCreatorAuthorization.selector, creator));
+        pools.createPool{value: CREATION_FEE}(params, sig);
+
+        params.initialFeeRate.inputFeeBps = 40;
+        params.initialFeeRate.outputFeeBps = 61;
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidCreatorAuthorization.selector, creator));
+        pools.createPool{value: CREATION_FEE}(params, sig);
+
+        params.initialFeeRate.outputFeeBps = 60;
+        vm.prank(bob);
+        PoolId poolId = pools.createPool{value: CREATION_FEE}(params, sig);
+        IStaticsProtocolPools.PoolFeeRateView memory rate = pools.protocolPoolFeeRate(poolId);
+        assertEq(rate.inputFeeBps, 40);
+        assertEq(rate.outputFeeBps, 60);
+        assertTrue(rate.overridden);
+    }
+
+    function testVersionTwoCreatorAuthorizationIsRejected() public {
+        pools.setPoolCreationFee(CREATION_FEE);
+        (address creator, uint256 pk) = makeAddrAndKey("legacy-fee-authorizing-creator");
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), creator);
+        IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
+        bytes memory legacySig = _sign(pk, _versionTwoAuthorizationDigest(params, quote));
+
+        vm.deal(bob, CREATION_FEE);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidCreatorAuthorization.selector, creator));
+        pools.createPool{value: CREATION_FEE}(params, legacySig);
+    }
+
     function testErc1271ContractWalletCreatorAuthorizationSucceedsAndConsumesNonce() public {
         pools.setPoolCreationFee(CREATION_FEE);
         // The contract wallet's owner key produces the signature; the wallet address is the creator.
@@ -215,6 +315,22 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         PoolId poolId = pools.createPool{value: CREATION_FEE}(params, sig);
         assertEq(pools.protocolPoolCreator(poolId), creator);
         assertTrue(pools.isPoolCreationNonceUsed(creator, params.nonce));
+    }
+
+    function testErc1271AuthorizationCommitsToInitialFeeRate() public {
+        pools.setPoolCreationFee(CREATION_FEE);
+        (address walletOwner, uint256 ownerPk) = makeAddrAndKey("erc1271-fee-owner");
+        MockERC1271Wallet wallet = new MockERC1271Wallet(walletOwner);
+        address creator = address(wallet);
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), creator);
+        params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60});
+        bytes memory sig = _sign(ownerPk, pools.quotePool(params).authorizationDigest);
+        params.initialFeeRate.outputFeeBps = 61;
+
+        vm.deal(bob, CREATION_FEE);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPoolCreationFacet.InvalidCreatorAuthorization.selector, creator));
+        pools.createPool{value: CREATION_FEE}(params, sig);
     }
 
     function testErc1271WalletRejectingSignatureBlocksAuthorization() public {
@@ -435,6 +551,7 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: SQRT_PRICE_1_1,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days
@@ -444,5 +561,33 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
     function _sign(uint256 pk, bytes32 digest) private returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
         return abi.encodePacked(r, s, v);
+    }
+
+    function _versionTwoAuthorizationDigest(
+        IStaticsProtocolPools.CreatePoolParams memory params,
+        IStaticsProtocolPools.GeneralPoolQuote memory quote
+    ) private view returns (bytes32 digest) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes("Statics Protocol Pools")),
+                keccak256(bytes("2")),
+                block.chainid,
+                address(diamond)
+            )
+        );
+        bytes32 legacyTypeHash =
+            keccak256("CreatePool(bytes32 poolId,uint160 sqrtPriceX96,address creator,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(
+            abi.encode(
+                legacyTypeHash,
+                PoolId.unwrap(quote.poolId),
+                quote.sqrtPriceX96,
+                params.creator,
+                params.nonce,
+                params.deadline
+            )
+        );
+        digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 }

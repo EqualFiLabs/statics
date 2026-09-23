@@ -54,6 +54,38 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 512
+    function testFuzzCreatorInitialFeeBounds(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) public {
+        uint16 inputFeeBps = uint16(bound(rawInputFeeBps, 0, type(uint16).max));
+        uint16 outputFeeBps = uint16(bound(rawOutputFeeBps, 0, type(uint16).max));
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB));
+        params.initialFeeRate =
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps});
+
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, inputFeeBps, outputFeeBps
+                )
+            );
+            pools.quotePool(params);
+        } else if (inputFeeBps < 25 || outputFeeBps < 25) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    ProtocolPoolCreationFacet.InitialFeeRateBelowDefault.selector,
+                    inputFeeBps,
+                    outputFeeBps,
+                    uint16(25),
+                    uint16(25)
+                )
+            );
+            pools.quotePool(params);
+        } else {
+            IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
+            assertEq(quote.key.fee, params.lpFee);
+        }
+    }
+
+    /// forge-config: default.fuzz.runs = 512
     function testFuzzSqrtPriceBoundaryNormalization(uint160 sqrtPriceBPerAX96) public {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB));
         params.sqrtPriceBPerAX96 = sqrtPriceBPerAX96;
@@ -115,6 +147,7 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: 1 << 96,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: address(this),
             nonce: 1,
             deadline: block.timestamp + 1 days
@@ -238,6 +271,7 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
             lpFee: 3_000,
             tickSpacing: tickSpacing,
             sqrtPriceBPerAX96: 1 << 96,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days

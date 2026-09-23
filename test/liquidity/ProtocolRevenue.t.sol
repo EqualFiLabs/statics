@@ -33,6 +33,7 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: SQRT_PRICE_1_1,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days
