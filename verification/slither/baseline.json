@@ -3816,10 +3816,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote) (src/facets/ProtocolPoolCreationFacet.sol#86-111) ignores return value by hook.registerPool(quote.key,IStaticsSwapFeeHook.PoolKind.General,params.creator) (src/facets/ProtocolPoolCreationFacet.sol#98)",
+      "summary": "ProtocolPoolCreationFacet._registerAndInitialize(LibBasketLiquidity.LiquidityStorage,IStaticsSwapFeeHook,IStaticsProtocolPools.CreatePoolParams,IStaticsProtocolPools.GeneralPoolQuote,bool) (src/facets/ProtocolPoolCreationFacet.sol#92-121) ignores return value by hook.registerPool(quote.key,IStaticsSwapFeeHook.PoolKind.General,params.creator) (src/facets/ProtocolPoolCreationFacet.sol#105)",
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
-      "id": "43bbb661583cd6571131ad5a"
+      "id": "80c8e9af8de3de5ecd8bb05e"
     },
     {
       "impact": "Medium",
@@ -4888,10 +4888,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#63-84) ignores return value by (initializedPrice,None,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolCreationFacet.sol#78)",
+      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#68-90) ignores return value by (initializedPrice,None,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolCreationFacet.sol#83)",
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
-      "id": "8f537b869d5f61904bd3a608"
+      "id": "01a4ffe12796ef73e5090144"
     },
     {
       "impact": "Medium",
@@ -10004,10 +10004,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#63-84) uses timestamp for comparisons",
+      "summary": "ProtocolPoolCreationFacet.createPool(IStaticsProtocolPools.CreatePoolParams,bytes) (src/facets/ProtocolPoolCreationFacet.sol#68-90) uses timestamp for comparisons",
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
-      "id": "d56228c33fd30709397b3c76"
+      "id": "25a5a4d6a8f5cd9453b0d7c2"
     },
     {
       "impact": "Low",
@@ -10756,10 +10756,10 @@
       "paths": [
         "src/facets/ProtocolPoolCreationFacet.sol"
       ],
-      "summary": "Low level call in ProtocolPoolCreationFacet._collectCreationFee(uint256) (src/facets/ProtocolPoolCreationFacet.sol#203-212):",
+      "summary": "Low level call in ProtocolPoolCreationFacet._collectCreationFee(uint256) (src/facets/ProtocolPoolCreationFacet.sol#221-230):",
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
-      "id": "a70e10629faf916970408c88"
+      "id": "f5f25c5db2596880049a2fa5"
     },
     {
       "impact": "Informational",
