@@ -231,6 +231,23 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         pools.quotePool(params);
     }
 
+    function testCreationUsesLiveDefaultAfterQuote() public {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
+        pools.quotePool(params);
+        pools.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 30, outputFeeBps: 30}));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProtocolPoolCreationFacet.InitialFeeRateBelowDefault.selector,
+                uint16(25),
+                uint16(25),
+                uint16(30),
+                uint16(30)
+            )
+        );
+        pools.createPool(params, "");
+    }
+
     function testReciprocalPriceNormalization() public view {
         IStaticsProtocolPools.CreatePoolParams memory forward = _params(address(assetA), address(assetB), alice);
         forward.sqrtPriceBPerAX96 = SQRT_PRICE_1_1 * 2;
@@ -243,6 +260,14 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
     }
 
     // --- Authorization ---
+
+    function testQuoteAuthorizationDigestMatchesVersionThreeSchema() public view {
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
+        params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60});
+        IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
+
+        assertEq(quote.authorizationDigest, _versionThreeAuthorizationDigest(params, quote));
+    }
 
     function testEoaCreatorAuthorizationSucceedsAndConsumesNonce() public {
         pools.setPoolCreationFee(CREATION_FEE);
@@ -583,6 +608,37 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
                 legacyTypeHash,
                 PoolId.unwrap(quote.poolId),
                 quote.sqrtPriceX96,
+                params.creator,
+                params.nonce,
+                params.deadline
+            )
+        );
+        digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function _versionThreeAuthorizationDigest(
+        IStaticsProtocolPools.CreatePoolParams memory params,
+        IStaticsProtocolPools.GeneralPoolQuote memory quote
+    ) private view returns (bytes32 digest) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes("Statics Protocol Pools")),
+                keccak256(bytes("3")),
+                block.chainid,
+                address(diamond)
+            )
+        );
+        bytes32 typeHash = keccak256(
+            "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,uint256 nonce,uint256 deadline)"
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                typeHash,
+                PoolId.unwrap(quote.poolId),
+                quote.sqrtPriceX96,
+                params.initialFeeRate.inputFeeBps,
+                params.initialFeeRate.outputFeeBps,
                 params.creator,
                 params.nonce,
                 params.deadline
