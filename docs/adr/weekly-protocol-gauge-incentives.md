@@ -26,9 +26,9 @@ the asset, duration, or liabilities of any directly funded slot.
 Each direct slot has a creator-controlled allocator share from 0 through 10,000
 bps. Zero preserves a pure active-range LP stream. The setting applies
 immediately to future deposits and never rewrites an existing LP stream or an
-already funded allocator budget. A funder supplies the expected share with
-`fundPoolReward`; a changed setting reverts the contribution instead of silently
-changing its economics.
+already funded allocator budget. A funder supplies the expected share and target
+epoch with `fundPoolReward`; a changed setting or weekly boundary reverts the
+contribution instead of silently changing its economics.
 
 The Diamond measures the tokens actually received and partitions that amount:
 
@@ -62,6 +62,11 @@ the eligible portion of the week and routes the remainder to treasury. Claims
 expire 26 epochs after the funded epoch. Expiry routes abandoned claims and
 integer-division dust to treasury. Direct funders receive no refund and budgets
 never roll forward.
+
+Restriction ordering uses a monotonic occurrence sequence in addition to the
+first restriction timestamp retained for proration. Repeated or same-block
+restriction cycles after funding therefore invalidate the future budget rather
+than relying on timestamp ordering.
 
 ## Reserve
 

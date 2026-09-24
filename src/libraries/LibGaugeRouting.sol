@@ -253,6 +253,7 @@ library LibGaugeRouting {
         RoutingStorage storage rs = routingStorage();
         PositionAllocations storage position = rs.positions[positionId];
         if (position.active.length == 0 && position.pending.length == 0) return;
+        if (remainingStake >= lockedStake(positionId)) return;
         uint64 currentEpoch = LibGaugeEpoch.epochAt(block.timestamp);
         _promote(position, currentEpoch);
         for (uint256 i; i < position.active.length; ++i) {

@@ -343,7 +343,7 @@ fixed reward slots. Slot 0 is reserved for weekly protocol STATICS incentives,
 while slots 1 through 4 remain independently and permissionlessly funded by
 creators, partners, and communities. Each direct slot may split future funding
 between active-range LPs and PoolId allocators at a creator-selected rate, with
-funder-side share protection. Stakers allocate raw staked STATICS to
+funder-side share and target-epoch protection. Stakers allocate raw staked STATICS to
 eligible public PoolIds for the next weekly epoch. A custody-backed reserve
 releases a governed percentage to the top ten pools without using Genesis or
 Operator multipliers. A Diamond-bound liquidity manager holds and mutates the
@@ -708,7 +708,7 @@ cannot be funded through the direct funding function. Slots 1 through 4 retain
 ordinary permissionless direct funding, including a separate directly funded
 STATICS stream. For each direct slot, the pool creator may direct 0% through
 100% of future deposits to PositionNFTs that allocate to that PoolId. Funders
-pin the expected split, LP and allocator custody remain separate, and funded
+pin the expected split and target epoch, LP and allocator custody remain separate, and funded
 allocator rewards target the next epoch without using the protocol top-ten
 filter. Allocator claims follow PositionNFT ownership, expire after 26 weeks,
 and route ineligible, unclaimed, or rounding amounts to treasury. PositionNFT

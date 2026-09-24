@@ -182,7 +182,7 @@ contract RangeGaugeInvariantHandler is Test {
         uint8 slot = _slot(asset);
         uint256 amount = bound(rawAmount, 1, 100 ether);
         uint40 minimum = rawMinimum % 2 == 0 ? uint40(0) : uint40(1 days);
-        try gauge.fundPoolReward(poolId, slot, amount, minimum, 0) returns (uint256) {
+        try gauge.fundPoolReward(poolId, slot, amount, minimum, 0, 0) returns (uint256) {
             ++successfulCalls;
         } catch {}
     }
@@ -468,7 +468,7 @@ contract RangeGaugeInvariantPropertiesTest is RangeGaugeLifecycleTestBase {
         stakingAsset.mint(alice, 1 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 1 ether);
-        rangeGauge.fundPoolReward(poolId, staticsSlot, 1 ether, 0, 0);
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 1 ether, 0, 0, 0);
         vm.stopPrank();
         assertEq(rangeGauge.poolRewardStream(poolId, staticsSlot).periodFinish, finish);
     }

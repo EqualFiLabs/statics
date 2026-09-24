@@ -22,6 +22,7 @@ library LibGaugeBribes {
         bytes32 eligibilityVersion;
         bool finalized;
         bool expired;
+        uint64 fundingRestrictionSequence;
         uint40 fundedAt;
         uint40 expiresAt;
         uint256 funded;
@@ -58,6 +59,7 @@ library LibGaugeBribes {
         uint64 epoch,
         address asset,
         bytes32 eligibilityVersion,
+        uint64 fundingRestrictionSequence,
         uint40 fundedAt,
         uint256 amount
     ) internal returns (uint256 invalidated) {
@@ -76,7 +78,10 @@ library LibGaugeBribes {
         }
         budget.asset = asset;
         budget.eligibilityVersion = eligibilityVersion;
-        if (budget.fundedAt == 0) budget.fundedAt = fundedAt;
+        if (budget.funded == 0) {
+            budget.fundedAt = fundedAt;
+            budget.fundingRestrictionSequence = fundingRestrictionSequence;
+        }
         budget.funded += amount;
     }
 
@@ -95,7 +100,7 @@ library LibGaugeBribes {
         }
 
         (uint256 totalWeight, bytes32 weightVersion) = LibGaugeRouting.poolWeightAt(poolId, epoch);
-        uint40 cutoff = _eligibilityCutoff(poolId, epoch, budget.fundedAt, finish);
+        uint40 cutoff = _eligibilityCutoff(poolId, epoch, budget.fundingRestrictionSequence, finish);
         if (weightVersion == budget.eligibilityVersion && totalWeight != 0 && cutoff > LibGaugeEpoch.epochStart(epoch))
         {
             distributable =
@@ -176,15 +181,15 @@ library LibGaugeBribes {
         amount = Math.mulDiv(budget.distributable, allocation, budget.totalWeight);
     }
 
-    function _eligibilityCutoff(PoolId poolId, uint64 epoch, uint40 fundedAt, uint40 finish)
+    function _eligibilityCutoff(PoolId poolId, uint64 epoch, uint64 fundingRestrictionSequence, uint40 finish)
         private
         view
         returns (uint40 cutoff)
     {
         uint40 start = LibGaugeEpoch.epochStart(epoch);
         if (epoch != 0) {
-            uint40 preEpochRestriction = LibGaugeEligibility.restrictionTimestamp(poolId, epoch - 1);
-            if (preEpochRestriction > fundedAt) return start;
+            uint64 preEpochRestriction = LibGaugeEligibility.latestRestrictionSequence(poolId, epoch - 1);
+            if (preEpochRestriction > fundingRestrictionSequence) return start;
         }
         cutoff = finish;
         uint40 restrictedAt = LibGaugeEligibility.restrictionTimestamp(poolId, epoch);

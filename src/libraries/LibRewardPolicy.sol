@@ -8,10 +8,12 @@ library LibRewardPolicy {
         bool restricted;
         uint64 nonce;
         mapping(uint64 epoch => uint40 firstRestrictedAt) firstRestrictedAt;
+        mapping(uint64 epoch => uint64 lastRestrictionSequence) lastRestrictionSequence;
     }
 
     struct RewardPolicyStorage {
         mapping(address asset => RestrictionState state) restrictions;
+        uint64 restrictionSequence;
     }
 
     function rewardPolicyStorage() internal pure returns (RewardPolicyStorage storage ps) {
@@ -31,5 +33,13 @@ library LibRewardPolicy {
 
     function firstRestrictedAt(address asset, uint64 epoch) internal view returns (uint40) {
         return rewardPolicyStorage().restrictions[asset].firstRestrictedAt[epoch];
+    }
+
+    function restrictionSequence() internal view returns (uint64) {
+        return rewardPolicyStorage().restrictionSequence;
+    }
+
+    function lastRestrictionSequence(address asset, uint64 epoch) internal view returns (uint64) {
+        return rewardPolicyStorage().restrictions[asset].lastRestrictionSequence[epoch];
     }
 }

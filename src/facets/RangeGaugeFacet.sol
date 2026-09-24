@@ -29,6 +29,7 @@ contract RangeGaugeFacet is ReentrancyGuard {
         uint16 allocatorShareBps;
         bytes32 eligibilityVersion;
         uint64 allocatorEpoch;
+        uint64 fundingRestrictionSequence;
         uint40 currentTime;
         uint256 lpAmount;
         uint256 allocatorAmount;
@@ -74,12 +75,13 @@ contract RangeGaugeFacet is ReentrancyGuard {
         uint8 slot,
         uint256 amount,
         uint40 minRemainingDuration,
-        uint16 expectedAllocatorShareBps
+        uint16 expectedAllocatorShareBps,
+        uint64 expectedAllocatorEpoch
     ) external nonReentrant returns (uint256 received) {
         _enforceLiquidityAvailable();
         _enforceActivePublicGauge(poolId);
         if (slot == LibRangeGauge.STATICS_SLOT) revert IStaticsRangeGauge.ProtocolRewardSlotReserved(poolId);
-        FundingContext memory context = _fundingContext(poolId, slot, expectedAllocatorShareBps);
+        FundingContext memory context = _fundingContext(poolId, slot, expectedAllocatorShareBps, expectedAllocatorEpoch);
         received = _pullReward(poolId, slot, context.asset, amount);
         context.allocatorAmount = Math.mulDiv(received, context.allocatorShareBps, BPS);
         context.lpAmount = received - context.allocatorAmount;
@@ -104,7 +106,7 @@ contract RangeGaugeFacet is ReentrancyGuard {
         }
     }
 
-    function _fundingContext(PoolId poolId, uint8 slot, uint16 expectedAllocatorShareBps)
+    function _fundingContext(PoolId poolId, uint8 slot, uint16 expectedAllocatorShareBps, uint64 expectedAllocatorEpoch)
         private
         view
         returns (FundingContext memory context)
@@ -118,12 +120,21 @@ contract RangeGaugeFacet is ReentrancyGuard {
             revert IStaticsRangeGauge.AllocatorShareChanged(expectedAllocatorShareBps, context.allocatorShareBps);
         }
         context.currentTime = LibRangeGauge.timestamp40(block.timestamp);
-        if (context.allocatorShareBps == 0) return context;
+        if (context.allocatorShareBps == 0) {
+            if (expectedAllocatorEpoch != 0) {
+                revert IStaticsRangeGauge.AllocatorEpochChanged(expectedAllocatorEpoch, 0);
+            }
+            return context;
+        }
         context.eligibilityVersion = LibGaugeEligibility.version(poolId);
         if (context.eligibilityVersion == bytes32(0)) {
             revert IStaticsRangeGauge.GaugeAllocatorPoolIneligible(poolId);
         }
         context.allocatorEpoch = LibGaugeEpoch.epochAt(block.timestamp) + 1;
+        if (context.allocatorEpoch != expectedAllocatorEpoch) {
+            revert IStaticsRangeGauge.AllocatorEpochChanged(expectedAllocatorEpoch, context.allocatorEpoch);
+        }
+        context.fundingRestrictionSequence = LibRewardPolicy.restrictionSequence();
     }
 
     function _applyFunding(PoolId poolId, uint8 slot, uint40 minRemainingDuration, FundingContext memory context)
@@ -160,6 +171,7 @@ contract RangeGaugeFacet is ReentrancyGuard {
             context.allocatorEpoch,
             context.asset,
             context.eligibilityVersion,
+            context.fundingRestrictionSequence,
             context.currentTime,
             context.allocatorAmount
         );

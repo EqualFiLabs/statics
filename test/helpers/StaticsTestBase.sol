@@ -49,6 +49,7 @@ import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCr
 import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
 import {PermissionedPoolViewFacet} from "../../src/facets/PermissionedPoolViewFacet.sol";
 import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.sol";
+import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
 import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
@@ -65,7 +66,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](34);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](35);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -100,6 +101,9 @@ contract StaticsTestDeployer {
         cut[31] = _cut(address(new PermissionedPoolAdminFacet()), StaticsSelectors.permissionedPoolAdmin());
         cut[32] = _cut(address(new PermissionedPoolViewFacet()), StaticsSelectors.permissionedPoolView());
         cut[33] = _cut(address(new RangeGaugeCallbackFacet()), StaticsSelectors.rangeGaugeCallback());
+        bytes4[] memory gaugeSync = new bytes4[](1);
+        gaugeSync[0] = GaugeIncentiveFacet.syncGaugeAllocationsAfterStakeLoss.selector;
+        cut[34] = _cut(address(new GaugeIncentiveFacet()), gaugeSync);
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
