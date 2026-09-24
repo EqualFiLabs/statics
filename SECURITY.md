@@ -249,7 +249,20 @@ the corresponding whole-token reservation stays classified as indexed surplus.
 That surplus remains backed but is recoverable by treasury only through final
 reconciliation after the pool gauge is stopped. Low-decimal and unusually
 high-value reward assets therefore require additional governance review before
-allowlisting.
+allowlisting. Final reconciliation is intentionally pool-wide: any unresolved
+claim or remainder in any reward slot delays treasury surplus recovery for
+every slot, without blocking user principal exits or reward claims.
+
+Each pool reward slot also has a lifetime index-capacity limit of
+`floor(type(uint256).max / 1e27)` raw reward units. The stream view exposes the
+amount already consumed as `indexCapacityUsed`, and funding reverts before the
+current schedule plus a new contribution could exceed the remaining capacity.
+This conservative lifetime limit prevents the RAY-scaled global index from
+wrapping while a position remains unsettled. The bound is far above practical
+token supplies. When the error reports a committed budget below the maximum,
+the funder may retry with an amount no greater than the remaining capacity. An
+equal committed and maximum budget means the pool reward slot is permanently
+exhausted.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every

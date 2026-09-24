@@ -42,7 +42,7 @@ Use compiled ABIs from these sources:
 | Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, select reward assets, claim, distribute treasury fees, and inspect asset books |
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
-| Public range gauges | `src/interfaces/IStaticsRangeGauge.sol` | Configure and fund pool rewards, manage PositionNFT-owned v4 range positions, claim or forfeit rewards, exit principal, and inspect position state |
+| Public range gauges | `src/interfaces/IStaticsRangeGauge.sol` | Configure and fund pool rewards, inspect lifetime index-capacity usage, manage PositionNFT-owned v4 range positions, claim or forfeit rewards, exit principal, and inspect position state |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
