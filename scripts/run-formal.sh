@@ -153,6 +153,29 @@ case "$TARGET" in
       run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-minimum-fee-nonzero 8 \
         out-formal-genesis '^check_minimumGrossFeeNeverRoundsToZero'
     ;;
+  range-gauges)
+    # Full-precision mulDiv and modular-growth branches can make feasibility refinement
+    # dominate otherwise small rules. As in the permanent-liquidity suite, unknown
+    # branch feasibility is conservatively explored on both sides while assertions
+    # retain their unbounded solver timeout.
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-stream-conservation 8 \
+      out-formal-genesis '^check_streamEmitsEntireBudgetAtFinish'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-zero-liquidity-pause 8 \
+      out-formal-genesis '^check_zeroLiquidityPausesWithoutEmitting'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-top-up-conservation 8 \
+      out-formal-genesis '^check_topUpPreservesFinishAndConservesBudget'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-position-remainder 8 \
+      out-formal-genesis '^check_positionRemainderCarryConservesNumerator'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-boundary-symmetry 8 \
+      out-formal-genesis '^check_boundaryAddRemoveSymmetry'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-right-crossing-inversion 8 \
+      out-formal-genesis '^check_rightThenLeftCrossingRestoresLiquidity'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-left-crossing-inversion 8 \
+      out-formal-genesis '^check_leftThenRightCrossingRestoresLiquidity'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-inside-growth 8 \
+      out-formal-genesis '^check_insideGrowthMatchesRegionIdentity'
+    ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
       "$0" "$target"
@@ -163,6 +186,7 @@ case "$TARGET" in
     "$0" established
     "$0" permanent-liquidity
     "$0" phase-one
+    "$0" range-gauges
     ;;
   *)
     printf 'unknown formal target: %s\n' "$TARGET" >&2

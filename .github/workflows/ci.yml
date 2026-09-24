@@ -80,6 +80,7 @@ jobs:
           - established
           - permanent-liquidity
           - phase-one
+          - range-gauges
     steps:
       - name: Checkout
         uses: actions/checkout@v4
