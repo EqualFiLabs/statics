@@ -4,9 +4,11 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
@@ -135,6 +137,71 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
         assertEq(globalRewards.treasuryAccrued(address(stakingAsset)) - treasuryBefore, 700 ether);
         vm.prank(bob);
         assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, address(stakingAsset)), 0);
+    }
+
+    function testSameTimestampSwapCrossingAndRealRebalancePreserveAccounting() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        PoolKey memory key = _poolKey(poolId);
+        uint256 positionId = _createPosition(alice);
+        _fundAndApprovePoolAssets(key, alice, TOKEN_MAXIMUM);
+        vm.prank(alice);
+        rangeGauge.provideLiquidity(
+            positionId,
+            IStaticsRangeGauge.ProvideLiquidityParams({
+                poolId: poolId,
+                tickLower: -100,
+                tickUpper: 100,
+                liquidity: INITIAL_LIQUIDITY,
+                amount0Maximum: TOKEN_MAXIMUM,
+                amount1Maximum: TOKEN_MAXIMUM,
+                deadline: block.timestamp + 1 hours
+            })
+        );
+        _fundReward(poolId, stakingAsset, 700 ether);
+        vm.warp(block.timestamp + 1 days);
+
+        _mintUnmanagedPosition(key, bob);
+        _fundAndApprovePoolAssets(key, bob, TOKEN_MAXIMUM);
+        _approveV4Router(bob, Currency.unwrap(key.currency0));
+        _approveV4Router(bob, Currency.unwrap(key.currency1));
+        vm.prank(bob);
+        v4Router.swap(
+            key,
+            SwapParams({
+                zeroForOne: true, amountSpecified: -int256(1 ether), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            })
+        );
+
+        IStaticsRangeGauge.GaugePoolView memory afterSwap = rangeGauge.gaugePool(poolId);
+        IStaticsRangeGauge.GaugeRewardStreamView memory streamAfterSwap =
+            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        assertEq(afterSwap.activeGaugeLiquidity, 0);
+
+        _fundAndApprovePoolAssets(key, alice, TOKEN_MAXIMUM);
+        vm.prank(alice);
+        rangeGauge.rebalanceLiquidity(
+            positionId,
+            poolId,
+            IStaticsRangeGauge.RebalanceLiquidityParams({
+                tickLower: TickMath.minUsableTick(key.tickSpacing),
+                tickUpper: TickMath.maxUsableTick(key.tickSpacing),
+                liquidity: INITIAL_LIQUIDITY,
+                amount0Maximum: TOKEN_MAXIMUM,
+                amount1Maximum: TOKEN_MAXIMUM,
+                amount0Minimum: 0,
+                amount1Minimum: 0,
+                deadline: block.timestamp + 1 hours
+            })
+        );
+
+        IStaticsRangeGauge.GaugePoolView memory afterRebalance = rangeGauge.gaugePool(poolId);
+        IStaticsRangeGauge.GaugeRewardStreamView memory streamAfterRebalance =
+            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        assertEq(afterRebalance.referenceTick, afterSwap.referenceTick);
+        assertEq(afterRebalance.activeGaugeLiquidity, INITIAL_LIQUIDITY);
+        assertEq(streamAfterRebalance.periodEmitted, streamAfterSwap.periodEmitted);
+        assertEq(streamAfterRebalance.globalIndexRay, streamAfterSwap.globalIndexRay);
+        assertGt(rangeGauge.lpLeg(positionId, poolId).claimable[0], 0);
     }
 
     function _replacement() private returns (StaticsLiquidityManager manager) {

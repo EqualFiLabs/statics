@@ -15,13 +15,6 @@ import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManag
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {CanonicalPoolTestBase} from "./CanonicalPoolTestBase.sol";
 
-contract RangeGaugeFeatureInit {
-    function initialize() external {
-        LibRangeGauge.initializeGlobalConfig();
-        LibRangeGauge.setRewardAssetAllowed(LibRangeGauge.staticsToken(), true);
-    }
-}
-
 contract RangeGaugeTestStateFacet {
     function setActiveGaugeLiquidity(PoolId poolId, uint256 liquidity) external {
         if (liquidity > type(uint128).max) revert();
@@ -142,8 +135,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _stateSelectors()
         });
-        RangeGaugeFeatureInit init = new RangeGaugeFeatureInit();
-        IDiamondCut(address(diamond)).diamondCut(cut, address(init), abi.encodeCall(init.initialize, ()));
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         rangeGauge = IStaticsRangeGauge(address(diamond));
         rangeGaugeState = RangeGaugeTestStateFacet(address(diamond));
     }

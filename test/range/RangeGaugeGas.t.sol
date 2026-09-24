@@ -19,8 +19,19 @@ contract RangeGaugeGasTest is Test {
     uint256 private constant MIN_HOOK_HEADROOM = 256;
     uint256 private constant MAX_NO_BOUNDARY_CALLBACK_GAS = 100_000;
     uint256 private constant MAX_128_BOUNDARY_CALLBACK_GAS = 8_000_000;
+    uint256 private constant MAX_128_FOUR_STREAM_CALLBACK_GAS = 15_000_000;
 
-    event BoundaryTraversalGas(uint256 indexed boundaryCount, uint256 gasUsed);
+    event CallbackPathGas(bytes32 indexed scenario, uint256 gasUsed);
+    event BoundaryTraversalGas(
+        uint256 indexed boundaryCount, bool indexed rightward, uint8 historyStreams, int24 tickSpacing, uint256 gasUsed
+    );
+
+    struct GasScenario {
+        RangeGaugeCallbackHarness callback;
+        RangeGaugeHookCaller hook;
+        RangeGaugePoolManagerMock poolManager;
+        PoolId poolId;
+    }
 
     /// @dev Excluded from optimizer-disabled coverage because instrumentation changes runtime size.
     function test_PublicHookRetainsEip170Headroom() public {
@@ -31,81 +42,169 @@ contract RangeGaugeGasTest is Test {
         assertLe(runtimeSize, EIP170_RUNTIME_LIMIT - MIN_HOOK_HEADROOM);
     }
 
-    function testNoBoundaryCallbackGas() public {
-        RangeGaugeCallbackHarness callback = new RangeGaugeCallbackHarness();
-        RangeGaugeHookCaller hook = new RangeGaugeHookCaller();
-        RangeGaugePoolManagerMock poolManager = new RangeGaugePoolManagerMock();
-        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
-        PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(address(0x1000)),
-            currency1: Currency.wrap(address(0x2000)),
-            fee: 3_000,
-            tickSpacing: 10,
-            hooks: IHooks(address(hook))
-        });
-        PoolId poolId = callback.registerGeneralPool(key, makeAddr("creator"));
-        callback.initialize(address(statics));
-        callback.initializeGauge(poolId, 0);
-        callback.installPublicIntegration(address(poolManager), address(hook));
-        poolManager.setTick(poolId, 1);
+    function testNoMovementAndNoBoundaryMovementGas() public {
+        uint256 noMovementGas = _measureNoBoundary(0);
+        uint256 noBoundaryMovementGas = _measureNoBoundary(1);
 
-        uint256 gasBefore = gasleft();
-        hook.notify(address(callback), poolId);
-        uint256 gasUsed = gasBefore - gasleft();
-
-        emit log_named_uint("registered no-boundary callback gas", gasUsed);
-        assertLe(gasUsed, MAX_NO_BOUNDARY_CALLBACK_GAS);
+        emit log_named_uint("no-movement callback gas", noMovementGas);
+        emit log_named_uint("movement-without-boundary callback gas", noBoundaryMovementGas);
+        emit CallbackPathGas(keccak256("no movement"), noMovementGas);
+        emit CallbackPathGas(keccak256("movement without boundary"), noBoundaryMovementGas);
+        assertLe(noMovementGas, MAX_NO_BOUNDARY_CALLBACK_GAS);
+        assertLe(noBoundaryMovementGas, MAX_NO_BOUNDARY_CALLBACK_GAS);
     }
 
-    function testBoundaryTraversalGasMatrix() public {
-        uint256 gas1 = _measureBoundaryTraversal(1);
-        uint256 gas4 = _measureBoundaryTraversal(4);
-        uint256 gas16 = _measureBoundaryTraversal(16);
-        uint256 gas64 = _measureBoundaryTraversal(64);
-        uint256 gas128 = _measureBoundaryTraversal(128);
-
-        emit log_named_uint("one-boundary callback gas", gas1);
-        emit log_named_uint("four-boundary callback gas", gas4);
-        emit log_named_uint("sixteen-boundary callback gas", gas16);
-        emit log_named_uint("sixty-four-boundary callback gas", gas64);
-        emit log_named_uint("one-hundred-twenty-eight-boundary callback gas", gas128);
-
-        assertLt(gas1, gas4);
-        assertLt(gas4, gas16);
-        assertLt(gas16, gas64);
-        assertLt(gas64, gas128);
-        assertLe(gas128, MAX_128_BOUNDARY_CALLBACK_GAS);
-    }
-
-    function _measureBoundaryTraversal(uint256 boundaryCount) private returns (uint256 gasUsed) {
-        RangeGaugeCallbackHarness callback = new RangeGaugeCallbackHarness();
-        RangeGaugeHookCaller hook = new RangeGaugeHookCaller();
-        RangeGaugePoolManagerMock poolManager = new RangeGaugePoolManagerMock();
-        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
-        PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(address(0x1000)),
-            currency1: Currency.wrap(address(0x2000)),
-            fee: 3_000,
-            tickSpacing: 10,
-            hooks: IHooks(address(hook))
-        });
-        PoolId poolId = callback.registerGeneralPool(key, makeAddr("creator"));
-        callback.initialize(address(statics));
-        callback.initializeGauge(poolId, 0);
-        callback.installPublicIntegration(address(poolManager), address(hook));
-        for (uint256 i; i < boundaryCount; ++i) {
-            callback.addRange(poolId, -10, int256((i + 1) * 10), 10, 0, 1);
+    function testBoundaryTraversalGasMatrixInBothDirections() public {
+        uint256[5] memory counts = [uint256(1), 4, 16, 64, 128];
+        uint256[5] memory rightward;
+        uint256[5] memory leftward;
+        for (uint256 i; i < counts.length; ++i) {
+            rightward[i] = _measureBoundaryTraversal(counts[i], true, 0, 10);
+            leftward[i] = _measureBoundaryTraversal(counts[i], false, 0, 10);
+            if (i != 0) {
+                assertLt(rightward[i - 1], rightward[i]);
+                assertLt(leftward[i - 1], leftward[i]);
+            }
         }
-        callback.setActiveLiquidity(poolId, boundaryCount);
-        poolManager.setTick(poolId, int256(boundaryCount * 10));
+        emit log_named_uint("1 rightward crossing", rightward[0]);
+        emit log_named_uint("1 leftward crossing", leftward[0]);
+        emit log_named_uint("4 rightward crossings", rightward[1]);
+        emit log_named_uint("4 leftward crossings", leftward[1]);
+        emit log_named_uint("16 rightward crossings", rightward[2]);
+        emit log_named_uint("16 leftward crossings", leftward[2]);
+        emit log_named_uint("64 rightward crossings", rightward[3]);
+        emit log_named_uint("64 leftward crossings", leftward[3]);
+        emit log_named_uint("128 rightward crossings", rightward[4]);
+        emit log_named_uint("128 leftward crossings", leftward[4]);
+        assertLe(rightward[4], MAX_128_BOUNDARY_CALLBACK_GAS);
+        assertLe(leftward[4], MAX_128_BOUNDARY_CALLBACK_GAS);
+    }
+
+    function testRewardHistoryGasForOneAndFourStreams() public {
+        uint256 oneRight = _measureBoundaryTraversal(16, true, 1, 10);
+        uint256 fourRight = _measureBoundaryTraversal(16, true, 4, 10);
+        uint256 oneLeft = _measureBoundaryTraversal(16, false, 1, 10);
+        uint256 fourLeft = _measureBoundaryTraversal(16, false, 4, 10);
+        uint256 worstCase = _measureBoundaryTraversal(128, true, 4, 10);
+
+        emit log_named_uint("16 rightward crossings with one stream", oneRight);
+        emit log_named_uint("16 rightward crossings with four streams", fourRight);
+        emit log_named_uint("16 leftward crossings with one stream", oneLeft);
+        emit log_named_uint("16 leftward crossings with four streams", fourLeft);
+        emit log_named_uint("128 rightward crossings with four streams", worstCase);
+        assertLt(oneRight, fourRight);
+        assertLt(oneLeft, fourLeft);
+        assertLe(worstCase, MAX_128_FOUR_STREAM_CALLBACK_GAS);
+    }
+
+    function testSparseMovementAndMinimumTickSpacingGas() public {
+        uint256 sparseRight = _measureSparseTraversal(true);
+        uint256 sparseLeft = _measureSparseTraversal(false);
+        uint256 spacingOneRight = _measureBoundaryTraversal(128, true, 0, 1);
+        uint256 spacingOneLeft = _measureBoundaryTraversal(128, false, 0, 1);
+
+        emit CallbackPathGas(keccak256("large sparse rightward movement"), sparseRight);
+        emit CallbackPathGas(keccak256("large sparse leftward movement"), sparseLeft);
+        emit log_named_uint("large sparse rightward movement", sparseRight);
+        emit log_named_uint("large sparse leftward movement", sparseLeft);
+        emit log_named_uint("128 rightward crossings at spacing 1", spacingOneRight);
+        emit log_named_uint("128 leftward crossings at spacing 1", spacingOneLeft);
+        assertLe(sparseRight, MAX_NO_BOUNDARY_CALLBACK_GAS);
+        assertLe(sparseLeft, MAX_NO_BOUNDARY_CALLBACK_GAS);
+        assertLe(spacingOneRight, MAX_128_BOUNDARY_CALLBACK_GAS);
+        assertLe(spacingOneLeft, MAX_128_BOUNDARY_CALLBACK_GAS);
+    }
+
+    function _ready(int256 referenceTick, int256 tickSpacing) private returns (GasScenario memory scenario) {
+        scenario.callback = new RangeGaugeCallbackHarness();
+        scenario.hook = new RangeGaugeHookCaller();
+        scenario.poolManager = new RangeGaugePoolManagerMock();
+        MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(address(0x1000)),
+            currency1: Currency.wrap(address(0x2000)),
+            fee: 3_000,
+            tickSpacing: int24(tickSpacing),
+            hooks: IHooks(address(scenario.hook))
+        });
+        scenario.poolId = scenario.callback.registerGeneralPool(key, makeAddr("creator"));
+        scenario.callback.initialize(address(statics));
+        scenario.callback.initializeGauge(scenario.poolId, referenceTick);
+        scenario.callback.installPublicIntegration(address(scenario.poolManager), address(scenario.hook));
+    }
+
+    function _measureNoBoundary(int256 finalTick) private returns (uint256 gasUsed) {
+        GasScenario memory scenario = _ready(0, 10);
+        scenario.poolManager.setTick(scenario.poolId, finalTick);
 
         uint256 gasBefore = gasleft();
-        hook.notify(address(callback), poolId);
+        scenario.hook.notify(address(scenario.callback), scenario.poolId);
         gasUsed = gasBefore - gasleft();
 
-        (,, int24 referenceTick, uint128 activeLiquidity) = callback.gaugeState(poolId);
-        assertEq(referenceTick, int256(boundaryCount * 10));
+        (,, int24 referenceTick, uint128 activeLiquidity) = scenario.callback.gaugeState(scenario.poolId);
+        assertEq(referenceTick, 0);
         assertEq(activeLiquidity, 0);
-        emit BoundaryTraversalGas(boundaryCount, gasUsed);
+    }
+
+    function _measureBoundaryTraversal(
+        uint256 boundaryCount,
+        bool rightward,
+        uint256 historyStreams,
+        int256 tickSpacing
+    ) private returns (uint256 gasUsed) {
+        GasScenario memory scenario = _ready(0, tickSpacing);
+        for (uint256 i; i < boundaryCount; ++i) {
+            if (rightward) {
+                scenario.callback
+                    .addRange(scenario.poolId, -tickSpacing, int256((i + 1) * uint256(tickSpacing)), tickSpacing, 0, 1);
+            } else {
+                scenario.callback
+                    .addRange(scenario.poolId, -int256((i + 1) * uint256(tickSpacing)), tickSpacing, tickSpacing, 0, 1);
+            }
+        }
+        scenario.callback.setActiveLiquidity(scenario.poolId, boundaryCount);
+        _addRewardHistory(scenario, historyStreams);
+
+        int256 distance = int256(boundaryCount * uint256(tickSpacing));
+        int256 finalTick = rightward ? distance : -distance - 1;
+        scenario.poolManager.setTick(scenario.poolId, finalTick);
+
+        uint256 gasBefore = gasleft();
+        scenario.hook.notify(address(scenario.callback), scenario.poolId);
+        gasUsed = gasBefore - gasleft();
+
+        (,, int24 referenceTick, uint128 activeLiquidity) = scenario.callback.gaugeState(scenario.poolId);
+        assertEq(referenceTick, finalTick);
+        assertEq(activeLiquidity, 0);
+        emit BoundaryTraversalGas(boundaryCount, rightward, uint8(historyStreams), int24(tickSpacing), gasUsed);
+    }
+
+    function _measureSparseTraversal(bool rightward) private returns (uint256 gasUsed) {
+        GasScenario memory scenario = _ready(0, 10);
+        scenario.callback.addRange(scenario.poolId, -800_000, 800_000, 10, 0, 1);
+        scenario.callback.setActiveLiquidity(scenario.poolId, 1);
+        int256 finalTick = rightward ? int256(800_000) : int256(-800_001);
+        scenario.poolManager.setTick(scenario.poolId, finalTick);
+
+        uint256 gasBefore = gasleft();
+        scenario.hook.notify(address(scenario.callback), scenario.poolId);
+        gasUsed = gasBefore - gasleft();
+
+        (,, int24 referenceTick, uint128 activeLiquidity) = scenario.callback.gaugeState(scenario.poolId);
+        assertEq(referenceTick, finalTick);
+        assertEq(activeLiquidity, 0);
+    }
+
+    function _addRewardHistory(GasScenario memory scenario, uint256 historyStreams) private {
+        if (historyStreams == 0) return;
+        for (uint256 slot = 1; slot < historyStreams; ++slot) {
+            scenario.callback.appendRewardAsset(scenario.poolId, address(uint160(0x3000 + slot)));
+        }
+        uint256 start = block.timestamp + 1;
+        vm.warp(start);
+        for (uint256 slot; slot < historyStreams; ++slot) {
+            scenario.callback.fundStream(scenario.poolId, slot, 700 ether + slot, start, 7 days);
+        }
+        vm.warp(start + 1 days);
     }
 }
