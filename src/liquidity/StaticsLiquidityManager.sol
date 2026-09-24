@@ -463,7 +463,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     }
 
     function _validateOutputRequest(ManagedLiquidityRequest calldata request, bool requireLiquidity) private view {
-        _validateReceiver(request.receiver);
+        _validateManagedOutputReceiver(request.receiver);
         if (
             request.deadline < block.timestamp || request.amount0Limit > type(uint128).max
                 || request.amount1Limit > type(uint128).max || (requireLiquidity && request.liquidity == 0)
@@ -475,6 +475,10 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         if (receiver == address(0) || receiver == address(this) || receiver == staticsDiamond) {
             revert InvalidRecipient();
         }
+    }
+
+    function _validateManagedOutputReceiver(address receiver) private view {
+        if (receiver == address(0) || receiver == address(this)) revert InvalidRecipient();
     }
 
     function _managedState(uint256 tokenId, bool active) private view returns (ManagedPositionState memory state) {

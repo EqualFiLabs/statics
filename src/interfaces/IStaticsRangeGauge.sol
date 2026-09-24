@@ -171,6 +171,12 @@ interface IStaticsRangeGauge {
     error ManagedLegAlreadyExists(uint256 positionId, PoolId poolId);
     error ManagedLegNotFound(uint256 positionId, PoolId poolId);
     error UnauthorizedPositionActor(uint256 positionId, address caller);
+    error LiquidityManagerNotInstalled();
+    error LiquidityManagerBindingMismatch(address manager, address expected, address actual);
+    error NotPosmOwner(uint256 posmTokenId, address caller, address owner);
+    error PositionMutationMismatch(uint256 posmTokenId);
+    error InputDebitExceedsMaximum(address asset, uint256 debit, uint256 maximum);
+    error ManagerAssetTransferMismatch(address asset, uint256 expected, uint256 actual);
     error InvalidPositionState(uint256 positionId, PoolId poolId);
     error RewardAmountBelowMinimum(address asset, uint256 received, uint256 minimum);
     error PoolRewardReconciliationUnavailable(PoolId poolId, address asset);

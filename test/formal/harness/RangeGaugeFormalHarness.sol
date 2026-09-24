@@ -71,4 +71,8 @@ contract RangeGaugeFormalHarness {
     {
         return LibRangeGauge.removeBoundaryLiquidity(gross, net, liquidity, lower, lower ? int24(-100) : int24(100));
     }
+
+    function _containsTick(int24 tickLower, int24 tickUpper, int24 tick) internal pure returns (bool) {
+        return LibRangeGauge.containsTick(tickLower, tickUpper, tick);
+    }
 }

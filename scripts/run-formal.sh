@@ -173,6 +173,8 @@ case "$TARGET" in
       out-formal-genesis '^check_rightThenLeftCrossingRestoresLiquidity'
     run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-left-crossing-inversion 8 \
       out-formal-genesis '^check_leftThenRightCrossingRestoresLiquidity'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-topology-restoration 8 \
+      out-formal-genesis '^check_registerThenUnregisterRestoresTopology'
     run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-inside-growth 8 \
       out-formal-genesis '^check_insideGrowthMatchesRegionIdentity'
     ;;

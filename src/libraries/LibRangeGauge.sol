@@ -213,6 +213,10 @@ library LibRangeGauge {
         nextCursor = end;
     }
 
+    function hasPositionPool(uint256 positionId, PoolId poolId) internal view returns (bool) {
+        return rangeGaugeStorage().positionPools[positionId].indexPlusOne[poolId] != 0;
+    }
+
     function bindingFor(uint256 positionId, PoolId poolId) internal pure returns (bytes32) {
         return keccak256(abi.encode(positionId, PoolId.unwrap(poolId)));
     }
@@ -337,6 +341,57 @@ library LibRangeGauge {
         stream.indexedLiability -= claimableDelta;
         stream.claimLiability += claimableDelta;
         leg.claimable[slot] += claimableDelta;
+    }
+
+    function settleLeg(PoolId poolId, LpLeg storage leg) internal {
+        RangeGaugeStorage storage rgs = rangeGaugeStorage();
+        GaugePool storage gauge = rgs.gauges[poolId];
+        uint8 slotCount = rgs.rewardConfig[poolId].slotCount;
+        for (uint8 slot; slot < slotCount; ++slot) {
+            settleLegSlot(
+                gauge.streams[slot],
+                leg,
+                slot,
+                growthInside(gauge, leg.tickLower, leg.tickUpper, gauge.referenceTick, slot)
+            );
+        }
+    }
+
+    function checkpointLeg(PoolId poolId, LpLeg storage leg) internal {
+        RangeGaugeStorage storage rgs = rangeGaugeStorage();
+        GaugePool storage gauge = rgs.gauges[poolId];
+        uint8 slotCount = rgs.rewardConfig[poolId].slotCount;
+        for (uint8 slot; slot < slotCount; ++slot) {
+            leg.checkpointInsideRay[slot] = growthInside(gauge, leg.tickLower, leg.tickUpper, gauge.referenceTick, slot);
+        }
+    }
+
+    function registerPositionRange(
+        PoolId poolId,
+        int24 tickLower,
+        int24 tickUpper,
+        int24 tickSpacing,
+        uint128 liquidity
+    ) internal {
+        GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
+        addRangeBoundaries(poolId, tickLower, tickUpper, tickSpacing, gauge.referenceTick, liquidity);
+        if (containsTick(tickLower, tickUpper, gauge.referenceTick)) {
+            gauge.activeGaugeLiquidity = applyCrossingLiquidity(gauge.activeGaugeLiquidity, int128(liquidity), true);
+        }
+    }
+
+    function unregisterPositionRange(
+        PoolId poolId,
+        int24 tickLower,
+        int24 tickUpper,
+        int24 tickSpacing,
+        uint128 liquidity
+    ) internal {
+        GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
+        removeRangeBoundaries(poolId, tickLower, tickUpper, tickSpacing, liquidity);
+        if (containsTick(tickLower, tickUpper, gauge.referenceTick)) {
+            gauge.activeGaugeLiquidity = applyCrossingLiquidity(gauge.activeGaugeLiquidity, int128(liquidity), false);
+        }
     }
 
     function flushDenominatorRemainder(PoolId poolId, uint8 slot) internal returns (uint256 dust) {
@@ -720,5 +775,9 @@ library LibRangeGauge {
         uint256 sum = uint256(timestamp) + delta;
         if (sum > type(uint40).max) revert TimestampOverflow(timestamp, delta);
         result = uint40(sum);
+    }
+
+    function containsTick(int24 tickLower, int24 tickUpper, int24 tick) internal pure returns (bool) {
+        return tickLower <= tick && tick < tickUpper;
     }
 }

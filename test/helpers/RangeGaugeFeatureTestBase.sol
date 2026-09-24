@@ -4,9 +4,13 @@ pragma solidity 0.8.33;
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {RangeGaugeFacet} from "../../src/facets/RangeGaugeFacet.sol";
+import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
+import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {CanonicalPoolTestBase} from "./CanonicalPoolTestBase.sol";
 
@@ -77,26 +81,47 @@ contract RangeGaugeTestStateFacet {
 abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     IStaticsRangeGauge internal rangeGauge;
     RangeGaugeTestStateFacet internal rangeGaugeState;
+    IAllowanceTransfer internal rangePermit2;
+    IPositionManager internal rangePositionManager;
+    StaticsLiquidityManager internal rangeLiquidityManager;
     uint256 private rangePoolNonce;
 
     function setUp() public virtual override {
         super.setUp();
 
+        rangePermit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        rangePositionManager = IPositionManager(
+            deployCode(
+                "out/PositionManager.sol/PositionManager.json",
+                abi.encode(address(poolManager), address(rangePermit2), uint256(100_000), address(0), address(0))
+            )
+        );
+        rangeLiquidityManager = new StaticsLiquidityManager(
+            address(diamond), address(rangePositionManager), address(poolManager), address(rangePermit2)
+        );
+        basketLiquidity.installLiquidityManager(address(rangeLiquidityManager));
+
         RangeGaugeFacet actionFacet = new RangeGaugeFacet();
+        RangeGaugePositionFacet positionFacet = new RangeGaugePositionFacet();
         RangeGaugeViewFacet viewFacet = new RangeGaugeViewFacet();
         RangeGaugeTestStateFacet stateFacet = new RangeGaugeTestStateFacet();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](4);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(actionFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _actionSelectors()
         });
         cut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(positionFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: _positionSelectors()
+        });
+        cut[2] = IDiamondCut.FacetCut({
             facetAddress: address(viewFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _viewSelectors()
         });
-        cut[2] = IDiamondCut.FacetCut({
+        cut[3] = IDiamondCut.FacetCut({
             facetAddress: address(stateFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _stateSelectors()
@@ -107,10 +132,18 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         rangeGaugeState = RangeGaugeTestStateFacet(address(diamond));
     }
 
+    function _installDefaultLiquidityManager() internal pure override returns (bool) {
+        return false;
+    }
+
     function _createRangeGaugePool(address creator) internal returns (PoolId poolId) {
+        return _createRangeGaugePool(creator, address(assetA), address(assetB));
+    }
+
+    function _createRangeGaugePool(address creator, address tokenA, address tokenB) internal returns (PoolId poolId) {
         IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
-            tokenA: address(assetA),
-            tokenB: address(assetB),
+            tokenA: tokenA,
+            tokenB: tokenB,
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: SQRT_PRICE_1_1,
@@ -144,6 +177,16 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         selectors[9] = RangeGaugeViewFacet.posmBinding.selector;
         selectors[10] = RangeGaugeViewFacet.recordedLiquidityManager.selector;
         selectors[11] = RangeGaugeViewFacet.previewLpRewards.selector;
+    }
+
+    function _positionSelectors() private pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = RangeGaugePositionFacet.provideLiquidity.selector;
+        selectors[1] = RangeGaugePositionFacet.attachLiquidity.selector;
+        selectors[2] = RangeGaugePositionFacet.increaseLiquidity.selector;
+        selectors[3] = RangeGaugePositionFacet.decreaseLiquidity.selector;
+        selectors[4] = RangeGaugePositionFacet.collectNativeFees.selector;
+        selectors[5] = RangeGaugePositionFacet.rebalanceLiquidity.selector;
     }
 
     function _stateSelectors() private pure returns (bytes4[] memory selectors) {
