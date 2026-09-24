@@ -62,6 +62,10 @@ contract HookInvariantFeeReceiver {
         treasuryFees[asset] += distribution.treasury;
     }
 
+    function afterProtocolPoolSwap(PoolId) external view {
+        require(msg.sender == hook);
+    }
+
     function registerPool(PoolKey calldata key) external returns (PoolId) {
         return IStaticsSwapFeeHook(hook).registerPool(key, IStaticsSwapFeeHook.PoolKind.General, address(this));
     }
