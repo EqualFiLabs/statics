@@ -19,6 +19,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 /// @notice Permissionless general-pool creation with deterministic quoting, sorted PoolKey policy,
 /// reciprocal normalized pricing, independent native creation fee gating, EIP-712 creator
@@ -106,7 +107,9 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         if (overrideInitialFeeRate) {
             hook.setPoolFeeRate(poolId, params.initialFeeRate.inputFeeBps, params.initialFeeRate.outputFeeBps);
         }
-        int24 tick = IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
+        IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
+        (, int24 tick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
+        LibRangeGauge.initializePool(poolId, tick);
 
         emit IStaticsProtocolPools.ProtocolPoolCreated(
             poolId,

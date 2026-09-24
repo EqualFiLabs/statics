@@ -495,6 +495,26 @@ library LibRangeGauge {
         initialized = true;
     }
 
+    function synchronizeAfterSwap(PoolId poolId, int24 tickSpacing, int24 finalTick, uint40 currentTime)
+        internal
+        returns (bool crossed)
+    {
+        GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
+        if (!gauge.initialized) revert GaugeNotInitialized(poolId);
+        if (gauge.stopped) return false;
+        crossed = _synchronize(poolId, gauge, tickSpacing, finalTick, currentTime, false);
+    }
+
+    function synchronizeTopology(PoolId poolId, int24 tickSpacing, int24 liveTick, uint40 currentTime)
+        internal
+        returns (bool crossed)
+    {
+        GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
+        if (!gauge.initialized) revert GaugeNotInitialized(poolId);
+        if (gauge.stopped) return false;
+        crossed = _synchronize(poolId, gauge, tickSpacing, liveTick, currentTime, true);
+    }
+
     function _initializeRewardConfig(PoolRewardConfig storage config, PoolId poolId) private {
         if (config.initialized) revert PoolRewardConfigAlreadyInitialized(poolId);
         address statics = staticsToken();
@@ -512,6 +532,72 @@ library LibRangeGauge {
         }
         stream.indexRemainder = remainder;
         stream.indexedLiability += amount;
+    }
+
+    function _synchronize(
+        PoolId poolId,
+        GaugePool storage gauge,
+        int24 tickSpacing,
+        int24 finalTick,
+        uint40 currentTime,
+        bool forceCheckpoint
+    ) private returns (bool crossed) {
+        int24 referenceTick = gauge.referenceTick;
+        (int24 boundary, bool initialized, bool rightward) =
+            _firstCrossedBoundary(gauge, referenceTick, finalTick, tickSpacing);
+        if (!initialized) {
+            if (!forceCheckpoint) return false;
+            _checkpointAndFlush(poolId, gauge, currentTime);
+            gauge.referenceTick = finalTick;
+            return false;
+        }
+
+        _checkpointAndFlush(poolId, gauge, currentTime);
+        uint8 slotCount = rangeGaugeStorage().rewardConfig[poolId].slotCount;
+        uint128 activeLiquidity = gauge.activeGaugeLiquidity;
+        if (rightward) {
+            while (initialized && boundary <= finalTick) {
+                int128 netLiquidity = crossBoundary(gauge, boundary, slotCount);
+                activeLiquidity = applyCrossingLiquidity(activeLiquidity, netLiquidity, true);
+                if (boundary == finalTick) break;
+                (boundary, initialized) = nextInitializedBoundary(gauge, boundary, tickSpacing, false);
+            }
+        } else {
+            while (initialized && boundary > finalTick) {
+                int128 netLiquidity = crossBoundary(gauge, boundary, slotCount);
+                activeLiquidity = applyCrossingLiquidity(activeLiquidity, netLiquidity, false);
+                (boundary, initialized) = nextInitializedBoundary(gauge, boundary - 1, tickSpacing, true);
+            }
+        }
+        gauge.activeGaugeLiquidity = activeLiquidity;
+        gauge.referenceTick = finalTick;
+        crossed = true;
+    }
+
+    function _firstCrossedBoundary(GaugePool storage gauge, int24 referenceTick, int24 finalTick, int24 tickSpacing)
+        private
+        view
+        returns (int24 boundary, bool initialized, bool rightward)
+    {
+        if (finalTick > referenceTick) {
+            rightward = true;
+            (boundary, initialized) = nextInitializedBoundary(gauge, referenceTick, tickSpacing, false);
+            if (initialized && boundary > finalTick) initialized = false;
+            return (boundary, initialized, rightward);
+        }
+        if (finalTick < referenceTick) {
+            (boundary, initialized) = nextInitializedBoundary(gauge, referenceTick, tickSpacing, true);
+            if (initialized && boundary <= finalTick) initialized = false;
+        }
+    }
+
+    function _checkpointAndFlush(PoolId poolId, GaugePool storage gauge, uint40 currentTime) private {
+        uint8 slotCount = rangeGaugeStorage().rewardConfig[poolId].slotCount;
+        uint128 activeLiquidity = gauge.activeGaugeLiquidity;
+        for (uint8 slot; slot < slotCount; ++slot) {
+            checkpointStream(gauge.streams[slot], currentTime, activeLiquidity);
+            flushDenominatorRemainder(poolId, slot);
+        }
     }
 
     function _addBoundary(

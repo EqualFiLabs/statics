@@ -74,9 +74,9 @@ contract HookDiamondMock {
 
     function afterProtocolPoolSwap(PoolId poolId) external {
         require(msg.sender == hook, "only hook");
-        if (rejectRangeGaugeCallback) revert RangeGaugeCallbackRejected(poolId);
         lastRangeGaugeCallbackPoolId = poolId;
         ++rangeGaugeCallbackCount;
+        if (rejectRangeGaugeCallback) revert RangeGaugeCallbackRejected(poolId);
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
@@ -269,6 +269,7 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertEq(hook.claimLiability(key.currency1), claim1Before);
         assertEq(hook.lockedLiquidity(poolId), liquidityBefore);
         assertEq(diamond.rangeGaugeCallbackCount(), 0);
+        assertEq(PoolId.unwrap(diamond.lastRangeGaugeCallbackPoolId()), bytes32(0));
     }
 
     function testOnlyDiamondCanHarvestPermanentLiquidityFees() public {

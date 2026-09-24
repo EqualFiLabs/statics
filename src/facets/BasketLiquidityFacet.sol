@@ -25,6 +25,7 @@ import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
     using PoolIdLibrary for PoolKey;
@@ -357,7 +358,9 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
             .registerPool(
                 key, IStaticsSwapFeeHook.PoolKind.BasketCanonical, LibBasket.basketStorage().baskets[basketId].creator
             );
-        int24 tick = IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
+        IPoolManager(ls.poolManager).initialize(key, sqrtPriceX96);
+        (, int24 tick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
+        LibRangeGauge.initializePool(poolId, tick);
         emit CanonicalPoolInitialized(
             basketId, asset, poolId, Currency.unwrap(currency0), Currency.unwrap(currency1), sqrtPriceX96, tick
         );
