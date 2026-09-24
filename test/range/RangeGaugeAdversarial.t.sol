@@ -56,7 +56,8 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
         _provide(positionId, poolId, alice);
         vm.warp(START);
         _fundReward(poolId, stakingAsset, 700 ether);
-        uint40 finish = rangeGauge.poolRewardStream(poolId, address(stakingAsset)).periodFinish;
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
+        uint40 finish = rangeGauge.poolRewardStream(poolId, staticsSlot).periodFinish;
 
         vm.warp(finish - 1 hours);
         stakingAsset.mint(bob, 100 ether);
@@ -67,12 +68,11 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
                 IStaticsRangeGauge.MinimumRemainingDurationNotMet.selector, uint40(1 hours), uint40(1 days)
             )
         );
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 100 ether, uint40(1 days));
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 1, 0);
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 100 ether, uint40(1 days));
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 1, 0);
         vm.stopPrank();
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(stream.periodFinish, finish);
         uint256 expectedRemaining = 700 ether - Math.mulDiv(700 ether, 7 days - 1 hours, 7 days);
         assertEq(stream.periodBudget - stream.periodEmitted, expectedRemaining + 1);
@@ -87,6 +87,7 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
         _provide(positionId, poolId, alice);
         assertEq(rangeGauge.lpLeg(positionId, poolId).manager, address(first));
         _fundReward(poolId, stakingAsset, 700 ether);
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         vm.warp(block.timestamp + 1 days);
 
         StaticsLiquidityManager second = _replacement();
@@ -94,7 +95,7 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
         _exit(positionId, poolId, alice);
         IStaticsRangeGauge.LpLegView memory stub = rangeGauge.lpLeg(positionId, poolId);
         assertEq(stub.manager, address(0));
-        assertEq(stub.claimable[0], 100 ether);
+        assertEq(stub.claimable[staticsSlot], 100 ether);
 
         StaticsLiquidityManager third = _replacement();
         IStaticsProtocolPools(address(diamond)).replaceLiquidityManager(address(third));
@@ -105,17 +106,17 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
     function testFalseReturnRewardCannotCreateUnbackedLiability() public {
         PoolId poolId = _createRangeGaugePool(alice);
         MockFalseReturnERC20 malformed = new MockFalseReturnERC20();
-        _assignReward(poolId, address(malformed));
+        uint8 malformedSlot = _assignReward(poolId, address(malformed));
         malformed.mint(alice, 100 ether);
         vm.startPrank(alice);
         malformed.approve(address(diamond), type(uint256).max);
         malformed.setTransfersReturnFalse(true);
         vm.expectRevert();
-        rangeGauge.fundPoolReward(poolId, address(malformed), 100 ether, 0);
+        rangeGauge.fundPoolReward(poolId, malformedSlot, 100 ether, 0);
         vm.stopPrank();
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, address(malformed));
-        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, address(malformed));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, malformedSlot);
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, malformedSlot);
         assertEq(stream.periodBudget, 0);
         assertEq(stream.indexedLiability, 0);
         assertEq(stream.claimLiability, 0);
@@ -126,17 +127,17 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
     function testDecommissionWithOnlyScheduledLiabilityMovesItWithoutTokenCall() public {
         PoolId poolId = _createRangeGaugePool(alice);
         _fundReward(poolId, stakingAsset, 700 ether);
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         uint256 treasuryBefore = globalRewards.treasuryAccrued(address(stakingAsset));
         IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(stream.periodBudget, stream.periodEmitted);
         assertEq(stream.indexedLiability, 0);
         assertEq(stream.claimLiability, 0);
         assertEq(globalRewards.treasuryAccrued(address(stakingAsset)) - treasuryBefore, 700 ether);
         vm.prank(bob);
-        assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, address(stakingAsset)), 0);
+        assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, staticsSlot), 0);
     }
 
     function testSameTimestampSwapCrossingAndRealRebalancePreserveAccounting() public {
@@ -158,6 +159,7 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
             })
         );
         _fundReward(poolId, stakingAsset, 700 ether);
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         vm.warp(block.timestamp + 1 days);
 
         _mintUnmanagedPosition(key, bob);
@@ -174,7 +176,7 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
 
         IStaticsRangeGauge.GaugePoolView memory afterSwap = rangeGauge.gaugePool(poolId);
         IStaticsRangeGauge.GaugeRewardStreamView memory streamAfterSwap =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+            rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(afterSwap.activeGaugeLiquidity, 0);
 
         _fundAndApprovePoolAssets(key, alice, TOKEN_MAXIMUM);
@@ -196,12 +198,12 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
 
         IStaticsRangeGauge.GaugePoolView memory afterRebalance = rangeGauge.gaugePool(poolId);
         IStaticsRangeGauge.GaugeRewardStreamView memory streamAfterRebalance =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+            rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(afterRebalance.referenceTick, afterSwap.referenceTick);
         assertEq(afterRebalance.activeGaugeLiquidity, INITIAL_LIQUIDITY);
         assertEq(streamAfterRebalance.periodEmitted, streamAfterSwap.periodEmitted);
         assertEq(streamAfterRebalance.globalIndexRay, streamAfterSwap.globalIndexRay);
-        assertGt(rangeGauge.lpLeg(positionId, poolId).claimable[0], 0);
+        assertGt(rangeGauge.lpLeg(positionId, poolId).claimable[staticsSlot], 0);
     }
 
     function _replacement() private returns (StaticsLiquidityManager manager) {
@@ -258,7 +260,7 @@ contract RangeGaugeAdversarialCallbackTest is Test {
         hook.notify(address(callback), poolId);
         (,, int24 referenceTick, uint128 activeLiquidity) = callback.gaugeState(poolId);
         LibRangeGauge.GaugeRewardStream memory stream = callback.stream(poolId, 0);
-        (,, uint256[4] memory outside) = callback.boundary(poolId, 10);
+        (,, uint256[5] memory outside) = callback.boundary(poolId, 10);
         assertEq(referenceTick, 0);
         assertEq(activeLiquidity, 100);
         assertEq(stream.periodEmitted, 0);

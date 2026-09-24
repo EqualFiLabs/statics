@@ -41,7 +41,7 @@ contract RangeGaugeHarness {
     function rewardConfig(PoolId poolId)
         external
         view
-        returns (bool initialized, uint8 slotCount, address[4] memory assets)
+        returns (bool initialized, uint8 slotCount, address[5] memory assets)
     {
         LibRangeGauge.PoolRewardConfig storage config = LibRangeGauge.rangeGaugeStorage().rewardConfig[poolId];
         return (config.initialized, config.slotCount, config.assets);
@@ -49,6 +49,10 @@ contract RangeGaugeHarness {
 
     function rewardSlot(PoolId poolId, address asset) external view returns (uint8 slot, bool assigned) {
         return LibRangeGauge.rewardSlot(poolId, asset);
+    }
+
+    function rewardAsset(PoolId poolId, uint256 slot) external view returns (address asset, bool assigned) {
+        return LibRangeGauge.rewardAsset(poolId, _toUint8(slot));
     }
 
     function staticsToken() external view returns (address) {
@@ -278,7 +282,7 @@ contract RangeGaugeHarness {
     function boundary(PoolId poolId, int256 tick)
         external
         view
-        returns (uint128 grossLiquidity, int128 netLiquidity, uint256[4] memory rewardOutsideRay)
+        returns (uint128 grossLiquidity, int128 netLiquidity, uint256[5] memory rewardOutsideRay)
     {
         LibRangeGauge.GaugeBoundary storage stored =
             LibRangeGauge.rangeGaugeStorage().gauges[poolId].boundaries[_toInt24(tick)];

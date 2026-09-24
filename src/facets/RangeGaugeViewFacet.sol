@@ -41,14 +41,14 @@ contract RangeGaugeViewFacet {
         });
     }
 
-    function poolRewardStream(PoolId poolId, address asset)
+    function poolRewardStream(PoolId poolId, uint8 slot)
         external
         view
         returns (IStaticsRangeGauge.GaugeRewardStreamView memory stream)
     {
-        (uint8 slot, bool assigned) = LibRangeGauge.rewardSlot(poolId, asset);
+        (address asset, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
         if (!assigned) {
-            stream.asset = asset;
+            stream.slot = slot;
             return stream;
         }
         LibRangeGauge.GaugeRewardStream storage stored = LibRangeGauge.rangeGaugeStorage().gauges[poolId].streams[slot];
@@ -69,12 +69,12 @@ contract RangeGaugeViewFacet {
         });
     }
 
-    function poolRewardCustodyAccount(PoolId poolId, address asset)
+    function poolRewardCustodyAccount(PoolId poolId, uint8 slot)
         external
         view
         returns (bytes32 account, bool assigned)
     {
-        (uint8 slot, bool found) = LibRangeGauge.rewardSlot(poolId, asset);
+        (, bool found) = LibRangeGauge.rewardAsset(poolId, slot);
         if (!found) return (bytes32(0), false);
         return (LibRangeGauge.rewardAccount(poolId, slot), true);
     }

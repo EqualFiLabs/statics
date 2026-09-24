@@ -141,7 +141,7 @@ contract RangeGaugePositionTest is RangeGaugeFeatureTestBase {
         );
         IStaticsRangeGauge.LpLegView memory afterIncrease = rangeGauge.lpLeg(positionId, poolId);
         assertEq(increased.liquidity, 7 ether);
-        assertEq(afterIncrease.claimable[0], 100 ether);
+        assertEq(afterIncrease.claimable[1], 100 ether);
         assertEq(rangeGauge.gaugePool(poolId).activeGaugeLiquidity, 7 ether);
 
         vm.warp(block.timestamp + 1 days);
@@ -155,8 +155,8 @@ contract RangeGaugePositionTest is RangeGaugeFeatureTestBase {
         );
         IStaticsRangeGauge.LpLegView memory afterDecrease = rangeGauge.lpLeg(positionId, poolId);
         assertEq(decreased.liquidity, 4 ether);
-        assertEq(afterDecrease.claimable[0], 200 ether - 1);
-        assertGt(afterDecrease.rewardRemainderRay[0], 0);
+        assertEq(afterDecrease.claimable[1], 200 ether - 1);
+        assertGt(afterDecrease.rewardRemainderRay[1], 0);
         assertEq(rangeGauge.gaugePool(poolId).activeGaugeLiquidity, 4 ether);
     }
 
@@ -195,14 +195,14 @@ contract RangeGaugePositionTest is RangeGaugeFeatureTestBase {
             _provide(positionId, poolId, _fullLower(), _fullUpper(), INITIAL_LIQUIDITY, alice);
         bytes32 legBefore = keccak256(abi.encode(rangeGauge.lpLeg(positionId, poolId)));
         bytes32 poolBefore = keccak256(abi.encode(rangeGauge.gaugePool(poolId)));
-        bytes32 streamBefore = keccak256(abi.encode(rangeGauge.poolRewardStream(poolId, address(stakingAsset))));
+        bytes32 streamBefore = keccak256(abi.encode(rangeGauge.poolRewardStream(poolId, 0)));
 
         vm.prank(alice);
         IERC721(address(diamond)).transferFrom(alice, bob, positionId);
         assertEq(IERC721(address(rangePositionManager)).ownerOf(provided.posmTokenId), address(rangeLiquidityManager));
         assertEq(keccak256(abi.encode(rangeGauge.lpLeg(positionId, poolId))), legBefore);
         assertEq(keccak256(abi.encode(rangeGauge.gaugePool(poolId))), poolBefore);
-        assertEq(keccak256(abi.encode(rangeGauge.poolRewardStream(poolId, address(stakingAsset)))), streamBefore);
+        assertEq(keccak256(abi.encode(rangeGauge.poolRewardStream(poolId, 0))), streamBefore);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(LibPosition.NotPositionOwnerOrApproved.selector, positionId, alice));
@@ -290,10 +290,12 @@ contract RangeGaugePositionTest is RangeGaugeFeatureTestBase {
     }
 
     function _fundStatics(PoolId poolId, uint256 amount) private {
+        vm.prank(alice);
+        uint8 slot = rangeGauge.appendPoolRewardAsset(poolId, address(stakingAsset));
         stakingAsset.mint(alice, amount);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), amount);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), amount, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, slot, amount, uint40(7 days));
         vm.stopPrank();
     }
 

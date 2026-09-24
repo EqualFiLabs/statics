@@ -19,7 +19,7 @@ contract RangeGaugeGasTest is Test {
     uint256 private constant MIN_HOOK_HEADROOM = 256;
     uint256 private constant MAX_NO_BOUNDARY_CALLBACK_GAS = 100_000;
     uint256 private constant MAX_128_BOUNDARY_CALLBACK_GAS = 8_000_000;
-    uint256 private constant MAX_128_FOUR_STREAM_CALLBACK_GAS = 15_000_000;
+    uint256 private constant MAX_128_FIVE_STREAM_CALLBACK_GAS = 16_000_000;
 
     event CallbackPathGas(bytes32 indexed scenario, uint256 gasUsed);
     event BoundaryTraversalGas(
@@ -80,21 +80,21 @@ contract RangeGaugeGasTest is Test {
         assertLe(leftward[4], MAX_128_BOUNDARY_CALLBACK_GAS);
     }
 
-    function testRewardHistoryGasForOneAndFourStreams() public {
+    function testRewardHistoryGasForOneAndFiveStreams() public {
         uint256 oneRight = _measureBoundaryTraversal(16, true, 1, 10);
-        uint256 fourRight = _measureBoundaryTraversal(16, true, 4, 10);
+        uint256 fiveRight = _measureBoundaryTraversal(16, true, 5, 10);
         uint256 oneLeft = _measureBoundaryTraversal(16, false, 1, 10);
-        uint256 fourLeft = _measureBoundaryTraversal(16, false, 4, 10);
-        uint256 worstCase = _measureBoundaryTraversal(128, true, 4, 10);
+        uint256 fiveLeft = _measureBoundaryTraversal(16, false, 5, 10);
+        uint256 worstCase = _measureBoundaryTraversal(128, true, 5, 10);
 
         emit log_named_uint("16 rightward crossings with one stream", oneRight);
-        emit log_named_uint("16 rightward crossings with four streams", fourRight);
+        emit log_named_uint("16 rightward crossings with five streams", fiveRight);
         emit log_named_uint("16 leftward crossings with one stream", oneLeft);
-        emit log_named_uint("16 leftward crossings with four streams", fourLeft);
-        emit log_named_uint("128 rightward crossings with four streams", worstCase);
-        assertLt(oneRight, fourRight);
-        assertLt(oneLeft, fourLeft);
-        assertLe(worstCase, MAX_128_FOUR_STREAM_CALLBACK_GAS);
+        emit log_named_uint("16 leftward crossings with five streams", fiveLeft);
+        emit log_named_uint("128 rightward crossings with five streams", worstCase);
+        assertLt(oneRight, fiveRight);
+        assertLt(oneLeft, fiveLeft);
+        assertLe(worstCase, MAX_128_FIVE_STREAM_CALLBACK_GAS);
     }
 
     function testSparseMovementAndMinimumTickSpacingGas() public {

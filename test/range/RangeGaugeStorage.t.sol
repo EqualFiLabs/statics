@@ -22,7 +22,7 @@ contract RangeGaugeStorageTest is Test {
     }
 
     function testUsesDedicatedNamespaceAndLpModule() public view {
-        assertEq(gauge.storagePosition(), keccak256("statics.storage.range.gauge.v1"));
+        assertEq(gauge.storagePosition(), keccak256("statics.storage.range.gauge.v2"));
         assertEq(gauge.lpModule(), keccak256("statics.position.module.lp"));
         assertEq(
             gauge.lpLegKey(address(gauge), POOL_A),
@@ -33,15 +33,18 @@ contract RangeGaugeStorageTest is Test {
     function testInitializesDefaultDurationAndSourcesStaticsSlotZero() public {
         gauge.initializePool(POOL_A, -17);
 
-        (bool initialized, uint8 slotCount, address[4] memory assets) = gauge.rewardConfig(POOL_A);
+        (bool initialized, uint8 slotCount, address[5] memory assets) = gauge.rewardConfig(POOL_A);
         assertTrue(initialized);
         assertEq(slotCount, 1);
         assertEq(assets[0], address(statics));
         assertEq(gauge.staticsToken(), address(statics));
         assertEq(gauge.rewardDuration(), 7 days);
         (uint8 slot, bool assigned) = gauge.rewardSlot(POOL_A, address(statics));
-        assertTrue(assigned);
+        assertFalse(assigned);
         assertEq(slot, 0);
+        (address protocolAsset, bool protocolAssigned) = gauge.rewardAsset(POOL_A, 0);
+        assertTrue(protocolAssigned);
+        assertEq(protocolAsset, address(statics));
     }
 
     function testRewardDurationBoundsAndAllowlistState() public {
@@ -67,9 +70,11 @@ contract RangeGaugeStorageTest is Test {
         address rewardOne = makeAddr("rewardOne");
         address rewardTwo = makeAddr("rewardTwo");
         address rewardThree = makeAddr("rewardThree");
+        address rewardFour = makeAddr("rewardFour");
         assertEq(gauge.appendRewardAsset(POOL_A, rewardOne), 1);
         assertEq(gauge.appendRewardAsset(POOL_A, rewardTwo), 2);
         assertEq(gauge.appendRewardAsset(POOL_A, rewardThree), 3);
+        assertEq(gauge.appendRewardAsset(POOL_A, rewardFour), 4);
 
         (uint8 slot, bool assigned) = gauge.rewardSlot(POOL_A, rewardTwo);
         assertTrue(assigned);
@@ -77,7 +82,7 @@ contract RangeGaugeStorageTest is Test {
         vm.expectRevert(abi.encodeWithSelector(LibRangeGauge.RewardAssetAlreadyAssigned.selector, POOL_A, rewardTwo));
         gauge.appendRewardAsset(POOL_A, rewardTwo);
         vm.expectRevert(abi.encodeWithSelector(LibRangeGauge.RewardSlotLimitReached.selector, POOL_A));
-        gauge.appendRewardAsset(POOL_A, makeAddr("rewardFour"));
+        gauge.appendRewardAsset(POOL_A, makeAddr("rewardFive"));
     }
 
     function testStoresLpLegPerPositionAndPool() public {

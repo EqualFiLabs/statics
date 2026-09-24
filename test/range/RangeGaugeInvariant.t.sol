@@ -179,18 +179,19 @@ contract RangeGaugeInvariantHandler is Test {
 
     function fund(uint256 rawAsset, uint256 rawAmount, uint256 rawMinimum) external {
         address asset = rawAsset % 2 == 0 ? reward0 : reward1;
+        uint8 slot = _slot(asset);
         uint256 amount = bound(rawAmount, 1, 100 ether);
         uint40 minimum = rawMinimum % 2 == 0 ? uint40(0) : uint40(1 days);
-        try gauge.fundPoolReward(poolId, asset, amount, minimum) returns (uint256) {
+        try gauge.fundPoolReward(poolId, slot, amount, minimum) returns (uint256) {
             ++successfulCalls;
         } catch {}
     }
 
     function claim(uint256 rawPosition, uint256 rawAsset) external {
-        address[] memory assets = new address[](1);
-        assets[0] = rawAsset % 2 == 0 ? reward0 : reward1;
+        uint8[] memory slots = new uint8[](1);
+        slots[0] = _slot(rawAsset % 2 == 0 ? reward0 : reward1);
         uint256[] memory minimums = new uint256[](1);
-        try gauge.claimLpRewards(_position(rawPosition), poolId, assets, minimums, address(this)) returns (
+        try gauge.claimLpRewards(_position(rawPosition), poolId, slots, minimums, address(this)) returns (
             uint256[] memory
         ) {
             ++successfulCalls;
@@ -198,8 +199,8 @@ contract RangeGaugeInvariantHandler is Test {
     }
 
     function forfeit(uint256 rawPosition, uint256 rawAsset) external {
-        address asset = rawAsset % 2 == 0 ? reward0 : reward1;
-        try gauge.forfeitLpReward(_position(rawPosition), poolId, asset) returns (uint256) {
+        uint8 slot = _slot(rawAsset % 2 == 0 ? reward0 : reward1);
+        try gauge.forfeitLpReward(_position(rawPosition), poolId, slot) returns (uint256) {
             ++successfulCalls;
         } catch {}
     }
@@ -234,12 +235,12 @@ contract RangeGaugeInvariantHandler is Test {
     }
 
     function changeDuration(uint256 rawDuration) external {
-        IStaticsRangeGauge.GaugeRewardStreamView memory before0 = gauge.poolRewardStream(poolId, reward0);
-        IStaticsRangeGauge.GaugeRewardStreamView memory before1 = gauge.poolRewardStream(poolId, reward1);
+        IStaticsRangeGauge.GaugeRewardStreamView memory before0 = gauge.poolRewardStream(poolId, _slot(reward0));
+        IStaticsRangeGauge.GaugeRewardStreamView memory before1 = gauge.poolRewardStream(poolId, _slot(reward1));
         vm.prank(owner);
         gauge.setGaugeRewardDuration(uint40(bound(rawDuration, 1 days, 30 days)));
-        IStaticsRangeGauge.GaugeRewardStreamView memory after0 = gauge.poolRewardStream(poolId, reward0);
-        IStaticsRangeGauge.GaugeRewardStreamView memory after1 = gauge.poolRewardStream(poolId, reward1);
+        IStaticsRangeGauge.GaugeRewardStreamView memory after0 = gauge.poolRewardStream(poolId, _slot(reward0));
+        IStaticsRangeGauge.GaugeRewardStreamView memory after1 = gauge.poolRewardStream(poolId, _slot(reward1));
         if (before0.periodFinish != after0.periodFinish || before1.periodFinish != after1.periodFinish) {
             accountingViolation = true;
         }
@@ -269,14 +270,14 @@ contract RangeGaugeInvariantHandler is Test {
     }
 
     function reconcile(uint256 rawAsset) external {
-        address asset = rawAsset % 2 == 0 ? reward0 : reward1;
+        uint8 slot = _slot(rawAsset % 2 == 0 ? reward0 : reward1);
         IStaticsRangeGauge.GaugePoolView memory poolBefore = gauge.gaugePool(poolId);
-        IStaticsRangeGauge.GaugeRewardStreamView memory streamBefore = gauge.poolRewardStream(poolId, asset);
-        try gauge.reconcilePoolRewardSurplus(poolId, asset) returns (uint256) {
+        IStaticsRangeGauge.GaugeRewardStreamView memory streamBefore = gauge.poolRewardStream(poolId, slot);
+        try gauge.reconcilePoolRewardSurplus(poolId, slot) returns (uint256) {
             if (
                 !poolBefore.stopped || poolBefore.unresolvedLegCount != 0
                     || streamBefore.periodBudget != streamBefore.periodEmitted || streamBefore.claimLiability != 0
-                    || gauge.poolRewardStream(poolId, asset).indexedLiability != 0
+                    || gauge.poolRewardStream(poolId, slot).indexedLiability != 0
             ) accountingViolation = true;
             ++successfulCalls;
         } catch {}
@@ -298,6 +299,14 @@ contract RangeGaugeInvariantHandler is Test {
         (PoolId[] memory poolIds,) = gauge.positionGaugePools(id, 0, 1);
         return poolIds.length != 0;
     }
+
+    function _slot(address asset) private view returns (uint8 slot) {
+        IStaticsRangeGauge.PoolRewardConfigView memory config = gauge.poolRewardConfig(poolId);
+        for (uint8 candidate = 1; candidate < config.slotCount; ++candidate) {
+            if (config.assets[candidate] == asset) return candidate;
+        }
+        revert("reward slot not found");
+    }
 }
 
 contract RangeGaugeInvariantTest is StdInvariant, RangeGaugeLifecycleTestBase {
@@ -309,6 +318,7 @@ contract RangeGaugeInvariantTest is StdInvariant, RangeGaugeLifecycleTestBase {
         super.setUp();
         poolId = _createRangeGaugePool(alice);
         secondReward = new MockERC20("Invariant Reward", "INV", 18);
+        _assignReward(poolId, address(stakingAsset));
         _assignReward(poolId, address(secondReward));
         PoolKey memory key = _poolKey(poolId);
         handler = new RangeGaugeInvariantHandler(
@@ -392,13 +402,14 @@ contract RangeGaugeInvariantTest is StdInvariant, RangeGaugeLifecycleTestBase {
 
     function invariantRewardSlotsAndCustodyRemainConserved() public view {
         IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
-        assertEq(config.slotCount, 2);
+        assertEq(config.slotCount, 3);
         assertEq(config.assets[0], address(stakingAsset));
-        assertEq(config.assets[1], address(secondReward));
+        assertEq(config.assets[1], address(stakingAsset));
+        assertEq(config.assets[2], address(secondReward));
         for (uint256 i; i < config.slotCount; ++i) {
             address asset = config.assets[i];
-            IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, asset);
-            (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, asset);
+            IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, uint8(i));
+            (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, uint8(i));
             assertTrue(assigned);
             uint256 scheduled = stream.periodBudget - stream.periodEmitted;
             assertEq(
@@ -434,13 +445,12 @@ contract RangeGaugeInvariantPropertiesTest is RangeGaugeLifecycleTestBase {
         );
         assertEq(rangeGauge.gaugePool(poolId).activeGaugeLiquidity, 0);
         _fundReward(poolId, stakingAsset, 700 ether);
-        IStaticsRangeGauge.GaugeRewardStreamView memory before =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory before = rangeGauge.poolRewardStream(poolId, staticsSlot);
         vm.warp(block.timestamp + 1 days);
         vm.prank(alice);
-        rangeGauge.claimLpRewards(positionId, poolId, new address[](0), new uint256[](0), alice);
-        IStaticsRangeGauge.GaugeRewardStreamView memory afterPause =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        rangeGauge.claimLpRewards(positionId, poolId, new uint8[](0), new uint256[](0), alice);
+        IStaticsRangeGauge.GaugeRewardStreamView memory afterPause = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(afterPause.periodEmitted, before.periodEmitted);
         assertEq(afterPause.periodBudget, before.periodBudget);
         assertEq(afterPause.periodFinish, before.periodFinish + 1 days);
@@ -451,15 +461,16 @@ contract RangeGaugeInvariantPropertiesTest is RangeGaugeLifecycleTestBase {
         uint256 positionId = _createPosition(alice);
         _provide(positionId, poolId, alice);
         _fundReward(poolId, stakingAsset, 700 ether);
-        uint40 finish = rangeGauge.poolRewardStream(poolId, address(stakingAsset)).periodFinish;
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
+        uint40 finish = rangeGauge.poolRewardStream(poolId, staticsSlot).periodFinish;
         rangeGauge.setGaugeRewardDuration(1 days);
-        assertEq(rangeGauge.poolRewardStream(poolId, address(stakingAsset)).periodFinish, finish);
+        assertEq(rangeGauge.poolRewardStream(poolId, staticsSlot).periodFinish, finish);
         stakingAsset.mint(alice, 1 ether);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), 1 ether);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 1 ether, 0);
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 1 ether, 0);
         vm.stopPrank();
-        assertEq(rangeGauge.poolRewardStream(poolId, address(stakingAsset)).periodFinish, finish);
+        assertEq(rangeGauge.poolRewardStream(poolId, staticsSlot).periodFinish, finish);
     }
 
     function testUnmanagedV4LiquidityNeverChangesGaugeWeight() public {

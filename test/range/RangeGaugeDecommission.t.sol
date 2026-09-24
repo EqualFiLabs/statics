@@ -16,31 +16,23 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         PoolId poolId = _createRangeGaugePool(alice);
         uint256 positionId = _createPosition(alice);
         _provide(positionId, poolId, alice);
-        stakingAsset.mint(alice, 700 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), 700 ether);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, 0);
-        vm.stopPrank();
+        _fundReward(poolId, stakingAsset, 700 ether);
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         vm.warp(block.timestamp + 1 days);
 
-        address[] memory noAssets = new address[](0);
+        uint8[] memory noSlots = new uint8[](0);
         uint256[] memory noMinimums = new uint256[](0);
         vm.prank(alice);
-        rangeGauge.claimLpRewards(positionId, poolId, noAssets, noMinimums, alice);
-        assertEq(rangeGauge.poolRewardStream(poolId, address(stakingAsset)).claimLiability, 100 ether);
+        rangeGauge.claimLpRewards(positionId, poolId, noSlots, noMinimums, alice);
+        assertEq(rangeGauge.poolRewardStream(poolId, staticsSlot).claimLiability, 100 ether);
 
-        stakingAsset.mint(alice, 700 ether);
-        vm.startPrank(alice);
-        stakingAsset.approve(address(diamond), 700 ether);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, 0);
-        vm.stopPrank();
+        _fundReward(poolId, stakingAsset, 700 ether);
         vm.warp(block.timestamp + 1 days);
         uint256 treasuryBefore = globalRewards.treasuryAccrued(address(stakingAsset));
         IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
 
         IStaticsRangeGauge.GaugePoolView memory gauge = rangeGauge.gaugePool(poolId);
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertTrue(gauge.stopped);
         assertEq(stream.periodEmitted, stream.periodBudget);
         assertGt(stream.indexedLiability, 0);
@@ -115,7 +107,7 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         rangeGauge.appendPoolRewardAsset(poolId, address(extraReward));
         vm.prank(alice);
         vm.expectPartialRevert(IStaticsRangeGauge.GaugeStopped.selector);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 1 ether, 0);
+        rangeGauge.fundPoolReward(poolId, 0, 1 ether, 0);
 
         vm.prank(alice);
         IStaticsRangeGauge.LiquidityMovement memory decreased = rangeGauge.decreaseLiquidity(
@@ -134,7 +126,7 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         _exit(positionId, poolId, alice);
 
         vm.prank(bob);
-        assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, address(stakingAsset)), 0);
+        assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, 0), 0);
     }
 
     function testFinalReconciliationWaitsForEveryLegAndRoutesOnlyResidual() public {
@@ -144,30 +136,30 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         _provide(firstPosition, poolId, alice);
         _provide(secondPosition, poolId, bob);
         _fundReward(poolId, stakingAsset, 1);
+        uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         vm.warp(block.timestamp + 7 days);
         IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory beforeExit =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory beforeExit = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(beforeExit.indexedLiability, 1);
         assertEq(beforeExit.claimLiability, 0);
         vm.expectPartialRevert(IStaticsRangeGauge.PoolRewardReconciliationUnavailable.selector);
-        rangeGauge.reconcilePoolRewardSurplus(poolId, address(stakingAsset));
+        rangeGauge.reconcilePoolRewardSurplus(poolId, staticsSlot);
 
         _exit(firstPosition, poolId, alice);
         vm.expectPartialRevert(IStaticsRangeGauge.PoolRewardReconciliationUnavailable.selector);
-        rangeGauge.reconcilePoolRewardSurplus(poolId, address(stakingAsset));
+        rangeGauge.reconcilePoolRewardSurplus(poolId, staticsSlot);
         _exit(secondPosition, poolId, bob);
         assertEq(rangeGauge.gaugePool(poolId).unresolvedLegCount, 0);
 
-        (bytes32 rewardAccount,) = rangeGauge.poolRewardCustodyAccount(poolId, address(stakingAsset));
+        (bytes32 rewardAccount,) = rangeGauge.poolRewardCustodyAccount(poolId, staticsSlot);
         IStaticsCustody custodyView = IStaticsCustody(address(diamond));
         assertEq(custodyView.reservedByAccount(rewardAccount, address(stakingAsset)), 1);
         uint256 treasuryBefore = globalRewards.treasuryAccrued(address(stakingAsset));
         vm.prank(bob);
-        assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, address(stakingAsset)), 1);
+        assertEq(rangeGauge.reconcilePoolRewardSurplus(poolId, staticsSlot), 1);
         assertEq(custodyView.reservedByAccount(rewardAccount, address(stakingAsset)), 0);
-        assertEq(rangeGauge.poolRewardStream(poolId, address(stakingAsset)).indexedLiability, 0);
+        assertEq(rangeGauge.poolRewardStream(poolId, staticsSlot).indexedLiability, 0);
         assertEq(globalRewards.treasuryAccrued(address(stakingAsset)) - treasuryBefore, 1);
     }
 

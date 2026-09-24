@@ -13,10 +13,10 @@ import {LibIndexMath} from "./LibIndexMath.sol";
 library LibRangeGauge {
     using TickBitmap for mapping(int16 wordPos => uint256 word);
 
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.range.gauge.v1");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.range.gauge.v2");
     bytes32 internal constant RANGE_REWARD_ACCOUNT_DOMAIN = keccak256("statics.custody.account.range.rewards.v1");
     uint256 internal constant RAY = 1e27;
-    uint8 internal constant MAX_REWARD_SLOTS = 4;
+    uint8 internal constant MAX_REWARD_SLOTS = 5;
     uint8 internal constant STATICS_SLOT = 0;
     uint256 internal constant MAX_INDEXABLE_REWARD = type(uint256).max / RAY;
     uint40 internal constant DEFAULT_REWARD_DURATION = 7 days;
@@ -26,7 +26,7 @@ library LibRangeGauge {
     struct PoolRewardConfig {
         bool initialized;
         uint8 slotCount;
-        address[4] assets;
+        address[5] assets;
         mapping(address asset => uint8 slotPlusOne) slotPlusOne;
     }
 
@@ -36,9 +36,9 @@ library LibRangeGauge {
         int24 tickLower;
         int24 tickUpper;
         uint128 liquidity;
-        uint256[4] checkpointInsideRay;
-        uint256[4] rewardRemainderRay;
-        uint256[4] claimable;
+        uint256[5] checkpointInsideRay;
+        uint256[5] rewardRemainderRay;
+        uint256[5] claimable;
     }
 
     struct PoolIndex {
@@ -49,7 +49,7 @@ library LibRangeGauge {
     struct GaugeBoundary {
         uint128 grossLiquidity;
         int128 netLiquidity;
-        uint256[4] rewardOutsideRay;
+        uint256[5] rewardOutsideRay;
     }
 
     struct GaugeRewardStream {
@@ -79,8 +79,8 @@ library LibRangeGauge {
         mapping(int8 summaryWordPos => uint256 word) boundaryWordBitmap;
         uint256 boundarySummaryBitmap;
         mapping(int24 tick => GaugeBoundary boundary) boundaries;
-        GaugeRewardStream[4] streams;
-        GaugeRewardCapacity[4] capacities;
+        GaugeRewardStream[5] streams;
+        GaugeRewardCapacity[5] capacities;
     }
 
     struct RangeGaugeStorage {
@@ -176,6 +176,12 @@ library LibRangeGauge {
         uint8 slotPlusOne = rangeGaugeStorage().rewardConfig[poolId].slotPlusOne[asset];
         if (slotPlusOne == 0) return (0, false);
         return (slotPlusOne - 1, true);
+    }
+
+    function rewardAsset(PoolId poolId, uint8 slot) internal view returns (address asset, bool assigned) {
+        PoolRewardConfig storage config = rangeGaugeStorage().rewardConfig[poolId];
+        if (!config.initialized || slot >= config.slotCount) return (address(0), false);
+        return (config.assets[slot], true);
     }
 
     function rewardAccount(PoolId poolId, uint8 slot) internal pure returns (bytes32) {
@@ -624,7 +630,6 @@ library LibRangeGauge {
         config.initialized = true;
         config.slotCount = 1;
         config.assets[STATICS_SLOT] = statics;
-        config.slotPlusOne[statics] = STATICS_SLOT + 1;
     }
 
     function _increaseIndex(GaugeRewardStream storage stream, uint256 amount, uint128 denominator) private {

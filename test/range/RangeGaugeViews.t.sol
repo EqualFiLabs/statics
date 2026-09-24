@@ -4,7 +4,6 @@ pragma solidity 0.8.33;
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
 import {RangeGaugeFeatureTestBase} from "../helpers/RangeGaugeFeatureTestBase.sol";
 
 contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
@@ -18,18 +17,20 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
         rangeGaugeState.addGaugeRange(poolId, -10, 10, 10, 0, 100);
         rangeGaugeState.setActiveGaugeLiquidity(poolId, 100);
         rangeGaugeState.seedLpLeg(POSITION_ID, poolId, legacyManager, POSM_TOKEN_ID, -10, 10, 100);
+        vm.prank(alice);
+        uint8 staticsSlot = rangeGauge.appendPoolRewardAsset(poolId, address(stakingAsset));
 
         stakingAsset.mint(bob, 700 ether);
         vm.prank(bob);
         stakingAsset.approve(address(diamond), type(uint256).max);
         vm.warp(START);
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 700 ether, uint40(7 days));
         vm.warp(START + 1 days);
 
         IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
         assertTrue(config.initialized);
-        assertEq(config.slotCount, 1);
+        assertEq(config.slotCount, 2);
         assertEq(config.assets[0], address(stakingAsset));
 
         IStaticsRangeGauge.GaugePoolView memory pool = rangeGauge.gaugePool(poolId);
@@ -40,10 +41,9 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
         assertEq(pool.managedLegCount, 1);
         assertEq(pool.unresolvedLegCount, 1);
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertTrue(stream.assigned);
-        assertEq(stream.slot, 0);
+        assertEq(stream.slot, staticsSlot);
         assertEq(stream.periodBudget, 700 ether);
         assertEq(stream.periodEmitted, 0);
 
@@ -75,9 +75,7 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
         assertTrue(installed);
         assertTrue(activeManager != address(0));
 
-        (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, address(stakingAsset));
-        assertTrue(assigned);
-        assertEq(custody.reservedByAccount(account, address(stakingAsset)), 700 ether);
+        _assertRewardCustody(poolId, staticsSlot, 700 ether);
     }
 
     function testPendingPreviewIncludesUncheckpointedEmissionWithoutMutatingStream() public {
@@ -85,21 +83,23 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
         rangeGaugeState.addGaugeRange(poolId, -10, 10, 10, 0, 100);
         rangeGaugeState.setActiveGaugeLiquidity(poolId, 100);
         rangeGaugeState.seedLpLeg(POSITION_ID, poolId, makeAddr("manager"), POSM_TOKEN_ID, -10, 10, 100);
+        vm.prank(alice);
+        uint8 staticsSlot = rangeGauge.appendPoolRewardAsset(poolId, address(stakingAsset));
         stakingAsset.mint(bob, 700 ether);
         vm.prank(bob);
         stakingAsset.approve(address(diamond), type(uint256).max);
         vm.warp(START);
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 700 ether, uint40(7 days));
         vm.warp(START + 1 days);
 
         IStaticsRangeGauge.PendingRewardsView memory pending = rangeGauge.previewLpRewards(POSITION_ID, poolId);
-        assertEq(pending.slotCount, 1);
+        assertEq(pending.slotCount, 2);
         assertEq(pending.assets[0], address(stakingAsset));
-        assertEq(pending.amounts[0], 100 ether);
+        assertEq(pending.assets[staticsSlot], address(stakingAsset));
+        assertEq(pending.amounts[staticsSlot], 100 ether);
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory unchanged =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory unchanged = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(unchanged.lastUpdate, START);
         assertEq(unchanged.periodEmitted, 0);
         assertEq(unchanged.globalIndexRay, 0);
@@ -107,13 +107,19 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
 
     function testUnknownRewardAssetViewsAreExplicitlyUnassigned() public {
         PoolId poolId = _createRangeGaugePool(alice);
-        MockERC20 unknown = new MockERC20("Unknown", "UNK", 18);
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, address(unknown));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, 4);
         assertFalse(stream.assigned);
-        assertEq(stream.asset, address(unknown));
+        assertEq(stream.asset, address(0));
+        assertEq(stream.slot, 4);
         assertEq(stream.periodBudget, 0);
-        (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, address(unknown));
+        (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, 4);
         assertEq(account, bytes32(0));
         assertFalse(assigned);
+    }
+
+    function _assertRewardCustody(PoolId poolId, uint8 slot, uint256 expected) private view {
+        (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, slot);
+        assertTrue(assigned);
+        assertEq(custody.reservedByAccount(account, address(stakingAsset)), expected);
     }
 }

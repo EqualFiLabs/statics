@@ -40,18 +40,19 @@ contract RangeGaugeFacet is ReentrancyGuard {
         emit IStaticsRangeGauge.PoolRewardAssetAppended(poolId, asset, slot);
     }
 
-    function fundPoolReward(PoolId poolId, address asset, uint256 amount, uint40 minRemainingDuration)
+    function fundPoolReward(PoolId poolId, uint8 slot, uint256 amount, uint40 minRemainingDuration)
         external
         nonReentrant
         returns (uint256 received)
     {
         _enforceLiquidityAvailable();
         _enforceActivePublicGauge(poolId);
+        if (slot == LibRangeGauge.STATICS_SLOT) revert IStaticsRangeGauge.ProtocolRewardSlotReserved(poolId);
+        (address asset, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(poolId, slot);
         _enforceRewardAssetAvailable(asset);
 
         LibRangeGauge.RangeGaugeStorage storage rgs = LibRangeGauge.rangeGaugeStorage();
-        (uint8 slot, bool assigned) = LibRangeGauge.rewardSlot(poolId, asset);
-        if (!assigned) revert IStaticsRangeGauge.GaugeRewardAssetNotAssigned(poolId, asset);
         LibRangeGauge.GaugePool storage gauge = rgs.gauges[poolId];
         uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
         LibRangeGauge.GaugeRewardStream storage stream = gauge.streams[slot];

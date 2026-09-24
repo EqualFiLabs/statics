@@ -84,23 +84,23 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
     function claimLpRewards(
         uint256 positionId,
         PoolId poolId,
-        address[] calldata assets,
+        uint8[] calldata slots,
         uint256[] calldata minimumAmounts,
         address receiver
     ) external nonReentrant returns (uint256[] memory received) {
         LibPosition.enforceAuthorized(positionId, msg.sender);
-        if (assets.length != minimumAmounts.length) revert IStaticsRangeGauge.ArrayLengthMismatch();
+        if (slots.length != minimumAmounts.length) revert IStaticsRangeGauge.ArrayLengthMismatch();
         if (receiver == address(0) || receiver == address(this)) revert IStaticsRangeGauge.InvalidReceiver(receiver);
         PoolKey memory key = _enforceHistoricalPublicGauge(poolId);
         LibRangeGauge.LpLeg storage leg = _indexedLeg(positionId, poolId);
         _settleIfActive(poolId, key, leg);
 
         ClaimContext memory context = ClaimContext({positionId: positionId, poolId: poolId, receiver: receiver});
-        received = _claimAssets(context, leg, assets, minimumAmounts);
+        received = _claimSlots(context, leg, slots, minimumAmounts);
         _finalizeIfResolved(positionId, poolId, leg);
     }
 
-    function forfeitLpReward(uint256 positionId, PoolId poolId, address asset)
+    function forfeitLpReward(uint256 positionId, PoolId poolId, uint8 slot)
         external
         nonReentrant
         returns (uint256 amount)
@@ -109,12 +109,12 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         PoolKey memory key = _enforceHistoricalPublicGauge(poolId);
         LibRangeGauge.LpLeg storage leg = _indexedLeg(positionId, poolId);
         _settleIfActive(poolId, key, leg);
-        (uint8 slot, bool assigned) = LibRangeGauge.rewardSlot(poolId, asset);
-        if (!assigned) revert IStaticsRangeGauge.GaugeRewardAssetNotAssigned(poolId, asset);
+        (address asset, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(poolId, slot);
 
         amount = leg.claimable[slot];
         leg.claimable[slot] = 0;
-        _decreaseClaimLiability(poolId, asset, slot, amount);
+        _decreaseClaimLiability(poolId, slot, amount);
         if (leg.liquidity == 0) leg.rewardRemainderRay[slot] = 0;
         if (amount != 0) {
             LibCustody.moveReservation(
@@ -122,7 +122,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
             );
             LibGlobalRewards.accrueReservedTreasuryFee(asset, amount);
         }
-        emit IStaticsRangeGauge.LpRewardForfeited(positionId, poolId, asset, amount);
+        emit IStaticsRangeGauge.LpRewardForfeited(positionId, poolId, asset, slot, amount);
         _finalizeIfResolved(positionId, poolId, leg);
     }
 
@@ -138,11 +138,11 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         emit IStaticsRangeGauge.UnboundPosmRecovered(manager, posmTokenId, receiver);
     }
 
-    function reconcilePoolRewardSurplus(PoolId poolId, address asset) external nonReentrant returns (uint256 amount) {
+    function reconcilePoolRewardSurplus(PoolId poolId, uint8 slot) external nonReentrant returns (uint256 amount) {
         _enforceHistoricalPublicGauge(poolId);
         LibRangeGauge.RangeGaugeStorage storage rgs = LibRangeGauge.rangeGaugeStorage();
-        (uint8 slot, bool assigned) = LibRangeGauge.rewardSlot(poolId, asset);
-        if (!assigned) revert IStaticsRangeGauge.GaugeRewardAssetNotAssigned(poolId, asset);
+        (address asset, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(poolId, slot);
         LibRangeGauge.GaugePool storage gauge = rgs.gauges[poolId];
         LibRangeGauge.GaugeRewardStream storage stream = gauge.streams[slot];
         bytes32 account = LibRangeGauge.rewardAccount(poolId, slot);
@@ -155,7 +155,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
                 stream.claimLiability,
                 reserved,
                 stream.indexedLiability
-            )) revert IStaticsRangeGauge.PoolRewardReconciliationUnavailable(poolId, asset);
+            )) revert IStaticsRangeGauge.PoolRewardReconciliationUnavailable(poolId, slot);
 
         stream.indexedLiability = 0;
         stream.indexRemainder = 0;
@@ -167,26 +167,32 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         emit IStaticsRangeGauge.PoolRewardSurplusReconciled(poolId, asset, slot, amount);
     }
 
-    function _claimAssets(
+    function _claimSlots(
         ClaimContext memory context,
         LibRangeGauge.LpLeg storage leg,
-        address[] calldata assets,
+        uint8[] calldata slots,
         uint256[] calldata minimumAmounts
     ) private returns (uint256[] memory received) {
-        received = new uint256[](assets.length);
-        for (uint256 i; i < assets.length; ++i) {
-            received[i] = _claimSlot(context, leg, assets[i], minimumAmounts[i]);
+        received = new uint256[](slots.length);
+        uint256 seen;
+        for (uint256 i; i < slots.length; ++i) {
+            uint8 slot = slots[i];
+            if (slot >= LibRangeGauge.MAX_REWARD_SLOTS) {
+                revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(context.poolId, slot);
+            }
+            uint256 mask = 1 << slot;
+            if (seen & mask != 0) revert IStaticsRangeGauge.DuplicateRewardSlot(slot);
+            seen |= mask;
+            received[i] = _claimSlot(context, leg, slot, minimumAmounts[i]);
         }
     }
 
-    function _claimSlot(
-        ClaimContext memory context,
-        LibRangeGauge.LpLeg storage leg,
-        address asset,
-        uint256 minimumAmount
-    ) private returns (uint256 received) {
-        (uint8 slot, bool assigned) = LibRangeGauge.rewardSlot(context.poolId, asset);
-        if (!assigned) revert IStaticsRangeGauge.GaugeRewardAssetNotAssigned(context.poolId, asset);
+    function _claimSlot(ClaimContext memory context, LibRangeGauge.LpLeg storage leg, uint8 slot, uint256 minimumAmount)
+        private
+        returns (uint256 received)
+    {
+        (address asset, bool assigned) = LibRangeGauge.rewardAsset(context.poolId, slot);
+        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(context.poolId, slot);
         uint256 amount = leg.claimable[slot];
         if (amount == 0) {
             if (minimumAmount != 0) revert IStaticsRangeGauge.RewardAmountBelowMinimum(asset, 0, minimumAmount);
@@ -194,7 +200,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         }
 
         leg.claimable[slot] = 0;
-        _decreaseClaimLiability(context.poolId, asset, slot, amount);
+        _decreaseClaimLiability(context.poolId, slot, amount);
         (uint256 debited, uint256 actualReceived) = LibCustody.pushReserved(
             LibRangeGauge.rewardAccount(context.poolId, slot), asset, context.receiver, amount, amount
         );
@@ -202,17 +208,17 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
             revert IStaticsRangeGauge.RewardAmountBelowMinimum(asset, actualReceived, minimumAmount);
         }
         emit IStaticsRangeGauge.LpRewardsClaimed(
-            context.positionId, context.poolId, asset, context.receiver, debited, actualReceived
+            context.positionId, context.poolId, asset, slot, context.receiver, debited, actualReceived
         );
         received = actualReceived;
     }
 
-    function _decreaseClaimLiability(PoolId poolId, address asset, uint8 slot, uint256 amount) private {
+    function _decreaseClaimLiability(PoolId poolId, uint8 slot, uint256 amount) private {
         if (amount == 0) return;
         LibRangeGauge.GaugeRewardStream storage stream = LibRangeGauge.rangeGaugeStorage().gauges[poolId].streams[slot];
         uint256 liability = stream.claimLiability;
         if (amount > liability) {
-            revert IStaticsRangeGauge.ClaimLiabilityUnderflow(poolId, asset, liability, amount);
+            revert IStaticsRangeGauge.ClaimLiabilityUnderflow(poolId, slot, liability, amount);
         }
         stream.claimLiability = liability - amount;
     }
@@ -238,7 +244,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
 
     function _finalizeIfResolved(uint256 positionId, PoolId poolId, LibRangeGauge.LpLeg storage leg) private {
         if (leg.liquidity != 0) return;
-        for (uint8 slot; slot < 4; ++slot) {
+        for (uint8 slot; slot < LibRangeGauge.MAX_REWARD_SLOTS; ++slot) {
             if (leg.claimable[slot] != 0 || leg.rewardRemainderRay[slot] != 0) return;
         }
 

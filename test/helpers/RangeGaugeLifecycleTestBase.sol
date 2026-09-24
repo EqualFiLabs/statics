@@ -43,17 +43,18 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
         );
     }
 
-    function _assignReward(PoolId poolId, address asset) internal {
+    function _assignReward(PoolId poolId, address asset) internal returns (uint8 slot) {
         rangeGauge.setGaugeRewardAssetAllowed(asset, true);
         vm.prank(alice);
-        rangeGauge.appendPoolRewardAsset(poolId, asset);
+        slot = rangeGauge.appendPoolRewardAsset(poolId, asset);
     }
 
     function _fundReward(PoolId poolId, MockERC20 reward, uint256 amount) internal returns (uint256 received) {
+        uint8 slot = _ensureOrdinaryRewardSlot(poolId, address(reward));
         reward.mint(alice, amount);
         vm.startPrank(alice);
         reward.approve(address(diamond), amount);
-        received = rangeGauge.fundPoolReward(poolId, address(reward), amount, uint40(7 days));
+        received = rangeGauge.fundPoolReward(poolId, slot, amount, 0);
         vm.stopPrank();
     }
 
@@ -65,12 +66,13 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
         address receiver,
         address caller
     ) internal returns (uint256 received) {
-        address[] memory assets = new address[](1);
-        assets[0] = asset;
+        uint8 slot = _ordinaryRewardSlot(poolId, asset);
+        uint8[] memory slots = new uint8[](1);
+        slots[0] = slot;
         uint256[] memory minimums = new uint256[](1);
         minimums[0] = minimumAmount;
         vm.prank(caller);
-        uint256[] memory amounts = rangeGauge.claimLpRewards(positionId, poolId, assets, minimums, receiver);
+        uint256[] memory amounts = rangeGauge.claimLpRewards(positionId, poolId, slots, minimums, receiver);
         received = amounts[0];
     }
 
@@ -98,6 +100,22 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
     function _assertPosmBurned(uint256 posmTokenId) internal {
         vm.expectRevert();
         IERC721(address(rangePositionManager)).ownerOf(posmTokenId);
+    }
+
+    function _ordinaryRewardSlot(PoolId poolId, address asset) internal view returns (uint8 slot) {
+        IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
+        for (uint8 candidate = 1; candidate < config.slotCount; ++candidate) {
+            if (config.assets[candidate] == asset) return candidate;
+        }
+        revert("ordinary reward slot not found");
+    }
+
+    function _ensureOrdinaryRewardSlot(PoolId poolId, address asset) internal returns (uint8 slot) {
+        IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
+        for (uint8 candidate = 1; candidate < config.slotCount; ++candidate) {
+            if (config.assets[candidate] == asset) return candidate;
+        }
+        return _assignReward(poolId, asset);
     }
 
     function _mintUnmanagedPosition(PoolKey memory key, address owner) internal returns (uint256 posmTokenId) {

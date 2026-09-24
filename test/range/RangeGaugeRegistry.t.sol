@@ -65,19 +65,33 @@ contract RangeGaugeRegistryTest is RangeGaugeFeatureTestBase {
         vm.expectRevert(abi.encodeWithSelector(IStaticsRangeGauge.NotPoolCreator.selector, poolId, bob, alice));
         rangeGauge.appendPoolRewardAsset(poolId, address(rewards[0]));
 
+        MockERC20 overflowReward = new MockERC20("Overflow Reward", "R5", 18);
+        rangeGauge.setGaugeRewardAssetAllowed(address(overflowReward), true);
         vm.startPrank(alice);
         assertEq(rangeGauge.appendPoolRewardAsset(poolId, address(rewards[0])), 1);
         assertEq(rangeGauge.appendPoolRewardAsset(poolId, address(rewards[1])), 2);
         assertEq(rangeGauge.appendPoolRewardAsset(poolId, address(rewards[2])), 3);
+        assertEq(rangeGauge.appendPoolRewardAsset(poolId, address(rewards[3])), 4);
         vm.expectRevert(abi.encodeWithSelector(LibRangeGauge.RewardSlotLimitReached.selector, poolId));
-        rangeGauge.appendPoolRewardAsset(poolId, address(rewards[3]));
+        rangeGauge.appendPoolRewardAsset(poolId, address(overflowReward));
         vm.stopPrank();
 
         IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
-        assertEq(config.slotCount, 4);
+        assertEq(config.slotCount, 5);
         assertEq(config.assets[1], address(rewards[0]));
         assertEq(config.assets[2], address(rewards[1]));
         assertEq(config.assets[3], address(rewards[2]));
+        assertEq(config.assets[4], address(rewards[3]));
+    }
+
+    function testCreatorCanAssignStaticsToOrdinarySlotWithoutChangingProtocolSlot() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        vm.prank(alice);
+        assertEq(rangeGauge.appendPoolRewardAsset(poolId, address(stakingAsset)), 1);
+
+        IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
+        assertEq(config.assets[0], address(stakingAsset));
+        assertEq(config.assets[1], address(stakingAsset));
     }
 
     function testRewardAllowlistRemainsSeparateFromRestrictionPolicy() public {

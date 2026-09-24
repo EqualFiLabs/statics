@@ -128,7 +128,7 @@ contract RangeGaugeCallbackHarness is RangeGaugeCallbackFacet {
     function boundary(PoolId poolId, int256 tick)
         external
         view
-        returns (uint128 grossLiquidity, int128 netLiquidity, uint256[4] memory rewardOutsideRay)
+        returns (uint128 grossLiquidity, int128 netLiquidity, uint256[5] memory rewardOutsideRay)
     {
         LibRangeGauge.GaugeBoundary storage stored =
             LibRangeGauge.rangeGaugeStorage().gauges[poolId].boundaries[_toInt24(tick)];

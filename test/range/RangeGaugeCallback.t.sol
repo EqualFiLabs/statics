@@ -257,7 +257,7 @@ contract RangeGaugeCallbackTest is Test {
 
         (,, int24 referenceTick, uint128 activeLiquidity) = callback.gaugeState(poolId);
         LibRangeGauge.GaugeRewardStream memory afterLeft = callback.stream(poolId, 0);
-        (,, uint256[4] memory upperOutside) = callback.boundary(poolId, 10);
+        (,, uint256[5] memory upperOutside) = callback.boundary(poolId, 10);
         assertEq(referenceTick, 9);
         assertEq(activeLiquidity, 100);
         assertEq(afterRight.periodEmitted, 100 ether);
@@ -270,17 +270,17 @@ contract RangeGaugeCallbackTest is Test {
         (PoolId poolId,) = _readyGeneral(0, 10);
         callback.addRange(poolId, -10, 10, 10, 0, 100);
         callback.setActiveLiquidity(poolId, 100);
-        for (uint256 slot; slot < 3; ++slot) {
+        for (uint256 slot; slot < 4; ++slot) {
             callback.appendRewardAsset(poolId, address(new MockERC20("Extra", "EXT", 18)));
         }
-        for (uint256 slot; slot < 4; ++slot) {
+        for (uint256 slot; slot < 5; ++slot) {
             callback.fundStream(poolId, slot, 700 ether, START, DURATION);
         }
         vm.warp(START + 1 days);
 
         hook.notify(address(callback), poolId);
 
-        for (uint256 slot; slot < 4; ++slot) {
+        for (uint256 slot; slot < 5; ++slot) {
             LibRangeGauge.GaugeRewardStream memory stream = callback.stream(poolId, slot);
             assertEq(stream.lastUpdate, START + 1 days);
             assertEq(stream.periodEmitted, 100 ether);
@@ -322,7 +322,7 @@ contract RangeGaugeCallbackTest is Test {
 
         (,, int24 referenceTick, uint128 activeLiquidity) = callback.gaugeState(poolId);
         LibRangeGauge.GaugeRewardStream memory stream = callback.stream(poolId, 0);
-        (,, uint256[4] memory firstOutside) = callback.boundary(poolId, 10);
+        (,, uint256[5] memory firstOutside) = callback.boundary(poolId, 10);
         assertEq(referenceTick, 0);
         assertEq(activeLiquidity, 100);
         assertEq(stream.lastUpdate, START);

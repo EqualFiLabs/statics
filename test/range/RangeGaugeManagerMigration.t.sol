@@ -52,7 +52,7 @@ contract RangeGaugeManagerMigrationTest is RangeGaugeFeatureTestBase {
         assertEq(legacy.posmTokenId, provided.posmTokenId);
         assertEq(legacy.liquidity, 6 ether);
         assertEq(IERC721(address(rangePositionManager)).ownerOf(legacy.posmTokenId), address(rangeLiquidityManager));
-        assertEq(legacy.claimable[0], 100 ether);
+        assertEq(legacy.claimable[1], 100 ether);
 
         _fundAndApprovePoolAssets(key, alice, 3 ether);
         vm.prank(alice);
@@ -148,10 +148,12 @@ contract RangeGaugeManagerMigrationTest is RangeGaugeFeatureTestBase {
     }
 
     function _fundStatics(PoolId poolId, uint256 amount) private {
+        vm.prank(alice);
+        uint8 slot = rangeGauge.appendPoolRewardAsset(poolId, address(stakingAsset));
         stakingAsset.mint(alice, amount);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), amount);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), amount, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, slot, amount, uint40(7 days));
         vm.stopPrank();
     }
 

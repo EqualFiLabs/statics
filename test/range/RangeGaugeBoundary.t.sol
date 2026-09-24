@@ -25,8 +25,8 @@ contract RangeGaugeBoundaryTest is Test {
         gauge.seedStreamAccounting(POOL_ID, 0, 9 * RAY, 0, 0, 0);
         gauge.addRangeBoundaries(POOL_ID, -100, 100, SPACING, 0, 1_000);
 
-        (uint128 lowerGross, int128 lowerNet, uint256[4] memory lowerOutside) = gauge.boundary(POOL_ID, -100);
-        (uint128 upperGross, int128 upperNet, uint256[4] memory upperOutside) = gauge.boundary(POOL_ID, 100);
+        (uint128 lowerGross, int128 lowerNet, uint256[5] memory lowerOutside) = gauge.boundary(POOL_ID, -100);
+        (uint128 upperGross, int128 upperNet, uint256[5] memory upperOutside) = gauge.boundary(POOL_ID, 100);
         assertEq(lowerGross, 1_000);
         assertEq(lowerNet, 1_000);
         assertEq(lowerOutside[0], 9 * RAY);
@@ -70,13 +70,13 @@ contract RangeGaugeBoundaryTest is Test {
         gauge.seedStreamAccounting(POOL_ID, 0, 10 * RAY, 0, 0, 0);
 
         assertEq(gauge.crossBoundary(POOL_ID, 0, true), 1_000);
-        (, int128 lowerNet, uint256[4] memory lowerOutside) = gauge.boundary(POOL_ID, 0);
+        (, int128 lowerNet, uint256[5] memory lowerOutside) = gauge.boundary(POOL_ID, 0);
         assertEq(lowerNet, 1_000);
         assertEq(lowerOutside[0], 10 * RAY);
 
         gauge.seedStreamAccounting(POOL_ID, 0, 20 * RAY, 0, 0, 0);
         assertEq(gauge.crossBoundary(POOL_ID, 100, true), 0);
-        (,, uint256[4] memory upperOutside) = gauge.boundary(POOL_ID, 100);
+        (,, uint256[5] memory upperOutside) = gauge.boundary(POOL_ID, 100);
         assertEq(upperOutside[0], 20 * RAY);
 
         assertEq(gauge.crossBoundary(POOL_ID, 100, false), 1_000);

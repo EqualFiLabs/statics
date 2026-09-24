@@ -17,31 +17,45 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         PoolId poolId = _createRangeGaugePool(alice);
         rangeGaugeState.setActiveGaugeLiquidity(poolId, 100);
         MockFeeOnTransferERC20 reward = new MockFeeOnTransferERC20();
-        _appendReward(poolId, address(reward));
+        uint8 slot = _appendReward(poolId, address(reward));
         reward.mint(bob, 100 ether);
         vm.prank(bob);
         reward.approve(address(diamond), type(uint256).max);
         vm.warp(START);
 
         vm.prank(bob);
-        uint256 received = rangeGauge.fundPoolReward(poolId, address(reward), 100 ether, uint40(DURATION));
+        uint256 received = rangeGauge.fundPoolReward(poolId, slot, 100 ether, uint40(DURATION));
 
         assertEq(received, 99 ether);
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, address(reward));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, slot);
         assertEq(stream.periodBudget, 99 ether);
         assertEq(stream.periodStart, START);
         assertEq(stream.periodFinish, START + DURATION);
-        (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, address(reward));
+        (bytes32 account, bool assigned) = rangeGauge.poolRewardCustodyAccount(poolId, slot);
         assertTrue(assigned);
         assertEq(custody.reservedByAccount(account, address(reward)), 99 ether);
         assertEq(custody.globalReservedByToken(address(reward)), 99 ether);
         assertEq(reward.balanceOf(address(diamond)), 99 ether);
     }
 
+    function testDirectFundingCannotEnterProtocolSlotZero() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        stakingAsset.mint(bob, 1 ether);
+        vm.prank(bob);
+        stakingAsset.approve(address(diamond), 1 ether);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsRangeGauge.ProtocolRewardSlotReserved.selector, poolId));
+        rangeGauge.fundPoolReward(poolId, 0, 1 ether, 0);
+
+        assertEq(stakingAsset.balanceOf(bob), 1 ether);
+        assertEq(rangeGauge.poolRewardStream(poolId, 0).periodBudget, 0);
+    }
+
     function testFundingRejectsSenderExtraFeeAboveRequestedMaximum() public {
         PoolId poolId = _createRangeGaugePool(alice);
         MockSenderExtraFeeERC20 reward = new MockSenderExtraFeeERC20();
-        _appendReward(poolId, address(reward));
+        uint8 slot = _appendReward(poolId, address(reward));
         reward.mint(bob, 101 ether);
         reward.setTaxedSender(bob);
         vm.prank(bob);
@@ -53,12 +67,12 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
                 IStaticsRangeGauge.InputDebitExceedsMaximum.selector, address(reward), 101 ether, 100 ether
             )
         );
-        rangeGauge.fundPoolReward(poolId, address(reward), 100 ether, 0);
+        rangeGauge.fundPoolReward(poolId, slot, 100 ether, 0);
 
         assertEq(reward.balanceOf(bob), 101 ether);
         assertEq(reward.balanceOf(address(diamond)), 0);
-        assertEq(rangeGauge.poolRewardStream(poolId, address(reward)).periodBudget, 0);
-        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, address(reward));
+        assertEq(rangeGauge.poolRewardStream(poolId, slot).periodBudget, 0);
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, slot);
         assertEq(custody.reservedByAccount(account, address(reward)), 0);
         assertEq(custody.globalReservedByToken(address(reward)), 0);
     }
@@ -66,7 +80,7 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
     function testFundingCapacityRejectionRollsBackTransferAndReservation() public {
         PoolId poolId = _createRangeGaugePool(alice);
         MockERC20 reward = new MockERC20("Capacity Reward", "CAP", 18);
-        _appendReward(poolId, address(reward));
+        uint8 slot = _appendReward(poolId, address(reward));
         uint256 maximumBudget = type(uint256).max / RAY;
         reward.mint(bob, maximumBudget + 1);
         vm.prank(bob);
@@ -74,21 +88,21 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         vm.warp(START);
 
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, address(reward), maximumBudget, 0);
+        rangeGauge.fundPoolReward(poolId, slot, maximumBudget, 0);
         vm.prank(bob);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IStaticsRangeGauge.RewardBudgetExceedsIndexCapacity.selector, maximumBudget, uint256(1), maximumBudget
             )
         );
-        rangeGauge.fundPoolReward(poolId, address(reward), 1, 0);
+        rangeGauge.fundPoolReward(poolId, slot, 1, 0);
 
-        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, address(reward));
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, slot);
         assertEq(reward.balanceOf(bob), 1);
         assertEq(reward.balanceOf(address(diamond)), maximumBudget);
         assertEq(custody.reservedByAccount(account, address(reward)), maximumBudget);
         assertEq(custody.globalReservedByToken(address(reward)), maximumBudget);
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, address(reward));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, slot);
         assertEq(stream.periodBudget, maximumBudget);
         assertEq(stream.indexCapacityUsed, maximumBudget);
     }
@@ -96,12 +110,13 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
     function testMinimumRemainingDurationRejectsNearExpiryDustCompression() public {
         PoolId poolId = _createRangeGaugePool(alice);
         rangeGaugeState.setActiveGaugeLiquidity(poolId, 100);
+        uint8 slot = _appendReward(poolId, address(stakingAsset));
         stakingAsset.mint(alice, 1);
         vm.prank(alice);
         stakingAsset.approve(address(diamond), type(uint256).max);
         vm.warp(START);
         vm.prank(alice);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 1, uint40(DURATION));
+        rangeGauge.fundPoolReward(poolId, slot, 1, uint40(DURATION));
 
         stakingAsset.mint(bob, 700 ether);
         vm.prank(bob);
@@ -114,18 +129,16 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
                 IStaticsRangeGauge.MinimumRemainingDurationNotMet.selector, uint40(1 hours), uint40(1 days)
             )
         );
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, uint40(1 days));
+        rangeGauge.fundPoolReward(poolId, slot, 700 ether, uint40(1 days));
 
         assertEq(stakingAsset.balanceOf(bob), bobBefore);
-        IStaticsRangeGauge.GaugeRewardStreamView memory unchanged =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory unchanged = rangeGauge.poolRewardStream(poolId, slot);
         assertEq(unchanged.lastUpdate, START);
         assertEq(unchanged.periodBudget, 1);
 
         vm.prank(bob);
-        assertEq(rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, 0), 700 ether);
-        IStaticsRangeGauge.GaugeRewardStreamView memory compressed =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        assertEq(rangeGauge.fundPoolReward(poolId, slot, 700 ether, 0), 700 ether);
+        IStaticsRangeGauge.GaugeRewardStreamView memory compressed = rangeGauge.poolRewardStream(poolId, slot);
         assertEq(compressed.periodFinish, START + DURATION);
         assertEq(compressed.periodBudget, 700 ether + 1);
     }
@@ -133,25 +146,25 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
     function testTopUpSynchronizesFirstAndPreservesFinish() public {
         PoolId poolId = _createRangeGaugePool(alice);
         rangeGaugeState.setActiveGaugeLiquidity(poolId, 100);
+        uint8 slot = _appendReward(poolId, address(stakingAsset));
         stakingAsset.mint(bob, 1_000 ether);
         vm.prank(bob);
         stakingAsset.approve(address(diamond), type(uint256).max);
         vm.warp(START);
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 700 ether, uint40(DURATION));
+        rangeGauge.fundPoolReward(poolId, slot, 700 ether, uint40(DURATION));
 
         vm.warp(START + DURATION / 2);
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 300 ether, uint40(DURATION / 2));
+        rangeGauge.fundPoolReward(poolId, slot, 300 ether, uint40(DURATION / 2));
 
-        IStaticsRangeGauge.GaugeRewardStreamView memory stream =
-            rangeGauge.poolRewardStream(poolId, address(stakingAsset));
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, slot);
         assertEq(stream.periodStart, START + DURATION / 2);
         assertEq(stream.periodFinish, START + DURATION);
         assertEq(stream.periodBudget, 650 ether);
         assertEq(stream.periodEmitted, 0);
         assertEq(stream.indexedLiability, 350 ether);
-        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, address(stakingAsset));
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, slot);
         assertEq(custody.reservedByAccount(account, address(stakingAsset)), 1_000 ether);
     }
 
@@ -159,17 +172,15 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         PoolId poolId = _createRangeGaugePool(alice);
         MockERC20 assigned = new MockERC20("Assigned", "ASG", 18);
         MockERC20 unassigned = new MockERC20("Unassigned", "UNA", 18);
-        _appendReward(poolId, address(assigned));
+        uint8 slot = _appendReward(poolId, address(assigned));
         rangeGauge.setGaugeRewardAssetAllowed(address(unassigned), true);
         assigned.mint(bob, 10 ether);
         unassigned.mint(bob, 10 ether);
         vm.startPrank(bob);
         assigned.approve(address(diamond), type(uint256).max);
         unassigned.approve(address(diamond), type(uint256).max);
-        vm.expectRevert(
-            abi.encodeWithSelector(IStaticsRangeGauge.GaugeRewardAssetNotAssigned.selector, poolId, address(unassigned))
-        );
-        rangeGauge.fundPoolReward(poolId, address(unassigned), 1 ether, 0);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsRangeGauge.GaugeRewardSlotNotAssigned.selector, poolId, 2));
+        rangeGauge.fundPoolReward(poolId, 2, 1 ether, 0);
         vm.stopPrank();
 
         rangeGauge.setGaugeRewardAssetAllowed(address(assigned), false);
@@ -177,7 +188,7 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         vm.expectRevert(
             abi.encodeWithSelector(IStaticsRangeGauge.GaugeRewardAssetNotAllowed.selector, address(assigned))
         );
-        rangeGauge.fundPoolReward(poolId, address(assigned), 1 ether, 0);
+        rangeGauge.fundPoolReward(poolId, slot, 1 ether, 0);
 
         rangeGauge.setGaugeRewardAssetAllowed(address(assigned), true);
         vm.prank(guardian);
@@ -186,11 +197,12 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         vm.expectRevert(
             abi.encodeWithSelector(IStaticsRangeGauge.GaugeRewardAssetRestricted.selector, address(assigned))
         );
-        rangeGauge.fundPoolReward(poolId, address(assigned), 1 ether, 0);
+        rangeGauge.fundPoolReward(poolId, slot, 1 ether, 0);
     }
 
     function testLiquidityPauseBlocksFundingWithoutBlockingViews() public {
         PoolId poolId = _createRangeGaugePool(alice);
+        uint8 slot = _appendReward(poolId, address(stakingAsset));
         stakingAsset.mint(bob, 10 ether);
         vm.prank(bob);
         stakingAsset.approve(address(diamond), type(uint256).max);
@@ -199,32 +211,30 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
 
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(IStaticsRangeGauge.ActionPaused.selector, PAUSE_LIQUIDITY));
-        rangeGauge.fundPoolReward(poolId, address(stakingAsset), 1 ether, 0);
-        assertTrue(rangeGauge.poolRewardStream(poolId, address(stakingAsset)).assigned);
+        rangeGauge.fundPoolReward(poolId, slot, 1 ether, 0);
+        assertTrue(rangeGauge.poolRewardStream(poolId, slot).assigned);
     }
 
     function testFundingRejectsTokenDrivenReentrancyButKeepsOuterContribution() public {
         PoolId poolId = _createRangeGaugePool(alice);
         MockReentrantERC20 reward = new MockReentrantERC20();
-        _appendReward(poolId, address(reward));
+        uint8 slot = _appendReward(poolId, address(reward));
         reward.mint(bob, 10 ether);
         vm.prank(bob);
         reward.approve(address(diamond), type(uint256).max);
         reward.setCallback(
-            bob,
-            address(diamond),
-            abi.encodeCall(IStaticsRangeGauge.fundPoolReward, (poolId, address(reward), 1 ether, uint40(0)))
+            bob, address(diamond), abi.encodeCall(IStaticsRangeGauge.fundPoolReward, (poolId, slot, 1 ether, uint40(0)))
         );
 
         vm.prank(bob);
-        assertEq(rangeGauge.fundPoolReward(poolId, address(reward), 10 ether, 0), 10 ether);
+        assertEq(rangeGauge.fundPoolReward(poolId, slot, 10 ether, 0), 10 ether);
         assertFalse(reward.reentrySucceeded());
-        assertEq(rangeGauge.poolRewardStream(poolId, address(reward)).periodBudget, 10 ether);
+        assertEq(rangeGauge.poolRewardStream(poolId, slot).periodBudget, 10 ether);
     }
 
-    function _appendReward(PoolId poolId, address reward) private {
+    function _appendReward(PoolId poolId, address reward) private returns (uint8 slot) {
         rangeGauge.setGaugeRewardAssetAllowed(reward, true);
         vm.prank(alice);
-        rangeGauge.appendPoolRewardAsset(poolId, reward);
+        slot = rangeGauge.appendPoolRewardAsset(poolId, reward);
     }
 }

@@ -51,7 +51,7 @@ interface IStaticsRangeGauge {
     struct PoolRewardConfigView {
         bool initialized;
         uint8 slotCount;
-        address[4] assets;
+        address[5] assets;
     }
 
     struct GaugePoolView {
@@ -82,7 +82,7 @@ interface IStaticsRangeGauge {
     struct GaugeBoundaryView {
         uint128 grossLiquidity;
         int128 netLiquidity;
-        uint256[4] rewardOutsideRay;
+        uint256[5] rewardOutsideRay;
     }
 
     struct LpLegView {
@@ -91,15 +91,15 @@ interface IStaticsRangeGauge {
         int24 tickLower;
         int24 tickUpper;
         uint128 liquidity;
-        uint256[4] checkpointInsideRay;
-        uint256[4] rewardRemainderRay;
-        uint256[4] claimable;
+        uint256[5] checkpointInsideRay;
+        uint256[5] rewardRemainderRay;
+        uint256[5] claimable;
     }
 
     struct PendingRewardsView {
         uint8 slotCount;
-        address[4] assets;
-        uint256[4] amounts;
+        address[5] assets;
+        uint256[5] amounts;
     }
 
     event GaugeRewardAssetAllowedSet(address indexed asset, bool allowed);
@@ -150,11 +150,14 @@ interface IStaticsRangeGauge {
         uint256 indexed positionId,
         PoolId indexed poolId,
         address indexed asset,
+        uint8 slot,
         address receiver,
         uint256 debited,
         uint256 received
     );
-    event LpRewardForfeited(uint256 indexed positionId, PoolId indexed poolId, address indexed asset, uint256 amount);
+    event LpRewardForfeited(
+        uint256 indexed positionId, PoolId indexed poolId, address indexed asset, uint8 slot, uint256 amount
+    );
     event UnboundPosmRecovered(address indexed manager, uint256 indexed posmTokenId, address indexed receiver);
     event PoolRewardSurplusReconciled(PoolId indexed poolId, address indexed asset, uint8 indexed slot, uint256 amount);
     event PoolGaugeStopped(PoolId indexed poolId);
@@ -167,10 +170,13 @@ interface IStaticsRangeGauge {
     error GaugeRewardAssetNotAllowed(address asset);
     error GaugeRewardAssetRestricted(address asset);
     error GaugeRewardAssetNotAssigned(PoolId poolId, address asset);
+    error GaugeRewardSlotNotAssigned(PoolId poolId, uint8 slot);
+    error ProtocolRewardSlotReserved(PoolId poolId);
     error MinimumRemainingDurationNotMet(uint40 available, uint40 minimum);
     error RewardBudgetExceedsIndexCapacity(uint256 committedBudget, uint256 received, uint256 maximumBudget);
     error InvalidReceiver(address receiver);
     error ArrayLengthMismatch();
+    error DuplicateRewardSlot(uint8 slot);
     error ManagedLegAlreadyExists(uint256 positionId, PoolId poolId);
     error ManagedLegNotFound(uint256 positionId, PoolId poolId);
     error UnauthorizedPositionActor(uint256 positionId, address caller);
@@ -182,13 +188,13 @@ interface IStaticsRangeGauge {
     error ManagerAssetTransferMismatch(address asset, uint256 expected, uint256 actual);
     error InvalidPositionState(uint256 positionId, PoolId poolId);
     error RewardAmountBelowMinimum(address asset, uint256 received, uint256 minimum);
-    error PoolRewardReconciliationUnavailable(PoolId poolId, address asset);
-    error ClaimLiabilityUnderflow(PoolId poolId, address asset, uint256 liability, uint256 amount);
+    error PoolRewardReconciliationUnavailable(PoolId poolId, uint8 slot);
+    error ClaimLiabilityUnderflow(PoolId poolId, uint8 slot, uint256 liability, uint256 amount);
 
     function setGaugeRewardAssetAllowed(address asset, bool allowed) external;
     function setGaugeRewardDuration(uint40 duration) external;
     function appendPoolRewardAsset(PoolId poolId, address asset) external returns (uint8 slot);
-    function fundPoolReward(PoolId poolId, address asset, uint256 amount, uint40 minRemainingDuration)
+    function fundPoolReward(PoolId poolId, uint8 slot, uint256 amount, uint40 minRemainingDuration)
         external
         returns (uint256 received);
 
@@ -226,23 +232,20 @@ interface IStaticsRangeGauge {
     function claimLpRewards(
         uint256 positionId,
         PoolId poolId,
-        address[] calldata assets,
+        uint8[] calldata slots,
         uint256[] calldata minimumAmounts,
         address receiver
     ) external returns (uint256[] memory received);
-    function forfeitLpReward(uint256 positionId, PoolId poolId, address asset) external returns (uint256 amount);
+    function forfeitLpReward(uint256 positionId, PoolId poolId, uint8 slot) external returns (uint256 amount);
     function recoverUnboundPosm(address manager, uint256 posmTokenId, address receiver) external;
-    function reconcilePoolRewardSurplus(PoolId poolId, address asset) external returns (uint256 amount);
+    function reconcilePoolRewardSurplus(PoolId poolId, uint8 slot) external returns (uint256 amount);
 
     function gaugeRewardDuration() external view returns (uint40 duration);
     function gaugeRewardAssetAllowed(address asset) external view returns (bool allowed);
     function poolRewardConfig(PoolId poolId) external view returns (PoolRewardConfigView memory config);
     function gaugePool(PoolId poolId) external view returns (GaugePoolView memory pool);
-    function poolRewardStream(PoolId poolId, address asset) external view returns (GaugeRewardStreamView memory stream);
-    function poolRewardCustodyAccount(PoolId poolId, address asset)
-        external
-        view
-        returns (bytes32 account, bool assigned);
+    function poolRewardStream(PoolId poolId, uint8 slot) external view returns (GaugeRewardStreamView memory stream);
+    function poolRewardCustodyAccount(PoolId poolId, uint8 slot) external view returns (bytes32 account, bool assigned);
     function gaugeBoundary(PoolId poolId, int24 tick) external view returns (GaugeBoundaryView memory boundary);
     function lpLeg(uint256 positionId, PoolId poolId) external view returns (LpLegView memory leg);
     function positionGaugePools(uint256 positionId, uint256 cursor, uint256 size)
