@@ -86,12 +86,20 @@ contract RangeGaugeFormalHarness {
         uint64 unresolvedLegCount,
         uint256 periodBudget,
         uint256 periodEmitted,
+        uint256 periodRecycled,
         uint256 claimLiability,
         uint256 reserved,
         uint256 indexedLiability
     ) internal pure returns (bool) {
         return LibRangeGauge.reconciliationAvailable(
-            stopped, unresolvedLegCount, periodBudget, periodEmitted, claimLiability, reserved, indexedLiability
+            stopped,
+            unresolvedLegCount,
+            periodBudget,
+            periodEmitted,
+            periodRecycled,
+            claimLiability,
+            reserved,
+            indexedLiability
         );
     }
 }

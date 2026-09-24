@@ -24,7 +24,7 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
     }
 
     function testRepresentativeFinalReconciliationGate() public pure {
-        check_finalReconciliationRequiresResolvedLiabilities(true, 0, 10, 10, 0, 3, 3);
+        check_finalReconciliationRequiresResolvedLiabilities(true, 0, 10, 10, 0, 0, 3, 3);
     }
 
     function check_streamEmitsEntireBudgetAtFinish(uint32 rawBudget) public {
@@ -100,20 +100,28 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
         uint8 unresolvedLegCount,
         uint32 periodBudget,
         uint32 periodEmitted,
+        uint32 periodRecycled,
         uint32 claimLiability,
         uint32 reserved,
         uint32 indexedLiability
     ) public pure {
         bool available = _reconciliationAvailable(
-            stopped, unresolvedLegCount, periodBudget, periodEmitted, claimLiability, reserved, indexedLiability
+            stopped,
+            unresolvedLegCount,
+            periodBudget,
+            periodEmitted,
+            periodRecycled,
+            claimLiability,
+            reserved,
+            indexedLiability
         );
-        bool expected = stopped && unresolvedLegCount == 0 && periodBudget == periodEmitted && claimLiability == 0
-            && reserved >= indexedLiability;
+        bool expected = stopped && unresolvedLegCount == 0 && periodBudget == uint256(periodEmitted) + periodRecycled
+            && claimLiability == 0 && reserved >= indexedLiability;
         assertEq(available, expected);
         if (available) {
             assertTrue(stopped);
             assertEq(unresolvedLegCount, 0);
-            assertEq(periodBudget, periodEmitted);
+            assertEq(periodBudget, uint256(periodEmitted) + periodRecycled);
             assertEq(claimLiability, 0);
             assertGe(reserved, indexedLiability);
         }

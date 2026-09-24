@@ -171,6 +171,10 @@ case "$TARGET" in
       out-formal-genesis '^check_positionRemainderCarryConservesNumerator'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-final-reconciliation-gate 8 \
       out-formal-genesis '^check_finalReconciliationRequiresResolvedLiabilities'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-commitment 8 \
+      out-formal-genesis '^check_releaseCommitmentPreservesReservePartition'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-recycling 8 \
+      out-formal-genesis '^check_claimAndRecycleConserveBackedReserve'
     run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-boundary-symmetry 8 \
       out-formal-genesis '^check_boundaryAddRemoveSymmetry'
     run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-right-crossing-inversion 8 \
