@@ -20,8 +20,8 @@ Most applications need:
 - the configured global staking token;
 - one `StaticsBasketToken` address per discovered basket after Phase 2; and
 - the installed `StaticsSwapFeeHook` for Phase 1 general pools, plus
-  `StaticsLiquidityManager` only after the basket/advanced-liquidity selectors
-  are installed.
+  the installed Phase 1 `StaticsLiquidityManager` for managed public-pool
+  PositionNFT range-gauge positions.
 
 Do not configure a separate user router, periphery, or PositionNFT address.
 
@@ -42,6 +42,7 @@ Use compiled ABIs from these sources:
 | Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, select reward assets, claim, distribute treasury fees, and inspect asset books |
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
+| Public range gauges | `src/interfaces/IStaticsRangeGauge.sol` | Configure and fund pool rewards, manage PositionNFT-owned v4 range positions, claim or forfeit rewards, exit principal, and inspect position state |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
@@ -102,15 +103,17 @@ staking/reward opt-ins. Public pools retain bilateral hook fees and POL.
 Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
-flash composition, and advanced liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 124, 220, 278, and 305. Integrators
+flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
+Morpho. The cumulative selector counts are 155, 248, 306, and 333. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
 `IStaticsSwapFeeHook` exposes hook fee configuration, pending
-permanent-liquidity inventory, and locked liquidity. Phase 1 relies on ordinary
-Uniswap v4 periphery for user LP positions and does not install a Statics
-liquidity manager. Canonical permanent liquidity is hook-owned and has no
+permanent-liquidity inventory, and locked liquidity. Ordinary user LP positions
+remain available through Uniswap v4 periphery. Phase 1 additionally installs a
+Statics liquidity manager for opt-in PositionNFT range-gauge positions; the
+manager immutably binds the Diamond, canonical PoolManager, PositionManager,
+and Permit2. Canonical permanent liquidity remains hook-owned and has no
 protocol PositionManager token ID.
 
 `IStaticsPermissionedPools` exposes permissioned pool creation quotes,

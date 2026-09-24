@@ -10,6 +10,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract StaticsProtocolInit is ERC721Upgradeable {
@@ -110,6 +111,8 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
+        LibRangeGauge.initializeGlobalConfig();
+        LibRangeGauge.setRewardAssetAllowed(stakingToken, true);
         LibDeploymentPhases.initializePhaseOneInterfaces();
 
         LibGovernance.governanceStorage().guardian = guardian;

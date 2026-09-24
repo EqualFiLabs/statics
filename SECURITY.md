@@ -148,14 +148,15 @@ ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs 18 facets and 124 selectors for the Diamond
+The Phase 1 launcher installs 23 facets and 155 selectors for the Diamond
 kernel, public general Statics-hook pools, a separate permissioned venue path,
 protocol revenue and public POL, PositionNFT, reward restrictions, and global
-STATICS staking/reward opt-ins. Permissioned pools use their own hook,
-creator-selected controller, trusted exact-input router, and non-transferable LP
-positions. They create no Statics POL. It does not install or advertise basket,
-credit, flash-loan, Genesis-integration, Dollar, Morpho, `StaticsLiquidityManager`,
-BorrowLiquidity, ERC-1155 receiver, or series-migration interfaces.
+STATICS staking/reward opt-ins. It also installs public-pool PositionNFT range
+gauges and the Diamond-bound liquidity-manager selectors. Permissioned pools
+use their own hook, creator-selected controller, trusted exact-input router,
+and non-transferable LP positions. They create no Statics POL. It does not install or advertise basket,
+credit, flash-loan, Genesis-integration, Dollar, Morpho, BorrowLiquidity,
+ERC-1155 receiver, or series-migration interfaces.
 
 The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
 protocol's existing creation semantics, zero retains owner-only curation; it
@@ -181,8 +182,8 @@ not call or require consent from the old controller, preserving recovery from a
 broken or abandoned provider. The pool key, creator, economics, liquidity, and
 user exit rights do not change, and the guardian cannot replace controllers.
 
-Phase 2 adds baskets, self-secured credit, flash composition, and advanced
-liquidity; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
+Phase 2 adds baskets, self-secured credit, flash composition, basket liquidity,
+and Genesis integration; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
 deltas and one-time initializers exist now and derive from one canonical plan.
 CI proves staged-to-fresh selector and runtime parity for both Diamonds, and
 later-phase preparation rejects drifted earlier facet bytecode. Every live

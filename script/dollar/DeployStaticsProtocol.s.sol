@@ -17,6 +17,10 @@ import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.so
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
+import {RangeGaugeFacet} from "../../src/facets/RangeGaugeFacet.sol";
+import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.sol";
+import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
+import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.sol";
 import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCreationFacet.sol";
 import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
@@ -201,6 +205,10 @@ abstract contract DeployStaticsProtocol {
         parts.permissionedPoolCreation = address(new PermissionedPoolCreationFacet());
         parts.permissionedPoolAdmin = address(new PermissionedPoolAdminFacet());
         parts.permissionedPoolView = address(new PermissionedPoolViewFacet());
+        parts.rangeGauge = address(new RangeGaugeFacet());
+        parts.rangeGaugePosition = address(new RangeGaugePositionFacet());
+        parts.rangeGaugeLiveness = address(new RangeGaugeLivenessFacet());
+        parts.rangeGaugeView = address(new RangeGaugeViewFacet());
         parts.rangeGaugeCallback = address(new RangeGaugeCallbackFacet());
     }
 

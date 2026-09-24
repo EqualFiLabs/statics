@@ -11,6 +11,7 @@ import {DeployStaticsProtocol} from "./dollar/DeployStaticsProtocol.s.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 import {StaticsTimelock} from "../src/governance/StaticsTimelock.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
+import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsPermissionedSwapFeeHook} from "../src/liquidity/StaticsPermissionedSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
@@ -23,9 +24,15 @@ struct StaticsPhaseOneDeployment {
     address weth;
     address poolManager;
     address permanentLiquidityMath;
+    address liquidityManager;
     address swapFeeHook;
     address permissionedSwapFeeHook;
     address defaultVenueControllerFactory;
+}
+
+interface IPhaseOnePositionManagerBindings {
+    function poolManager() external view returns (address);
+    function permit2() external view returns (address);
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
@@ -43,9 +50,13 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
 
     struct V4Config {
         address poolManager;
+        address positionManager;
+        address permit2;
         uint16 inputFeeBps;
         uint16 outputFeeBps;
         bytes32 poolManagerCodeHash;
+        bytes32 positionManagerCodeHash;
+        bytes32 permit2CodeHash;
     }
 
     error InvalidConfig();
@@ -53,6 +64,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
     error InvalidGenesisBinding(address expected, address actual);
     error InvalidV4Contract(address target);
     error InvalidV4CodeHash(address target, bytes32 expected, bytes32 actual);
+    error InvalidV4Binding(address target, address expected, address actual);
     error InvalidHookFees(uint256 inputFeeBps, uint256 outputFeeBps);
     error HookAddressMismatch(address expected, address actual);
 
@@ -167,9 +179,12 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         if (address(permissionedHook) != expectedPermissionedHook) {
             revert HookAddressMismatch(expectedPermissionedHook, address(permissionedHook));
         }
+        StaticsLiquidityManager liquidityManager =
+            new StaticsLiquidityManager(deployment.diamond, config.positionManager, config.poolManager, config.permit2);
 
         deployment.poolManager = config.poolManager;
         deployment.permanentLiquidityMath = address(permanentLiquidityMath);
+        deployment.liquidityManager = address(liquidityManager);
         deployment.swapFeeHook = address(hook);
         deployment.permissionedSwapFeeHook = address(permissionedHook);
     }
@@ -206,6 +221,15 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
                 || uint256(config.inputFeeBps) + uint256(config.outputFeeBps) > 200
         ) revert InvalidHookFees(config.inputFeeBps, config.outputFeeBps);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
+        _validateContract(config.positionManager, config.positionManagerCodeHash);
+        _validateContract(config.permit2, config.permit2CodeHash);
+        IPhaseOnePositionManagerBindings positionManager = IPhaseOnePositionManagerBindings(config.positionManager);
+        if (positionManager.poolManager() != config.poolManager) {
+            revert InvalidV4Binding(config.positionManager, config.poolManager, positionManager.poolManager());
+        }
+        if (positionManager.permit2() != config.permit2) {
+            revert InvalidV4Binding(config.positionManager, config.permit2, positionManager.permit2());
+        }
     }
 
     function _validateContract(address target, bytes32 expectedHash) private view {
@@ -227,9 +251,13 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         }
         config = V4Config({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
+            positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
+            permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
-            poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash")
+            poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
+            positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
+            permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash")
         });
     }
 
@@ -246,6 +274,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_ADDRESS", deployment.permanentLiquidityMath);
         console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.permanentLiquidityMath.codehash);
+        console2.log("STATICS_LIQUIDITY_MANAGER_ADDRESS", deployment.liquidityManager);
+        console2.log("STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH");
+        console2.logBytes32(deployment.liquidityManager.codehash);
         console2.log("STATICS_SWAP_FEE_HOOK_ADDRESS", deployment.swapFeeHook);
         console2.log("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.swapFeeHook.codehash);

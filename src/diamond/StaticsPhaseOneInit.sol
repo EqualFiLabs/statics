@@ -10,6 +10,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 /// @notice Constructor-only initializer for the Phase 1 DEX and global staking selector surface.
@@ -33,6 +34,8 @@ contract StaticsPhaseOneInit is ERC721Upgradeable {
         __ERC721_init("Statics Position", "STXPOS");
         LibPosition.initialize(args.positionCreationFeeAmount);
         LibGlobalRewards.initialize(args.stakingToken);
+        LibRangeGauge.initializeGlobalConfig();
+        LibRangeGauge.setRewardAssetAllowed(args.stakingToken, true);
 
         LibDeploymentPhases.initializePhaseOneInterfaces();
 

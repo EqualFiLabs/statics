@@ -58,6 +58,11 @@ import {ProtocolPoolCreationFacet} from "../src/facets/ProtocolPoolCreationFacet
 import {ProtocolPoolViewFacet} from "../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../src/facets/ProtocolRevenueFacet.sol";
 import {RewardPolicyFacet} from "../src/facets/RewardPolicyFacet.sol";
+import {RangeGaugeFacet} from "../src/facets/RangeGaugeFacet.sol";
+import {RangeGaugePositionFacet} from "../src/facets/RangeGaugePositionFacet.sol";
+import {RangeGaugeLivenessFacet} from "../src/facets/RangeGaugeLivenessFacet.sol";
+import {RangeGaugeViewFacet} from "../src/facets/RangeGaugeViewFacet.sol";
+import {RangeGaugeCallbackFacet} from "../src/facets/RangeGaugeCallbackFacet.sol";
 import {PermissionedPoolCreationFacet} from "../src/facets/PermissionedPoolCreationFacet.sol";
 import {PermissionedPoolAdminFacet} from "../src/facets/PermissionedPoolAdminFacet.sol";
 import {PermissionedPoolViewFacet} from "../src/facets/PermissionedPoolViewFacet.sol";
@@ -113,7 +118,6 @@ struct PhaseTwoDeployment {
     StaticsProtocolParts parts;
     address initializer;
     address genesisInitializer;
-    address liquidityManager;
 }
 
 struct PhaseThreeDeployment {
@@ -141,6 +145,7 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         address poolManager;
         address positionManager;
         address permit2;
+        address liquidityManager;
         address swapFeeHook;
         address permissionedSwapFeeHook;
         address permissionedRouter;
@@ -149,6 +154,7 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         bytes32 poolManagerCodeHash;
         bytes32 positionManagerCodeHash;
         bytes32 permit2CodeHash;
+        bytes32 liquidityManagerCodeHash;
         bytes32 swapFeeHookCodeHash;
         bytes32 permissionedSwapFeeHookCodeHash;
         bytes32 permissionedRouterCodeHash;
@@ -193,6 +199,7 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
+            liquidityManager: vm.envAddress("STATICS_LIQUIDITY_MANAGER_ADDRESS"),
             swapFeeHook: vm.envAddress("STATICS_SWAP_FEE_HOOK_ADDRESS"),
             permissionedSwapFeeHook: vm.envAddress("STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS"),
             permissionedRouter: vm.envAddress("STATICS_PERMISSIONED_ROUTER_ADDRESS"),
@@ -201,6 +208,7 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
             permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash"),
+            liquidityManagerCodeHash: vm.envBytes32("STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH"),
             swapFeeHookCodeHash: vm.envBytes32("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH"),
             permissionedSwapFeeHookCodeHash: vm.envBytes32("STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH"),
             permissionedRouterCodeHash: vm.envBytes32("STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH"),
@@ -284,15 +292,33 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
 
     function deployPhaseTwo(PhaseTwoConfig memory config) public returns (PhaseTwoDeployment memory deployment) {
         _validatePhaseDiamond(config.diamond, 1);
+        _validatePhaseTwoConfig(config);
+
+        deployment.parts = _phaseTwoBaseParts(config.diamond);
+        deployment.parts = _deployPhaseTwoProtocolParts(deployment.parts);
+        deployment.initializer = address(new StaticsPhaseTwoInit());
+        deployment.genesisInitializer = address(new StaticsGenesisIntegrationInit());
+    }
+
+    function _validatePhaseTwoConfig(PhaseTwoConfig memory config) private view {
         _validateContract(config.poolManager, config.poolManagerCodeHash);
         _validateContract(config.positionManager, config.positionManagerCodeHash);
         _validateContract(config.permit2, config.permit2CodeHash);
+        _validateContract(config.liquidityManager, config.liquidityManagerCodeHash);
         _validateContract(config.swapFeeHook, config.swapFeeHookCodeHash);
         _validateContract(config.permissionedSwapFeeHook, config.permissionedSwapFeeHookCodeHash);
         _validateContract(config.permissionedRouter, config.permissionedRouterCodeHash);
         _validateContract(config.permissionedPositionManager, config.permissionedPositionManagerCodeHash);
         _validateContract(config.permissionedQuoter, config.permissionedQuoterCodeHash);
         if (config.singleAssetFlashFeeBps > 10_000) revert InvalidConfiguration();
+        _validateInstalledPublicLiquidity(config);
+        _validateInstalledPermissionedLiquidity(config);
+        _validateHookBindings(config);
+        _validateManagerAndCanonicalBindings(config);
+        _validatePermissionedPeriphery(config);
+    }
+
+    function _validateInstalledPublicLiquidity(PhaseTwoConfig memory config) private view {
         (address installedPoolManager, address installedHook, bool installed) =
             IStaticsBasketLiquidity(config.diamond).liquidityIntegration();
         if (!installed || installedPoolManager != config.poolManager) {
@@ -301,6 +327,14 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         if (installedHook != config.swapFeeHook) {
             revert InvalidBinding(config.diamond, config.swapFeeHook, installedHook);
         }
+        (address installedLiquidityManager, bool liquidityManagerInstalled) =
+            IStaticsBasketLiquidity(config.diamond).liquidityManager();
+        if (!liquidityManagerInstalled || installedLiquidityManager != config.liquidityManager) {
+            revert InvalidLiquidityIntegration(config.liquidityManager, installedLiquidityManager);
+        }
+    }
+
+    function _validateInstalledPermissionedLiquidity(PhaseTwoConfig memory config) private view {
         (
             address installedPermissionedHook,
             address installedPermissionedRouter,
@@ -314,6 +348,9 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
                 || installedPermissionedPositionManager != config.permissionedPositionManager
                 || installedPermissionedQuoter != config.permissionedQuoter
         ) revert InvalidLiquidityIntegration(config.permissionedSwapFeeHook, installedPermissionedHook);
+    }
+
+    function _validateHookBindings(PhaseTwoConfig memory config) private view {
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.swapFeeHook));
         if (hook.staticsDiamond() != config.diamond) {
             revert InvalidBinding(config.swapFeeHook, config.diamond, hook.staticsDiamond());
@@ -335,30 +372,32 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
                 || !permissionedHook.trustedPeriphery(config.permissionedPositionManager)
                 || !permissionedHook.trustedPeriphery(config.permissionedQuoter)
         ) revert InvalidConfiguration();
-        _validatePermissionedPeriphery(config);
         _validateContract(
             address(hook.permanentLiquidityMath()), keccak256(type(StaticsPermanentLiquidityMath).runtimeCode)
         );
-        if (IPhasePositionManagerBindings(config.positionManager).poolManager() != config.poolManager) {
-            revert InvalidBinding(
-                config.positionManager,
-                config.poolManager,
-                IPhasePositionManagerBindings(config.positionManager).poolManager()
-            );
-        }
-        if (IPhasePositionManagerBindings(config.positionManager).permit2() != config.permit2) {
-            revert InvalidBinding(
-                config.positionManager, config.permit2, IPhasePositionManagerBindings(config.positionManager).permit2()
-            );
-        }
+    }
 
-        deployment.parts = _phaseTwoBaseParts(config.diamond);
-        deployment.parts = _deployPhaseTwoProtocolParts(deployment.parts);
-        deployment.initializer = address(new StaticsPhaseTwoInit());
-        deployment.genesisInitializer = address(new StaticsGenesisIntegrationInit());
-        deployment.liquidityManager = address(
-            new StaticsLiquidityManager(config.diamond, config.positionManager, config.poolManager, config.permit2)
-        );
+    function _validateManagerAndCanonicalBindings(PhaseTwoConfig memory config) private view {
+        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(config.liquidityManager);
+        if (liquidityManager.staticsDiamond() != config.diamond) {
+            revert InvalidBinding(config.liquidityManager, config.diamond, liquidityManager.staticsDiamond());
+        }
+        if (liquidityManager.poolManager() != config.poolManager) {
+            revert InvalidBinding(config.liquidityManager, config.poolManager, liquidityManager.poolManager());
+        }
+        if (liquidityManager.positionManager() != config.positionManager) {
+            revert InvalidBinding(config.liquidityManager, config.positionManager, liquidityManager.positionManager());
+        }
+        if (liquidityManager.permit2() != config.permit2) {
+            revert InvalidBinding(config.liquidityManager, config.permit2, liquidityManager.permit2());
+        }
+        IPhasePositionManagerBindings positionManager = IPhasePositionManagerBindings(config.positionManager);
+        if (positionManager.poolManager() != config.poolManager) {
+            revert InvalidBinding(config.positionManager, config.poolManager, positionManager.poolManager());
+        }
+        if (positionManager.permit2() != config.permit2) {
+            revert InvalidBinding(config.positionManager, config.permit2, positionManager.permit2());
+        }
     }
 
     function deployPhaseThree(PhaseThreeConfig memory config) public returns (PhaseThreeDeployment memory deployment) {
@@ -409,9 +448,9 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        targets = new address[](2);
-        values = new uint256[](2);
-        payloads = new bytes[](2);
+        targets = new address[](1);
+        values = new uint256[](1);
+        payloads = new bytes[](1);
         targets[0] = diamond;
         payloads[0] = abi.encodeCall(
             IDiamondCut.diamondCut,
@@ -427,8 +466,6 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
                 )
             )
         );
-        targets[1] = diamond;
-        payloads[1] = abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (deployment.liquidityManager));
     }
 
     function buildPhaseThreeBatch(address diamond, PhaseThreeDeployment memory deployment)
@@ -644,6 +681,17 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         );
         _validateFacetSet(
             diamond, StaticsSelectors.permissionedPoolView(), keccak256(type(PermissionedPoolViewFacet).runtimeCode)
+        );
+        _validateFacetSet(diamond, StaticsSelectors.rangeGaugeActions(), keccak256(type(RangeGaugeFacet).runtimeCode));
+        _validateFacetSet(
+            diamond, StaticsSelectors.rangeGaugePositions(), keccak256(type(RangeGaugePositionFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.rangeGaugeLiveness(), keccak256(type(RangeGaugeLivenessFacet).runtimeCode)
+        );
+        _validateFacetSet(diamond, StaticsSelectors.rangeGaugeViews(), keccak256(type(RangeGaugeViewFacet).runtimeCode));
+        _validateFacetSet(
+            diamond, StaticsSelectors.rangeGaugeCallback(), keccak256(type(RangeGaugeCallbackFacet).runtimeCode)
         );
     }
 
@@ -903,15 +951,10 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         console2.log("STATICS_GENESIS_INTEGRATION_INIT_ADDRESS", deployment.genesisInitializer);
         console2.log("STATICS_GENESIS_INTEGRATION_INIT_RUNTIME_CODE_HASH");
         console2.logBytes32(deployment.genesisInitializer.codehash);
-        console2.log("STATICS_LIQUIDITY_MANAGER_ADDRESS", deployment.liquidityManager);
-        console2.log("STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH");
-        console2.logBytes32(deployment.liquidityManager.codehash);
         _logFacetCut(StaticsProtocolPlan.phaseTwo(deployment.parts));
         (,, bytes[] memory payloads) = buildPhaseTwoBatch(diamond, deployment, config);
         console2.log("STATICS_PHASE_TWO_DIAMOND_CUT_CALLDATA");
         console2.logBytes(payloads[0]);
-        console2.log("STATICS_PHASE_TWO_MANAGER_INSTALL_CALLDATA");
-        console2.logBytes(payloads[1]);
         _logTimelockBatch(diamond, _phaseTwoTargets(diamond), payloads, salt);
     }
 
@@ -958,9 +1001,8 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
     }
 
     function _phaseTwoTargets(address diamond) private pure returns (address[] memory targets) {
-        targets = new address[](2);
+        targets = new address[](1);
         targets[0] = diamond;
-        targets[1] = diamond;
     }
 
     function _logFacetCut(IDiamondCut.FacetCut[] memory cut) private view {

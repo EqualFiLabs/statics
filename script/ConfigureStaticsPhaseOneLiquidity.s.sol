@@ -9,6 +9,7 @@ import {console2} from "forge-std/console2.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../src/interfaces/IERC173.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsLiquidityManager} from "../src/interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsPermissionedPools} from "../src/interfaces/IStaticsPermissionedPools.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../src/interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
@@ -22,6 +23,8 @@ import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
 struct StaticsPhaseOneLiquidityConfig {
     address poolManager;
+    address positionManager;
+    address liquidityManager;
     address hook;
     address permissionedHook;
     address permissionedRouter;
@@ -33,6 +36,8 @@ struct StaticsPhaseOneLiquidityConfig {
     uint16 inputFeeBps;
     uint16 outputFeeBps;
     bytes32 poolManagerCodeHash;
+    bytes32 positionManagerCodeHash;
+    bytes32 liquidityManagerCodeHash;
     bytes32 hookCodeHash;
     bytes32 permissionedHookCodeHash;
     bytes32 permissionedRouterCodeHash;
@@ -142,15 +147,16 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        targets = new address[](6);
-        values = new uint256[](6);
-        payloads = new bytes[](6);
+        targets = new address[](7);
+        values = new uint256[](7);
+        payloads = new bytes[](7);
         for (uint256 i; i < targets.length; ++i) {
             targets[i] = diamond;
         }
         payloads[0] =
             abi.encodeCall(IStaticsBasketLiquidity.installCanonicalPoolIntegration, (config.poolManager, config.hook));
-        payloads[1] = abi.encodeCall(
+        payloads[1] = abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (config.liquidityManager));
+        payloads[2] = abi.encodeCall(
             IStaticsBasketLiquidity.installPermissionedPoolIntegration,
             (
                 config.permissionedHook,
@@ -159,16 +165,16 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
                 config.permissionedQuoter
             )
         );
-        payloads[2] = abi.encodeCall(
+        payloads[3] = abi.encodeCall(
             IStaticsPermissionedPools.setPermissionedTrustedPeriphery, (config.permissionedRouter, true)
         );
-        payloads[3] = abi.encodeCall(
+        payloads[4] = abi.encodeCall(
             IStaticsPermissionedPools.setPermissionedTrustedPeriphery, (config.permissionedPositionManager, true)
         );
-        payloads[4] = abi.encodeCall(
+        payloads[5] = abi.encodeCall(
             IStaticsPermissionedPools.setPermissionedTrustedPeriphery, (config.permissionedQuoter, true)
         );
-        payloads[5] =
+        payloads[6] =
             abi.encodeCall(IStaticsProtocolPools.setPermanentLiquidityHarvester, (config.permanentLiquidityHarvester));
     }
 
@@ -196,6 +202,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     function _validateDependencies(address diamond, StaticsPhaseOneLiquidityConfig memory config) private view {
         _validatePhaseOneSelectors(diamond);
         _validateContract(config.poolManager, config.poolManagerCodeHash);
+        _validateContract(config.positionManager, config.positionManagerCodeHash);
+        _validateContract(config.liquidityManager, config.liquidityManagerCodeHash);
         _validateContract(config.hook, config.hookCodeHash);
         _validateContract(config.permissionedHook, config.permissionedHookCodeHash);
         _validateContract(config.permissionedRouter, config.permissionedRouterCodeHash);
@@ -204,6 +212,15 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _validateContract(config.permit2, config.permit2CodeHash);
         _validateContract(config.weth, config.wethCodeHash);
         RobinhoodWethVerifier.validateMainnet(vm, config.weth);
+
+        IPermissionedRouterBindings canonicalPositionManager = IPermissionedRouterBindings(config.positionManager);
+        _binding(config.positionManager, config.poolManager, canonicalPositionManager.poolManager());
+        _binding(config.positionManager, config.permit2, canonicalPositionManager.permit2());
+        IStaticsLiquidityManager liquidityManager = IStaticsLiquidityManager(config.liquidityManager);
+        _binding(config.liquidityManager, diamond, liquidityManager.staticsDiamond());
+        _binding(config.liquidityManager, config.poolManager, liquidityManager.poolManager());
+        _binding(config.liquidityManager, config.positionManager, liquidityManager.positionManager());
+        _binding(config.liquidityManager, config.permit2, liquidityManager.permit2());
 
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
@@ -241,11 +258,13 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             address installedQuoter,
             bool permissionedInstalled
         ) = IStaticsBasketLiquidity(diamond).permissionedLiquidityIntegration();
+        (address installedLiquidityManager, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
         address installedHarvester = IStaticsProtocolPools(diamond).permanentLiquidityHarvester();
         if (requireInstalled) {
             IStaticsPermissionedSwapFeeHook permissionedHook = IStaticsPermissionedSwapFeeHook(config.permissionedHook);
             if (
                 !integrationInstalled || installedPoolManager != config.poolManager || installedHook != config.hook
+                    || !managerInstalled || installedLiquidityManager != config.liquidityManager
                     || !permissionedInstalled || installedPermissionedHook != config.permissionedHook
                     || installedRouter != config.permissionedRouter
                     || installedPositionManager != config.permissionedPositionManager
@@ -255,20 +274,22 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
                     || !permissionedHook.trustedPeriphery(config.permissionedQuoter)
                     || installedHarvester != config.permanentLiquidityHarvester
             ) revert LiquidityInstallationFailed();
-        } else if (integrationInstalled || permissionedInstalled || installedHarvester != address(0)) {
+        } else if (
+            integrationInstalled || managerInstalled || permissionedInstalled || installedHarvester != address(0)
+        ) {
             revert LiquidityAlreadyInstalled();
         }
     }
 
     function _validatePhaseOneSelectors(address diamond) private view {
         IDiamondLoupe.Facet[] memory facets = IDiamondLoupe(diamond).facets();
-        if (facets.length != 19) revert UnexpectedFacetCount(19, facets.length);
+        if (facets.length != 23) revert UnexpectedFacetCount(23, facets.length);
 
         uint256 selectorCount = 0;
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }
-        if (selectorCount != 125) revert UnexpectedSelectorCount(125, selectorCount);
+        if (selectorCount != 155) revert UnexpectedSelectorCount(155, selectorCount);
 
         bytes4[][] memory selectorSets = _phaseOneSelectorSets();
         for (uint256 i; i < selectorSets.length; ++i) {
@@ -279,12 +300,12 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             }
         }
 
-        _expectSelector(diamond, IStaticsBasketLiquidity.installLiquidityManager.selector, false);
-        _expectSelector(diamond, IStaticsProtocolPools.replaceLiquidityManager.selector, false);
+        _expectSelector(diamond, IStaticsBasketLiquidity.installLiquidityManager.selector, true);
+        _expectSelector(diamond, IStaticsProtocolPools.replaceLiquidityManager.selector, true);
     }
 
     function _phaseOneSelectorSets() private pure returns (bytes4[][] memory sets) {
-        sets = new bytes4[][](19);
+        sets = new bytes4[][](23);
         sets[0] = StaticsSelectors.diamondCut();
         sets[1] = StaticsSelectors.diamondLoupe();
         sets[2] = StaticsSelectors.ownership();
@@ -303,7 +324,11 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         sets[15] = StaticsSelectors.permissionedPoolCreation();
         sets[16] = StaticsSelectors.permissionedPoolAdmin();
         sets[17] = StaticsSelectors.permissionedPoolView();
-        sets[18] = StaticsSelectors.rangeGaugeCallback();
+        sets[18] = StaticsSelectors.rangeGaugeActions();
+        sets[19] = StaticsSelectors.rangeGaugePositions();
+        sets[20] = StaticsSelectors.rangeGaugeLiveness();
+        sets[21] = StaticsSelectors.rangeGaugeViews();
+        sets[22] = StaticsSelectors.rangeGaugeCallback();
     }
 
     function _containsSelector(IDiamondLoupe.Facet[] memory facets, bytes4 expected) private pure returns (bool) {
@@ -350,6 +375,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             : ".staticsDollarDependencies.weth.runtimeCodeHash";
         config = StaticsPhaseOneLiquidityConfig({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
+            positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
+            liquidityManager: vm.envAddress("STATICS_LIQUIDITY_MANAGER_ADDRESS"),
             hook: vm.envAddress("STATICS_SWAP_FEE_HOOK_ADDRESS"),
             permissionedHook: vm.envAddress("STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS"),
             permissionedRouter: vm.envAddress("STATICS_PERMISSIONED_ROUTER_ADDRESS"),
@@ -361,6 +388,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
+            positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
+            liquidityManagerCodeHash: vm.envBytes32("STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH"),
             hookCodeHash: vm.envBytes32("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH"),
             permissionedHookCodeHash: vm.envBytes32("STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH"),
             permissionedRouterCodeHash: vm.envBytes32("STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH"),

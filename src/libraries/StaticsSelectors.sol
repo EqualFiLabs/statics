@@ -21,6 +21,7 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsRangeGaugeCallback} from "../interfaces/IStaticsRangeGaugeCallback.sol";
 import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
 import {IStaticsPermissionedPools} from "../interfaces/IStaticsPermissionedPools.sol";
@@ -39,6 +40,50 @@ import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
 library StaticsSelectors {
+    function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
+        selectors[1] = IStaticsRangeGauge.setGaugeRewardDuration.selector;
+        selectors[2] = IStaticsRangeGauge.appendPoolRewardAsset.selector;
+        selectors[3] = IStaticsRangeGauge.fundPoolReward.selector;
+    }
+
+    function rangeGaugePositions() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsRangeGauge.provideLiquidity.selector;
+        selectors[1] = IStaticsRangeGauge.attachLiquidity.selector;
+        selectors[2] = IStaticsRangeGauge.increaseLiquidity.selector;
+        selectors[3] = IStaticsRangeGauge.decreaseLiquidity.selector;
+        selectors[4] = IStaticsRangeGauge.collectNativeFees.selector;
+        selectors[5] = IStaticsRangeGauge.rebalanceLiquidity.selector;
+    }
+
+    function rangeGaugeLiveness() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsRangeGauge.exitLiquidity.selector;
+        selectors[1] = IStaticsRangeGauge.claimLpRewards.selector;
+        selectors[2] = IStaticsRangeGauge.forfeitLpReward.selector;
+        selectors[3] = IStaticsRangeGauge.recoverUnboundPosm.selector;
+        selectors[4] = IStaticsRangeGauge.reconcilePoolRewardSurplus.selector;
+    }
+
+    /// @dev liquidityManager() is intentionally routed through BasketLiquidityFacet.
+    function rangeGaugeViews() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](12);
+        selectors[0] = IStaticsRangeGauge.gaugeRewardDuration.selector;
+        selectors[1] = IStaticsRangeGauge.gaugeRewardAssetAllowed.selector;
+        selectors[2] = IStaticsRangeGauge.poolRewardConfig.selector;
+        selectors[3] = IStaticsRangeGauge.gaugePool.selector;
+        selectors[4] = IStaticsRangeGauge.poolRewardStream.selector;
+        selectors[5] = IStaticsRangeGauge.poolRewardCustodyAccount.selector;
+        selectors[6] = IStaticsRangeGauge.gaugeBoundary.selector;
+        selectors[7] = IStaticsRangeGauge.lpLeg.selector;
+        selectors[8] = IStaticsRangeGauge.positionGaugePools.selector;
+        selectors[9] = IStaticsRangeGauge.posmBinding.selector;
+        selectors[10] = IStaticsRangeGauge.recordedLiquidityManager.selector;
+        selectors[11] = IStaticsRangeGauge.previewLpRewards.selector;
+    }
+
     function rangeGaugeCallback() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
@@ -404,21 +449,21 @@ library StaticsSelectors {
     }
 
     function phaseOneLiquidityIntegration() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
-        selectors[1] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[2] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
-        selectors[3] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+        selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
+        selectors[2] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[3] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[4] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[5] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
     }
 
     function phaseTwoBasketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
-        selectors[0] = IStaticsBasketLiquidity.installLiquidityManager.selector;
-        selectors[1] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        selectors[2] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[3] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[4] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[5] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsBasketLaunchModule.launchBasketPools.selector;
+        selectors[1] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
+        selectors[2] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[3] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
     }
 
     function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {
@@ -473,21 +518,21 @@ library StaticsSelectors {
     }
 
     function phaseOneProtocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
         selectors[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
         selectors[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
         selectors[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
         selectors[4] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
         selectors[5] = IStaticsProtocolPools.decommissionGeneralPool.selector;
-        selectors[6] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
-        selectors[7] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
+        selectors[6] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        selectors[7] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
+        selectors[8] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
     }
 
     function phaseTwoProtocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](1);
         selectors[0] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
-        selectors[1] = IStaticsProtocolPools.replaceLiquidityManager.selector;
     }
 
     function protocolPoolView() internal pure returns (bytes4[] memory selectors) {

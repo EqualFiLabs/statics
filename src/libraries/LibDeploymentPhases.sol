@@ -30,6 +30,7 @@ import {IStaticsPosition, IStaticsPositionFees} from "../interfaces/IStaticsPosi
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibDiamond} from "./LibDiamond.sol";
 import {LibFlashLoan} from "./LibFlashLoan.sol";
@@ -61,6 +62,7 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsRangeGauge).interfaceId] = true;
         ds.supportedInterfaces[type(IModularPositionNFT).interfaceId] = true;
         ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
         ds.supportedInterfaces[type(IERC5192).interfaceId] = true;
