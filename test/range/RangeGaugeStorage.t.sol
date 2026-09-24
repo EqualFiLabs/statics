@@ -22,7 +22,7 @@ contract RangeGaugeStorageTest is Test {
     }
 
     function testUsesDedicatedNamespaceAndLpModule() public view {
-        assertEq(gauge.storagePosition(), keccak256("statics.storage.range.gauge.v2"));
+        assertEq(gauge.storagePosition(), keccak256("statics.storage.range.gauge.v3"));
         assertEq(gauge.lpModule(), keccak256("statics.position.module.lp"));
         assertEq(
             gauge.lpLegKey(address(gauge), POOL_A),

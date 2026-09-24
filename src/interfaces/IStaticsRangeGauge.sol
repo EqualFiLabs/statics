@@ -67,11 +67,13 @@ interface IStaticsRangeGauge {
         bool assigned;
         uint8 slot;
         address asset;
+        uint64 protocolEpoch;
         uint40 periodStart;
         uint40 periodFinish;
         uint40 lastUpdate;
         uint256 periodBudget;
         uint256 periodEmitted;
+        uint256 periodRecycled;
         uint256 globalIndexRay;
         uint256 indexRemainder;
         uint256 indexedLiability;

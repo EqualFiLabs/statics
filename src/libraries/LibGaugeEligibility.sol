@@ -6,7 +6,6 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {LibProtocolPools} from "./LibProtocolPools.sol";
-import {LibRangeGauge} from "./LibRangeGauge.sol";
 import {LibRewardPolicy} from "./LibRewardPolicy.sol";
 
 library LibGaugeEligibility {
@@ -19,8 +18,6 @@ library LibGaugeEligibility {
                 && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
         ) return bytes32(0);
 
-        LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
-        if (!gauge.initialized || gauge.stopped) return bytes32(0);
         address asset0 = Currency.unwrap(key.currency0);
         address asset1 = Currency.unwrap(key.currency1);
         if (_restricted(asset0) || _restricted(asset1)) return bytes32(0);

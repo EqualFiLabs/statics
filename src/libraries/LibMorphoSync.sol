@@ -6,6 +6,7 @@ import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketRewards} from "./LibBasketRewards.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
+import {LibGaugeRouting} from "./LibGaugeRouting.sol";
 import {LibMorpho} from "./LibMorpho.sol";
 
 library LibMorphoSync {
@@ -35,6 +36,9 @@ library LibMorphoSync {
             } else {
                 ms.staticsCollateral[positionId] -= trackedLoss;
                 LibGlobalRewards.applyMorphoLoss(positionId, trackedLoss, keeper, ms.syncBountyBps);
+                LibGaugeRouting.clearForStakeLoss(
+                    positionId, LibGlobalRewards.rewardStorage().positions[positionId].balance
+                );
             }
         }
         LibMorpho.syncDebtObligation(positionId, marketId, actual.borrowShares);

@@ -6,6 +6,9 @@ import {BitMath} from "@uniswap/v4-core/src/libraries/BitMath.sol";
 import {TickBitmap} from "@uniswap/v4-core/src/libraries/TickBitmap.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {LibCustody} from "./LibCustody.sol";
+import {LibGaugeEligibility} from "./LibGaugeEligibility.sol";
+import {LibGaugeEpoch} from "./LibGaugeEpoch.sol";
+import {LibGaugeReserve} from "./LibGaugeReserve.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibIndexMath} from "./LibIndexMath.sol";
 
@@ -13,7 +16,7 @@ import {LibIndexMath} from "./LibIndexMath.sol";
 library LibRangeGauge {
     using TickBitmap for mapping(int16 wordPos => uint256 word);
 
-    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.range.gauge.v2");
+    bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.range.gauge.v3");
     bytes32 internal constant RANGE_REWARD_ACCOUNT_DOMAIN = keccak256("statics.custody.account.range.rewards.v1");
     uint256 internal constant RAY = 1e27;
     uint8 internal constant MAX_REWARD_SLOTS = 5;
@@ -53,11 +56,13 @@ library LibRangeGauge {
     }
 
     struct GaugeRewardStream {
+        uint64 protocolEpoch;
         uint40 periodStart;
         uint40 periodFinish;
         uint40 lastUpdate;
         uint256 periodBudget;
         uint256 periodEmitted;
+        uint256 periodRecycled;
         uint256 globalIndexRay;
         uint256 indexRemainder;
         uint256 indexedLiability;
@@ -121,6 +126,7 @@ library LibRangeGauge {
     error PosmAlreadyBound(uint256 posmTokenId, bytes32 binding);
     error PosmBindingMismatch(uint256 posmTokenId, bytes32 expected, bytes32 actual);
     error GaugeAlreadyStopped(PoolId poolId);
+    error ProtocolRewardStreamActive(PoolId poolId, uint64 epoch);
 
     function rangeGaugeStorage() internal pure returns (RangeGaugeStorage storage rgs) {
         bytes32 slot = STORAGE_POSITION;
@@ -320,6 +326,60 @@ library LibRangeGauge {
         remainingDuration = finish - currentTime;
     }
 
+    function startProtocolStream(PoolId poolId, uint64 epoch, uint40 start, uint40 finish, uint256 budget) internal {
+        if (budget == 0) return;
+        RangeGaugeStorage storage rgs = rangeGaugeStorage();
+        GaugePool storage gauge = rgs.gauges[poolId];
+        GaugeRewardStream storage stream = gauge.streams[STATICS_SLOT];
+        if (stream.periodBudget != stream.periodEmitted + stream.periodRecycled) {
+            revert ProtocolRewardStreamActive(poolId, stream.protocolEpoch);
+        }
+        GaugeRewardCapacity storage capacity = gauge.capacities[STATICS_SLOT];
+        uint256 usedCapacity = capacity.used;
+        if (usedCapacity > MAX_INDEXABLE_REWARD || budget > MAX_INDEXABLE_REWARD - usedCapacity) {
+            revert RewardBudgetExceedsIndexCapacity(usedCapacity, budget, MAX_INDEXABLE_REWARD);
+        }
+        capacity.used = usedCapacity + budget;
+        stream.protocolEpoch = epoch;
+        stream.periodStart = start;
+        stream.periodFinish = finish;
+        stream.lastUpdate = start;
+        stream.periodBudget = budget;
+        stream.periodEmitted = 0;
+        stream.periodRecycled = 0;
+    }
+
+    function checkpointProtocolStream(PoolId poolId, uint40 currentTime)
+        internal
+        returns (uint256 emission, uint256 recycled)
+    {
+        GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
+        GaugeRewardStream storage stream = gauge.streams[STATICS_SLOT];
+        uint64 protocolEpoch = stream.protocolEpoch;
+        if (protocolEpoch == 0 || currentTime <= stream.lastUpdate) return (0, 0);
+        uint256 accounted = stream.periodEmitted + stream.periodRecycled;
+        if (accounted == stream.periodBudget) return (0, 0);
+        (uint256 targetAccounted, uint40 accrualEnd, bool terminated) =
+            _protocolCheckpointTarget(poolId, stream, currentTime);
+        uint256 newlyAccounted = targetAccounted - accounted;
+        if (gauge.activeGaugeLiquidity == 0) {
+            recycled = newlyAccounted;
+            stream.periodRecycled += newlyAccounted;
+        } else {
+            emission = newlyAccounted;
+            stream.periodEmitted += newlyAccounted;
+            if (emission != 0) _increaseIndex(stream, emission, gauge.activeGaugeLiquidity);
+        }
+        stream.lastUpdate = accrualEnd;
+
+        if (terminated) {
+            uint256 unvested = stream.periodBudget - stream.periodEmitted - stream.periodRecycled;
+            stream.periodRecycled += unvested;
+            recycled += unvested;
+        }
+        if (recycled != 0) _recycleProtocolReward(poolId, protocolEpoch, recycled);
+    }
+
     function positionAccrual(uint128 liquidity, uint256 growthDeltaRay, uint256 priorRemainderRay)
         internal
         pure
@@ -425,9 +485,14 @@ library LibRangeGauge {
         PoolRewardConfig storage config = rgs.rewardConfig[poolId];
         for (uint8 slot; slot < config.slotCount; ++slot) {
             GaugeRewardStream storage stream = gauge.streams[slot];
-            uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
+            uint256 remainingBudget = stream.periodBudget - stream.periodEmitted - stream.periodRecycled;
             if (remainingBudget == 0) continue;
-            stream.periodEmitted = stream.periodBudget;
+            if (slot == STATICS_SLOT && stream.protocolEpoch != 0) {
+                stream.periodRecycled += remainingBudget;
+                _recycleProtocolReward(poolId, stream.protocolEpoch, remainingBudget);
+                continue;
+            }
+            stream.periodEmitted += remainingBudget;
             address asset = config.assets[slot];
             LibCustody.moveReservation(rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, remainingBudget);
             LibGlobalRewards.accrueReservedTreasuryFee(asset, remainingBudget);
@@ -448,8 +513,12 @@ library LibRangeGauge {
         if (dust > stream.indexedLiability) revert IndexedLiabilityUnderflow(stream.indexedLiability, dust);
         stream.indexedLiability -= dust;
         address asset = config.assets[slot];
-        LibCustody.moveReservation(rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, dust);
-        LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
+        if (slot == STATICS_SLOT && stream.protocolEpoch != 0) {
+            _recycleProtocolReward(poolId, stream.protocolEpoch, dust);
+        } else {
+            LibCustody.moveReservation(rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, dust);
+            LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
+        }
     }
 
     function reconciliationAvailable(
@@ -457,12 +526,13 @@ library LibRangeGauge {
         uint64 unresolvedLegCount,
         uint256 periodBudget,
         uint256 periodEmitted,
+        uint256 periodRecycled,
         uint256 claimLiability,
         uint256 reserved,
         uint256 indexedLiability
     ) internal pure returns (bool) {
-        return stopped && unresolvedLegCount == 0 && periodBudget == periodEmitted && claimLiability == 0
-            && reserved >= indexedLiability;
+        return stopped && unresolvedLegCount == 0 && periodBudget == periodEmitted + periodRecycled
+            && claimLiability == 0 && reserved >= indexedLiability;
     }
 
     function addRangeBoundaries(
@@ -700,9 +770,41 @@ library LibRangeGauge {
         uint8 slotCount = rangeGaugeStorage().rewardConfig[poolId].slotCount;
         uint128 activeLiquidity = gauge.activeGaugeLiquidity;
         for (uint8 slot; slot < slotCount; ++slot) {
-            checkpointStream(gauge.streams[slot], currentTime, activeLiquidity);
+            GaugeRewardStream storage stream = gauge.streams[slot];
+            if (slot == STATICS_SLOT && stream.protocolEpoch != 0) {
+                checkpointProtocolStream(poolId, currentTime);
+            } else {
+                checkpointStream(stream, currentTime, activeLiquidity);
+            }
             flushDenominatorRemainder(poolId, slot);
         }
+    }
+
+    function _recycleProtocolReward(PoolId poolId, uint64 sourceEpoch, uint256 amount) private {
+        address statics = staticsToken();
+        LibCustody.moveReservation(
+            rewardAccount(poolId, STATICS_SLOT), LibCustody.gaugeReserveAccount(), statics, amount
+        );
+        LibGaugeReserve.consumeCommitted(amount);
+        LibGaugeReserve.recycle(amount, sourceEpoch, LibGaugeEpoch.epochAt(block.timestamp));
+    }
+
+    function _protocolCheckpointTarget(PoolId poolId, GaugeRewardStream storage stream, uint40 currentTime)
+        private
+        view
+        returns (uint256 targetAccounted, uint40 accrualEnd, bool terminated)
+    {
+        accrualEnd = currentTime < stream.periodFinish ? currentTime : stream.periodFinish;
+        uint40 restrictedAt = LibGaugeEligibility.restrictionTimestamp(poolId, stream.protocolEpoch);
+        terminated = restrictedAt != 0 && restrictedAt <= accrualEnd;
+        if (terminated) accrualEnd = restrictedAt;
+        if (accrualEnd < stream.periodStart) accrualEnd = stream.periodStart;
+        if (accrualEnd == stream.periodFinish) return (stream.periodBudget, accrualEnd, terminated);
+        targetAccounted = Math.mulDiv(
+            stream.periodBudget,
+            uint256(accrualEnd) - stream.periodStart,
+            uint256(stream.periodFinish) - stream.periodStart
+        );
     }
 
     function _addBoundary(

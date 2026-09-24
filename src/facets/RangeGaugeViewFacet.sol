@@ -5,6 +5,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibGaugeEligibility} from "../libraries/LibGaugeEligibility.sol";
 import {LibIndexMath} from "../libraries/LibIndexMath.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
@@ -56,11 +57,13 @@ contract RangeGaugeViewFacet {
             assigned: assigned,
             slot: slot,
             asset: asset,
+            protocolEpoch: stored.protocolEpoch,
             periodStart: stored.periodStart,
             periodFinish: stored.periodFinish,
             lastUpdate: stored.lastUpdate,
             periodBudget: stored.periodBudget,
             periodEmitted: stored.periodEmitted,
+            periodRecycled: stored.periodRecycled,
             globalIndexRay: stored.globalIndexRay,
             indexRemainder: stored.indexRemainder,
             indexedLiability: stored.indexedLiability,
@@ -141,7 +144,7 @@ contract RangeGaugeViewFacet {
         for (uint8 slot; slot < config.slotCount; ++slot) {
             uint256 amount = leg.claimable[slot];
             if (leg.liquidity != 0) {
-                uint256 globalIndexRay = _previewGlobalIndex(gauge.streams[slot], gauge, block.timestamp);
+                uint256 globalIndexRay = _previewGlobalIndex(poolId, slot, gauge.streams[slot], gauge, block.timestamp);
                 uint256 insideGrowthRay = LibRangeGauge.growthInsideValues(
                     globalIndexRay,
                     gauge.boundaries[leg.tickLower].rewardOutsideRay[slot],
@@ -163,23 +166,30 @@ contract RangeGaugeViewFacet {
     }
 
     function _previewGlobalIndex(
+        PoolId poolId,
+        uint8 slot,
         LibRangeGauge.GaugeRewardStream storage stream,
         LibRangeGauge.GaugePool storage gauge,
         uint256 timestamp
     ) private view returns (uint256 globalIndexRay) {
         globalIndexRay = stream.globalIndexRay;
         if (
-            gauge.stopped || gauge.activeGaugeLiquidity == 0 || stream.periodBudget == stream.periodEmitted
-                || timestamp <= stream.lastUpdate
+            gauge.stopped || gauge.activeGaugeLiquidity == 0
+                || stream.periodBudget == stream.periodEmitted + stream.periodRecycled || timestamp <= stream.lastUpdate
         ) return globalIndexRay;
         uint40 currentTime = LibRangeGauge.timestamp40(timestamp);
         uint40 effectiveNow = currentTime < stream.periodFinish ? currentTime : stream.periodFinish;
+        if (slot == LibRangeGauge.STATICS_SLOT && stream.protocolEpoch != 0) {
+            uint40 restrictedAt = LibGaugeEligibility.restrictionTimestamp(poolId, stream.protocolEpoch);
+            if (restrictedAt != 0 && restrictedAt < effectiveNow) effectiveNow = restrictedAt;
+            if (effectiveNow < stream.periodStart) effectiveNow = stream.periodStart;
+        }
         uint256 elapsed = uint256(effectiveNow) - stream.periodStart;
         uint256 duration = uint256(stream.periodFinish) - stream.periodStart;
         uint256 targetEmitted = effectiveNow == stream.periodFinish
             ? stream.periodBudget
             : Math.mulDiv(stream.periodBudget, elapsed, duration);
-        uint256 emission = targetEmitted - stream.periodEmitted;
+        uint256 emission = targetEmitted - stream.periodEmitted - stream.periodRecycled;
         if (emission == 0) return globalIndexRay;
         (uint256 delta,) = LibIndexMath.indexDelta(emission, gauge.activeGaugeLiquidity, stream.indexRemainder);
         unchecked {

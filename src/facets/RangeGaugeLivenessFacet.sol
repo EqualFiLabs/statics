@@ -14,6 +14,8 @@ import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibGaugeEpoch} from "../libraries/LibGaugeEpoch.sol";
+import {LibGaugeReserve} from "../libraries/LibGaugeReserve.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -116,7 +118,14 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         leg.claimable[slot] = 0;
         _decreaseClaimLiability(poolId, slot, amount);
         if (leg.liquidity == 0) leg.rewardRemainderRay[slot] = 0;
-        if (amount != 0) {
+        LibRangeGauge.GaugeRewardStream storage stream = LibRangeGauge.rangeGaugeStorage().gauges[poolId].streams[slot];
+        if (amount != 0 && slot == LibRangeGauge.STATICS_SLOT && stream.protocolEpoch != 0) {
+            LibCustody.moveReservation(
+                LibRangeGauge.rewardAccount(poolId, slot), LibCustody.gaugeReserveAccount(), asset, amount
+            );
+            LibGaugeReserve.consumeCommitted(amount);
+            LibGaugeReserve.recycle(amount, stream.protocolEpoch, LibGaugeEpoch.epochAt(block.timestamp));
+        } else if (amount != 0) {
             LibCustody.moveReservation(
                 LibRangeGauge.rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, amount
             );
@@ -152,6 +161,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
                 gauge.unresolvedLegCount,
                 stream.periodBudget,
                 stream.periodEmitted,
+                stream.periodRecycled,
                 stream.claimLiability,
                 reserved,
                 stream.indexedLiability
@@ -160,7 +170,13 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         stream.indexedLiability = 0;
         stream.indexRemainder = 0;
         amount = reserved;
-        if (amount != 0) {
+        if (amount != 0 && slot == LibRangeGauge.STATICS_SLOT && stream.protocolEpoch != 0) {
+            LibCustody.moveReservation(
+                LibRangeGauge.rewardAccount(poolId, slot), LibCustody.gaugeReserveAccount(), asset, amount
+            );
+            LibGaugeReserve.consumeCommitted(amount);
+            LibGaugeReserve.recycle(amount, stream.protocolEpoch, LibGaugeEpoch.epochAt(block.timestamp));
+        } else if (amount != 0) {
             LibCustody.moveReservation(account, LibCustody.feeAccount(), asset, amount);
             LibGlobalRewards.accrueReservedTreasuryFee(asset, amount);
         }
@@ -204,6 +220,11 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         (uint256 debited, uint256 actualReceived) = LibCustody.pushReserved(
             LibRangeGauge.rewardAccount(context.poolId, slot), asset, context.receiver, amount, amount
         );
+        LibRangeGauge.GaugeRewardStream storage stream =
+            LibRangeGauge.rangeGaugeStorage().gauges[context.poolId].streams[slot];
+        if (slot == LibRangeGauge.STATICS_SLOT && stream.protocolEpoch != 0) {
+            LibGaugeReserve.consumeCommitted(debited);
+        }
         if (actualReceived < minimumAmount) {
             revert IStaticsRangeGauge.RewardAmountBelowMinimum(asset, actualReceived, minimumAmount);
         }
