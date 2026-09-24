@@ -46,7 +46,7 @@ changing Solidity, and apply the relevant guidance to the change.
 
   ```sh
   forge coverage --report lcov --no-match-test \
-    "testCanonicalLauncherCreatesOnlyDeployableContracts|test_PositionFacetRetainsEip170Headroom"
+    "testCanonicalLauncherCreatesOnlyDeployableContracts|test_PositionFacetRetainsEip170Headroom|test_PublicHookRetainsEip170Headroom"
   ```
 
 ### Test Fidelity Guardrails

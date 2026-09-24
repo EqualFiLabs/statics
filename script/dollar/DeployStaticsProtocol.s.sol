@@ -17,6 +17,7 @@ import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.so
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
+import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.sol";
 import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCreationFacet.sol";
 import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
 import {PermissionedPoolViewFacet} from "../../src/facets/PermissionedPoolViewFacet.sol";
@@ -200,6 +201,7 @@ abstract contract DeployStaticsProtocol {
         parts.permissionedPoolCreation = address(new PermissionedPoolCreationFacet());
         parts.permissionedPoolAdmin = address(new PermissionedPoolAdminFacet());
         parts.permissionedPoolView = address(new PermissionedPoolViewFacet());
+        parts.rangeGaugeCallback = address(new RangeGaugeCallbackFacet());
     }
 
     function _phaseOneProtocolCut(StaticsProtocolParts memory parts)

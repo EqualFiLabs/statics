@@ -89,10 +89,10 @@ contract StagedQuoterMock {
 }
 
 contract DeployStaticsPhasesTest is Test {
-    uint256 private constant PHASE_ONE_SELECTORS = 124;
-    uint256 private constant PHASE_TWO_SELECTORS = 220;
-    uint256 private constant PHASE_THREE_SELECTORS = 278;
-    uint256 private constant PHASE_FOUR_SELECTORS = 305;
+    uint256 private constant PHASE_ONE_SELECTORS = 125;
+    uint256 private constant PHASE_TWO_SELECTORS = 221;
+    uint256 private constant PHASE_THREE_SELECTORS = 279;
+    uint256 private constant PHASE_FOUR_SELECTORS = 306;
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
 
     struct Fixture {
@@ -134,7 +134,7 @@ contract DeployStaticsPhasesTest is Test {
     function testStagedDeploymentReachesFreshDeploymentParity() public {
         Fixture memory fixture = _phaseOneFixture();
         address diamond = fixture.phaseOne.diamond;
-        _assertManifest(diamond, 18, PHASE_ONE_SELECTORS);
+        _assertManifest(diamond, 19, PHASE_ONE_SELECTORS);
         assertEq(_activePhase(diamond), 1);
 
         DeployStaticsPhases.PhaseTwoConfig memory phaseTwoConfig = _phaseTwoConfig(fixture, 0.01 ether);
@@ -143,7 +143,7 @@ contract DeployStaticsPhasesTest is Test {
             fixture.phases.buildPhaseTwoBatch(diamond, phaseTwo, phaseTwoConfig);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase two"));
 
-        _assertManifest(diamond, 30, PHASE_TWO_SELECTORS);
+        _assertManifest(diamond, 31, PHASE_TWO_SELECTORS);
         assertEq(_activePhase(diamond), 2);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
         assertEq(IStaticsFlashLoan(diamond).singleAssetFlashFeeBps(), 5);
@@ -161,7 +161,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseThreeBatch(diamond, phaseThree);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase three"));
 
-        _assertManifest(diamond, 35, PHASE_THREE_SELECTORS);
+        _assertManifest(diamond, 36, PHASE_THREE_SELECTORS);
         assertEq(_activePhase(diamond), 3);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsCustody).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
@@ -175,7 +175,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseFourBatch(diamond, phaseFour);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase four"));
 
-        _assertManifest(diamond, 40, PHASE_FOUR_SELECTORS);
+        _assertManifest(diamond, 41, PHASE_FOUR_SELECTORS);
         assertEq(_activePhase(diamond), 4);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionPortfolio).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsMorpho).interfaceId));
@@ -187,7 +187,13 @@ contract DeployStaticsPhasesTest is Test {
         assertEq(IStaticsMorpho(diamond).morpho(), address(morpho));
         assertEq(IStaticsMorpho(diamond).morphoUsdStx(), address(usdStx));
 
+        // This test executes both the complete staged deployment and an independent
+        // full reference deployment in one Foundry transaction. Exclude only the
+        // reference setup from the aggregate test gas meter; deployability remains
+        // covered by the dedicated deployment suites below this parity assertion.
+        vm.pauseGasMetering();
         CoreBootstrapDeployment memory fresh = _freshDeployment(fixture);
+        vm.resumeGasMetering();
         _assertSelectorCodehashParity(diamond, fresh.diamond);
         _assertSelectorCodehashParity(phaseThree.core, fresh.core);
         assertEq(IStaticsBasketAdmin(fresh.diamond).creationFee(), IStaticsBasketAdmin(diamond).creationFee());

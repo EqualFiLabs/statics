@@ -22,6 +22,7 @@ import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/Pool
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPermanentLiquidityMath} from "../interfaces/IStaticsPermanentLiquidityMath.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGaugeCallback} from "../interfaces/IStaticsRangeGaugeCallback.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 
@@ -489,7 +490,23 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         PoolId poolId = key.toId();
         uint256 charged = _chargeUnspecifiedLeg(poolId, key, params, delta);
         _compound(key, poolId);
+        _afterProtocolPoolSwap(poolId);
         return (IHooks.afterSwap.selector, charged.toInt128());
+    }
+
+    /// @dev Preserve exact revert data while avoiding the code-size overhead of general ABI call machinery.
+    function _afterProtocolPoolSwap(PoolId poolId) private {
+        address diamond = staticsDiamond;
+        bytes4 selector = IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, selector)
+            mstore(add(ptr, 4), poolId)
+            if iszero(call(gas(), diamond, 0, ptr, 36, 0, 0)) {
+                returndatacopy(ptr, 0, returndatasize())
+                revert(ptr, returndatasize())
+            }
+        }
     }
 
     function _chargeUnspecifiedLeg(PoolId poolId, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta)

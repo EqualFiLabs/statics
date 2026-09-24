@@ -36,9 +36,14 @@ contract HookCompatibilityERC20 is ERC20 {
 contract HookDiamondMock {
     using SafeERC20 for IERC20;
 
+    error RangeGaugeCallbackRejected(PoolId poolId);
+
     address public hook;
     bool public stakersEligible = true;
     bool public basketEligible;
+    bool public rejectRangeGaugeCallback;
+    uint256 public rangeGaugeCallbackCount;
+    PoolId public lastRangeGaugeCallbackPoolId;
     mapping(address asset => bool eligible) public rewardAssetEligible;
     mapping(address asset => uint256 amount) public basketStakerFees;
     mapping(address asset => uint256 amount) public stakerFees;
@@ -61,6 +66,17 @@ contract HookDiamondMock {
 
     function setRewardAssetEligible(address asset, bool eligible) external {
         rewardAssetEligible[asset] = eligible;
+    }
+
+    function setRejectRangeGaugeCallback(bool rejected) external {
+        rejectRangeGaugeCallback = rejected;
+    }
+
+    function afterProtocolPoolSwap(PoolId poolId) external {
+        require(msg.sender == hook, "only hook");
+        if (rejectRangeGaugeCallback) revert RangeGaugeCallbackRejected(poolId);
+        lastRangeGaugeCallbackPoolId = poolId;
+        ++rangeGaugeCallbackCount;
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
@@ -224,6 +240,35 @@ contract StaticsSwapFeeHookTest is Test, Deployers {
         assertGt(liability1, 0);
         assertEq(manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(key.currency0)))), liability0);
         assertEq(manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(key.currency1)))), liability1);
+    }
+
+    function testSwapInvokesRangeGaugeCallbackForRegisteredPool() public {
+        assertEq(diamond.rangeGaugeCallbackCount(), 0);
+
+        swap(key, true, -int256(0.001 ether), "");
+
+        assertEq(diamond.rangeGaugeCallbackCount(), 1);
+        assertEq(PoolId.unwrap(diamond.lastRangeGaugeCallbackPoolId()), PoolId.unwrap(poolId));
+    }
+
+    function testRangeGaugeCallbackFailureRevertsFeeAndPolState() public {
+        uint256 claim0Before = hook.claimLiability(key.currency0);
+        uint256 claim1Before = hook.claimLiability(key.currency1);
+        uint256 liquidityBefore = hook.lockedLiquidity(poolId);
+        diamond.setRejectRangeGaugeCallback(true);
+
+        vm.expectRevert(
+            _wrappedHookRevert(
+                IHooks.afterSwap.selector,
+                abi.encodeWithSelector(HookDiamondMock.RangeGaugeCallbackRejected.selector, poolId)
+            )
+        );
+        swap(key, true, -int256(0.001 ether), "");
+
+        assertEq(hook.claimLiability(key.currency0), claim0Before);
+        assertEq(hook.claimLiability(key.currency1), claim1Before);
+        assertEq(hook.lockedLiquidity(poolId), liquidityBefore);
+        assertEq(diamond.rangeGaugeCallbackCount(), 0);
     }
 
     function testOnlyDiamondCanHarvestPermanentLiquidityFees() public {

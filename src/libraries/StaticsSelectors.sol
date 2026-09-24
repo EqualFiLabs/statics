@@ -21,6 +21,7 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGaugeCallback} from "../interfaces/IStaticsRangeGaugeCallback.sol";
 import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
 import {IStaticsPermissionedPools} from "../interfaces/IStaticsPermissionedPools.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
@@ -38,6 +39,11 @@ import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
 library StaticsSelectors {
+    function rangeGaugeCallback() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
+    }
+
     function rewardPolicy() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](3);
         selectors[0] = IStaticsRewardPolicy.addRewardRestriction.selector;

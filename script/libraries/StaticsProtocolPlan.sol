@@ -43,6 +43,7 @@ struct StaticsProtocolParts {
     address permissionedPoolCreation;
     address permissionedPoolAdmin;
     address permissionedPoolView;
+    address rangeGaugeCallback;
     address genesisNFT;
     address morphoActions;
     address morphoRecovery;
@@ -61,7 +62,7 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](18);
+        cut = new IDiamondCut.FacetCut[](19);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
@@ -80,6 +81,7 @@ library StaticsProtocolPlan {
         cut[15] = _add(parts.permissionedPoolCreation, StaticsSelectors.permissionedPoolCreation());
         cut[16] = _add(parts.permissionedPoolAdmin, StaticsSelectors.permissionedPoolAdmin());
         cut[17] = _add(parts.permissionedPoolView, StaticsSelectors.permissionedPoolView());
+        cut[18] = _add(parts.rangeGaugeCallback, StaticsSelectors.rangeGaugeCallback());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {

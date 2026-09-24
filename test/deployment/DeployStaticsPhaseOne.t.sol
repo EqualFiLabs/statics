@@ -39,6 +39,7 @@ import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {IStaticsPosition, IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGaugeCallback} from "../../src/interfaces/IStaticsRangeGaugeCallback.sol";
 import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -60,8 +61,8 @@ contract PhaseOnePermissionedBindingMock {
 }
 
 contract DeployStaticsPhaseOneTest is Test {
-    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 18;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 124;
+    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 19;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 125;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -374,6 +375,7 @@ contract DeployStaticsPhaseOneTest is Test {
     function _assertPhaseOneSelectors(address diamond) private view {
         IDiamondLoupe loupe = IDiamondLoupe(diamond);
         assertTrue(loupe.facetAddress(IStaticsGovernance.protocolPoolSwapsBlocked.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsPosition.createPosition.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGlobalRewards.createAndStake.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsCustody.stakingCustodyAccount.selector) != address(0));
