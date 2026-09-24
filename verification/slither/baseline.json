@@ -2,15 +2,15 @@
   "schema": 2,
   "counts": {
     "High": 69,
-    "Medium": 374,
-    "Low": 230,
-    "Informational": 113
+    "Medium": 397,
+    "Low": 245,
+    "Informational": 119
   },
   "raw_counts": {
     "High": 69,
-    "Medium": 374,
-    "Low": 290,
-    "Informational": 113
+    "Medium": 397,
+    "Low": 306,
+    "Informational": 119
   },
   "findings": [
     {
@@ -54,12 +54,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol"
+        "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "LibCustody.pull(address,address,uint256) (src/libraries/LibCustody.sol#111-117) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#113)",
-      "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
+      "summary": "StaticsLiquidityManager.attachManagedPosition(address,PoolId,uint256) (src/liquidity/StaticsLiquidityManager.sol#124-145) uses arbitrary from in transferFrom: IERC721(positionManager).transferFrom(owner,address(this),tokenId) (src/liquidity/StaticsLiquidityManager.sol#139)",
+      "rationale": "The immutable Diamond is the only caller, the supplied owner must match current PositionManager ownership, ERC-721 approval authorizes the transfer, and post-transfer ownership, subscriber, pool, range, and liquidity checks bind the exact PNFT.",
       "occurrences": 1,
-      "id": "1622fc9376f35d138b474d48"
+      "id": "8b2af14b5a98e2fafcae1168"
     },
     {
       "impact": "High",
@@ -70,12 +70,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
+        "src/libraries/LibCustody.sol"
       ],
-      "summary": "StaticsLiquidityManager.attachManagedPosition(address,PoolId,uint256) (src/liquidity/StaticsLiquidityManager.sol#124-145) uses arbitrary from in transferFrom: IERC721(positionManager).transferFrom(owner,address(this),tokenId) (src/liquidity/StaticsLiquidityManager.sol#139)",
-      "rationale": "The immutable Diamond is the only caller, the supplied owner must match current PositionManager ownership, ERC-721 approval authorizes the transfer, and post-transfer ownership, subscriber, pool, range, and liquidity checks bind the exact PNFT.",
+      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#126-134) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#129)",
+      "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
       "occurrences": 1,
-      "id": "8b2af14b5a98e2fafcae1168"
+      "id": "9727a86298f13aec72cd4033"
     },
     {
       "impact": "High",
@@ -104,10 +104,10 @@
       "paths": [
         "src/libraries/LibCustody.sol"
       ],
-      "summary": "LibCustody.pullFlash(address,address,uint256) (src/libraries/LibCustody.sol#121-129) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#124)",
+      "summary": "LibCustody.pull(address,address,uint256) (src/libraries/LibCustody.sol#116-122) uses arbitrary from in transferFrom: IERC20(token).safeTransferFrom(from,address(this),amount) (src/libraries/LibCustody.sol#118)",
       "rationale": "The custody helper is internal, its callers bind the payer to the authenticated action or flash callback, and exact token balance deltas are checked.",
       "occurrences": 1,
-      "id": "e684002d3cadc28fa9b39097"
+      "id": "b96bd15ca88b3b876d1b8178"
     },
     {
       "impact": "High",
@@ -1032,10 +1032,10 @@
       "paths": [
         "src/diamond/StaticsProtocolInit.sol"
       ],
-      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#16-124) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#31-49)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#51-53)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#57-77)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#81-84). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#57-77)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#81-84)",
+      "summary": "StaticsProtocolInit (src/diamond/StaticsProtocolInit.sol#18-127) is an upgradeable contract that does not protect its initialize functions: StaticsProtocolInit.initialize(address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#33-51)StaticsProtocolInit.initializeUnified(StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#53-55)StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#59-79)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#83-86). Anyone can delete the contract with: StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#59-79)StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#83-86)",
       "rationale": "These contracts are one-shot Diamond delegatecall initializers, not independently upgradeable asset holders; direct calls mutate only the disposable initializer instance and cannot alter a deployed Diamond.",
       "occurrences": 1,
-      "id": "2cab0dc64aacc738c1646977"
+      "id": "66f89334b303f5e7f27c0131"
     },
     {
       "impact": "High",
@@ -1048,10 +1048,10 @@
       "paths": [
         "src/diamond/StaticsPhaseOneInit.sol"
       ],
-      "summary": "StaticsPhaseOneInit (src/diamond/StaticsPhaseOneInit.sol#17-46) is an upgradeable contract that does not protect its initialize functions: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#29-45). Anyone can delete the contract with: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#29-45)",
+      "summary": "StaticsPhaseOneInit (src/diamond/StaticsPhaseOneInit.sol#18-49) is an upgradeable contract that does not protect its initialize functions: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#31-48). Anyone can delete the contract with: StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#31-48)",
       "rationale": "These contracts are one-shot Diamond delegatecall initializers, not independently upgradeable asset holders; direct calls mutate only the disposable initializer instance and cannot alter a deployed Diamond.",
       "occurrences": 1,
-      "id": "58f30db062d6faa3328a9759"
+      "id": "6d21007b3813cdda30e5b374"
     },
     {
       "impact": "High",
@@ -1238,6 +1238,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._applyFunding(PoolId,uint8,uint40,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#140-178) uses a dangerous strict equality:",
+      "rationale": "The exact zero check skips allocator bookkeeping only when the computed allocator tranche is absent; approximate comparison would misroute real token custody.",
+      "occurrences": 1,
+      "id": "12c020595d5262b21293f8d9"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._buyAndRedeemRoute(uint256,address[],uint256[],StaticsFlashArbitrageReceiver.BuyAndRedeemRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#359-385) uses a dangerous strict equality:",
@@ -1254,12 +1270,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeViewFacet.sol"
+        "src/libraries/LibCustody.sol"
       ],
-      "summary": "RangeGaugeViewFacet._previewGlobalIndex(LibRangeGauge.GaugeRewardStream,LibRangeGauge.GaugePool,uint256) (src/facets/RangeGaugeViewFacet.sol#165-188) uses a dangerous strict equality:",
-      "rationale": "Exact equality at period finish deliberately selects the full budget so terminal rounding remainder is emitted; approximate comparison would break reward conservation.",
+      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#83-93) uses a dangerous strict equality:",
+      "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
-      "id": "25953c90841cae044eb42668"
+      "id": "2e2df068f68b4336e5688b74"
     },
     {
       "impact": "Medium",
@@ -1331,6 +1347,38 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._removeScheduledWeights(LibGaugeRouting.RoutingStorage,uint256,LibGaugeRouting.PositionAllocations,uint64,uint64) (src/libraries/LibGaugeRouting.sol#356-381) uses a dangerous strict equality:",
+      "rationale": "The equality selects the pending allocation buffer only when it is scheduled for exactly the next epoch; a range comparison would remove the wrong weight set.",
+      "occurrences": 1,
+      "id": "3bc86c141c29cb2cb3e58d30"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._fundingContext(PoolId,uint8,uint16,uint64) (src/facets/RangeGaugeFacet.sol#109-138) uses a dangerous strict equality:",
+      "rationale": "The exact zero share identifies the configured LP-only mode and enforces a zero allocator epoch; it is a configuration sentinel, not a value approximation.",
+      "occurrences": 1,
+      "id": "3f497acd5e023539acb6a47f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1356,22 +1404,6 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "452038b6d57697c33a4226c5"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol"
-      ],
-      "summary": "LibCustody.reserve(bytes32,address,uint256) (src/libraries/LibCustody.sol#78-88) uses a dangerous strict equality:",
-      "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
-      "occurrences": 1,
-      "id": "48ce4c853520e5cf46bb0734"
     },
     {
       "impact": "Medium",
@@ -1443,6 +1475,22 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._claimAllocatorReward(GaugeIncentiveFacet.AllocatorClaimContext,uint8,uint256) (src/facets/GaugeIncentiveFacet.sol#150-176) uses a dangerous strict equality:",
+      "rationale": "The exact zero amount is the no-claim branch after finalized entitlement calculation; nonzero amounts continue through reserved-custody settlement.",
+      "occurrences": 1,
+      "id": "648e0138b7302a2c7aadd95a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1478,12 +1526,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeViewFacet.sol"
+        "src/facets/RangeGaugeFacet.sol"
       ],
-      "summary": "RangeGaugeViewFacet._previewGlobalIndex(LibRangeGauge.GaugeRewardStream,LibRangeGauge.GaugePool,uint256) (src/facets/RangeGaugeViewFacet.sol#165-188) uses a dangerous strict equality:",
-      "rationale": "Exact zero emission is the no-op sentinel before reward-index division; any positive integer emission must continue through indexed accounting.",
+      "summary": "RangeGaugeFacet._fundingContext(PoolId,uint8,uint16,uint64) (src/facets/RangeGaugeFacet.sol#109-138) uses a dangerous strict equality:",
+      "rationale": "The zero bytes32 value is the explicit ineligible-pool sentinel returned by the eligibility library and must be matched exactly.",
       "occurrences": 1,
-      "id": "6e0939f7698bb34a7a8c7f57"
+      "id": "6bfa4aa12b08da09c86f0eb0"
     },
     {
       "impact": "Medium",
@@ -1516,6 +1564,22 @@
       "rationale": "Strict equality is required here to fail closed on a deployment artifact, code, hash, fixed share, or ceremony invariant; it is not used as a price trigger.",
       "occurrences": 1,
       "id": "8190603879774fe2c348eed6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePoolWeightCheckpoint(LibGaugeRouting.RoutingStorage,PoolId,uint64) (src/libraries/LibGaugeRouting.sol#402-414) uses a dangerous strict equality:",
+      "rationale": "Equal epoch numbers deliberately coalesce repeated pool-weight writes into one checkpoint so historical lookup remains ordered and deterministic.",
+      "occurrences": 1,
+      "id": "87b738821cfdb6c6f3ad4ca6"
     },
     {
       "impact": "Medium",
@@ -1612,6 +1676,38 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "abb7b56efe688e27db904ae5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#416-453) uses a dangerous strict equality:",
+      "rationale": "The exact prior checkpoint epoch identifies the current-epoch entry that must be rewritten ahead of a preserved next-epoch checkpoint.",
+      "occurrences": 1,
+      "id": "b7c027aa8cb1e7f86bca232b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#416-453) uses a dangerous strict equality:",
+      "rationale": "Equal epoch numbers deliberately update an existing position checkpoint instead of appending a duplicate historical entry.",
+      "occurrences": 1,
+      "id": "b7c55265ee0793bf1566db91"
     },
     {
       "impact": "Medium",
@@ -2262,6 +2358,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#111) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "18cbaef4302a5a5bff2cb185"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseDiamond(address,uint8).empty (script/DeployStaticsPhases.s.sol#631) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "219594cc697543408b798cc7"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
       "summary": "LibGlobalRewards._accrueReservedNonSwapFee(address,uint256).stakerAmount (src/libraries/LibGlobalRewards.sol#144) is a local variable never initialized",
@@ -2284,6 +2412,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator or boolean sentinel before conditional updates.",
       "occurrences": 1,
       "id": "28b3d8721a770638ab1a5369"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet.claimGaugeAllocatorRewards(uint256,PoolId,uint64,uint8[],uint256[],address).seen (src/facets/GaugeIncentiveFacet.sol#126) is a local variable never initialized",
+      "rationale": "This duplicate-detection bitmap intentionally starts at Solidity zero and sets one validated slot bit per loop iteration.",
+      "occurrences": 1,
+      "id": "2e217ae46fe1da05011116b1"
     },
     {
       "impact": "Medium",
@@ -2342,12 +2486,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.positionAllocationAt(uint256,PoolId,uint64).low (src/libraries/LibGaugeRouting.sol#309) is a local variable never initialized",
+      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the checkpoint array.",
+      "occurrences": 1,
+      "id": "4a4aeb932d379ce3ab8217d8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._mintRouteBasket(IStaticsBasket,uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute).totalBasketAmountIn (src/periphery/StaticsFlashArbitrageReceiver.sol#330) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator or boolean sentinel before conditional updates.",
       "occurrences": 1,
       "id": "52359527405b827d9a42c6b3"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address).cursor (script/DeployStaticsPhases.s.sol#902) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "52428f1bb8e443499af288cd"
     },
     {
       "impact": "Medium",
@@ -2403,6 +2579,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address).empty (script/DeployStaticsPhases.s.sol#814) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "60d43841fc39e1fe90b22dbb"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -2412,22 +2604,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "616cbcf0e258c1d4fabf51e6"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address).empty (script/DeployStaticsPhases.s.sol#800) is a local variable never initialized",
-      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
-      "occurrences": 1,
-      "id": "61b20216171cd01825dc86c9"
     },
     {
       "impact": "Medium",
@@ -2598,6 +2774,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.poolWeightAt(PoolId,uint64).low (src/libraries/LibGaugeRouting.sol#290) is a local variable never initialized",
+      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the checkpoint array.",
+      "occurrences": 1,
+      "id": "8f3b9c33341d7bd0b4761398"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#799) is a local variable never initialized",
@@ -2659,15 +2851,15 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
+        "src/libraries/LibGaugeHeap.sol"
       ],
-      "summary": "DeployStaticsPhases._cutSelectors(IDiamondCut.FacetCut[]).cursor (script/DeployStaticsPhases.s.sol#899) is a local variable never initialized",
-      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "summary": "LibGaugeHeap.top(LibGaugeHeap.Heap,uint256).bestPosition (src/libraries/LibGaugeHeap.sol#77) is a local variable never initialized",
+      "rationale": "The frontier scan intentionally treats index zero as the initial best candidate before comparing every later bounded candidate.",
       "occurrences": 1,
-      "id": "a7873f8ecc902318767eb2ff"
+      "id": "9e4a7c8b427977e9808cf32d"
     },
     {
       "impact": "Medium",
@@ -2732,22 +2924,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "b2bef1a8cfc478019a4ac957"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address).count (script/DeployStaticsPhases.s.sol#883) is a local variable never initialized",
-      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
-      "occurrences": 1,
-      "id": "bd13900c715ee9f39420b212"
     },
     {
       "impact": "Medium",
@@ -2824,10 +3000,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseDiamond(address,uint8).empty (script/DeployStaticsPhases.s.sol#628) is a local variable never initialized",
+      "summary": "DeployStaticsPhases._diamondSelectors(address).count (script/DeployStaticsPhases.s.sol#897) is a local variable never initialized",
       "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
       "occurrences": 1,
-      "id": "cf7d66ce48f68cb1f5c83d33"
+      "id": "d2ed5ce33ac8f2824653a570"
     },
     {
       "impact": "Medium",
@@ -2860,6 +3036,38 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "d8925adc4ab1db51e9e0eeab"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._cutSelectors(IDiamondCut.FacetCut[]).cursor (script/DeployStaticsPhases.s.sol#913) is a local variable never initialized",
+      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
+      "occurrences": 1,
+      "id": "d957a88d7f6b22fe0adc5e84"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._claimSlots(RangeGaugeLivenessFacet.ClaimContext,LibRangeGauge.LpLeg,uint8[],uint256[]).seen (src/facets/RangeGaugeLivenessFacet.sol#193) is a local variable never initialized",
+      "rationale": "This duplicate-detection bitmap intentionally starts at Solidity zero and sets one validated slot bit per loop iteration.",
+      "occurrences": 1,
+      "id": "dc9ff0de91b71140aaa52ce1"
     },
     {
       "impact": "Medium",
@@ -2950,22 +3158,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#107) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
-      "occurrences": 1,
-      "id": "e920f0f9f125e9c546b2911b"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/libraries/LibSolvencyIndex.sol"
       ],
       "summary": "LibSolvencyIndex.update(LibSolvencyIndex.Tree,bytes32,uint256,uint256).key (src/dollar/core/libraries/LibSolvencyIndex.sol#50) is a local variable never initialized",
@@ -3004,22 +3196,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "f4b2f669065fb42abfc1832d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address).cursor (script/DeployStaticsPhases.s.sol#888) is a local variable never initialized",
-      "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
-      "occurrences": 1,
-      "id": "f77f3839efd0b5078338f38b"
     },
     {
       "impact": "Medium",
@@ -3158,22 +3334,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugePositionFacet.sol"
-      ],
-      "summary": "RangeGaugePositionFacet._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionFacet.sol#330-334) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugePositionFacet.sol#333)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "060f5f8a6bb3f9aa413fa594"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._recombineForRedemption(LibPeriphery.PS,PairingVaultFacet.RedemptionContext,PairingVaultFacet.RedemptionRequest) (src/dollar/periphery/facets/PairingVaultFacet.sol#231-257) ignores return value by (recombinationStatus,None) = ctx.core.recombineManaged(request.seriesId,ctx.fill,ctx.fill,0,address(this)) (src/dollar/periphery/facets/PairingVaultFacet.sol#250-251)",
@@ -3196,6 +3356,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "0701fb5a68db975db5543de8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#252-257) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugeLivenessFacet.sol#255)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "0933f6e56e6a7a13502ed7e5"
     },
     {
       "impact": "Medium",
@@ -3308,22 +3484,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "0dfbc1a8bc768c002d488058"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeViewFacet.sol"
-      ],
-      "summary": "RangeGaugeViewFacet._previewGlobalIndex(LibRangeGauge.GaugeRewardStream,LibRangeGauge.GaugePool,uint256) (src/facets/RangeGaugeViewFacet.sol#165-188) ignores return value by (delta,None) = LibIndexMath.indexDelta(emission,gauge.activeGaugeLiquidity,stream.indexRemainder) (src/facets/RangeGaugeViewFacet.sol#184)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "0e64dcd67637c2bddfcb2f85"
     },
     {
       "impact": "Medium",
@@ -3542,6 +3702,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#252-257) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugeLivenessFacet.sol#254)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "1a0563ffe86b82cd56bed937"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/permissioned/StaticsPermissionedRouter.sol"
       ],
       "summary": "StaticsPermissionedRouter.swapExactInputSingle(IV4Router.ExactInputSingleParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#34-60) ignores return value by poolManager.unlock(abi.encode(actions,actionParams)) (src/permissioned/StaticsPermissionedRouter.sol#58)",
@@ -3564,22 +3740,6 @@
       "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
       "id": "1b153e205c4c10f956ae3691"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
-      ],
-      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#225-230) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugeLivenessFacet.sol#227)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "1f57d6bd0bb48fcc514877d5"
     },
     {
       "impact": "Medium",
@@ -3939,6 +4099,70 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._settlePreviousEpoch(LibGaugeRouting.RoutingStorage,uint40) (src/libraries/LibGaugeRouting.sol#321-326) ignores return value by LibRangeGauge.checkpointProtocolStream(previous.pools[i],currentTime) (src/libraries/LibGaugeRouting.sol#324)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "340bc88bcfc0f7089ab71d80"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._applyFunding(PoolId,uint8,uint40,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#140-178) ignores return value by LibRangeGauge.checkpointStream(stream,context.currentTime,gauge.activeGaugeLiquidity) (src/facets/RangeGaugeFacet.sol#146)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "34d9a3e0d2da4fd5d71e72ec"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeViewFacet.sol"
+      ],
+      "summary": "RangeGaugeViewFacet._previewGlobalIndex(PoolId,uint8,LibRangeGauge.GaugeRewardStream,LibRangeGauge.GaugePool,uint256) (src/facets/RangeGaugeViewFacet.sol#172-202) ignores return value by (delta,None) = LibIndexMath.indexDelta(emission,gauge.activeGaugeLiquidity,stream.indexRemainder) (src/facets/RangeGaugeViewFacet.sol#198)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "34e37561c573bd2d972bcf6d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._enforceActivePublicGauge(PoolId) (src/facets/RangeGaugeFacet.sol#190-205) ignores return value by (kind,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeFacet.sol#191)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "36aba6d4d70536ddd04b84c6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3987,6 +4211,38 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibRangeGauge.sol"
+      ],
+      "summary": "LibRangeGauge._setBoundaryBit(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#850-863) ignores return value by (wordPos,None) = TickBitmap.position(compressed) (src/libraries/LibRangeGauge.sol#852)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "3ac4beba57a4c5b404d49afd"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeViewFacet.sol"
+      ],
+      "summary": "RangeGaugeViewFacet.poolRewardCustodyAccount(PoolId,uint8) (src/facets/RangeGaugeViewFacet.sol#79-87) ignores return value by (None,found) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/RangeGaugeViewFacet.sol#84)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "3c128f7228b5c204dec06bc6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4028,6 +4284,22 @@
       "rationale": "This deployment or preparation call is used for its fail-closed validation or serialization side effect; the returned convenience value is not part of the ceremony output.",
       "occurrences": 1,
       "id": "3d4d6c326bb80d82a6cd1c9f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#32-54) ignores return value by LibRangeGauge.bindPosm(leg.posmTokenId,positionId,poolId) (src/facets/RangeGaugePositionBase.sol#50)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "3ec9923ddb5b7ee1bcf4de99"
     },
     {
       "impact": "Medium",
@@ -4092,22 +4364,6 @@
       "rationale": "PoolManager unlock success or revert and the callback's checked currency deltas are authoritative; this path has no additional return payload to consume.",
       "occurrences": 1,
       "id": "3fce465767c508bc41bd05d6"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibRangeGauge.sol"
-      ],
-      "summary": "LibRangeGauge.nextInitializedBoundary(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#581-598) ignores return value by (searchedWord,None) = TickBitmap.position(searchedCompressed) (src/libraries/LibRangeGauge.sol#590)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "3fdffd7e53a9ed090aaad160"
     },
     {
       "impact": "Medium",
@@ -4230,12 +4486,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibRangeGauge.sol"
+        "src/dollar/periphery/facets/StakingFacet.sol"
       ],
-      "summary": "LibRangeGauge._setBoundaryBit(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#740-753) ignores return value by (wordPos,None) = TickBitmap.position(compressed) (src/libraries/LibRangeGauge.sol#742)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "summary": "StakingFacet._stake(LibPeriphery.PS,uint256,uint256,address,uint256,bool) (src/dollar/periphery/facets/StakingFacet.sol#302-335) ignores return value by LibPosition.activateLeg(positionId,LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/StakingFacet.sol#315)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "44c3339886e4998ceb9ad40d"
+      "id": "4709583eda626e5f9f693a0b"
     },
     {
       "impact": "Medium",
@@ -4246,12 +4502,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/periphery/facets/StakingFacet.sol"
+        "src/libraries/LibGaugeEligibility.sol"
       ],
-      "summary": "StakingFacet._stake(LibPeriphery.PS,uint256,uint256,address,uint256,bool) (src/dollar/periphery/facets/StakingFacet.sol#302-335) ignores return value by LibPosition.activateLeg(positionId,LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/StakingFacet.sol#315)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "summary": "LibGaugeEligibility.version(PoolId) (src/libraries/LibGaugeEligibility.sol#14-32) ignores return value by (kind,key,None,None) = LibProtocolPools.resolve(poolId) (src/libraries/LibGaugeEligibility.sol#15)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "4709583eda626e5f9f693a0b"
+      "id": "48960eb289d2503ff081611b"
     },
     {
       "impact": "Medium",
@@ -4310,6 +4566,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._validateAllocatorSlot(PoolId,uint8) (src/facets/GaugeIncentiveFacet.sol#190-196) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/GaugeIncentiveFacet.sol#194)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "4c2cb8f7b6a2b9a57e904e6f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/SeriesMigrationFacet.sol"
       ],
       "summary": "SeriesMigrationFacet._stakeMigrated(LibPeriphery.PS,uint256,uint256,uint256) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#283-308) ignores return value by LibPosition.activateLeg(positionId,LibPosition.DOLLAR_MODULE,bytes32(seriesId)) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#289)",
@@ -4332,6 +4604,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "4e46a1220e21384ef001aa14"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._finalizeAllocatorReward(PoolId,uint8,uint64,uint40) (src/facets/GaugeIncentiveFacet.sol#178-188) ignores return value by (newlyFinalized,distributable,None) = LibGaugeBribes.finalize(poolId,slot,epoch,currentTime) (src/facets/GaugeIncentiveFacet.sol#182)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "4e7ef12dd5e84d2a8661dff9"
     },
     {
       "impact": "Medium",
@@ -4476,6 +4764,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "5bb7dfaadee69d4c85acae1a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#135-146) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#144)",
+      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
+      "occurrences": 1,
+      "id": "5d99bab5b84efaaa61e71d52"
     },
     {
       "impact": "Medium",
@@ -4662,22 +4966,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeFacet.sol"
-      ],
-      "summary": "RangeGaugeFacet._enforceActivePublicGauge(PoolId) (src/facets/RangeGaugeFacet.sol#83-98) ignores return value by (kind,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeFacet.sol#84)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "69d7cb85b69ab15ca825e917"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._payRedeemer(PairingVaultFacet.RedemptionContext,PairingVaultFacet.RedemptionRequest,uint256) (src/dollar/periphery/facets/PairingVaultFacet.sol#302-316) ignores return value by LibCustody.pushUnreserved(ctx.collateralToken,request.receiver,collateralOut,collateralOut) (src/dollar/periphery/facets/PairingVaultFacet.sol#314)",
@@ -4732,6 +5020,22 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "6b5bd496c9cc11bf1990e5c5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#77-81) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugePositionBase.sol#80)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "6b62d4b377e0343b2539d617"
     },
     {
       "impact": "Medium",
@@ -4822,12 +5126,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugePositionFacet.sol"
+        "src/facets/RangeGaugeFacet.sol"
       ],
-      "summary": "RangeGaugePositionFacet._enforcePublicGauge(PoolId,bool) (src/facets/RangeGaugePositionFacet.sol#379-395) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugePositionFacet.sol#380-381)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "summary": "RangeGaugeFacet.setPoolRewardAllocatorShare(PoolId,uint8,uint16) (src/facets/RangeGaugeFacet.sol#60-71) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/RangeGaugeFacet.sol#66)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "70d7d4df08289d95b3f460c8"
+      "id": "7029e5a9ffc5a20ba413d440"
     },
     {
       "impact": "Medium",
@@ -4892,38 +5196,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "72218cf17ef5fd89f2e84696"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#131-142) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#140)",
-      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
-      "occurrences": 1,
-      "id": "754678f6b98b2fd0d7fe3c6a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionFacet.sol"
-      ],
-      "summary": "RangeGaugePositionFacet._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionFacet.sol#285-307) ignores return value by LibRangeGauge.bindPosm(leg.posmTokenId,positionId,poolId) (src/facets/RangeGaugePositionFacet.sol#303)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "76e99c5fdaeaf134d9690306"
     },
     {
       "impact": "Medium",
@@ -5398,6 +5670,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._enforcePublicGauge(PoolId,bool) (src/facets/RangeGaugePositionBase.sol#126-142) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugePositionBase.sol#127-128)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "93dfb9c1f21835941262b725"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#207-222) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#221)",
+      "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
+      "occurrences": 1,
+      "id": "94830885294a0a7522a1548a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/RangeGaugeCallbackFacet.sol"
       ],
       "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#25-51) ignores return value by LibRangeGauge.synchronizeAfterSwap(poolId,key.tickSpacing,finalTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugeCallbackFacet.sol#48-50)",
@@ -5420,6 +5724,22 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "98bdce2b4014fffa199cc863"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._applyFunding(PoolId,uint8,uint40,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#140-178) ignores return value by LibGaugeBribes.recordFunding(poolId,slot,context.allocatorEpoch,context.asset,context.eligibilityVersion,context.fundingRestrictionSequence,context.currentTime,context.allocatorAmount) (src/facets/RangeGaugeFacet.sol#168-177)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "99473e75e6c316988615683a"
     },
     {
       "impact": "Medium",
@@ -5555,6 +5875,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._applyFunding(PoolId,uint8,uint40,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#140-178) ignores return value by LibRangeGauge.fundStream(stream,gauge.capacities[slot],context.lpAmount,context.currentTime,rgs.gaugeRewardDuration,gauge.activeGaugeLiquidity) (src/facets/RangeGaugeFacet.sol#154-161)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "9f23e1cdb4d2cab1dff3cdba"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5587,22 +5923,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeViewFacet.sol"
-      ],
-      "summary": "RangeGaugeViewFacet.previewLpRewards(uint256,PoolId) (src/facets/RangeGaugeViewFacet.sol#130-163) ignores return value by (unsettled,None) = LibRangeGauge.positionAccrual(leg.liquidity,growthDeltaRay,leg.rewardRemainderRay[slot]) (src/facets/RangeGaugeViewFacet.sol#157-158)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "a3168c258a2794c2b10d05ac"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5612,22 +5932,6 @@
       "rationale": "This deployment or preparation call is used for its fail-closed validation or serialization side effect; the returned convenience value is not part of the ceremony output.",
       "occurrences": 1,
       "id": "a43bac070313d036be29f54b"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
-      ],
-      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#225-230) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugeLivenessFacet.sol#228)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "a5971236496f389745f66501"
     },
     {
       "impact": "Medium",
@@ -5718,12 +6022,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketCollateralFacet.sol"
+        "src/libraries/LibGaugeEligibility.sol"
       ],
-      "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#65-79) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#70)",
-      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
+      "summary": "LibGaugeEligibility.latestRestrictionSequence(PoolId,uint64) (src/libraries/LibGaugeEligibility.sol#43-48) ignores return value by (None,key,None,None) = LibProtocolPools.resolve(poolId) (src/libraries/LibGaugeEligibility.sol#44)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "b166619ede68e747fac64aea"
+      "id": "b085a87efa1eba8dc340f010"
     },
     {
       "impact": "Medium",
@@ -5731,15 +6035,15 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
+        "production-contracts"
       ],
       "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
+        "src/facets/BasketCollateralFacet.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._validateMainnetGenesisBindings(DeployStaticsPhaseOne.Config) (script/DeployStaticsPhaseOne.s.sol#201-216) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/DeployStaticsPhaseOne.s.sol#215)",
-      "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
+      "summary": "BasketCollateralFacet.basketCollateralPosition(uint256,uint256) (src/facets/BasketCollateralFacet.sol#65-79) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketCollateralFacet.sol#70)",
+      "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
-      "id": "b1dfac4fdc12bcf703ede988"
+      "id": "b166619ede68e747fac64aea"
     },
     {
       "impact": "Medium",
@@ -5846,6 +6150,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#97-133) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#124)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "b74e00b387f0aaf8d2a4c462"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/permissioned/StaticsPermissionedRouter.sol"
       ],
       "summary": "StaticsPermissionedRouter.swapExactInput(IV4Router.ExactInputParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#62-89) ignores return value by poolManager.unlock(abi.encode(actions,actionParams)) (src/permissioned/StaticsPermissionedRouter.sol#87)",
@@ -5868,22 +6188,6 @@
       "rationale": "The tuple read intentionally consumes only the initialized-price or spot-tick field needed by this path; the remaining PoolManager state is irrelevant here.",
       "occurrences": 1,
       "id": "b7877d77c92c19dcf27e405c"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeFacet.sol"
-      ],
-      "summary": "RangeGaugeFacet.fundPoolReward(PoolId,address,uint256,uint40) (src/facets/RangeGaugeFacet.sol#43-71) ignores return value by LibRangeGauge.checkpointStream(stream,currentTime,gauge.activeGaugeLiquidity) (src/facets/RangeGaugeFacet.sol#58)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "b94819a5f3c72cff256634c2"
     },
     {
       "impact": "Medium",
@@ -5964,22 +6268,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "bdc68b2f6ca08d736f7fc757"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionFacet.sol"
-      ],
-      "summary": "RangeGaugePositionFacet._executeRebalance(uint256,PoolId,PoolKey,LibRangeGauge.LpLeg,IStaticsRangeGauge.RebalanceLiquidityParams) (src/facets/RangeGaugePositionFacet.sol#210-243) ignores return value by LibRangeGauge.bindPosm(result.minted.tokenId,positionId,poolId) (src/facets/RangeGaugePositionFacet.sol#242)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "bffe5628e33ee708921ccf8f"
     },
     {
       "impact": "Medium",
@@ -6124,6 +6412,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "c4501215401c2fcf5121a4cf"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionManagementFacet.sol"
+      ],
+      "summary": "RangeGaugePositionManagementFacet._executeRebalance(uint256,PoolId,PoolKey,LibRangeGauge.LpLeg,IStaticsRangeGauge.RebalanceLiquidityParams) (src/facets/RangeGaugePositionManagementFacet.sol#125-158) ignores return value by LibRangeGauge.bindPosm(result.minted.tokenId,positionId,poolId) (src/facets/RangeGaugePositionManagementFacet.sol#157)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "c474d93f3313e1d91350edf2"
     },
     {
       "impact": "Medium",
@@ -6387,22 +6691,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionFacet.sol"
-      ],
-      "summary": "RangeGaugePositionFacet._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionFacet.sol#285-307) ignores return value by LibPosition.activateLeg(positionId,LibPosition.LP_MODULE,PoolId.unwrap(poolId)) (src/facets/RangeGaugePositionFacet.sol#306)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "d1f84e37f49b16d9f8b0465f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -6579,6 +6867,38 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._enforceHistoricalPublicGauge(PoolId) (src/facets/RangeGaugeLivenessFacet.sol#279-292) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeLivenessFacet.sol#280-281)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "d91a75638a468d80868c7cff"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeViewFacet.sol"
+      ],
+      "summary": "RangeGaugeViewFacet.previewLpRewards(uint256,PoolId) (src/facets/RangeGaugeViewFacet.sol#137-170) ignores return value by (unsettled,None) = LibRangeGauge.positionAccrual(leg.liquidity,growthDeltaRay,leg.rewardRemainderRay[slot]) (src/facets/RangeGaugeViewFacet.sol#164-165)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "d9c4f1b3354e884b83616f3e"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -6662,22 +6982,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#93-129) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#120)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "dde8879e45d7d1fed2237fed"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/BasketRewardsFacet.sol"
       ],
       "summary": "BasketRewardsFacet.getBasketRewards(uint256,uint256) (src/facets/BasketRewardsFacet.sol#23-30) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/BasketRewardsFacet.sol#28)",
@@ -6726,6 +7030,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGaugeEligibility.sol"
+      ],
+      "summary": "LibGaugeEligibility.restrictionTimestamp(PoolId,uint64) (src/libraries/LibGaugeEligibility.sol#34-41) ignores return value by (None,key,None,None) = LibProtocolPools.resolve(poolId) (src/libraries/LibGaugeEligibility.sol#35)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "dfa4f72b512c2791072ac4b7"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibProtocolRevenue.sol"
       ],
       "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-69) ignores return value by LibBasketRewards.accrueReserved(basketId,LibBasket.basketStorage().baskets[basketId],asset,distribution.basketStaker) (src/libraries/LibProtocolRevenue.sol#54-56)",
@@ -6748,22 +7068,6 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "e2713c2e7cd63a5bd7de82ed"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
-      ],
-      "summary": "RangeGaugeLivenessFacet._enforceHistoricalPublicGauge(PoolId) (src/facets/RangeGaugeLivenessFacet.sol#252-265) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeLivenessFacet.sol#253-254)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "e37496336520ffcf95728a17"
     },
     {
       "impact": "Medium",
@@ -6806,6 +7110,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#77-81) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugePositionBase.sol#79)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "e54df61d31d88e01949e4e1a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/SeriesMigrationFacet.sol"
       ],
       "summary": "SeriesMigrationFacet._recoverExpiredTransition(LibPeriphery.PS,IStaticsDollarCore,uint256,IStaticsDollarCoreTypes.RiskSeries,IStaticsDollarCoreTypes.RecoveryClaimMode) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#238-269) ignores return value by LibCustody.finishUnreservedDebit(ps.staticsDollar,staticsDollarBefore,preview.staticsDollarBurned) (src/dollar/periphery/facets/SeriesMigrationFacet.sol#264)",
@@ -6838,22 +7158,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeFacet.sol"
-      ],
-      "summary": "RangeGaugeFacet.fundPoolReward(PoolId,address,uint256,uint40) (src/facets/RangeGaugeFacet.sol#43-71) ignores return value by LibRangeGauge.fundStream(stream,gauge.capacities[slot],received,currentTime,rgs.gaugeRewardDuration,gauge.activeGaugeLiquidity) (src/facets/RangeGaugeFacet.sol#67-69)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "e94359a7c73ab89b2d9a8f54"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver.constructor(address) (src/periphery/StaticsFlashArbitrageReceiver.sol#81-86) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(staticsDiamond_).liquidityIntegration() (src/periphery/StaticsFlashArbitrageReceiver.sol#82)",
@@ -6876,6 +7180,22 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "ea06fd6794dedf0d539ab5b4"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.checkpointEpoch(uint40) (src/libraries/LibGaugeRouting.sol#161-201) ignores return value by LibGaugeReserve.rollDeferred(epoch) (src/libraries/LibGaugeRouting.sol#170)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "eb901cbb77b930fb1da18e46"
     },
     {
       "impact": "Medium",
@@ -6918,22 +7238,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugePositionFacet.sol"
-      ],
-      "summary": "RangeGaugePositionFacet._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionFacet.sol#330-334) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugePositionFacet.sol#332)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "edbc9b2a1a59506c9db52a2e"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/BasketLiquidityFacet.sol"
       ],
       "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#320-367) ignores return value by IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#361)",
@@ -6966,6 +7270,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet._validateAllocatorSlot(PoolId,uint8) (src/facets/GaugeIncentiveViewFacet.sol#190-196) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/GaugeIncentiveViewFacet.sol#194)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "f0d6fd98440fa5d9679bd453"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StakingFacet.sol"
       ],
       "summary": "StakingFacet._pushRiskToken(LibPeriphery.PS,address,address,uint256) (src/dollar/periphery/facets/StakingFacet.sol#405-409) ignores return value by LibCustody.pushReserved(LibCustody.dollarAccount(),token,receiver,amount,amount) (src/dollar/periphery/facets/StakingFacet.sol#408)",
@@ -6988,6 +7308,38 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "f111f08467d18d6b45c397eb"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet.setGaugeAllocations(uint256,PoolId[],uint256[]) (src/facets/GaugeIncentiveFacet.sol#37-48) ignores return value by LibGaugeRouting.checkpointEpoch(uint40(block.timestamp)) (src/facets/GaugeIncentiveFacet.sol#43)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "f115a7ec5f68d4fd4b1337d6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibRangeGauge.sol"
+      ],
+      "summary": "LibRangeGauge.nextInitializedBoundary(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#660-677) ignores return value by (searchedWord,None) = TickBitmap.position(searchedCompressed) (src/libraries/LibRangeGauge.sol#669)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "f31268b6e50f9c9bb12b2862"
     },
     {
       "impact": "Medium",
@@ -7052,6 +7404,22 @@
       "rationale": "The call is used for its validated state transition or capability check; downstream accounting consumes the required state or balance delta rather than the redundant return value.",
       "occurrences": 1,
       "id": "fbc4068405b400c96e2d1856"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#32-54) ignores return value by LibPosition.activateLeg(positionId,LibPosition.LP_MODULE,PoolId.unwrap(poolId)) (src/facets/RangeGaugePositionBase.sol#53)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "fdbddbd21e42abe7ca291c3a"
     },
     {
       "impact": "Medium",
@@ -7235,6 +7603,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#894-909) has external calls inside a loop: count += loupe.facetFunctionSelectors(facets[i]).length (script/DeployStaticsPhases.s.sol#899)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "1e5023d4e32533ed4127478f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7368,10 +7752,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#880-895) has external calls inside a loop: count += loupe.facetFunctionSelectors(facets[i]).length (script/DeployStaticsPhases.s.sol#885)",
+      "summary": "DeployStaticsPhases._validateSharedFacetSet(address,bytes4[],bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#871-882) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(deferred[i]) (script/DeployStaticsPhases.s.sol#879)",
       "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 7,
-      "id": "42ad999f8d0f922165707c59"
+      "id": "41c344c6fe67af58d4ec411e"
     },
     {
       "impact": "Low",
@@ -7404,22 +7788,6 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "46eea218a8cc5f78eae438cc"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validateSharedFacetSet(address,bytes4[],bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#857-868) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(deferred[i]) (script/DeployStaticsPhases.s.sol#865)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 7,
-      "id": "4fe78882cc50d85ab63cdfae"
     },
     {
       "impact": "Low",
@@ -7555,6 +7923,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateFacetSet(address,bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#859-869) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(selectors[i]) (script/DeployStaticsPhases.s.sol#866)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "75d24b66a90a5b74a3a46f30"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7638,44 +8022,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#880-895) has external calls inside a loop: facetSelectors = loupe.facetFunctionSelectors(facets[i_scope_0]) (script/DeployStaticsPhases.s.sol#890)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 7,
-      "id": "829720472d633a1e75e686ef"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
         "script/RetireLegacyGenesisBasket.s.sol"
       ],
       "summary": "RetireLegacyGenesisBasket._validatePreRetirement(LegacyBasketRetirementConfig,IStaticsBasket.BasketStatus) (script/RetireLegacyGenesisBasket.s.sol#227-246) has external calls inside a loop: hook.lockedLiquidity(poolId) == 0 (script/RetireLegacyGenesisBasket.s.sol#244)",
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 5,
       "id": "829d38bdb43dd498310a3856"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validateFacetSet(address,bytes4[],bytes32) (script/DeployStaticsPhases.s.sol#845-855) has external calls inside a loop: actual = IDiamondLoupe(diamond).facetAddress(selectors[i]) (script/DeployStaticsPhases.s.sol#852)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 7,
-      "id": "879edd4ad4e6f85bf52f86cd"
     },
     {
       "impact": "Low",
@@ -7750,6 +8102,22 @@
         "production-scripts"
       ],
       "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#270-305) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#300-303)",
+      "rationale": "The deployment logging loop is bounded by the canonical phase manifest and performs read-only evidence calls.",
+      "occurrences": 1,
+      "id": "a71a392833d6ae48ac9d06e2"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
         "script/LaunchGenesisBasket.s.sol"
       ],
       "summary": "LaunchGenesisBasket._validateLaunch(address,address,GenesisBasketLaunchConfig) (script/LaunchGenesisBasket.s.sol#179-211) has external calls inside a loop: launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i] || baskets.vaultBalance(basketId,asset) == 0 || pool.asset != asset || pool.basketToken != launched.token || pool.hook != hook || IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId) == 0 || protocolPool.kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical || protocolPool.basketId != basketId || protocolPool.basketAsset != asset || protocolPool.decommissioned (script/LaunchGenesisBasket.s.sol#201-207)",
@@ -7804,6 +8172,22 @@
       "rationale": "The loop is bounded by the protocol basket asset cap and each external call is required for atomic per-pool seeding, settlement, or exact-balance validation.",
       "occurrences": 1,
       "id": "b93b50ea926b87792fce32f9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._logDiamondFacets(address) (script/DeployStaticsPhases.s.sol#1031-1042) has external calls inside a loop: console.log(STATICS_DOLLAR_CORE_FACET_SELECTOR_COUNT,IDiamondLoupe(diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhases.s.sol#1037-1040)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "bb72f2a61830916ca255a583"
     },
     {
       "impact": "Low",
@@ -7891,22 +8275,6 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._logDiamondFacets(address) (script/DeployStaticsPhases.s.sol#1017-1028) has external calls inside a loop: console.log(STATICS_DOLLAR_CORE_FACET_SELECTOR_COUNT,IDiamondLoupe(diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhases.s.sol#1023-1026)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 1,
-      "id": "dfd2053caab166a43d5fc3d5"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-contracts"
       ],
       "paths": [
@@ -7926,12 +8294,12 @@
         "production-scripts"
       ],
       "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
+        "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhaseOne._logDeployment(StaticsPhaseOneDeployment,StaticsTimelock) (script/DeployStaticsPhaseOne.s.sol#264-299) has external calls inside a loop: console.log(STATICS_PHASE_ONE_FACET_SELECTOR_COUNT,IDiamondLoupe(deployment.diamond).facetFunctionSelectors(facets[i]).length) (script/DeployStaticsPhaseOne.s.sol#294-297)",
-      "rationale": "The deployment logging loop is bounded by the canonical phase manifest and performs read-only evidence calls.",
-      "occurrences": 1,
-      "id": "e620a7058e95d2c3c333b447"
+      "summary": "DeployStaticsPhases._diamondSelectors(address) (script/DeployStaticsPhases.s.sol#894-909) has external calls inside a loop: facetSelectors = loupe.facetFunctionSelectors(facets[i_scope_0]) (script/DeployStaticsPhases.s.sol#904)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 7,
+      "id": "ef021a008df95b81e88eb4b2"
     },
     {
       "impact": "Low",
@@ -8129,38 +8497,6 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#81-84):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "02351a97af9d067772db0dae"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsPhaseOneInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#29-45):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "02f5144a829a0a120b8e13d0"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -8188,22 +8524,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "17a8956c0213eeb17158d42d"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-benign",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#57-77):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "196d61c549e0d7ea8a04bbf4"
     },
     {
       "impact": "Low",
@@ -8321,6 +8641,22 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#59-79):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "62eff1b496500e576d85a606"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -8348,6 +8684,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "713dcccefe0c84488eb43f39"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsPhaseOneInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#31-48):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "8819952f266c600fa112e9cb"
     },
     {
       "impact": "Low",
@@ -8412,6 +8764,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a57b27956b2543ccea0ea604"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#83-86):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "b8015832b60edd9a6584cf5e"
     },
     {
       "impact": "Low",
@@ -8522,25 +8890,8 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "0c2d993b24b9748150734bea"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#187-197):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "0e56f7e960e6f4c5e82880c0"
     },
     {
       "impact": "Low",
@@ -8804,23 +9155,6 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "4717ef2e712b7ab9e84629f0"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -8830,24 +9164,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "48cede54f8f84a91784ca328"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGlobalRewards.sol",
-        "src/libraries/LibLoanOrigination.sol"
-      ],
-      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "49ec8902e1758cf9e0ef351f"
     },
     {
       "impact": "Low",
@@ -8885,6 +9201,23 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#83-86):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "4de38a79fb72973f73d14add"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -8917,18 +9250,18 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
+      "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
       ],
       "paths": [
-        "src/diamond/StaticsProtocolInit.sol",
-        "src/libraries/LibDeploymentPhases.sol"
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#57-77):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "5946bc34f1cc5a504193df0d"
+      "id": "5a40db2986ab4e0039ad02c4"
     },
     {
       "impact": "Low",
@@ -9035,6 +9368,23 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimGenesis(uint256,address,address) (src/libraries/LibGenesisRewards.sol#187-197):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "6c7a247c91d5e83fa37de52f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/tokens/StaticsGenesis.sol"
       ],
       "summary": "Reentrancy in StaticsGenesis._update(address,uint256,address) (src/tokens/StaticsGenesis.sol#267-288):",
@@ -9105,23 +9455,6 @@
       "rationale": "Events are emitted after the relevant external settlement so logs describe committed results; the PoolManager lock and hook sender checks prevent nested lifecycle entry, and any failure reverts the logs.",
       "occurrences": 1,
       "id": "802d309ee3170f3d80b2da06"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol",
-        "src/libraries/LibDeploymentPhases.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#81-84):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
-      "occurrences": 1,
-      "id": "83781315a33f06c896d208ec"
     },
     {
       "impact": "Low",
@@ -9263,10 +9596,10 @@
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
+      "summary": "Reentrancy in LibGenesisRewards.claimAllTreasury(address) (src/libraries/LibGenesisRewards.sol#248-261):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "9bf051cdc57f195ddbc4bd65"
+      "id": "a0137bab74541525f0268e64"
     },
     {
       "impact": "Low",
@@ -9299,6 +9632,23 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a0de3fe2d881c62d9f20bc59"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.accrue() (src/libraries/LibGenesisRewards.sol#70-76):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "a196af26634586f6d56dff42"
     },
     {
       "impact": "Low",
@@ -9389,13 +9739,14 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/core/facets/CoreGovernanceFacet.sol",
-        "src/dollar/core/libraries/LibCoreAccounting.sol"
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGlobalRewards.sol",
+        "src/libraries/LibLoanOrigination.sol"
       ],
-      "summary": "Reentrancy in CoreGovernanceFacet.setProfileMode(uint256,IStaticsDollarCoreTypes.ProfileMode) (src/dollar/core/facets/CoreGovernanceFacet.sol#255-277):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "summary": "Reentrancy in LibLoanOrigination.originate(LibLoanOrigination.OriginationRequest) (src/libraries/LibLoanOrigination.sol#43-100):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "b2ccc4174e3d3066f005d206"
+      "id": "b167adbe11a0f2117ac83f53"
     },
     {
       "impact": "Low",
@@ -9406,13 +9757,13 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
+        "src/dollar/core/facets/CoreGovernanceFacet.sol",
+        "src/dollar/core/libraries/LibCoreAccounting.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#209-221):",
+      "summary": "Reentrancy in CoreGovernanceFacet.setProfileMode(uint256,IStaticsDollarCoreTypes.ProfileMode) (src/dollar/core/facets/CoreGovernanceFacet.sol#255-277):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "b319cbaac600e66f7e701458"
+      "id": "b2ccc4174e3d3066f005d206"
     },
     {
       "impact": "Low",
@@ -9519,23 +9870,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimAllTreasury(address) (src/libraries/LibGenesisRewards.sol#248-261):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "d401b8ea4c414a7075d611a4"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
@@ -9584,23 +9918,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibGenesisRewards.sol"
-      ],
-      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
-      "id": "dfadacb24a1a812aaafbdf92"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#647-667):",
@@ -9623,6 +9940,56 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "e59de45b65774dfca83c6e7d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibMorphoSync.sol"
+      ],
+      "summary": "Reentrancy in LibMorphoSync.syncOne(uint256,bytes32,address) (src/libraries/LibMorphoSync.sol#13-48):",
+      "rationale": "The intervening external call targets the Diamond itself, is self-call-only at the gauge selector, and runs inside the originating guarded Morpho action before the synchronization event is emitted.",
+      "occurrences": 1,
+      "id": "ead79253cadeef7823f79fd2"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#59-79):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
+      "occurrences": 1,
+      "id": "ef044ae973fcb1d3c83a4cd2"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
+      ],
+      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#199-207):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "occurrences": 1,
+      "id": "f35f9101f9fc7006d6c27a4c"
     },
     {
       "impact": "Low",
@@ -9665,12 +10032,13 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/PermissionedPoolAdminFacet.sol"
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in PermissionedPoolAdminFacet.setPermissionedTrustedPeriphery(address,bool) (src/facets/PermissionedPoolAdminFacet.sol#115-119):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "summary": "Reentrancy in LibGenesisRewards.claimTreasury(address,address) (src/libraries/LibGenesisRewards.sol#209-221):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "faee33e37541b6d128592150"
+      "id": "f403bb8b369036eb4bd7aef1"
     },
     {
       "impact": "Low",
@@ -9684,10 +10052,26 @@
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.claimOwner(address,address) (src/libraries/LibGenesisRewards.sol#199-207):",
+      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "ff7eacbdf0fe98a5aef83316"
+      "id": "fab1a70d018677ba15a02c13"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/PermissionedPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in PermissionedPoolAdminFacet.setPermissionedTrustedPeriphery(address,bool) (src/facets/PermissionedPoolAdminFacet.sol#115-119):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "faee33e37541b6d128592150"
     },
     {
       "impact": "Low",
@@ -9864,6 +10248,22 @@
       "rationale": "The constructor parameter intentionally matches the inherited PositionManager domain term and is forwarded directly; no storage or dispatch resolution is shadowed.",
       "occurrences": 1,
       "id": "f9d2b375a13d3f0910ace25c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet.gaugeAllocatorReward(PoolId,uint8,uint64) (src/facets/GaugeIncentiveViewFacet.sol#119-138) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "00fe99c976f2df500ef900c2"
     },
     {
       "impact": "Low",
@@ -10066,12 +10466,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._applyFunding(PoolId,uint8,uint40,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#140-178) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "340b34755fe2cf348f6929ba"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._claimAllocatorReward(GaugeIncentiveFacet.AllocatorClaimContext,uint8,uint256) (src/facets/GaugeIncentiveFacet.sol#150-176) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "39b84d6c9034410a24762572"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/permissioned/StaticsPermissionedRouter.sol"
       ],
       "summary": "StaticsPermissionedRouter.swapExactInputSingle(IV4Router.ExactInputSingleParams,uint256) (src/permissioned/StaticsPermissionedRouter.sol#34-60) uses timestamp for comparisons",
       "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
       "id": "3f34055a0e758be31965ab3f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._removeScheduledWeights(LibGaugeRouting.RoutingStorage,uint256,LibGaugeRouting.PositionAllocations,uint64,uint64) (src/libraries/LibGaugeRouting.sol#356-381) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "3fbbfa2c39eccd78849f502d"
     },
     {
       "impact": "Low",
@@ -10130,12 +10578,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeFacet.sol"
+        "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "RangeGaugeFacet.fundPoolReward(PoolId,address,uint256,uint40) (src/facets/RangeGaugeFacet.sol#43-71) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "LibGaugeRouting.setAllocations(uint256,PoolId[],uint256[],uint256) (src/libraries/LibGaugeRouting.sol#107-132) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "559619b0f61363bbed176b8f"
+      "id": "52dea389383de90e3b130bd1"
     },
     {
       "impact": "Low",
@@ -10200,6 +10648,22 @@
       "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
       "id": "650dc37dedd33fb2cb42e600"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePoolWeightCheckpoint(LibGaugeRouting.RoutingStorage,PoolId,uint64) (src/libraries/LibGaugeRouting.sol#402-414) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "6721100b872d74004fbdd357"
     },
     {
       "impact": "Low",
@@ -10370,6 +10834,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._pullReward(PoolId,uint8,address,uint256) (src/facets/RangeGaugeFacet.sol#180-188) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "97e8a14995e9b88dafbbb57c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._promote(LibGaugeRouting.PositionAllocations,uint64) (src/libraries/LibGaugeRouting.sol#344-354) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "a01dbe259e82dc57403fc476"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault.extendGenesisCredit(uint256) (src/genesis/StaticsGenesisVault.sol#316-330) uses timestamp for comparisons",
@@ -10495,6 +10991,22 @@
       "check": "timestamp",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeBribes.sol"
+      ],
+      "summary": "LibGaugeBribes.preview(uint256,PoolId,uint8,uint64) (src/libraries/LibGaugeBribes.sol#167-182) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "c0771aaa7fe60b14259b3c52"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -10578,6 +11090,54 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet.previewGaugeAllocatorRewards(uint256,PoolId,uint64,uint8[]) (src/facets/GaugeIncentiveViewFacet.sol#149-171) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "d0180e7c1272243927a2ae51"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet.gaugeReserve() (src/facets/GaugeIncentiveViewFacet.sol#23-42) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "d066f9da00d5c0e11a38c95e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.lockedStake(uint256) (src/libraries/LibGaugeRouting.sol#242-250) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "d1d501866ecda3afd8733655"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#69-109) uses timestamp for comparisons",
@@ -10632,6 +11192,22 @@
       "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "d87ff6f6aade5e291d824c7d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._emitFunding(PoolId,uint8,uint256,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#92-107) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "d9febdee6a5876e9669e1fc4"
     },
     {
       "impact": "Low",
@@ -10706,12 +11282,28 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#416-453) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "ddb2a680a9d7a9cc4bff0cfd"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/RangeGaugeViewFacet.sol"
       ],
-      "summary": "RangeGaugeViewFacet._previewGlobalIndex(LibRangeGauge.GaugeRewardStream,LibRangeGauge.GaugePool,uint256) (src/facets/RangeGaugeViewFacet.sol#165-188) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "RangeGaugeViewFacet._previewGlobalIndex(PoolId,uint8,LibRangeGauge.GaugeRewardStream,LibRangeGauge.GaugePool,uint256) (src/facets/RangeGaugeViewFacet.sol#172-202) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "e553a7a91da13b2142c90542"
+      "id": "e18316eb427fc58149e0b5bc"
     },
     {
       "impact": "Low",
@@ -10744,6 +11336,22 @@
       "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
       "id": "ec535896767a6315521fdf06"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeFacet.sol"
+      ],
+      "summary": "RangeGaugeFacet._fundingContext(PoolId,uint8,uint16,uint64) (src/facets/RangeGaugeFacet.sol#109-138) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "f92d2ec9d3b3e58410455c56"
     },
     {
       "impact": "Low",
@@ -10792,6 +11400,22 @@
       "rationale": "Block time is the caller-specified route deadline; the comparison has explicit inclusive boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "fed3e8489116b346fd72765e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.routingStorage() (src/libraries/LibGaugeRouting.sol#80-85) uses assembly",
+      "rationale": "Memory-safe assembly binds the library struct to its unique namespaced Diamond storage slot; no arbitrary memory or calldata is accessed.",
+      "occurrences": 1,
+      "id": "0062b216fc113f2b6b1775ca"
     },
     {
       "impact": "Informational",
@@ -10962,12 +11586,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibCustody.sol"
+        "src/libraries/LibRangeGauge.sol"
       ],
-      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#37-42) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "summary": "LibRangeGauge.rangeGaugeStorage() (src/libraries/LibRangeGauge.sol#133-138) uses assembly",
+      "rationale": "The memory-safe assembly only binds a typed range-gauge storage pointer to a fixed keccak-derived Diamond storage slot; it does not use a user-controlled offset.",
       "occurrences": 1,
-      "id": "2ac8789090dd5ff53a47e833"
+      "id": "51e5256a6086d44a2feb11fa"
     },
     {
       "impact": "Informational",
@@ -10994,12 +11618,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibRangeGauge.sol"
+        "src/libraries/LibDeploymentPhases.sol"
       ],
-      "summary": "LibRangeGauge.rangeGaugeStorage() (src/libraries/LibRangeGauge.sol#125-130) uses assembly",
-      "rationale": "The memory-safe assembly only binds a typed range-gauge storage pointer to a fixed keccak-derived Diamond storage slot; it does not use a user-controlled offset.",
+      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#51-56) uses assembly",
+      "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
       "occurrences": 1,
-      "id": "632550aa8b0671ba04b3cde8"
+      "id": "6795cc84a279d3bf7880dd61"
     },
     {
       "impact": "Informational",
@@ -11012,10 +11636,10 @@
       "paths": [
         "src/libraries/LibRewardPolicy.sol"
       ],
-      "summary": "LibRewardPolicy.rewardPolicyStorage() (src/libraries/LibRewardPolicy.sol#11-16) uses assembly",
+      "summary": "LibRewardPolicy.rewardPolicyStorage() (src/libraries/LibRewardPolicy.sol#19-24) uses assembly",
       "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
       "occurrences": 1,
-      "id": "7143919324a3846bb44f481c"
+      "id": "67f3c1b87b96ef8381d910f0"
     },
     {
       "impact": "Informational",
@@ -11032,6 +11656,22 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "75a74578ed71ba82c777d21d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeReserve.sol"
+      ],
+      "summary": "LibGaugeReserve.reserveStorage() (src/libraries/LibGaugeReserve.sol#27-32) uses assembly",
+      "rationale": "Memory-safe assembly binds the library struct to its unique namespaced Diamond storage slot; no arbitrary memory or calldata is accessed.",
+      "occurrences": 1,
+      "id": "79845b449c2cd95dcf3317f1"
     },
     {
       "impact": "Informational",
@@ -11064,22 +11704,6 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "917a8e0c875c9cedac2f42c7"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibDeploymentPhases.sol"
-      ],
-      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#50-55) uses assembly",
-      "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
-      "occurrences": 1,
-      "id": "91e5054e64fefd5eab24db97"
     },
     {
       "impact": "Informational",
@@ -11128,6 +11752,38 @@
       "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
       "occurrences": 1,
       "id": "9decae90da97c99f1778cebd"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibCustody.sol"
+      ],
+      "summary": "LibCustody.custodyStorage() (src/libraries/LibCustody.sol#38-43) uses assembly",
+      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "occurrences": 1,
+      "id": "9f95cbbf1e8cee3369d514d0"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeBribes.sol"
+      ],
+      "summary": "LibGaugeBribes.bribeStorage() (src/libraries/LibGaugeBribes.sol#43-48) uses assembly",
+      "rationale": "Memory-safe assembly binds the library struct to its unique namespaced Diamond storage slot; no arbitrary memory or calldata is accessed.",
+      "occurrences": 1,
+      "id": "9fc4e9b7b934a3aa2e5a113e"
     },
     {
       "impact": "Informational",
@@ -11236,10 +11892,10 @@
       "paths": [
         "script/dollar/DeployStaticsProtocol.s.sol"
       ],
-      "summary": "DeployStaticsProtocol._phaseThreeProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#231-237) is never used and should be removed",
+      "summary": "DeployStaticsProtocol._phaseTwoProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#231-237) is never used and should be removed",
       "rationale": "The internal phase-cut helper is retained as an explicit reusable composition boundary for derived deployment tooling even though the current fresh deployment calls the cumulative plan directly.",
       "occurrences": 1,
-      "id": "2f378303e2bbbdb44ceff5e3"
+      "id": "2e42cd8df490af48e79d5d0b"
     },
     {
       "impact": "Informational",
@@ -11252,10 +11908,10 @@
       "paths": [
         "script/dollar/DeployStaticsProtocol.s.sol"
       ],
-      "summary": "DeployStaticsProtocol._phaseTwoProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#223-229) is never used and should be removed",
+      "summary": "DeployStaticsProtocol._phaseThreeProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#239-245) is never used and should be removed",
       "rationale": "The internal phase-cut helper is retained as an explicit reusable composition boundary for derived deployment tooling even though the current fresh deployment calls the cumulative plan directly.",
       "occurrences": 1,
-      "id": "9aa055895bf47128494ba7fc"
+      "id": "75ab9bb880de86e76a26423f"
     },
     {
       "impact": "Informational",
@@ -11268,10 +11924,10 @@
       "paths": [
         "script/dollar/DeployStaticsProtocol.s.sol"
       ],
-      "summary": "DeployStaticsProtocol._phaseFourProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#239-245) is never used and should be removed",
+      "summary": "DeployStaticsProtocol._phaseFourProtocolCut(StaticsProtocolParts) (script/dollar/DeployStaticsProtocol.s.sol#247-253) is never used and should be removed",
       "rationale": "The internal phase-cut helper is retained as an explicit reusable composition boundary for derived deployment tooling even though the current fresh deployment calls the cumulative plan directly.",
       "occurrences": 1,
-      "id": "ff546b1a41d1e4be1e8b7bd1"
+      "id": "dc22960f36ae2b2ecc69c4c0"
     },
     {
       "impact": "Informational",
@@ -11555,23 +12211,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeViewFacet.sol",
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "RangeGaugeViewFacet (src/facets/RangeGaugeViewFacet.sol#12-189) should inherit from IRangeGaugeBindingView (src/liquidity/StaticsLiquidityManager.sol#18-20)",
-      "rationale": "The manager uses a narrow local read interface to call the Diamond, whose posmBinding selector is installed by RangeGaugeViewFacet and verified by deployment tests. EIP-2535 facets do not need to inherit caller-local interfaces to implement the routed selector.",
-      "occurrences": 1,
-      "id": "6f93b08d4d05faea8434ba9b"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "missing-inheritance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/facets/CoreGovernanceFacet.sol",
         "src/dollar/periphery/facets/FeeRouterFacet.sol"
       ],
@@ -11630,6 +12269,23 @@
       "rationale": "The contract implements the consumer interface structurally, including inherited owner and pool reads; nominally inheriting the claims-local interface would add coupling without changing runtime conformance.",
       "occurrences": 1,
       "id": "c7153c1141298a241ec9eae3"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeViewFacet.sol",
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "RangeGaugeViewFacet (src/facets/RangeGaugeViewFacet.sol#13-203) should inherit from IRangeGaugeBindingView (src/liquidity/StaticsLiquidityManager.sol#18-20)",
+      "rationale": "The manager uses a narrow local read interface to call the Diamond, whose posmBinding selector is installed by RangeGaugeViewFacet and verified by deployment tests. EIP-2535 facets do not need to inherit caller-local interfaces to implement the routed selector.",
+      "occurrences": 1,
+      "id": "e0417715b962397e43c9e2ec"
     },
     {
       "impact": "Informational",
@@ -11743,10 +12399,26 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "06abc424ee9e654d357bc394"
+      "id": "030b3b9656c83c86d585ca48"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "063db694862e2fa5afaaa3f1"
     },
     {
       "impact": "Informational",
@@ -11775,10 +12447,90 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "15a430ae77594c7f14a9a1ba"
+      "id": "1360c40f6c2d3628ed836b43"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "184a2e739b6fc787f2c593ea"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "1881cdd901ad95d00141bb0d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "19092f7af42ae0f1935cfa87"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "21f824ba97fa77e6b14c609d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#807-857) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "2341dc3a0260706156460236"
     },
     {
       "impact": "Informational",
@@ -11807,10 +12559,26 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#767-791) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "35c4020b16387da95aed8a70"
+      "id": "31aaaee740f47cec77016189"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#149-195) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "374c19e4bc447c289e00ae1a"
     },
     {
       "impact": "Informational",
@@ -11823,10 +12591,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "4b86f5fbb1ad3b4b382878b9"
+      "id": "37f6144a185d50fb7d6c3ed8"
     },
     {
       "impact": "Informational",
@@ -11839,10 +12607,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "4eed14d53b39701d23e071da"
+      "id": "490c73334dff0dd23e7c40d2"
     },
     {
       "impact": "Informational",
@@ -11855,10 +12623,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "4f8a46bdb09d17f9f9078450"
+      "id": "4e44789b1b5515ba7ac2b14c"
     },
     {
       "impact": "Informational",
@@ -11871,10 +12639,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#793-843) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#531-558) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "5070be0568c4505aac053641"
+      "id": "5051ed1176f8c08ed2c6a822"
     },
     {
       "impact": "Informational",
@@ -11903,10 +12671,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "63fcf74d388956bc3fb91265"
+      "id": "5b5deaf9a4f28bf25c620043"
     },
     {
       "impact": "Informational",
@@ -11919,10 +12687,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#793-843) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "655ead8a1a81867c4110dcb3"
+      "id": "626eb81434fd968713a2d236"
     },
     {
       "impact": "Informational",
@@ -11935,10 +12703,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#531-558) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "694c9d08e199a26bc1630d24"
+      "id": "6352ba555c5e5dead33b61da"
     },
     {
       "impact": "Informational",
@@ -11951,10 +12719,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#781-805) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "6ac947c3fa6d22be742318bc"
+      "id": "66af7d361712fd496dbc9925"
     },
     {
       "impact": "Informational",
@@ -11967,10 +12735,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "6b956835966c3485117332b3"
+      "id": "6e601cec3dc13d5ae19a0dc1"
     },
     {
       "impact": "Informational",
@@ -11983,10 +12751,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "6dc34457184b474b0985a1ec"
+      "id": "774c5b7b954a414c767731dd"
     },
     {
       "impact": "Informational",
@@ -11999,10 +12767,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "78522ae81b725545dc6f363d"
+      "id": "79c7c5501f771762d40539df"
     },
     {
       "impact": "Informational",
@@ -12015,10 +12783,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "82991b1accc484741674d93a"
+      "id": "7bd66e31068690f5c1aad9f9"
     },
     {
       "impact": "Informational",
@@ -12031,10 +12799,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#793-843) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "87212167dbaaea5dc51ed9cd"
+      "id": "7fb1e762123970f21d5f5565"
     },
     {
       "impact": "Informational",
@@ -12047,10 +12815,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#807-857) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "890ed3ad0df50e525726057b"
+      "id": "880bd56b6cb2b124dc6239c1"
     },
     {
       "impact": "Informational",
@@ -12063,10 +12831,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#793-843) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#531-558) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "91e5ea37f608a606ff3f1a78"
+      "id": "8e941b73c7b48e7d652f6041"
     },
     {
       "impact": "Informational",
@@ -12079,26 +12847,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#528-555) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "923fcd8fc69de25000d2b52e"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#144-190) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "941a4a573b714748b7c7e66b"
+      "id": "92dc7d617902f1a292e142a8"
     },
     {
       "impact": "Informational",
@@ -12111,10 +12863,26 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#807-857) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "971b5c4e8cdd00912e701a5b"
+      "id": "94eeb4775ece9f528c85d3cb"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#807-857) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "97738b82ea7e87d2039489d9"
     },
     {
       "impact": "Informational",
@@ -12143,10 +12911,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#528-555) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "a4730eef0874e8b71447e08e"
+      "id": "9aa8f654b0c74de2e4fd2684"
     },
     {
       "impact": "Informational",
@@ -12159,58 +12927,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#807-857) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "a5db15b07261e3f4cdf22985"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "abc95e1134563057c3efaf87"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "b16a08e9dc1bdc6250c371b4"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhaseOne.s.sol"
-      ],
-      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#144-190) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "b24f2c8f16558fe4cbf5082f"
+      "id": "a366ea16ef26cb9b56d6a111"
     },
     {
       "impact": "Informational",
@@ -12239,10 +12959,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#767-791) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "b5897b94a001b44c7772c408"
+      "id": "baeac6edbb5c8ba92e5faf7e"
     },
     {
       "impact": "Informational",
@@ -12255,10 +12975,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "be9b4e17408c541d810f7474"
+      "id": "bd4c2d7959da7ca7eb5e1c3a"
     },
     {
       "impact": "Informational",
@@ -12271,10 +12991,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._phaseTwoBaseParts(address) (script/DeployStaticsPhases.s.sol#528-555) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "c6c515cfaad989479e3f9c44"
+      "id": "be1199d11af21a11df3e5961"
     },
     {
       "impact": "Informational",
@@ -12287,10 +13007,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#712-779) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "d08505844ce09fade1bc7740"
+      "id": "cbd9fb78e78b14dbbbb87bd4"
     },
     {
       "impact": "Informational",
@@ -12303,10 +13023,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#781-805) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "d201fd31c3b37de4105729ab"
+      "id": "cf5a38c430c92903119b6061"
     },
     {
       "impact": "Informational",
@@ -12319,10 +13039,26 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "d265e4633ca1d03e57ff63a4"
+      "id": "d8476ae2fb4fdbb58e9cd2c7"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhaseOne.s.sol"
+      ],
+      "summary": "DeployStaticsPhaseOne._deployLiquidityContracts(StaticsPhaseOneDeployment,DeployStaticsPhaseOne.V4Config,address) (script/DeployStaticsPhaseOne.s.sol#149-195) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2 or hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "dd7ebadecc1fcabe9408de83"
     },
     {
       "impact": "Informational",
@@ -12335,10 +13071,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#807-857) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "da2a5d64506a58832d069969"
+      "id": "e2471b446409a478aed0855d"
     },
     {
       "impact": "Informational",
@@ -12351,10 +13087,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#767-791) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#781-805) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "dae49e5c757bce199d5e951b"
+      "id": "e75fe57c4b1e1a33cea0b884"
     },
     {
       "impact": "Informational",
@@ -12367,26 +13103,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#767-791) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "e3d8e701e914b477e2b1e1b1"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "e4a3a00ca8a2c90b9f1ed009"
+      "id": "e80f05e4a9f2cfb69e1d2c41"
     },
     {
       "impact": "Informational",
@@ -12415,10 +13135,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#793-843) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "ef9b21f82fc91c564c46cec6"
+      "id": "ea9aa6eb0a3191ad9cabe8d1"
     },
     {
       "impact": "Informational",
@@ -12431,10 +13151,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseThreeRuntimes(address) (script/DeployStaticsPhases.s.sol#781-805) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "f02a2ccdbec110c6de93690a"
+      "id": "f6428e755fbd1eea6a76c0b7"
     },
     {
       "impact": "Informational",
@@ -12447,10 +13167,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "f54a0a12d456eb11c3bce1ad"
+      "id": "f75542f7c1f5fec96e92396e"
     },
     {
       "impact": "Informational",
@@ -12463,10 +13183,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#646-696) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "f560e86be81bee1168e69161"
+      "id": "fc6cb0a9e0fe830ca35dcf7e"
     },
     {
       "impact": "Informational",
@@ -12479,26 +13199,10 @@
       "paths": [
         "script/DeployStaticsPhases.s.sol"
       ],
-      "summary": "DeployStaticsPhases._validateDollarCore(address) (script/DeployStaticsPhases.s.sol#793-843) uses literals with too many digits:",
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
-      "id": "fe72deb88379a99c7ef0f22e"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "Medium",
-      "check": "too-many-digits",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-scripts"
-      ],
-      "paths": [
-        "script/DeployStaticsPhases.s.sol"
-      ],
-      "summary": "DeployStaticsPhases._validatePhaseTwoRuntimes(address) (script/DeployStaticsPhases.s.sol#698-765) uses literals with too many digits:",
-      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
-      "occurrences": 1,
-      "id": "fe8624ed96cd63bdd63eb23a"
+      "id": "fe884b8f83aa30b87c0e3755"
     },
     {
       "impact": "Informational",
