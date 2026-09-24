@@ -3,12 +3,15 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
@@ -17,10 +20,13 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 /// @notice Owner-only administration of protocol-pool creation fee, PoolId-local fee rate, global
 /// basket/general allocation profiles, general-pool decommissioning, and liquidity-manager replacement.
 contract ProtocolPoolAdminFacet is ReentrancyGuard {
+    using StateLibrary for IPoolManager;
+
     error LiquidityIntegrationNotInstalled();
     error PoolAlreadyDecommissioned(PoolId poolId);
     error IncompatibleTokenTransfer(address token, uint256 expected, uint256 observed);
@@ -98,6 +104,7 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         LibBasketLiquidity.LiquidityStorage storage ls = _liquidityStorage();
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
         if (hook.poolDecommissioned(poolId)) revert PoolAlreadyDecommissioned(poolId);
+        _stopRangeGauge(ls, stored.key, poolId);
         address currency0 = Currency.unwrap(stored.key.currency0);
         address currency1 = Currency.unwrap(stored.key.currency1);
         uint256 before0 = IERC20(currency0).balanceOf(address(this));
@@ -213,6 +220,14 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
 
     function _enforceManagerBinding(address manager, address expected, address actual) private pure {
         if (expected != actual) revert LiquidityManagerBindingMismatch(manager, expected, actual);
+    }
+
+    function _stopRangeGauge(LibBasketLiquidity.LiquidityStorage storage ls, PoolKey storage key, PoolId poolId)
+        private
+    {
+        (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
+        LibRangeGauge.stopGauge(poolId, key.tickSpacing, liveTick, LibRangeGauge.timestamp40(block.timestamp));
+        emit IStaticsRangeGauge.PoolGaugeStopped(poolId);
     }
 
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {

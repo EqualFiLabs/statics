@@ -75,4 +75,18 @@ contract RangeGaugeFormalHarness {
     function _containsTick(int24 tickLower, int24 tickUpper, int24 tick) internal pure returns (bool) {
         return LibRangeGauge.containsTick(tickLower, tickUpper, tick);
     }
+
+    function _reconciliationAvailable(
+        bool stopped,
+        uint64 unresolvedLegCount,
+        uint256 periodBudget,
+        uint256 periodEmitted,
+        uint256 claimLiability,
+        uint256 reserved,
+        uint256 indexedLiability
+    ) internal pure returns (bool) {
+        return LibRangeGauge.reconciliationAvailable(
+            stopped, unresolvedLegCount, periodBudget, periodEmitted, claimLiability, reserved, indexedLiability
+        );
+    }
 }

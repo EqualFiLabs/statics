@@ -3,21 +3,26 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 
 contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
 
     error BasketNotFound(uint256 basketId);
     error AssetNotInBasket(uint256 basketId, address asset);
@@ -69,6 +74,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         uint256 assetBefore = IERC20(asset).balanceOf(address(this));
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
         if (hook.poolDecommissioned(stored.key.toId())) revert BasketLiquidityAlreadyUnwound(basketId, asset);
+        _stopRangeGauge(ls, stored.key);
         hook.decommissionPool(stored.key);
         PoolId poolId = stored.key.toId();
         IStaticsSwapFeeHook.PermanentLiquidityRelease memory released =
@@ -166,6 +172,13 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         ls = LibBasketLiquidity.liquidityStorage();
         stored = ls.canonicalPools[basketId][asset];
         if (address(stored.key.hooks) == address(0)) revert CanonicalPoolNotConfigured(basketId, asset);
+    }
+
+    function _stopRangeGauge(LibBasketLiquidity.LiquidityStorage storage ls, PoolKey storage key) private {
+        PoolId poolId = key.toId();
+        (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
+        LibRangeGauge.stopGauge(poolId, key.tickSpacing, liveTick, LibRangeGauge.timestamp40(block.timestamp));
+        emit IStaticsRangeGauge.PoolGaugeStopped(poolId);
     }
 
     function _basket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {

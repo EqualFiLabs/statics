@@ -113,6 +113,7 @@ library LibRangeGauge {
     error PositionPoolNotIndexed(uint256 positionId, PoolId poolId);
     error PosmAlreadyBound(uint256 posmTokenId, bytes32 binding);
     error PosmBindingMismatch(uint256 posmTokenId, bytes32 expected, bytes32 actual);
+    error GaugeAlreadyStopped(PoolId poolId);
 
     function rangeGaugeStorage() internal pure returns (RangeGaugeStorage storage rgs) {
         bytes32 slot = STORAGE_POSITION;
@@ -394,6 +395,25 @@ library LibRangeGauge {
         }
     }
 
+    function stopGauge(PoolId poolId, int24 tickSpacing, int24 liveTick, uint40 currentTime) internal {
+        RangeGaugeStorage storage rgs = rangeGaugeStorage();
+        GaugePool storage gauge = rgs.gauges[poolId];
+        if (gauge.stopped) revert GaugeAlreadyStopped(poolId);
+        synchronizeTopology(poolId, tickSpacing, liveTick, currentTime);
+        gauge.stopped = true;
+
+        PoolRewardConfig storage config = rgs.rewardConfig[poolId];
+        for (uint8 slot; slot < config.slotCount; ++slot) {
+            GaugeRewardStream storage stream = gauge.streams[slot];
+            uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
+            if (remainingBudget == 0) continue;
+            stream.periodEmitted = stream.periodBudget;
+            address asset = config.assets[slot];
+            LibCustody.moveReservation(rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, remainingBudget);
+            LibGlobalRewards.accrueReservedTreasuryFee(asset, remainingBudget);
+        }
+    }
+
     function flushDenominatorRemainder(PoolId poolId, uint8 slot) internal returns (uint256 dust) {
         RangeGaugeStorage storage rgs = rangeGaugeStorage();
         PoolRewardConfig storage config = rgs.rewardConfig[poolId];
@@ -410,6 +430,19 @@ library LibRangeGauge {
         address asset = config.assets[slot];
         LibCustody.moveReservation(rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, dust);
         LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
+    }
+
+    function reconciliationAvailable(
+        bool stopped,
+        uint64 unresolvedLegCount,
+        uint256 periodBudget,
+        uint256 periodEmitted,
+        uint256 claimLiability,
+        uint256 reserved,
+        uint256 indexedLiability
+    ) internal pure returns (bool) {
+        return stopped && unresolvedLegCount == 0 && periodBudget == periodEmitted && claimLiability == 0
+            && reserved >= indexedLiability;
     }
 
     function addRangeBoundaries(

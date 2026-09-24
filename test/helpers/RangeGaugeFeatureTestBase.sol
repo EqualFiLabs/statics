@@ -7,6 +7,7 @@ import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {RangeGaugeFacet} from "../../src/facets/RangeGaugeFacet.sol";
+import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
 import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
@@ -67,6 +68,15 @@ contract RangeGaugeTestStateFacet {
         ++rgs.gauges[poolId].unresolvedLegCount;
     }
 
+    function nextGaugeBoundary(PoolId poolId, int256 tick, int256 tickSpacing, bool lte)
+        external
+        view
+        returns (int24 next, bool initialized)
+    {
+        LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
+        return LibRangeGauge.nextInitializedBoundary(gauge, _toInt24(tick), _toInt24(tickSpacing), lte);
+    }
+
     function _toUint128(uint256 value) private pure returns (uint128 narrowed) {
         if (value > type(uint128).max) revert();
         narrowed = uint128(value);
@@ -102,26 +112,32 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         basketLiquidity.installLiquidityManager(address(rangeLiquidityManager));
 
         RangeGaugeFacet actionFacet = new RangeGaugeFacet();
+        RangeGaugeLivenessFacet livenessFacet = new RangeGaugeLivenessFacet();
         RangeGaugePositionFacet positionFacet = new RangeGaugePositionFacet();
         RangeGaugeViewFacet viewFacet = new RangeGaugeViewFacet();
         RangeGaugeTestStateFacet stateFacet = new RangeGaugeTestStateFacet();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](4);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](5);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(actionFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _actionSelectors()
         });
         cut[1] = IDiamondCut.FacetCut({
+            facetAddress: address(livenessFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: _livenessSelectors()
+        });
+        cut[2] = IDiamondCut.FacetCut({
             facetAddress: address(positionFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _positionSelectors()
         });
-        cut[2] = IDiamondCut.FacetCut({
+        cut[3] = IDiamondCut.FacetCut({
             facetAddress: address(viewFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _viewSelectors()
         });
-        cut[3] = IDiamondCut.FacetCut({
+        cut[4] = IDiamondCut.FacetCut({
             facetAddress: address(stateFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _stateSelectors()
@@ -189,10 +205,20 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         selectors[5] = RangeGaugePositionFacet.rebalanceLiquidity.selector;
     }
 
+    function _livenessSelectors() private pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = RangeGaugeLivenessFacet.exitLiquidity.selector;
+        selectors[1] = RangeGaugeLivenessFacet.claimLpRewards.selector;
+        selectors[2] = RangeGaugeLivenessFacet.forfeitLpReward.selector;
+        selectors[3] = RangeGaugeLivenessFacet.recoverUnboundPosm.selector;
+        selectors[4] = RangeGaugeLivenessFacet.reconcilePoolRewardSurplus.selector;
+    }
+
     function _stateSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](3);
+        selectors = new bytes4[](4);
         selectors[0] = RangeGaugeTestStateFacet.setActiveGaugeLiquidity.selector;
         selectors[1] = RangeGaugeTestStateFacet.addGaugeRange.selector;
         selectors[2] = RangeGaugeTestStateFacet.seedLpLeg.selector;
+        selectors[3] = RangeGaugeTestStateFacet.nextGaugeBoundary.selector;
     }
 }

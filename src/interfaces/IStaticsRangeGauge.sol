@@ -156,6 +156,7 @@ interface IStaticsRangeGauge {
     event LpRewardForfeited(uint256 indexed positionId, PoolId indexed poolId, address indexed asset, uint256 amount);
     event UnboundPosmRecovered(address indexed manager, uint256 indexed posmTokenId, address indexed receiver);
     event PoolRewardSurplusReconciled(PoolId indexed poolId, address indexed asset, uint8 indexed slot, uint256 amount);
+    event PoolGaugeStopped(PoolId indexed poolId);
 
     error ActionPaused(uint256 action);
     error InvalidPublicPool(PoolId poolId);
@@ -180,6 +181,7 @@ interface IStaticsRangeGauge {
     error InvalidPositionState(uint256 positionId, PoolId poolId);
     error RewardAmountBelowMinimum(address asset, uint256 received, uint256 minimum);
     error PoolRewardReconciliationUnavailable(PoolId poolId, address asset);
+    error ClaimLiabilityUnderflow(PoolId poolId, address asset, uint256 liability, uint256 amount);
 
     function setGaugeRewardAssetAllowed(address asset, bool allowed) external;
     function setGaugeRewardDuration(uint40 duration) external;
