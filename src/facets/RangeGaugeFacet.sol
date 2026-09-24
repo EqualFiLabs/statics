@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -62,9 +63,19 @@ contract RangeGaugeFacet is ReentrancyGuard {
             revert IStaticsRangeGauge.MinimumRemainingDurationNotMet(availableDuration, minRemainingDuration);
         }
 
-        received = LibCustody.pullAndReserve(LibRangeGauge.rewardAccount(poolId, slot), asset, msg.sender, amount);
+        received = _pullReward(poolId, slot, asset, amount);
         LibRangeGauge.fundStream(stream, received, currentTime, rgs.gaugeRewardDuration, gauge.activeGaugeLiquidity);
         emit IStaticsRangeGauge.PoolRewardFunded(poolId, asset, msg.sender, slot, amount, received, stream.periodFinish);
+    }
+
+    function _pullReward(PoolId poolId, uint8 slot, address asset, uint256 amount) private returns (uint256 received) {
+        uint256 funderBalanceBefore = IERC20(asset).balanceOf(msg.sender);
+        received = LibCustody.pullAndReserve(LibRangeGauge.rewardAccount(poolId, slot), asset, msg.sender, amount);
+        uint256 funderBalanceAfter = IERC20(asset).balanceOf(msg.sender);
+        uint256 funderDebit = funderBalanceBefore > funderBalanceAfter ? funderBalanceBefore - funderBalanceAfter : 0;
+        if (funderDebit > amount) {
+            revert IStaticsRangeGauge.InputDebitExceedsMaximum(asset, funderDebit, amount);
+        }
     }
 
     function _enforceActivePublicGauge(PoolId poolId) private view {

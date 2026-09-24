@@ -4,7 +4,7 @@ pragma solidity 0.8.33;
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
-import {MockERC20, MockFeeOnTransferERC20, MockReentrantERC20} from "../mocks/MockERC20.sol";
+import {MockERC20, MockFeeOnTransferERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "../mocks/MockERC20.sol";
 import {RangeGaugeFeatureTestBase} from "../helpers/RangeGaugeFeatureTestBase.sol";
 
 contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
@@ -35,6 +35,28 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         assertEq(custody.reservedByAccount(account, address(reward)), 99 ether);
         assertEq(custody.globalReservedByToken(address(reward)), 99 ether);
         assertEq(reward.balanceOf(address(diamond)), 99 ether);
+    }
+
+    function testFundingRejectsSenderExtraFeeAboveRequestedMaximum() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        MockSenderExtraFeeERC20 reward = new MockSenderExtraFeeERC20();
+        _appendReward(poolId, address(reward));
+        reward.mint(bob, 101 ether);
+        reward.setTaxedSender(bob);
+        vm.prank(bob);
+        reward.approve(address(diamond), type(uint256).max);
+
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IStaticsRangeGauge.InputDebitExceedsMaximum.selector, address(reward), 101 ether, 100 ether
+            )
+        );
+        rangeGauge.fundPoolReward(poolId, address(reward), 100 ether, 0);
+
+        assertEq(reward.balanceOf(bob), 101 ether);
+        assertEq(reward.balanceOf(address(diamond)), 0);
+        assertEq(rangeGauge.poolRewardStream(poolId, address(reward)).periodBudget, 0);
     }
 
     function testMinimumRemainingDurationRejectsNearExpiryDustCompression() public {
