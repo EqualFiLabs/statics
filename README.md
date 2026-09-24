@@ -341,7 +341,9 @@ permanent liquidity, PositionNFT accounts, and global STATICS staking with
 per-position reward opt-ins. Public-pool PositionNFT range gauges expose five
 fixed reward slots. Slot 0 is reserved for weekly protocol STATICS incentives,
 while slots 1 through 4 remain independently and permissionlessly funded by
-creators, partners, and communities. Stakers allocate raw staked STATICS to
+creators, partners, and communities. Each direct slot may split future funding
+between active-range LPs and PoolId allocators at a creator-selected rate, with
+funder-side share protection. Stakers allocate raw staked STATICS to
 eligible public PoolIds for the next weekly epoch. A custody-backed reserve
 releases a governed percentage to the top ten pools without using Genesis or
 Operator multipliers. A Diamond-bound liquidity manager holds and mutates the
@@ -364,18 +366,18 @@ and permissionless execute calldata.
 
 All staged and fresh cuts are derived from
 `script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
-Diamond through every timelocked batch, then compares all 351 selector routes
+Diamond through every timelocked batch, then compares all 359 selector routes
 and implementation runtime hashes, plus all 95 Dollar Core selector routes and
 runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-Phase 1 StaticsDiamond:   26 facets, 173 selectors
-Phase 2 StaticsDiamond:   38 facets, 266 selectors cumulative
-Phase 3 StaticsDiamond:   43 facets, 324 selectors cumulative
-Phase 4 StaticsDiamond:   48 facets, 351 selectors cumulative
-Full StaticsDiamond:      48 facets, 351 selectors
+Phase 1 StaticsDiamond:   26 facets, 181 selectors
+Phase 2 StaticsDiamond:   38 facets, 274 selectors cumulative
+Phase 3 StaticsDiamond:   43 facets, 332 selectors cumulative
+Phase 4 StaticsDiamond:   48 facets, 359 selectors cumulative
+Full StaticsDiamond:      48 facets, 359 selectors
 StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -704,7 +706,13 @@ remain ordinary PositionManager fees and are not duplicated by the range gauge.
 Each range gauge has five reward slots. Protocol STATICS occupies slot 0 and
 cannot be funded through the direct funding function. Slots 1 through 4 retain
 ordinary permissionless direct funding, including a separate directly funded
-STATICS stream. PositionNFT owners may allocate no more than their actual raw
+STATICS stream. For each direct slot, the pool creator may direct 0% through
+100% of future deposits to PositionNFTs that allocate to that PoolId. Funders
+pin the expected split, LP and allocator custody remain separate, and funded
+allocator rewards target the next epoch without using the protocol top-ten
+filter. Allocator claims follow PositionNFT ownership, expire after 26 weeks,
+and route ineligible, unclaimed, or rounding amounts to treasury. PositionNFT
+owners may allocate no more than their actual raw
 staked STATICS across at most 16 eligible public PoolIds. Allocation changes
 take effect in the next Monday-aligned epoch, and allocated stake must be
 explicitly deallocated before it can be unstaked. The ten highest scheduled

@@ -15,10 +15,53 @@ Each public gauge has five fixed reward slots:
 - slot 0 is permanently reserved for protocol STATICS committed by the weekly
   routing system; and
 - slots 1 through 4 remain ordinary direct reward programs that any funder may
-  use, including a separate directly funded STATICS program.
+  use, including a separate directly funded STATICS program. A pool creator may
+  direct a configured share of each future deposit to PositionNFT allocators.
 
 The direct funding path cannot fund slot 0. Protocol allocation does not modify
 the asset, duration, or liabilities of any directly funded slot.
+
+## Creator-directed allocator rewards
+
+Each direct slot has a creator-controlled allocator share from 0 through 10,000
+bps. Zero preserves a pure active-range LP stream. The setting applies
+immediately to future deposits and never rewrites an existing LP stream or an
+already funded allocator budget. A funder supplies the expected share with
+`fundPoolReward`; a changed setting reverts the contribution instead of silently
+changing its economics.
+
+The Diamond measures the tokens actually received and partitions that amount:
+
+```text
+allocator amount = floor(actual received * allocator share / 10,000)
+LP amount = actual received - allocator amount
+```
+
+The LP amount retains the slot's active-range emission semantics. The allocator
+amount is reserved for the next weekly epoch in a separate PoolId, slot, and
+epoch custody account. A 100% allocator share creates no LP stream and therefore
+does not apply the LP stream's minimum remaining-duration check.
+
+Allocator rewards use the same raw STATICS allocation signal as protocol
+routing, but they do not use the top-ten filter. Every PositionNFT with a valid
+allocation to the funded PoolId for the funded epoch receives its pro-rata
+share. Protocol slot 0, reserve accounting, and creator-funded allocator
+liabilities remain separate even when their reward asset is STATICS.
+
+Allocation and aggregate-pool checkpoints are recorded by effective epoch.
+Changing or removing an allocation in a later epoch cannot rewrite an earlier
+funded epoch. Claims follow current PositionNFT ownership and approval. A
+PositionNFT that is closed before claiming forfeits no protocol principal; its
+unclaimed reward eventually expires to treasury.
+
+Anyone may finalize a direct-slot allocator budget after its funded epoch ends.
+If the pool has zero valid weight, became ineligible before the epoch, or was
+stopped before the epoch, the full allocator amount routes to treasury. A
+mid-epoch reward restriction or gauge stop prorates the distributable amount to
+the eligible portion of the week and routes the remainder to treasury. Claims
+expire 26 epochs after the funded epoch. Expiry routes abandoned claims and
+integer-division dust to treasury. Direct funders receive no refund and budgets
+never roll forward.
 
 ## Reserve
 
@@ -129,8 +172,9 @@ recorded restriction timestamp and recycles the remaining budget.
 At the next epoch checkpoint, the previous winners are settled before new
 budgets are committed. Stopping a gauge, forfeiting slot-0 claims, flushing
 slot-0 rounding dust, or reconciling a stopped gauge also returns the applicable
-STATICS to the reserve. Slots 1 through 4 keep their pre-existing funding,
-emission, forfeiture, and treasury reconciliation behavior.
+STATICS to the reserve. The LP portions of slots 1 through 4 keep their existing
+emission, forfeiture, and treasury reconciliation behavior. Their allocator
+portions use the separate fixed-epoch claim lifecycle above.
 
 ## Genesis boundary
 
@@ -148,5 +192,7 @@ weight formula, but Phase 1 does not require or install that integration.
 - Late finalization cannot backdate rewards.
 - Direct STATICS incentives remain possible in slots 1 through 4 without
   merging their liabilities with protocol slot 0.
+- Creator-directed allocator rewards pay every valid allocator to the PoolId,
+  independent of whether that pool ranks in the protocol top ten.
 - The reserve release rate controls spending velocity; product revenue,
   buybacks, treasury transfers, or external contributors control reserve size.
