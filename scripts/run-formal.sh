@@ -175,6 +175,12 @@ case "$TARGET" in
       out-formal-genesis '^check_releaseCommitmentPreservesReservePartition'
     run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-recycling 8 \
       out-formal-genesis '^check_claimAndRecycleConserveBackedReserve'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-funding-split 8 \
+      out-formal-genesis '^check_fundingSplitConservesReceived'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-claim-rounding 8 \
+      out-formal-genesis '^check_claimRoundingCannotExceedBudget'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-proration 8 \
+      out-formal-genesis '^check_prorationAndTreasuryConserveBudget'
     run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-boundary-symmetry 8 \
       out-formal-genesis '^check_boundaryAddRemoveSymmetry'
     run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-right-crossing-inversion 8 \
