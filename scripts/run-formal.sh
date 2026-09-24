@@ -165,6 +165,8 @@ case "$TARGET" in
       out-formal-genesis '^check_zeroLiquidityPausesWithoutEmitting'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-top-up-conservation 8 \
       out-formal-genesis '^check_topUpPreservesFinishAndConservesBudget'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-lifetime-index-capacity 8 \
+      out-formal-genesis '^check_lifetimeIndexCapacityTracksConsecutivePeriods'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-position-remainder 8 \
       out-formal-genesis '^check_positionRemainderCarryConservesNumerator'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-final-reconciliation-gate 8 \

@@ -74,6 +74,9 @@ PositionManager lifecycle.
 | Only the configured guardian or Diamond owner can stop all protocol-pool swaps, while only the owner can restore them | `GovernanceFacet` | Halmos against production facet and storage libraries plus Foundry | CI gate |
 | Pool quarantine remains PoolId-local unless the global swap stop is active, and restoring the global stop does not silently release a local quarantine | `GovernanceFacet` | Halmos against production facet and registry library plus Foundry | CI gate |
 | Guardian staking pause cannot set the redemption pause bit or another owner-only action; real Phase 1 unstake and Position-close flows remain executable | `GovernanceFacet`, `GlobalRewardsFacet` | Halmos authority proof plus real-flow Foundry | CI gate |
+| Range-gauge streams emit their exact fixed-duration budgets, pause at zero active liquidity, conserve finish-preserving top-ups, and charge lifetime index capacity exactly across consecutive periods | `LibRangeGauge` | Halmos against production accounting plus exact-cap Foundry boundaries | CI gate |
+| Range-gauge position remainder carry conserves the RAY numerator, while final treasury reconciliation requires stopped and fully resolved pool accounting | `LibRangeGauge` | Halmos against production accounting plus real-flow Foundry lifecycle tests | CI gate |
+| Range-gauge boundary add/remove and bidirectional crossings preserve topology and active-liquidity identities | `LibRangeGauge` | Halmos against production boundary primitives plus live PoolManager Foundry tests | CI gate |
 
 The permanent-liquidity Halmos target proves the hook's bounded symbolic
 accounting against a minimal PoolManager model. It does not prove real
@@ -88,6 +91,11 @@ The Phase 1 emergency-control harness executes the production
 logic. Exit-liveness beyond pause-bit separation comes from the real Phase 1
 global-staking round trip. Flash-loan properties remain part of the later full
 protocol verification set; flash selectors are not deployed in Phase 1.
+
+The range-gauge lifetime-capacity rule proves exact charging and index growth
+across two consecutive periods for symbolic `uint32` contributions. Exact
+maximum-capacity acceptance and one-unit-over-cap rejection are executable
+Foundry boundary evidence rather than an unbounded symbolic claim.
 
 `Mandatory` means `scripts/run-formal.sh all` must pass. The Certora specs under
 `certora/` are the selective aggregate-accounting layer and are not repository
