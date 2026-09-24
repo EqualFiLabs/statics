@@ -63,9 +63,9 @@ contract RangeGaugeViewFacet {
             periodEmitted: stored.periodEmitted,
             globalIndexRay: stored.globalIndexRay,
             indexRemainder: stored.indexRemainder,
-            indexCapacityUsed: stored.indexCapacityUsed,
             indexedLiability: stored.indexedLiability,
-            claimLiability: stored.claimLiability
+            claimLiability: stored.claimLiability,
+            indexCapacityUsed: stored.indexCapacityUsed
         });
     }
 
