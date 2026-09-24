@@ -90,10 +90,12 @@ library StaticsSelectors {
     }
 
     function rewardPolicy() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](3);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsRewardPolicy.addRewardRestriction.selector;
         selectors[1] = IStaticsRewardPolicy.removeRewardRestriction.selector;
         selectors[2] = IStaticsRewardPolicy.rewardRestricted.selector;
+        selectors[3] = IStaticsRewardPolicy.rewardRestrictionNonce.selector;
+        selectors[4] = IStaticsRewardPolicy.rewardRestrictionTimestamp.selector;
     }
 
     function diamondCut() internal pure returns (bytes4[] memory selectors) {

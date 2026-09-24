@@ -317,10 +317,12 @@ contract SelectorManifestTest is Test {
     }
 
     function testPermissionedAndRewardPolicySelectorManifestsAreExact() public pure {
-        bytes4[] memory reward = new bytes4[](3);
+        bytes4[] memory reward = new bytes4[](5);
         reward[0] = IStaticsRewardPolicy.addRewardRestriction.selector;
         reward[1] = IStaticsRewardPolicy.removeRewardRestriction.selector;
         reward[2] = IStaticsRewardPolicy.rewardRestricted.selector;
+        reward[3] = IStaticsRewardPolicy.rewardRestrictionNonce.selector;
+        reward[4] = IStaticsRewardPolicy.rewardRestrictionTimestamp.selector;
         _assertExact(StaticsSelectors.rewardPolicy(), reward);
 
         bytes4[] memory creation = new bytes4[](3);

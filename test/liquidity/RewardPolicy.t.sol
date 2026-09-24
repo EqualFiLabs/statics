@@ -5,6 +5,7 @@ import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
+import {LibGaugeEpoch} from "../../src/libraries/LibGaugeEpoch.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
 
@@ -17,9 +18,13 @@ contract RewardPolicyTest is StaticsTestBase {
     }
 
     function testGuardianMayAddButCannotRemoveRestriction() external {
+        vm.warp(1_000_000);
+        uint64 epoch = LibGaugeEpoch.epochAt(block.timestamp);
         vm.prank(guardian);
         policy.addRewardRestriction(address(assetA));
         assertTrue(policy.rewardRestricted(address(assetA)));
+        assertEq(policy.rewardRestrictionNonce(address(assetA)), 1);
+        assertEq(policy.rewardRestrictionTimestamp(address(assetA), epoch), block.timestamp);
 
         vm.prank(guardian);
         vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, guardian, address(this)));
@@ -27,6 +32,11 @@ contract RewardPolicyTest is StaticsTestBase {
 
         policy.removeRewardRestriction(address(assetA));
         assertFalse(policy.rewardRestricted(address(assetA)));
+
+        vm.prank(guardian);
+        policy.addRewardRestriction(address(assetA));
+        assertEq(policy.rewardRestrictionNonce(address(assetA)), 2);
+        assertEq(policy.rewardRestrictionTimestamp(address(assetA), epoch), 1_000_000);
     }
 
     function testRestrictionBlocksNewOptInButPreservesClaimAndExit() external {
