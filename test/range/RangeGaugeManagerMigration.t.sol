@@ -153,7 +153,7 @@ contract RangeGaugeManagerMigrationTest is RangeGaugeFeatureTestBase {
         stakingAsset.mint(alice, amount);
         vm.startPrank(alice);
         stakingAsset.approve(address(diamond), amount);
-        rangeGauge.fundPoolReward(poolId, slot, amount, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, slot, amount, uint40(7 days), 0);
         vm.stopPrank();
     }
 

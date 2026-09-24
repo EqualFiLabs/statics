@@ -31,6 +31,7 @@ library LibRangeGauge {
         uint8 slotCount;
         address[5] assets;
         mapping(address asset => uint8 slotPlusOne) slotPlusOne;
+        uint16[5] allocatorShareBps;
     }
 
     struct LpLeg {
@@ -76,6 +77,7 @@ library LibRangeGauge {
     struct GaugePool {
         bool initialized;
         bool stopped;
+        uint40 stoppedAt;
         int24 referenceTick;
         uint128 activeGaugeLiquidity;
         uint64 managedLegCount;
@@ -481,6 +483,7 @@ library LibRangeGauge {
         if (gauge.stopped) revert GaugeAlreadyStopped(poolId);
         synchronizeTopology(poolId, tickSpacing, liveTick, currentTime);
         gauge.stopped = true;
+        gauge.stoppedAt = currentTime;
 
         PoolRewardConfig storage config = rgs.rewardConfig[poolId];
         for (uint8 slot; slot < config.slotCount; ++slot) {

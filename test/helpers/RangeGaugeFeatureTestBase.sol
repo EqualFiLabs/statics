@@ -171,11 +171,12 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     }
 
     function _actionSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](5);
         selectors[0] = RangeGaugeFacet.setGaugeRewardAssetAllowed.selector;
         selectors[1] = RangeGaugeFacet.setGaugeRewardDuration.selector;
         selectors[2] = RangeGaugeFacet.appendPoolRewardAsset.selector;
-        selectors[3] = RangeGaugeFacet.fundPoolReward.selector;
+        selectors[3] = RangeGaugeFacet.setPoolRewardAllocatorShare.selector;
+        selectors[4] = RangeGaugeFacet.fundPoolReward.selector;
     }
 
     function _viewSelectors() private pure returns (bytes4[] memory selectors) {

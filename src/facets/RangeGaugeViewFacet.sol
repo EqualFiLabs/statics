@@ -26,7 +26,10 @@ contract RangeGaugeViewFacet {
     {
         LibRangeGauge.PoolRewardConfig storage stored = LibRangeGauge.rangeGaugeStorage().rewardConfig[poolId];
         config = IStaticsRangeGauge.PoolRewardConfigView({
-            initialized: stored.initialized, slotCount: stored.slotCount, assets: stored.assets
+            initialized: stored.initialized,
+            slotCount: stored.slotCount,
+            assets: stored.assets,
+            allocatorShareBps: stored.allocatorShareBps
         });
     }
 
@@ -35,6 +38,7 @@ contract RangeGaugeViewFacet {
         pool = IStaticsRangeGauge.GaugePoolView({
             initialized: stored.initialized,
             stopped: stored.stopped,
+            stoppedAt: stored.stoppedAt,
             referenceTick: stored.referenceTick,
             activeGaugeLiquidity: stored.activeGaugeLiquidity,
             managedLegCount: stored.managedLegCount,

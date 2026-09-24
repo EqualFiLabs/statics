@@ -54,7 +54,7 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
         reward.mint(alice, amount);
         vm.startPrank(alice);
         reward.approve(address(diamond), amount);
-        received = rangeGauge.fundPoolReward(poolId, slot, amount, 0);
+        received = rangeGauge.fundPoolReward(poolId, slot, amount, 0, 0);
         vm.stopPrank();
     }
 

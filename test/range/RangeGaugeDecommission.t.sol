@@ -107,7 +107,7 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         rangeGauge.appendPoolRewardAsset(poolId, address(extraReward));
         vm.prank(alice);
         vm.expectPartialRevert(IStaticsRangeGauge.GaugeStopped.selector);
-        rangeGauge.fundPoolReward(poolId, 0, 1 ether, 0);
+        rangeGauge.fundPoolReward(poolId, 0, 1 ether, 0, 0);
 
         vm.prank(alice);
         IStaticsRangeGauge.LiquidityMovement memory decreased = rangeGauge.decreaseLiquidity(

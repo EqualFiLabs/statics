@@ -68,8 +68,8 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
                 IStaticsRangeGauge.MinimumRemainingDurationNotMet.selector, uint40(1 hours), uint40(1 days)
             )
         );
-        rangeGauge.fundPoolReward(poolId, staticsSlot, 100 ether, uint40(1 days));
-        rangeGauge.fundPoolReward(poolId, staticsSlot, 1, 0);
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 100 ether, uint40(1 days), 0);
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 1, 0, 0);
         vm.stopPrank();
 
         IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
@@ -112,7 +112,7 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
         malformed.approve(address(diamond), type(uint256).max);
         malformed.setTransfersReturnFalse(true);
         vm.expectRevert();
-        rangeGauge.fundPoolReward(poolId, malformedSlot, 100 ether, 0);
+        rangeGauge.fundPoolReward(poolId, malformedSlot, 100 ether, 0, 0);
         vm.stopPrank();
 
         IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, malformedSlot);

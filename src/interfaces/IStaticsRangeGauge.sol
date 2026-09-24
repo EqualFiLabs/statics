@@ -52,11 +52,13 @@ interface IStaticsRangeGauge {
         bool initialized;
         uint8 slotCount;
         address[5] assets;
+        uint16[5] allocatorShareBps;
     }
 
     struct GaugePoolView {
         bool initialized;
         bool stopped;
+        uint40 stoppedAt;
         int24 referenceTick;
         uint128 activeGaugeLiquidity;
         uint64 managedLegCount;
@@ -107,14 +109,23 @@ interface IStaticsRangeGauge {
     event GaugeRewardAssetAllowedSet(address indexed asset, bool allowed);
     event GaugeRewardDurationSet(uint40 duration);
     event PoolRewardAssetAppended(PoolId indexed poolId, address indexed asset, uint8 indexed slot);
+    event PoolRewardAllocatorShareSet(PoolId indexed poolId, uint8 indexed slot, uint16 allocatorShareBps);
     event PoolRewardFunded(
         PoolId indexed poolId,
         address indexed asset,
         address indexed funder,
         uint8 slot,
-        uint256 requested,
         uint256 received,
+        uint256 lpAmount,
         uint40 periodFinish
+    );
+    event PoolAllocatorRewardFunded(
+        PoolId indexed poolId,
+        address indexed asset,
+        address indexed funder,
+        uint8 slot,
+        uint256 allocatorAmount,
+        uint64 allocatorEpoch
     );
     event ManagedLiquidityProvided(
         uint256 indexed positionId,
@@ -174,6 +185,9 @@ interface IStaticsRangeGauge {
     error GaugeRewardAssetNotAssigned(PoolId poolId, address asset);
     error GaugeRewardSlotNotAssigned(PoolId poolId, uint8 slot);
     error ProtocolRewardSlotReserved(PoolId poolId);
+    error InvalidAllocatorShareBps(uint256 allocatorShareBps);
+    error AllocatorShareChanged(uint16 expectedAllocatorShareBps, uint16 actualAllocatorShareBps);
+    error GaugeAllocatorPoolIneligible(PoolId poolId);
     error MinimumRemainingDurationNotMet(uint40 available, uint40 minimum);
     error RewardBudgetExceedsIndexCapacity(uint256 committedBudget, uint256 received, uint256 maximumBudget);
     error InvalidReceiver(address receiver);
@@ -196,9 +210,14 @@ interface IStaticsRangeGauge {
     function setGaugeRewardAssetAllowed(address asset, bool allowed) external;
     function setGaugeRewardDuration(uint40 duration) external;
     function appendPoolRewardAsset(PoolId poolId, address asset) external returns (uint8 slot);
-    function fundPoolReward(PoolId poolId, uint8 slot, uint256 amount, uint40 minRemainingDuration)
-        external
-        returns (uint256 received);
+    function setPoolRewardAllocatorShare(PoolId poolId, uint8 slot, uint16 allocatorShareBps) external;
+    function fundPoolReward(
+        PoolId poolId,
+        uint8 slot,
+        uint256 amount,
+        uint40 minRemainingDuration,
+        uint16 expectedAllocatorShareBps
+    ) external returns (uint256 received);
 
     function installLiquidityManager(address manager) external;
     function replaceLiquidityManager(address newManager) external;

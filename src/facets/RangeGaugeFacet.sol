@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
@@ -11,6 +12,9 @@ import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
+import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
+import {LibGaugeEligibility} from "../libraries/LibGaugeEligibility.sol";
+import {LibGaugeEpoch} from "../libraries/LibGaugeEpoch.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
@@ -18,6 +22,18 @@ import {LibRewardPolicy} from "../libraries/LibRewardPolicy.sol";
 
 /// @notice Governance, creator configuration, and permissionless funding for public range gauges.
 contract RangeGaugeFacet is ReentrancyGuard {
+    uint16 private constant BPS = 10_000;
+
+    struct FundingContext {
+        address asset;
+        uint16 allocatorShareBps;
+        bytes32 eligibilityVersion;
+        uint64 allocatorEpoch;
+        uint40 currentTime;
+        uint256 lpAmount;
+        uint256 allocatorAmount;
+    }
+
     function setGaugeRewardAssetAllowed(address asset, bool allowed) external {
         LibDiamond.enforceIsContractOwner();
         LibRangeGauge.setRewardAssetAllowed(asset, allowed);
@@ -40,35 +56,107 @@ contract RangeGaugeFacet is ReentrancyGuard {
         emit IStaticsRangeGauge.PoolRewardAssetAppended(poolId, asset, slot);
     }
 
-    function fundPoolReward(PoolId poolId, uint8 slot, uint256 amount, uint40 minRemainingDuration)
-        external
-        nonReentrant
-        returns (uint256 received)
-    {
+    function setPoolRewardAllocatorShare(PoolId poolId, uint8 slot, uint16 allocatorShareBps) external {
+        _enforceLiquidityAvailable();
+        _enforceActivePublicGauge(poolId);
+        address creator = LibProtocolPools.creatorOf(poolId);
+        if (msg.sender != creator) revert IStaticsRangeGauge.NotPoolCreator(poolId, msg.sender, creator);
+        if (slot == LibRangeGauge.STATICS_SLOT) revert IStaticsRangeGauge.ProtocolRewardSlotReserved(poolId);
+        (, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(poolId, slot);
+        if (allocatorShareBps > BPS) revert IStaticsRangeGauge.InvalidAllocatorShareBps(allocatorShareBps);
+        LibRangeGauge.rangeGaugeStorage().rewardConfig[poolId].allocatorShareBps[slot] = allocatorShareBps;
+        emit IStaticsRangeGauge.PoolRewardAllocatorShareSet(poolId, slot, allocatorShareBps);
+    }
+
+    function fundPoolReward(
+        PoolId poolId,
+        uint8 slot,
+        uint256 amount,
+        uint40 minRemainingDuration,
+        uint16 expectedAllocatorShareBps
+    ) external nonReentrant returns (uint256 received) {
         _enforceLiquidityAvailable();
         _enforceActivePublicGauge(poolId);
         if (slot == LibRangeGauge.STATICS_SLOT) revert IStaticsRangeGauge.ProtocolRewardSlotReserved(poolId);
-        (address asset, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
-        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(poolId, slot);
-        _enforceRewardAssetAvailable(asset);
+        FundingContext memory context = _fundingContext(poolId, slot, expectedAllocatorShareBps);
+        received = _pullReward(poolId, slot, context.asset, amount);
+        context.allocatorAmount = Math.mulDiv(received, context.allocatorShareBps, BPS);
+        context.lpAmount = received - context.allocatorAmount;
+        _applyFunding(poolId, slot, minRemainingDuration, context);
+        _emitFunding(poolId, slot, received, context);
+    }
 
+    function _emitFunding(PoolId poolId, uint8 slot, uint256 received, FundingContext memory context) private {
+        emit IStaticsRangeGauge.PoolRewardFunded(
+            poolId,
+            context.asset,
+            msg.sender,
+            slot,
+            received,
+            context.lpAmount,
+            LibRangeGauge.rangeGaugeStorage().gauges[poolId].streams[slot].periodFinish
+        );
+        if (context.allocatorAmount != 0) {
+            emit IStaticsRangeGauge.PoolAllocatorRewardFunded(
+                poolId, context.asset, msg.sender, slot, context.allocatorAmount, context.allocatorEpoch
+            );
+        }
+    }
+
+    function _fundingContext(PoolId poolId, uint8 slot, uint16 expectedAllocatorShareBps)
+        private
+        view
+        returns (FundingContext memory context)
+    {
+        bool assigned;
+        (context.asset, assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(poolId, slot);
+        _enforceRewardAssetAvailable(context.asset);
+        context.allocatorShareBps = LibRangeGauge.rangeGaugeStorage().rewardConfig[poolId].allocatorShareBps[slot];
+        if (context.allocatorShareBps != expectedAllocatorShareBps) {
+            revert IStaticsRangeGauge.AllocatorShareChanged(expectedAllocatorShareBps, context.allocatorShareBps);
+        }
+        context.currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        if (context.allocatorShareBps == 0) return context;
+        context.eligibilityVersion = LibGaugeEligibility.version(poolId);
+        if (context.eligibilityVersion == bytes32(0)) {
+            revert IStaticsRangeGauge.GaugeAllocatorPoolIneligible(poolId);
+        }
+        context.allocatorEpoch = LibGaugeEpoch.epochAt(block.timestamp) + 1;
+    }
+
+    function _applyFunding(PoolId poolId, uint8 slot, uint40 minRemainingDuration, FundingContext memory context)
+        private
+    {
         LibRangeGauge.RangeGaugeStorage storage rgs = LibRangeGauge.rangeGaugeStorage();
         LibRangeGauge.GaugePool storage gauge = rgs.gauges[poolId];
-        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
         LibRangeGauge.GaugeRewardStream storage stream = gauge.streams[slot];
-        LibRangeGauge.checkpointStream(stream, currentTime, gauge.activeGaugeLiquidity);
-
-        uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
-        uint40 availableDuration = remainingBudget == 0 ? rgs.gaugeRewardDuration : stream.periodFinish - currentTime;
-        if (minRemainingDuration != 0 && availableDuration < minRemainingDuration) {
-            revert IStaticsRangeGauge.MinimumRemainingDurationNotMet(availableDuration, minRemainingDuration);
+        LibRangeGauge.checkpointStream(stream, context.currentTime, gauge.activeGaugeLiquidity);
+        if (context.lpAmount != 0) {
+            uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
+            uint40 availableDuration =
+                remainingBudget == 0 ? rgs.gaugeRewardDuration : stream.periodFinish - context.currentTime;
+            if (minRemainingDuration != 0 && availableDuration < minRemainingDuration) {
+                revert IStaticsRangeGauge.MinimumRemainingDurationNotMet(availableDuration, minRemainingDuration);
+            }
+            LibRangeGauge.fundStream(
+                stream,
+                gauge.capacities[slot],
+                context.lpAmount,
+                context.currentTime,
+                rgs.gaugeRewardDuration,
+                gauge.activeGaugeLiquidity
+            );
         }
-
-        received = _pullReward(poolId, slot, asset, amount);
-        LibRangeGauge.fundStream(
-            stream, gauge.capacities[slot], received, currentTime, rgs.gaugeRewardDuration, gauge.activeGaugeLiquidity
+        if (context.allocatorAmount == 0) return;
+        bytes32 allocatorAccount = LibGaugeBribes.account(poolId, slot, context.allocatorEpoch);
+        LibCustody.moveReservation(
+            LibRangeGauge.rewardAccount(poolId, slot), allocatorAccount, context.asset, context.allocatorAmount
         );
-        emit IStaticsRangeGauge.PoolRewardFunded(poolId, asset, msg.sender, slot, amount, received, stream.periodFinish);
+        LibGaugeBribes.recordFunding(
+            poolId, slot, context.allocatorEpoch, context.asset, context.eligibilityVersion, context.allocatorAmount
+        );
     }
 
     function _pullReward(PoolId poolId, uint8 slot, address asset, uint256 amount) private returns (uint256 received) {

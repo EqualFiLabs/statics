@@ -25,7 +25,7 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
         stakingAsset.approve(address(diamond), type(uint256).max);
         vm.warp(START);
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, staticsSlot, 700 ether, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 700 ether, uint40(7 days), 0);
         vm.warp(START + 1 days);
 
         IStaticsRangeGauge.PoolRewardConfigView memory config = rangeGauge.poolRewardConfig(poolId);
@@ -90,7 +90,7 @@ contract RangeGaugeViewsTest is RangeGaugeFeatureTestBase {
         stakingAsset.approve(address(diamond), type(uint256).max);
         vm.warp(START);
         vm.prank(bob);
-        rangeGauge.fundPoolReward(poolId, staticsSlot, 700 ether, uint40(7 days));
+        rangeGauge.fundPoolReward(poolId, staticsSlot, 700 ether, uint40(7 days), 0);
         vm.warp(START + 1 days);
 
         IStaticsRangeGauge.PendingRewardsView memory pending = rangeGauge.previewLpRewards(POSITION_ID, poolId);
