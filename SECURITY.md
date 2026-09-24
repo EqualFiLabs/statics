@@ -148,7 +148,7 @@ ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs 23 facets and 155 selectors for the Diamond
+The Phase 1 launcher installs 26 facets and 173 selectors for the Diamond
 kernel, public general Statics-hook pools, a separate permissioned venue path,
 protocol revenue and public POL, PositionNFT, reward restrictions, and global
 STATICS staking/reward opt-ins. It also installs public-pool PositionNFT range
@@ -157,6 +157,18 @@ use their own hook, creator-selected controller, trusted exact-input router,
 and non-transferable LP positions. They create no Statics POL. It does not install or advertise basket,
 credit, flash-loan, Genesis-integration, Dollar, Morpho, BorrowLiquidity,
 ERC-1155 receiver, or series-migration interfaces.
+
+Public range gauges reserve slot 0 for custody-backed protocol STATICS and keep
+four separate direct-funding slots for creator, partner, and community rewards.
+Raw staked STATICS may direct protocol rewards to eligible public PoolIds only,
+with changes delayed until the next weekly epoch. The allocation lock is the
+greater of a PositionNFT's active and pending allocation totals, so scheduled
+changes cannot temporarily unlock committed stake. A full indexed heap keeps
+ranking updates bounded per allocation change, while epoch finalization reads
+only the top ten. If a weighted pool's eligibility version becomes stale,
+finalization fails closed until anyone refreshes that pool and removes its
+weight. Unemitted protocol rewards recycle into the reserve; directly funded
+slots retain their existing liveness and reconciliation rules.
 
 The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
 protocol's existing creation semantics, zero retains owner-only curation; it

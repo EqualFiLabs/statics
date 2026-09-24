@@ -326,7 +326,7 @@ release evidence for an already completed launch.
 
 The staged production entry point is
 `script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
-`StaticsTimelock`, the 23-facet `StaticsDiamond`, separate permissionless and
+`StaticsTimelock`, the 26-facet `StaticsDiamond`, separate permissionless and
 permissioned swap hooks, a default venue-controller factory, and the public
 hook's permanent-liquidity math dependency. It hard-codes the general-pool
 creation fee to zero, retaining owner-only curated public creation, while
@@ -338,10 +338,14 @@ ceremony.
 
 Phase 1 includes arbitrary Statics-hooked ERC-20 pairs, protocol fee routing,
 permanent liquidity, PositionNFT accounts, and global STATICS staking with
-per-position reward opt-ins. Public-pool PositionNFT range gauges add up to four
-creator-selected reward assets, including default STATICS eligibility, while a
-Diamond-bound liquidity manager holds and mutates the underlying Uniswap v4
-position NFTs. It also includes a separate permissioned market path with
+per-position reward opt-ins. Public-pool PositionNFT range gauges expose five
+fixed reward slots. Slot 0 is reserved for weekly protocol STATICS incentives,
+while slots 1 through 4 remain independently and permissionlessly funded by
+creators, partners, and communities. Stakers allocate raw staked STATICS to
+eligible public PoolIds for the next weekly epoch. A custody-backed reserve
+releases a governed percentage to the top ten pools without using Genesis or
+Operator multipliers. A Diamond-bound liquidity manager holds and mutates the
+underlying Uniswap v4 position NFTs. It also includes a separate permissioned market path with
 creator-operated controllers, approved traders and LPs,
 non-transferable LP NFTs, reward restrictions, and creator/timelock-agreed
 PoolId-local economics. Permissioned pools have no Statics POL. It excludes
@@ -360,18 +364,18 @@ and permissionless execute calldata.
 
 All staged and fresh cuts are derived from
 `script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
-Diamond through every timelocked batch, then compares all 333 selector routes
+Diamond through every timelocked batch, then compares all 351 selector routes
 and implementation runtime hashes, plus all 95 Dollar Core selector routes and
 runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-Phase 1 StaticsDiamond:   23 facets, 155 selectors
-Phase 2 StaticsDiamond:   35 facets, 248 selectors cumulative
-Phase 3 StaticsDiamond:   40 facets, 306 selectors cumulative
-Phase 4 StaticsDiamond:   45 facets, 333 selectors cumulative
-Full StaticsDiamond:      45 facets, 333 selectors
+Phase 1 StaticsDiamond:   26 facets, 173 selectors
+Phase 2 StaticsDiamond:   38 facets, 266 selectors cumulative
+Phase 3 StaticsDiamond:   43 facets, 324 selectors cumulative
+Phase 4 StaticsDiamond:   48 facets, 351 selectors cumulative
+Full StaticsDiamond:      48 facets, 351 selectors
 StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -697,6 +701,18 @@ PositionNFT, with the immutable liquidity manager holding the underlying NFT
 and the Diamond accounting for separately funded range rewards. Native fees
 remain ordinary PositionManager fees and are not duplicated by the range gauge.
 
+Each range gauge has five reward slots. Protocol STATICS occupies slot 0 and
+cannot be funded through the direct funding function. Slots 1 through 4 retain
+ordinary permissionless direct funding, including a separate directly funded
+STATICS stream. PositionNFT owners may allocate no more than their actual raw
+staked STATICS across at most 16 eligible public PoolIds. Allocation changes
+take effect in the next Monday-aligned epoch, and allocated stake must be
+explicitly deallocated before it can be unstaked. The ten highest scheduled
+weights split that epoch's reserve-backed budget pro rata. Permissioned venues,
+decommissioned pools, and pools containing reward-restricted assets are not
+eligible. Unemitted slot-0 rewards recycle into the reserve instead of becoming
+a perpetual pool entitlement.
+
 ### Lending and recovery
 
 Basket lending locks deposited BasketTokens and releases the proportional constituent vector at the basket's configured LTV, capped by the immutable 95% protocol ceiling. Independent tranches preserve separate maturities. Repayment restores the exact stored principal; extension charges each outstanding constituent; permissionless recovery becomes available only after maturity and grace.
@@ -852,6 +868,7 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `GUARDIAN` | Phase 1 staking/liquidity emergency guardian and later module guardian |
 | `TREASURY` | Shared protocol treasury |
 | `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
+| `WEEKLY_GAUGE_RELEASE_BPS` | Initial weekly release from the available protocol gauge reserve; defaults to 400 bps and cannot exceed 1,000 bps |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
 | `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; zero disables permissionless creation (owner-only) and is not free public creation |
