@@ -96,6 +96,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             permit2: makeAddr("permit2"),
             weth: makeAddr("weth"),
             permanentLiquidityHarvester: makeAddr("harvester"),
+            governanceSafe: makeAddr("governanceSafe"),
+            guardian: makeAddr("guardian"),
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: bytes32(0),
@@ -144,7 +146,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
             _deployPhaseOne(address(ceremony), address(poolManager));
         address harvester = makeAddr("harvester");
-        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), harvester);
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), harvester, address(ceremony));
 
         bytes32 salt = keccak256("install Phase 1 liquidity");
         (bytes32 operationId, uint256 delay) = _schedule(ceremony, deployment.diamond, config, salt, address(timelock));
@@ -159,7 +162,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
         (StaticsPhaseOneDeployment memory deployment,) = _deployPhaseOne(address(ceremony), address(poolManager));
-        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
         config.hookCodeHash = bytes32(0);
 
         vm.expectRevert(
@@ -188,7 +192,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.prank(address(timelock));
         IDiamondCut(deployment.diamond).diamondCut(cut, address(0), "");
 
-        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
 
         vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 23, 24));
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
@@ -198,7 +203,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
         (StaticsPhaseOneDeployment memory deployment,) = _deployPhaseOne(address(ceremony), address(poolManager));
-        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
         PhaseOneCeremonyDependencyMock wrongWeth = new PhaseOneCeremonyDependencyMock();
         config.weth = address(wrongWeth);
         config.wethCodeHash = address(wrongWeth).codehash;
@@ -223,7 +229,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.prank(address(timelock));
         IERC173(deployment.diamond).transferOwnership(address(fakeTimelock));
 
-        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), makeAddr("harvester"));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -234,6 +241,63 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             )
         );
         ceremony.prepare(deployment.diamond, config, keccak256("reject fake timelock"));
+    }
+
+    function testCeremonyRejectsUnexpectedGovernanceSafe() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+        config.governanceSafe = makeAddr("unexpected governance safe");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.MissingTimelockRole.selector,
+                timelock.PROPOSER_ROLE(),
+                config.governanceSafe
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject unexpected governance safe"));
+    }
+
+    function testCeremonyRejectsUnexpectedGuardian() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+        config.guardian = makeAddr("unexpected guardian");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.MissingTimelockRole.selector,
+                timelock.CANCELLER_ROLE(),
+                config.guardian
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject unexpected guardian"));
+    }
+
+    function testCeremonyRejectsClosedTimelockExecution() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        bytes32 executorRole = timelock.EXECUTOR_ROLE();
+        vm.prank(address(timelock));
+        timelock.revokeRole(executorRole, address(0));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.MissingTimelockRole.selector, executorRole, address(0)
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject closed timelock execution"));
     }
 
     function _deployPhaseOne(address multisig, address poolManager)
@@ -268,10 +332,12 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         );
     }
 
-    function _config(StaticsPhaseOneDeployment memory deployment, address poolManager, address harvester)
-        private
-        returns (StaticsPhaseOneLiquidityConfig memory config)
-    {
+    function _config(
+        StaticsPhaseOneDeployment memory deployment,
+        address poolManager,
+        address harvester,
+        address governanceSafe
+    ) private returns (StaticsPhaseOneLiquidityConfig memory config) {
         StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(deployment.liquidityManager);
         address permit2 = liquidityManager.permit2();
         address positionManagerAddress = liquidityManager.positionManager();
@@ -297,6 +363,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             permit2: permit2,
             weth: deployment.weth,
             permanentLiquidityHarvester: harvester,
+            governanceSafe: governanceSafe,
+            guardian: makeAddr("guardian"),
             inputFeeBps: 25,
             outputFeeBps: 25,
             poolManagerCodeHash: poolManager.codehash,

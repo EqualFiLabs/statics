@@ -33,6 +33,8 @@ struct StaticsPhaseOneLiquidityConfig {
     address permit2;
     address weth;
     address permanentLiquidityHarvester;
+    address governanceSafe;
+    address guardian;
     uint16 inputFeeBps;
     uint16 outputFeeBps;
     bytes32 poolManagerCodeHash;
@@ -78,6 +80,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     error InvalidDiamond(address diamond);
     error InvalidTimelock(address timelock);
     error InvalidTimelockDelay(uint256 expected, uint256 actual);
+    error MissingTimelockRole(bytes32 role, address account);
     error InvalidContract(address target);
     error InvalidCodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidBinding(address target, address expected, address actual);
@@ -194,6 +197,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         uint256 expectedDelay = _expectedInitialDelay();
         uint256 actualDelay = timelock.getMinDelay();
         if (actualDelay != expectedDelay) revert InvalidTimelockDelay(expectedDelay, actualDelay);
+        _validateTimelockRoles(timelock, config.governanceSafe, config.guardian);
 
         _validateDependencies(diamond, config);
         _validateInstallState(diamond, config, requireInstalled);
@@ -243,6 +247,24 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             revert InvalidHookFlags(REQUIRED_PERMISSIONED_HOOK_FLAGS, actualPermissionedFlags);
         }
         _validatePeripheryBindings(config);
+    }
+
+    function _validateTimelockRoles(TimelockController timelock, address governanceSafe, address guardian)
+        private
+        view
+    {
+        bytes32 proposerRole = timelock.PROPOSER_ROLE();
+        bytes32 cancellerRole = timelock.CANCELLER_ROLE();
+        bytes32 executorRole = timelock.EXECUTOR_ROLE();
+        if (!timelock.hasRole(proposerRole, governanceSafe)) {
+            revert MissingTimelockRole(proposerRole, governanceSafe);
+        }
+        if (!timelock.hasRole(cancellerRole, guardian)) {
+            revert MissingTimelockRole(cancellerRole, guardian);
+        }
+        if (!timelock.hasRole(executorRole, address(0))) {
+            revert MissingTimelockRole(executorRole, address(0));
+        }
     }
 
     function _validateInstallState(address diamond, StaticsPhaseOneLiquidityConfig memory config, bool requireInstalled)
@@ -385,6 +407,8 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
             weth: vm.envAddress("WETH_ADDRESS"),
             permanentLiquidityHarvester: vm.envAddress("STATICS_PERMANENT_LIQUIDITY_HARVESTER"),
+            governanceSafe: vm.envAddress("MULTISIG"),
+            guardian: vm.envAddress("GUARDIAN"),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
