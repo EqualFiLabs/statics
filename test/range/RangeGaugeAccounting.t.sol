@@ -83,6 +83,7 @@ contract RangeGaugeAccountingTest is Test {
 
         LibRangeGauge.GaugeRewardStream memory stream = gauge.stream(POOL_ID, 0);
         assertEq(stream.globalIndexRay, maximumBudget * RAY);
+        assertEq(stream.indexCapacityUsed, maximumBudget);
         assertEq(stream.periodEmitted, maximumBudget);
     }
 
@@ -96,6 +97,19 @@ contract RangeGaugeAccountingTest is Test {
             )
         );
         gauge.fundStream(POOL_ID, 0, 1, START, DURATION, 1);
+    }
+
+    function testFundingRejectsBudgetAfterLifetimeIndexCapacityIsUsed() public {
+        uint256 maximumBudget = type(uint256).max / RAY;
+        gauge.fundStream(POOL_ID, 0, maximumBudget, START, DURATION, 1);
+        gauge.checkpointStream(POOL_ID, 0, START + DURATION, 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibRangeGauge.RewardBudgetExceedsIndexCapacity.selector, maximumBudget, uint256(1), maximumBudget
+            )
+        );
+        gauge.fundStream(POOL_ID, 0, 1, START + DURATION, DURATION, 1);
     }
 
     function testPositionAccrualUsesFullPrecisionAndCarriesRemainder() public view {

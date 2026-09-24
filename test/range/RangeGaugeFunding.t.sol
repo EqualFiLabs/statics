@@ -8,6 +8,7 @@ import {MockERC20, MockFeeOnTransferERC20, MockReentrantERC20, MockSenderExtraFe
 import {RangeGaugeFeatureTestBase} from "../helpers/RangeGaugeFeatureTestBase.sol";
 
 contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
+    uint256 private constant RAY = 1e27;
     uint256 private constant START = 1_000_000;
     uint256 private constant DURATION = 7 days;
     uint256 private constant PAUSE_LIQUIDITY = 1 << 5;
@@ -57,6 +58,39 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         assertEq(reward.balanceOf(bob), 101 ether);
         assertEq(reward.balanceOf(address(diamond)), 0);
         assertEq(rangeGauge.poolRewardStream(poolId, address(reward)).periodBudget, 0);
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, address(reward));
+        assertEq(custody.reservedByAccount(account, address(reward)), 0);
+        assertEq(custody.globalReservedByToken(address(reward)), 0);
+    }
+
+    function testFundingCapacityRejectionRollsBackTransferAndReservation() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        MockERC20 reward = new MockERC20("Capacity Reward", "CAP", 18);
+        _appendReward(poolId, address(reward));
+        uint256 maximumBudget = type(uint256).max / RAY;
+        reward.mint(bob, maximumBudget + 1);
+        vm.prank(bob);
+        reward.approve(address(diamond), type(uint256).max);
+        vm.warp(START);
+
+        vm.prank(bob);
+        rangeGauge.fundPoolReward(poolId, address(reward), maximumBudget, 0);
+        vm.prank(bob);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IStaticsRangeGauge.RewardBudgetExceedsIndexCapacity.selector, maximumBudget, uint256(1), maximumBudget
+            )
+        );
+        rangeGauge.fundPoolReward(poolId, address(reward), 1, 0);
+
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, address(reward));
+        assertEq(reward.balanceOf(bob), 1);
+        assertEq(reward.balanceOf(address(diamond)), maximumBudget);
+        assertEq(custody.reservedByAccount(account, address(reward)), maximumBudget);
+        assertEq(custody.globalReservedByToken(address(reward)), maximumBudget);
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, address(reward));
+        assertEq(stream.periodBudget, maximumBudget);
+        assertEq(stream.indexCapacityUsed, 0);
     }
 
     function testMinimumRemainingDurationRejectsNearExpiryDustCompression() public {

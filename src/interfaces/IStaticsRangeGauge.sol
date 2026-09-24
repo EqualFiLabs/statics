@@ -74,6 +74,7 @@ interface IStaticsRangeGauge {
         uint256 periodEmitted;
         uint256 globalIndexRay;
         uint256 indexRemainder;
+        uint256 indexCapacityUsed;
         uint256 indexedLiability;
         uint256 claimLiability;
     }

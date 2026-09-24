@@ -60,6 +60,7 @@ library LibRangeGauge {
         uint256 periodEmitted;
         uint256 globalIndexRay;
         uint256 indexRemainder;
+        uint256 indexCapacityUsed;
         uint256 indexedLiability;
         uint256 claimLiability;
     }
@@ -102,7 +103,7 @@ library LibRangeGauge {
     error TimestampRegression(uint40 previousTimestamp, uint40 currentTimestamp);
     error TimestampOverflow(uint40 timestamp, uint256 delta);
     error InvalidFundingAmount();
-    error RewardBudgetExceedsIndexCapacity(uint256 remainingBudget, uint256 received, uint256 maximumBudget);
+    error RewardBudgetExceedsIndexCapacity(uint256 committedBudget, uint256 received, uint256 maximumBudget);
     error InvalidLiquidity();
     error InvalidTickRange(int24 tickLower, int24 tickUpper);
     error BoundaryNotInitialized(int24 tick);
@@ -285,8 +286,13 @@ library LibRangeGauge {
         }
         emission = checkpointStream(stream, currentTime, activeLiquidity);
         uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
-        if (remainingBudget > MAX_INDEXABLE_REWARD || received > MAX_INDEXABLE_REWARD - remainingBudget) {
-            revert RewardBudgetExceedsIndexCapacity(remainingBudget, received, MAX_INDEXABLE_REWARD);
+        uint256 usedCapacity = stream.indexCapacityUsed;
+        if (usedCapacity > MAX_INDEXABLE_REWARD || remainingBudget > MAX_INDEXABLE_REWARD - usedCapacity) {
+            revert RewardBudgetExceedsIndexCapacity(type(uint256).max, received, MAX_INDEXABLE_REWARD);
+        }
+        uint256 committedBudget = usedCapacity + remainingBudget;
+        if (received > MAX_INDEXABLE_REWARD - committedBudget) {
+            revert RewardBudgetExceedsIndexCapacity(committedBudget, received, MAX_INDEXABLE_REWARD);
         }
         uint256 nextBudget = remainingBudget + received;
         if (remainingBudget == 0) {
@@ -621,10 +627,9 @@ library LibRangeGauge {
 
     function _increaseIndex(GaugeRewardStream storage stream, uint256 amount, uint128 denominator) private {
         (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, denominator, stream.indexRemainder);
-        unchecked {
-            stream.globalIndexRay += delta;
-        }
+        stream.globalIndexRay += delta;
         stream.indexRemainder = remainder;
+        stream.indexCapacityUsed += amount;
         stream.indexedLiability += amount;
     }
 

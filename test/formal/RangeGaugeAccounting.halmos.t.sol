@@ -19,6 +19,10 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
         check_positionRemainderCarryConservesNumerator(13, 7, uint96(RAY - 1));
     }
 
+    function testRepresentativeLifetimeIndexCapacity() public {
+        check_lifetimeIndexCapacityTracksConsecutivePeriods(3, 5);
+    }
+
     function testRepresentativeFinalReconciliationGate() public pure {
         check_finalReconciliationRequiresResolvedLiabilities(true, 0, 10, 10, 0, 3, 3);
     }
@@ -60,6 +64,21 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
         _checkpoint(START + DURATION, 1);
         LibRangeGauge.GaugeRewardStream memory finished = _stream();
         assertEq(finished.indexedLiability, budget + topUp);
+    }
+
+    function check_lifetimeIndexCapacityTracksConsecutivePeriods(uint32 rawFirst, uint32 rawSecond) public {
+        uint256 first = uint256(rawFirst) + 1;
+        uint256 second = uint256(rawSecond) + 1;
+        _fund(first, START, DURATION, 1);
+        _checkpoint(START + DURATION, 1);
+        _fund(second, START + DURATION, DURATION, 1);
+        _checkpoint(START + 2 * DURATION, 1);
+
+        LibRangeGauge.GaugeRewardStream memory stream = _stream();
+        uint256 lifetimeEmission = first + second;
+        assertEq(stream.indexCapacityUsed, lifetimeEmission);
+        assertEq(stream.globalIndexRay, lifetimeEmission * RAY);
+        assertLe(stream.globalIndexRay, type(uint256).max);
     }
 
     function check_positionRemainderCarryConservesNumerator(
