@@ -64,7 +64,9 @@ contract RangeGaugeFacet is ReentrancyGuard {
         }
 
         received = _pullReward(poolId, slot, asset, amount);
-        LibRangeGauge.fundStream(stream, received, currentTime, rgs.gaugeRewardDuration, gauge.activeGaugeLiquidity);
+        LibRangeGauge.fundStream(
+            stream, gauge.capacities[slot], received, currentTime, rgs.gaugeRewardDuration, gauge.activeGaugeLiquidity
+        );
         emit IStaticsRangeGauge.PoolRewardFunded(poolId, asset, msg.sender, slot, amount, received, stream.periodFinish);
     }
 

@@ -130,8 +130,11 @@ contract RangeGaugeHarness {
         uint256 activeLiquidity
     ) external returns (uint256 emission, uint40 remainingDuration) {
         if (duration > type(uint40).max) revert();
+        LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
+        uint8 narrowedSlot = _toUint8(slot);
         return LibRangeGauge.fundStream(
-            LibRangeGauge.rangeGaugeStorage().gauges[poolId].streams[_toUint8(slot)],
+            gauge.streams[narrowedSlot],
+            gauge.capacities[narrowedSlot],
             received,
             LibRangeGauge.timestamp40(currentTime),
             uint40(duration),
@@ -152,6 +155,10 @@ contract RangeGaugeHarness {
 
     function stream(PoolId poolId, uint256 slot) external view returns (LibRangeGauge.GaugeRewardStream memory value) {
         value = LibRangeGauge.rangeGaugeStorage().gauges[poolId].streams[_toUint8(slot)];
+    }
+
+    function indexCapacityUsed(PoolId poolId, uint256 slot) external view returns (uint256) {
+        return LibRangeGauge.rangeGaugeStorage().gauges[poolId].capacities[_toUint8(slot)].used;
     }
 
     function seedStreamAccounting(

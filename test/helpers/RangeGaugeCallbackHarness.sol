@@ -67,8 +67,10 @@ contract RangeGaugeCallbackHarness is RangeGaugeCallbackFacet {
 
     function fundStream(PoolId poolId, uint256 slot, uint256 amount, uint256 timestamp, uint256 duration) external {
         LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
+        uint8 narrowedSlot = _toUint8(slot);
         LibRangeGauge.fundStream(
-            gauge.streams[_toUint8(slot)],
+            gauge.streams[narrowedSlot],
+            gauge.capacities[narrowedSlot],
             amount,
             LibRangeGauge.timestamp40(timestamp),
             _toUint40(duration),

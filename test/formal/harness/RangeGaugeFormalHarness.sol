@@ -5,12 +5,13 @@ import {LibRangeGauge} from "../../../src/libraries/LibRangeGauge.sol";
 
 contract RangeGaugeFormalHarness {
     LibRangeGauge.GaugeRewardStream internal formalStream;
+    LibRangeGauge.GaugeRewardCapacity internal formalCapacity;
 
     function _fund(uint256 amount, uint40 timestamp, uint40 duration, uint128 activeLiquidity)
         internal
         returns (uint256 emission, uint40 remainingDuration)
     {
-        return LibRangeGauge.fundStream(formalStream, amount, timestamp, duration, activeLiquidity);
+        return LibRangeGauge.fundStream(formalStream, formalCapacity, amount, timestamp, duration, activeLiquidity);
     }
 
     function _checkpoint(uint40 timestamp, uint128 activeLiquidity) internal returns (uint256 emission) {
@@ -19,6 +20,10 @@ contract RangeGaugeFormalHarness {
 
     function _stream() internal view returns (LibRangeGauge.GaugeRewardStream memory) {
         return formalStream;
+    }
+
+    function _indexCapacityUsed() internal view returns (uint256) {
+        return formalCapacity.used;
     }
 
     function _positionAccrual(uint128 liquidity, uint256 growthDeltaRay, uint256 priorRemainderRay)

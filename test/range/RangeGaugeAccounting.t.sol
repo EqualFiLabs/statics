@@ -83,7 +83,7 @@ contract RangeGaugeAccountingTest is Test {
 
         LibRangeGauge.GaugeRewardStream memory stream = gauge.stream(POOL_ID, 0);
         assertEq(stream.globalIndexRay, maximumBudget * RAY);
-        assertEq(stream.indexCapacityUsed, maximumBudget);
+        assertEq(gauge.indexCapacityUsed(POOL_ID, 0), maximumBudget);
         assertEq(stream.periodEmitted, maximumBudget);
     }
 
@@ -110,6 +110,15 @@ contract RangeGaugeAccountingTest is Test {
             )
         );
         gauge.fundStream(POOL_ID, 0, 1, START + DURATION, DURATION, 1);
+    }
+
+    function testLifetimeIndexCapacityIsIndependentPerRewardSlot() public {
+        gauge.fundStream(POOL_ID, 0, 11, START, DURATION, 1);
+        gauge.fundStream(POOL_ID, 1, 17, START, DURATION, 1);
+
+        assertEq(gauge.indexCapacityUsed(POOL_ID, 0), 11);
+        assertEq(gauge.indexCapacityUsed(POOL_ID, 1), 17);
+        assertEq(gauge.indexCapacityUsed(POOL_ID, 2), 0);
     }
 
     function testPositionAccrualUsesFullPrecisionAndCarriesRemainder() public view {

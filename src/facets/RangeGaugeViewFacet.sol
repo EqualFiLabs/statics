@@ -65,7 +65,7 @@ contract RangeGaugeViewFacet {
             indexRemainder: stored.indexRemainder,
             indexedLiability: stored.indexedLiability,
             claimLiability: stored.claimLiability,
-            indexCapacityUsed: stored.indexCapacityUsed
+            indexCapacityUsed: LibRangeGauge.rangeGaugeStorage().gauges[poolId].capacities[slot].used
         });
     }
 

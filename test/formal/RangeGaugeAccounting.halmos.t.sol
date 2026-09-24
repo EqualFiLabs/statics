@@ -76,7 +76,7 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
 
         LibRangeGauge.GaugeRewardStream memory stream = _stream();
         uint256 lifetimeEmission = first + second;
-        assertEq(stream.indexCapacityUsed, lifetimeEmission);
+        assertEq(_indexCapacityUsed(), lifetimeEmission);
         assertEq(stream.globalIndexRay, lifetimeEmission * RAY);
         assertLe(stream.globalIndexRay, type(uint256).max);
     }

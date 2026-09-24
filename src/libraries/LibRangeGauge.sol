@@ -62,7 +62,10 @@ library LibRangeGauge {
         uint256 indexRemainder;
         uint256 indexedLiability;
         uint256 claimLiability;
-        uint256 indexCapacityUsed;
+    }
+
+    struct GaugeRewardCapacity {
+        uint256 used;
     }
 
     struct GaugePool {
@@ -77,6 +80,7 @@ library LibRangeGauge {
         uint256 boundarySummaryBitmap;
         mapping(int24 tick => GaugeBoundary boundary) boundaries;
         GaugeRewardStream[4] streams;
+        GaugeRewardCapacity[4] capacities;
     }
 
     struct RangeGaugeStorage {
@@ -275,6 +279,7 @@ library LibRangeGauge {
 
     function fundStream(
         GaugeRewardStream storage stream,
+        GaugeRewardCapacity storage capacity,
         uint256 received,
         uint40 currentTime,
         uint40 duration,
@@ -285,15 +290,12 @@ library LibRangeGauge {
             revert InvalidRewardDuration(duration);
         }
         emission = checkpointStream(stream, currentTime, activeLiquidity);
+        uint256 usedCapacity = capacity.used;
+        if (usedCapacity > MAX_INDEXABLE_REWARD || received > MAX_INDEXABLE_REWARD - usedCapacity) {
+            revert RewardBudgetExceedsIndexCapacity(usedCapacity, received, MAX_INDEXABLE_REWARD);
+        }
+        capacity.used = usedCapacity + received;
         uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
-        uint256 usedCapacity = stream.indexCapacityUsed;
-        if (usedCapacity > MAX_INDEXABLE_REWARD || remainingBudget > MAX_INDEXABLE_REWARD - usedCapacity) {
-            revert RewardBudgetExceedsIndexCapacity(type(uint256).max, received, MAX_INDEXABLE_REWARD);
-        }
-        uint256 committedBudget = usedCapacity + remainingBudget;
-        if (received > MAX_INDEXABLE_REWARD - committedBudget) {
-            revert RewardBudgetExceedsIndexCapacity(committedBudget, received, MAX_INDEXABLE_REWARD);
-        }
         uint256 nextBudget = remainingBudget + received;
         if (remainingBudget == 0) {
             stream.periodStart = currentTime;
@@ -629,7 +631,6 @@ library LibRangeGauge {
         (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, denominator, stream.indexRemainder);
         stream.globalIndexRay += delta;
         stream.indexRemainder = remainder;
-        stream.indexCapacityUsed += amount;
         stream.indexedLiability += amount;
     }
 

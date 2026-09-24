@@ -90,7 +90,7 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         assertEq(custody.globalReservedByToken(address(reward)), maximumBudget);
         IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, address(reward));
         assertEq(stream.periodBudget, maximumBudget);
-        assertEq(stream.indexCapacityUsed, 0);
+        assertEq(stream.indexCapacityUsed, maximumBudget);
     }
 
     function testMinimumRemainingDurationRejectsNearExpiryDustCompression() public {
