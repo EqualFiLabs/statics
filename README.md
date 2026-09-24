@@ -689,7 +689,13 @@ NFTs earn direct STATICS and WETH rewards independently of Position linkage.
 Registration stays with the token across transfers, activation resets to Tier
 0, and rewards earned before transfer crystallize to the prior owner.
 
-Liquidity providers earn the native Uniswap v4 LP fee directly through ordinary PositionManager accounting. Statics does not custody their LP NFTs or maintain a second LP reward ledger.
+Liquidity providers may keep ordinary PositionManager NFTs entirely outside
+Statics and earn the native Uniswap v4 LP fee through standard Uniswap
+accounting. Public protocol pools also support an opt-in managed path: a user
+can bind one concentrated-liquidity NFT per PoolId to a transferable Statics
+PositionNFT, with the immutable liquidity manager holding the underlying NFT
+and the Diamond accounting for separately funded range rewards. Native fees
+remain ordinary PositionManager fees and are not duplicated by the range gauge.
 
 ### Lending and recovery
 

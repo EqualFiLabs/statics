@@ -212,9 +212,12 @@ through 999,999 pips, plus separate governed input/output hook fees. Dynamic
 fees and the 100% static-fee boundary are rejected.
 Their permanent full-range liquidity is owned by the hook, not by a protocol
 PositionManager NFT, and cannot be released until the pool is decommissioned.
-User PositionManager NFTs stay in user custody and earn native v4 fees through
-standard pool accounting. Native fees earned by hook-owned permanent liquidity
-route only to treasury and never become compoundable POL inventory. Basket
+Ordinary PositionManager NFTs stay in user custody and earn native v4 fees
+through standard pool accounting. A user may instead opt a position into the
+public range gauge, which transfers that NFT to the immutable liquidity manager
+until managed exit while the associated PositionNFT controls it. Native fees
+earned by hook-owned permanent liquidity route only to treasury and never
+become compoundable POL inventory. Basket
 creation initializes and seeds its canonical pools atomically. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
@@ -229,6 +232,24 @@ fees after creation or administer allocation profiles. Governance also controls
 the creation gate and irreversible general-pool decommissioning.
 Permanent-liquidity compounding and eligible post-decommission unwind are
 permissionless.
+
+Range-gauge boundary synchronization is atomic with each public-pool swap. Its
+gas cost grows with the number of distinct managed boundaries crossed and with
+the number of assigned reward assets. A sufficiently wide swap across a densely
+populated span can exceed the transaction or block gas limit and must be split
+into smaller price movements. Statics deliberately does not cap distinct gauge
+boundaries because a fixed slot cap would let early positions deny later gauge
+participation and would create a separate hard market limit. Pool creators,
+governance, integrators, and monitors must treat boundary density as an
+availability and gas-cost signal.
+
+Per-position reward calculations round down to whole raw token units. A
+position that exits discards any remaining sub-unit arithmetic fraction, while
+the corresponding whole-token reservation stays classified as indexed surplus.
+That surplus remains backed but is recoverable by treasury only through final
+reconciliation after the pool gauge is stopped. Low-decimal and unusually
+high-value reward assets therefore require additional governance review before
+allowlisting.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every

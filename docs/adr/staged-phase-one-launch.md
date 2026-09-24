@@ -179,6 +179,12 @@ The launch does not add TVL, per-pool volume, position-notional, or pool-count c
 controls are curated initial creation, timelocked changes, guardian stops, exact runtime manifests,
 public monitoring, and phase-specific audits.
 
+Public range-gauge synchronization has boundary-linear gas cost. A wide swap across a densely
+populated managed span may need to be split into smaller price movements to remain below transaction
+or block gas limits. Phase 1 deliberately does not impose a fixed distinct-boundary cap because an
+early caller could consume the cap and deny later gauge participation. Boundary density and assigned
+reward-slot count are therefore explicit pool availability and monitoring inputs.
+
 ## Authority and emergency controls
 
 `StaticsTimelock` owns `StaticsDiamond`. The governance Safe is the proposer, execution is open only

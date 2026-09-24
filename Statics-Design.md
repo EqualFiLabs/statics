@@ -806,10 +806,14 @@ PositionManager NFTs are untouched.
 
 ### User-owned protocol-pool liquidity
 
-Users provide liquidity through ordinary PositionManager NFTs and receive the
-configured native Uniswap v4 LP fee. Statics does not custody these NFTs,
-maintain a parallel LP reward index, require full-range positions, or expose a
-Diamond-controlled increase path.
+Users may provide liquidity through ordinary PositionManager NFTs and receive
+the configured native Uniswap v4 LP fee without entering Statics custody.
+Public protocol pools additionally expose an opt-in range-gauge path. That path
+binds one concentrated-liquidity NFT per PoolId to a transferable Statics
+PositionNFT, places the underlying NFT in the immutable liquidity manager, and
+maintains a separate Diamond reward index for explicitly funded incentives.
+The gauge does not replace or duplicate native LP-fee accounting and does not
+require full-range liquidity.
 
 The immutable liquidity manager validates the supplied PoolKey by PoolId
 against the Diamond's normalized registry and mints each requested position to

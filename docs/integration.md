@@ -544,8 +544,13 @@ PositionManager liquidity is never decreased or burned by unwind.
 ## Native LP fees
 
 User-owned full-range or concentrated PositionManager NFTs earn the configured
-native v4 LP fee through standard Uniswap accounting. Statics does not custody
-these NFTs or expose LP reward activation, claim, increase, or unstake methods.
+native v4 LP fee through standard Uniswap accounting. They may remain entirely
+external to Statics. A separate opt-in range-gauge path transfers an approved
+PositionManager NFT to the immutable liquidity manager, binds it to a Statics
+PositionNFT, and exposes managed increase, decrease, fee collection, exit,
+rebalance, and separately funded reward-claim methods. The underlying NFT is
+custodied only while that managed leg is active. Range rewards do not replace
+or duplicate native LP fees.
 Native fees earned by the hook-owned permanent position are collected after
 swaps and routed only to treasury; they never enter pending POL or compounding.
 
