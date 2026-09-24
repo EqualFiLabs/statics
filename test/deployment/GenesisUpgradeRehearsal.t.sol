@@ -85,7 +85,7 @@ contract GenesisUpgradeRehearsalTest is StaticsTestBase {
     }
 
     function _restorePreGenesisSelectorSet() private {
-        bytes4[] memory selectors = new bytes4[](9);
+        bytes4[] memory selectors = new bytes4[](10);
         selectors[0] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
         selectors[1] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
         selectors[2] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
@@ -95,6 +95,7 @@ contract GenesisUpgradeRehearsalTest is StaticsTestBase {
         selectors[6] = LegacyGlobalRewardsSeeder.seedLegacyGlobalRewards.selector;
         selectors[7] = LegacyGlobalRewardsSeeder.reserveLegacyRewardAsset.selector;
         selectors[8] = LegacyGlobalRewardsSeeder.legacyPendingBucket.selector;
+        selectors[9] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
         IDiamondCut.FacetCut[] memory removal = new IDiamondCut.FacetCut[](1);
         removal[0] = IDiamondCut.FacetCut({
             facetAddress: address(0), action: IDiamondCut.FacetCutAction.Remove, functionSelectors: selectors
