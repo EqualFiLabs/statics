@@ -155,7 +155,13 @@ contract RangeGaugeFacet is ReentrancyGuard {
             LibRangeGauge.rewardAccount(poolId, slot), allocatorAccount, context.asset, context.allocatorAmount
         );
         LibGaugeBribes.recordFunding(
-            poolId, slot, context.allocatorEpoch, context.asset, context.eligibilityVersion, context.allocatorAmount
+            poolId,
+            slot,
+            context.allocatorEpoch,
+            context.asset,
+            context.eligibilityVersion,
+            context.currentTime,
+            context.allocatorAmount
         );
     }
 

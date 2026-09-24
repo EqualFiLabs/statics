@@ -36,6 +36,18 @@ library LibGaugeRouting {
         bytes32 eligibilityVersion;
     }
 
+    struct PoolWeightCheckpoint {
+        uint64 epoch;
+        uint256 weight;
+        bytes32 eligibilityVersion;
+    }
+
+    struct PositionAllocationCheckpoint {
+        uint64 epoch;
+        uint256 amount;
+        bytes32 eligibilityVersion;
+    }
+
     struct EpochState {
         bool finalized;
         uint16 releaseBps;
@@ -57,6 +69,9 @@ library LibGaugeRouting {
         mapping(PoolId poolId => PoolWeight weight) poolWeights;
         LibGaugeHeap.Heap heap;
         mapping(uint64 epoch => EpochState state) epochs;
+        mapping(PoolId poolId => PoolWeightCheckpoint[] checkpoints) poolWeightHistory;
+        mapping(uint256 positionId => mapping(PoolId poolId => PositionAllocationCheckpoint[] checkpoints))
+            positionAllocationHistory;
     }
 
     error GaugeRoutingAlreadyInitialized();
@@ -104,9 +119,26 @@ library LibGaugeRouting {
         }
         PositionAllocations storage position = rs.positions[positionId];
         _promote(position, currentEpoch);
-        _removeScheduledWeights(rs, position, currentEpoch);
+        effectiveEpoch = currentEpoch + 1;
+        _removeScheduledWeights(rs, positionId, position, currentEpoch, effectiveEpoch);
 
         delete position.pending;
+        totalAllocated = _setPendingAllocations(rs, position, positionId, poolIds, amounts, effectiveEpoch);
+
+        if (totalAllocated > staked) {
+            revert IStaticsGaugeIncentives.GaugeAllocationExceedsStake(totalAllocated, staked);
+        }
+        position.pendingEpoch = effectiveEpoch;
+    }
+
+    function _setPendingAllocations(
+        RoutingStorage storage rs,
+        PositionAllocations storage position,
+        uint256 positionId,
+        PoolId[] calldata poolIds,
+        uint256[] calldata amounts,
+        uint64 effectiveEpoch
+    ) private returns (uint256 totalAllocated) {
         for (uint256 i; i < poolIds.length; ++i) {
             PoolId poolId = poolIds[i];
             uint256 amount = amounts[i];
@@ -120,14 +152,10 @@ library LibGaugeRouting {
             if (version == bytes32(0)) revert IStaticsGaugeIncentives.InvalidGaugeAllocation(poolId, amount);
             position.pending.push(Allocation({poolId: poolId, amount: amount, eligibilityVersion: version}));
             _increasePoolWeight(rs, poolId, version, amount);
+            _writePositionCheckpoint(rs, positionId, poolId, effectiveEpoch, amount, version);
+            _writePoolWeightCheckpoint(rs, poolId, effectiveEpoch);
             totalAllocated += amount;
         }
-
-        if (totalAllocated > staked) {
-            revert IStaticsGaugeIncentives.GaugeAllocationExceedsStake(totalAllocated, staked);
-        }
-        effectiveEpoch = currentEpoch + 1;
-        position.pendingEpoch = effectiveEpoch;
     }
 
     function checkpointEpoch(uint40 currentTime)
@@ -208,6 +236,7 @@ library LibGaugeRouting {
         stored.weight = 0;
         stored.eligibilityVersion = current;
         rs.heap.set(poolId, 0);
+        _writePoolWeightCheckpoint(rs, poolId, LibGaugeEpoch.epochAt(block.timestamp) + 1);
     }
 
     function lockedStake(uint256 positionId) internal view returns (uint256 locked) {
@@ -226,7 +255,11 @@ library LibGaugeRouting {
         if (position.active.length == 0 && position.pending.length == 0) return;
         uint64 currentEpoch = LibGaugeEpoch.epochAt(block.timestamp);
         _promote(position, currentEpoch);
-        _removeScheduledWeights(rs, position, currentEpoch);
+        for (uint256 i; i < position.active.length; ++i) {
+            Allocation storage active = position.active[i];
+            _writePositionCheckpoint(rs, positionId, active.poolId, currentEpoch, 0, active.eligibilityVersion);
+        }
+        _removeScheduledWeights(rs, positionId, position, currentEpoch, currentEpoch + 1);
         delete position.active;
         delete position.pending;
         position.activeEpoch = currentEpoch;
@@ -245,6 +278,43 @@ library LibGaugeRouting {
                 return (winners, true, poolId);
             }
         }
+    }
+
+    function poolWeightAt(PoolId poolId, uint64 epoch)
+        internal
+        view
+        returns (uint256 weight, bytes32 checkpointVersion)
+    {
+        PoolWeightCheckpoint[] storage checkpoints = routingStorage().poolWeightHistory[poolId];
+        uint256 low;
+        uint256 high = checkpoints.length;
+        while (low < high) {
+            uint256 mid = (low + high) >> 1;
+            if (checkpoints[mid].epoch <= epoch) low = mid + 1;
+            else high = mid;
+        }
+        if (low == 0) return (0, bytes32(0));
+        PoolWeightCheckpoint storage checkpoint = checkpoints[low - 1];
+        return (checkpoint.weight, checkpoint.eligibilityVersion);
+    }
+
+    function positionAllocationAt(uint256 positionId, PoolId poolId, uint64 epoch)
+        internal
+        view
+        returns (uint256 amount, bytes32 checkpointVersion)
+    {
+        PositionAllocationCheckpoint[] storage checkpoints =
+            routingStorage().positionAllocationHistory[positionId][poolId];
+        uint256 low;
+        uint256 high = checkpoints.length;
+        while (low < high) {
+            uint256 mid = (low + high) >> 1;
+            if (checkpoints[mid].epoch <= epoch) low = mid + 1;
+            else high = mid;
+        }
+        if (low == 0) return (0, bytes32(0));
+        PositionAllocationCheckpoint storage checkpoint = checkpoints[low - 1];
+        return (checkpoint.amount, checkpoint.eligibilityVersion);
     }
 
     function _settlePreviousEpoch(RoutingStorage storage rs, uint40 currentTime) private {
@@ -284,12 +354,17 @@ library LibGaugeRouting {
 
     function _removeScheduledWeights(
         RoutingStorage storage rs,
+        uint256 positionId,
         PositionAllocations storage position,
-        uint64 currentEpoch
+        uint64 currentEpoch,
+        uint64 effectiveEpoch
     ) private {
         Allocation[] storage scheduled = position.pendingEpoch == currentEpoch + 1 ? position.pending : position.active;
         for (uint256 i; i < scheduled.length; ++i) {
             Allocation storage allocation = scheduled[i];
+            _writePositionCheckpoint(
+                rs, positionId, allocation.poolId, effectiveEpoch, 0, allocation.eligibilityVersion
+            );
             bytes32 current = eligibilityVersion(allocation.poolId);
             if (current == bytes32(0) || allocation.eligibilityVersion != current) continue;
             PoolWeight storage stored = rs.poolWeights[allocation.poolId];
@@ -300,6 +375,7 @@ library LibGaugeRouting {
             }
             stored.weight = weight - allocation.amount;
             rs.heap.set(allocation.poolId, stored.weight);
+            _writePoolWeightCheckpoint(rs, allocation.poolId, effectiveEpoch);
         }
     }
 
@@ -320,5 +396,58 @@ library LibGaugeRouting {
             bytes32 current = eligibilityVersion(allocation.poolId);
             if (current != bytes32(0) && allocation.eligibilityVersion == current) total += allocation.amount;
         }
+    }
+
+    function _writePoolWeightCheckpoint(RoutingStorage storage rs, PoolId poolId, uint64 epoch) private {
+        PoolWeight storage weight = rs.poolWeights[poolId];
+        PoolWeightCheckpoint[] storage checkpoints = rs.poolWeightHistory[poolId];
+        uint256 length = checkpoints.length;
+        if (length != 0 && checkpoints[length - 1].epoch == epoch) {
+            checkpoints[length - 1].weight = weight.weight;
+            checkpoints[length - 1].eligibilityVersion = weight.eligibilityVersion;
+            return;
+        }
+        checkpoints.push(
+            PoolWeightCheckpoint({epoch: epoch, weight: weight.weight, eligibilityVersion: weight.eligibilityVersion})
+        );
+    }
+
+    function _writePositionCheckpoint(
+        RoutingStorage storage rs,
+        uint256 positionId,
+        PoolId poolId,
+        uint64 epoch,
+        uint256 amount,
+        bytes32 recordedVersion
+    ) private {
+        PositionAllocationCheckpoint[] storage checkpoints = rs.positionAllocationHistory[positionId][poolId];
+        uint256 length = checkpoints.length;
+        PositionAllocationCheckpoint memory next =
+            PositionAllocationCheckpoint({epoch: epoch, amount: amount, eligibilityVersion: recordedVersion});
+        if (length == 0) {
+            checkpoints.push(next);
+            return;
+        }
+        PositionAllocationCheckpoint storage last = checkpoints[length - 1];
+        if (last.epoch == epoch) {
+            last.amount = amount;
+            last.eligibilityVersion = recordedVersion;
+            return;
+        }
+        if (last.epoch < epoch) {
+            checkpoints.push(next);
+            return;
+        }
+        // Forced stake loss may clear the current epoch while a next-epoch update is pending.
+        if (last.epoch != epoch + 1) revert();
+        if (length > 1 && checkpoints[length - 2].epoch == epoch) {
+            checkpoints[length - 2].amount = amount;
+            checkpoints[length - 2].eligibilityVersion = recordedVersion;
+            return;
+        }
+        PositionAllocationCheckpoint memory future = last;
+        checkpoints.push(future);
+        checkpoints[length] = future;
+        checkpoints[length - 1] = next;
     }
 }

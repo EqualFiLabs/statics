@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
@@ -11,7 +12,7 @@ import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {LibGaugeEpoch} from "../../src/libraries/LibGaugeEpoch.sol";
 import {LibGaugeReserve} from "../../src/libraries/LibGaugeReserve.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockERC20, MockFeeOnTransferERC20} from "../mocks/MockERC20.sol";
 import {RangeGaugeLifecycleTestBase} from "../helpers/RangeGaugeLifecycleTestBase.sol";
 
 contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
@@ -308,6 +309,131 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         assertEq(pending[0].eligibilityVersion, incentives.gaugePoolWeight(poolId).currentVersion);
     }
 
+    function testAllocatorRewardsPayEveryHistoricalAllocatorProRata() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 alicePosition = _createStakedPosition(alice, 60 ether);
+        uint256 bobPosition = _createStakedPosition(bob, 40 ether);
+        _setAllocation(alice, alicePosition, poolId, 60 ether);
+        _setAllocation(bob, bobPosition, poolId, 40 ether);
+        MockERC20 reward = new MockERC20("Allocator Reward", "AR", 18);
+        (uint8 slot, uint64 epoch) = _fundAllocatorReward(poolId, reward, 100 ether, 10_000, alice);
+
+        vm.warp(LibGaugeEpoch.epochFinish(epoch));
+        assertEq(incentives.finalizeGaugeAllocatorReward(poolId, slot, epoch), 100 ether);
+        IStaticsGaugeIncentives.AllocatorRewardView memory state = incentives.gaugeAllocatorReward(poolId, slot, epoch);
+        assertEq(state.funded, 100 ether);
+        assertEq(state.totalWeight, 100 ether);
+        assertEq(state.distributable, 100 ether);
+        assertEq(state.remainingLiability, 100 ether);
+
+        assertEq(_claimAllocatorReward(alice, alicePosition, poolId, epoch, slot, alice), 60 ether);
+        assertEq(_claimAllocatorReward(bob, bobPosition, poolId, epoch, slot, bob), 40 ether);
+        assertEq(reward.balanceOf(alice), 60 ether);
+        assertEq(reward.balanceOf(bob), 40 ether);
+        assertEq(incentives.gaugeAllocatorReward(poolId, slot, epoch).remainingLiability, 0);
+    }
+
+    function testAllocatorRewardUsesDelayedAllocationAfterLaterDeallocation() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 positionId = _createStakedPosition(alice, 100 ether);
+        _setAllocation(alice, positionId, poolId, 100 ether);
+        MockERC20 reward = new MockERC20("Historical Reward", "HIST", 18);
+        (uint8 slot, uint64 epoch) = _fundAllocatorReward(poolId, reward, 50 ether, 10_000, bob);
+
+        vm.warp(LibGaugeEpoch.epochStart(epoch));
+        incentives.checkpointGaugeEpoch();
+        vm.prank(alice);
+        incentives.setGaugeAllocations(positionId, new PoolId[](0), new uint256[](0));
+        vm.prank(alice);
+        (uint256 historical,) = incentives.gaugePositionAllocationAt(positionId, poolId, epoch);
+        assertEq(historical, 100 ether);
+
+        vm.warp(LibGaugeEpoch.epochFinish(epoch));
+        assertEq(_claimAllocatorReward(alice, positionId, poolId, epoch, slot, alice), 50 ether);
+    }
+
+    function testMidEpochRestrictionProratesAllocatorBudgetToTreasury() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 positionId = _createStakedPosition(alice, 100 ether);
+        _setAllocation(alice, positionId, poolId, 100 ether);
+        MockERC20 reward = new MockERC20("Prorated Reward", "PRO", 18);
+        (uint8 slot, uint64 epoch) = _fundAllocatorReward(poolId, reward, 700 ether, 10_000, bob);
+
+        vm.warp(uint256(LibGaugeEpoch.epochStart(epoch)) + 2 days);
+        vm.prank(guardian);
+        IStaticsRewardPolicy(address(diamond)).addRewardRestriction(address(assetA));
+        vm.warp(LibGaugeEpoch.epochFinish(epoch));
+        assertEq(incentives.finalizeGaugeAllocatorReward(poolId, slot, epoch), 200 ether);
+        assertEq(globalRewards.treasuryAccrued(address(reward)), 500 ether);
+        assertEq(_claimAllocatorReward(alice, positionId, poolId, epoch, slot, alice), 200 ether);
+    }
+
+    function testAllocatorClaimsFollowPositionOwnershipAndDustExpiresToTreasury() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 firstPosition = _createStakedPosition(alice, 2 ether);
+        uint256 secondPosition = _createStakedPosition(bob, 1 ether);
+        _setAllocation(alice, firstPosition, poolId, 2 ether);
+        _setAllocation(bob, secondPosition, poolId, 1 ether);
+        MockERC20 reward = new MockERC20("Dust Reward", "DUST", 18);
+        (uint8 slot, uint64 epoch) = _fundAllocatorReward(poolId, reward, 100, 10_000, alice);
+
+        vm.warp(LibGaugeEpoch.epochFinish(epoch));
+        incentives.finalizeGaugeAllocatorReward(poolId, slot, epoch);
+        vm.prank(alice);
+        IERC721(address(diamond)).transferFrom(alice, bob, firstPosition);
+        assertEq(_claimAllocatorReward(bob, firstPosition, poolId, epoch, slot, bob), 66);
+        assertEq(_claimAllocatorReward(bob, secondPosition, poolId, epoch, slot, bob), 33);
+        assertEq(incentives.gaugeAllocatorReward(poolId, slot, epoch).remainingLiability, 1);
+
+        vm.warp(LibGaugeEpoch.epochFinish(epoch + incentives.gaugeAllocatorClaimWindow()));
+        assertEq(incentives.expireGaugeAllocatorReward(poolId, slot, epoch), 1);
+        assertEq(globalRewards.treasuryAccrued(address(reward)), 1);
+    }
+
+    function testZeroWeightAllocatorBudgetRoutesEntirelyToTreasury() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        MockERC20 reward = new MockERC20("No Weight Reward", "ZERO", 18);
+        (uint8 slot, uint64 epoch) = _fundAllocatorReward(poolId, reward, 25 ether, 10_000, bob);
+
+        vm.warp(LibGaugeEpoch.epochFinish(epoch));
+        assertEq(incentives.finalizeGaugeAllocatorReward(poolId, slot, epoch), 0);
+        IStaticsGaugeIncentives.AllocatorRewardView memory state = incentives.gaugeAllocatorReward(poolId, slot, epoch);
+        assertEq(state.totalWeight, 0);
+        assertEq(state.remainingLiability, 0);
+        assertEq(globalRewards.treasuryAccrued(address(reward)), 25 ether);
+    }
+
+    function testAllocatorClaimMinimumProtectsFeeOnTransferPayout() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 positionId = _createStakedPosition(alice, 100 ether);
+        _setAllocation(alice, positionId, poolId, 100 ether);
+        MockFeeOnTransferERC20 reward = new MockFeeOnTransferERC20();
+        (uint8 slot, uint64 epoch) = _fundAllocatorReward(poolId, reward, 100 ether, 10_000, bob);
+        vm.warp(LibGaugeEpoch.epochFinish(epoch));
+
+        uint8[] memory slots = new uint8[](1);
+        slots[0] = slot;
+        uint256[] memory minimums = new uint256[](1);
+        minimums[0] = 99 ether;
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IStaticsGaugeIncentives.GaugeAllocatorAmountBelowMinimum.selector,
+                address(reward),
+                98.01 ether,
+                99 ether
+            )
+        );
+        incentives.claimGaugeAllocatorRewards(positionId, poolId, epoch, slots, minimums, alice);
+
+        minimums[0] = 98 ether;
+        vm.prank(alice);
+        uint256[] memory received =
+            incentives.claimGaugeAllocatorRewards(positionId, poolId, epoch, slots, minimums, alice);
+        assertEq(received[0], 98.01 ether);
+        assertEq(reward.balanceOf(alice), 98.01 ether);
+    }
+
     function _createStakedPosition(address owner, uint256 amount) private returns (uint256 positionId) {
         stakingAsset.mint(owner, amount);
         vm.startPrank(owner);
@@ -333,22 +459,60 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         vm.stopPrank();
     }
 
+    function _fundAllocatorReward(
+        PoolId poolId,
+        MockERC20 reward,
+        uint256 amount,
+        uint16 allocatorShareBps,
+        address funder
+    ) private returns (uint8 slot, uint64 epoch) {
+        slot = _ensureOrdinaryRewardSlot(poolId, address(reward));
+        vm.prank(alice);
+        rangeGauge.setPoolRewardAllocatorShare(poolId, slot, allocatorShareBps);
+        reward.mint(funder, amount);
+        vm.startPrank(funder);
+        reward.approve(address(diamond), amount);
+        rangeGauge.fundPoolReward(poolId, slot, amount, 0, allocatorShareBps);
+        vm.stopPrank();
+        epoch = incentives.currentGaugeEpoch() + 1;
+    }
+
+    function _claimAllocatorReward(
+        address caller,
+        uint256 positionId,
+        PoolId poolId,
+        uint64 epoch,
+        uint8 slot,
+        address receiver
+    ) private returns (uint256 amount) {
+        uint8[] memory slots = new uint8[](1);
+        slots[0] = slot;
+        uint256[] memory minimums = new uint256[](1);
+        vm.prank(caller);
+        uint256[] memory amounts =
+            incentives.claimGaugeAllocatorRewards(positionId, poolId, epoch, slots, minimums, receiver);
+        amount = amounts[0];
+    }
+
     function _warpNextEpoch() private {
         vm.warp(LibGaugeEpoch.epochFinish(incentives.currentGaugeEpoch()));
     }
 
     function _incentiveActionSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](9);
         selectors[0] = GaugeIncentiveFacet.fundGaugeReserve.selector;
         selectors[1] = GaugeIncentiveFacet.setGaugeAllocations.selector;
         selectors[2] = GaugeIncentiveFacet.checkpointGaugeEpoch.selector;
         selectors[3] = GaugeIncentiveFacet.refreshGaugePoolWeight.selector;
         selectors[4] = GaugeIncentiveFacet.scheduleGaugeReleaseBps.selector;
         selectors[5] = GaugeIncentiveFacet.syncGaugeAllocationsAfterStakeLoss.selector;
+        selectors[6] = GaugeIncentiveFacet.finalizeGaugeAllocatorReward.selector;
+        selectors[7] = GaugeIncentiveFacet.claimGaugeAllocatorRewards.selector;
+        selectors[8] = GaugeIncentiveFacet.expireGaugeAllocatorReward.selector;
     }
 
     function _incentiveViewSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](13);
         selectors[0] = GaugeIncentiveViewFacet.currentGaugeEpoch.selector;
         selectors[1] = GaugeIncentiveViewFacet.gaugeEpochAt.selector;
         selectors[2] = GaugeIncentiveViewFacet.gaugeReserve.selector;
@@ -358,5 +522,9 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         selectors[6] = GaugeIncentiveViewFacet.previewGaugeTopTen.selector;
         selectors[7] = GaugeIncentiveViewFacet.maxGaugeAllocationsPerPosition.selector;
         selectors[8] = GaugeIncentiveViewFacet.maxWeeklyGaugeReleaseBps.selector;
+        selectors[9] = GaugeIncentiveViewFacet.gaugeAllocatorReward.selector;
+        selectors[10] = GaugeIncentiveViewFacet.gaugePositionAllocationAt.selector;
+        selectors[11] = GaugeIncentiveViewFacet.previewGaugeAllocatorRewards.selector;
+        selectors[12] = GaugeIncentiveViewFacet.gaugeAllocatorClaimWindow.selector;
     }
 }

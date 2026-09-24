@@ -3,11 +3,13 @@ pragma solidity 0.8.33;
 
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
+import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
 import {LibGaugeEpoch} from "../libraries/LibGaugeEpoch.sol";
 import {LibGaugeHeap} from "../libraries/LibGaugeHeap.sol";
 import {LibGaugeReserve} from "../libraries/LibGaugeReserve.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 contract GaugeIncentiveViewFacet {
     function currentGaugeEpoch() external view returns (uint64 epoch) {
@@ -114,6 +116,64 @@ contract GaugeIncentiveViewFacet {
         return LibGaugeReserve.MAX_WEEKLY_RELEASE_BPS;
     }
 
+    function gaugeAllocatorReward(PoolId poolId, uint8 slot, uint64 epoch)
+        external
+        view
+        returns (IStaticsGaugeIncentives.AllocatorRewardView memory state)
+    {
+        _validateAllocatorSlot(poolId, slot);
+        LibGaugeBribes.Budget storage stored = LibGaugeBribes.bribeStorage().budgets[poolId][slot][epoch];
+        state = IStaticsGaugeIncentives.AllocatorRewardView({
+            asset: stored.asset,
+            eligibilityVersion: stored.eligibilityVersion,
+            finalized: stored.finalized,
+            expired: stored.expired || (stored.finalized && block.timestamp >= stored.expiresAt),
+            fundedAt: stored.fundedAt,
+            expiresAt: stored.expiresAt,
+            funded: stored.funded,
+            totalWeight: stored.totalWeight,
+            distributable: stored.distributable,
+            remainingLiability: stored.remainingLiability
+        });
+    }
+
+    function gaugePositionAllocationAt(uint256 positionId, PoolId poolId, uint64 epoch)
+        external
+        view
+        returns (uint256 amount, bytes32 eligibilityVersion)
+    {
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        return LibGaugeRouting.positionAllocationAt(positionId, poolId, epoch);
+    }
+
+    function previewGaugeAllocatorRewards(uint256 positionId, PoolId poolId, uint64 epoch, uint8[] calldata slots)
+        external
+        view
+        returns (IStaticsGaugeIncentives.AllocatorClaimPreview[] memory rewards)
+    {
+        LibPosition.enforceAuthorized(positionId, msg.sender);
+        rewards = new IStaticsGaugeIncentives.AllocatorClaimPreview[](slots.length);
+        for (uint256 i; i < slots.length; ++i) {
+            uint8 slot = slots[i];
+            _validateAllocatorSlot(poolId, slot);
+            LibGaugeBribes.Budget storage budget = LibGaugeBribes.bribeStorage().budgets[poolId][slot][epoch];
+            (uint256 allocation, uint256 amount, bool claimed) = LibGaugeBribes.preview(positionId, poolId, slot, epoch);
+            rewards[i] = IStaticsGaugeIncentives.AllocatorClaimPreview({
+                slot: slot,
+                asset: budget.asset,
+                allocation: allocation,
+                amount: amount,
+                finalized: budget.finalized,
+                claimed: claimed,
+                expired: budget.expired || (budget.finalized && block.timestamp >= budget.expiresAt)
+            });
+        }
+    }
+
+    function gaugeAllocatorClaimWindow() external pure returns (uint64 epochs) {
+        return LibGaugeBribes.CLAIM_WINDOW_EPOCHS;
+    }
+
     function _copy(LibGaugeRouting.Allocation[] storage stored)
         private
         view
@@ -125,5 +185,13 @@ contract GaugeIncentiveViewFacet {
                 poolId: stored[i].poolId, amount: stored[i].amount, eligibilityVersion: stored[i].eligibilityVersion
             });
         }
+    }
+
+    function _validateAllocatorSlot(PoolId poolId, uint8 slot) private view {
+        if (slot == LibRangeGauge.STATICS_SLOT) {
+            revert IStaticsGaugeIncentives.InvalidGaugeAllocatorSlot(poolId, slot);
+        }
+        (, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (!assigned) revert IStaticsGaugeIncentives.InvalidGaugeAllocatorSlot(poolId, slot);
     }
 }
