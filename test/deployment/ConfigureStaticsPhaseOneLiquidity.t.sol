@@ -195,7 +195,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         StaticsPhaseOneLiquidityConfig memory config =
             _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
 
-        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 23, 24));
+        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 26, 27));
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
     }
 
@@ -317,7 +317,8 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             }),
             DeployStaticsPhaseOne.V4Config({
                 poolManager: poolManager,

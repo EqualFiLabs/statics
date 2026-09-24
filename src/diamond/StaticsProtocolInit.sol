@@ -8,6 +8,8 @@ import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDeploymentPhases} from "../libraries/LibDeploymentPhases.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
+import {LibGaugeReserve} from "../libraries/LibGaugeReserve.sol";
+import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
@@ -112,6 +114,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         LibPosition.initialize(positionCreationFeeAmount);
         LibGlobalRewards.initialize(stakingToken);
         LibRangeGauge.initializeGlobalConfig();
+        LibGaugeRouting.initialize(LibGaugeReserve.DEFAULT_WEEKLY_RELEASE_BPS);
         LibRangeGauge.setRewardAssetAllowed(stakingToken, true);
         LibDeploymentPhases.initializePhaseOneInterfaces();
 

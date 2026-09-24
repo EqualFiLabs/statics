@@ -45,9 +45,12 @@ struct StaticsProtocolParts {
     address permissionedPoolView;
     address rangeGauge;
     address rangeGaugePosition;
+    address rangeGaugePositionManagement;
     address rangeGaugeLiveness;
     address rangeGaugeView;
     address rangeGaugeCallback;
+    address gaugeIncentiveActions;
+    address gaugeIncentiveViews;
     address genesisNFT;
     address morphoActions;
     address morphoRecovery;
@@ -66,7 +69,7 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](23);
+        cut = new IDiamondCut.FacetCut[](26);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
@@ -86,10 +89,13 @@ library StaticsProtocolPlan {
         cut[16] = _add(parts.permissionedPoolAdmin, StaticsSelectors.permissionedPoolAdmin());
         cut[17] = _add(parts.permissionedPoolView, StaticsSelectors.permissionedPoolView());
         cut[18] = _add(parts.rangeGauge, StaticsSelectors.rangeGaugeActions());
-        cut[19] = _add(parts.rangeGaugePosition, StaticsSelectors.rangeGaugePositions());
-        cut[20] = _add(parts.rangeGaugeLiveness, StaticsSelectors.rangeGaugeLiveness());
-        cut[21] = _add(parts.rangeGaugeView, StaticsSelectors.rangeGaugeViews());
-        cut[22] = _add(parts.rangeGaugeCallback, StaticsSelectors.rangeGaugeCallback());
+        cut[19] = _add(parts.rangeGaugePosition, StaticsSelectors.rangeGaugePositionIngress());
+        cut[20] = _add(parts.rangeGaugePositionManagement, StaticsSelectors.rangeGaugePositionManagement());
+        cut[21] = _add(parts.rangeGaugeLiveness, StaticsSelectors.rangeGaugeLiveness());
+        cut[22] = _add(parts.rangeGaugeView, StaticsSelectors.rangeGaugeViews());
+        cut[23] = _add(parts.rangeGaugeCallback, StaticsSelectors.rangeGaugeCallback());
+        cut[24] = _add(parts.gaugeIncentiveActions, StaticsSelectors.gaugeIncentiveActions());
+        cut[25] = _add(parts.gaugeIncentiveViews, StaticsSelectors.gaugeIncentiveViews());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {

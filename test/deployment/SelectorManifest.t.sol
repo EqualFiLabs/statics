@@ -9,6 +9,7 @@ import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLau
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
@@ -49,12 +50,13 @@ contract SelectorManifestTest is Test {
         governance[12] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
         _assertExact(StaticsSelectors.phaseOneGovernance(), governance);
 
-        bytes4[] memory custody = new bytes4[](5);
+        bytes4[] memory custody = new bytes4[](6);
         custody[0] = IStaticsCustody.globalReservedByToken.selector;
         custody[1] = IStaticsCustody.reservedByAccount.selector;
         custody[2] = IStaticsCustody.unreservedBalance.selector;
         custody[3] = IStaticsCustody.feeCustodyAccount.selector;
         custody[4] = IStaticsCustody.stakingCustodyAccount.selector;
+        custody[5] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
         _assertExact(StaticsSelectors.phaseOneCustody(), custody);
 
         bytes4[] memory treasury = new bytes4[](2);
@@ -111,14 +113,17 @@ contract SelectorManifestTest is Test {
         actions[3] = IStaticsRangeGauge.fundPoolReward.selector;
         _assertExact(StaticsSelectors.rangeGaugeActions(), actions);
 
-        bytes4[] memory positions = new bytes4[](6);
-        positions[0] = IStaticsRangeGauge.provideLiquidity.selector;
-        positions[1] = IStaticsRangeGauge.attachLiquidity.selector;
-        positions[2] = IStaticsRangeGauge.increaseLiquidity.selector;
-        positions[3] = IStaticsRangeGauge.decreaseLiquidity.selector;
-        positions[4] = IStaticsRangeGauge.collectNativeFees.selector;
-        positions[5] = IStaticsRangeGauge.rebalanceLiquidity.selector;
-        _assertExact(StaticsSelectors.rangeGaugePositions(), positions);
+        bytes4[] memory ingress = new bytes4[](2);
+        ingress[0] = IStaticsRangeGauge.provideLiquidity.selector;
+        ingress[1] = IStaticsRangeGauge.attachLiquidity.selector;
+        _assertExact(StaticsSelectors.rangeGaugePositionIngress(), ingress);
+
+        bytes4[] memory positions = new bytes4[](4);
+        positions[0] = IStaticsRangeGauge.increaseLiquidity.selector;
+        positions[1] = IStaticsRangeGauge.decreaseLiquidity.selector;
+        positions[2] = IStaticsRangeGauge.collectNativeFees.selector;
+        positions[3] = IStaticsRangeGauge.rebalanceLiquidity.selector;
+        _assertExact(StaticsSelectors.rangeGaugePositionManagement(), positions);
 
         bytes4[] memory liveness = new bytes4[](5);
         liveness[0] = IStaticsRangeGauge.exitLiquidity.selector;
@@ -150,6 +155,7 @@ contract SelectorManifestTest is Test {
         bytes4[] memory all = new bytes4[](28);
         uint256 cursor;
         cursor = _copy(actions, all, cursor);
+        cursor = _copy(ingress, all, cursor);
         cursor = _copy(positions, all, cursor);
         cursor = _copy(liveness, all, cursor);
         cursor = _copy(views, all, cursor);
@@ -159,6 +165,29 @@ contract SelectorManifestTest is Test {
                 assertNotEq(all[i], all[j]);
             }
         }
+    }
+
+    function testGaugeIncentiveSelectorSubsetsAreExact() public pure {
+        bytes4[] memory actions = new bytes4[](6);
+        actions[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
+        actions[1] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
+        actions[2] = IStaticsGaugeIncentives.checkpointGaugeEpoch.selector;
+        actions[3] = IStaticsGaugeIncentives.refreshGaugePoolWeight.selector;
+        actions[4] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
+        actions[5] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        _assertExact(StaticsSelectors.gaugeIncentiveActions(), actions);
+
+        bytes4[] memory views = new bytes4[](9);
+        views[0] = IStaticsGaugeIncentives.currentGaugeEpoch.selector;
+        views[1] = IStaticsGaugeIncentives.gaugeEpochAt.selector;
+        views[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
+        views[3] = IStaticsGaugeIncentives.gaugePoolWeight.selector;
+        views[4] = IStaticsGaugeIncentives.gaugePositionAllocations.selector;
+        views[5] = IStaticsGaugeIncentives.gaugeEpoch.selector;
+        views[6] = IStaticsGaugeIncentives.previewGaugeTopTen.selector;
+        views[7] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
+        views[8] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
+        _assertExact(StaticsSelectors.gaugeIncentiveViews(), views);
     }
 
     function testPhaseTwoLiquidityDeltaExcludesPhaseOneManagerSelectors() public pure {

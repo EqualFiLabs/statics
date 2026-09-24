@@ -12,6 +12,8 @@ import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
+import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
 import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
 import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
@@ -19,6 +21,7 @@ import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
 import {RangeGaugeFacet} from "../../src/facets/RangeGaugeFacet.sol";
 import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.sol";
+import {RangeGaugePositionManagementFacet} from "../../src/facets/RangeGaugePositionManagementFacet.sol";
 import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.sol";
@@ -75,6 +78,7 @@ abstract contract DeployStaticsProtocol {
         address stakingToken;
         uint256 positionCreationFeeAmount;
         uint256 poolCreationFeeAmount;
+        uint16 weeklyGaugeReleaseBps;
     }
 
     function _deployStaticsProtocol(ProtocolDeploymentConfig memory config)
@@ -127,7 +131,8 @@ abstract contract DeployStaticsProtocol {
                         treasury: config.treasury,
                         stakingToken: config.stakingToken,
                         positionCreationFeeAmount: config.positionCreationFeeAmount,
-                        poolCreationFeeAmount: config.poolCreationFeeAmount
+                        poolCreationFeeAmount: config.poolCreationFeeAmount,
+                        weeklyGaugeReleaseBps: config.weeklyGaugeReleaseBps
                     })
                 )
             )
@@ -207,9 +212,12 @@ abstract contract DeployStaticsProtocol {
         parts.permissionedPoolView = address(new PermissionedPoolViewFacet());
         parts.rangeGauge = address(new RangeGaugeFacet());
         parts.rangeGaugePosition = address(new RangeGaugePositionFacet());
+        parts.rangeGaugePositionManagement = address(new RangeGaugePositionManagementFacet());
         parts.rangeGaugeLiveness = address(new RangeGaugeLivenessFacet());
         parts.rangeGaugeView = address(new RangeGaugeViewFacet());
         parts.rangeGaugeCallback = address(new RangeGaugeCallbackFacet());
+        parts.gaugeIncentiveActions = address(new GaugeIncentiveFacet());
+        parts.gaugeIncentiveViews = address(new GaugeIncentiveViewFacet());
     }
 
     function _phaseOneProtocolCut(StaticsProtocolParts memory parts)

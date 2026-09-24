@@ -23,6 +23,7 @@ import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
@@ -63,6 +64,7 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionFees).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsRangeGauge).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsGaugeIncentives).interfaceId] = true;
         ds.supportedInterfaces[type(IModularPositionNFT).interfaceId] = true;
         ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
         ds.supportedInterfaces[type(IERC5192).interfaceId] = true;

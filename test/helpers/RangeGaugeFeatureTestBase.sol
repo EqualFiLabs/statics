@@ -9,6 +9,7 @@ import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionMa
 import {RangeGaugeFacet} from "../../src/facets/RangeGaugeFacet.sol";
 import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
 import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.sol";
+import {RangeGaugePositionManagementFacet} from "../../src/facets/RangeGaugePositionManagementFacet.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
@@ -107,9 +108,10 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         RangeGaugeFacet actionFacet = new RangeGaugeFacet();
         RangeGaugeLivenessFacet livenessFacet = new RangeGaugeLivenessFacet();
         RangeGaugePositionFacet positionFacet = new RangeGaugePositionFacet();
+        RangeGaugePositionManagementFacet positionManagementFacet = new RangeGaugePositionManagementFacet();
         RangeGaugeViewFacet viewFacet = new RangeGaugeViewFacet();
         RangeGaugeTestStateFacet stateFacet = new RangeGaugeTestStateFacet();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](5);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](6);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(actionFacet),
             action: IDiamondCut.FacetCutAction.Add,
@@ -123,7 +125,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         cut[2] = IDiamondCut.FacetCut({
             facetAddress: address(positionFacet),
             action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: _positionSelectors()
+            functionSelectors: _positionIngressSelectors()
         });
         cut[3] = IDiamondCut.FacetCut({
             facetAddress: address(viewFacet),
@@ -131,6 +133,11 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
             functionSelectors: _viewSelectors()
         });
         cut[4] = IDiamondCut.FacetCut({
+            facetAddress: address(positionManagementFacet),
+            action: IDiamondCut.FacetCutAction.Add,
+            functionSelectors: _positionManagementSelectors()
+        });
+        cut[5] = IDiamondCut.FacetCut({
             facetAddress: address(stateFacet),
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _stateSelectors()
@@ -187,14 +194,18 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         selectors[11] = RangeGaugeViewFacet.previewLpRewards.selector;
     }
 
-    function _positionSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+    function _positionIngressSelectors() private pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
         selectors[0] = RangeGaugePositionFacet.provideLiquidity.selector;
         selectors[1] = RangeGaugePositionFacet.attachLiquidity.selector;
-        selectors[2] = RangeGaugePositionFacet.increaseLiquidity.selector;
-        selectors[3] = RangeGaugePositionFacet.decreaseLiquidity.selector;
-        selectors[4] = RangeGaugePositionFacet.collectNativeFees.selector;
-        selectors[5] = RangeGaugePositionFacet.rebalanceLiquidity.selector;
+    }
+
+    function _positionManagementSelectors() private pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = RangeGaugePositionManagementFacet.increaseLiquidity.selector;
+        selectors[1] = RangeGaugePositionManagementFacet.decreaseLiquidity.selector;
+        selectors[2] = RangeGaugePositionManagementFacet.collectNativeFees.selector;
+        selectors[3] = RangeGaugePositionManagementFacet.rebalanceLiquidity.selector;
     }
 
     function _livenessSelectors() private pure returns (bytes4[] memory selectors) {

@@ -9,6 +9,7 @@ import {LibDeploymentPhases} from "../libraries/LibDeploymentPhases.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
+import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -21,6 +22,7 @@ contract StaticsPhaseOneInit is ERC721Upgradeable {
         address stakingToken;
         uint256 positionCreationFeeAmount;
         uint256 poolCreationFeeAmount;
+        uint16 weeklyGaugeReleaseBps;
     }
 
     error InvalidGuardian();
@@ -35,6 +37,7 @@ contract StaticsPhaseOneInit is ERC721Upgradeable {
         LibPosition.initialize(args.positionCreationFeeAmount);
         LibGlobalRewards.initialize(args.stakingToken);
         LibRangeGauge.initializeGlobalConfig();
+        LibGaugeRouting.initialize(args.weeklyGaugeReleaseBps);
         LibRangeGauge.setRewardAssetAllowed(args.stakingToken, true);
 
         LibDeploymentPhases.initializePhaseOneInterfaces();

@@ -90,10 +90,10 @@ contract StagedQuoterMock {
 }
 
 contract DeployStaticsPhasesTest is Test {
-    uint256 private constant PHASE_ONE_SELECTORS = 155;
-    uint256 private constant PHASE_TWO_SELECTORS = 248;
-    uint256 private constant PHASE_THREE_SELECTORS = 306;
-    uint256 private constant PHASE_FOUR_SELECTORS = 333;
+    uint256 private constant PHASE_ONE_SELECTORS = 173;
+    uint256 private constant PHASE_TWO_SELECTORS = 266;
+    uint256 private constant PHASE_THREE_SELECTORS = 324;
+    uint256 private constant PHASE_FOUR_SELECTORS = 351;
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
 
     struct Fixture {
@@ -135,7 +135,7 @@ contract DeployStaticsPhasesTest is Test {
     function testStagedDeploymentReachesFreshDeploymentParity() public {
         Fixture memory fixture = _phaseOneFixture();
         address diamond = fixture.phaseOne.diamond;
-        _assertManifest(diamond, 23, PHASE_ONE_SELECTORS);
+        _assertManifest(diamond, 26, PHASE_ONE_SELECTORS);
         assertEq(_activePhase(diamond), 1);
         (, bool managerInstalledAtPhaseOne) = IStaticsBasketLiquidity(diamond).liquidityManager();
         assertTrue(managerInstalledAtPhaseOne);
@@ -147,7 +147,7 @@ contract DeployStaticsPhasesTest is Test {
             fixture.phases.buildPhaseTwoBatch(diamond, phaseTwo, phaseTwoConfig);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase two"));
 
-        _assertManifest(diamond, 35, PHASE_TWO_SELECTORS);
+        _assertManifest(diamond, 38, PHASE_TWO_SELECTORS);
         assertEq(_activePhase(diamond), 2);
         assertEq(IStaticsBasketAdmin(diamond).creationFee(), 0.01 ether);
         assertEq(IStaticsFlashLoan(diamond).singleAssetFlashFeeBps(), 5);
@@ -165,7 +165,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseThreeBatch(diamond, phaseThree);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase three"));
 
-        _assertManifest(diamond, 40, PHASE_THREE_SELECTORS);
+        _assertManifest(diamond, 43, PHASE_THREE_SELECTORS);
         assertEq(_activePhase(diamond), 3);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsCustody).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsDollarGateway).interfaceId));
@@ -179,7 +179,7 @@ contract DeployStaticsPhasesTest is Test {
         (targets, values, payloads) = fixture.phases.buildPhaseFourBatch(diamond, phaseFour);
         _executeThroughTimelock(fixture.timelock, targets, values, payloads, keccak256("phase four"));
 
-        _assertManifest(diamond, 45, PHASE_FOUR_SELECTORS);
+        _assertManifest(diamond, 48, PHASE_FOUR_SELECTORS);
         assertEq(_activePhase(diamond), 4);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionPortfolio).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsMorpho).interfaceId));
@@ -277,7 +277,8 @@ contract DeployStaticsPhasesTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(fixture.statics),
                 weth: address(fixture.weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             }),
             DeployStaticsPhaseOne.V4Config({
                 poolManager: address(fixture.poolManager),

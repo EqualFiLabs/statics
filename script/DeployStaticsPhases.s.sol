@@ -44,6 +44,8 @@ import {DiamondLoupeFacet} from "../src/facets/DiamondLoupeFacet.sol";
 import {FlashLoanFacet} from "../src/facets/FlashLoanFacet.sol";
 import {GenesisNFTFacet} from "../src/facets/GenesisNFTFacet.sol";
 import {GlobalRewardsFacet} from "../src/facets/GlobalRewardsFacet.sol";
+import {GaugeIncentiveFacet} from "../src/facets/GaugeIncentiveFacet.sol";
+import {GaugeIncentiveViewFacet} from "../src/facets/GaugeIncentiveViewFacet.sol";
 import {GovernanceFacet} from "../src/facets/GovernanceFacet.sol";
 import {LendingFacet} from "../src/facets/LendingFacet.sol";
 import {MorphoAdminFacet} from "../src/facets/MorphoAdminFacet.sol";
@@ -60,6 +62,7 @@ import {ProtocolRevenueFacet} from "../src/facets/ProtocolRevenueFacet.sol";
 import {RewardPolicyFacet} from "../src/facets/RewardPolicyFacet.sol";
 import {RangeGaugeFacet} from "../src/facets/RangeGaugeFacet.sol";
 import {RangeGaugePositionFacet} from "../src/facets/RangeGaugePositionFacet.sol";
+import {RangeGaugePositionManagementFacet} from "../src/facets/RangeGaugePositionManagementFacet.sol";
 import {RangeGaugeLivenessFacet} from "../src/facets/RangeGaugeLivenessFacet.sol";
 import {RangeGaugeViewFacet} from "../src/facets/RangeGaugeViewFacet.sol";
 import {RangeGaugeCallbackFacet} from "../src/facets/RangeGaugeCallbackFacet.sol";
@@ -684,7 +687,12 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         );
         _validateFacetSet(diamond, StaticsSelectors.rangeGaugeActions(), keccak256(type(RangeGaugeFacet).runtimeCode));
         _validateFacetSet(
-            diamond, StaticsSelectors.rangeGaugePositions(), keccak256(type(RangeGaugePositionFacet).runtimeCode)
+            diamond, StaticsSelectors.rangeGaugePositionIngress(), keccak256(type(RangeGaugePositionFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond,
+            StaticsSelectors.rangeGaugePositionManagement(),
+            keccak256(type(RangeGaugePositionManagementFacet).runtimeCode)
         );
         _validateFacetSet(
             diamond, StaticsSelectors.rangeGaugeLiveness(), keccak256(type(RangeGaugeLivenessFacet).runtimeCode)
@@ -692,6 +700,12 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         _validateFacetSet(diamond, StaticsSelectors.rangeGaugeViews(), keccak256(type(RangeGaugeViewFacet).runtimeCode));
         _validateFacetSet(
             diamond, StaticsSelectors.rangeGaugeCallback(), keccak256(type(RangeGaugeCallbackFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.gaugeIncentiveActions(), keccak256(type(GaugeIncentiveFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond, StaticsSelectors.gaugeIncentiveViews(), keccak256(type(GaugeIncentiveViewFacet).runtimeCode)
         );
     }
 

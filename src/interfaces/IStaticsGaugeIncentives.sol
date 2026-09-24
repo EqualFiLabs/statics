@@ -72,12 +72,14 @@ interface IStaticsGaugeIncentives {
     error GaugeEpochNotFinalized(uint64 epoch);
     error StaleGaugePoolWeight(PoolId poolId, bytes32 storedVersion, bytes32 currentVersion);
     error GaugePoolWeightCurrent(PoolId poolId);
+    error GaugeSelfCallOnly(address caller);
 
     function fundGaugeReserve(uint256 amount) external returns (uint256 received);
     function setGaugeAllocations(uint256 positionId, PoolId[] calldata poolIds, uint256[] calldata amounts) external;
     function checkpointGaugeEpoch() external returns (uint64 epoch, uint256 committedBudget, bool finalized);
     function refreshGaugePoolWeight(PoolId poolId) external returns (uint256 removedWeight);
     function scheduleGaugeReleaseBps(uint16 releaseBps) external;
+    function syncGaugeAllocationsAfterStakeLoss(uint256 positionId, uint256 remainingStake) external;
 
     function currentGaugeEpoch() external view returns (uint64 epoch);
     function gaugeEpochAt(uint256 timestamp) external pure returns (uint64 epoch);

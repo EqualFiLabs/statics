@@ -12,6 +12,7 @@ import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
@@ -48,14 +49,18 @@ library StaticsSelectors {
         selectors[3] = IStaticsRangeGauge.fundPoolReward.selector;
     }
 
-    function rangeGaugePositions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+    function rangeGaugePositionIngress() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
         selectors[0] = IStaticsRangeGauge.provideLiquidity.selector;
         selectors[1] = IStaticsRangeGauge.attachLiquidity.selector;
-        selectors[2] = IStaticsRangeGauge.increaseLiquidity.selector;
-        selectors[3] = IStaticsRangeGauge.decreaseLiquidity.selector;
-        selectors[4] = IStaticsRangeGauge.collectNativeFees.selector;
-        selectors[5] = IStaticsRangeGauge.rebalanceLiquidity.selector;
+    }
+
+    function rangeGaugePositionManagement() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsRangeGauge.increaseLiquidity.selector;
+        selectors[1] = IStaticsRangeGauge.decreaseLiquidity.selector;
+        selectors[2] = IStaticsRangeGauge.collectNativeFees.selector;
+        selectors[3] = IStaticsRangeGauge.rebalanceLiquidity.selector;
     }
 
     function rangeGaugeLiveness() internal pure returns (bytes4[] memory selectors) {
@@ -87,6 +92,29 @@ library StaticsSelectors {
     function rangeGaugeCallback() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
+    }
+
+    function gaugeIncentiveActions() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
+        selectors[1] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
+        selectors[2] = IStaticsGaugeIncentives.checkpointGaugeEpoch.selector;
+        selectors[3] = IStaticsGaugeIncentives.refreshGaugePoolWeight.selector;
+        selectors[4] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
+        selectors[5] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+    }
+
+    function gaugeIncentiveViews() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](9);
+        selectors[0] = IStaticsGaugeIncentives.currentGaugeEpoch.selector;
+        selectors[1] = IStaticsGaugeIncentives.gaugeEpochAt.selector;
+        selectors[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
+        selectors[3] = IStaticsGaugeIncentives.gaugePoolWeight.selector;
+        selectors[4] = IStaticsGaugeIncentives.gaugePositionAllocations.selector;
+        selectors[5] = IStaticsGaugeIncentives.gaugeEpoch.selector;
+        selectors[6] = IStaticsGaugeIncentives.previewGaugeTopTen.selector;
+        selectors[7] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
+        selectors[8] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
     }
 
     function rewardPolicy() internal pure returns (bytes4[] memory selectors) {
@@ -273,7 +301,7 @@ library StaticsSelectors {
     }
 
     function custody() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsCustody.globalReservedByToken.selector;
         selectors[1] = IStaticsCustody.reservedByAccount.selector;
         selectors[2] = IStaticsCustody.unreservedBalance.selector;
@@ -282,15 +310,17 @@ library StaticsSelectors {
         selectors[5] = IStaticsCustody.feeCustodyAccount.selector;
         selectors[6] = IStaticsCustody.stakingCustodyAccount.selector;
         selectors[7] = IStaticsCustody.genesisRewardCustodyAccount.selector;
+        selectors[8] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
     }
 
     function phaseOneCustody() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsCustody.globalReservedByToken.selector;
         selectors[1] = IStaticsCustody.reservedByAccount.selector;
         selectors[2] = IStaticsCustody.unreservedBalance.selector;
         selectors[3] = IStaticsCustody.feeCustodyAccount.selector;
         selectors[4] = IStaticsCustody.stakingCustodyAccount.selector;
+        selectors[5] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
     }
 
     function phaseTwoCustody() internal pure returns (bytes4[] memory selectors) {

@@ -46,6 +46,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address stakingToken;
         address weth;
         uint256 positionCreationFeeAmount;
+        uint16 weeklyGaugeReleaseBps;
     }
 
     struct V4Config {
@@ -78,13 +79,16 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
 
     function run() external returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        uint256 weeklyGaugeReleaseBps = vm.envOr("WEEKLY_GAUGE_RELEASE_BPS", uint256(400));
+        if (weeklyGaugeReleaseBps > 1_000) revert InvalidConfig();
         Config memory config = Config({
             multisig: vm.envAddress("MULTISIG"),
             guardian: vm.envAddress("GUARDIAN"),
             treasury: vm.envAddress("TREASURY"),
             stakingToken: vm.envAddress("STAKING_TOKEN"),
             weth: vm.envAddress("WETH_ADDRESS"),
-            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT")
+            positionCreationFeeAmount: vm.envUint("POSITION_CREATION_FEE_AMOUNT"),
+            weeklyGaugeReleaseBps: uint16(weeklyGaugeReleaseBps)
         });
         V4Config memory v4 = _loadRobinhoodV4Config();
 
@@ -124,7 +128,8 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,
                 positionCreationFeeAmount: config.positionCreationFeeAmount,
-                poolCreationFeeAmount: 0
+                poolCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: config.weeklyGaugeReleaseBps
             })
         );
         deployment.weth = config.weth;
@@ -194,6 +199,7 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
             config.multisig == address(0) || config.guardian == address(0) || config.treasury == address(0)
                 || config.stakingToken == address(0) || config.weth == address(0)
                 || config.stakingToken.code.length == 0 || config.weth.code.length == 0
+                || config.weeklyGaugeReleaseBps > 1_000
         ) revert InvalidConfig();
         _validateMainnetGenesisBindings(config);
     }

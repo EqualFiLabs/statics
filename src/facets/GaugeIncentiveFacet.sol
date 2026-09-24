@@ -76,4 +76,9 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
         LibGaugeReserve.scheduleReleaseBps(releaseBps, effectiveEpoch);
         emit IStaticsGaugeIncentives.GaugeReleaseBpsScheduled(releaseBps, effectiveEpoch);
     }
+
+    function syncGaugeAllocationsAfterStakeLoss(uint256 positionId, uint256 remainingStake) external {
+        if (msg.sender != address(this)) revert IStaticsGaugeIncentives.GaugeSelfCallOnly(msg.sender);
+        LibGaugeRouting.clearForStakeLoss(positionId, remainingStake);
+    }
 }

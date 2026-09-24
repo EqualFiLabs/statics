@@ -98,6 +98,12 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         vm.stopPrank();
     }
 
+    function testStakeLossSyncRejectsExternalCallers() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsGaugeIncentives.GaugeSelfCallOnly.selector, alice));
+        incentives.syncGaugeAllocationsAfterStakeLoss(1, 0);
+    }
+
     function testReleaseRateChangeIsOwnerBoundedAndProspective() public {
         uint64 currentEpoch = incentives.currentGaugeEpoch();
         vm.prank(alice);
@@ -332,12 +338,13 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
     }
 
     function _incentiveActionSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = GaugeIncentiveFacet.fundGaugeReserve.selector;
         selectors[1] = GaugeIncentiveFacet.setGaugeAllocations.selector;
         selectors[2] = GaugeIncentiveFacet.checkpointGaugeEpoch.selector;
         selectors[3] = GaugeIncentiveFacet.refreshGaugePoolWeight.selector;
         selectors[4] = GaugeIncentiveFacet.scheduleGaugeReleaseBps.selector;
+        selectors[5] = GaugeIncentiveFacet.syncGaugeAllocationsAfterStakeLoss.selector;
     }
 
     function _incentiveViewSelectors() private pure returns (bytes4[] memory selectors) {

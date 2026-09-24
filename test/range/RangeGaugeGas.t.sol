@@ -6,6 +6,8 @@ import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.sol";
+import {RangeGaugePositionManagementFacet} from "../../src/facets/RangeGaugePositionManagementFacet.sol";
 import {
     RangeGaugeCallbackHarness,
     RangeGaugeHookCaller,
@@ -17,6 +19,7 @@ contract RangeGaugeGasTest is Test {
     uint256 private constant REVIEWED_HOOK_BASELINE = 24_228;
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
     uint256 private constant MIN_HOOK_HEADROOM = 256;
+    uint256 private constant MIN_POSITION_FACET_HEADROOM = 1_024;
     uint256 private constant MAX_NO_BOUNDARY_CALLBACK_GAS = 100_000;
     uint256 private constant MAX_128_BOUNDARY_CALLBACK_GAS = 8_000_000;
     uint256 private constant MAX_128_FIVE_STREAM_CALLBACK_GAS = 16_000_000;
@@ -40,6 +43,15 @@ contract RangeGaugeGasTest is Test {
         emit log_named_uint("callback-enabled public hook bytes", runtimeSize);
         emit log_named_uint("public hook EIP-170 headroom", EIP170_RUNTIME_LIMIT - runtimeSize);
         assertLe(runtimeSize, EIP170_RUNTIME_LIMIT - MIN_HOOK_HEADROOM);
+    }
+
+    /// @dev Excluded from optimizer-disabled coverage because instrumentation changes runtime size.
+    function test_PositionFacetRetainsEip170Headroom() public pure {
+        assertLe(type(RangeGaugePositionFacet).runtimeCode.length, EIP170_RUNTIME_LIMIT - MIN_POSITION_FACET_HEADROOM);
+        assertLe(
+            type(RangeGaugePositionManagementFacet).runtimeCode.length,
+            EIP170_RUNTIME_LIMIT - MIN_POSITION_FACET_HEADROOM
+        );
     }
 
     function testNoMovementAndNoBoundaryMovementGas() public {

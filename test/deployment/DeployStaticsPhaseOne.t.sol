@@ -34,6 +34,7 @@ import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
@@ -76,8 +77,8 @@ contract PhaseOnePermissionedBindingMock {
 }
 
 contract DeployStaticsPhaseOneTest is Test {
-    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 23;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 155;
+    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 26;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 173;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -108,7 +109,8 @@ contract DeployStaticsPhaseOneTest is Test {
                 treasury: treasury,
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0.001 ether
+                positionCreationFeeAmount: 0.001 ether,
+                weeklyGaugeReleaseBps: 400
             })
         );
         address diamond = deployment.diamond;
@@ -125,6 +127,11 @@ contract DeployStaticsPhaseOneTest is Test {
         assertEq(IStaticsGlobalRewards(diamond).maxRewardAssetsPerPosition(), 12);
         assertEq(IStaticsRangeGauge(diamond).gaugeRewardDuration(), 7 days);
         assertTrue(IStaticsRangeGauge(diamond).gaugeRewardAssetAllowed(address(statics)));
+        IStaticsGaugeIncentives.ReserveView memory reserve = IStaticsGaugeIncentives(diamond).gaugeReserve();
+        assertEq(reserve.releaseBps, 400);
+        assertEq(reserve.available, 0);
+        assertEq(reserve.deferred, 0);
+        assertEq(reserve.committed, 0);
         assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), multisig));
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), guardian));
         assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)));
@@ -133,6 +140,7 @@ contract DeployStaticsPhaseOneTest is Test {
         _assertManifest(diamond, EXPECTED_PHASE_ONE_FACETS, EXPECTED_PHASE_ONE_SELECTORS);
         assertTrue(IERC165(diamond).supportsInterface(type(IERC721).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGaugeIncentives).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPosition).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionFees).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IModularPositionNFT).interfaceId));
@@ -222,7 +230,8 @@ contract DeployStaticsPhaseOneTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             }),
             v4
         );
@@ -272,7 +281,8 @@ contract DeployStaticsPhaseOneTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             }),
             _v4Config(address(poolManager))
         );
@@ -334,7 +344,8 @@ contract DeployStaticsPhaseOneTest is Test {
             treasury: makeAddr("treasury"),
             stakingToken: address(statics),
             weth: address(0),
-            positionCreationFeeAmount: 0
+            positionCreationFeeAmount: 0,
+            weeklyGaugeReleaseBps: 400
         });
 
         vm.expectRevert(DeployStaticsPhaseOne.InvalidConfig.selector);
@@ -342,6 +353,11 @@ contract DeployStaticsPhaseOneTest is Test {
 
         config.weth = address(statics);
         config.guardian = address(0);
+        vm.expectRevert(DeployStaticsPhaseOne.InvalidConfig.selector);
+        deployer.deploy(config);
+
+        config.guardian = makeAddr("guardian");
+        config.weeklyGaugeReleaseBps = 1_001;
         vm.expectRevert(DeployStaticsPhaseOne.InvalidConfig.selector);
         deployer.deploy(config);
     }
@@ -360,7 +376,8 @@ contract DeployStaticsPhaseOneTest is Test {
             treasury: makeAddr("treasury"),
             stakingToken: address(statics),
             weth: address(weth),
-            positionCreationFeeAmount: 0
+            positionCreationFeeAmount: 0,
+            weeklyGaugeReleaseBps: 400
         });
         DeployStaticsPhaseOne.V4Config memory v4 = DeployStaticsPhaseOne.V4Config({
             poolManager: address(poolManager),
@@ -419,7 +436,8 @@ contract DeployStaticsPhaseOneTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             })
         );
     }
@@ -438,7 +456,8 @@ contract DeployStaticsPhaseOneTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             })
         );
     }
@@ -453,6 +472,8 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.previewLpRewards.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsPosition.createPosition.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGlobalRewards.createAndStake.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.setGaugeAllocations.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.gaugeReserve.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsCustody.stakingCustodyAccount.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsBasketAdmin.setTreasury.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector) != address(0));
@@ -509,7 +530,8 @@ contract DeployStaticsPhaseOneTest is Test {
                 treasury: makeAddr("treasury"),
                 stakingToken: address(fixture.statics),
                 weth: address(weth),
-                positionCreationFeeAmount: 0
+                positionCreationFeeAmount: 0,
+                weeklyGaugeReleaseBps: 400
             }),
             _v4Config(address(fixture.poolManager))
         );
