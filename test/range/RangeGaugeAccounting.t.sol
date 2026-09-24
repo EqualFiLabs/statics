@@ -76,6 +76,28 @@ contract RangeGaugeAccountingTest is Test {
         assertEq(gauge.rewardDuration(), 30 days);
     }
 
+    function testFundingCapsBudgetAtWorstCaseIndexCapacity() public {
+        uint256 maximumBudget = type(uint256).max / RAY;
+        gauge.fundStream(POOL_ID, 0, maximumBudget, START, DURATION, 1);
+        assertEq(gauge.checkpointStream(POOL_ID, 0, START + DURATION, 1), maximumBudget);
+
+        LibRangeGauge.GaugeRewardStream memory stream = gauge.stream(POOL_ID, 0);
+        assertEq(stream.globalIndexRay, maximumBudget * RAY);
+        assertEq(stream.periodEmitted, maximumBudget);
+    }
+
+    function testFundingRejectsBudgetAboveWorstCaseIndexCapacity() public {
+        uint256 maximumBudget = type(uint256).max / RAY;
+        gauge.fundStream(POOL_ID, 0, maximumBudget, START, DURATION, 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibRangeGauge.RewardBudgetExceedsIndexCapacity.selector, maximumBudget, uint256(1), maximumBudget
+            )
+        );
+        gauge.fundStream(POOL_ID, 0, 1, START, DURATION, 1);
+    }
+
     function testPositionAccrualUsesFullPrecisionAndCarriesRemainder() public view {
         uint128 liquidity = type(uint128).max;
         uint256 growth = uint256(type(uint128).max) * RAY - 123;

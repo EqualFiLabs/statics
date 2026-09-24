@@ -18,6 +18,7 @@ library LibRangeGauge {
     uint256 internal constant RAY = 1e27;
     uint8 internal constant MAX_REWARD_SLOTS = 4;
     uint8 internal constant STATICS_SLOT = 0;
+    uint256 internal constant MAX_INDEXABLE_REWARD = type(uint256).max / RAY;
     uint40 internal constant DEFAULT_REWARD_DURATION = 7 days;
     uint40 internal constant MIN_REWARD_DURATION = 1 days;
     uint40 internal constant MAX_REWARD_DURATION = 30 days;
@@ -101,6 +102,7 @@ library LibRangeGauge {
     error TimestampRegression(uint40 previousTimestamp, uint40 currentTimestamp);
     error TimestampOverflow(uint40 timestamp, uint256 delta);
     error InvalidFundingAmount();
+    error RewardBudgetExceedsIndexCapacity(uint256 remainingBudget, uint256 received, uint256 maximumBudget);
     error InvalidLiquidity();
     error InvalidTickRange(int24 tickLower, int24 tickUpper);
     error BoundaryNotInitialized(int24 tick);
@@ -283,11 +285,15 @@ library LibRangeGauge {
         }
         emission = checkpointStream(stream, currentTime, activeLiquidity);
         uint256 remainingBudget = stream.periodBudget - stream.periodEmitted;
+        if (remainingBudget > MAX_INDEXABLE_REWARD || received > MAX_INDEXABLE_REWARD - remainingBudget) {
+            revert RewardBudgetExceedsIndexCapacity(remainingBudget, received, MAX_INDEXABLE_REWARD);
+        }
+        uint256 nextBudget = remainingBudget + received;
         if (remainingBudget == 0) {
             stream.periodStart = currentTime;
             stream.periodFinish = _addTimestamp(currentTime, duration);
             stream.lastUpdate = currentTime;
-            stream.periodBudget = received;
+            stream.periodBudget = nextBudget;
             stream.periodEmitted = 0;
             return (emission, duration);
         }
@@ -295,7 +301,7 @@ library LibRangeGauge {
         uint40 finish = stream.periodFinish;
         stream.periodStart = currentTime;
         stream.lastUpdate = currentTime;
-        stream.periodBudget = remainingBudget + received;
+        stream.periodBudget = nextBudget;
         stream.periodEmitted = 0;
         remainingDuration = finish - currentTime;
     }

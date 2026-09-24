@@ -167,6 +167,7 @@ interface IStaticsRangeGauge {
     error GaugeRewardAssetRestricted(address asset);
     error GaugeRewardAssetNotAssigned(PoolId poolId, address asset);
     error MinimumRemainingDurationNotMet(uint40 available, uint40 minimum);
+    error RewardBudgetExceedsIndexCapacity(uint256 remainingBudget, uint256 received, uint256 maximumBudget);
     error InvalidReceiver(address receiver);
     error ArrayLengthMismatch();
     error ManagedLegAlreadyExists(uint256 positionId, PoolId poolId);
