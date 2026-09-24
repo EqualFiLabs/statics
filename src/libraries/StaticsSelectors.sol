@@ -42,11 +42,12 @@ import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDolla
 
 library StaticsSelectors {
     function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
         selectors[1] = IStaticsRangeGauge.setGaugeRewardDuration.selector;
         selectors[2] = IStaticsRangeGauge.appendPoolRewardAsset.selector;
-        selectors[3] = IStaticsRangeGauge.fundPoolReward.selector;
+        selectors[3] = IStaticsRangeGauge.setPoolRewardAllocatorShare.selector;
+        selectors[4] = IStaticsRangeGauge.fundPoolReward.selector;
     }
 
     function rangeGaugePositionIngress() internal pure returns (bytes4[] memory selectors) {
@@ -95,17 +96,20 @@ library StaticsSelectors {
     }
 
     function gaugeIncentiveActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
         selectors[1] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
         selectors[2] = IStaticsGaugeIncentives.checkpointGaugeEpoch.selector;
         selectors[3] = IStaticsGaugeIncentives.refreshGaugePoolWeight.selector;
         selectors[4] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
         selectors[5] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        selectors[6] = IStaticsGaugeIncentives.finalizeGaugeAllocatorReward.selector;
+        selectors[7] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        selectors[8] = IStaticsGaugeIncentives.expireGaugeAllocatorReward.selector;
     }
 
     function gaugeIncentiveViews() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](13);
         selectors[0] = IStaticsGaugeIncentives.currentGaugeEpoch.selector;
         selectors[1] = IStaticsGaugeIncentives.gaugeEpochAt.selector;
         selectors[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
@@ -115,6 +119,10 @@ library StaticsSelectors {
         selectors[6] = IStaticsGaugeIncentives.previewGaugeTopTen.selector;
         selectors[7] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
         selectors[8] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
+        selectors[9] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;
+        selectors[10] = IStaticsGaugeIncentives.gaugePositionAllocationAt.selector;
+        selectors[11] = IStaticsGaugeIncentives.previewGaugeAllocatorRewards.selector;
+        selectors[12] = IStaticsGaugeIncentives.gaugeAllocatorClaimWindow.selector;
     }
 
     function rewardPolicy() internal pure returns (bytes4[] memory selectors) {

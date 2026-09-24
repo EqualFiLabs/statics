@@ -78,7 +78,7 @@ contract PhaseOnePermissionedBindingMock {
 
 contract DeployStaticsPhaseOneTest is Test {
     uint256 private constant EXPECTED_PHASE_ONE_FACETS = 26;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 173;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 181;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -467,13 +467,16 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(loupe.facetAddress(IStaticsGovernance.protocolPoolSwapsBlocked.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.fundPoolReward.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsRangeGauge.setPoolRewardAllocatorShare.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.provideLiquidity.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.exitLiquidity.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.previewLpRewards.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsPosition.createPosition.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGlobalRewards.createAndStake.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.setGaugeAllocations.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.gaugeReserve.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.gaugeAllocatorReward.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsCustody.stakingCustodyAccount.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsBasketAdmin.setTreasury.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector) != address(0));

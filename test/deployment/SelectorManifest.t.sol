@@ -106,11 +106,12 @@ contract SelectorManifestTest is Test {
     }
 
     function testRangeGaugeSelectorSubsetsAreExactAndCollisionFree() public pure {
-        bytes4[] memory actions = new bytes4[](4);
+        bytes4[] memory actions = new bytes4[](5);
         actions[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
         actions[1] = IStaticsRangeGauge.setGaugeRewardDuration.selector;
         actions[2] = IStaticsRangeGauge.appendPoolRewardAsset.selector;
-        actions[3] = IStaticsRangeGauge.fundPoolReward.selector;
+        actions[3] = IStaticsRangeGauge.setPoolRewardAllocatorShare.selector;
+        actions[4] = IStaticsRangeGauge.fundPoolReward.selector;
         _assertExact(StaticsSelectors.rangeGaugeActions(), actions);
 
         bytes4[] memory ingress = new bytes4[](2);
@@ -152,7 +153,7 @@ contract SelectorManifestTest is Test {
         callback[0] = IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
         _assertExact(StaticsSelectors.rangeGaugeCallback(), callback);
 
-        bytes4[] memory all = new bytes4[](28);
+        bytes4[] memory all = new bytes4[](29);
         uint256 cursor;
         cursor = _copy(actions, all, cursor);
         cursor = _copy(ingress, all, cursor);
@@ -168,16 +169,19 @@ contract SelectorManifestTest is Test {
     }
 
     function testGaugeIncentiveSelectorSubsetsAreExact() public pure {
-        bytes4[] memory actions = new bytes4[](6);
+        bytes4[] memory actions = new bytes4[](9);
         actions[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
         actions[1] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
         actions[2] = IStaticsGaugeIncentives.checkpointGaugeEpoch.selector;
         actions[3] = IStaticsGaugeIncentives.refreshGaugePoolWeight.selector;
         actions[4] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
         actions[5] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        actions[6] = IStaticsGaugeIncentives.finalizeGaugeAllocatorReward.selector;
+        actions[7] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        actions[8] = IStaticsGaugeIncentives.expireGaugeAllocatorReward.selector;
         _assertExact(StaticsSelectors.gaugeIncentiveActions(), actions);
 
-        bytes4[] memory views = new bytes4[](9);
+        bytes4[] memory views = new bytes4[](13);
         views[0] = IStaticsGaugeIncentives.currentGaugeEpoch.selector;
         views[1] = IStaticsGaugeIncentives.gaugeEpochAt.selector;
         views[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
@@ -187,6 +191,10 @@ contract SelectorManifestTest is Test {
         views[6] = IStaticsGaugeIncentives.previewGaugeTopTen.selector;
         views[7] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
         views[8] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
+        views[9] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;
+        views[10] = IStaticsGaugeIncentives.gaugePositionAllocationAt.selector;
+        views[11] = IStaticsGaugeIncentives.previewGaugeAllocatorRewards.selector;
+        views[12] = IStaticsGaugeIncentives.gaugeAllocatorClaimWindow.selector;
         _assertExact(StaticsSelectors.gaugeIncentiveViews(), views);
     }
 
