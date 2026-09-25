@@ -14,7 +14,7 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeClaimRoundingConservation() public pure {
-        check_claimRoundingCannotExceedBudget(100, 60);
+        check_claimRoundingCannotExceedBudget(100, 154);
     }
 
     function testRepresentativeProrationConservation() public pure {
@@ -43,13 +43,13 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         assertEq(lpAmount + allocatorAmount, received);
     }
 
-    function check_claimRoundingCannotExceedBudget(uint16 budget, uint8 firstWeightPercent) public pure {
-        vm.assume(firstWeightPercent <= 100);
-        uint256 secondWeightPercent = 100 - firstWeightPercent;
-        // Normalizing the two weights to a constant denominator proves every
-        // whole-percent ratio without a solver-expensive symbolic divisor.
-        uint256 firstClaim = (uint256(budget) * firstWeightPercent) / 100;
-        uint256 secondClaim = (uint256(budget) * secondWeightPercent) / 100;
+    function check_claimRoundingCannotExceedBudget(uint16 budget, uint16 firstWeightUnits) public pure {
+        vm.assume(firstWeightUnits <= 256);
+        uint256 secondWeightUnits = 256 - firstWeightUnits;
+        // Normalizing the two weights to 256 units proves 257 ratios with exact
+        // floor division expressed as a solver-friendly right shift.
+        uint256 firstClaim = (uint256(budget) * firstWeightUnits) >> 8;
+        uint256 secondClaim = (uint256(budget) * secondWeightUnits) >> 8;
         uint256 claimed = firstClaim + secondClaim;
         assertLe(claimed, budget);
         assertLe(uint256(budget) - claimed, 1);
