@@ -28,6 +28,10 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
         check_indexCapacityBoundPreventsGlobalOverflow(type(uint96).max, 0);
     }
 
+    function testRepresentativeCheckpointFragmentation() public pure {
+        check_checkpointFragmentationPreservesScaledNumerator(3, 5, 12);
+    }
+
     function testRepresentativeFinalReconciliationGate() public pure {
         check_finalReconciliationRequiresResolvedLiabilities(true, 0, 10, 10, 0, 0, 3, 3);
     }
@@ -107,28 +111,20 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
     }
 
     function check_checkpointFragmentationPreservesScaledNumerator(
-        uint32 rawAmount,
-        uint64 rawDenominator,
-        uint8 rawParts
+        uint32 firstAmount,
+        uint32 secondAmount,
+        uint64 rawDenominator
     ) public pure {
-        uint256 amount = uint256(rawAmount) + 1;
         uint256 denominator = uint256(rawDenominator) + 1;
-        uint256 parts = uint256(rawParts) % 4 + 1;
+        uint256 totalAmount = uint256(firstAmount) + secondAmount;
         (uint256 singleDelta, uint256 singleRemainder) =
-            LibIndexMath.indexDeltaAtScale(amount, denominator, 0, INDEX_SCALE);
-        uint256 fragmentedDelta;
-        uint256 fragmentedRemainder;
-        uint256 base = amount / parts;
-        uint256 extra = amount % parts;
-        for (uint256 i; i < parts; ++i) {
-            uint256 fragment = base + (i < extra ? 1 : 0);
-            (uint256 delta, uint256 remainder) =
-                LibIndexMath.indexDeltaAtScale(fragment, denominator, fragmentedRemainder, INDEX_SCALE);
-            fragmentedDelta += delta;
-            fragmentedRemainder = remainder;
-        }
-        assertEq(fragmentedDelta, singleDelta);
-        assertEq(fragmentedRemainder, singleRemainder);
+            LibIndexMath.indexDeltaAtScale(totalAmount, denominator, 0, INDEX_SCALE);
+        (uint256 firstDelta, uint256 firstRemainder) =
+            LibIndexMath.indexDeltaAtScale(firstAmount, denominator, 0, INDEX_SCALE);
+        (uint256 secondDelta, uint256 secondRemainder) =
+            LibIndexMath.indexDeltaAtScale(secondAmount, denominator, firstRemainder, INDEX_SCALE);
+        assertEq(firstDelta + secondDelta, singleDelta);
+        assertEq(secondRemainder, singleRemainder);
     }
 
     function check_denominatorRemainderCannotReachOneRawUnit(uint128 denominator, uint128 rawRemainder) public pure {
