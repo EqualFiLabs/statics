@@ -14,7 +14,7 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeClaimRoundingConservation() public pure {
-        check_claimRoundingCannotExceedBudget(10 ether, 6 ether, 4 ether);
+        check_claimRoundingCannotExceedBudget(10_000, 6_000, 4_000);
     }
 
     function testRepresentativeProrationConservation() public pure {
@@ -40,7 +40,7 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         _assertFundingSplit(received, allocatorShareBps);
     }
 
-    function check_claimRoundingCannotExceedBudget(uint64 budget, uint64 firstWeight, uint64 secondWeight) public pure {
+    function check_claimRoundingCannotExceedBudget(uint32 budget, uint32 firstWeight, uint32 secondWeight) public pure {
         _assertClaimRounding(budget, firstWeight, secondWeight);
     }
 
