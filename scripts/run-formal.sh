@@ -186,6 +186,10 @@ case "$TARGET" in
       out-formal-genesis '^check_maturedScheduleCannotBeOverwritten'
     run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-unmatured-release-replacement 8 \
       out-formal-genesis '^check_unmaturedScheduleMayBeReplaced'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-pro-rata-conservation 8 \
+      out-formal-genesis '^check_twoPoolProRataSharesRemainWithinBudget'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-weight-splitting 8 \
+      out-formal-genesis '^check_splittingPoolWeightCannotIncreaseBudget'
     run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-funding-split 8 \
       out-formal-genesis '^check_fundingSplitConservesReceived'
     run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-claim-rounding 8 \
