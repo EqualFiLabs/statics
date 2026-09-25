@@ -35,18 +35,30 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         _assertProration(budget, eligibleDuration);
     }
 
-    function check_fundingSplitConservesReceived(uint64 received, uint16 allocatorShareBps) public pure {
+    function check_fundingSplitConservesReceived(uint128 received, uint16 allocatorShareBps) public pure {
         vm.assume(allocatorShareBps <= BPS);
-        _assertFundingSplit(received, allocatorShareBps);
+        uint256 allocatorAmount = Math.mulDiv(received, allocatorShareBps, BPS);
+        uint256 lpAmount = uint256(received) - allocatorAmount;
+        assertLe(allocatorAmount, received);
+        assertEq(lpAmount + allocatorAmount, received);
     }
 
     function check_claimRoundingCannotExceedBudget(uint16 budget, uint16 firstWeight, uint16 secondWeight) public pure {
-        _assertClaimRounding(budget, firstWeight, secondWeight);
+        uint256 totalWeight = uint256(firstWeight) + secondWeight;
+        vm.assume(totalWeight != 0);
+        uint256 firstClaim = Math.mulDiv(budget, firstWeight, totalWeight);
+        uint256 secondClaim = Math.mulDiv(budget, secondWeight, totalWeight);
+        uint256 claimed = firstClaim + secondClaim;
+        assertLe(claimed, budget);
+        assertLe(uint256(budget) - claimed, 1);
     }
 
-    function check_prorationAndTreasuryConserveBudget(uint64 budget, uint32 eligibleDuration) public pure {
+    function check_prorationAndTreasuryConserveBudget(uint128 budget, uint32 eligibleDuration) public pure {
         vm.assume(eligibleDuration <= WEEK);
-        _assertProration(budget, eligibleDuration);
+        uint256 distributable = Math.mulDiv(budget, eligibleDuration, WEEK);
+        uint256 treasuryAmount = uint256(budget) - distributable;
+        assertLe(distributable, budget);
+        assertEq(distributable + treasuryAmount, budget);
     }
 
     function _assertFundingSplit(uint256 received, uint16 allocatorShareBps) private pure {

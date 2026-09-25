@@ -157,10 +157,10 @@ case "$TARGET" in
     # Full-precision mulDiv and modular-growth branches can make feasibility refinement
     # dominate otherwise small rules. As in the permanent-liquidity suite, unknown
     # branch feasibility is conservatively explored on both sides while assertions
-    # retain their unbounded solver timeout. Allocator arithmetic rules use bounded
-    # symbolic amounts for exhaustive proof, with the two-claim mulDiv rule narrowed
-    # to uint16 for solver tractability. Full-width Foundry fuzz tests exercise the
-    # same helpers across the production uint256 input domain.
+    # retain their unbounded solver timeout. The two-claim mulDiv rule uses an inline
+    # uint16 model for bounded exhaustive proof and solver tractability. Full-width
+    # Foundry fuzz tests exercise the same arithmetic across the production uint256
+    # input domain.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-stream-conservation 8 \
       out-formal-genesis '^check_streamEmitsEntireBudgetAtFinish'
