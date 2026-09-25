@@ -2,15 +2,15 @@
   "schema": 2,
   "counts": {
     "High": 69,
-    "Medium": 397,
-    "Low": 245,
-    "Informational": 119
+    "Medium": 404,
+    "Low": 248,
+    "Informational": 120
   },
   "raw_counts": {
     "High": 69,
-    "Medium": 397,
-    "Low": 306,
-    "Informational": 119
+    "Medium": 406,
+    "Low": 310,
+    "Informational": 120
   },
   "findings": [
     {
@@ -1206,6 +1206,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#575-611) uses a dangerous strict equality:",
+      "rationale": "The exact prior checkpoint epoch identifies the current-epoch entry that must be rewritten ahead of a preserved next-epoch checkpoint.",
+      "occurrences": 1,
+      "id": "0b82d1728986900fbc029a62"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault.quoteGenesisCreditExtension(uint256) (src/genesis/StaticsGenesisVault.sol#515-523) uses a dangerous strict equality:",
@@ -1350,22 +1366,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting._removeScheduledWeights(LibGaugeRouting.RoutingStorage,uint256,LibGaugeRouting.PositionAllocations,uint64,uint64) (src/libraries/LibGaugeRouting.sol#356-381) uses a dangerous strict equality:",
-      "rationale": "The equality selects the pending allocation buffer only when it is scheduled for exactly the next epoch; a range comparison would remove the wrong weight set.",
-      "occurrences": 1,
-      "id": "3bc86c141c29cb2cb3e58d30"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/RangeGaugeFacet.sol"
       ],
       "summary": "RangeGaugeFacet._fundingContext(PoolId,uint8,uint16,uint64) (src/facets/RangeGaugeFacet.sol#109-138) uses a dangerous strict equality:",
@@ -1459,6 +1459,38 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#575-611) uses a dangerous strict equality:",
+      "rationale": "Equal epoch numbers deliberately update an existing position checkpoint instead of appending a duplicate historical entry.",
+      "occurrences": 1,
+      "id": "5699ae97e93c663fe521f452"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._claimAllocatorReward(GaugeIncentiveFacet.AllocatorClaimContext,uint8,uint256) (src/facets/GaugeIncentiveFacet.sol#135-161) uses a dangerous strict equality:",
+      "rationale": "The exact zero amount is the no-claim branch after finalized entitlement calculation; nonzero amounts continue through reserved-custody settlement.",
+      "occurrences": 1,
+      "id": "5a325b8787a8d2082e597c4b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1468,6 +1500,22 @@
       "rationale": "Strict equality is required here to fail closed on a deployment artifact, code, hash, fixed share, or ceremony invariant; it is not used as a price trigger.",
       "occurrences": 1,
       "id": "5b77f374dff0882082f5b292"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._removeScheduledWeights(LibGaugeRouting.RoutingStorage,uint256,LibGaugeRouting.PositionAllocations,uint64,uint64) (src/libraries/LibGaugeRouting.sol#501-528) uses a dangerous strict equality:",
+      "rationale": "The equality selects the pending allocation buffer only when it is scheduled for exactly the next epoch; a range comparison would remove the wrong weight set.",
+      "occurrences": 1,
+      "id": "5d3dabdc4f80ab72651e5290"
     },
     {
       "impact": "Medium",
@@ -1558,12 +1606,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
+        "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "LibGaugeRouting._writePoolWeightCheckpoint(LibGaugeRouting.RoutingStorage,PoolId,uint64) (src/libraries/LibGaugeRouting.sol#402-414) uses a dangerous strict equality:",
-      "rationale": "Equal epoch numbers deliberately coalesce repeated pool-weight writes into one checkpoint so historical lookup remains ordered and deterministic.",
+      "summary": "PermissionedPositionClaims._deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#98-102) uses a dangerous strict equality:",
+      "rationale": "The zero comparison is an explicit no-op guard before any external transfer or accounting update; it does not control authorization, pricing, or a value-bearing boundary.",
       "occurrences": 1,
-      "id": "87b738821cfdb6c6f3ad4ca6"
+      "id": "8bf4bb433623c18554e8c7a5"
     },
     {
       "impact": "Medium",
@@ -1574,12 +1622,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
+        "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "PermissionedPositionClaims._deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#98-102) uses a dangerous strict equality:",
-      "rationale": "The zero comparison is an explicit no-op guard before any external transfer or accounting update; it does not control authorization, pricing, or a value-bearing boundary.",
+      "summary": "LibGaugeRouting._writePoolWeightCheckpoint(LibGaugeRouting.RoutingStorage,PoolId,uint64) (src/libraries/LibGaugeRouting.sol#555-573) uses a dangerous strict equality:",
+      "rationale": "Equal epoch numbers deliberately coalesce repeated pool-weight writes into one checkpoint so historical lookup remains ordered and deterministic.",
       "occurrences": 1,
-      "id": "8bf4bb433623c18554e8c7a5"
+      "id": "948ac952f225da5d2089d573"
     },
     {
       "impact": "Medium",
@@ -1612,22 +1660,6 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "9feeecc7d1c9478f93e84803"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveFacet.sol"
-      ],
-      "summary": "GaugeIncentiveFacet._claimAllocatorReward(GaugeIncentiveFacet.AllocatorClaimContext,uint8,uint256) (src/facets/GaugeIncentiveFacet.sol#151-177) uses a dangerous strict equality:",
-      "rationale": "The exact zero amount is the no-claim branch after finalized entitlement calculation; nonzero amounts continue through reserved-custody settlement.",
-      "occurrences": 1,
-      "id": "a6cdce91c7f97b7d463fbd67"
     },
     {
       "impact": "Medium",
@@ -1683,38 +1715,6 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#416-453) uses a dangerous strict equality:",
-      "rationale": "The exact prior checkpoint epoch identifies the current-epoch entry that must be rewritten ahead of a preserved next-epoch checkpoint.",
-      "occurrences": 1,
-      "id": "b7c027aa8cb1e7f86bca232b"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#416-453) uses a dangerous strict equality:",
-      "rationale": "Equal epoch numbers deliberately update an existing position checkpoint instead of appending a duplicate historical entry.",
-      "occurrences": 1,
-      "id": "b7c55265ee0793bf1566db91"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1740,6 +1740,22 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "c64879a770905b4bce14e24f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.checkpointEpoch(uint40) (src/libraries/LibGaugeRouting.sol#150-191) uses a dangerous strict equality:",
+      "rationale": "An exact zero committed budget defines an empty epoch, which is closed immediately so no reserve liability or activation work remains.",
+      "occurrences": 1,
+      "id": "d183ebfc696c3ede42f3a9e2"
     },
     {
       "impact": "Medium",
@@ -1850,7 +1866,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "092a7eed7b78f539469dac6d"
     },
     {
@@ -2186,7 +2202,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
       "rationale": "These callbacks run only through the PoolManager lock; liabilities are updated with each claim mint/burn, and any nested failure reverts the whole swap, harvest, seed, or release.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "b909c883beecb276a6db0e55"
     },
     {
@@ -2358,12 +2374,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
+        "src/facets/GaugeIncentiveFacet.sol"
       ],
-      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#111) is a local variable never initialized",
-      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "summary": "GaugeIncentiveFacet.claimGaugeAllocatorRewards(uint256,PoolId,uint64,uint8[],uint256[],address).seen (src/facets/GaugeIncentiveFacet.sol#111) is a local variable never initialized",
+      "rationale": "This duplicate-detection bitmap intentionally starts at Solidity zero and sets one validated slot bit per loop iteration.",
       "occurrences": 1,
-      "id": "18cbaef4302a5a5bff2cb185"
+      "id": "0f9c7045796f06819d86e06f"
     },
     {
       "impact": "Medium",
@@ -2396,6 +2412,22 @@
       "rationale": "The reported reward values are intentional Solidity-zero accumulators, prior-credit defaults, or bitmaps that are incremented or conditionally populated before use.",
       "occurrences": 1,
       "id": "21a8203eab4d01fdec539a86"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._claimSlots(RangeGaugeLivenessFacet.ClaimContext,LibRangeGauge.LpLeg,uint8[],uint256[]).seen (src/facets/RangeGaugeLivenessFacet.sol#194) is a local variable never initialized",
+      "rationale": "This duplicate-detection bitmap intentionally starts at Solidity zero and sets one validated slot bit per loop iteration.",
+      "occurrences": 1,
+      "id": "273ade194fdd168bce834d73"
     },
     {
       "impact": "Medium",
@@ -2460,22 +2492,6 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "3d26988bbf08be60f7d782f3"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting.positionAllocationAt(uint256,PoolId,uint64).low (src/libraries/LibGaugeRouting.sol#309) is a local variable never initialized",
-      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the checkpoint array.",
-      "occurrences": 1,
-      "id": "4a4aeb932d379ce3ab8217d8"
     },
     {
       "impact": "Medium",
@@ -2758,38 +2774,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GaugeIncentiveFacet.sol"
-      ],
-      "summary": "GaugeIncentiveFacet.claimGaugeAllocatorRewards(uint256,PoolId,uint64,uint8[],uint256[],address).seen (src/facets/GaugeIncentiveFacet.sol#127) is a local variable never initialized",
-      "rationale": "This duplicate-detection bitmap intentionally starts at Solidity zero and sets one validated slot bit per loop iteration.",
-      "occurrences": 1,
-      "id": "8790e8af442801ad446fc4e7"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting.poolWeightAt(PoolId,uint64).low (src/libraries/LibGaugeRouting.sol#290) is a local variable never initialized",
-      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the checkpoint array.",
-      "occurrences": 1,
-      "id": "8f3b9c33341d7bd0b4761398"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "StaticsSwapFeeHook._normalizePendingDistribution(PoolId,Currency).basketStakerToPol (src/liquidity/StaticsSwapFeeHook.sol#799) is a local variable never initialized",
@@ -2844,6 +2828,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "9ba00fd369d970a12ca71186"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.positionAllocationAt(uint256,PoolId,uint64).low (src/libraries/LibGaugeRouting.sol#286) is a local variable never initialized",
+      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the checkpoint array.",
+      "occurrences": 1,
+      "id": "a0ddc963e0d80977d70feb0e"
     },
     {
       "impact": "Medium",
@@ -3046,22 +3046,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
-      ],
-      "summary": "RangeGaugeLivenessFacet._claimSlots(RangeGaugeLivenessFacet.ClaimContext,LibRangeGauge.LpLeg,uint8[],uint256[]).seen (src/facets/RangeGaugeLivenessFacet.sol#193) is a local variable never initialized",
-      "rationale": "This duplicate-detection bitmap intentionally starts at Solidity zero and sets one validated slot bit per loop iteration.",
-      "occurrences": 1,
-      "id": "dc9ff0de91b71140aaa52ce1"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
       "summary": "LibGlobalRewards._settleEligible(LibGlobalRewards.RewardStorage,LibGlobalRewards.StakePosition,uint256,address,LibGlobalRewards.PositionSelection,LibGlobalRewards.RewardBook).added (src/libraries/LibGlobalRewards.sol#734) is a local variable never initialized",
@@ -3110,6 +3094,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.poolWeightCheckpointAt(PoolId,uint64).low (src/libraries/LibGaugeRouting.sol#267) is a local variable never initialized",
+      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the checkpoint array.",
+      "occurrences": 1,
+      "id": "e6d1054eb98bb87ae9648897"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibRewardPolicy.sol"
+      ],
+      "summary": "LibRewardPolicy.restrictionSequenceAt(address,uint64).low (src/libraries/LibRewardPolicy.sol#60) is a local variable never initialized",
+      "rationale": "This binary-search lower bound intentionally starts at Solidity zero, which is the required lower edge of the restriction history.",
+      "occurrences": 1,
+      "id": "e774b88f147af3322fff1aae"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
       "summary": "StaticsPermissionedSwapFeeHook._chargeAndRoute(PoolKey,SwapParams,BalanceDelta).context (src/liquidity/StaticsPermissionedSwapFeeHook.sol#224) is a local variable never initialized",
@@ -3132,6 +3148,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "e7c20ad0a428f539eed01a45"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]).hasRewards (src/facets/GlobalRewardsFacet.sol#113) is a local variable never initialized",
+      "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
+      "occurrences": 1,
+      "id": "e91eed14141e69c750a54d5e"
     },
     {
       "impact": "Medium",
@@ -3267,6 +3299,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._finalizeAllocatorReward(PoolId,uint8,uint64,uint40) (src/facets/GaugeIncentiveFacet.sol#163-173) ignores return value by (newlyFinalized,distributable,None) = LibGaugeBribes.finalize(poolId,slot,epoch,currentTime) (src/facets/GaugeIncentiveFacet.sol#167)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "01bc8699614ece82a6b17403"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3340,22 +3388,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "0701fb5a68db975db5543de8"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
-      ],
-      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#252-257) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugeLivenessFacet.sol#255)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "0933f6e56e6a7a13502ed7e5"
     },
     {
       "impact": "Medium",
@@ -3452,6 +3484,22 @@
       "rationale": "The tuple read intentionally consumes only the initialized-price or spot-tick field needed by this path; the remaining PoolManager state is irrelevant here.",
       "occurrences": 1,
       "id": "0d4ad80b6284fc515cc7336a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#79-85) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,currentTime) (src/facets/RangeGaugePositionBase.sol#84)",
+      "rationale": "The caller needs the topology synchronization side effect only; the library validates state and reverts atomically on failure.",
+      "occurrences": 1,
+      "id": "0df3dbd7220fba076f793c60"
     },
     {
       "impact": "Medium",
@@ -3635,38 +3683,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeCallbackFacet.sol"
-      ],
-      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#25-51) ignores return value by (None,finalTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugeCallbackFacet.sol#47)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "1645ca79fbc62fbe174a2bf2"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeCallbackFacet.sol"
-      ],
-      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#25-51) ignores return value by (kind,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeCallbackFacet.sol#32)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "166e829f80c2a908feac64a0"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3676,22 +3692,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "167c6fb455a9904c204a7b69"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
-      ],
-      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#252-257) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugeLivenessFacet.sol#254)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "1a0563ffe86b82cd56bed937"
     },
     {
       "impact": "Medium",
@@ -3718,12 +3718,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
+        "src/libraries/LibRangeGauge.sol"
       ],
-      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#225-231) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolAdminFacet.sol#228)",
+      "summary": "LibRangeGauge.nextInitializedBoundary(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#687-704) ignores return value by (searchedWord,None) = TickBitmap.position(searchedCompressed) (src/libraries/LibRangeGauge.sol#696)",
       "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
-      "id": "1b153e205c4c10f956ae3691"
+      "id": "1fd839db0b373b789ecd72ce"
     },
     {
       "impact": "Medium",
@@ -3955,22 +3955,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityLifecycleFacet.sol"
-      ],
-      "summary": "BasketLiquidityLifecycleFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey) (src/facets/BasketLiquidityLifecycleFacet.sol#177-182) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityLifecycleFacet.sol#179)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "2a75b9cf825f721165a17b80"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4086,22 +4070,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting._settlePreviousEpoch(LibGaugeRouting.RoutingStorage,uint40) (src/libraries/LibGaugeRouting.sol#321-326) ignores return value by LibRangeGauge.checkpointProtocolStream(previous.pools[i],currentTime) (src/libraries/LibGaugeRouting.sol#324)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "340bc88bcfc0f7089ab71d80"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/facets/RangeGaugeFacet.sol"
       ],
       "summary": "RangeGaugeFacet._applyFunding(PoolId,uint8,uint40,RangeGaugeFacet.FundingContext) (src/facets/RangeGaugeFacet.sol#140-178) ignores return value by LibRangeGauge.checkpointStream(stream,context.currentTime,gauge.activeGaugeLiquidity) (src/facets/RangeGaugeFacet.sol#146)",
@@ -4156,22 +4124,6 @@
       "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
       "occurrences": 1,
       "id": "37662b03b8160278494b2954"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionBase.sol"
-      ],
-      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#78-82) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugePositionBase.sol#80)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "38c32cc114679f83e2643b2c"
     },
     {
       "impact": "Medium",
@@ -4252,22 +4204,6 @@
       "rationale": "This deployment or preparation call is used for its fail-closed validation or serialization side effect; the returned convenience value is not part of the ceremony output.",
       "occurrences": 1,
       "id": "3d4d6c326bb80d82a6cd1c9f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionBase.sol"
-      ],
-      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#32-54) ignores return value by LibRangeGauge.bindPosm(leg.posmTokenId,positionId,poolId) (src/facets/RangeGaugePositionBase.sol#50)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "3ec9923ddb5b7ee1bcf4de99"
     },
     {
       "impact": "Medium",
@@ -4403,6 +4339,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#99-135) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#126)",
+      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
+      "occurrences": 1,
+      "id": "42c1ead44933967e0d95be22"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4435,22 +4387,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionBase.sol"
-      ],
-      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#78-82) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugePositionBase.sol#81)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "4489f826a4726383446f4421"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4460,6 +4396,38 @@
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
       "id": "448c0dd8b6efc0ab0826c892"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibRangeGauge.sol"
+      ],
+      "summary": "LibRangeGauge._setBoundaryBit(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#885-898) ignores return value by (wordPos,None) = TickBitmap.position(compressed) (src/libraries/LibRangeGauge.sol#887)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "456caa097f5e9145e23f69fd"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeCallbackFacet.sol"
+      ],
+      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#26-52) ignores return value by LibRangeGauge.synchronizeAfterSwap(poolId,key.tickSpacing,finalTick,currentTime) (src/facets/RangeGaugeCallbackFacet.sol#51)",
+      "rationale": "The authenticated swap callback needs the reward synchronization side effect only; the library validates state and reverts atomically on failure.",
+      "occurrences": 1,
+      "id": "46d4a60d603fad60f4ab42b0"
     },
     {
       "impact": "Medium",
@@ -4508,6 +4476,22 @@
       "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
       "id": "48b26f96faf0f552ae9fc54f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveFacet.sol"
+      ],
+      "summary": "GaugeIncentiveFacet._validateAllocatorSlot(PoolId,uint8) (src/facets/GaugeIncentiveFacet.sol#175-181) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/GaugeIncentiveFacet.sol#179)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "493caa8b7d5249ec6087f227"
     },
     {
       "impact": "Medium",
@@ -4659,22 +4643,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibRangeGauge.sol"
-      ],
-      "summary": "LibRangeGauge.nextInitializedBoundary(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#682-699) ignores return value by (searchedWord,None) = TickBitmap.position(searchedCompressed) (src/libraries/LibRangeGauge.sol#691)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "57bc7e10355786a347ab8bba"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4755,38 +4723,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#135-146) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#144)",
-      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
-      "occurrences": 1,
-      "id": "5d99bab5b84efaaa61e71d52"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveFacet.sol"
-      ],
-      "summary": "GaugeIncentiveFacet._finalizeAllocatorReward(PoolId,uint8,uint64,uint40) (src/facets/GaugeIncentiveFacet.sol#179-189) ignores return value by (newlyFinalized,distributable,None) = LibGaugeBribes.finalize(poolId,slot,epoch,currentTime) (src/facets/GaugeIncentiveFacet.sol#183)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "5dc99e4862c83c9ea41d86a9"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4828,6 +4764,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "5f92942218d14de370813b50"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._startPoolStream(PoolId,uint64,uint40,uint40,uint256,uint40) (src/libraries/LibGaugeRouting.sol#409-425) ignores return value by LibRangeGauge.checkpointProtocolStream(poolId,currentTime) (src/libraries/LibGaugeRouting.sol#424)",
+      "rationale": "The stream-start path needs the protocol checkpoint side effect only; the library accounts emitted rewards and reverts atomically on invalid state.",
+      "occurrences": 1,
+      "id": "60217d6b790b29051105f437"
     },
     {
       "impact": "Medium",
@@ -4956,6 +4908,38 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "685a979d5f2398e96199fc6c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#33-55) ignores return value by LibPosition.activateLeg(positionId,LibPosition.LP_MODULE,PoolId.unwrap(poolId)) (src/facets/RangeGaugePositionBase.sol#54)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "68855c7e6a7da171391eedbc"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#253-260) ignores return value by LibRangeGauge.synchronizeTopology(poolId,key.tickSpacing,liveTick,currentTime) (src/facets/RangeGaugeLivenessFacet.sol#258)",
+      "rationale": "The claim path needs the topology synchronization side effect before settling the leg; the library validates state and reverts atomically on failure.",
+      "occurrences": 1,
+      "id": "6a344b6f25c007e2aae01f2a"
     },
     {
       "impact": "Medium",
@@ -5190,6 +5174,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugeCallbackFacet.sol"
+      ],
+      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#26-52) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/RangeGaugeCallbackFacet.sol#50)",
+      "rationale": "The authenticated callback invokes the Diamond checkpoint for its state transition; committed and recycled amounts are emitted and do not control subsequent swap accounting.",
+      "occurrences": 1,
+      "id": "72fbce1993a5ad833043e889"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "StaticsDollarGatewayFacet._executePeggedRedemption(LibPeriphery.PS,uint256,uint256,uint256,address,IStaticsDollarCoreTypes.PeggedRedemptionPreview) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#654-682) ignores return value by LibCustody.finishUnreservedDebit(ps.staticsDollar,staticsDollarBefore,staticsDollarAmount) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#672)",
@@ -5324,22 +5324,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "801374f5e5d34ce20043ee66"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveViewFacet.sol"
-      ],
-      "summary": "GaugeIncentiveViewFacet._validateAllocatorSlot(PoolId,uint8) (src/facets/GaugeIncentiveViewFacet.sol#199-205) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/GaugeIncentiveViewFacet.sol#203)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "80e339a551fb698488ae853c"
     },
     {
       "impact": "Medium",
@@ -5603,6 +5587,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#79-85) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/RangeGaugePositionBase.sol#83)",
+      "rationale": "The position path invokes the Diamond checkpoint for its state transition; committed and recycled amounts are emitted and do not control subsequent settlement.",
+      "occurrences": 1,
+      "id": "8e0637b71cb2372330ae944a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5683,6 +5683,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._enforceHistoricalPublicGauge(PoolId) (src/facets/RangeGaugeLivenessFacet.sol#282-295) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeLivenessFacet.sol#283-284)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "91fba3e4f86b307b8fdf2e75"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5702,12 +5718,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeCallbackFacet.sol"
+        "src/facets/RangeGaugePositionBase.sol"
       ],
-      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#25-51) ignores return value by LibRangeGauge.synchronizeAfterSwap(poolId,key.tickSpacing,finalTick,LibRangeGauge.timestamp40(block.timestamp)) (src/facets/RangeGaugeCallbackFacet.sol#48-50)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#33-55) ignores return value by LibRangeGauge.bindPosm(leg.posmTokenId,positionId,poolId) (src/facets/RangeGaugePositionBase.sol#51)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
-      "id": "97d6ed46aa15d60d52054792"
+      "id": "96b6fff1f38376dc449bde96"
     },
     {
       "impact": "Medium",
@@ -5859,6 +5875,54 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeCallbackFacet.sol"
+      ],
+      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#26-52) ignores return value by (kind,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeCallbackFacet.sol#33)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "9ca17e81aec3bee167ee444d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._synchronize(PoolId,PoolKey) (src/facets/RangeGaugePositionBase.sol#79-85) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugePositionBase.sol#81)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "9d507d374ab310c619859eae"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeEligibility.sol"
+      ],
+      "summary": "LibGaugeEligibility.latestRestrictionSequence(PoolId,uint64) (src/libraries/LibGaugeEligibility.sol#43-48) ignores return value by (None,key,None,None) = LibProtocolPools.resolve(poolId) (src/libraries/LibGaugeEligibility.sol#44)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "9ef576d20644ac45a29cfd8e"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5923,6 +5987,38 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeLivenessFacet.sol"
+      ],
+      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#253-260) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/RangeGaugeLivenessFacet.sol#257)",
+      "rationale": "The claim path invokes the Diamond checkpoint for its state transition; committed and recycled amounts are emitted and do not control subsequent settlement.",
+      "occurrences": 1,
+      "id": "a3fab86e784625f2a7363d49"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityLifecycleFacet.sol"
+      ],
+      "summary": "BasketLiquidityLifecycleFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey) (src/facets/BasketLiquidityLifecycleFacet.sol#178-185) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/BasketLiquidityLifecycleFacet.sol#182)",
+      "rationale": "The stop path invokes the Diamond checkpoint before stopping the gauge; committed and recycled amounts are emitted and do not control the authenticated stop.",
+      "occurrences": 1,
+      "id": "a411c143e5561b51199d5d63"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5974,6 +6070,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/RangeGaugePositionBase.sol"
+      ],
+      "summary": "RangeGaugePositionBase._enforcePublicGauge(PoolId,bool) (src/facets/RangeGaugePositionBase.sol#130-146) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugePositionBase.sol#131-132)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "a983be0809efbd2d11ec8b81"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolRevenueFacet.sol"
       ],
       "summary": "ProtocolRevenueFacet.canAccrueBasketRewards(PoolId) (src/facets/ProtocolRevenueFacet.sol#72-76) ignores return value by (kind,None,basketId,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolRevenueFacet.sol#73)",
@@ -6012,22 +6124,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b02740d9b5c3173ebcecad62"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibGaugeEligibility.sol"
-      ],
-      "summary": "LibGaugeEligibility.latestRestrictionSequence(PoolId,uint64) (src/libraries/LibGaugeEligibility.sol#43-48) ignores return value by (None,key,None,None) = LibProtocolPools.resolve(poolId) (src/libraries/LibGaugeEligibility.sol#44)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "b085a87efa1eba8dc340f010"
     },
     {
       "impact": "Medium",
@@ -6140,22 +6236,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "b70a139bda48cb56d175a115"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GlobalRewardsFacet.sol"
-      ],
-      "summary": "GlobalRewardsFacet.claimRewards(uint256,address[],address,uint256[]) (src/facets/GlobalRewardsFacet.sol#97-133) ignores return value by (None,amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/GlobalRewardsFacet.sol#124)",
-      "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
-      "occurrences": 1,
-      "id": "b74e00b387f0aaf8d2a4c462"
     },
     {
       "impact": "Medium",
@@ -6460,6 +6540,22 @@
       "rationale": "The call is used for its validated state transition or partial tuple data; repayment and route accounting consume independently measured balances and authoritative callback values rather than the redundant return component.",
       "occurrences": 1,
       "id": "c4f82d945784c628453115e7"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet._validateAllocatorSlot(PoolId,uint8) (src/facets/GaugeIncentiveViewFacet.sol#197-203) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/GaugeIncentiveViewFacet.sol#201)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "c5d72113d2275429fe504f81"
     },
     {
       "impact": "Medium",
@@ -6854,12 +6950,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeLivenessFacet.sol"
+        "src/facets/RangeGaugeViewFacet.sol"
       ],
-      "summary": "RangeGaugeLivenessFacet._enforceHistoricalPublicGauge(PoolId) (src/facets/RangeGaugeLivenessFacet.sol#279-292) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugeLivenessFacet.sol#280-281)",
+      "summary": "RangeGaugeViewFacet.previewLpRewards(uint256,PoolId) (src/facets/RangeGaugeViewFacet.sol#137-170) ignores return value by (unsettled,None) = LibRangeGauge.positionAccrual(leg.liquidity,growthDeltaRay,leg.rewardRemainderRay[slot]) (src/facets/RangeGaugeViewFacet.sol#164-165)",
       "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
-      "id": "d91a75638a468d80868c7cff"
+      "id": "d9c4f1b3354e884b83616f3e"
     },
     {
       "impact": "Medium",
@@ -6870,12 +6966,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugeViewFacet.sol"
+        "src/facets/RangeGaugeLivenessFacet.sol"
       ],
-      "summary": "RangeGaugeViewFacet.previewLpRewards(uint256,PoolId) (src/facets/RangeGaugeViewFacet.sol#137-170) ignores return value by (unsettled,None) = LibRangeGauge.positionAccrual(leg.liquidity,growthDeltaRay,leg.rewardRemainderRay[slot]) (src/facets/RangeGaugeViewFacet.sol#164-165)",
+      "summary": "RangeGaugeLivenessFacet._synchronizeAndSettle(PoolId,PoolKey,LibRangeGauge.LpLeg) (src/facets/RangeGaugeLivenessFacet.sol#253-260) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugeLivenessFacet.sol#255)",
       "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
-      "id": "d9c4f1b3354e884b83616f3e"
+      "id": "da07abcbf32c7bd522d6b22d"
     },
     {
       "impact": "Medium",
@@ -6940,6 +7036,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "dcc55ef8e7d2fcb4a2b4c42c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.checkpointEpoch(uint40) (src/libraries/LibGaugeRouting.sol#150-191) ignores return value by LibGaugeReserve.rollDeferred(epoch) (src/libraries/LibGaugeRouting.sol#159)",
+      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "occurrences": 1,
+      "id": "dd13c06ef0f104bc70156f04"
     },
     {
       "impact": "Medium",
@@ -7126,6 +7238,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketLiquidityLifecycleFacet.sol"
+      ],
+      "summary": "BasketLiquidityLifecycleFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey) (src/facets/BasketLiquidityLifecycleFacet.sol#178-185) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityLifecycleFacet.sol#180)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "e7eec81d6eaa0581f44d42dd"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver.constructor(address) (src/periphery/StaticsFlashArbitrageReceiver.sol#81-86) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(staticsDiamond_).liquidityIntegration() (src/periphery/StaticsFlashArbitrageReceiver.sol#82)",
@@ -7158,12 +7286,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
+        "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "LibGaugeRouting.checkpointEpoch(uint40) (src/libraries/LibGaugeRouting.sol#161-201) ignores return value by LibGaugeReserve.rollDeferred(epoch) (src/libraries/LibGaugeRouting.sol#170)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#226-234) ignores return value by (None,liveTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/ProtocolPoolAdminFacet.sol#229)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
       "occurrences": 1,
-      "id": "eb901cbb77b930fb1da18e46"
+      "id": "eb7cb13f90eb0b53c24759f0"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/GlobalRewardsFacet.sol"
+      ],
+      "summary": "GlobalRewardsFacet.distributeTreasuryFees(address) (src/facets/GlobalRewardsFacet.sol#137-148) ignores return value by LibCustody.pushReserved(LibCustody.feeAccount(),asset,treasury_,amount,amount) (src/facets/GlobalRewardsFacet.sol#146)",
+      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
+      "occurrences": 1,
+      "id": "ebd6300cbfdf68771a9508cd"
     },
     {
       "impact": "Medium",
@@ -7196,6 +7340,22 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "eda3d4512ed6078d6c3fc26f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/RangeGaugeCallbackFacet.sol"
+      ],
+      "summary": "RangeGaugeCallbackFacet.afterProtocolPoolSwap(PoolId) (src/facets/RangeGaugeCallbackFacet.sol#26-52) ignores return value by (None,finalTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/RangeGaugeCallbackFacet.sol#48)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "ee80fb572e5089755539af58"
     },
     {
       "impact": "Medium",
@@ -7283,22 +7443,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveFacet.sol"
-      ],
-      "summary": "GaugeIncentiveFacet._validateAllocatorSlot(PoolId,uint8) (src/facets/GaugeIncentiveFacet.sol#191-197) ignores return value by (None,assigned) = LibRangeGauge.rewardAsset(poolId,slot) (src/facets/GaugeIncentiveFacet.sol#195)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "f262b91020067443287f4fd9"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7324,22 +7468,6 @@
       "rationale": "The call is a capability or existence check whose successful return is irrelevant; revert behavior and its state/index side effect are the required result.",
       "occurrences": 1,
       "id": "f33b0b4c9d2e07aae8ac1890"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibRangeGauge.sol"
-      ],
-      "summary": "LibRangeGauge._setBoundaryBit(LibRangeGauge.GaugePool,int24,int24,bool) (src/libraries/LibRangeGauge.sol#880-893) ignores return value by (wordPos,None) = TickBitmap.position(compressed) (src/libraries/LibRangeGauge.sol#882)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "f6a3cc052e99d4a466f8ace4"
     },
     {
       "impact": "Medium",
@@ -7379,22 +7507,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/RangeGaugePositionBase.sol"
-      ],
-      "summary": "RangeGaugePositionBase._storeNewLeg(uint256,PoolId,address,uint256,IStaticsLiquidityManager.ManagedPositionState) (src/facets/RangeGaugePositionBase.sol#32-54) ignores return value by LibPosition.activateLeg(positionId,LibPosition.LP_MODULE,PoolId.unwrap(poolId)) (src/facets/RangeGaugePositionBase.sol#53)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
-      "occurrences": 1,
-      "id": "fdbddbd21e42abe7ca291c3a"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7404,6 +7516,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "fdf0f790440cb4f1b3c886ae"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.checkpointPool(PoolId,uint40) (src/libraries/LibGaugeRouting.sol#193-205) ignores return value by LibRangeGauge.checkpointProtocolStream(poolId,currentTime) (src/libraries/LibGaugeRouting.sol#195)",
+      "rationale": "Pool checkpointing requires the protocol-stream accounting side effect before epoch resolution; the returned emission is already reflected in stream state.",
+      "occurrences": 1,
+      "id": "fe770897bc1911d05cc23478"
     },
     {
       "impact": "Medium",
@@ -7430,12 +7558,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
+        "src/facets/ProtocolPoolAdminFacet.sol"
       ],
-      "summary": "StaticsDollarGatewayFacet._recombineToVolatile(LibPeriphery.PS,StaticsDollarGatewayFacet.PeggedRecombineRequest,StaticsDollarGatewayFacet.PeggedRecombinePrepared) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#537-567) ignores return value by LibCustody.finishUnreservedDebit(ps.staticsDollar,staticsDollarBefore,request.riskAmount) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#555)",
-      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
+      "summary": "ProtocolPoolAdminFacet._stopRangeGauge(LibBasketLiquidity.LiquidityStorage,PoolKey,PoolId) (src/facets/ProtocolPoolAdminFacet.sol#226-234) ignores return value by IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId) (src/facets/ProtocolPoolAdminFacet.sol#231)",
+      "rationale": "The stop path invokes the Diamond checkpoint before stopping the gauge; committed and recycled amounts are emitted and do not control the authenticated stop.",
       "occurrences": 1,
-      "id": "ffebabe12ff9176f0862a77d"
+      "id": "ffcb2b18e55e4a01f98dc058"
     },
     {
       "impact": "Medium",
@@ -7446,12 +7574,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/RangeGaugePositionBase.sol"
+        "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
-      "summary": "RangeGaugePositionBase._enforcePublicGauge(PoolId,bool) (src/facets/RangeGaugePositionBase.sol#127-143) ignores return value by (kind,registeredKey,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/RangeGaugePositionBase.sol#128-129)",
-      "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
+      "summary": "StaticsDollarGatewayFacet._recombineToVolatile(LibPeriphery.PS,StaticsDollarGatewayFacet.PeggedRecombineRequest,StaticsDollarGatewayFacet.PeggedRecombinePrepared) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#537-567) ignores return value by LibCustody.finishUnreservedDebit(ps.staticsDollar,staticsDollarBefore,request.riskAmount) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#555)",
+      "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
-      "id": "fff02b6f46063590c3942147"
+      "id": "ffebabe12ff9176f0862a77d"
     },
     {
       "impact": "Low",
@@ -8874,7 +9002,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._seedPermanentLiquidity(IStaticsSwapFeeHook.PermanentLiquiditySeed[]) (src/liquidity/StaticsSwapFeeHook.sol#391-431):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 2,
+      "occurrences": 1,
       "id": "0c2d993b24b9748150734bea"
     },
     {
@@ -8934,22 +9062,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#53-58):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "20e3c57a023bf3675d120c03"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibMorpho.sol"
       ],
       "summary": "Reentrancy in LibMorpho.ensureAccount(uint256) (src/libraries/LibMorpho.sol#105-117):",
@@ -8988,22 +9100,6 @@
       "rationale": "Events are emitted only after authenticated, exact settlement has completed. Public entrypoints are nonReentrant, PoolManager callbacks are sender-authenticated, and any callback failure reverts both state and logs.",
       "occurrences": 1,
       "id": "2480223ef9191acd609ae493"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#67-84):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "287c84a406375d1a16241b5c"
     },
     {
       "impact": "Low",
@@ -9169,22 +9265,6 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#47-51):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "4c267baf437655642c1292c6"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
       "classification": "FALSE POSITIVE",
       "passes": [
         "production-contracts"
@@ -9213,6 +9293,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "53462a82308206c3cb0e7458"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setDefaultProtocolPoolFeeRate(IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#48-52):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "54651be8bf7a0be4359bbef4"
     },
     {
       "impact": "Low",
@@ -9278,6 +9374,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "5ea8f8521d255c17aa0969ee"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#87-100):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "5ec669a6ef8439f73d1e292f"
     },
     {
       "impact": "Low",
@@ -9510,38 +9622,6 @@
       "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.setGeneralFeeAllocation(IStaticsProtocolPools.GeneralFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#86-99):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "8eebe5292f7e279110b55764"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPoolAdminFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#60-65):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "955b64eb2a7f4693833ab406"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9659,12 +9739,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.clearProtocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolAdminFacet.sol#61-66):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "a2df17f508ef39b656f79f33"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._compound(PoolKey,PoolId) (src/liquidity/StaticsSwapFeeHook.sol#647-667):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a4d7f690d07fa7cb55bf1a4f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setProtocolPoolFeeRate(PoolId,IStaticsProtocolPools.PoolSwapFeeRate) (src/facets/ProtocolPoolAdminFacet.sol#54-59):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "a60107e2b69f1ceed9a0c746"
     },
     {
       "impact": "Low",
@@ -9822,6 +9934,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPoolAdminFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPoolAdminFacet.setBasketFeeAllocation(IStaticsProtocolPools.BasketFeeAllocation) (src/facets/ProtocolPoolAdminFacet.sol#68-85):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
+      "occurrences": 1,
+      "id": "c1dfb8b2c4b1c54178f5ddcf"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/position/PositionNFTFacet.sol"
       ],
       "summary": "Reentrancy in PositionNFTFacet.createPosition(address) (src/position/PositionNFTFacet.sol#45-49):",
@@ -9842,7 +9970,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "d3018f273abe2689340e93c5"
     },
     {
@@ -9858,7 +9986,7 @@
       ],
       "summary": "Reentrancy in StaticsSwapFeeHook._harvestPermanentLiquidity(StaticsSwapFeeHook.HarvestRequest) (src/liquidity/StaticsSwapFeeHook.sol#348-354):",
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
-      "occurrences": 1,
+      "occurrences": 2,
       "id": "d459bc1900a8796e5976c5f0"
     },
     {
@@ -10258,6 +10386,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet.gaugeReserve() (src/facets/GaugeIncentiveViewFacet.sol#22-50) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "0992b60bab4027acb95a48d9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
       "summary": "LibGlobalRewards._duePendingStake(LibGlobalRewards.RewardBook) (src/libraries/LibGlobalRewards.sol#830-841) uses timestamp for comparisons",
@@ -10328,6 +10472,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "1524ce262714dd50b8793c40"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.clearForStakeLoss(uint256,uint256) (src/libraries/LibGaugeRouting.sol#228-251) uses timestamp for comparisons",
+      "rationale": "Stake-loss cleanup checkpoints the Monday-aligned epoch before changing routing weight; bounded timestamp influence cannot choose a different weekly boundary except at the actual boundary.",
+      "occurrences": 1,
+      "id": "1c3bab5df55d898047eb82a3"
     },
     {
       "impact": "Low",
@@ -10450,12 +10610,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/GaugeIncentiveViewFacet.sol"
+        "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "GaugeIncentiveViewFacet.previewGaugeAllocatorRewards(uint256,PoolId,uint64,uint8[]) (src/facets/GaugeIncentiveViewFacet.sol#158-180) uses timestamp for comparisons",
+      "summary": "LibGaugeRouting._promote(LibGaugeRouting.PositionAllocations,uint64) (src/libraries/LibGaugeRouting.sol#489-499) uses timestamp for comparisons",
       "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "3d1ccd17299f8ba0c3373577"
+      "id": "39b9adf85099cc24bb913de4"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#575-611) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "3de215138efa13ba8d1f3cbb"
     },
     {
       "impact": "Low",
@@ -10482,12 +10658,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
+        "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "LibGaugeRouting._removeScheduledWeights(LibGaugeRouting.RoutingStorage,uint256,LibGaugeRouting.PositionAllocations,uint64,uint64) (src/libraries/LibGaugeRouting.sol#356-381) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "summary": "StaticsLiquidityManager._validateInputRequest(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#457-463) uses timestamp for comparisons",
+      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
-      "id": "3fbbfa2c39eccd78849f502d"
+      "id": "42a0b0bf390591551f2b88ca"
     },
     {
       "impact": "Low",
@@ -10498,12 +10674,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
+        "src/facets/GaugeIncentiveFacet.sol"
       ],
-      "summary": "StaticsLiquidityManager._validateInputRequest(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#457-463) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "GaugeIncentiveFacet._claimAllocatorReward(GaugeIncentiveFacet.AllocatorClaimContext,uint8,uint256) (src/facets/GaugeIncentiveFacet.sol#135-161) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "42a0b0bf390591551f2b88ca"
+      "id": "44a415e984efb1ed352a4aab"
     },
     {
       "impact": "Low",
@@ -10548,10 +10724,10 @@
       "paths": [
         "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "LibGaugeRouting.setAllocations(uint256,PoolId[],uint256[],uint256) (src/libraries/LibGaugeRouting.sol#107-132) uses timestamp for comparisons",
+      "summary": "LibGaugeRouting._removeScheduledWeights(LibGaugeRouting.RoutingStorage,uint256,LibGaugeRouting.PositionAllocations,uint64,uint64) (src/libraries/LibGaugeRouting.sol#501-528) uses timestamp for comparisons",
       "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "52dea389383de90e3b130bd1"
+      "id": "500909014e25ac0702f983ca"
     },
     {
       "impact": "Low",
@@ -10626,22 +10802,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting._writePoolWeightCheckpoint(LibGaugeRouting.RoutingStorage,PoolId,uint64) (src/libraries/LibGaugeRouting.sol#402-414) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
-      "occurrences": 1,
-      "id": "6721100b872d74004fbdd357"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/ChainlinkUsdOracle.sol"
       ],
       "summary": "ChainlinkUsdOracle._requireSequencerUp() (src/dollar/ChainlinkUsdOracle.sol#83-97) uses timestamp for comparisons",
@@ -10664,22 +10824,6 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "6b2526042233d4556b4acd46"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveViewFacet.sol"
-      ],
-      "summary": "GaugeIncentiveViewFacet.gaugeReserve() (src/facets/GaugeIncentiveViewFacet.sol#23-51) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
-      "occurrences": 1,
-      "id": "708dbc78ff9c0944afd8fe4e"
     },
     {
       "impact": "Low",
@@ -10770,6 +10914,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/GaugeIncentiveViewFacet.sol"
+      ],
+      "summary": "GaugeIncentiveViewFacet.gaugeAllocatorReward(PoolId,uint8,uint64) (src/facets/GaugeIncentiveViewFacet.sol#126-145) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "853a98960a8f026a319b7378"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._closeExpiredEpochs(LibGaugeRouting.RoutingStorage,uint40) (src/libraries/LibGaugeRouting.sol#445-452) uses timestamp for comparisons",
+      "rationale": "Epoch recycling deliberately compares the supplied current time to a fixed activation deadline; callers cannot redirect funds and closure only returns expired commitments to reserve.",
+      "occurrences": 1,
+      "id": "854252cf97597b83c3ee927d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/LendingFacet.sol"
       ],
       "summary": "LendingFacet.extend(uint256,uint256[]) (src/facets/LendingFacet.sol#80-118) uses timestamp for comparisons",
@@ -10792,6 +10968,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "89529e7119acc4a30b2e72c9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting._writePoolWeightCheckpoint(LibGaugeRouting.RoutingStorage,PoolId,uint64) (src/libraries/LibGaugeRouting.sol#555-573) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "8c2373edc323aecaf48b0428"
     },
     {
       "impact": "Low",
@@ -10836,10 +11028,10 @@
       "paths": [
         "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "LibGaugeRouting._promote(LibGaugeRouting.PositionAllocations,uint64) (src/libraries/LibGaugeRouting.sol#344-354) uses timestamp for comparisons",
+      "summary": "LibGaugeRouting.lockedStake(uint256) (src/libraries/LibGaugeRouting.sol#218-226) uses timestamp for comparisons",
       "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "a01dbe259e82dc57403fc476"
+      "id": "a1e48086f7108631b77876d1"
     },
     {
       "impact": "Low",
@@ -11090,12 +11282,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
+        "src/genesis/StaticsTreasuryVesting.sol"
       ],
-      "summary": "LibGaugeRouting.lockedStake(uint256) (src/libraries/LibGaugeRouting.sol#242-250) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#69-109) uses timestamp for comparisons",
+      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
-      "id": "d1d501866ecda3afd8733655"
+      "id": "d29f349df7320d8527879558"
     },
     {
       "impact": "Low",
@@ -11106,12 +11298,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/genesis/StaticsTreasuryVesting.sol"
+        "src/facets/GaugeIncentiveViewFacet.sol"
       ],
-      "summary": "StaticsTreasuryVesting.finalizeBootstrap(address,address,address) (src/genesis/StaticsTreasuryVesting.sol#69-109) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
+      "summary": "GaugeIncentiveViewFacet.previewGaugeAllocatorRewards(uint256,PoolId,uint64,uint8[]) (src/facets/GaugeIncentiveViewFacet.sol#156-178) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
-      "id": "d29f349df7320d8527879558"
+      "id": "d3ec684fc1c365c19c916ae9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.setAllocations(uint256,PoolId[],uint256[],uint256) (src/libraries/LibGaugeRouting.sol#124-148) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
+      "occurrences": 1,
+      "id": "d4c509a0aa18fe0ab591de41"
     },
     {
       "impact": "Low",
@@ -11250,38 +11458,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
-      ],
-      "summary": "LibGaugeRouting._writePositionCheckpoint(LibGaugeRouting.RoutingStorage,uint256,PoolId,uint64,uint256,bytes32) (src/libraries/LibGaugeRouting.sol#416-453) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
-      "occurrences": 1,
-      "id": "ddb2a680a9d7a9cc4bff0cfd"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveViewFacet.sol"
-      ],
-      "summary": "GaugeIncentiveViewFacet.gaugeAllocatorReward(PoolId,uint8,uint64) (src/facets/GaugeIncentiveViewFacet.sol#128-147) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
-      "occurrences": 1,
-      "id": "e41584b8aaa145ee85fe8a67"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault._epochActive() (src/genesis/StaticsGenesisVault.sol#618-620) uses timestamp for comparisons",
@@ -11320,22 +11496,6 @@
       "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
       "occurrences": 1,
       "id": "f92d2ec9d3b3e58410455c56"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/GaugeIncentiveFacet.sol"
-      ],
-      "summary": "GaugeIncentiveFacet._claimAllocatorReward(GaugeIncentiveFacet.AllocatorClaimContext,uint8,uint256) (src/facets/GaugeIncentiveFacet.sol#151-177) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison implements explicit weekly epoch, activation, funding, preview, or claim-expiry semantics and is not used as randomness or a price source.",
-      "occurrences": 1,
-      "id": "f954f235015994e6ab36fc70"
     },
     {
       "impact": "Low",
@@ -11386,9 +11546,9 @@
       "id": "fed3e8489116b346fd72765e"
     },
     {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -11396,10 +11556,10 @@
       "paths": [
         "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "LibGaugeRouting.routingStorage() (src/libraries/LibGaugeRouting.sol#80-85) uses assembly",
-      "rationale": "Memory-safe assembly binds the library struct to its unique namespaced Diamond storage slot; no arbitrary memory or calldata is accessed.",
+      "summary": "LibGaugeRouting.checkpointEpoch(uint40) (src/libraries/LibGaugeRouting.sol#150-191) uses timestamp for comparisons",
+      "rationale": "Weekly epoch activation, prospective release scheduling, and duration proration intentionally use bounded block time against deterministic Monday boundaries.",
       "occurrences": 1,
-      "id": "0062b216fc113f2b6b1775ca"
+      "id": "ff37a018acd035f0e8ac28de"
     },
     {
       "impact": "Informational",
@@ -11586,6 +11746,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibRewardPolicy.sol"
+      ],
+      "summary": "LibRewardPolicy.rewardPolicyStorage() (src/libraries/LibRewardPolicy.sol#24-29) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "33dbdffb5a30e661db5b7c6e"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibBasketCollateral.sol"
       ],
       "summary": "LibBasketCollateral.collateralStorage() (src/libraries/LibBasketCollateral.sol#25-30) uses assembly",
@@ -11608,22 +11784,6 @@
       "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
       "occurrences": 1,
       "id": "6795cc84a279d3bf7880dd61"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibRewardPolicy.sol"
-      ],
-      "summary": "LibRewardPolicy.rewardPolicyStorage() (src/libraries/LibRewardPolicy.sol#19-24) uses assembly",
-      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
-      "occurrences": 1,
-      "id": "67f3c1b87b96ef8381d910f0"
     },
     {
       "impact": "Informational",
@@ -11704,6 +11864,22 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "980e580ec4602508047f7036"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGaugeRouting.sol"
+      ],
+      "summary": "LibGaugeRouting.routingStorage() (src/libraries/LibGaugeRouting.sol#95-100) uses assembly",
+      "rationale": "Memory-safe assembly binds the library struct to its unique namespaced Diamond storage slot; no arbitrary memory or calldata is accessed.",
+      "occurrences": 1,
+      "id": "9b5da78043186b63bbfac479"
     },
     {
       "impact": "Informational",
@@ -12835,6 +13011,22 @@
       "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
       "occurrences": 1,
       "id": "92dc7d617902f1a292e142a8"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/DeployStaticsPhases.s.sol"
+      ],
+      "summary": "DeployStaticsPhases._validatePhaseOneRuntimes(address) (script/DeployStaticsPhases.s.sol#649-710) uses literals with too many digits:",
+      "rationale": "These literals are exact runtime hashes, CREATE2/hook permission values, or deployment identifiers that must match machine-checked bytecode and cannot be rounded or shortened.",
+      "occurrences": 1,
+      "id": "94be4ea0fbae2b3e4163f70e"
     },
     {
       "impact": "Informational",
