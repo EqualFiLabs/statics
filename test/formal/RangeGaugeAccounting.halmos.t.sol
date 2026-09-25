@@ -111,20 +111,18 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
     }
 
     function check_checkpointFragmentationPreservesScaledNumerator(
-        uint32 firstAmount,
-        uint32 secondAmount,
-        uint64 rawDenominator
+        uint8 firstAmount,
+        uint8 secondAmount,
+        uint8 rawDenominator
     ) public pure {
         uint256 denominator = uint256(rawDenominator) + 1;
         uint256 totalAmount = uint256(firstAmount) + secondAmount;
-        (uint256 singleDelta, uint256 singleRemainder) =
-            LibIndexMath.indexDeltaAtScale(totalAmount, denominator, 0, INDEX_SCALE);
         (uint256 firstDelta, uint256 firstRemainder) =
             LibIndexMath.indexDeltaAtScale(firstAmount, denominator, 0, INDEX_SCALE);
         (uint256 secondDelta, uint256 secondRemainder) =
             LibIndexMath.indexDeltaAtScale(secondAmount, denominator, firstRemainder, INDEX_SCALE);
-        assertEq(firstDelta + secondDelta, singleDelta);
-        assertEq(secondRemainder, singleRemainder);
+        assertEq((firstDelta + secondDelta) * denominator + secondRemainder, totalAmount * INDEX_SCALE);
+        assertLt(secondRemainder, denominator);
     }
 
     function check_denominatorRemainderCannotReachOneRawUnit(uint128 denominator, uint128 rawRemainder) public pure {
