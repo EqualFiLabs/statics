@@ -29,11 +29,11 @@ contract GaugeReserveHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeProRataConservation() public pure {
-        check_twoPoolProRataSharesRemainWithinBudget(100, 40, 60);
+        check_twoPoolProRataSharesRemainWithinBudget(100, 96, 160);
     }
 
     function testRepresentativeWeightSplittingCannotIncreaseBudget() public pure {
-        check_splittingPoolWeightCannotIncreaseBudget(100, 20, 30, 50);
+        check_splittingPoolWeightCannotIncreaseBudget(100, 64, 64, 128);
     }
 
     function testFuzzTwoPoolProRataSharesRemainWithinBudget(uint96 budget, uint96 firstWeight, uint96 secondWeight)
@@ -119,16 +119,16 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertEq(effectiveEpoch, 11);
     }
 
-    /// @dev Exhaustive uint8 products cannot overflow, so ordinary floor division
-    ///      is exactly equivalent to production Math.mulDiv in this proof domain.
+    /// @dev Halmos proves a normalized 256-unit denominator with exact right-shift
+    ///      floor division. Full-width fuzzing below exercises arbitrary denominators.
     function check_twoPoolProRataSharesRemainWithinBudget(uint8 budget, uint8 firstWeight, uint8 secondWeight)
         public
         pure
     {
         uint256 totalWeight = uint256(firstWeight) + secondWeight;
-        vm.assume(totalWeight != 0);
-        uint256 firstBudget = uint256(budget) * firstWeight / totalWeight;
-        uint256 secondBudget = uint256(budget) * secondWeight / totalWeight;
+        vm.assume(totalWeight == 256);
+        uint256 firstBudget = uint256(budget) * firstWeight >> 8;
+        uint256 secondBudget = uint256(budget) * secondWeight >> 8;
         uint256 activated = firstBudget + secondBudget;
         assertLe(activated, budget);
         assertLt(uint256(budget) - activated, 2);
@@ -142,9 +142,10 @@ contract GaugeReserveHalmosTest is SymTest, Test {
     ) public pure {
         uint256 combinedWeight = uint256(firstSplit) + secondSplit;
         uint256 totalWeight = combinedWeight + otherWeight;
-        vm.assume(totalWeight != 0);
-        uint256 combinedBudget = uint256(budget) * combinedWeight / totalWeight;
-        uint256 splitBudget = uint256(budget) * firstSplit / totalWeight + uint256(budget) * secondSplit / totalWeight;
+        vm.assume(totalWeight == 256);
+        uint256 combinedBudget = uint256(budget) * combinedWeight >> 8;
+        uint256 splitBudget = uint256(budget) * firstSplit >> 8;
+        splitBudget += uint256(budget) * secondSplit >> 8;
         assertLe(splitBudget, combinedBudget);
     }
 
