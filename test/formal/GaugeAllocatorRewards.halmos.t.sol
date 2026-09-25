@@ -43,11 +43,10 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         assertEq(lpAmount + allocatorAmount, received);
     }
 
-    function check_claimRoundingCannotExceedBudget(uint16 budget, uint16 firstWeightUnits) public pure {
-        vm.assume(firstWeightUnits <= 256);
+    function check_claimRoundingCannotExceedBudget(uint8 budget, uint8 firstWeightUnits) public pure {
         uint256 secondWeightUnits = 256 - firstWeightUnits;
-        // Normalizing the two weights to 256 units proves 257 ratios with exact
-        // floor division expressed as a solver-friendly right shift.
+        // Normalizing the two weights to 256 units proves every uint8 ratio with
+        // exact floor division expressed as a solver-friendly right shift.
         uint256 firstClaim = (uint256(budget) * firstWeightUnits) >> 8;
         uint256 secondClaim = (uint256(budget) * secondWeightUnits) >> 8;
         uint256 claimed = firstClaim + secondClaim;

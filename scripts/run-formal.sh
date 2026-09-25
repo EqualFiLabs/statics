@@ -157,8 +157,8 @@ case "$TARGET" in
     # Full-precision mulDiv and modular-growth branches can make feasibility refinement
     # dominate otherwise small rules. As in the permanent-liquidity suite, unknown
     # branch feasibility is conservatively explored on both sides while assertions
-    # retain their unbounded solver timeout. The two-claim rule exhausts uint16
-    # budgets across a 256-unit normalized two-party weight domain, replacing exact
+    # retain their unbounded solver timeout. The two-claim rule exhausts uint8
+    # budgets and weights in a 256-unit normalized domain, replacing exact
     # floor division with a right shift. Full-width Foundry fuzz tests execute mulDiv
     # across arbitrary raw weights in the production uint256 domain.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
