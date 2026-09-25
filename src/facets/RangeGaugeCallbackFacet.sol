@@ -5,6 +5,7 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGaugeCallback} from "../interfaces/IStaticsRangeGaugeCallback.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
@@ -45,8 +46,8 @@ contract RangeGaugeCallbackFacet is IStaticsRangeGaugeCallback {
         if (gauge.stopped) return;
 
         (, int24 finalTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
-        LibRangeGauge.synchronizeAfterSwap(
-            poolId, key.tickSpacing, finalTick, LibRangeGauge.timestamp40(block.timestamp)
-        );
+        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
+        LibRangeGauge.synchronizeAfterSwap(poolId, key.tickSpacing, finalTick, currentTime);
     }
 }

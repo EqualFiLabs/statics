@@ -9,6 +9,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
@@ -78,7 +79,9 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
     function _synchronize(PoolId poolId, PoolKey memory key) internal {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
-        LibRangeGauge.synchronizeTopology(poolId, key.tickSpacing, liveTick, LibRangeGauge.timestamp40(block.timestamp));
+        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
+        LibRangeGauge.synchronizeTopology(poolId, key.tickSpacing, liveTick, currentTime);
     }
 
     function _leg(uint256 positionId, PoolId poolId) internal view returns (LibRangeGauge.LpLeg storage leg) {

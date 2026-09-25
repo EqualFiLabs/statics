@@ -52,31 +52,15 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
         nonReentrant
         returns (uint64 epoch, uint256 committedBudget, bool finalized)
     {
-        (epoch, committedBudget, finalized) = LibGaugeRouting.checkpointEpoch(uint40(block.timestamp));
-        if (!finalized) return (epoch, committedBudget, false);
-        LibGaugeRouting.EpochState storage state = LibGaugeRouting.routingStorage().epochs[epoch];
-        emit IStaticsGaugeIncentives.GaugeEpochFinalized(
-            epoch,
-            state.activatedAt,
-            state.finish,
-            state.releaseBps,
-            state.nominalBudget,
-            state.committedBudget,
-            state.totalWeight,
-            state.winnerCount
-        );
-        for (uint256 i; i < state.winnerCount; ++i) {
-            emit IStaticsGaugeIncentives.ProtocolGaugeRewardCommitted(
-                epoch, state.pools[i], state.weights[i], state.budgets[i]
-            );
-        }
+        return LibGaugeRouting.checkpointEpoch(uint40(block.timestamp));
     }
 
-    function refreshGaugePoolWeight(PoolId poolId) external returns (uint256 removedWeight) {
-        bytes32 previous;
-        bytes32 current;
-        (removedWeight, previous, current) = LibGaugeRouting.refreshPoolWeight(poolId);
-        emit IStaticsGaugeIncentives.GaugePoolWeightRefreshed(poolId, previous, current, removedWeight);
+    function checkpointGaugePool(PoolId poolId) external returns (uint256 committed, uint256 recycled) {
+        return LibGaugeRouting.checkpointPool(poolId, LibRangeGauge.timestamp40(block.timestamp));
+    }
+
+    function closeGaugeEpoch(uint64 epoch) external nonReentrant returns (uint256 recycled) {
+        return LibGaugeRouting.closeEpoch(epoch, LibRangeGauge.timestamp40(block.timestamp));
     }
 
     function scheduleGaugeReleaseBps(uint16 releaseBps) external {

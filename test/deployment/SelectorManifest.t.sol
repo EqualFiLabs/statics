@@ -169,16 +169,17 @@ contract SelectorManifestTest is Test {
     }
 
     function testGaugeIncentiveSelectorSubsetsAreExact() public pure {
-        bytes4[] memory actions = new bytes4[](9);
+        bytes4[] memory actions = new bytes4[](10);
         actions[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
         actions[1] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
         actions[2] = IStaticsGaugeIncentives.checkpointGaugeEpoch.selector;
-        actions[3] = IStaticsGaugeIncentives.refreshGaugePoolWeight.selector;
-        actions[4] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
-        actions[5] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
-        actions[6] = IStaticsGaugeIncentives.finalizeGaugeAllocatorReward.selector;
-        actions[7] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
-        actions[8] = IStaticsGaugeIncentives.expireGaugeAllocatorReward.selector;
+        actions[3] = IStaticsGaugeIncentives.checkpointGaugePool.selector;
+        actions[4] = IStaticsGaugeIncentives.closeGaugeEpoch.selector;
+        actions[5] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
+        actions[6] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        actions[7] = IStaticsGaugeIncentives.finalizeGaugeAllocatorReward.selector;
+        actions[8] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        actions[9] = IStaticsGaugeIncentives.expireGaugeAllocatorReward.selector;
         _assertExact(StaticsSelectors.gaugeIncentiveActions(), actions);
 
         bytes4[] memory views = new bytes4[](13);
@@ -188,7 +189,7 @@ contract SelectorManifestTest is Test {
         views[3] = IStaticsGaugeIncentives.gaugePoolWeight.selector;
         views[4] = IStaticsGaugeIncentives.gaugePositionAllocations.selector;
         views[5] = IStaticsGaugeIncentives.gaugeEpoch.selector;
-        views[6] = IStaticsGaugeIncentives.previewGaugeTopTen.selector;
+        views[6] = IStaticsGaugeIncentives.previewGaugePoolReward.selector;
         views[7] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
         views[8] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
         views[9] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;

@@ -22,6 +22,10 @@ contract RangeGaugeCallbackHarness is RangeGaugeCallbackFacet {
         LibRangeGauge.initializeGlobalConfig();
     }
 
+    function checkpointGaugePool(PoolId) external pure returns (uint256 committed, uint256 recycled) {
+        return (0, 0);
+    }
+
     function installPublicIntegration(address poolManager, address hook) external {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         ls.poolManager = poolManager;

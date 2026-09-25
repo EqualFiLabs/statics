@@ -96,16 +96,17 @@ library StaticsSelectors {
     }
 
     function gaugeIncentiveActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
         selectors[1] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
         selectors[2] = IStaticsGaugeIncentives.checkpointGaugeEpoch.selector;
-        selectors[3] = IStaticsGaugeIncentives.refreshGaugePoolWeight.selector;
-        selectors[4] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
-        selectors[5] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
-        selectors[6] = IStaticsGaugeIncentives.finalizeGaugeAllocatorReward.selector;
-        selectors[7] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
-        selectors[8] = IStaticsGaugeIncentives.expireGaugeAllocatorReward.selector;
+        selectors[3] = IStaticsGaugeIncentives.checkpointGaugePool.selector;
+        selectors[4] = IStaticsGaugeIncentives.closeGaugeEpoch.selector;
+        selectors[5] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
+        selectors[6] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        selectors[7] = IStaticsGaugeIncentives.finalizeGaugeAllocatorReward.selector;
+        selectors[8] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        selectors[9] = IStaticsGaugeIncentives.expireGaugeAllocatorReward.selector;
     }
 
     function gaugeIncentiveViews() internal pure returns (bytes4[] memory selectors) {
@@ -116,7 +117,7 @@ library StaticsSelectors {
         selectors[3] = IStaticsGaugeIncentives.gaugePoolWeight.selector;
         selectors[4] = IStaticsGaugeIncentives.gaugePositionAllocations.selector;
         selectors[5] = IStaticsGaugeIncentives.gaugeEpoch.selector;
-        selectors[6] = IStaticsGaugeIncentives.previewGaugeTopTen.selector;
+        selectors[6] = IStaticsGaugeIncentives.previewGaugePoolReward.selector;
         selectors[7] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
         selectors[8] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
         selectors[9] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;

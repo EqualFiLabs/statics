@@ -101,8 +101,9 @@ contract StaticsTestDeployer {
         cut[31] = _cut(address(new PermissionedPoolAdminFacet()), StaticsSelectors.permissionedPoolAdmin());
         cut[32] = _cut(address(new PermissionedPoolViewFacet()), StaticsSelectors.permissionedPoolView());
         cut[33] = _cut(address(new RangeGaugeCallbackFacet()), StaticsSelectors.rangeGaugeCallback());
-        bytes4[] memory gaugeSync = new bytes4[](1);
+        bytes4[] memory gaugeSync = new bytes4[](2);
         gaugeSync[0] = GaugeIncentiveFacet.syncGaugeAllocationsAfterStakeLoss.selector;
+        gaugeSync[1] = GaugeIncentiveFacet.checkpointGaugePool.selector;
         cut[34] = _cut(address(new GaugeIncentiveFacet()), gaugeSync);
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(

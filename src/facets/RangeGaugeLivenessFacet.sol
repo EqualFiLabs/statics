@@ -8,6 +8,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
@@ -252,7 +253,9 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
     function _synchronizeAndSettle(PoolId poolId, PoolKey memory key, LibRangeGauge.LpLeg storage leg) private {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
-        LibRangeGauge.synchronizeTopology(poolId, key.tickSpacing, liveTick, LibRangeGauge.timestamp40(block.timestamp));
+        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
+        LibRangeGauge.synchronizeTopology(poolId, key.tickSpacing, liveTick, currentTime);
         LibRangeGauge.settleLeg(poolId, leg);
     }
 

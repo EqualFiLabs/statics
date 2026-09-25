@@ -29,16 +29,24 @@ interface IStaticsGaugeIncentives {
 
     struct EpochView {
         bool finalized;
+        bool closed;
         uint16 releaseBps;
-        uint8 winnerCount;
         uint40 activatedAt;
         uint40 finish;
+        uint40 activationDeadline;
         uint256 nominalBudget;
         uint256 committedBudget;
+        uint256 unactivatedBudget;
         uint256 totalWeight;
-        PoolId[10] pools;
-        uint256[10] weights;
-        uint256[10] budgets;
+    }
+
+    struct PoolEpochView {
+        uint256 weight;
+        bytes32 eligibilityVersion;
+        uint64 restrictionSequence;
+        uint256 budget;
+        bool resolved;
+        bool streamStarted;
     }
 
     struct AllocatorRewardView {
@@ -70,9 +78,6 @@ interface IStaticsGaugeIncentives {
         uint256 indexed positionId, uint64 indexed effectiveEpoch, uint256 totalAllocated
     );
     event PositionGaugeAllocationsClearedByStakeLoss(uint256 indexed positionId, uint256 remainingStake);
-    event GaugePoolWeightRefreshed(
-        PoolId indexed poolId, bytes32 previousVersion, bytes32 currentVersion, uint256 removedWeight
-    );
     event GaugeEpochFinalized(
         uint64 indexed epoch,
         uint40 activatedAt,
@@ -80,10 +85,11 @@ interface IStaticsGaugeIncentives {
         uint16 releaseBps,
         uint256 nominalBudget,
         uint256 committedBudget,
-        uint256 totalWeight,
-        uint8 winnerCount
+        uint256 totalWeight
     );
     event ProtocolGaugeRewardCommitted(uint64 indexed epoch, PoolId indexed poolId, uint256 weight, uint256 budget);
+    event ProtocolGaugeRewardRecycled(uint64 indexed epoch, PoolId indexed poolId, uint256 weight, uint256 budget);
+    event GaugeEpochClosed(uint64 indexed epoch, uint256 recycled);
     event GaugeAllocatorRewardFinalized(
         PoolId indexed poolId,
         uint8 indexed slot,
@@ -115,8 +121,9 @@ interface IStaticsGaugeIncentives {
     error DuplicateGaugeAllocation(PoolId poolId);
     error GaugeAllocationExceedsStake(uint256 allocated, uint256 staked);
     error GaugeEpochNotFinalized(uint64 epoch);
-    error StaleGaugePoolWeight(PoolId poolId, bytes32 storedVersion, bytes32 currentVersion);
-    error GaugePoolWeightCurrent(PoolId poolId);
+    error GaugeEpochActivationClosed(uint64 epoch, uint40 deadline, uint40 currentTime);
+    error GaugeEpochActivationActive(uint64 epoch, uint40 deadline, uint40 currentTime);
+    error GaugeEpochBudgetUnderflow(uint64 epoch, uint256 requested, uint256 available);
     error GaugeSelfCallOnly(address caller);
     error InvalidGaugeAllocatorSlot(PoolId poolId, uint8 slot);
     error GaugeAllocatorRewardNotFound(PoolId poolId, uint8 slot, uint64 epoch);
@@ -136,7 +143,8 @@ interface IStaticsGaugeIncentives {
     function fundGaugeReserve(uint256 amount) external returns (uint256 received);
     function setGaugeAllocations(uint256 positionId, PoolId[] calldata poolIds, uint256[] calldata amounts) external;
     function checkpointGaugeEpoch() external returns (uint64 epoch, uint256 committedBudget, bool finalized);
-    function refreshGaugePoolWeight(PoolId poolId) external returns (uint256 removedWeight);
+    function checkpointGaugePool(PoolId poolId) external returns (uint256 committed, uint256 recycled);
+    function closeGaugeEpoch(uint64 epoch) external returns (uint256 recycled);
     function scheduleGaugeReleaseBps(uint16 releaseBps) external;
     function syncGaugeAllocationsAfterStakeLoss(uint256 positionId, uint256 remainingStake) external;
     function finalizeGaugeAllocatorReward(PoolId poolId, uint8 slot, uint64 epoch)
@@ -167,10 +175,7 @@ interface IStaticsGaugeIncentives {
             uint256 lockedStake
         );
     function gaugeEpoch(uint64 epoch) external view returns (EpochView memory state);
-    function previewGaugeTopTen()
-        external
-        view
-        returns (PoolId[] memory pools, uint256[] memory weights, bool stale, PoolId stalePool);
+    function previewGaugePoolReward(PoolId poolId, uint64 epoch) external view returns (PoolEpochView memory state);
     function maxGaugeAllocationsPerPosition() external pure returns (uint256);
     function maxWeeklyGaugeReleaseBps() external pure returns (uint16);
     function gaugeAllocatorReward(PoolId poolId, uint8 slot, uint64 epoch)

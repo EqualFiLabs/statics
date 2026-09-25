@@ -5,7 +5,6 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
 import {LibGaugeEpoch} from "../libraries/LibGaugeEpoch.sol";
-import {LibGaugeHeap} from "../libraries/LibGaugeHeap.sol";
 import {LibGaugeReserve} from "../libraries/LibGaugeReserve.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -89,32 +88,31 @@ contract GaugeIncentiveViewFacet {
         LibGaugeRouting.EpochState storage stored = LibGaugeRouting.routingStorage().epochs[epoch];
         state = IStaticsGaugeIncentives.EpochView({
             finalized: stored.finalized,
+            closed: stored.closed,
             releaseBps: stored.releaseBps,
-            winnerCount: stored.winnerCount,
             activatedAt: stored.activatedAt,
             finish: stored.finish,
+            activationDeadline: stored.activationDeadline,
             nominalBudget: stored.nominalBudget,
             committedBudget: stored.committedBudget,
-            totalWeight: stored.totalWeight,
-            pools: stored.pools,
-            weights: stored.weights,
-            budgets: stored.budgets
+            unactivatedBudget: stored.unactivatedBudget,
+            totalWeight: stored.totalWeight
         });
     }
 
-    function previewGaugeTopTen()
+    function previewGaugePoolReward(PoolId poolId, uint64 epoch)
         external
         view
-        returns (PoolId[] memory pools, uint256[] memory weights, bool stale, PoolId stalePool)
+        returns (IStaticsGaugeIncentives.PoolEpochView memory state)
     {
-        LibGaugeHeap.Node[] memory winners;
-        (winners, stale, stalePool) = LibGaugeRouting.topTen();
-        pools = new PoolId[](winners.length);
-        weights = new uint256[](winners.length);
-        for (uint256 i; i < winners.length; ++i) {
-            pools[i] = winners[i].poolId;
-            weights[i] = winners[i].weight;
-        }
+        (
+            state.weight,
+            state.eligibilityVersion,
+            state.restrictionSequence,
+            state.budget,
+            state.resolved,
+            state.streamStarted
+        ) = LibGaugeRouting.previewPoolEpoch(poolId, epoch);
     }
 
     function maxGaugeAllocationsPerPosition() external pure returns (uint256) {

@@ -238,7 +238,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         assertEq(state.nominalBudget, 40 ether);
         assertEq(state.activatedAt, boundary + 3 days);
         assertEq(committed, expected);
-        assertEq(state.budgets[0], expected);
+        assertEq(incentives.previewGaugePoolReward(poolId, epoch).budget, expected);
         assertEq(incentives.gaugeReserve().available, 1_000 ether - expected);
     }
 
@@ -276,7 +276,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         globalRewards.unstake(positionId, 60 ether, alice);
     }
 
-    function testTopTenUsesOnlyAllocatedStakeWithDeterministicTieBreak() public {
+    function testAllAllocatedPoolsReceiveProtocolBudgetProRata() public {
         PoolId[] memory pools = new PoolId[](11);
         uint256[] memory weights = new uint256[](11);
         uint256 total;
@@ -294,13 +294,136 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         _warpNextEpoch();
         (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
         IStaticsGaugeIncentives.EpochView memory state = incentives.gaugeEpoch(epoch);
-        assertEq(state.winnerCount, 10);
-        assertEq(state.totalWeight, total - 10 ether);
+        assertEq(state.totalWeight, total);
         assertEq(state.committedBudget, committed);
-        assertLe(committed, 40_000 ether);
-        for (uint256 i; i < state.winnerCount; ++i) {
-            assertEq(state.weights[i], (11 - i) * 10 ether);
+        assertEq(committed, 40_000 ether);
+        for (uint256 i; i < pools.length; ++i) {
+            IStaticsGaugeIncentives.PoolEpochView memory poolState = incentives.previewGaugePoolReward(pools[i], epoch);
+            assertEq(poolState.weight, weights[i]);
+            assertEq(poolState.budget, committed * weights[i] / total);
+            incentives.checkpointGaugePool(pools[i]);
+            poolState = incentives.previewGaugePoolReward(pools[i], epoch);
+            assertTrue(poolState.resolved);
+            assertTrue(poolState.streamStarted);
         }
+    }
+
+    function testLazyPoolActivationBackfillsOnlyItsProRataStream() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 lpPosition = _createPosition(alice);
+        _provide(lpPosition, poolId, alice);
+        uint256 votingPosition = _createStakedPosition(bob, 100 ether);
+        _setAllocation(bob, votingPosition, poolId, 100 ether);
+        _fundReserve(bob, 1_000 ether);
+
+        _warpNextEpoch();
+        (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
+        assertEq(committed, 40 ether);
+        assertEq(rangeGauge.poolRewardStream(poolId, 0).periodBudget, 0);
+
+        vm.warp(block.timestamp + 3 days);
+        (uint256 activated, uint256 recycled) = incentives.checkpointGaugePool(poolId);
+        assertEq(activated, committed);
+        assertEq(recycled, 0);
+        IStaticsGaugeIncentives.PoolEpochView memory poolState = incentives.previewGaugePoolReward(poolId, epoch);
+        assertTrue(poolState.resolved);
+        assertTrue(poolState.streamStarted);
+        assertEq(poolState.budget, committed);
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, 0);
+        assertEq(stream.periodStart, LibGaugeEpoch.epochStart(epoch));
+        assertEq(stream.periodFinish, LibGaugeEpoch.epochFinish(epoch));
+        assertApproxEqAbs(stream.periodEmitted, committed * 3 / 7, 1);
+        assertTrue(incentives.gaugeEpoch(epoch).closed);
+    }
+
+    function testUnactivatedPoolShareRecyclesAfterOneExtraEpoch() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 votingPosition = _createStakedPosition(alice, 100 ether);
+        _setAllocation(alice, votingPosition, poolId, 100 ether);
+        _fundReserve(alice, 1_000 ether);
+
+        _warpNextEpoch();
+        (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
+        IStaticsGaugeIncentives.EpochView memory active = incentives.gaugeEpoch(epoch);
+        assertEq(committed, 40 ether);
+        assertEq(active.unactivatedBudget, committed);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IStaticsGaugeIncentives.GaugeEpochActivationActive.selector,
+                epoch,
+                active.activationDeadline,
+                uint40(block.timestamp)
+            )
+        );
+        incentives.closeGaugeEpoch(epoch);
+
+        vm.warp(active.activationDeadline);
+        (uint64 nextEpoch,, bool finalized) = incentives.checkpointGaugeEpoch();
+        assertTrue(finalized);
+        assertEq(nextEpoch, epoch + 2);
+        IStaticsGaugeIncentives.EpochView memory closed = incentives.gaugeEpoch(epoch);
+        assertTrue(closed.closed);
+        assertEq(closed.unactivatedBudget, 0);
+        assertEq(incentives.gaugeReserve().committed, incentives.gaugeEpoch(nextEpoch).committedBudget);
+        assertEq(incentives.previewGaugePoolReward(poolId, epoch).budget, committed);
+        assertFalse(incentives.previewGaugePoolReward(poolId, epoch).resolved);
+    }
+
+    function testProRataFloorDustRemainsBoundedAndRecyclesOnClose() public {
+        PoolId[] memory pools = new PoolId[](3);
+        uint256[] memory weights = new uint256[](3);
+        for (uint256 i; i < pools.length; ++i) {
+            MockERC20 paired = new MockERC20("Dust Asset", "DUST", 18);
+            pools[i] = _createRangeGaugePool(alice, address(assetA), address(paired));
+            weights[i] = 1 ether;
+        }
+        uint256 votingPosition = _createStakedPosition(alice, 3 ether);
+        vm.prank(alice);
+        incentives.setGaugeAllocations(votingPosition, pools, weights);
+        _fundReserve(alice, 1_000 ether);
+
+        _warpNextEpoch();
+        (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
+        uint256 activated;
+        for (uint256 i; i < pools.length; ++i) {
+            (uint256 poolBudget,) = incentives.checkpointGaugePool(pools[i]);
+            activated += poolBudget;
+        }
+        assertEq(committed - activated, 1);
+        assertEq(incentives.gaugeEpoch(epoch).unactivatedBudget, 1);
+
+        vm.warp(incentives.gaugeEpoch(epoch).activationDeadline);
+        assertEq(incentives.closeGaugeEpoch(epoch), 1);
+        assertTrue(incentives.gaugeEpoch(epoch).closed);
+    }
+
+    function testRestrictedPoolWeightAbstainsWithoutReallocatingItsShare() public {
+        MockERC20 unrestrictedAsset = new MockERC20("Unrestricted", "OPEN", 18);
+        MockERC20 restrictedAsset = new MockERC20("Restricted", "BLOCK", 18);
+        PoolId validPool = _createRangeGaugePool(alice, address(assetA), address(unrestrictedAsset));
+        PoolId invalidPool = _createRangeGaugePool(alice, address(assetA), address(restrictedAsset));
+        uint256 votingPosition = _createStakedPosition(alice, 100 ether);
+        PoolId[] memory pools = new PoolId[](2);
+        pools[0] = validPool;
+        pools[1] = invalidPool;
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 25 ether;
+        weights[1] = 75 ether;
+        vm.prank(alice);
+        incentives.setGaugeAllocations(votingPosition, pools, weights);
+        _fundReserve(alice, 1_000 ether);
+        vm.prank(guardian);
+        IStaticsRewardPolicy(address(diamond)).addRewardRestriction(address(restrictedAsset));
+
+        _warpNextEpoch();
+        (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
+        assertEq(incentives.gaugeEpoch(epoch).totalWeight, 100 ether);
+        (uint256 validBudget, uint256 validRecycled) = incentives.checkpointGaugePool(validPool);
+        (uint256 invalidBudget, uint256 invalidRecycled) = incentives.checkpointGaugePool(invalidPool);
+        assertEq(validBudget, committed / 4);
+        assertEq(validRecycled, 0);
+        assertEq(invalidBudget, 0);
+        assertEq(invalidRecycled, committed * 3 / 4);
     }
 
     function testProtocolSlotEmitsToActiveLiquidityAndClaimsFromCommittedReserve() public {
@@ -335,6 +458,8 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         _warpNextEpoch();
         (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
         assertEq(committed, 40 ether);
+        vm.prank(bob);
+        incentives.setGaugeAllocations(votingPosition, new PoolId[](0), new uint256[](0));
         uint256 claimed;
         uint8[] memory slots = new uint8[](1);
         uint256[] memory minimums = new uint256[](1);
@@ -396,6 +521,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
 
         _warpNextEpoch();
         incentives.checkpointGaugeEpoch();
+        incentives.checkpointGaugePool(poolId);
         IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, 0);
         assertEq(stream.periodEmitted, 0);
         assertEq(stream.periodRecycled, 40 ether);
@@ -404,7 +530,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         assertEq(reserve.available, 1_000 ether);
     }
 
-    function testRestrictionInvalidatesWeightAndRequiresExplicitRefresh() public {
+    function testRestrictedAllocationAbstainsAndRecyclesItsShare() public {
         PoolId poolId = _createRangeGaugePool(alice);
         uint256 positionId = _createStakedPosition(alice, 100 ether);
         _setAllocation(alice, positionId, poolId, 100 ether);
@@ -413,18 +539,19 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         IStaticsRewardPolicy(address(diamond)).addRewardRestriction(address(assetA));
 
         _warpNextEpoch();
-        vm.expectPartialRevert(IStaticsGaugeIncentives.StaleGaugePoolWeight.selector);
-        incentives.checkpointGaugeEpoch();
-        assertEq(incentives.refreshGaugePoolWeight(poolId), 100 ether);
-        (, uint256 committed, bool finalized) = incentives.checkpointGaugeEpoch();
+        (uint64 epoch, uint256 committed, bool finalized) = incentives.checkpointGaugeEpoch();
         assertTrue(finalized);
-        assertEq(committed, 0);
+        assertEq(committed, 40 ether);
+        assertEq(incentives.gaugeEpoch(epoch).totalWeight, 100 ether);
+        (, uint256 recycled) = incentives.checkpointGaugePool(poolId);
+        assertEq(recycled, 40 ether);
+        assertEq(incentives.gaugeReserve().committed, 0);
         vm.prank(alice);
         (,,,, uint256 locked) = incentives.gaugePositionAllocations(positionId);
         assertEq(locked, 0);
 
         IStaticsRewardPolicy(address(diamond)).removeRewardRestriction(address(assetA));
-        assertEq(incentives.gaugePoolWeight(poolId).scheduledWeight, 0);
+        assertTrue(incentives.gaugePoolWeight(poolId).stale);
 
         _setAllocation(alice, positionId, poolId, 100 ether);
         assertEq(incentives.gaugePoolWeight(poolId).scheduledWeight, 100 ether);
@@ -663,7 +790,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         selectors[0] = GaugeIncentiveFacet.fundGaugeReserve.selector;
         selectors[1] = GaugeIncentiveFacet.setGaugeAllocations.selector;
         selectors[2] = GaugeIncentiveFacet.checkpointGaugeEpoch.selector;
-        selectors[3] = GaugeIncentiveFacet.refreshGaugePoolWeight.selector;
+        selectors[3] = GaugeIncentiveFacet.closeGaugeEpoch.selector;
         selectors[4] = GaugeIncentiveFacet.scheduleGaugeReleaseBps.selector;
         selectors[5] = GaugeIncentiveFacet.finalizeGaugeAllocatorReward.selector;
         selectors[6] = GaugeIncentiveFacet.claimGaugeAllocatorRewards.selector;
@@ -678,7 +805,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         selectors[3] = GaugeIncentiveViewFacet.gaugePoolWeight.selector;
         selectors[4] = GaugeIncentiveViewFacet.gaugePositionAllocations.selector;
         selectors[5] = GaugeIncentiveViewFacet.gaugeEpoch.selector;
-        selectors[6] = GaugeIncentiveViewFacet.previewGaugeTopTen.selector;
+        selectors[6] = GaugeIncentiveViewFacet.previewGaugePoolReward.selector;
         selectors[7] = GaugeIncentiveViewFacet.maxGaugeAllocationsPerPosition.selector;
         selectors[8] = GaugeIncentiveViewFacet.maxWeeklyGaugeReleaseBps.selector;
         selectors[9] = GaugeIncentiveViewFacet.gaugeAllocatorReward.selector;

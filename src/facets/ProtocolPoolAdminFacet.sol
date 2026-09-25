@@ -10,6 +10,7 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
@@ -226,7 +227,9 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         private
     {
         (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
-        LibRangeGauge.stopGauge(poolId, key.tickSpacing, liveTick, LibRangeGauge.timestamp40(block.timestamp));
+        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
+        LibRangeGauge.stopGauge(poolId, key.tickSpacing, liveTick, currentTime);
         emit IStaticsRangeGauge.PoolGaugeStopped(poolId);
     }
 
