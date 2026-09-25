@@ -46,8 +46,10 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
     function check_claimRoundingCannotExceedBudget(uint16 budget, uint16 firstWeight, uint16 secondWeight) public pure {
         uint256 totalWeight = uint256(firstWeight) + secondWeight;
         vm.assume(totalWeight != 0);
-        uint256 firstClaim = Math.mulDiv(budget, firstWeight, totalWeight);
-        uint256 secondClaim = Math.mulDiv(budget, secondWeight, totalWeight);
+        // The uint16 products cannot overflow, so this is exactly Math.mulDiv's
+        // non-overflowing branch without its solver-expensive 512-bit assembly.
+        uint256 firstClaim = (uint256(budget) * firstWeight) / totalWeight;
+        uint256 secondClaim = (uint256(budget) * secondWeight) / totalWeight;
         uint256 claimed = firstClaim + secondClaim;
         assertLe(claimed, budget);
         assertLe(uint256(budget) - claimed, 1);
