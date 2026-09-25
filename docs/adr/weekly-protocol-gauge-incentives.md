@@ -43,10 +43,10 @@ epoch custody account. A 100% allocator share creates no LP stream and therefore
 does not apply the LP stream's minimum remaining-duration check.
 
 Allocator rewards use the same raw STATICS allocation signal as protocol
-routing, but they do not use the top-ten filter. Every PositionNFT with a valid
-allocation to the funded PoolId for the funded epoch receives its pro-rata
-share. Protocol slot 0, reserve accounting, and creator-funded allocator
-liabilities remain separate even when their reward asset is STATICS.
+routing. Every PositionNFT with a valid allocation to the funded PoolId for the
+funded epoch receives its pro-rata share. Protocol slot 0, reserve accounting,
+and creator-funded allocator liabilities remain separate even when their reward
+asset is STATICS.
 
 Allocation and aggregate-pool checkpoints are recorded by effective epoch.
 Changing or removing an allocation in a later epoch cannot rewrite an earlier
@@ -81,9 +81,10 @@ Reserve accounting has three disjoint partitions:
   epoch; and
 - `committed` backs active or claimable slot-0 liabilities.
 
-A deposit made during epoch N matures in epoch N+1. Committing a budget moves
-accounting from available to committed and moves the same physical reservation
-from the reserve account to the winning pool's slot-0 account. Claims consume
+A deposit made during epoch N matures in epoch N+1. Finalizing an epoch moves
+its distributable budget from available to committed accounting. Each pool's
+pro-rata share remains in the reserve custody account until that pool is lazily
+activated, when the same reservation moves to its slot-0 account. Claims consume
 committed backing. Recycled rewards move both the reservation and accounting
 back toward the reserve. No path mints STATICS or promises the same custody
 twice.
@@ -106,8 +107,9 @@ reward multipliers, prices, volume, TVL, native LP fees, and direct reward
 programs do not affect routing weight.
 
 Allocation changes made in epoch N become effective for epoch N+1. A position
-may replace its pending allocation repeatedly before that boundary. The routing
-heap always represents the scheduled weight for the next checkpoint.
+may replace its pending allocation repeatedly before that boundary. Each change
+updates the affected PoolId checkpoints and one aggregate scheduled-weight
+total. There is no global pool list or ranking structure.
 
 The stake that cannot be unstaked is:
 
@@ -124,7 +126,7 @@ Gauge routing is separate from global reward-asset opt-in. Allocations choose
 which pools receive protocol incentives. Global opt-in chooses which assets a
 PositionNFT is eligible to earn.
 
-## Eligibility and ranking
+## Eligibility and abstention
 
 An allocation target must be an initialized, active public range gauge for a
 registered general or basket-canonical Statics pool. Permissioned venues are
@@ -132,20 +134,17 @@ not eligible. A pool is ineligible while either currency is reward-restricted.
 
 Each allocation records an eligibility version derived from its PoolId and the
 restriction nonces of both currencies. Stopping a gauge, decommissioning a
-pool, adding a restriction, or changing a restriction version makes its stored
-weight stale. Any account may call `refreshGaugePoolWeight` to remove stale
-weight. Removed weight is not restored automatically if eligibility later
-returns; a PositionNFT owner must schedule a new valid allocation.
+pool, adding a restriction, or changing a restriction version makes that
+allocation stale. Its weight remains in the epoch denominator as an abstention,
+but its calculated protocol share is recycled instead of being redistributed
+to other pools. This makes a restriction incapable of increasing another
+pool's reward after the allocation boundary. If eligibility later returns, a
+PositionNFT owner must schedule a new valid allocation.
 
-All nonzero scheduled pool weights live in an indexed max heap. Each allocation
-change updates at most 16 entries with logarithmic heap work. Epoch
-finalization reads only the ten highest entries plus a bounded frontier and
-never iterates every protocol pool. Higher weight wins. Equal weights use the
-numerically lower PoolId first, producing deterministic ties.
-
-If a winning entry is stale, finalization fails closed and identifies the PoolId
-that must be refreshed. This avoids silently awarding an ineligible pool while
-keeping cleanup permissionless.
+Every nonzero scheduled allocation contributes to the aggregate epoch weight.
+There is no minimum allocation, winner cutoff, tie rule, heap, or iteration over
+all pools. Pool-specific weight and eligibility are resolved only when that
+PoolId is checkpointed.
 
 ## Epoch finalization
 
@@ -158,17 +157,29 @@ For epoch E:
 ```text
 nominal budget = available reserve * release bps / 10,000
 distributable budget = nominal budget * remaining epoch time / one week
-pool budget = distributable budget * pool weight / sum(top-ten weights)
+pool budget = distributable budget * pool weight / total epoch allocation weight
 ```
 
-Only the top ten form the denominator. Pools below tenth receive no protocol
-STATICS for that epoch. Integer division dust remains available in the reserve.
-If finalization is late, linear remaining-time proration prevents retroactive
+Every PoolId with positive epoch weight has a pro-rata budget, including a pool
+with the smallest allocation. Integer division dust remains in the epoch's
+unactivated commitment and is recycled when the activation window closes. If
+finalization is late, linear remaining-time proration prevents retroactive
 emission and leaves the uncommitted portion available.
 
-The finalized epoch stores its winners, weights, budgets, activation time,
-finish, release rate, nominal budget, committed budget, and denominator. A
-second checkpoint in the same epoch is a no-op.
+The finalized epoch stores its activation time, finish, one-extra-epoch
+activation deadline, release rate, nominal budget, committed budget,
+unactivated budget, and aggregate denominator. A second checkpoint in the same
+epoch is a no-op. Finalization performs constant work regardless of pool count.
+
+Pool activation is permissionless and lazy. `checkpointGaugePool` calculates
+that PoolId's immutable epoch share and starts slot 0 from the finalized epoch's
+original activation time. Ordinary pool swaps, managed-liquidity changes,
+claims, and stop paths call the same checkpoint automatically before changing
+the pool's economic state. A pool that has no activity can be activated through
+the following weekly epoch. After that grace window, anyone may close the epoch,
+and any unactivated shares plus rounding dust recycle to the reserve. The epoch
+`closed` flag means no further pool shares can be activated; it does not mean
+already-started slot-0 liabilities have been claimed or recycled.
 
 ## Slot-0 settlement
 
@@ -178,9 +189,9 @@ is accounted as recycled rather than claimable. A reward restriction that
 becomes effective during an epoch terminates that pool's protocol stream at the
 recorded restriction timestamp and recycles the remaining budget.
 
-At the next epoch checkpoint, the previous winners are settled before new
-budgets are committed. Stopping a gauge, forfeiting slot-0 claims, or
-reconciling a stopped gauge also returns the applicable STATICS to the reserve.
+Each PoolId settles its prior protocol stream before a later share is activated.
+Stopping a gauge, forfeiting slot-0 claims, or reconciling a stopped gauge also
+returns the applicable STATICS to the reserve.
 Ordinary checkpoints preserve the range-gauge numerator carry. A genuine
 active-liquidity denominator change resets only a Q160 fraction smaller than
 `2^-32` of one raw token unit and does not immediately recycle any slot-0
@@ -197,14 +208,15 @@ weight formula, but Phase 1 does not require or install that integration.
 
 ## Operational properties
 
-- Epoch correctness does not trust a privileged keeper. Finalization and stale
-  weight cleanup are permissionless.
+- Epoch correctness does not trust a privileged keeper. Epoch finalization,
+  per-pool activation, and expiry are permissionless, while ordinary pool use
+  activates the relevant PoolId automatically.
 - Delayed activation prevents a last-block allocation from earning the epoch
   that just ended.
 - Late finalization cannot backdate rewards.
 - Direct STATICS incentives remain possible in slots 1 through 4 without
   merging their liabilities with protocol slot 0.
-- Creator-directed allocator rewards pay every valid allocator to the PoolId,
-  independent of whether that pool ranks in the protocol top ten.
+- Creator-directed allocator rewards and protocol routing both use all valid
+  PoolId allocations without a winner cutoff.
 - The reserve release rate controls spending velocity; product revenue,
   buybacks, treasury transfers, or external contributors control reserve size.

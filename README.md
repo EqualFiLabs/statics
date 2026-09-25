@@ -345,8 +345,10 @@ creators, partners, and communities. Each direct slot may split future funding
 between active-range LPs and PoolId allocators at a creator-selected rate, with
 funder-side share and target-epoch protection. Stakers allocate raw staked STATICS to
 eligible public PoolIds for the next weekly epoch. A custody-backed reserve
-releases a governed percentage to the top ten pools without using Genesis or
-Operator multipliers. A Diamond-bound liquidity manager holds and mutates the
+releases a governed percentage pro rata across every allocated PoolId without
+using Genesis or Operator multipliers. Pool shares activate lazily through
+ordinary pool activity or a permissionless checkpoint and expire after one
+extra weekly epoch. A Diamond-bound liquidity manager holds and mutates the
 underlying Uniswap v4 position NFTs. It also includes a separate permissioned market path with
 creator-operated controllers, approved traders and LPs,
 non-transferable LP NFTs, reward restrictions, and creator/timelock-agreed
@@ -366,18 +368,18 @@ and permissionless execute calldata.
 
 All staged and fresh cuts are derived from
 `script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
-Diamond through every timelocked batch, then compares all 359 selector routes
+Diamond through every timelocked batch, then compares all 360 selector routes
 and implementation runtime hashes, plus all 95 Dollar Core selector routes and
 runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-Phase 1 StaticsDiamond:   26 facets, 181 selectors
-Phase 2 StaticsDiamond:   38 facets, 274 selectors cumulative
-Phase 3 StaticsDiamond:   43 facets, 332 selectors cumulative
-Phase 4 StaticsDiamond:   48 facets, 359 selectors cumulative
-Full StaticsDiamond:      48 facets, 359 selectors
+Phase 1 StaticsDiamond:   26 facets, 182 selectors
+Phase 2 StaticsDiamond:   38 facets, 275 selectors cumulative
+Phase 3 StaticsDiamond:   43 facets, 333 selectors cumulative
+Phase 4 StaticsDiamond:   48 facets, 360 selectors cumulative
+Full StaticsDiamond:      48 facets, 360 selectors
 StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
@@ -709,17 +711,18 @@ ordinary permissionless direct funding, including a separate directly funded
 STATICS stream. For each direct slot, the pool creator may direct 0% through
 100% of future deposits to PositionNFTs that allocate to that PoolId. Funders
 pin the expected split and target epoch, LP and allocator custody remain separate, and funded
-allocator rewards target the next epoch without using the protocol top-ten
-filter. Allocator claims follow PositionNFT ownership, expire after 26 weeks,
+allocator rewards target the next epoch without a protocol winner cutoff.
+Allocator claims follow PositionNFT ownership, expire after 26 weeks,
 and route ineligible, unclaimed, or rounding amounts to treasury. PositionNFT
 owners may allocate no more than their actual raw
 staked STATICS across at most 16 eligible public PoolIds. Allocation changes
 take effect in the next Monday-aligned epoch, and allocated stake must be
-explicitly deallocated before it can be unstaked. The ten highest scheduled
-weights split that epoch's reserve-backed budget pro rata. Permissioned venues,
-decommissioned pools, and pools containing reward-restricted assets are not
-eligible. Unemitted slot-0 rewards recycle into the reserve instead of becoming
-a perpetual pool entitlement.
+explicitly deallocated before it can be unstaked. Every scheduled PoolId weight
+receives a pro-rata share of that epoch's reserve-backed budget. Permissioned
+venues are not eligible. A decommissioned or reward-restricted PoolId remains
+in the denominator as an abstention, and its unusable share recycles rather
+than increasing another pool's reward. Unemitted slot-0 rewards recycle into
+the reserve instead of becoming a perpetual pool entitlement.
 
 ### Lending and recovery
 

@@ -43,7 +43,7 @@ Use compiled ABIs from these sources:
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
 | Public range gauges | `src/interfaces/IStaticsRangeGauge.sol` | Configure direct-slot allocator shares, fund LP and next-epoch allocator rewards with share and target-epoch protection, inspect reserved protocol slot 0 and lifetime index-capacity usage, manage PositionNFT-owned v4 range positions, claim or forfeit LP rewards, exit principal, and inspect position state |
-| Protocol gauge incentives | `src/interfaces/IStaticsGaugeIncentives.sol` | Fund the STATICS reserve, schedule next-epoch PositionNFT PoolId allocations, checkpoint weekly top-ten budgets, finalize and claim creator-funded allocator rewards, expire stale claims, refresh pool eligibility, and inspect reserve, historical weight, and epoch state |
+| Protocol gauge incentives | `src/interfaces/IStaticsGaugeIncentives.sol` | Fund the STATICS reserve, schedule next-epoch PositionNFT PoolId allocations, finalize all-pool pro-rata weekly budgets, lazily activate or expire PoolId shares, finalize and claim creator-funded allocator rewards, and inspect reserve, historical weight, and epoch state |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
@@ -105,7 +105,7 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 155, 248, 306, and 333. Integrators
+Morpho. The cumulative selector counts are 182, 275, 333, and 360. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
