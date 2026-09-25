@@ -159,7 +159,7 @@ case "$TARGET" in
     # branch feasibility is conservatively explored on both sides while assertions
     # retain their unbounded solver timeout. Allocator arithmetic rules use bounded
     # symbolic amounts for exhaustive proof, with the two-claim mulDiv rule narrowed
-    # to uint32 for solver tractability. Full-width Foundry fuzz tests exercise the
+    # to uint16 for solver tractability. Full-width Foundry fuzz tests exercise the
     # same helpers across the production uint256 input domain.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-stream-conservation 8 \

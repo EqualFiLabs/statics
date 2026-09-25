@@ -40,7 +40,7 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         _assertFundingSplit(received, allocatorShareBps);
     }
 
-    function check_claimRoundingCannotExceedBudget(uint32 budget, uint32 firstWeight, uint32 secondWeight) public pure {
+    function check_claimRoundingCannotExceedBudget(uint16 budget, uint16 firstWeight, uint16 secondWeight) public pure {
         _assertClaimRounding(budget, firstWeight, secondWeight);
     }
 
