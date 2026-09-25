@@ -10,7 +10,7 @@ import {MockERC20, MockFeeOnTransferERC20, MockReentrantERC20, MockSenderExtraFe
 import {RangeGaugeFeatureTestBase} from "../helpers/RangeGaugeFeatureTestBase.sol";
 
 contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
-    uint256 private constant RAY = 1e27;
+    uint256 private constant INDEX_SCALE = 1 << 160;
     uint256 private constant START = 1_000_000;
     uint256 private constant DURATION = 7 days;
     uint256 private constant PAUSE_LIQUIDITY = 1 << 5;
@@ -170,7 +170,7 @@ contract RangeGaugeFundingTest is RangeGaugeFeatureTestBase {
         PoolId poolId = _createRangeGaugePool(alice);
         MockERC20 reward = new MockERC20("Capacity Reward", "CAP", 18);
         uint8 slot = _appendReward(poolId, address(reward));
-        uint256 maximumBudget = type(uint256).max / RAY;
+        uint256 maximumBudget = type(uint256).max / INDEX_SCALE;
         reward.mint(bob, maximumBudget + 1);
         vm.prank(bob);
         reward.approve(address(diamond), type(uint256).max);

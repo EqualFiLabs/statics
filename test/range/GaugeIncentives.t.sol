@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
@@ -16,6 +17,9 @@ import {MockERC20, MockFeeOnTransferERC20} from "../mocks/MockERC20.sol";
 import {RangeGaugeLifecycleTestBase} from "../helpers/RangeGaugeLifecycleTestBase.sol";
 
 contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
+    uint128 private constant HIGH_LIQUIDITY = 1e33;
+    uint256 private constant HIGH_TOKEN_MAXIMUM = 2e33;
+
     IStaticsGaugeIncentives private incentives;
 
     function setUp() public override {
@@ -257,6 +261,36 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         assertEq(incentives.gaugeReserve().committed, 40 ether - claimed[0]);
     }
 
+    function testProtocolSlotFrequentClaimsPreserveCommittedBudget() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 lpPosition = _createPosition(alice);
+        _provideHighLiquidity(lpPosition, poolId, alice);
+        uint256 votingPosition = _createStakedPosition(bob, 100 ether);
+        _setAllocation(bob, votingPosition, poolId, 100 ether);
+        _fundReserve(bob, 1_000 ether);
+
+        _warpNextEpoch();
+        (uint64 epoch, uint256 committed,) = incentives.checkpointGaugeEpoch();
+        assertEq(committed, 40 ether);
+        uint256 claimed;
+        uint8[] memory slots = new uint8[](1);
+        uint256[] memory minimums = new uint256[](1);
+        while (block.timestamp < LibGaugeEpoch.epochFinish(epoch)) {
+            vm.warp(block.timestamp + 1 hours);
+            vm.prank(alice);
+            uint256[] memory amounts = rangeGauge.claimLpRewards(lpPosition, poolId, slots, minimums, alice);
+            claimed += amounts[0];
+        }
+
+        IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, 0);
+        (bytes32 account,) = rangeGauge.poolRewardCustodyAccount(poolId, 0);
+        uint256 reserved = custody.reservedByAccount(account, address(stakingAsset));
+        assertApproxEqAbs(claimed, committed, 1);
+        assertEq(stream.periodEmitted, committed);
+        assertEq(reserved, stream.indexedLiability + stream.claimLiability);
+        assertEq(incentives.gaugeReserve().committed, reserved);
+    }
+
     function testMidEpochRestrictionTerminatesAndRecyclesProtocolStream() public {
         PoolId poolId = _createRangeGaugePool(alice);
         uint256 lpPosition = _createPosition(alice);
@@ -486,6 +520,23 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         stakingAsset.approve(address(diamond), amount);
         positionId = globalRewards.createAndStake(amount, owner, new address[](0));
         vm.stopPrank();
+    }
+
+    function _provideHighLiquidity(uint256 positionId, PoolId poolId, address payer) private {
+        _fundAndApprovePoolAssets(_poolKey(poolId), payer, HIGH_TOKEN_MAXIMUM);
+        vm.prank(payer);
+        rangeGauge.provideLiquidity(
+            positionId,
+            IStaticsRangeGauge.ProvideLiquidityParams({
+                poolId: poolId,
+                tickLower: TickMath.minUsableTick(10),
+                tickUpper: TickMath.maxUsableTick(10),
+                liquidity: HIGH_LIQUIDITY,
+                amount0Maximum: HIGH_TOKEN_MAXIMUM,
+                amount1Maximum: HIGH_TOKEN_MAXIMUM,
+                deadline: block.timestamp + 1 hours
+            })
+        );
     }
 
     function _setAllocation(address owner, uint256 positionId, PoolId poolId, uint256 amount) private {

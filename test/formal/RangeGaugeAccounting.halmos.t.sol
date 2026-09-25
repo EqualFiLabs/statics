@@ -3,11 +3,12 @@ pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {SymTest} from "halmos-cheatcodes/SymTest.sol";
+import {LibIndexMath} from "../../src/libraries/LibIndexMath.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
 import {RangeGaugeFormalHarness} from "./harness/RangeGaugeFormalHarness.sol";
 
 contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarness {
-    uint256 private constant RAY = 1e27;
+    uint256 private constant INDEX_SCALE = 1 << 160;
     uint40 private constant START = 1_000_000;
     uint40 private constant DURATION = 7 days;
 
@@ -16,11 +17,15 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
     }
 
     function testRepresentativePositionRemainder() public pure {
-        check_positionRemainderCarryConservesNumerator(13, 7, uint96(RAY - 1));
+        check_positionRemainderCarryConservesNumerator(13, type(uint160).max, 7);
     }
 
     function testRepresentativeLifetimeIndexCapacity() public {
         check_lifetimeIndexCapacityTracksConsecutivePeriods(3, 5);
+    }
+
+    function testRepresentativeIndexCapacityBound() public pure {
+        check_indexCapacityBoundPreventsGlobalOverflow(type(uint96).max, 0);
     }
 
     function testRepresentativeFinalReconciliationGate() public pure {
@@ -77,22 +82,59 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
         LibRangeGauge.GaugeRewardStream memory stream = _stream();
         uint256 lifetimeEmission = first + second;
         assertEq(_indexCapacityUsed(), lifetimeEmission);
-        assertEq(stream.globalIndexRay, lifetimeEmission * RAY);
+        assertEq(stream.globalIndexRay, lifetimeEmission * INDEX_SCALE);
         assertLe(stream.globalIndexRay, type(uint256).max);
     }
 
     function check_positionRemainderCarryConservesNumerator(
-        uint96 rawWhole,
-        uint96 rawProductRemainder,
-        uint96 rawPriorRemainder
+        uint64 rawWhole,
+        uint160 rawProductRemainder,
+        uint160 rawPriorRemainder
     ) public pure {
         uint256 whole = uint256(rawWhole);
-        uint256 productRemainder = uint256(rawProductRemainder) % RAY;
-        uint256 prior = uint256(rawPriorRemainder) % RAY;
+        uint256 productRemainder = uint256(rawProductRemainder);
+        uint256 prior = uint256(rawPriorRemainder);
         (uint256 claimable, uint256 remainder) = _combinePositionAccrual(whole, productRemainder, prior);
-        uint256 numerator = whole * RAY + productRemainder + prior;
-        assertEq(claimable * RAY + remainder, numerator);
-        assertLt(remainder, RAY);
+        uint256 numerator = whole * INDEX_SCALE + productRemainder + prior;
+        assertEq(claimable * INDEX_SCALE + remainder, numerator);
+        assertLt(remainder, INDEX_SCALE);
+    }
+
+    function check_indexCapacityBoundPreventsGlobalOverflow(uint96 used, uint96 added) public pure {
+        uint256 total = uint256(used) + added;
+        if (total > type(uint96).max) return;
+        assertLe(total * INDEX_SCALE, type(uint256).max);
+    }
+
+    function check_checkpointFragmentationPreservesScaledNumerator(
+        uint32 rawAmount,
+        uint64 rawDenominator,
+        uint8 rawParts
+    ) public pure {
+        uint256 amount = uint256(rawAmount) + 1;
+        uint256 denominator = uint256(rawDenominator) + 1;
+        uint256 parts = uint256(rawParts) % 4 + 1;
+        (uint256 singleDelta, uint256 singleRemainder) =
+            LibIndexMath.indexDeltaAtScale(amount, denominator, 0, INDEX_SCALE);
+        uint256 fragmentedDelta;
+        uint256 fragmentedRemainder;
+        uint256 base = amount / parts;
+        uint256 extra = amount % parts;
+        for (uint256 i; i < parts; ++i) {
+            uint256 fragment = base + (i < extra ? 1 : 0);
+            (uint256 delta, uint256 remainder) =
+                LibIndexMath.indexDeltaAtScale(fragment, denominator, fragmentedRemainder, INDEX_SCALE);
+            fragmentedDelta += delta;
+            fragmentedRemainder = remainder;
+        }
+        assertEq(fragmentedDelta, singleDelta);
+        assertEq(fragmentedRemainder, singleRemainder);
+    }
+
+    function check_denominatorRemainderCannotReachOneRawUnit(uint128 denominator, uint128 rawRemainder) public pure {
+        if (denominator == 0) denominator = 1;
+        uint256 remainder = uint256(rawRemainder) % denominator;
+        assertLt(remainder, INDEX_SCALE);
     }
 
     function check_finalReconciliationRequiresResolvedLiabilities(

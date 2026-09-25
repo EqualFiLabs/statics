@@ -265,11 +265,20 @@ allowlisting. Final reconciliation is intentionally pool-wide: any unresolved
 claim or remainder in any reward slot delays treasury surplus recovery for
 every slot, without blocking user principal exits or reward claims.
 
+Range-gauge indexes use Q160 precision. Stream numerator carry persists across
+checkpoints while active gauge liquidity is unchanged, so user-controlled claim
+frequency cannot erase rewards. A genuine active-liquidity change resets that
+carry once for the net denominator transition. Since active gauge liquidity is
+bounded to `uint128`, the reset value is always less than `2^-32` of one raw
+token unit per stream. It is never immediately transferred to treasury or
+recycled from protocol slot 0. Existing ABI member names ending in `Ray` are
+retained for compatibility, but those range-gauge-only values are Q160-scaled.
+
 Each pool reward slot also has a lifetime index-capacity limit of
-`floor(type(uint256).max / 1e27)` raw reward units. The stream view exposes the
+`floor(type(uint256).max / 2^160)`, or `2^96 - 1`, raw reward units. The stream view exposes the
 amount already consumed as `indexCapacityUsed`, and funding reverts before the
 current schedule plus a new contribution could exceed the remaining capacity.
-This conservative lifetime limit prevents the RAY-scaled global index from
+This conservative lifetime limit prevents the Q160-scaled global index from
 wrapping while a position remains unsettled. The bound is far above practical
 token supplies. When the error reports a committed budget below the maximum,
 the funder may retry with an amount no greater than the remaining capacity. An

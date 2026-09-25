@@ -141,18 +141,24 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
                     address(this)
                 )
             );
-        LibRangeGauge.unregisterPositionRange(poolId, leg.tickLower, leg.tickUpper, key.tickSpacing, leg.liquidity);
         LibRangeGauge.unbindPosm(result.oldPosmTokenId, positionId, poolId);
 
         (result.newManager, result.minted, result.state) = _mintReplacement(positionId, poolId, key, params, exited);
+        LibRangeGauge.replacePositionRange(
+            poolId,
+            leg.tickLower,
+            leg.tickUpper,
+            leg.liquidity,
+            result.state.tickLower,
+            result.state.tickUpper,
+            result.state.liquidity,
+            key.tickSpacing
+        );
         leg.manager = result.newManager;
         leg.posmTokenId = result.minted.tokenId;
         leg.tickLower = result.state.tickLower;
         leg.tickUpper = result.state.tickUpper;
         leg.liquidity = result.state.liquidity;
-        LibRangeGauge.registerPositionRange(
-            poolId, result.state.tickLower, result.state.tickUpper, key.tickSpacing, result.state.liquidity
-        );
         LibRangeGauge.checkpointLeg(poolId, leg);
         LibRangeGauge.bindPosm(result.minted.tokenId, positionId, poolId);
     }

@@ -170,8 +170,14 @@ case "$TARGET" in
       out-formal-genesis '^check_topUpPreservesFinishAndConservesBudget'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-lifetime-index-capacity 8 \
       out-formal-genesis '^check_lifetimeIndexCapacityTracksConsecutivePeriods'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-index-capacity-bound 8 \
+      out-formal-genesis '^check_indexCapacityBoundPreventsGlobalOverflow'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-position-remainder 8 \
       out-formal-genesis '^check_positionRemainderCarryConservesNumerator'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-checkpoint-fragmentation 8 \
+      out-formal-genesis '^check_checkpointFragmentationPreservesScaledNumerator'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-denominator-remainder-bound 8 \
+      out-formal-genesis '^check_denominatorRemainderCannotReachOneRawUnit'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-final-reconciliation-gate 8 \
       out-formal-genesis '^check_finalReconciliationRequiresResolvedLiabilities'
     run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-commitment 8 \

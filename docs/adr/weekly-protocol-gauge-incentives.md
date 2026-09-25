@@ -175,11 +175,14 @@ becomes effective during an epoch terminates that pool's protocol stream at the
 recorded restriction timestamp and recycles the remaining budget.
 
 At the next epoch checkpoint, the previous winners are settled before new
-budgets are committed. Stopping a gauge, forfeiting slot-0 claims, flushing
-slot-0 rounding dust, or reconciling a stopped gauge also returns the applicable
-STATICS to the reserve. The LP portions of slots 1 through 4 keep their existing
-emission, forfeiture, and treasury reconciliation behavior. Their allocator
-portions use the separate fixed-epoch claim lifecycle above.
+budgets are committed. Stopping a gauge, forfeiting slot-0 claims, or
+reconciling a stopped gauge also returns the applicable STATICS to the reserve.
+Ordinary checkpoints preserve the range-gauge numerator carry. A genuine
+active-liquidity denominator change resets only a Q160 fraction smaller than
+`2^-32` of one raw token unit and does not immediately recycle any slot-0
+STATICS. The LP portions of slots 1 through 4 keep their existing emission,
+forfeiture, and treasury reconciliation behavior. Their allocator portions use
+the separate fixed-epoch claim lifecycle above.
 
 ## Genesis boundary
 

@@ -18,10 +18,11 @@ library LibRangeGauge {
 
     bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.range.gauge.v3");
     bytes32 internal constant RANGE_REWARD_ACCOUNT_DOMAIN = keccak256("statics.custody.account.range.rewards.v1");
-    uint256 internal constant RAY = 1e27;
+    // Q160 leaves 32 precision bits beyond every valid uint128 liquidity denominator.
+    uint256 internal constant INDEX_SCALE = 1 << 160;
     uint8 internal constant MAX_REWARD_SLOTS = 5;
     uint8 internal constant STATICS_SLOT = 0;
-    uint256 internal constant MAX_INDEXABLE_REWARD = type(uint256).max / RAY;
+    uint256 internal constant MAX_INDEXABLE_REWARD = type(uint256).max / INDEX_SCALE;
     uint40 internal constant DEFAULT_REWARD_DURATION = 7 days;
     uint40 internal constant MIN_REWARD_DURATION = 1 days;
     uint40 internal constant MAX_REWARD_DURATION = 30 days;
@@ -123,6 +124,7 @@ library LibRangeGauge {
     error ActiveLiquidityOverflow(uint128 activeLiquidity, int128 netLiquidity, bool rightward);
     error IndexedLiabilityUnderflow(uint256 liability, uint256 amount);
     error InvalidPositionRemainder(uint256 remainder);
+    error InvalidDenominatorRemainder(uint256 remainder);
     error PositionPoolAlreadyIndexed(uint256 positionId, PoolId poolId);
     error PositionPoolNotIndexed(uint256 positionId, PoolId poolId);
     error PosmAlreadyBound(uint256 posmTokenId, bytes32 binding);
@@ -388,7 +390,9 @@ library LibRangeGauge {
         returns (uint256 claimableDelta, uint256 newRemainderRay)
     {
         return combinePositionAccrual(
-            Math.mulDiv(liquidity, growthDeltaRay, RAY), mulmod(liquidity, growthDeltaRay, RAY), priorRemainderRay
+            Math.mulDiv(liquidity, growthDeltaRay, INDEX_SCALE),
+            mulmod(liquidity, growthDeltaRay, INDEX_SCALE),
+            priorRemainderRay
         );
     }
 
@@ -397,11 +401,11 @@ library LibRangeGauge {
         pure
         returns (uint256 claimableDelta, uint256 newRemainderRay)
     {
-        if (productRemainderRay >= RAY) revert InvalidPositionRemainder(productRemainderRay);
-        if (priorRemainderRay >= RAY) revert InvalidPositionRemainder(priorRemainderRay);
+        if (productRemainderRay >= INDEX_SCALE) revert InvalidPositionRemainder(productRemainderRay);
+        if (priorRemainderRay >= INDEX_SCALE) revert InvalidPositionRemainder(priorRemainderRay);
         uint256 combined = productRemainderRay + priorRemainderRay;
-        claimableDelta = whole + combined / RAY;
-        newRemainderRay = combined % RAY;
+        claimableDelta = whole + combined / INDEX_SCALE;
+        newRemainderRay = combined % INDEX_SCALE;
     }
 
     function settleLegSlot(GaugeRewardStream storage stream, LpLeg storage leg, uint8 slot, uint256 insideGrowthRay)
@@ -459,7 +463,9 @@ library LibRangeGauge {
         GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
         addRangeBoundaries(poolId, tickLower, tickUpper, tickSpacing, gauge.referenceTick, liquidity);
         if (containsTick(tickLower, tickUpper, gauge.referenceTick)) {
-            gauge.activeGaugeLiquidity = applyCrossingLiquidity(gauge.activeGaugeLiquidity, int128(liquidity), true);
+            _setActiveLiquidity(
+                poolId, gauge, applyCrossingLiquidity(gauge.activeGaugeLiquidity, int128(liquidity), true)
+            );
         }
     }
 
@@ -473,8 +479,33 @@ library LibRangeGauge {
         GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
         removeRangeBoundaries(poolId, tickLower, tickUpper, tickSpacing, liquidity);
         if (containsTick(tickLower, tickUpper, gauge.referenceTick)) {
-            gauge.activeGaugeLiquidity = applyCrossingLiquidity(gauge.activeGaugeLiquidity, int128(liquidity), false);
+            _setActiveLiquidity(
+                poolId, gauge, applyCrossingLiquidity(gauge.activeGaugeLiquidity, int128(liquidity), false)
+            );
         }
+    }
+
+    function replacePositionRange(
+        PoolId poolId,
+        int24 oldLower,
+        int24 oldUpper,
+        uint128 oldLiquidity,
+        int24 newLower,
+        int24 newUpper,
+        uint128 newLiquidity,
+        int24 tickSpacing
+    ) internal {
+        GaugePool storage gauge = rangeGaugeStorage().gauges[poolId];
+        removeRangeBoundaries(poolId, oldLower, oldUpper, tickSpacing, oldLiquidity);
+        addRangeBoundaries(poolId, newLower, newUpper, tickSpacing, gauge.referenceTick, newLiquidity);
+        uint128 nextLiquidity = gauge.activeGaugeLiquidity;
+        if (containsTick(oldLower, oldUpper, gauge.referenceTick)) {
+            nextLiquidity = applyCrossingLiquidity(nextLiquidity, int128(oldLiquidity), false);
+        }
+        if (containsTick(newLower, newUpper, gauge.referenceTick)) {
+            nextLiquidity = applyCrossingLiquidity(nextLiquidity, int128(newLiquidity), true);
+        }
+        _setActiveLiquidity(poolId, gauge, nextLiquidity);
     }
 
     function stopGauge(PoolId poolId, int24 tickSpacing, int24 liveTick, uint40 currentTime) internal {
@@ -502,25 +533,16 @@ library LibRangeGauge {
         }
     }
 
-    function flushDenominatorRemainder(PoolId poolId, uint8 slot) internal returns (uint256 dust) {
+    function _resetDenominatorRemainders(PoolId poolId) private {
         RangeGaugeStorage storage rgs = rangeGaugeStorage();
         PoolRewardConfig storage config = rgs.rewardConfig[poolId];
         if (!config.initialized) revert PoolRewardConfigNotInitialized(poolId);
-        if (slot >= config.slotCount) revert InvalidRewardSlot(poolId, slot);
-        GaugeRewardStream storage stream = rgs.gauges[poolId].streams[slot];
-        uint256 remainder = stream.indexRemainder;
-        if (remainder == 0) return 0;
-        stream.indexRemainder = 0;
-        dust = remainder / RAY;
-        if (dust == 0) return 0;
-        if (dust > stream.indexedLiability) revert IndexedLiabilityUnderflow(stream.indexedLiability, dust);
-        stream.indexedLiability -= dust;
-        address asset = config.assets[slot];
-        if (slot == STATICS_SLOT && stream.protocolEpoch != 0) {
-            _recycleProtocolReward(poolId, stream.protocolEpoch, dust);
-        } else {
-            LibCustody.moveReservation(rewardAccount(poolId, slot), LibCustody.feeAccount(), asset, dust);
-            LibGlobalRewards.accrueReservedTreasuryFee(asset, dust);
+        GaugePool storage gauge = rgs.gauges[poolId];
+        for (uint8 slot; slot < config.slotCount; ++slot) {
+            GaugeRewardStream storage stream = gauge.streams[slot];
+            uint256 remainder = stream.indexRemainder;
+            if (remainder >= INDEX_SCALE) revert InvalidDenominatorRemainder(remainder);
+            stream.indexRemainder = 0;
         }
     }
 
@@ -706,7 +728,8 @@ library LibRangeGauge {
     }
 
     function _increaseIndex(GaugeRewardStream storage stream, uint256 amount, uint128 denominator) private {
-        (uint256 delta, uint256 remainder) = LibIndexMath.indexDelta(amount, denominator, stream.indexRemainder);
+        (uint256 delta, uint256 remainder) =
+            LibIndexMath.indexDeltaAtScale(amount, denominator, stream.indexRemainder, INDEX_SCALE);
         stream.globalIndexRay += delta;
         stream.indexRemainder = remainder;
         stream.indexedLiability += amount;
@@ -725,12 +748,12 @@ library LibRangeGauge {
             _firstCrossedBoundary(gauge, referenceTick, finalTick, tickSpacing);
         if (!initialized) {
             if (!forceCheckpoint) return false;
-            _checkpointAndFlush(poolId, gauge, currentTime);
+            _checkpointStreams(poolId, gauge, currentTime);
             gauge.referenceTick = finalTick;
             return false;
         }
 
-        _checkpointAndFlush(poolId, gauge, currentTime);
+        _checkpointStreams(poolId, gauge, currentTime);
         uint8 slotCount = rangeGaugeStorage().rewardConfig[poolId].slotCount;
         uint128 activeLiquidity = gauge.activeGaugeLiquidity;
         if (rightward) {
@@ -747,7 +770,7 @@ library LibRangeGauge {
                 (boundary, initialized) = nextInitializedBoundary(gauge, boundary - 1, tickSpacing, true);
             }
         }
-        gauge.activeGaugeLiquidity = activeLiquidity;
+        _setActiveLiquidity(poolId, gauge, activeLiquidity);
         gauge.referenceTick = finalTick;
         crossed = true;
     }
@@ -769,7 +792,7 @@ library LibRangeGauge {
         }
     }
 
-    function _checkpointAndFlush(PoolId poolId, GaugePool storage gauge, uint40 currentTime) private {
+    function _checkpointStreams(PoolId poolId, GaugePool storage gauge, uint40 currentTime) private {
         uint8 slotCount = rangeGaugeStorage().rewardConfig[poolId].slotCount;
         uint128 activeLiquidity = gauge.activeGaugeLiquidity;
         for (uint8 slot; slot < slotCount; ++slot) {
@@ -779,8 +802,15 @@ library LibRangeGauge {
             } else {
                 checkpointStream(stream, currentTime, activeLiquidity);
             }
-            flushDenominatorRemainder(poolId, slot);
         }
+    }
+
+    function _setActiveLiquidity(PoolId poolId, GaugePool storage gauge, uint128 activeLiquidity) private {
+        if (activeLiquidity == gauge.activeGaugeLiquidity) return;
+        // Callers checkpoint at the old denominator before reaching a real topology change.
+        // Any reset numerator is less than 2^-32 of one raw reward unit.
+        _resetDenominatorRemainders(poolId);
+        gauge.activeGaugeLiquidity = activeLiquidity;
     }
 
     function _recycleProtocolReward(PoolId poolId, uint64 sourceEpoch, uint256 amount) private {

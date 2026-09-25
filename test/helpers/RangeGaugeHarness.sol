@@ -233,8 +233,16 @@ contract RangeGaugeHarness {
         LibCustody.reserve(LibRangeGauge.rewardAccount(poolId, _toUint8(slot)), asset, amount);
     }
 
-    function flushDenominatorRemainder(PoolId poolId, uint256 slot) external returns (uint256) {
-        return LibRangeGauge.flushDenominatorRemainder(poolId, _toUint8(slot));
+    function registerPositionRange(
+        PoolId poolId,
+        int256 tickLower,
+        int256 tickUpper,
+        int256 tickSpacing,
+        uint256 liquidity
+    ) external {
+        LibRangeGauge.registerPositionRange(
+            poolId, _toInt24(tickLower), _toInt24(tickUpper), _toInt24(tickSpacing), _toUint128(liquidity)
+        );
     }
 
     function rewardReservation(PoolId poolId, uint256 slot, address asset) external view returns (uint256) {

@@ -287,6 +287,27 @@ contract RangeGaugeCallbackTest is Test {
         }
     }
 
+    function testRepeatedBoundaryCrossingCannotEraseLowDecimalEmission() public {
+        (PoolId poolId, PoolKey memory key) = _readyGeneral(0, 0);
+        uint128 baseLiquidity = 1e33;
+        callback.addRange(poolId, -100, 100, key.tickSpacing, 0, baseLiquidity);
+        callback.addRange(poolId, -10, 10, key.tickSpacing, 0, 1);
+        callback.setActiveLiquidity(poolId, baseLiquidity + 1);
+        callback.fundStream(poolId, 0, 100e6, START, DURATION);
+
+        for (uint256 hour = 1; hour <= 168; ++hour) {
+            vm.warp(START + hour * 1 hours);
+            poolManager.setTick(poolId, hour % 2 == 1 ? int256(10) : int256(9));
+            hook.notify(address(callback), poolId);
+        }
+        callback.synchronizeTopology(poolId, key.tickSpacing);
+
+        LibRangeGauge.GaugeRewardStream memory stream = callback.stream(poolId, 0);
+        assertEq(stream.periodEmitted, 100e6);
+        assertEq(stream.indexedLiability, 100e6);
+        assertLt(stream.indexRemainder, 1 << 160);
+    }
+
     function testStoppedGaugeReturnsWithoutPoolReadOrMutation() public {
         (PoolId poolId,) = _readyGeneral(0, 0);
         callback.addRange(poolId, -10, 10, 10, 0, 100);

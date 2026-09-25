@@ -195,7 +195,9 @@ contract RangeGaugeViewFacet {
             : Math.mulDiv(stream.periodBudget, elapsed, duration);
         uint256 emission = targetEmitted - stream.periodEmitted - stream.periodRecycled;
         if (emission == 0) return globalIndexRay;
-        (uint256 delta,) = LibIndexMath.indexDelta(emission, gauge.activeGaugeLiquidity, stream.indexRemainder);
+        (uint256 delta,) = LibIndexMath.indexDeltaAtScale(
+            emission, gauge.activeGaugeLiquidity, stream.indexRemainder, LibRangeGauge.INDEX_SCALE
+        );
         unchecked {
             globalIndexRay += delta;
         }

@@ -61,11 +61,12 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         int24 nextUpper,
         uint128 nextLiquidity
     ) internal {
-        LibRangeGauge.unregisterPositionRange(poolId, leg.tickLower, leg.tickUpper, tickSpacing, leg.liquidity);
+        LibRangeGauge.replacePositionRange(
+            poolId, leg.tickLower, leg.tickUpper, leg.liquidity, nextLower, nextUpper, nextLiquidity, tickSpacing
+        );
         leg.tickLower = nextLower;
         leg.tickUpper = nextUpper;
         leg.liquidity = nextLiquidity;
-        LibRangeGauge.registerPositionRange(poolId, nextLower, nextUpper, tickSpacing, nextLiquidity);
         LibRangeGauge.checkpointLeg(poolId, leg);
     }
 
