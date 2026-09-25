@@ -14,7 +14,7 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeClaimRoundingConservation() public pure {
-        check_claimRoundingCannotExceedBudget(10_000, 6_000, 4_000);
+        check_claimRoundingCannotExceedBudget(100, 60, 40);
     }
 
     function testRepresentativeProrationConservation() public pure {
@@ -43,10 +43,10 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         assertEq(lpAmount + allocatorAmount, received);
     }
 
-    function check_claimRoundingCannotExceedBudget(uint16 budget, uint16 firstWeight, uint16 secondWeight) public pure {
+    function check_claimRoundingCannotExceedBudget(uint8 budget, uint8 firstWeight, uint8 secondWeight) public pure {
         uint256 totalWeight = uint256(firstWeight) + secondWeight;
         vm.assume(totalWeight != 0);
-        // The uint16 products cannot overflow, so this is exactly Math.mulDiv's
+        // The uint8 products cannot overflow, so this is exactly Math.mulDiv's
         // non-overflowing branch without its solver-expensive 512-bit assembly.
         uint256 firstClaim = (uint256(budget) * firstWeight) / totalWeight;
         uint256 secondClaim = (uint256(budget) * secondWeight) / totalWeight;

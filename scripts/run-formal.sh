@@ -158,7 +158,7 @@ case "$TARGET" in
     # dominate otherwise small rules. As in the permanent-liquidity suite, unknown
     # branch feasibility is conservatively explored on both sides while assertions
     # retain their unbounded solver timeout. The two-claim rule uses the exact
-    # non-overflowing uint16 multiplication/division model for bounded exhaustive
+    # non-overflowing uint8 multiplication/division model for bounded exhaustive
     # proof without traversing mulDiv's unreachable 512-bit branch. Full-width
     # Foundry fuzz tests execute mulDiv across the production uint256 input domain.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
