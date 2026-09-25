@@ -91,7 +91,11 @@ twice.
 Governance schedules the weekly release in basis points for the next epoch.
 The deployment default is 400 bps and the hard maximum is 1,000 bps. A
 finalized epoch records the rate it used, so later changes cannot rewrite its
-budget.
+budget. A scheduled rate becomes the effective current rate at its epoch
+boundary even if nobody has called the permissionless epoch checkpoint yet.
+Scheduling another future rate first promotes any matured decision, so keeper
+timing cannot erase an already-effective governance policy. A not-yet-effective
+schedule may still be replaced before its boundary.
 
 ## PositionNFT allocations
 

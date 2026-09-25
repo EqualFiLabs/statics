@@ -22,18 +22,27 @@ contract GaugeIncentiveViewFacet {
 
     function gaugeReserve() external view returns (IStaticsGaugeIncentives.ReserveView memory state) {
         LibGaugeReserve.ReserveStorage storage stored = LibGaugeReserve.reserveStorage();
+        uint64 currentEpoch = LibGaugeEpoch.epochAt(block.timestamp);
+        uint16 releaseBps = stored.releaseBps;
+        uint16 pendingReleaseBps = stored.pendingReleaseBps;
+        uint64 pendingReleaseEpoch = stored.pendingReleaseEpoch;
+        if (pendingReleaseEpoch != 0 && pendingReleaseEpoch <= currentEpoch) {
+            releaseBps = pendingReleaseBps;
+            pendingReleaseBps = 0;
+            pendingReleaseEpoch = 0;
+        }
         uint256 available = stored.available;
         uint256 deferred = stored.deferred;
         uint64 maturity = stored.deferredMaturityEpoch;
-        if (maturity != 0 && maturity <= LibGaugeEpoch.epochAt(block.timestamp)) {
+        if (maturity != 0 && maturity <= currentEpoch) {
             available += deferred;
             deferred = 0;
             maturity = 0;
         }
         state = IStaticsGaugeIncentives.ReserveView({
-            releaseBps: stored.releaseBps,
-            pendingReleaseBps: stored.pendingReleaseBps,
-            pendingReleaseEpoch: stored.pendingReleaseEpoch,
+            releaseBps: releaseBps,
+            pendingReleaseBps: pendingReleaseBps,
+            pendingReleaseEpoch: pendingReleaseEpoch,
             deferredMaturityEpoch: maturity,
             available: available,
             deferred: deferred,

@@ -81,8 +81,9 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
 
     function scheduleGaugeReleaseBps(uint16 releaseBps) external {
         LibDiamond.enforceIsContractOwner();
-        uint64 effectiveEpoch = LibGaugeEpoch.epochAt(block.timestamp) + 1;
-        LibGaugeReserve.scheduleReleaseBps(releaseBps, effectiveEpoch);
+        uint64 currentEpoch = LibGaugeEpoch.epochAt(block.timestamp);
+        uint64 effectiveEpoch = currentEpoch + 1;
+        LibGaugeReserve.scheduleReleaseBps(releaseBps, effectiveEpoch, currentEpoch);
         emit IStaticsGaugeIncentives.GaugeReleaseBpsScheduled(releaseBps, effectiveEpoch);
     }
 

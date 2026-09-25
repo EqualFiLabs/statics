@@ -161,6 +161,69 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         assertEq(incentives.gaugeReserve().releaseBps, 500);
     }
 
+    function testMaturedReleaseRateCannotBeOverwrittenBeforeCheckpoint() public {
+        uint64 firstEffectiveEpoch = incentives.currentGaugeEpoch() + 1;
+        incentives.scheduleGaugeReleaseBps(500);
+        _fundReserve(alice, 1_000 ether);
+
+        vm.warp(LibGaugeEpoch.epochStart(firstEffectiveEpoch));
+        IStaticsGaugeIncentives.ReserveView memory matured = incentives.gaugeReserve();
+        assertEq(matured.releaseBps, 500);
+        assertEq(matured.pendingReleaseBps, 0);
+        assertEq(matured.pendingReleaseEpoch, 0);
+        incentives.scheduleGaugeReleaseBps(300);
+        IStaticsGaugeIncentives.ReserveView memory rescheduled = incentives.gaugeReserve();
+        assertEq(rescheduled.releaseBps, 500);
+        assertEq(rescheduled.pendingReleaseBps, 300);
+        assertEq(rescheduled.pendingReleaseEpoch, firstEffectiveEpoch + 1);
+
+        (uint64 finalizedEpoch,, bool finalized) = incentives.checkpointGaugeEpoch();
+        assertTrue(finalized);
+        assertEq(finalizedEpoch, firstEffectiveEpoch);
+        assertEq(incentives.gaugeEpoch(finalizedEpoch).releaseBps, 500);
+        assertEq(incentives.gaugeEpoch(finalizedEpoch).nominalBudget, 50 ether);
+
+        vm.warp(LibGaugeEpoch.epochStart(firstEffectiveEpoch + 1));
+        (finalizedEpoch,, finalized) = incentives.checkpointGaugeEpoch();
+        assertTrue(finalized);
+        assertEq(incentives.gaugeEpoch(finalizedEpoch).releaseBps, 300);
+    }
+
+    function testUnmaturedReleaseRateCanBeReplacedIncludingBounds() public {
+        uint64 effectiveEpoch = incentives.currentGaugeEpoch() + 1;
+        incentives.scheduleGaugeReleaseBps(1_000);
+        incentives.scheduleGaugeReleaseBps(0);
+        IStaticsGaugeIncentives.ReserveView memory pending = incentives.gaugeReserve();
+        assertEq(pending.releaseBps, 400);
+        assertEq(pending.pendingReleaseBps, 0);
+        assertEq(pending.pendingReleaseEpoch, effectiveEpoch);
+
+        vm.warp(LibGaugeEpoch.epochStart(effectiveEpoch));
+        incentives.checkpointGaugeEpoch();
+        assertEq(incentives.gaugeEpoch(effectiveEpoch).releaseBps, 0);
+        assertEq(incentives.gaugeReserve().releaseBps, 0);
+    }
+
+    function testLateCheckpointAfterMultipleMissedEpochsUsesMaturedRate() public {
+        uint64 firstEffectiveEpoch = incentives.currentGaugeEpoch() + 1;
+        incentives.scheduleGaugeReleaseBps(500);
+        _fundReserve(alice, 1_000 ether);
+
+        uint64 lateEpoch = firstEffectiveEpoch + 2;
+        vm.warp(LibGaugeEpoch.epochStart(lateEpoch));
+        incentives.scheduleGaugeReleaseBps(300);
+        (uint64 finalizedEpoch,, bool finalized) = incentives.checkpointGaugeEpoch();
+        assertTrue(finalized);
+        assertEq(finalizedEpoch, lateEpoch);
+        assertEq(incentives.gaugeEpoch(lateEpoch).releaseBps, 500);
+        assertEq(incentives.gaugeEpoch(lateEpoch).nominalBudget, 50 ether);
+
+        vm.warp(LibGaugeEpoch.epochStart(lateEpoch + 1));
+        incentives.checkpointGaugeEpoch();
+        assertEq(incentives.gaugeEpoch(lateEpoch + 1).releaseBps, 300);
+        assertEq(incentives.gaugeEpoch(lateEpoch).releaseBps, 500);
+    }
+
     function testLateCheckpointProratesCurrentEpochBudget() public {
         PoolId poolId = _createRangeGaugePool(alice);
         uint256 positionId = _createStakedPosition(alice, 100 ether);

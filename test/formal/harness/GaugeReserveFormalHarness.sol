@@ -28,8 +28,25 @@ contract GaugeReserveFormalHarness {
         LibGaugeReserve.recycle(amount, sourceEpoch, currentEpoch);
     }
 
+    function schedule(uint16 releaseBps, uint64 effectiveEpoch, uint64 currentEpoch) external {
+        LibGaugeReserve.scheduleReleaseBps(releaseBps, effectiveEpoch, currentEpoch);
+    }
+
+    function applyScheduled(uint64 currentEpoch) external returns (uint16 releaseBps) {
+        return LibGaugeReserve.applyScheduledRelease(currentEpoch);
+    }
+
     function state() external view returns (uint16 releaseBps, uint256 available, uint256 deferred, uint256 committed) {
         LibGaugeReserve.ReserveStorage storage stored = LibGaugeReserve.reserveStorage();
         return (stored.releaseBps, stored.available, stored.deferred, stored.committed);
+    }
+
+    function scheduleState()
+        external
+        view
+        returns (uint16 releaseBps, uint16 pendingReleaseBps, uint64 pendingReleaseEpoch)
+    {
+        LibGaugeReserve.ReserveStorage storage stored = LibGaugeReserve.reserveStorage();
+        return (stored.releaseBps, stored.pendingReleaseBps, stored.pendingReleaseEpoch);
     }
 }

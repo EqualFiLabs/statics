@@ -184,6 +184,10 @@ case "$TARGET" in
       out-formal-genesis '^check_releaseCommitmentPreservesReservePartition'
     run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-recycling 8 \
       out-formal-genesis '^check_claimAndRecycleConserveBackedReserve'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-matured-release-schedule 8 \
+      out-formal-genesis '^check_maturedScheduleCannotBeOverwritten'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-unmatured-release-replacement 8 \
+      out-formal-genesis '^check_unmaturedScheduleMayBeReplaced'
     run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-funding-split 8 \
       out-formal-genesis '^check_fundingSplitConservesReceived'
     run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-claim-rounding 8 \

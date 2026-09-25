@@ -39,8 +39,9 @@ library LibGaugeReserve {
         rs.releaseBps = releaseBps;
     }
 
-    function scheduleReleaseBps(uint16 releaseBps, uint64 effectiveEpoch) internal {
+    function scheduleReleaseBps(uint16 releaseBps, uint64 effectiveEpoch, uint64 currentEpoch) internal {
         _validateReleaseBps(releaseBps);
+        applyScheduledRelease(currentEpoch);
         ReserveStorage storage rs = reserveStorage();
         rs.pendingReleaseBps = releaseBps;
         rs.pendingReleaseEpoch = effectiveEpoch;

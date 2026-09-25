@@ -24,6 +24,10 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         check_claimAndRecycleConserveBackedReserve(1_000 ether, 400, 10 ether);
     }
 
+    function testRepresentativeMaturedSchedulePromotion() public {
+        check_maturedScheduleCannotBeOverwritten(400, 500, 300);
+    }
+
     function check_releaseCommitmentPreservesReservePartition(uint96 reserveAmount, uint16 releaseBps) public {
         vm.assume(releaseBps <= MAX_RELEASE_BPS);
         reserve.initialize(releaseBps);
@@ -59,5 +63,35 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertEq(committed, 0);
         assertEq(deferred, recycledAmount);
         assertEq(available + deferred + claimed, reserveAmount);
+    }
+
+    function check_maturedScheduleCannotBeOverwritten(uint16 initialBps, uint16 firstBps, uint16 secondBps) public {
+        vm.assume(initialBps <= MAX_RELEASE_BPS);
+        vm.assume(firstBps <= MAX_RELEASE_BPS);
+        vm.assume(secondBps <= MAX_RELEASE_BPS);
+        reserve.initialize(initialBps);
+        reserve.schedule(firstBps, 11, 10);
+        reserve.schedule(secondBps, 12, 11);
+
+        (uint16 current, uint16 pending, uint64 effectiveEpoch) = reserve.scheduleState();
+        assertEq(current, firstBps);
+        assertEq(pending, secondBps);
+        assertEq(effectiveEpoch, 12);
+        assertEq(reserve.applyScheduled(11), firstBps);
+        assertEq(reserve.applyScheduled(12), secondBps);
+    }
+
+    function check_unmaturedScheduleMayBeReplaced(uint16 initialBps, uint16 firstBps, uint16 replacementBps) public {
+        vm.assume(initialBps <= MAX_RELEASE_BPS);
+        vm.assume(firstBps <= MAX_RELEASE_BPS);
+        vm.assume(replacementBps <= MAX_RELEASE_BPS);
+        reserve.initialize(initialBps);
+        reserve.schedule(firstBps, 11, 10);
+        reserve.schedule(replacementBps, 11, 10);
+
+        (uint16 current, uint16 pending, uint64 effectiveEpoch) = reserve.scheduleState();
+        assertEq(current, initialBps);
+        assertEq(pending, replacementBps);
+        assertEq(effectiveEpoch, 11);
     }
 }
