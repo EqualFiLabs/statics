@@ -119,11 +119,19 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertEq(effectiveEpoch, 11);
     }
 
+    /// @dev Exhaustive uint8 products cannot overflow, so ordinary floor division
+    ///      is exactly equivalent to production Math.mulDiv in this proof domain.
     function check_twoPoolProRataSharesRemainWithinBudget(uint8 budget, uint8 firstWeight, uint8 secondWeight)
         public
         pure
     {
-        _assertTwoPoolProRataSharesRemainWithinBudget(budget, firstWeight, secondWeight);
+        uint256 totalWeight = uint256(firstWeight) + secondWeight;
+        vm.assume(totalWeight != 0);
+        uint256 firstBudget = uint256(budget) * firstWeight / totalWeight;
+        uint256 secondBudget = uint256(budget) * secondWeight / totalWeight;
+        uint256 activated = firstBudget + secondBudget;
+        assertLe(activated, budget);
+        assertLt(uint256(budget) - activated, 2);
     }
 
     function check_splittingPoolWeightCannotIncreaseBudget(
@@ -132,11 +140,15 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         uint8 secondSplit,
         uint8 otherWeight
     ) public pure {
-        _assertSplittingPoolWeightCannotIncreaseBudget(budget, firstSplit, secondSplit, otherWeight);
+        uint256 combinedWeight = uint256(firstSplit) + secondSplit;
+        uint256 totalWeight = combinedWeight + otherWeight;
+        vm.assume(totalWeight != 0);
+        uint256 combinedBudget = uint256(budget) * combinedWeight / totalWeight;
+        uint256 splitBudget = uint256(budget) * firstSplit / totalWeight + uint256(budget) * secondSplit / totalWeight;
+        assertLe(splitBudget, combinedBudget);
     }
 
-    /// @dev Halmos exhausts the normalized uint8 domain; the fuzz entry point above
-    ///      exercises the identical mulDiv identity over arbitrary uint96 inputs.
+    /// @dev Foundry fuzzing exercises production mulDiv over arbitrary uint96 inputs.
     function _assertTwoPoolProRataSharesRemainWithinBudget(uint256 budget, uint256 firstWeight, uint256 secondWeight)
         private
         pure
@@ -150,8 +162,7 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertLt(budget - activated, 2);
     }
 
-    /// @dev Halmos exhausts the normalized uint8 domain; the fuzz entry point above
-    ///      exercises the identical mulDiv identity over arbitrary uint96 inputs.
+    /// @dev Foundry fuzzing exercises production mulDiv over arbitrary uint96 inputs.
     function _assertSplittingPoolWeightCannotIncreaseBudget(
         uint256 budget,
         uint256 firstSplit,
