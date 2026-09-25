@@ -141,6 +141,12 @@ to other pools. This makes a restriction incapable of increasing another
 pool's reward after the allocation boundary. If eligibility later returns, a
 PositionNFT owner must schedule a new valid allocation.
 
+Restriction occurrence sequences are checkpointed cumulatively by epoch. A
+pool resolution compares its allocation-time sequence against the latest
+sequence before the funded epoch, so an old restriction cannot age out of the
+stale-allocation rule. A restriction first applied during the funded epoch
+still uses its first timestamp to prorate an already-valid epoch share.
+
 Every nonzero scheduled allocation contributes to the aggregate epoch weight.
 There is no minimum allocation, winner cutoff, tie rule, heap, or iteration over
 all pools. Pool-specific weight and eligibility are resolved only when that
@@ -192,6 +198,10 @@ recorded restriction timestamp and recycles the remaining budget.
 Each PoolId settles its prior protocol stream before a later share is activated.
 Stopping a gauge, forfeiting slot-0 claims, or reconciling a stopped gauge also
 returns the applicable STATICS to the reserve.
+If a pool's lifetime slot-0 index capacity cannot accept its complete epoch
+share, activation resolves without starting a partial stream and recycles the
+whole share. Capacity exhaustion therefore cannot block swaps, LP exits,
+claims, or pool decommissioning.
 Ordinary checkpoints preserve the range-gauge numerator carry. A genuine
 active-liquidity denominator change resets only a Q160 fraction smaller than
 `2^-32` of one raw token unit and does not immediately recycle any slot-0

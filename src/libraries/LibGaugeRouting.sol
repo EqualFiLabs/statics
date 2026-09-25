@@ -226,6 +226,7 @@ library LibGaugeRouting {
     }
 
     function clearForStakeLoss(uint256 positionId, uint256 remainingStake) internal {
+        checkpointEpoch(LibRangeGauge.timestamp40(block.timestamp));
         RoutingStorage storage rs = routingStorage();
         PositionAllocations storage position = rs.positions[positionId];
         if (position.active.length == 0 && position.pending.length == 0) return;
@@ -368,7 +369,10 @@ library LibGaugeRouting {
         }
         state.unactivatedBudget = unactivated - resolution.budget;
 
-        if (resolution.budget == 0 || !resolution.eligible) {
+        if (
+            resolution.budget == 0 || !resolution.eligible
+                || !LibRangeGauge.canStartProtocolStream(poolId, resolution.budget)
+        ) {
             recycled = resolution.budget;
             if (recycled != 0) {
                 LibGaugeReserve.consumeCommitted(recycled);

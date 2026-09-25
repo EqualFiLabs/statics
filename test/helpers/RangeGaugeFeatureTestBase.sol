@@ -22,6 +22,11 @@ contract RangeGaugeTestStateFacet {
         LibRangeGauge.rangeGaugeStorage().gauges[poolId].activeGaugeLiquidity = uint128(liquidity);
     }
 
+    function setGaugeRewardCapacityUsed(PoolId poolId, uint256 slot, uint256 used) external {
+        if (slot >= LibRangeGauge.MAX_REWARD_SLOTS || used > LibRangeGauge.MAX_INDEXABLE_REWARD) revert();
+        LibRangeGauge.rangeGaugeStorage().gauges[poolId].capacities[slot].used = used;
+    }
+
     function addGaugeRange(
         PoolId poolId,
         int256 tickLower,
@@ -219,10 +224,11 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     }
 
     function _stateSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](5);
         selectors[0] = RangeGaugeTestStateFacet.setActiveGaugeLiquidity.selector;
         selectors[1] = RangeGaugeTestStateFacet.addGaugeRange.selector;
         selectors[2] = RangeGaugeTestStateFacet.seedLpLeg.selector;
         selectors[3] = RangeGaugeTestStateFacet.nextGaugeBoundary.selector;
+        selectors[4] = RangeGaugeTestStateFacet.setGaugeRewardCapacityUsed.selector;
     }
 }

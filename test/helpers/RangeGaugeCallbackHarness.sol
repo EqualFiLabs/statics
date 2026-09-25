@@ -9,6 +9,7 @@ import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.
 import {IStaticsRangeGaugeCallback} from "../../src/interfaces/IStaticsRangeGaugeCallback.sol";
 import {LibBasketLiquidity} from "../../src/libraries/LibBasketLiquidity.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
+import {LibGaugeRouting} from "../../src/libraries/LibGaugeRouting.sol";
 import {LibPermissionedPools} from "../../src/libraries/LibPermissionedPools.sol";
 import {LibProtocolPools} from "../../src/libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
@@ -20,10 +21,11 @@ contract RangeGaugeCallbackHarness is RangeGaugeCallbackFacet {
     function initialize(address statics) external {
         LibGlobalRewards.initialize(statics);
         LibRangeGauge.initializeGlobalConfig();
+        LibGaugeRouting.initialize(400);
     }
 
-    function checkpointGaugePool(PoolId) external pure returns (uint256 committed, uint256 recycled) {
-        return (0, 0);
+    function checkpointGaugePool(PoolId poolId) external returns (uint256 committed, uint256 recycled) {
+        return LibGaugeRouting.checkpointPool(poolId, LibRangeGauge.timestamp40(block.timestamp));
     }
 
     function installPublicIntegration(address poolManager, address hook) external {

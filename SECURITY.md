@@ -285,7 +285,10 @@ wrapping while a position remains unsettled. The bound is far above practical
 token supplies. When the error reports a committed budget below the maximum,
 the funder may retry with an amount no greater than the remaining capacity. An
 equal committed and maximum budget means the pool reward slot is permanently
-exhausted.
+exhausted. A protocol slot-0 epoch share that does not fit in the remaining
+capacity is resolved and recycled in full rather than reverting an automatic
+pool checkpoint. Capacity exhaustion therefore does not block swaps, LP
+principal exits, claims, or decommissioning.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every

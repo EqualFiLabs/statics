@@ -353,6 +353,11 @@ library LibRangeGauge {
         stream.periodRecycled = 0;
     }
 
+    function canStartProtocolStream(PoolId poolId, uint256 budget) internal view returns (bool) {
+        uint256 usedCapacity = rangeGaugeStorage().gauges[poolId].capacities[STATICS_SLOT].used;
+        return usedCapacity <= MAX_INDEXABLE_REWARD && budget <= MAX_INDEXABLE_REWARD - usedCapacity;
+    }
+
     function checkpointProtocolStream(PoolId poolId, uint40 currentTime)
         internal
         returns (uint256 emission, uint256 recycled)

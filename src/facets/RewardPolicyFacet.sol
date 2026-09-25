@@ -27,7 +27,7 @@ contract RewardPolicyFacet is IStaticsRewardPolicy {
         uint64 epoch = LibGaugeEpoch.epochAt(block.timestamp);
         if (state.firstRestrictedAt[epoch] == 0) state.firstRestrictedAt[epoch] = uint40(block.timestamp);
         uint64 sequence = ++LibRewardPolicy.rewardPolicyStorage().restrictionSequence;
-        state.lastRestrictionSequence[epoch] = sequence;
+        LibRewardPolicy.recordRestrictionSequence(asset, epoch, sequence);
         emit RewardRestrictionAdded(asset, msg.sender);
     }
 

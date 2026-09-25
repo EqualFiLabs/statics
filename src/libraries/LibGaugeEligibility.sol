@@ -42,8 +42,8 @@ library LibGaugeEligibility {
 
     function latestRestrictionSequence(PoolId poolId, uint64 epoch) internal view returns (uint64 sequence) {
         (, PoolKey memory key,,) = LibProtocolPools.resolve(poolId);
-        uint64 first = LibRewardPolicy.lastRestrictionSequence(Currency.unwrap(key.currency0), epoch);
-        uint64 second = LibRewardPolicy.lastRestrictionSequence(Currency.unwrap(key.currency1), epoch);
+        uint64 first = LibRewardPolicy.restrictionSequenceAt(Currency.unwrap(key.currency0), epoch);
+        uint64 second = LibRewardPolicy.restrictionSequenceAt(Currency.unwrap(key.currency1), epoch);
         return first > second ? first : second;
     }
 
