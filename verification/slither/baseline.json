@@ -2854,22 +2854,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeHeap.sol"
-      ],
-      "summary": "LibGaugeHeap.top(LibGaugeHeap.Heap,uint256).bestPosition (src/libraries/LibGaugeHeap.sol#77) is a local variable never initialized",
-      "rationale": "The frontier scan intentionally treats index zero as the initial best candidate before comparing every later bounded candidate.",
-      "occurrences": 1,
-      "id": "9e4a7c8b427977e9808cf32d"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/core/facets/CoreGovernanceFacet.sol"
       ],
       "summary": "CoreGovernanceFacet._retireProfile(LibCoreStorage.CS,uint256,IStaticsDollarCoreTypes.StableCollateralProfile).peggedTerminalSurplus (src/dollar/core/facets/CoreGovernanceFacet.sol#363) is a local variable never initialized",

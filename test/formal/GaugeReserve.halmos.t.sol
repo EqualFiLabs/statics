@@ -28,6 +28,14 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         check_maturedScheduleCannotBeOverwritten(400, 500, 300);
     }
 
+    function testRepresentativeProRataConservation() public pure {
+        check_twoPoolProRataSharesRemainWithinBudget(100 ether, 40 ether, 60 ether);
+    }
+
+    function testRepresentativeWeightSplittingCannotIncreaseBudget() public pure {
+        check_splittingPoolWeightCannotIncreaseBudget(100 ether, 20 ether, 30 ether, 50 ether);
+    }
+
     function check_releaseCommitmentPreservesReservePartition(uint96 reserveAmount, uint16 releaseBps) public {
         vm.assume(releaseBps <= MAX_RELEASE_BPS);
         reserve.initialize(releaseBps);
@@ -93,5 +101,33 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertEq(current, initialBps);
         assertEq(pending, replacementBps);
         assertEq(effectiveEpoch, 11);
+    }
+
+    function check_twoPoolProRataSharesRemainWithinBudget(uint96 budget, uint96 firstWeight, uint96 secondWeight)
+        public
+        pure
+    {
+        uint256 totalWeight = uint256(firstWeight) + secondWeight;
+        vm.assume(totalWeight != 0);
+        uint256 firstBudget = Math.mulDiv(budget, firstWeight, totalWeight);
+        uint256 secondBudget = Math.mulDiv(budget, secondWeight, totalWeight);
+        uint256 activated = firstBudget + secondBudget;
+        assertLe(activated, budget);
+        assertLt(uint256(budget) - activated, 2);
+    }
+
+    function check_splittingPoolWeightCannotIncreaseBudget(
+        uint96 budget,
+        uint96 firstSplit,
+        uint96 secondSplit,
+        uint96 otherWeight
+    ) public pure {
+        uint256 combinedWeight = uint256(firstSplit) + secondSplit;
+        uint256 totalWeight = combinedWeight + otherWeight;
+        vm.assume(totalWeight != 0);
+        uint256 combinedBudget = Math.mulDiv(budget, combinedWeight, totalWeight);
+        uint256 splitBudget =
+            Math.mulDiv(budget, firstSplit, totalWeight) + Math.mulDiv(budget, secondSplit, totalWeight);
+        assertLe(splitBudget, combinedBudget);
     }
 }
