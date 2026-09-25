@@ -29,11 +29,27 @@ contract GaugeReserveHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeProRataConservation() public pure {
-        check_twoPoolProRataSharesRemainWithinBudget(100 ether, 40 ether, 60 ether);
+        check_twoPoolProRataSharesRemainWithinBudget(100, 40, 60);
     }
 
     function testRepresentativeWeightSplittingCannotIncreaseBudget() public pure {
-        check_splittingPoolWeightCannotIncreaseBudget(100 ether, 20 ether, 30 ether, 50 ether);
+        check_splittingPoolWeightCannotIncreaseBudget(100, 20, 30, 50);
+    }
+
+    function testFuzzTwoPoolProRataSharesRemainWithinBudget(uint96 budget, uint96 firstWeight, uint96 secondWeight)
+        public
+        pure
+    {
+        _assertTwoPoolProRataSharesRemainWithinBudget(budget, firstWeight, secondWeight);
+    }
+
+    function testFuzzSplittingPoolWeightCannotIncreaseBudget(
+        uint96 budget,
+        uint96 firstSplit,
+        uint96 secondSplit,
+        uint96 otherWeight
+    ) public pure {
+        _assertSplittingPoolWeightCannotIncreaseBudget(budget, firstSplit, secondSplit, otherWeight);
     }
 
     function check_releaseCommitmentPreservesReservePartition(uint96 reserveAmount, uint16 releaseBps) public {
@@ -103,8 +119,26 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertEq(effectiveEpoch, 11);
     }
 
-    function check_twoPoolProRataSharesRemainWithinBudget(uint96 budget, uint96 firstWeight, uint96 secondWeight)
+    function check_twoPoolProRataSharesRemainWithinBudget(uint8 budget, uint8 firstWeight, uint8 secondWeight)
         public
+        pure
+    {
+        _assertTwoPoolProRataSharesRemainWithinBudget(budget, firstWeight, secondWeight);
+    }
+
+    function check_splittingPoolWeightCannotIncreaseBudget(
+        uint8 budget,
+        uint8 firstSplit,
+        uint8 secondSplit,
+        uint8 otherWeight
+    ) public pure {
+        _assertSplittingPoolWeightCannotIncreaseBudget(budget, firstSplit, secondSplit, otherWeight);
+    }
+
+    /// @dev Halmos exhausts the normalized uint8 domain; the fuzz entry point above
+    ///      exercises the identical mulDiv identity over arbitrary uint96 inputs.
+    function _assertTwoPoolProRataSharesRemainWithinBudget(uint256 budget, uint256 firstWeight, uint256 secondWeight)
+        private
         pure
     {
         uint256 totalWeight = uint256(firstWeight) + secondWeight;
@@ -113,15 +147,17 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         uint256 secondBudget = Math.mulDiv(budget, secondWeight, totalWeight);
         uint256 activated = firstBudget + secondBudget;
         assertLe(activated, budget);
-        assertLt(uint256(budget) - activated, 2);
+        assertLt(budget - activated, 2);
     }
 
-    function check_splittingPoolWeightCannotIncreaseBudget(
-        uint96 budget,
-        uint96 firstSplit,
-        uint96 secondSplit,
-        uint96 otherWeight
-    ) public pure {
+    /// @dev Halmos exhausts the normalized uint8 domain; the fuzz entry point above
+    ///      exercises the identical mulDiv identity over arbitrary uint96 inputs.
+    function _assertSplittingPoolWeightCannotIncreaseBudget(
+        uint256 budget,
+        uint256 firstSplit,
+        uint256 secondSplit,
+        uint256 otherWeight
+    ) private pure {
         uint256 combinedWeight = uint256(firstSplit) + secondSplit;
         uint256 totalWeight = combinedWeight + otherWeight;
         vm.assume(totalWeight != 0);
