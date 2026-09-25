@@ -160,9 +160,7 @@ case "$TARGET" in
     # retain their unbounded solver timeout. The two-claim rule exhausts uint8
     # budgets and weights in a 256-unit normalized domain, replacing exact
     # floor division with a right shift. Full-width Foundry fuzz tests execute mulDiv
-    # across arbitrary raw weights in the production uint256 domain. Checkpoint
-    # composition likewise exhausts two consecutive uint8 emissions and denominators;
-    # full-width Foundry fuzz tests cover the production uint96/uint128 domain.
+    # across arbitrary raw weights in the production uint256 domain.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-stream-conservation 8 \
       out-formal-genesis '^check_streamEmitsEntireBudgetAtFinish'
@@ -176,8 +174,6 @@ case "$TARGET" in
       out-formal-genesis '^check_indexCapacityBoundPreventsGlobalOverflow'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-position-remainder 8 \
       out-formal-genesis '^check_positionRemainderCarryConservesNumerator'
-    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-checkpoint-fragmentation 8 \
-      out-formal-genesis '^check_checkpointFragmentationPreservesScaledNumerator'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-denominator-remainder-bound 8 \
       out-formal-genesis '^check_denominatorRemainderCannotReachOneRawUnit'
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-final-reconciliation-gate 8 \

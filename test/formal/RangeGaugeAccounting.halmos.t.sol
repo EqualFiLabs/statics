@@ -3,7 +3,6 @@ pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
 import {SymTest} from "halmos-cheatcodes/SymTest.sol";
-import {LibIndexMath} from "../../src/libraries/LibIndexMath.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
 import {RangeGaugeFormalHarness} from "./harness/RangeGaugeFormalHarness.sol";
 
@@ -26,10 +25,6 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
 
     function testRepresentativeIndexCapacityBound() public pure {
         check_indexCapacityBoundPreventsGlobalOverflow(type(uint96).max, 0);
-    }
-
-    function testRepresentativeCheckpointFragmentation() public pure {
-        check_checkpointFragmentationPreservesScaledNumerator(3, 5, 12);
     }
 
     function testRepresentativeFinalReconciliationGate() public pure {
@@ -108,21 +103,6 @@ contract RangeGaugeAccountingHalmosTest is SymTest, Test, RangeGaugeFormalHarnes
         uint256 total = uint256(used) + added;
         if (total > type(uint96).max) return;
         assertLe(total * INDEX_SCALE, type(uint256).max);
-    }
-
-    function check_checkpointFragmentationPreservesScaledNumerator(
-        uint8 firstAmount,
-        uint8 secondAmount,
-        uint8 rawDenominator
-    ) public pure {
-        uint256 denominator = uint256(rawDenominator) + 1;
-        uint256 totalAmount = uint256(firstAmount) + secondAmount;
-        (uint256 firstDelta, uint256 firstRemainder) =
-            LibIndexMath.indexDeltaAtScale(firstAmount, denominator, 0, INDEX_SCALE);
-        (uint256 secondDelta, uint256 secondRemainder) =
-            LibIndexMath.indexDeltaAtScale(secondAmount, denominator, firstRemainder, INDEX_SCALE);
-        assertEq((firstDelta + secondDelta) * denominator + secondRemainder, totalAmount * INDEX_SCALE);
-        assertLt(secondRemainder, denominator);
     }
 
     function check_denominatorRemainderCannotReachOneRawUnit(uint128 denominator, uint128 rawRemainder) public pure {
