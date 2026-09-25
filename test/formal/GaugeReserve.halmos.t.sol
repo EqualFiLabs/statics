@@ -9,6 +9,7 @@ import {GaugeReserveFormalHarness} from "./harness/GaugeReserveFormalHarness.sol
 contract GaugeReserveHalmosTest is SymTest, Test {
     uint256 private constant BPS = 10_000;
     uint16 private constant MAX_RELEASE_BPS = 1_000;
+    uint256 private constant NORMALIZED_ROUTING_BUDGET = type(uint8).max;
 
     GaugeReserveFormalHarness private reserve;
 
@@ -29,11 +30,11 @@ contract GaugeReserveHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeProRataConservation() public pure {
-        check_twoPoolProRataSharesRemainWithinBudget(100, 96, 160);
+        check_twoPoolProRataSharesRemainWithinBudget(96, 160);
     }
 
     function testRepresentativeWeightSplittingCannotIncreaseBudget() public pure {
-        check_splittingPoolWeightCannotIncreaseBudget(100, 64, 64, 128);
+        check_splittingPoolWeightCannotIncreaseBudget(64, 64, 128);
     }
 
     function testFuzzTwoPoolProRataSharesRemainWithinBudget(uint96 budget, uint96 firstWeight, uint96 secondWeight)
@@ -119,33 +120,28 @@ contract GaugeReserveHalmosTest is SymTest, Test {
         assertEq(effectiveEpoch, 11);
     }
 
-    /// @dev Halmos proves a normalized 256-unit denominator with exact right-shift
-    ///      floor division. Full-width fuzzing below exercises arbitrary denominators.
-    function check_twoPoolProRataSharesRemainWithinBudget(uint8 budget, uint8 firstWeight, uint8 secondWeight)
+    /// @dev Halmos exhausts normalized weights at the maximum uint8 budget. Full-width
+    ///      fuzzing below exercises arbitrary budgets, weights, and denominators.
+    function check_twoPoolProRataSharesRemainWithinBudget(uint8 firstWeight, uint8 secondWeight) public pure {
+        uint256 totalWeight = uint256(firstWeight) + secondWeight;
+        vm.assume(totalWeight == 256);
+        uint256 firstBudget = NORMALIZED_ROUTING_BUDGET * firstWeight >> 8;
+        uint256 secondBudget = NORMALIZED_ROUTING_BUDGET * secondWeight >> 8;
+        uint256 activated = firstBudget + secondBudget;
+        assertLe(activated, NORMALIZED_ROUTING_BUDGET);
+        assertLt(NORMALIZED_ROUTING_BUDGET - activated, 2);
+    }
+
+    function check_splittingPoolWeightCannotIncreaseBudget(uint8 firstSplit, uint8 secondSplit, uint8 otherWeight)
         public
         pure
     {
-        uint256 totalWeight = uint256(firstWeight) + secondWeight;
-        vm.assume(totalWeight == 256);
-        uint256 firstBudget = uint256(budget) * firstWeight >> 8;
-        uint256 secondBudget = uint256(budget) * secondWeight >> 8;
-        uint256 activated = firstBudget + secondBudget;
-        assertLe(activated, budget);
-        assertLt(uint256(budget) - activated, 2);
-    }
-
-    function check_splittingPoolWeightCannotIncreaseBudget(
-        uint8 budget,
-        uint8 firstSplit,
-        uint8 secondSplit,
-        uint8 otherWeight
-    ) public pure {
         uint256 combinedWeight = uint256(firstSplit) + secondSplit;
         uint256 totalWeight = combinedWeight + otherWeight;
         vm.assume(totalWeight == 256);
-        uint256 combinedBudget = uint256(budget) * combinedWeight >> 8;
-        uint256 splitBudget = uint256(budget) * firstSplit >> 8;
-        splitBudget += uint256(budget) * secondSplit >> 8;
+        uint256 combinedBudget = NORMALIZED_ROUTING_BUDGET * combinedWeight >> 8;
+        uint256 splitBudget = NORMALIZED_ROUTING_BUDGET * firstSplit >> 8;
+        splitBudget += NORMALIZED_ROUTING_BUDGET * secondSplit >> 8;
         assertLe(splitBudget, combinedBudget);
     }
 
