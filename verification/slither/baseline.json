@@ -1,16 +1,16 @@
 {
   "schema": 2,
   "counts": {
-    "High": 69,
-    "Medium": 404,
+    "High": 67,
+    "Medium": 402,
     "Low": 248,
-    "Informational": 120
+    "Informational": 119
   },
   "raw_counts": {
-    "High": 69,
-    "Medium": 406,
-    "Low": 310,
-    "Informational": 120
+    "High": 67,
+    "Medium": 402,
+    "Low": 308,
+    "Informational": 119
   },
   "findings": [
     {
@@ -328,10 +328,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
-      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#139-155):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before owner credit is recorded, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "3c439996ff973e7850998d10"
+      "id": "177112531f514f39e44fe1dc"
     },
     {
       "impact": "High",
@@ -536,10 +536,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
-      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#139-155):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before owner credit is recorded, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "835ade4526ca940e0cb49884"
+      "id": "72a26d6bdb0e68c86a2ccf07"
     },
     {
       "impact": "High",
@@ -552,10 +552,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
-      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#139-155):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before owner credit is recorded, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "8b4d87f6691ffe80d8eea09f"
+      "id": "a00e5d46510d302870d45c16"
     },
     {
       "impact": "High",
@@ -620,22 +620,6 @@
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
       "id": "8f3be1776c75105ea1189d37"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117):",
-      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
-      "occurrences": 1,
-      "id": "9c1891eef3b341cb45849250"
     },
     {
       "impact": "High",
@@ -758,22 +742,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Reentrancy in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117):",
-      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
-      "occurrences": 1,
-      "id": "ba84bbf97f6d4d37aac65ee4"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "Reentrancy in StaticsDollarGatewayFacet._recombineToVolatile(LibPeriphery.PS,StaticsDollarGatewayFacet.PeggedRecombineRequest,StaticsDollarGatewayFacet.PeggedRecombinePrepared) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#537-567):",
@@ -872,10 +840,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
-      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before credit is recorded or delivery is accepted, and any mismatch reverts atomically.",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#139-155):",
+      "rationale": "Both public entrypoints are nonReentrant, unlockCallback authenticates PoolManager, and the PoolManager and PositionManager locks block nested lifecycles. These balance reads intentionally bracket token and manager calls; exact deltas are verified before owner credit is recorded, and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "e62d5cf982f378a1a2d210fd"
+      "id": "ed6fada1ca66db5688d1f129"
     },
     {
       "impact": "High",
@@ -1185,22 +1153,6 @@
       "impact": "Medium",
       "confidence": "High",
       "check": "incorrect-equality",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117) uses a dangerous strict equality:",
-      "rationale": "These equalities form the ERC-20 compatibility boundary: empty return data is accepted only when the transfer call succeeds, while exact sender debit and receiver credit reject partial or fee-on-transfer delivery before selecting the backed-credit fallback.",
-      "occurrences": 1,
-      "id": "05c594e972f9f47f5080ff0f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
         "production-contracts"
@@ -1441,22 +1393,6 @@
       "impact": "Medium",
       "confidence": "High",
       "check": "incorrect-equality",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117) uses a dangerous strict equality:",
-      "rationale": "These equalities form the ERC-20 compatibility boundary: empty return data is accepted only when the transfer call succeeds, while exact sender debit and receiver credit reject partial or fee-on-transfer delivery before selecting the backed-credit fallback.",
-      "occurrences": 1,
-      "id": "55839c739b0aa3b48868be8f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
         "production-contracts"
@@ -1608,10 +1544,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "PermissionedPositionClaims._deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#98-102) uses a dangerous strict equality:",
+      "summary": "PermissionedPositionClaims._creditProceeds(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#97-100) uses a dangerous strict equality:",
       "rationale": "The zero comparison is an explicit no-op guard before any external transfer or accounting update; it does not control authorization, pricing, or a value-bearing boundary.",
       "occurrences": 1,
-      "id": "8bf4bb433623c18554e8c7a5"
+      "id": "09364bc56943bafb25760fe8"
     },
     {
       "impact": "Medium",
@@ -3339,7 +3275,7 @@
       "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (tokenId_scope_1,None,None,None) = params.decodeIncreaseLiquidityFromDeltasParams() (src/permissioned/StaticsPermissionedPositionManager.sol#75)",
       "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
       "occurrences": 1,
-      "id": "02f47d02d396e61746d17491"
+      "id": "2d8e5548d9ad868f99e36800"
     },
     {
       "impact": "Medium",
@@ -3563,7 +3499,7 @@
       "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (tokenId,liquidity,None,None,None) = params.decodeModifyLiquidityParams() (src/permissioned/StaticsPermissionedPositionManager.sol#72)",
       "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
       "occurrences": 1,
-      "id": "11b71825f167c1b873890b4c"
+      "id": "2eaa1e2e147ef34c527f1bf0"
     },
     {
       "impact": "Medium",
@@ -4008,10 +3944,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "PermissionedPositionClaims.forceUnwind(uint256,uint128,uint128,bytes) (src/permissioned/PermissionedPositionClaims.sol#65-88) ignores return value by (key,None) = manager.getPoolAndPositionInfo(tokenId) (src/permissioned/PermissionedPositionClaims.sol#70)",
+      "summary": "PermissionedPositionClaims.forceUnwind(uint256,uint128,uint128,bytes) (src/permissioned/PermissionedPositionClaims.sol#64-87) ignores return value by (key,None) = manager.getPoolAndPositionInfo(tokenId) (src/permissioned/PermissionedPositionClaims.sol#69)",
       "rationale": "The claims companion needs only the PoolKey for hook authentication and settlement. PositionInfo remains owned and consumed by the PositionManager during the subsequent authenticated burn.",
       "occurrences": 1,
-      "id": "2fa0ac1d719ad82be3d221b4"
+      "id": "4cbca55667d45ecd2c071be6"
     },
     {
       "impact": "Medium",
@@ -5211,7 +5147,7 @@
       "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (None,None,None,None,None,owner_scope_0,None) = params.decodeMintFromDeltasParams() (src/permissioned/StaticsPermissionedPositionManager.sol#69)",
       "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
       "occurrences": 1,
-      "id": "787b0578c721f4676845a262"
+      "id": "c444090ce5e6ec75337094a3"
     },
     {
       "impact": "Medium",
@@ -5259,7 +5195,7 @@
       "summary": "StaticsPermissionedPositionManager._handleAction(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#64-79) ignores return value by (None,None,None,None,None,None,owner,None) = params.decodeMintParams() (src/permissioned/StaticsPermissionedPositionManager.sol#66)",
       "rationale": "Only the decoded fields needed for the permission precheck are consumed here; the inherited PositionManager handler decodes and consumes the complete action immediately afterward.",
       "occurrences": 1,
-      "id": "7b5c4b54218bd576ec1d28b1"
+      "id": "c263963a737615f25aae34c0"
     },
     {
       "impact": "Medium",
@@ -5368,10 +5304,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "PermissionedPositionClaims.claim(PoolId,Currency,address,uint256) (src/permissioned/PermissionedPositionClaims.sol#119-130) ignores return value by poolManager.unlock(abi.encode(WITHDRAW,poolId,msg.sender,currency,receiver,amount)) (src/permissioned/PermissionedPositionClaims.sol#129)",
+      "summary": "PermissionedPositionClaims.claim(PoolId,Currency,address,uint256) (src/permissioned/PermissionedPositionClaims.sol#102-113) ignores return value by poolManager.unlock(abi.encode(WITHDRAW,poolId,msg.sender,currency,receiver,amount)) (src/permissioned/PermissionedPositionClaims.sol#112)",
       "rationale": "The unlock call is used for its atomic callback and settlement effects; callback failures bubble and revert the transaction, while its opaque bytes return value carries no protocol decision.",
       "occurrences": 1,
-      "id": "8316e1dcfc646ef21cb61e66"
+      "id": "2fcda5871b3053c9d980380d"
     },
     {
       "impact": "Medium",
@@ -5435,7 +5371,7 @@
       "summary": "StaticsPermissionedPositionManager.executeForceUnwind(uint256,bytes) (src/permissioned/StaticsPermissionedPositionManager.sol#57-62) ignores return value by poolManager.unlock(unlockData) (src/permissioned/StaticsPermissionedPositionManager.sol#61)",
       "rationale": "The unlock call is used for its atomic callback and settlement effects; callback failures bubble and revert the transaction, while its opaque bytes return value carries no protocol decision.",
       "occurrences": 1,
-      "id": "868dac2ba2b7cf963fcb23de"
+      "id": "d3ba44806f85c62f7e3dfd03"
     },
     {
       "impact": "Medium",
@@ -5976,10 +5912,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "PermissionedPositionClaims._deliverOrCredit(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#98-102) ignores return value by poolManager.unlock(abi.encode(DEPOSIT,poolId,owner,currency,amount)) (src/permissioned/PermissionedPositionClaims.sol#101)",
+      "summary": "PermissionedPositionClaims._creditProceeds(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#97-100) ignores return value by poolManager.unlock(abi.encode(DEPOSIT,poolId,owner,currency,amount)) (src/permissioned/PermissionedPositionClaims.sol#99)",
       "rationale": "The unlock call is used for its atomic callback and settlement effects; callback failures bubble and revert the transaction, while its opaque bytes return value carries no protocol decision.",
       "occurrences": 1,
-      "id": "a09da7dca27de7f8499c8bd4"
+      "id": "3fe7e7deee12c651dcbe4c6e"
     },
     {
       "impact": "Medium",
@@ -8331,7 +8267,7 @@
       "summary": "StaticsPermissionedPositionManager._enforceIncreaseOwner(uint256) (src/permissioned/StaticsPermissionedPositionManager.sol#86-95) has external calls inside a loop: IVenueController(registration.controller).permissions(poolId,owner) & LIQUIDITY_ALLOWED == 0 (src/permissioned/StaticsPermissionedPositionManager.sol#92)",
       "rationale": "The inherited action stream is caller-supplied and gas-bounded. Each exposure-increasing action deliberately performs current hook and controller checks; a failed or reverting controller blocks only the increase, while decrease, collection, burn, and claim exits remain ungated.",
       "occurrences": 2,
-      "id": "c5eb3625958f57e3f9717bea"
+      "id": "ac3a924ab811661dca6a7307"
     },
     {
       "impact": "Low",
@@ -8427,7 +8363,7 @@
       "summary": "StaticsPermissionedPositionManager._enforceIncreaseOwner(uint256) (src/permissioned/StaticsPermissionedPositionManager.sol#86-95) has external calls inside a loop: registration = permissionedHook.poolRegistration(poolId) (src/permissioned/StaticsPermissionedPositionManager.sol#91)",
       "rationale": "The inherited action stream is caller-supplied and gas-bounded. Each exposure-increasing action deliberately performs current hook and controller checks; a failed or reverting controller blocks only the increase, while decrease, collection, burn, and claim exits remain ungated.",
       "occurrences": 2,
-      "id": "f533f45256b77603768babdd"
+      "id": "61d97e736545b0d5f3fc3908"
     },
     {
       "impact": "Low",
@@ -8584,10 +8520,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "PermissionedPositionClaims.constructor(IPoolManager,address,IStaticsPermissionedSwapFeeHook).positionManager_ (src/permissioned/PermissionedPositionClaims.sol#57) lacks a zero-check on :",
+      "summary": "PermissionedPositionClaims.constructor(IPoolManager,address,IStaticsPermissionedSwapFeeHook).positionManager_ (src/permissioned/PermissionedPositionClaims.sol#56) lacks a zero-check on :",
       "rationale": "The claims companion is constructed only by the PositionManager with address(this), and deployment verifies the immutable binding, so a zero position-manager binding is unreachable.",
       "occurrences": 1,
-      "id": "f8979f5464af78b2acf95f02"
+      "id": "8e93d037fc47e9a498e33a44"
     },
     {
       "impact": "Low",
@@ -8664,10 +8600,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#139-155):",
       "rationale": "Claim settlement runs inside the authenticated PoolManager callback and records credit only after exact settlement; the outer public entrypoint is nonReentrant, nested lifecycle entry is locked, and any failed callback reverts all intermediate state.",
       "occurrences": 1,
-      "id": "2907a9d5e00275195036cdf7"
+      "id": "77556c9a3227e7a852695240"
     },
     {
       "impact": "Low",
@@ -9096,10 +9032,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims.unlockCallback(bytes) (src/permissioned/PermissionedPositionClaims.sol#136-154):",
+      "summary": "Reentrancy in PermissionedPositionClaims.unlockCallback(bytes) (src/permissioned/PermissionedPositionClaims.sol#119-137):",
       "rationale": "Events are emitted only after authenticated, exact settlement has completed. Public entrypoints are nonReentrant, PoolManager callbacks are sender-authenticated, and any callback failure reverts both state and logs.",
       "occurrences": 1,
-      "id": "2480223ef9191acd609ae493"
+      "id": "870272da18c9a034f5cfd0c1"
     },
     {
       "impact": "Low",
@@ -9579,10 +9515,10 @@
       "paths": [
         "src/permissioned/PermissionedPositionClaims.sol"
       ],
-      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#156-172):",
+      "summary": "Reentrancy in PermissionedPositionClaims._depositClaims(PoolId,address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#139-155):",
       "rationale": "Events are emitted only after authenticated, exact settlement has completed. Public entrypoints are nonReentrant, PoolManager callbacks are sender-authenticated, and any callback failure reverts both state and logs.",
       "occurrences": 1,
-      "id": "88b053289c2bf92244fcdf9c"
+      "id": "32c613175feb2ff53d41b832"
     },
     {
       "impact": "Low",
@@ -10359,7 +10295,7 @@
       "summary": "StaticsPermissionedPositionManager.constructor(IPoolManager,IAllowanceTransfer,uint256,IPositionDescriptor,IWETH9,IStaticsPermissionedSwapFeeHook).unsubscribeGasLimit (src/permissioned/StaticsPermissionedPositionManager.sol#42) shadows:",
       "rationale": "The constructor parameter intentionally matches the inherited PositionManager domain term and is forwarded directly; no storage or dispatch resolution is shadowed.",
       "occurrences": 1,
-      "id": "f9d2b375a13d3f0910ace25c"
+      "id": "bc083a1e80fbdbfdb2e433c1"
     },
     {
       "impact": "Low",
@@ -12162,22 +12098,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/permissioned/PermissionedPositionClaims.sol"
-      ],
-      "summary": "Low level call in PermissionedPositionClaims._tryDeliver(address,Currency,uint256) (src/permissioned/PermissionedPositionClaims.sol#104-117):",
-      "rationale": "The low-level ERC-20 transfer probe deliberately tolerates revert, false, or missing return data so an undeliverable owner payout can fall back to credit; nonReentrant entrypoints and exact debit and receipt checks protect the accounting boundary.",
-      "occurrences": 1,
-      "id": "58ca857a65614db16ba3f1c4"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "Low level call in StaticsGenesisVault.buyGenesis(uint256,address) (src/genesis/StaticsGenesisVault.sol#201-233):",
@@ -12428,7 +12348,7 @@
       "summary": "StaticsPermissionedPositionManager (src/permissioned/StaticsPermissionedPositionManager.sol#23-110) should inherit from IPermissionedPositionManagerClaims (src/permissioned/PermissionedPositionClaims.sol#17-21)",
       "rationale": "The contract implements the consumer interface structurally, including inherited owner and pool reads; nominally inheriting the claims-local interface would add coupling without changing runtime conformance.",
       "occurrences": 1,
-      "id": "c7153c1141298a241ec9eae3"
+      "id": "52f16772eca50094a69cea87"
     },
     {
       "impact": "Informational",
