@@ -12,13 +12,13 @@ import {LibCustody} from "./LibCustody.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
 import {LibProtocolPools} from "./LibProtocolPools.sol";
 
-/// @notice Namespaced pull-based creator revenue accounting. Records point credits per creator and
+/// @notice Namespaced pull-based creator revenue accounting. Records credits per PoolId and
 /// aggregate liabilities per asset for custody and invariant reconciliation.
 library LibProtocolRevenue {
-    bytes32 internal constant PROTOCOL_REVENUE_STORAGE_POSITION = keccak256("statics.storage.protocol.revenue.v1");
+    bytes32 internal constant PROTOCOL_REVENUE_STORAGE_POSITION = keccak256("statics.storage.protocol.revenue.v2");
 
     struct ProtocolRevenueStorage {
-        mapping(address creator => mapping(address asset => uint256 amount)) creatorCredit;
+        mapping(PoolId poolId => mapping(address asset => uint256 amount)) creatorCredit;
         mapping(address asset => uint256 amount) totalCreatorCredit;
     }
 
@@ -35,7 +35,11 @@ library LibProtocolRevenue {
         if (asset != Currency.unwrap(key.currency0) && asset != Currency.unwrap(key.currency1)) {
             revert InvalidRewardAsset(poolId, asset);
         }
-        if (kind == IStaticsProtocolPools.ProtocolPoolKind.General && distribution.basketStaker != 0) {
+        if (
+            (kind == IStaticsProtocolPools.ProtocolPoolKind.General
+                    || kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral)
+                && distribution.basketStaker != 0
+        ) {
             revert GeneralPoolBasketReward(poolId, distribution.basketStaker);
         }
         uint256 total =
@@ -58,7 +62,7 @@ library LibProtocolRevenue {
         LibGlobalRewards.accrueReservedSwapStakerFee(asset, distribution.staticsStaker);
         if (distribution.creator != 0) {
             address creator = LibProtocolPools.creatorOf(poolId);
-            credit(creator, asset, distribution.creator);
+            credit(poolId, asset, distribution.creator);
             emit IStaticsProtocolRevenue.CreatorRevenueAccrued(poolId, creator, asset, distribution.creator);
         }
         LibGlobalRewards.accrueReservedTreasuryFee(asset, distribution.treasury);
@@ -71,23 +75,23 @@ library LibProtocolRevenue {
         }
     }
 
-    function credit(address creator, address asset, uint256 amount) internal {
+    function credit(PoolId poolId, address asset, uint256 amount) internal {
         if (amount == 0) return;
         ProtocolRevenueStorage storage rs = protocolRevenueStorage();
-        rs.creatorCredit[creator][asset] += amount;
+        rs.creatorCredit[poolId][asset] += amount;
         rs.totalCreatorCredit[asset] += amount;
     }
 
-    function clear(address creator, address asset) internal returns (uint256 amount) {
+    function clear(PoolId poolId, address asset) internal returns (uint256 amount) {
         ProtocolRevenueStorage storage rs = protocolRevenueStorage();
-        amount = rs.creatorCredit[creator][asset];
+        amount = rs.creatorCredit[poolId][asset];
         if (amount == 0) return 0;
-        rs.creatorCredit[creator][asset] = 0;
+        rs.creatorCredit[poolId][asset] = 0;
         rs.totalCreatorCredit[asset] -= amount;
     }
 
-    function creditOf(address creator, address asset) internal view returns (uint256 amount) {
-        return protocolRevenueStorage().creatorCredit[creator][asset];
+    function creditOf(PoolId poolId, address asset) internal view returns (uint256 amount) {
+        return protocolRevenueStorage().creatorCredit[poolId][asset];
     }
 
     function totalOf(address asset) internal view returns (uint256 amount) {

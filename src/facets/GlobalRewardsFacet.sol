@@ -2,12 +2,14 @@
 pragma solidity 0.8.33;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
@@ -30,6 +32,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         nonReentrant
         returns (uint256 positionId)
     {
+        _enforceStakeIngressAvailable();
         if (amount == 0) revert InvalidAmount();
         if (receiver == address(0)) revert InvalidReceiver();
         positionId = IStaticsPositionModule(address(this)).createPositionForModule{value: msg.value}(
@@ -41,6 +44,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function stake(uint256 positionId, uint256 amount) external nonReentrant {
+        _enforceStakeIngressAvailable();
         if (amount == 0) revert InvalidAmount();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
@@ -55,11 +59,15 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.StakePosition storage position = rs.positions[positionId];
         uint256 balance = position.balance;
-        uint256 available = balance - LibMorpho.morphoStorage().staticsCollateral[positionId];
+        uint256 collateral = LibMorpho.morphoStorage().staticsCollateral[positionId];
+        uint256 gaugeLocked = LibGaugeRouting.lockedStake(positionId);
+        uint256 locked = collateral > gaugeLocked ? collateral : gaugeLocked;
+        uint256 available = balance > locked ? balance - locked : 0;
         if (amount > available) revert InsufficientStake(amount, available);
         LibGlobalRewards.decreaseStake(positionId, amount);
         position.balance = balance - amount;
         rs.totalStaked -= amount;
+        IStaticsGaugeIncentives(address(this)).syncGaugeAllocationsAfterStakeLoss(positionId, position.balance);
         if (position.balance == 0) LibGlobalRewards.clearOptInsAfterFullUnstake(positionId);
         (uint256 spent, uint256 received) =
             LibCustody.pushReserved(LibCustody.stakingAccount(), rs.stakingToken, receiver, amount, amount);
@@ -69,6 +77,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     }
 
     function optInRewardAssets(uint256 positionId, address[] calldata assets) external nonReentrant {
+        _enforceStakeIngressAvailable();
         if (assets.length == 0) revert InvalidRewardAssets();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         LibMorpho.syncIfInitialized(positionId, msg.sender);
@@ -257,5 +266,11 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         rs.totalStaked += amount;
         LibGlobalRewards.activateStakingLeg(positionId);
         emit Staked(positionId, msg.sender, amount, position.balance);
+    }
+
+    function _enforceStakeIngressAvailable() private view {
+        if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_STAKE != 0) {
+            revert ActionPaused(LibGovernance.PAUSE_STAKE);
+        }
     }
 }

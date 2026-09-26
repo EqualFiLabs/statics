@@ -22,8 +22,13 @@ import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/Pool
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPermanentLiquidityMath} from "../interfaces/IStaticsPermanentLiquidityMath.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGaugeCallback} from "../interfaces/IStaticsRangeGaugeCallback.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
+
+interface IStaticsSwapQuarantine {
+    function protocolPoolSwapsBlocked(PoolId poolId) external view returns (bool blocked);
+}
 
 /// @notice Canonical Statics bilateral swap-fee hook. The hook holds PoolId-local fee rates and two
 /// global allocation profiles (basket canonical and general). The fixed 500-bps creator allocation is
@@ -121,6 +126,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error IncompleteSpecifiedFill(int256 expected, int256 actual);
     error InvalidNativeLpFee(uint24 fee);
     error InvalidPermanentLiquidityMath(address target);
+    error SwapsQuarantined(PoolId poolId);
 
     constructor(
         IPoolManager manager,
@@ -462,6 +468,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         PoolId poolId = key.toId();
         _enforceRegistered(poolId);
         if (poolDecommissioned[poolId]) revert PoolIsDecommissioned(poolId);
+        if (IStaticsSwapQuarantine(staticsDiamond).protocolPoolSwapsBlocked(poolId)) revert SwapsQuarantined(poolId);
         _routeDistribution(poolId, key.currency0);
         _routeDistribution(poolId, key.currency1);
         bool exactInput = params.amountSpecified < 0;
@@ -483,7 +490,23 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         PoolId poolId = key.toId();
         uint256 charged = _chargeUnspecifiedLeg(poolId, key, params, delta);
         _compound(key, poolId);
+        _afterProtocolPoolSwap(poolId);
         return (IHooks.afterSwap.selector, charged.toInt128());
+    }
+
+    /// @dev Preserve exact revert data while avoiding the code-size overhead of general ABI call machinery.
+    function _afterProtocolPoolSwap(PoolId poolId) private {
+        address diamond = staticsDiamond;
+        bytes4 selector = IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, selector)
+            mstore(add(ptr, 4), poolId)
+            if iszero(call(gas(), diamond, 0, ptr, 36, 0, 0)) {
+                returndatacopy(ptr, 0, returndatasize())
+                revert(ptr, returndatasize())
+            }
+        }
     }
 
     function _chargeUnspecifiedLeg(PoolId poolId, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta)
@@ -608,11 +631,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
                 poolId,
                 Currency.unwrap(currency),
                 IStaticsProtocolRevenue.ProtocolFeeDistribution({
-                basketStaker: pending.basketStaker,
-                staticsStaker: pending.staticsStaker,
-                creator: pending.creator,
-                treasury: pending.treasury
-            })
+                    basketStaker: pending.basketStaker,
+                    staticsStaker: pending.staticsStaker,
+                    creator: pending.creator,
+                    treasury: pending.treasury
+                })
             );
         uint256 afterBalance = currency.balanceOfSelf();
         _enforceExactDebit(currency, beforeBalance, afterBalance, total);

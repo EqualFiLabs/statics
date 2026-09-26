@@ -44,6 +44,10 @@ contract HookInvariantFeeReceiver {
         return false;
     }
 
+    function protocolPoolSwapsBlocked(PoolId) external pure returns (bool) {
+        return false;
+    }
+
     function routeProtocolSwapFees(
         PoolId,
         address asset,
@@ -56,6 +60,10 @@ contract HookInvariantFeeReceiver {
         stakerFees[asset] += distribution.staticsStaker;
         creatorFees[asset] += distribution.creator;
         treasuryFees[asset] += distribution.treasury;
+    }
+
+    function afterProtocolPoolSwap(PoolId) external view {
+        require(msg.sender == hook);
     }
 
     function registerPool(PoolKey calldata key) external returns (PoolId) {

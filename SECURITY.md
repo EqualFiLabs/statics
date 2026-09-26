@@ -1,10 +1,10 @@
 # Statics security model
 
 Statics holds user assets. The standalone Genesis release is deployed on
-Robinhood Chain with source-verified contracts; the broader multi-asset and
-Statics Dollar Diamonds remain subject to independent review before production
-use. The repository test suite is not an external audit. The repository also
-records a public Robinhood Chain testnet integration beta.
+Robinhood Chain with source-verified contracts; the Phase 1 DEX-and-staking
+Diamond and later selector phases remain subject to independent review before
+production use. The repository test suite is not an external audit. The
+repository also records a public Robinhood Chain testnet integration beta.
 
 ## Permissionless constituent risk
 
@@ -88,17 +88,28 @@ profile 1) during runoff.
 
 ## Authority
 
-- One `StaticsTimelock` owns both `StaticsDiamond` and
-  `StaticsDollarCoreDiamond`. Its delay initializes to 24 hours and can change
-  only through a scheduled timelock call to the timelock itself.
-- The configured multisig is the timelock proposer and canceller. Execution is
-  open after the current delay. The emergency guardian is not a timelock
-  canceller and cannot veto its own governed rotation.
-- The basket guardian can pause minting, borrowing, extension, and flash loans
-  and quarantine an active basket. It cannot unpause actions, release a
-  quarantine, decommission a basket, or pause redemption.
+- Phase 1 deploys one `StaticsTimelock` as owner of `StaticsDiamond`. Later
+  phases retain that Diamond and add only their reviewed selector and
+  initializer delta. The fresh full-stack reference uses the same ownership
+  model for both `StaticsDiamond` and `StaticsDollarCoreDiamond`. The delay
+  initializes to 24 hours on production chains and can change only through a
+  scheduled timelock call to the timelock itself.
+- The configured multisig is the timelock proposer and, under OpenZeppelin's
+  proposer-role initialization, a canceller. Execution is open after the
+  current delay. The emergency guardian is also an explicit timelock canceller,
+  allowing it to veto a pending operation without gaining proposal or execution
+  authority.
+- In Phase 1 the guardian can pause liquidity, treasury distribution, and
+  global staking ingress and can stop all Statics-hook swaps or quarantine one
+  registered protocol pool. It cannot unpause actions, restore swaps, release a
+  pool quarantine, or change configuration. Additional pause and lifecycle
+  paths become reachable only when their later-phase selectors are installed.
+- The governance Safe and guardian may be the same address, but doing so removes
+  independence between the proposal and emergency-veto roles. A compromise or
+  availability failure then affects both authorities.
 - Timelocked governance can upgrade either Diamond, manage basket-level global
-  settings and pauses, release quarantine, and mark baskets `ExitOnly`.
+  settings and pauses, restore swaps, release quarantine, and mark baskets
+  `ExitOnly`.
 - The Dollar profile guardian can perform only the emergency actions exposed by
   Dollar Core governance. Core configuration derives directly from the Core
   Diamond owner, which is the same timelock; there is no second protocol
@@ -129,8 +140,68 @@ profile 1) during runoff.
   must execute through the timelock.
 
 Diamond ownership uses immediate ERC-173 transfer by the current owner. A
-governance migration must execute through the timelock and verify both Diamond
-owners, the guardian roles, and the treasury after execution.
+governance migration must execute through the timelock and verify Diamond
+owners, guardian roles, and treasury configuration after execution. The
+already deployed standalone Genesis contracts and their existing authorities
+are outside the phased Diamond launch. No Phase 1 deployment or configuration
+ceremony calls them, transfers their ownership, or changes their bindings.
+
+## Staged production surface
+
+The Phase 1 launcher installs 26 facets and 182 selectors for the Diamond
+kernel, public general Statics-hook pools, a separate permissioned venue path,
+protocol revenue and public POL, PositionNFT, reward restrictions, and global
+STATICS staking/reward opt-ins. It also installs public-pool PositionNFT range
+gauges and the Diamond-bound liquidity-manager selectors. Permissioned pools
+use their own hook, creator-selected controller, trusted exact-input router,
+and non-transferable LP positions. They create no Statics POL. It does not install or advertise basket,
+credit, flash-loan, Genesis-integration, Dollar, Morpho, BorrowLiquidity,
+ERC-1155 receiver, or series-migration interfaces.
+
+Public range gauges reserve slot 0 for custody-backed protocol STATICS and keep
+four separate direct-funding slots for creator, partner, and community rewards.
+Raw staked STATICS may direct protocol rewards to eligible public PoolIds only,
+with changes delayed until the next weekly epoch. The allocation lock is the
+greater of a PositionNFT's active and pending allocation totals, so scheduled
+changes cannot temporarily unlock committed stake. Epoch finalization snapshots
+one aggregate denominator without iterating pools. Each PoolId lazily activates
+its pro-rata share through ordinary pool activity or a permissionless
+checkpoint. A stale or ineligible allocation remains in the denominator as an
+abstention, and its share recycles instead of being reallocated. Unactivated
+shares expire after one extra weekly epoch. Unemitted protocol rewards recycle
+into the reserve; directly funded slots retain their existing liveness and
+reconciliation rules.
+
+The general-pool creation fee is fixed to zero at Phase 1 deployment. Under the
+protocol's existing creation semantics, zero retains owner-only curation; it
+does not open free permissionless creation. The launch does not add TVL,
+position-notional, volume, or pool-count caps. Curated creation, timelocked
+administration, guardian stops, monitoring, and asset disclosure are the
+accepted initial controls. They reduce exposure but do not create a
+protocol-level endorsement of curated assets.
+
+The reward-restriction map is a technical delivery policy, not an asset
+allowlist or legal classification. The guardian may add a restriction
+immediately; only the timelock may remove one. Existing earned claims and exit
+paths remain available. For permissioned pools, creator and treasury revenue
+remain in the original output currency. If both currencies are restricted, the
+pool-specific allocation is overridden with an 80% creator / 20% treasury
+split and no reward liability.
+
+A permissioned pool's controller may be replaced only through an exact creator
+EIP-712 or ERC-1271 authorization accepted by the Diamond owner through the
+timelock. The replacement must be a compatible controller with a nonzero
+operator and must report the pool halted before installation. Replacement does
+not call or require consent from the old controller, preserving recovery from a
+broken or abandoned provider. The pool key, creator, economics, liquidity, and
+user exit rights do not change, and the guardian cannot replace controllers.
+
+Phase 2 adds baskets, self-secured credit, flash composition, basket liquidity,
+and Genesis integration; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
+deltas and one-time initializers exist now and derive from one canonical plan.
+CI proves staged-to-fresh selector and runtime parity for both Diamonds, and
+later-phase preparation rejects drifted earlier facet bytecode. Every live
+transition still requires its own review and timelocked execution.
 
 ## Economic and liveness assumptions
 
@@ -139,12 +210,14 @@ BasketTokens, including collateral locked for a basket loan, enter the isolated
 basket reward denominator. Global rewards separately require staking the
 deployment-configured ERC-20 in a PositionNFT. Position owners or approved
 operators must claim rewards through transactions; nothing runs in the
-background. Undeployed global stake has no cooldown, but stake supplied to
-Morpho must first be recalled. Initial stake, reward-asset selections, and
-top-ups mature through a per-asset hourly ring no earlier than 24 hours after
-scheduling. Basket collateral uses the same delayed hourly eligibility model,
-but unlocked and undeployed shares have no separate withdrawal-time gate. Fee
-and position interactions roll due buckets. Dollar passive Risk Share reward
+background. A guardian staking pause blocks new global stake and reward-asset
+opt-ins. It does not block unstaking, reward-asset opt-outs, reward claims, or
+Position closure. Undeployed global stake has no cooldown, but stake
+supplied to Morpho must first be recalled. Initial stake, reward-asset
+selections, and top-ups mature through a per-asset hourly ring no earlier than
+24 hours after scheduling. Basket collateral uses the same delayed hourly
+eligibility model, but unlocked and undeployed shares have no separate
+withdrawal-time gate. Fee and position interactions roll due buckets. Dollar passive Risk Share reward
 eligibility does not exist: supplied Risk Shares are immediately consumable by
 the pairing vault and earn only through actual consumption.
 
@@ -153,19 +226,69 @@ through 999,999 pips, plus separate governed input/output hook fees. Dynamic
 fees and the 100% static-fee boundary are rejected.
 Their permanent full-range liquidity is owned by the hook, not by a protocol
 PositionManager NFT, and cannot be released until the pool is decommissioned.
-User PositionManager NFTs stay in user custody and earn native v4 fees through
-standard pool accounting. Native fees earned by hook-owned permanent liquidity
-route only to treasury and never become compoundable POL inventory. Basket
+Ordinary PositionManager NFTs stay in user custody and earn native v4 fees
+through standard pool accounting. A user may instead opt a position into the
+public range gauge, which transfers that NFT to the immutable liquidity manager
+until managed exit while the associated PositionNFT controls it. Native fees
+earned by hook-owned permanent liquidity route only to treasury and never
+become compoundable POL inventory. Basket
 creation initializes and seeds its canonical pools atomically. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
 exact payment while the fee is nonzero. The bilateral default initializes to
-25 BPS per leg. Governance may change the global default and set or clear
-registered PoolId overrides; creators cannot administer hook fees or allocation
-profiles. Governance also controls the creation gate and irreversible
-general-pool decommissioning.
+5 BPS per leg. A general-pool creator may select a higher initial rate, but each
+leg must be at least the live default and the combined rate cannot exceed 200
+BPS. Selecting the exact default leaves the pool inheriting future default
+changes; selecting either leg above the default installs a fixed PoolId
+override for both legs. Governance may change the global default and set or
+clear registered PoolId overrides after creation. Creators cannot change hook
+fees after creation or administer allocation profiles. Governance also controls
+the creation gate and irreversible general-pool decommissioning.
 Permanent-liquidity compounding and eligible post-decommission unwind are
 permissionless.
+
+Range-gauge boundary synchronization is atomic with each public-pool swap. Its
+gas cost grows with the number of distinct managed boundaries crossed and with
+the number of assigned reward assets. A sufficiently wide swap across a densely
+populated span can exceed the transaction or block gas limit and must be split
+into smaller price movements. Statics deliberately does not cap distinct gauge
+boundaries because a fixed slot cap would let early positions deny later gauge
+participation and would create a separate hard market limit. Pool creators,
+governance, integrators, and monitors must treat boundary density as an
+availability and gas-cost signal.
+
+Per-position reward calculations round down to whole raw token units. A
+position that exits discards any remaining sub-unit arithmetic fraction, while
+the corresponding whole-token reservation stays classified as indexed surplus.
+That surplus remains backed but is recoverable by treasury only through final
+reconciliation after the pool gauge is stopped. Low-decimal and unusually
+high-value reward assets therefore require additional governance review before
+allowlisting. Final reconciliation is intentionally pool-wide: any unresolved
+claim or remainder in any reward slot delays treasury surplus recovery for
+every slot, without blocking user principal exits or reward claims.
+
+Range-gauge indexes use Q160 precision. Stream numerator carry persists across
+checkpoints while active gauge liquidity is unchanged, so user-controlled claim
+frequency cannot erase rewards. A genuine active-liquidity change resets that
+carry once for the net denominator transition. Since active gauge liquidity is
+bounded to `uint128`, the reset value is always less than `2^-32` of one raw
+token unit per stream. It is never immediately transferred to treasury or
+recycled from protocol slot 0. Existing ABI member names ending in `Ray` are
+retained for compatibility, but those range-gauge-only values are Q160-scaled.
+
+Each pool reward slot also has a lifetime index-capacity limit of
+`floor(type(uint256).max / 2^160)`, or `2^96 - 1`, raw reward units. The stream view exposes the
+amount already consumed as `indexCapacityUsed`, and funding reverts before the
+current schedule plus a new contribution could exceed the remaining capacity.
+This conservative lifetime limit prevents the Q160-scaled global index from
+wrapping while a position remains unsettled. The bound is far above practical
+token supplies. When the error reports a committed budget below the maximum,
+the funder may retry with an amount no greater than the remaining capacity. An
+equal committed and maximum budget means the pool reward slot is permanently
+exhausted. A protocol slot-0 epoch share that does not fit in the remaining
+capacity is resolved and recycled in full rather than reverting an automatic
+pool checkpoint. Capacity exhaustion therefore does not block swaps, LP
+principal exits, claims, or decommissioning.
 
 Basket loans have no price-oracle liquidation. Their debt is the proportional
 constituent vector and their LTV cannot exceed 95%. Repayment is open in every

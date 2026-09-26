@@ -39,9 +39,10 @@ Valid creator-selected native fees are `0…999_999` pips. Tick spacing is
 already initialized PoolIds, and duplicate registered PoolIds are rejected.
 
 The Diamond normalizes token order and reciprocal price before quoting. General
-pool EIP-712 authorization version 2 binds the resulting PoolId, normalized
-initial price, creator, nonce, and deadline. PoolId already commits to both
-currencies, native LP fee, tick spacing, and the installed hook.
+pool EIP-712 authorization version 3 binds the resulting PoolId, normalized
+initial price, selected input and output hook fees, creator, nonce, and deadline.
+PoolId already commits to both currencies, native LP fee, tick spacing, and the
+installed hook.
 
 Changing native fee or tick spacing changes the PoolId. Initial price is not
 part of PoolId and cannot create a duplicate pool with an otherwise identical
@@ -64,10 +65,20 @@ accounting, permanent-liquidity accounting, or protocol-pool status.
 
 ## Fee authority
 
-Creators do not choose the Statics bilateral hook fee. Deployment initializes
-the global default to 25 BPS input and 25 BPS output. The Diamond owner/admin may
-change that default, set a registered PoolId override, or clear an override back
-to the current default. The existing combined 200 BPS cap applies.
+Deployment initializes the global default to 5 BPS input and 5 BPS output.
+Basket canonical pools inherit that default. A general-pool creator selects an
+initial input and output rate during creation. Each leg must be at least the live
+default at transaction execution, and the combined rate cannot exceed 200 BPS.
+
+Selecting the exact live default stores no PoolId override, so the new pool
+continues to inherit future default changes. Selecting either leg above the
+default stores both selected legs as a fixed PoolId override. This preserves an
+explicit asymmetric selection without silently moving its other leg when the
+global default changes.
+
+The Diamond owner/admin may change the global default, replace a registered
+PoolId override, or clear an override back to the current default. Creators have
+no post-creation fee setter.
 
 Fee allocation profiles remain protocol-governed. The fixed creator allocation,
 POL, basket staking, global Statics staking, fallback routing, and treasury
@@ -102,6 +113,8 @@ Creation reverts if that key is already registered or initialized.
 ## Consequences
 
 - Creators can choose the native fee appropriate for each market and LP base.
+- General-pool creators can select higher initial bilateral hook fees while the
+  governed live default remains a per-leg floor.
 - Ordinary concentrated and full-range positions earn native v4 fees without
   Statics custody or reward enrollment.
 - Indexers and interfaces must display native LP fees separately from input and
@@ -114,7 +127,8 @@ Creation reverts if that key is already registered or initialized.
 ## Non-goals
 
 - Dynamic native LP fees.
-- Creator control of bilateral hook fees or fee-allocation profiles.
+- Creator control of bilateral hook fees after creation or of fee-allocation
+  profiles.
 - Arbitrary hooks or native ETH pools.
 - Token endorsement, oracle admission, or automatic Dollar/basket risk roles.
 - Retrofitting creator-selected parameters into an existing immutable PoolKey.

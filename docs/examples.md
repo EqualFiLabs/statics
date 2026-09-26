@@ -152,11 +152,15 @@ Each currency is accounted independently. If basket staking cannot accept the
 asset, its allocation redirects to permanent liquidity. If STATICS staking
 cannot accept it, that allocation redirects to treasury.
 
-The current global hook-fee default is 25 basis points on realized input and
-25 basis points on realized output. Governance may update that default, set or
-clear PoolId-specific overrides, and configure a complete global
-or pool-specific rate and split within the protocol's bounds, so integrators
-must read effective onchain configuration rather than hardcode this example.
+The current global hook-fee default is 5 basis points on realized input and
+5 basis points on realized output. Basket pools inherit it. A general-pool
+creator may select higher initial rates when each leg is at least the live
+default and their sum does not exceed 200 BPS. Selecting the exact default
+continues inheritance; a higher selection stores both legs as a PoolId
+override. Governance may update the global default, replace or clear
+PoolId-specific overrides, and configure the global allocation profiles, so
+integrators must read effective onchain configuration rather than hardcode this
+example.
 
 ## Earning selected assets with STATICS
 

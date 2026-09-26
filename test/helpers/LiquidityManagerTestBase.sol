@@ -22,6 +22,9 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
     uint256 internal basketId;
     address internal basketToken;
     PoolKey internal canonicalKey;
+    mapping(bytes32 poolId => IStaticsProtocolPools.ProtocolPoolView pool) private managerPoolOverrides;
+    mapping(bytes32 poolId => bool configured) private managerPoolOverrideConfigured;
+    mapping(uint256 tokenId => bytes32 binding) private managerPosmBindings;
 
     function setUp() public virtual override {
         super.setUp();
@@ -65,7 +68,23 @@ abstract contract LiquidityManagerTestBase is CanonicalPoolTestBase {
     }
 
     function protocolPool(PoolId poolId) external view returns (IStaticsProtocolPools.ProtocolPoolView memory pool) {
+        bytes32 rawPoolId = PoolId.unwrap(poolId);
+        if (managerPoolOverrideConfigured[rawPoolId]) return managerPoolOverrides[rawPoolId];
         return IStaticsProtocolPools(address(diamond)).protocolPool(poolId);
+    }
+
+    function posmBinding(uint256 tokenId) external view returns (bytes32 binding) {
+        binding = managerPosmBindings[tokenId];
+    }
+
+    function _setManagerPoolOverride(IStaticsProtocolPools.ProtocolPoolView memory pool) internal {
+        bytes32 rawPoolId = PoolId.unwrap(pool.poolId);
+        managerPoolOverrides[rawPoolId] = pool;
+        managerPoolOverrideConfigured[rawPoolId] = true;
+    }
+
+    function _setManagerPosmBinding(uint256 tokenId, bytes32 binding) internal {
+        managerPosmBindings[tokenId] = binding;
     }
 
     function _transferUserInventory(uint256 basketAmount, uint256 assetAmount) internal {

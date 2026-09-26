@@ -76,13 +76,7 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
         virtual
         returns (CoreBootstrapDeployment memory)
     {
-        if (
-            config.owner == address(0) || config.profileGuardian == address(0) || config.initialOracle == address(0)
-                || config.weth == address(0) || config.stakingToken == address(0) || deploymentCreator == address(0)
-        ) revert ZeroAddress();
-        if (config.collateralRatioBps == 0) config.collateralRatioBps = 15_000;
-        if (config.priceBandBps == 0) config.priceBandBps = 15_000;
-        if (config.debtCeiling == 0) config.debtCeiling = 1_000_000e18;
+        config = _validatedConfig(config, deploymentCreator);
 
         (address core, address staticsDollar, address staticsDollarRisk) = _deployCore(config, deploymentCreator);
         if (config.treasury == address(0)) config.treasury = config.owner;
@@ -118,15 +112,23 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
     }
 
     function _deployCore(CoreBootstrapConfig memory config, address deploymentCreator)
-        private
+        internal
         returns (address coreAddress, address staticsDollar, address staticsDollarRisk)
     {
+        return _deployCoreWithBootstrapAuthority(config, deploymentCreator, deploymentCreator);
+    }
+
+    function _deployCoreWithBootstrapAuthority(
+        CoreBootstrapConfig memory config,
+        address deploymentCreator,
+        address bootstrapAuthority
+    ) internal returns (address coreAddress, address staticsDollar, address staticsDollarRisk) {
         CoreParts memory parts = _deployCoreParts();
         address predictedCore = vm.computeCreateAddress(deploymentCreator, vm.getNonce(deploymentCreator) + 2);
         staticsDollar = address(new StaticsDollar(predictedCore));
         staticsDollarRisk = address(new StaticsDollarRiskShares(predictedCore, config.riskUri));
         IDiamondCut.FacetCut[] memory genesis = _coreGenesis(parts);
-        CoreInit.InitArgs memory args = _coreInitArgs(config, staticsDollar, staticsDollarRisk);
+        CoreInit.InitArgs memory args = _coreInitArgs(config, staticsDollar, staticsDollarRisk, bootstrapAuthority);
         bytes memory initData = abi.encodeCall(CoreInit.genesis, (genesis, args));
         address owner = config.owner;
         address init = parts.init;
@@ -135,14 +137,31 @@ contract DeployCoreBootstrap is Script, DeployStaticsProtocol {
         if (coreAddress != predictedCore) revert CorePredictionMismatch(predictedCore, coreAddress);
     }
 
-    function _coreInitArgs(CoreBootstrapConfig memory config, address staticsDollar, address staticsDollarRisk)
-        private
+    function _validatedConfig(CoreBootstrapConfig memory config, address deploymentCreator)
+        internal
         pure
-        returns (CoreInit.InitArgs memory args)
+        returns (CoreBootstrapConfig memory)
     {
+        if (
+            config.owner == address(0) || config.profileGuardian == address(0) || config.initialOracle == address(0)
+                || config.weth == address(0) || config.stakingToken == address(0) || deploymentCreator == address(0)
+        ) revert ZeroAddress();
+        if (config.collateralRatioBps == 0) config.collateralRatioBps = 15_000;
+        if (config.priceBandBps == 0) config.priceBandBps = 15_000;
+        if (config.debtCeiling == 0) config.debtCeiling = 1_000_000e18;
+        return config;
+    }
+
+    function _coreInitArgs(
+        CoreBootstrapConfig memory config,
+        address staticsDollar,
+        address staticsDollarRisk,
+        address bootstrapAuthority
+    ) private pure returns (CoreInit.InitArgs memory args) {
         args = CoreInit.InitArgs({
             staticsDollar: staticsDollar,
             staticsDollarRisk: staticsDollarRisk,
+            bootstrapAuthority: bootstrapAuthority,
             initialOracle: config.initialOracle,
             requiredSequencerUptimeFeed: config.requiredSequencerUptimeFeed,
             minimumSequencerGracePeriod: config.minimumSequencerGracePeriod,

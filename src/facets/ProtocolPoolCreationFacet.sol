@@ -19,6 +19,7 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 /// @notice Permissionless general-pool creation with deterministic quoting, sorted PoolKey policy,
 /// reciprocal normalized pricing, independent native creation fee gating, EIP-712 creator
@@ -32,9 +33,10 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant DOMAIN_NAME_HASH = keccak256(bytes("Statics Protocol Pools"));
-    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("2"));
-    bytes32 private constant CREATE_POOL_TYPEHASH =
-        keccak256("CreatePool(bytes32 poolId,uint160 sqrtPriceX96,address creator,uint256 nonce,uint256 deadline)");
+    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("3"));
+    bytes32 private constant CREATE_POOL_TYPEHASH = keccak256(
+        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,uint256 nonce,uint256 deadline)"
+    );
 
     error LiquidityIntegrationNotInstalled();
     error InvalidToken(address token);
@@ -43,6 +45,10 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     error InvalidTickSpacing(int24 tickSpacing);
     error InvalidPoolPrice(uint160 sqrtPriceBPerAX96);
     error InvalidNativeLpFee(uint24 lpFee);
+    error InvalidInitialFeeRate(uint16 inputFeeBps, uint16 outputFeeBps);
+    error InitialFeeRateBelowDefault(
+        uint16 inputFeeBps, uint16 outputFeeBps, uint16 defaultInputFeeBps, uint16 defaultOutputFeeBps
+    );
     error PoolAlreadyInitialized(PoolId poolId);
     error PoolAlreadyRegisteredInHook(PoolId poolId);
     error ActionPaused(uint256 action);
@@ -80,14 +86,16 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
 
         _authorizeCreator(params, quote.authorizationDigest, creatorAuthorization);
         _collectCreationFee(quote.creationFee);
-        _registerAndInitialize(ls, hook, params, quote);
+        bool overrideInitialFeeRate = _validateInitialFeeRate(hook, params.initialFeeRate);
+        _registerAndInitialize(ls, hook, params, quote, overrideInitialFeeRate);
     }
 
     function _registerAndInitialize(
         LibBasketLiquidity.LiquidityStorage storage ls,
         IStaticsSwapFeeHook hook,
         IStaticsProtocolPools.CreatePoolParams calldata params,
-        IStaticsProtocolPools.GeneralPoolQuote memory quote
+        IStaticsProtocolPools.GeneralPoolQuote memory quote,
+        bool overrideInitialFeeRate
     ) private {
         PoolId poolId = quote.poolId;
         LibProtocolPools.GeneralPool storage stored = LibProtocolPools.protocolPoolStorage().generalPools[poolId];
@@ -96,7 +104,12 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         stored.registered = true;
 
         hook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, params.creator);
-        int24 tick = IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
+        if (overrideInitialFeeRate) {
+            hook.setPoolFeeRate(poolId, params.initialFeeRate.inputFeeBps, params.initialFeeRate.outputFeeBps);
+        }
+        IPoolManager(ls.poolManager).initialize(quote.key, quote.sqrtPriceX96);
+        (, int24 tick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
+        LibRangeGauge.initializePool(poolId, tick);
 
         emit IStaticsProtocolPools.ProtocolPoolCreated(
             poolId,
@@ -129,6 +142,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         if (!LibProtocolPoolFee.isValidTickSpacing(params.tickSpacing)) revert InvalidTickSpacing(params.tickSpacing);
         if (!LibProtocolPoolFee.isValidStaticLpFee(params.lpFee)) revert InvalidNativeLpFee(params.lpFee);
         if (params.creator == address(0)) revert InvalidCreator(params.creator);
+        _validateInitialFeeRate(IStaticsSwapFeeHook(ls.hook), params.initialFeeRate);
         quote.sqrtPriceX96 = _sortedSqrtPrice(params.tokenA, params.tokenB, params.sqrtPriceBPerAX96);
         quote.key = PoolKey({
             currency0: params.tokenA < params.tokenB ? Currency.wrap(params.tokenA) : Currency.wrap(params.tokenB),
@@ -164,7 +178,14 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     ) private view returns (bytes32 digest) {
         bytes32 structHash = keccak256(
             abi.encode(
-                CREATE_POOL_TYPEHASH, PoolId.unwrap(poolId), sqrtPriceX96, params.creator, params.nonce, params.deadline
+                CREATE_POOL_TYPEHASH,
+                PoolId.unwrap(poolId),
+                sqrtPriceX96,
+                params.initialFeeRate.inputFeeBps,
+                params.initialFeeRate.outputFeeBps,
+                params.creator,
+                params.nonce,
+                params.deadline
             )
         );
         digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
@@ -213,6 +234,23 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
 
     function _validateToken(address token) private view {
         if (token == address(0) || token.code.length == 0) revert InvalidToken(token);
+    }
+
+    function _validateInitialFeeRate(
+        IStaticsSwapFeeHook hook,
+        IStaticsProtocolPools.PoolSwapFeeRate calldata initialFeeRate
+    ) private view returns (bool overridden) {
+        if (!LibProtocolPoolFee.isValidFeeRate(initialFeeRate.inputFeeBps, initialFeeRate.outputFeeBps)) {
+            revert InvalidInitialFeeRate(initialFeeRate.inputFeeBps, initialFeeRate.outputFeeBps);
+        }
+        (uint16 defaultInputFeeBps, uint16 defaultOutputFeeBps) = hook.defaultFeeRate();
+        if (initialFeeRate.inputFeeBps < defaultInputFeeBps || initialFeeRate.outputFeeBps < defaultOutputFeeBps) {
+            revert InitialFeeRateBelowDefault(
+                initialFeeRate.inputFeeBps, initialFeeRate.outputFeeBps, defaultInputFeeBps, defaultOutputFeeBps
+            );
+        }
+        overridden =
+            initialFeeRate.inputFeeBps != defaultInputFeeBps || initialFeeRate.outputFeeBps != defaultOutputFeeBps;
     }
 
     function _enforceLiquidityAvailable() private view {

@@ -12,6 +12,7 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGaugeCallback} from "../../src/interfaces/IStaticsRangeGaugeCallback.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {
@@ -54,11 +55,20 @@ contract StaticsPermanentLiquidityHookHalmosTest is SymTest, Test {
         return false;
     }
 
+    function protocolPoolSwapsBlocked(PoolId) external pure returns (bool) {
+        return false;
+    }
+
     function routeProtocolSwapFees(PoolId, address, IStaticsProtocolRevenue.ProtocolFeeDistribution calldata)
         external
         pure
     {
         revert("no preceding distribution");
+    }
+
+    function afterProtocolPoolSwap(PoolId) external view returns (bytes4) {
+        require(msg.sender == address(hook), "hook only");
+        return IStaticsRangeGaugeCallback.afterProtocolPoolSwap.selector;
     }
 
     function check_registeredPoolsAcceptIndependentStaticLpFees(uint24 lpFee) public {

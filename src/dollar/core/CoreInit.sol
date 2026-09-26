@@ -22,6 +22,7 @@ contract CoreInit {
     struct InitArgs {
         address staticsDollar;
         address staticsDollarRisk;
+        address bootstrapAuthority;
         address initialOracle;
         address requiredSequencerUptimeFeed;
         uint256 minimumSequencerGracePeriod;
@@ -66,7 +67,8 @@ contract CoreInit {
         if (cs.initialized) revert AlreadyInitialized();
         if (
             args.staticsDollar == address(0) || args.staticsDollarRisk == address(0)
-                || args.profileGuardian == address(0) || args.initialCollateralToken == address(0)
+                || args.bootstrapAuthority == address(0) || args.profileGuardian == address(0)
+                || args.initialCollateralToken == address(0)
         ) revert ZeroAddress();
         LibCore.requireContract(args.staticsDollar);
         LibCore.requireContract(args.staticsDollarRisk);
@@ -103,7 +105,7 @@ contract CoreInit {
         cs.requiredSequencerUptimeFeed = args.requiredSequencerUptimeFeed;
         cs.minimumSequencerGracePeriod = args.minimumSequencerGracePeriod;
         cs.profileGuardian = args.profileGuardian;
-        cs.bootstrapAuthority = msg.sender;
+        cs.bootstrapAuthority = args.bootstrapAuthority;
         cs.initialized = true;
         cs.nextProfileId = 2;
         cs.nextSeriesId = 2;

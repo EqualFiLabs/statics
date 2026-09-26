@@ -29,11 +29,17 @@ Registration rejects a PoolKey whose fee differs from the hook value.
 The fee must be less than 1,000,000 pips; a 100% native LP fee is rejected.
 
 Ordinary Uniswap v4 LP positions earn native fees without Statics custody or
-reward enrollment. Concentrated and full-range positions use standard
-PositionManager ownership and accounting. Statics removes the custom LP reward
-facet, interface, storage, indexes, claims, PositionNFT leg, manager increase
-path, and `borrowAndStakeLiquidity`. `borrowAndProvideLiquidity` remains and
-mints each PositionManager NFT directly to the selected recipient.
+reward enrollment. Concentrated and full-range positions may use standard
+PositionManager ownership and accounting. Statics removes the former
+full-range-only LP reward system and `borrowAndStakeLiquidity`.
+`borrowAndProvideLiquidity` remains and mints each PositionManager NFT directly
+to the selected recipient.
+
+Phase 1 later adds a separate opt-in public range gauge. A user may transfer an
+approved PositionManager NFT to the immutable liquidity manager, bind it to a
+transferable Statics PositionNFT, and earn explicitly funded range incentives.
+That managed path has its own reward index and lifecycle methods, but it does
+not replace, redirect, or duplicate native Uniswap LP fees.
 
 The bilateral Statics hook fee remains separate from the native LP fee. Its
 initial allocations are:

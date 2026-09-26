@@ -8,7 +8,8 @@ interface IStaticsProtocolPools {
     enum ProtocolPoolKind {
         None,
         BasketCanonical,
-        General
+        General,
+        PermissionedGeneral
     }
 
     struct PoolSwapFeeRate {
@@ -41,6 +42,7 @@ interface IStaticsProtocolPools {
         uint24 lpFee;
         int24 tickSpacing;
         uint160 sqrtPriceBPerAX96;
+        PoolSwapFeeRate initialFeeRate;
         address creator;
         uint256 nonce;
         uint256 deadline;
