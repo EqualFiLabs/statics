@@ -18,8 +18,8 @@ import {PermissionedPositionClaims} from "./PermissionedPositionClaims.sol";
 
 /// @notice Non-transferable, owner-held v4 positions for permissioned Statics venues.
 /// @dev Standard decreases, collections, and burns remain owner-controlled. A venue operator may
-/// force a burn only while its controller reports the pool halted; proceeds go to the owner or to
-/// a PoolManager-claim-backed owner credit if the token cannot deliver to that owner.
+/// force a burn only while its controller reports the pool halted; proceeds become
+/// PoolManager-claim-backed owner credit for separate withdrawal.
 contract StaticsPermissionedPositionManager is PositionManager {
     using CalldataDecoder for bytes;
     using PoolIdLibrary for PoolKey;

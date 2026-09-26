@@ -20,8 +20,7 @@ interface IPermissionedPositionManagerClaims {
     function executeForceUnwind(uint256 tokenId, bytes calldata unlockData) external;
 }
 
-/// @notice PoolManager-claim-backed owner credits for permissioned unwind proceeds that a token
-/// cannot deliver to the position owner at unwind time.
+/// @notice PoolManager-claim-backed owner credits for permissioned forced-unwind proceeds.
 contract PermissionedPositionClaims is IUnlockCallback, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using PoolIdLibrary for PoolKey;
@@ -61,7 +60,7 @@ contract PermissionedPositionClaims is IUnlockCallback, ReentrancyGuard {
     }
 
     /// @notice Closes a position after its venue operator has halted the pool.
-    /// @dev Settlement is owner-bound and falls back to PoolManager-claim-backed credit when direct delivery fails.
+    /// @dev Every nonzero payout becomes owner-bound credit so recipient execution cannot veto forced cleanup.
     function forceUnwind(uint256 tokenId, uint128 amount0Min, uint128 amount1Min, bytes calldata hookData)
         external
         nonReentrant
@@ -83,8 +82,8 @@ contract PermissionedPositionClaims is IUnlockCallback, ReentrancyGuard {
 
         uint256 amount0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this)) - balance0Before;
         uint256 amount1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this)) - balance1Before;
-        _deliverOrCredit(poolId, owner, key.currency0, amount0);
-        _deliverOrCredit(poolId, owner, key.currency1, amount1);
+        _creditProceeds(poolId, owner, key.currency0, amount0);
+        _creditProceeds(poolId, owner, key.currency1, amount1);
     }
 
     function _enforceForceUnwind(PoolId poolId, address caller) private view {
@@ -95,25 +94,9 @@ contract PermissionedPositionClaims is IUnlockCallback, ReentrancyGuard {
         if (controller.poolStatus(poolId) != IVenueController.TradingStatus.Halted) revert PoolNotHalted(poolId);
     }
 
-    function _deliverOrCredit(PoolId poolId, address owner, Currency currency, uint256 amount) private {
+    function _creditProceeds(PoolId poolId, address owner, Currency currency, uint256 amount) private {
         if (amount == 0) return;
-        if (_tryDeliver(owner, currency, amount)) return;
         poolManager.unlock(abi.encode(DEPOSIT, poolId, owner, currency, amount));
-    }
-
-    function _tryDeliver(address owner, Currency currency, uint256 amount) private returns (bool delivered) {
-        IERC20 token = IERC20(Currency.unwrap(currency));
-        uint256 senderBefore = token.balanceOf(address(this));
-        uint256 receiverBefore = token.balanceOf(owner);
-        (bool callOk, bytes memory result) = address(token).call(abi.encodeCall(IERC20.transfer, (owner, amount)));
-        bool returnedSuccess = callOk && (result.length == 0 || (result.length >= 32 && abi.decode(result, (bool))));
-        uint256 senderAfter = token.balanceOf(address(this));
-        uint256 receiverAfter = token.balanceOf(owner);
-        uint256 debit = senderBefore >= senderAfter ? senderBefore - senderAfter : 0;
-        uint256 received = receiverAfter >= receiverBefore ? receiverAfter - receiverBefore : 0;
-        if (returnedSuccess && debit == amount && received == amount) return true;
-        if (debit != 0 || received != 0) revert IncompatibleTokenTransfer(currency, amount, received);
-        return false;
     }
 
     function claim(PoolId poolId, Currency currency, address receiver, uint256 amount) external nonReentrant {

@@ -94,6 +94,41 @@ contract MockReceiverRestrictedERC20 is ERC20 {
     }
 }
 
+interface ICallbackTokenReceiver {
+    function onTokenReceived(uint256 amount) external;
+}
+
+contract MockReceiverCallbackERC20 is MockERC20 {
+    mapping(address receiver => bool enabled) public callbackEnabled;
+
+    constructor() MockERC20("Callback Token", "CALLBACK", 18) {}
+
+    function setCallbackEnabled(address receiver, bool enabled) external {
+        callbackEnabled[receiver] = enabled;
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+        if (from != address(0) && to != address(0) && callbackEnabled[to]) {
+            ICallbackTokenReceiver(to).onTokenReceived(value);
+        }
+    }
+}
+
+contract ForwardingTokenReceiver is ICallbackTokenReceiver {
+    address public immutable sink;
+    uint256 public callbackCount;
+
+    constructor(address sink_) {
+        sink = sink_;
+    }
+
+    function onTokenReceived(uint256 amount) external {
+        callbackCount += 1;
+        IERC20(msg.sender).transfer(sink, amount);
+    }
+}
+
 contract BreakableVenueController is IVenueController, IERC165 {
     address public override operator;
     bool public broken;
@@ -143,6 +178,27 @@ contract BreakableVenueController is IVenueController, IERC165 {
 /// @notice Real PoolManager lifecycle coverage for the separate permissioned market primitive.
 contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
     using PoolIdLibrary for PoolKey;
+
+    struct CallbackUnwindAssertion {
+        PoolId poolId;
+        MockReceiverCallbackERC20 callbackToken;
+        MockERC20 healthyToken;
+        ForwardingTokenReceiver owner;
+        address sink;
+        uint256 ownerBalanceBefore;
+        uint256 healthyBalanceBefore;
+        uint256 sinkBalanceBefore;
+    }
+
+    struct CreditedUnwindAssertion {
+        PoolId poolId;
+        MockReceiverRestrictedERC20 restrictedToken;
+        MockERC20 healthyToken;
+        DefaultVenueController controller;
+        address operator;
+        uint256 restrictedBalanceBefore;
+        uint256 healthyBalanceBefore;
+    }
 
     uint160 private constant PERMISSIONED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
@@ -941,7 +997,80 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         permissionedPools.createPermissionedPool(params, "");
     }
 
-    function testHaltedOperatorUnwindCreditsOnlyUndeliverableOwnerAsset() public {
+    function testHaltedOperatorUnwindCreditsCallbackOwnerWithoutInvokingIt() public {
+        MockReceiverCallbackERC20 callbackToken = new MockReceiverCallbackERC20();
+        MockERC20 healthy = new MockERC20("Callback Pair", "PAIR", 18);
+        address forwardingSink = makeAddr("callback-forwarding-sink");
+        ForwardingTokenReceiver callbackOwner = new ForwardingTokenReceiver(forwardingSink);
+        (PoolId poolId, PoolKey memory key, DefaultVenueController oldController) =
+            _createDefaultPool(address(callbackToken), address(healthy), 3_000, 100);
+        uint256 tokenId = _mintFullRangePosition(key, oldController, address(callbackOwner), 20 ether);
+        callbackToken.setCallbackEnabled(address(callbackOwner), true);
+
+        vm.prank(creator);
+        vm.expectRevert();
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
+        assertEq(permissionedPositionManager.ownerOf(tokenId), address(callbackOwner));
+
+        address newOperator = makeAddr("callback-unwind-operator");
+        _replaceWithHaltedController(
+            poolId, address(oldController), newOperator, 0, keccak256("callback unwind migration")
+        );
+        CallbackUnwindAssertion memory assertion;
+        assertion.poolId = poolId;
+        assertion.callbackToken = callbackToken;
+        assertion.healthyToken = healthy;
+        assertion.owner = callbackOwner;
+        assertion.sink = forwardingSink;
+        assertion.ownerBalanceBefore = callbackToken.balanceOf(address(callbackOwner));
+        assertion.healthyBalanceBefore = healthy.balanceOf(address(callbackOwner));
+        assertion.sinkBalanceBefore = callbackToken.balanceOf(forwardingSink);
+        vm.prank(newOperator);
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
+
+        vm.expectRevert();
+        permissionedPositionManager.ownerOf(tokenId);
+        _assertCallbackUnwindCreditsAndClaims(assertion);
+    }
+
+    function _assertCallbackUnwindCreditsAndClaims(CallbackUnwindAssertion memory assertion) private {
+        address owner = address(assertion.owner);
+        Currency callbackCurrency = Currency.wrap(address(assertion.callbackToken));
+        Currency healthyCurrency = Currency.wrap(address(assertion.healthyToken));
+        assertEq(assertion.owner.callbackCount(), 0);
+        assertEq(assertion.callbackToken.balanceOf(owner), assertion.ownerBalanceBefore);
+        assertEq(assertion.healthyToken.balanceOf(owner), assertion.healthyBalanceBefore);
+        assertEq(assertion.callbackToken.balanceOf(assertion.sink), assertion.sinkBalanceBefore);
+
+        uint256 callbackCredit = positionClaims.creditOf(assertion.poolId, owner, callbackCurrency);
+        uint256 healthyCredit = positionClaims.creditOf(assertion.poolId, owner, healthyCurrency);
+        assertGt(callbackCredit, 0);
+        assertGt(healthyCredit, 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), callbackCurrency.toId()), callbackCredit);
+        assertEq(poolManager.balanceOf(address(positionClaims), healthyCurrency.toId()), healthyCredit);
+        assertEq(assertion.callbackToken.balanceOf(address(positionClaims)), 0);
+        assertEq(assertion.healthyToken.balanceOf(address(positionClaims)), 0);
+
+        vm.prank(makeAddr("unauthorized-credit-spender"));
+        vm.expectRevert();
+        positionClaims.claim(assertion.poolId, callbackCurrency, assertion.sink, callbackCredit);
+
+        vm.prank(owner);
+        positionClaims.claim(assertion.poolId, callbackCurrency, owner, callbackCredit);
+        assertEq(assertion.owner.callbackCount(), 1);
+        assertEq(assertion.callbackToken.balanceOf(owner), assertion.ownerBalanceBefore);
+        assertEq(assertion.callbackToken.balanceOf(assertion.sink) - assertion.sinkBalanceBefore, callbackCredit);
+        assertEq(positionClaims.creditOf(assertion.poolId, owner, callbackCurrency), 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), callbackCurrency.toId()), 0);
+
+        vm.prank(owner);
+        positionClaims.claim(assertion.poolId, healthyCurrency, owner, healthyCredit);
+        assertEq(assertion.healthyToken.balanceOf(owner) - assertion.healthyBalanceBefore, healthyCredit);
+        assertEq(positionClaims.creditOf(assertion.poolId, owner, healthyCurrency), 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), healthyCurrency.toId()), 0);
+    }
+
+    function testHaltedOperatorUnwindCreditsAllProceedsAndClaimsThem() public {
         MockReceiverRestrictedERC20 restricted = new MockReceiverRestrictedERC20("Blocked", "BLK");
         MockERC20 healthy = new MockERC20("Healthy", "HLT", 18);
         (PoolId poolId, PoolKey memory key, DefaultVenueController oldController) =
@@ -952,7 +1081,14 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         DefaultVenueController newController =
             _replaceWithHaltedController(poolId, address(oldController), newOperator, 0, keccak256("unwind migration"));
 
-        uint256 healthyBefore = healthy.balanceOf(lp);
+        CreditedUnwindAssertion memory assertion;
+        assertion.poolId = poolId;
+        assertion.restrictedToken = restricted;
+        assertion.healthyToken = healthy;
+        assertion.controller = newController;
+        assertion.operator = newOperator;
+        assertion.restrictedBalanceBefore = restricted.balanceOf(lp);
+        assertion.healthyBalanceBefore = healthy.balanceOf(lp);
         vm.prank(creator);
         vm.expectRevert();
         positionClaims.forceUnwind(tokenId, 0, 0, "");
@@ -960,23 +1096,74 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         positionClaims.forceUnwind(tokenId, 0, 0, "");
         vm.expectRevert();
         permissionedPositionManager.ownerOf(tokenId);
-        assertGt(healthy.balanceOf(lp), healthyBefore);
+        _assertForcedUnwindCreditsAndClaims(assertion);
+    }
 
-        Currency restrictedCurrency = Currency.wrap(address(restricted));
-        uint256 credit = positionClaims.creditOf(poolId, lp, restrictedCurrency);
-        assertGt(credit, 0);
-        restricted.setBlockedReceiver(address(0));
-        uint256 ownerClaim = credit / 2;
-        uint256 ownerBalanceBefore = restricted.balanceOf(lp);
+    function _assertForcedUnwindCreditsAndClaims(CreditedUnwindAssertion memory assertion) private {
+        Currency restrictedCurrency = Currency.wrap(address(assertion.restrictedToken));
+        Currency healthyCurrency = Currency.wrap(address(assertion.healthyToken));
+        assertEq(assertion.restrictedToken.balanceOf(lp), assertion.restrictedBalanceBefore);
+        assertEq(assertion.healthyToken.balanceOf(lp), assertion.healthyBalanceBefore);
+
+        uint256 restrictedCredit = positionClaims.creditOf(assertion.poolId, lp, restrictedCurrency);
+        uint256 healthyCredit = positionClaims.creditOf(assertion.poolId, lp, healthyCurrency);
+        assertGt(restrictedCredit, 0);
+        assertGt(healthyCredit, 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), restrictedCurrency.toId()), restrictedCredit);
+        assertEq(poolManager.balanceOf(address(positionClaims), healthyCurrency.toId()), healthyCredit);
+        assertEq(assertion.restrictedToken.balanceOf(address(positionClaims)), 0);
+        assertEq(assertion.healthyToken.balanceOf(address(positionClaims)), 0);
+
         vm.prank(lp);
-        positionClaims.claim(poolId, restrictedCurrency, lp, ownerClaim);
-        assertEq(restricted.balanceOf(lp) - ownerBalanceBefore, ownerClaim);
+        vm.expectRevert();
+        positionClaims.claim(assertion.poolId, restrictedCurrency, lp, restrictedCredit);
+        assertEq(positionClaims.creditOf(assertion.poolId, lp, restrictedCurrency), restrictedCredit);
+        assertEq(poolManager.balanceOf(address(positionClaims), restrictedCurrency.toId()), restrictedCredit);
+
+        assertion.restrictedToken.setBlockedReceiver(address(0));
+        uint256 ownerClaim = restrictedCredit / 2;
+        uint256 ownerBalanceBefore = assertion.restrictedToken.balanceOf(lp);
+        vm.prank(lp);
+        positionClaims.claim(assertion.poolId, restrictedCurrency, lp, ownerClaim);
+        assertEq(assertion.restrictedToken.balanceOf(lp) - ownerBalanceBefore, ownerClaim);
         address alternate = makeAddr("eligible-proceeds-receiver");
-        _setPermissionsAs(newController, poolId, alternate, LIQUIDITY_ALLOWED, newOperator);
+        _setPermissionsAs(assertion.controller, assertion.poolId, alternate, LIQUIDITY_ALLOWED, assertion.operator);
         vm.prank(lp);
-        positionClaims.claim(poolId, restrictedCurrency, alternate, credit - ownerClaim);
-        assertEq(restricted.balanceOf(alternate), credit - ownerClaim);
-        assertEq(positionClaims.creditOf(poolId, lp, restrictedCurrency), 0);
+        positionClaims.claim(assertion.poolId, restrictedCurrency, alternate, restrictedCredit - ownerClaim);
+        assertEq(assertion.restrictedToken.balanceOf(alternate), restrictedCredit - ownerClaim);
+        assertEq(positionClaims.creditOf(assertion.poolId, lp, restrictedCurrency), 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), restrictedCurrency.toId()), 0);
+
+        vm.prank(lp);
+        positionClaims.claim(assertion.poolId, healthyCurrency, lp, healthyCredit);
+        assertEq(assertion.healthyToken.balanceOf(lp) - assertion.healthyBalanceBefore, healthyCredit);
+        assertEq(positionClaims.creditOf(assertion.poolId, lp, healthyCurrency), 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), healthyCurrency.toId()), 0);
+    }
+
+    function testSecondCurrencyCreditFailureRollsBackForcedUnwind() public {
+        MockReceiverRestrictedERC20 tokenA = new MockReceiverRestrictedERC20("Atomic A", "aA");
+        MockReceiverRestrictedERC20 tokenB = new MockReceiverRestrictedERC20("Atomic B", "aB");
+        (PoolId poolId, PoolKey memory key, DefaultVenueController oldController) =
+            _createDefaultPool(address(tokenA), address(tokenB), 3_000, 100);
+        uint256 tokenId = _mintFullRangePosition(key, oldController, lp, 20 ether);
+        MockReceiverRestrictedERC20(Currency.unwrap(key.currency1)).setBlockedReceiver(address(poolManager));
+        address newOperator = makeAddr("atomic-unwind-operator");
+        _replaceWithHaltedController(
+            poolId, address(oldController), newOperator, 0, keccak256("atomic unwind migration")
+        );
+
+        vm.prank(newOperator);
+        vm.expectRevert();
+        positionClaims.forceUnwind(tokenId, 0, 0, "");
+
+        assertEq(permissionedPositionManager.ownerOf(tokenId), lp);
+        assertEq(positionClaims.creditOf(poolId, lp, key.currency0), 0);
+        assertEq(positionClaims.creditOf(poolId, lp, key.currency1), 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), key.currency0.toId()), 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), key.currency1.toId()), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(address(positionClaims)), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(address(positionClaims)), 0);
     }
 
     function testOwnerCanClaimBackedCreditWhenControllerFails() public {
@@ -1051,10 +1238,25 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         vm.expectRevert();
         permissionedPositionManager.ownerOf(tokenId);
         assertEq(address(permissionedPositionManager.subscriber(tokenId)), address(0));
-        assertTrue(
-            IERC20(Currency.unwrap(key.currency0)).balanceOf(lp) > balance0Before
-                || IERC20(Currency.unwrap(key.currency1)).balanceOf(lp) > balance1Before
-        );
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(lp), balance0Before);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(lp), balance1Before);
+
+        uint256 credit0 = positionClaims.creditOf(poolId, lp, key.currency0);
+        uint256 credit1 = positionClaims.creditOf(poolId, lp, key.currency1);
+        assertTrue(credit0 > 0 || credit1 > 0);
+        assertEq(poolManager.balanceOf(address(positionClaims), key.currency0.toId()), credit0);
+        assertEq(poolManager.balanceOf(address(positionClaims), key.currency1.toId()), credit1);
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(address(positionClaims)), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(address(positionClaims)), 0);
+
+        vm.startPrank(lp);
+        if (credit0 != 0) positionClaims.claim(poolId, key.currency0, lp, credit0);
+        if (credit1 != 0) positionClaims.claim(poolId, key.currency1, lp, credit1);
+        vm.stopPrank();
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(lp) - balance0Before, credit0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(lp) - balance1Before, credit1);
+        assertEq(positionClaims.creditOf(poolId, lp, key.currency0), 0);
+        assertEq(positionClaims.creditOf(poolId, lp, key.currency1), 0);
     }
 
     function testPermissionedPositionManagerRetainsRuntimeHeadroom() public view {
