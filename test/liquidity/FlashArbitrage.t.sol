@@ -363,7 +363,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertGt(basketTreasuryDelta, 0);
         // The non-POL reservation now also covers the fixed 500-bps creator credit, so the fee-account
         // reserve delta equals treasury accrual plus the creator credit for this leg.
-        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(alice, basketToken);
+        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(pool.toId(), basketToken);
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), basketToken) - basketFeeReserveBefore,
             basketTreasuryDelta + basketCreatorCredit
@@ -753,16 +753,16 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
 
     function _harvestPermanentFees(PoolKey[] memory pools) private {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
-        protocolPools.setPermanentLiquidityHarvester(address(this));
         for (uint256 i; i < pools.length; ++i) {
-            protocolPools.harvestPermanentLiquidityFees(pools[i].toId());
+            protocolPools.settleProtocolPoolRevenue(pools[i].toId(), Currency.unwrap(pools[i].currency0));
+            protocolPools.settleProtocolPoolRevenue(pools[i].toId(), Currency.unwrap(pools[i].currency1));
         }
     }
 
     function _harvestPermanentFee(PoolKey memory pool) private {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
-        protocolPools.setPermanentLiquidityHarvester(address(this));
-        protocolPools.harvestPermanentLiquidityFees(pool.toId());
+        protocolPools.settleProtocolPoolRevenue(pool.toId(), Currency.unwrap(pool.currency0));
+        protocolPools.settleProtocolPoolRevenue(pool.toId(), Currency.unwrap(pool.currency1));
     }
 
     function _setHookFees(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) private {

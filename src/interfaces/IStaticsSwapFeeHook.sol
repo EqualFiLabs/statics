@@ -69,6 +69,14 @@ interface IStaticsSwapFeeHook {
         FeeDistribution distribution1;
     }
 
+    struct PermanentLiquidityCompound {
+        uint128 liquidityAdded;
+        uint256 amount0Consumed;
+        uint256 amount1Consumed;
+        uint256 tip0;
+        uint256 tip1;
+    }
+
     event PoolRegistered(
         PoolId indexed poolId, Currency indexed currency0, Currency indexed currency1, PoolKind kind, address creator
     );
@@ -92,9 +100,6 @@ interface IStaticsSwapFeeHook {
     );
     event PermanentLiquiditySeeded(PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1);
     event PermanentLiquidityFeesAccrued(PoolId indexed poolId, Currency indexed currency, uint256 amount);
-    event PermanentLiquidityFeesHarvested(
-        PoolId indexed poolId, uint256 amount0, uint256 amount1, address indexed receiver
-    );
     event PermanentLiquidityReleased(
         PoolId indexed poolId, address indexed receiver, uint128 liquidity, uint256 amount0, uint256 amount1
     );
@@ -137,9 +142,12 @@ interface IStaticsSwapFeeHook {
     function claimLiability(Currency currency) external view returns (uint256 amount);
     function lockedLiquidity(PoolId poolId) external view returns (uint128 liquidity);
     function seedPermanentLiquidity(PermanentLiquiditySeed[] calldata seeds) external;
-    function harvestPermanentLiquidityFees(PoolKey calldata key)
+    function settleFeeDistribution(PoolKey calldata key, Currency currency, address receiver)
         external
-        returns (FeeDistribution memory distribution0, FeeDistribution memory distribution1);
+        returns (FeeDistribution memory distribution);
+    function compoundPermanentLiquidity(PoolKey calldata key, uint16 tipBps, address tipReceiver)
+        external
+        returns (PermanentLiquidityCompound memory result);
     function releasePermanentLiquidity(PoolKey calldata key, address receiver)
         external
         returns (PermanentLiquidityRelease memory released);

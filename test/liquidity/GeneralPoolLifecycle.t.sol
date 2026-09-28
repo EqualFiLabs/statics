@@ -11,6 +11,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {GeneralPoolLifecycleTestBase} from "../helpers/GeneralPoolLifecycleTestBase.sol";
 
@@ -31,6 +32,11 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         super.setUp();
         revenue = IStaticsProtocolRevenue(address(diamond));
         staticsStakers = IStaticsGlobalRewards(address(diamond));
+        pools.setProtocolPoolMaintenanceConfig(
+            IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({
+                revenueTipBps: 0, compoundTipBps: 0, twapWindow: 30 minutes, maxTickDeviation: 500
+            })
+        );
     }
 
     function testGeneralPoolUsesNativeFeesAndRoutesPolFeesToTreasury() public {
@@ -48,9 +54,10 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         vm.roll(block.number + 1);
         _swapGeneralPool(key, trader, true, 0.02 ether);
         _swapGeneralPool(key, trader, false, 0.02 ether);
+        _maintainPool(poolId, key);
 
-        assertGt(revenue.creatorRevenue(creator, tokenA), 0);
-        assertGt(revenue.creatorRevenue(creator, tokenB), 0);
+        assertGt(revenue.creatorRevenue(poolId, tokenA), 0);
+        assertGt(revenue.creatorRevenue(poolId, tokenB), 0);
         assertGt(swapFeeHook.lockedLiquidity(poolId), 0);
         address[] memory rewardAssets = new address[](2);
         rewardAssets[0] = tokenA;
@@ -62,13 +69,14 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         uint256 treasuryBefore = staticsStakers.treasuryAccrued(tokenA) + staticsStakers.treasuryAccrued(tokenB);
         _swapGeneralPool(key, trader, true, 0.04 ether);
         _swapGeneralPool(key, trader, false, 0.04 ether);
+        _settlePool(poolId, key);
         assertGt(staticsStakers.treasuryAccrued(tokenA) + staticsStakers.treasuryAccrued(tokenB), treasuryBefore);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), lp);
 
         uint256 creatorBefore = IERC20(tokenA).balanceOf(creator);
-        uint256 creatorOwed = revenue.creatorRevenue(creator, tokenA);
+        uint256 creatorOwed = revenue.creatorRevenue(poolId, tokenA);
         vm.prank(creator);
-        (uint256 claimed,) = revenue.claimCreatorRevenue(tokenA, creator, 0);
+        (uint256 claimed,) = revenue.claimCreatorRevenue(poolId, tokenA, creator, 0);
         assertEq(claimed, creatorOwed);
         assertEq(IERC20(tokenA).balanceOf(creator) - creatorBefore, creatorOwed);
 
@@ -100,6 +108,7 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         _mintFullRangeGeneralPosition(keyHigh, makeAddr("second-lp"), 5 ether);
         _swapGeneralPool(keyHigh, trader, true, 0.05 ether);
         _swapGeneralPool(keyHigh, trader, false, 0.05 ether);
+        _maintainPool(poolHigh, keyHigh);
 
         assertEq(swapFeeHook.lockedLiquidity(poolLow), 0);
         assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
@@ -120,6 +129,8 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         _swapGeneralPool(keyLow, trader, false, 0.05 ether);
         _swapGeneralPool(keyHigh, trader, true, 0.05 ether);
         _swapGeneralPool(keyHigh, trader, false, 0.05 ether);
+        _maintainPool(poolLow, keyLow);
+        _maintainPool(poolHigh, keyHigh);
 
         assertGt(swapFeeHook.lockedLiquidity(poolLow), 0);
         assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
@@ -137,5 +148,18 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         IERC20(address(stakingAsset)).approve(address(diamond), stakeAmount);
         positionId = staticsStakers.createAndStake{value: fee}(stakeAmount, user, rewards);
         vm.stopPrank();
+    }
+
+    function _maintainPool(PoolId poolId, PoolKey memory key) private {
+        vm.warp(block.timestamp + 30 minutes);
+        vm.roll(block.number + 1);
+        _swapGeneralPool(key, trader, true, 0.001 ether);
+        pools.compoundProtocolPoolPol(poolId);
+        _settlePool(poolId, key);
+    }
+
+    function _settlePool(PoolId poolId, PoolKey memory key) private {
+        pools.settleProtocolPoolRevenue(poolId, Currency.unwrap(key.currency0));
+        pools.settleProtocolPoolRevenue(poolId, Currency.unwrap(key.currency1));
     }
 }
