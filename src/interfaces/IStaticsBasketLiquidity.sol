@@ -42,10 +42,16 @@ interface IStaticsBasketLiquidity {
     );
 
     function installCanonicalPoolIntegration(address poolManager, address hook) external;
+    function installPermissionedPoolIntegration(address hook, address router, address positionManager, address quoter)
+        external;
     function installLiquidityManager(address manager) external;
     function unwindBasketLiquidity(uint256 basketId, address asset) external;
 
     function liquidityIntegration() external view returns (address poolManager, address hook, bool installed);
+    function permissionedLiquidityIntegration()
+        external
+        view
+        returns (address hook, address router, address positionManager, address quoter, bool installed);
     function liquidityManager() external view returns (address manager, bool installed);
     function canonicalPool(uint256 basketId, address asset) external view returns (CanonicalPoolView memory pool);
     function basketLiquidityUnwound(uint256 basketId, address asset) external view returns (bool unwound);

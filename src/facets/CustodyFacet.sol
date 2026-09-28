@@ -36,4 +36,8 @@ contract CustodyFacet is IStaticsCustody {
     function genesisRewardCustodyAccount() external pure returns (bytes32) {
         return LibCustody.genesisRewardAccount();
     }
+
+    function gaugeReserveCustodyAccount() external pure returns (bytes32) {
+        return LibCustody.gaugeReserveAccount();
+    }
 }

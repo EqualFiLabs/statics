@@ -8,9 +8,12 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
+import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
 import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
@@ -25,6 +28,14 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
 
     function setUp() public override {
         super.setUp();
+        RangeGaugeViewFacet rangeView = new RangeGaugeViewFacet();
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = RangeGaugeViewFacet.gaugePool.selector;
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(rangeView), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
+        });
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         constituent = address(new MockERC20("Constituent", "C", 18));
         (basketId, basketToken) = _createSingleAssetBasket();
         _mintBasket(100 ether);
@@ -54,6 +65,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
 
         assertTrue(basketLiquidity.basketLiquidityUnwound(basketId, constituent));
         assertTrue(swapFeeHook.poolDecommissioned(canonicalKey.toId()));
+        assertTrue(IStaticsRangeGauge(address(diamond)).gaugePool(canonicalKey.toId()).stopped);
         assertEq(swapFeeHook.lockedLiquidity(canonicalKey.toId()), 0);
         assertLt(IERC20(basketToken).totalSupply(), supplyBefore);
         assertLt(baskets.vaultBalance(basketId, constituent), vaultBefore);

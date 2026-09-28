@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 
 library LibPosition {
@@ -11,6 +12,7 @@ library LibPosition {
     bytes32 internal constant STAKING_MODULE = keccak256("statics.position.module.staking");
     bytes32 internal constant GENESIS_MODULE = keccak256("statics.position.module.genesis");
     bytes32 internal constant MORPHO_MODULE = keccak256("statics.position.module.morpho");
+    bytes32 internal constant LP_MODULE = keccak256("statics.position.module.lp");
 
     /// @dev Fits in one storage word. Public reporting widens each integer to uint256.
     struct PackedPositionState {
@@ -162,6 +164,14 @@ library LibPosition {
 
     function morphoLegKey(bytes32 marketId) internal view returns (bytes32) {
         return legKey(MORPHO_MODULE, marketId);
+    }
+
+    function lpLegKey(PoolId poolId) internal view returns (bytes32) {
+        return legKey(LP_MODULE, PoolId.unwrap(poolId));
+    }
+
+    function lpLegKey(address moduleAuthority, PoolId poolId) internal pure returns (bytes32) {
+        return legKey(moduleAuthority, LP_MODULE, PoolId.unwrap(poolId));
     }
 
     function activateLeg(uint256 positionId, bytes32 moduleType, bytes32 localPositionId)

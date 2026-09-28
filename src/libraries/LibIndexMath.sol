@@ -12,8 +12,16 @@ library LibIndexMath {
         pure
         returns (uint256 delta, uint256 remainder)
     {
-        delta = Math.mulDiv(amount, RAY, denominator);
-        remainder = mulmod(amount, RAY, denominator);
+        return indexDeltaAtScale(amount, denominator, priorRemainder, RAY);
+    }
+
+    function indexDeltaAtScale(uint256 amount, uint256 denominator, uint256 priorRemainder, uint256 scale)
+        internal
+        pure
+        returns (uint256 delta, uint256 remainder)
+    {
+        delta = Math.mulDiv(amount, scale, denominator);
+        remainder = mulmod(amount, scale, denominator);
         delta += priorRemainder / denominator;
         uint256 normalizedPrior = priorRemainder % denominator;
         uint256 room = denominator - normalizedPrior;
