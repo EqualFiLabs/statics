@@ -22,6 +22,7 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
 
     error OnlySwapFeeHook(address caller, address expected);
+    error OnlyPoolCreator(address caller, address creator);
     error InvalidRewardAsset(PoolId poolId, address asset);
     error GeneralPoolBasketReward(PoolId poolId, uint256 amount);
     error IncompatibleRevenueAsset(address asset, uint256 expected, uint256 actual);
@@ -33,8 +34,9 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         external
         nonReentrant
     {
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (msg.sender != ls.hook) revert OnlySwapFeeHook(msg.sender, ls.hook);
+        (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(poolId);
+        address expectedHook = address(key.hooks);
+        if (msg.sender != expectedHook) revert OnlySwapFeeHook(msg.sender, expectedHook);
         uint256 total =
             distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
         if (total == 0) return;
@@ -43,22 +45,24 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         LibProtocolRevenue.accrueReceived(poolId, asset, distribution);
     }
 
-    function claimCreatorRevenue(address asset, address receiver, uint256 minReceived)
+    function claimCreatorRevenue(PoolId poolId, address asset, address receiver, uint256 minReceived)
         external
         nonReentrant
         returns (uint256 amount, uint256 received)
     {
         if (receiver == address(0)) revert InvalidReceiver();
-        address creator = msg.sender;
-        amount = LibProtocolRevenue.clear(creator, asset);
+        address creator = LibProtocolPools.creatorOf(poolId);
+        if (msg.sender != creator) revert OnlyPoolCreator(msg.sender, creator);
+        amount = LibProtocolRevenue.clear(poolId, asset);
         if (amount == 0) revert NoCreatorRevenue(creator, asset);
         (, received) = LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
         if (received < minReceived) revert MinimumOutputNotMet(asset, received, minReceived);
-        emit CreatorRevenueClaimed(creator, asset, receiver, amount, received);
+        emit CreatorRevenueClaimed(poolId, creator, asset, receiver, amount, received);
     }
 
-    function creatorRevenue(address creator, address asset) external view returns (uint256 amount) {
-        return LibProtocolRevenue.creditOf(creator, asset);
+    function creatorRevenue(PoolId poolId, address asset) external view returns (uint256 amount) {
+        LibProtocolPools.enforceRegistered(poolId);
+        return LibProtocolRevenue.creditOf(poolId, asset);
     }
 
     function totalCreatorRevenue(address asset) external view returns (uint256 amount) {

@@ -90,3 +90,40 @@ contract MockReentrantERC20 is MockERC20 {
         }
     }
 }
+
+contract MockRevertingERC20 is MockERC20 {
+    bool public transfersRevert;
+
+    error TransferBlocked();
+
+    constructor() MockERC20("Reverting", "REVERT", 18) {}
+
+    function setTransfersRevert(bool blocked) external {
+        transfersRevert = blocked;
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        if (transfersRevert && from != address(0) && to != address(0)) revert TransferBlocked();
+        super._update(from, to, value);
+    }
+}
+
+contract MockFalseReturnERC20 is MockERC20 {
+    bool public transfersReturnFalse;
+
+    constructor() MockERC20("False Return", "FALSE", 18) {}
+
+    function setTransfersReturnFalse(bool blocked) external {
+        transfersReturnFalse = blocked;
+    }
+
+    function transfer(address to, uint256 value) public override returns (bool) {
+        if (transfersReturnFalse) return false;
+        return super.transfer(to, value);
+    }
+
+    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
+        if (transfersReturnFalse) return false;
+        return super.transferFrom(from, to, value);
+    }
+}

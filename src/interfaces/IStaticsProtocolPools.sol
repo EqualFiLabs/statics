@@ -8,7 +8,8 @@ interface IStaticsProtocolPools {
     enum ProtocolPoolKind {
         None,
         BasketCanonical,
-        General
+        General,
+        PermissionedGeneral
     }
 
     struct PoolSwapFeeRate {
@@ -35,12 +36,30 @@ interface IStaticsProtocolPools {
         uint16 treasuryShareBps;
     }
 
+    struct ProtocolPoolMaintenanceConfig {
+        uint16 revenueTipBps;
+        uint16 compoundTipBps;
+        uint32 twapWindow;
+        uint24 maxTickDeviation;
+    }
+
+    struct ProtocolPoolPolCompoundResult {
+        uint128 liquidityAdded;
+        uint256 amount0Consumed;
+        uint256 amount1Consumed;
+        uint256 tip0;
+        uint256 tip1;
+        int24 spotTick;
+        int24 twapTick;
+    }
+
     struct CreatePoolParams {
         address tokenA;
         address tokenB;
         uint24 lpFee;
         int24 tickSpacing;
         uint160 sqrtPriceBPerAX96;
+        PoolSwapFeeRate initialFeeRate;
         address creator;
         uint256 nonce;
         uint256 deadline;
@@ -88,9 +107,22 @@ interface IStaticsProtocolPools {
         PoolId indexed poolId, address indexed currency0, address indexed currency1, uint256 amount0, uint256 amount1
     );
     event LiquidityManagerReplaced(address indexed oldManager, address indexed newManager);
-    event PermanentLiquidityHarvesterSet(address indexed previousHarvester, address indexed newHarvester);
-    event PermanentLiquidityFeesHarvested(
-        PoolId indexed poolId, address indexed harvester, uint256 amount0, uint256 amount1
+    event ProtocolPoolMaintenanceConfigSet(
+        uint16 revenueTipBps, uint16 compoundTipBps, uint32 twapWindow, uint24 maxTickDeviation
+    );
+    event ProtocolPoolRevenueSettled(
+        PoolId indexed poolId, address indexed asset, address indexed caller, uint256 grossAmount, uint256 callerTip
+    );
+    event ProtocolPoolPolCompounded(
+        PoolId indexed poolId,
+        address indexed caller,
+        uint128 liquidityAdded,
+        uint256 amount0Consumed,
+        uint256 amount1Consumed,
+        uint256 tip0,
+        uint256 tip1,
+        int24 spotTick,
+        int24 twapTick
     );
 
     // --- Creation facet ---
@@ -110,8 +142,11 @@ interface IStaticsProtocolPools {
     function setGeneralFeeAllocation(GeneralFeeAllocation calldata allocation) external;
     function decommissionGeneralPool(PoolId poolId) external returns (uint256 amount0, uint256 amount1);
     function replaceLiquidityManager(address newManager) external;
-    function setPermanentLiquidityHarvester(address newHarvester) external;
-    function harvestPermanentLiquidityFees(PoolId poolId) external returns (uint256 amount0, uint256 amount1);
+    function setProtocolPoolMaintenanceConfig(ProtocolPoolMaintenanceConfig calldata config) external;
+    function settleProtocolPoolRevenue(PoolId poolId, address asset)
+        external
+        returns (uint256 grossAmount, uint256 callerTip);
+    function compoundProtocolPoolPol(PoolId poolId) external returns (ProtocolPoolPolCompoundResult memory result);
 
     // --- View facet ---
     function protocolPool(PoolId poolId) external view returns (ProtocolPoolView memory pool);
@@ -123,5 +158,5 @@ interface IStaticsProtocolPools {
     function defaultProtocolPoolFeeRate() external view returns (PoolSwapFeeRate memory feeRate);
     function protocolPoolFeeRate(PoolId poolId) external view returns (PoolFeeRateView memory feeRate);
     function protocolPoolCreator(PoolId poolId) external view returns (address creator);
-    function permanentLiquidityHarvester() external view returns (address harvester);
+    function protocolPoolMaintenanceConfig() external view returns (ProtocolPoolMaintenanceConfig memory config);
 }

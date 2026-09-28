@@ -54,6 +54,38 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
     }
 
     /// forge-config: default.fuzz.runs = 512
+    function testFuzzCreatorInitialFeeBounds(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) public {
+        uint16 inputFeeBps = uint16(bound(rawInputFeeBps, 0, type(uint16).max));
+        uint16 outputFeeBps = uint16(bound(rawOutputFeeBps, 0, type(uint16).max));
+        IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB));
+        params.initialFeeRate =
+            IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: inputFeeBps, outputFeeBps: outputFeeBps});
+
+        if (!LibProtocolPoolFee.isValidFeeRate(inputFeeBps, outputFeeBps)) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    ProtocolPoolCreationFacet.InvalidInitialFeeRate.selector, inputFeeBps, outputFeeBps
+                )
+            );
+            pools.quotePool(params);
+        } else if (inputFeeBps < 25 || outputFeeBps < 25) {
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    ProtocolPoolCreationFacet.InitialFeeRateBelowDefault.selector,
+                    inputFeeBps,
+                    outputFeeBps,
+                    uint16(25),
+                    uint16(25)
+                )
+            );
+            pools.quotePool(params);
+        } else {
+            IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
+            assertEq(quote.key.fee, params.lpFee);
+        }
+    }
+
+    /// forge-config: default.fuzz.runs = 512
     function testFuzzSqrtPriceBoundaryNormalization(uint160 sqrtPriceBPerAX96) public {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB));
         params.sqrtPriceBPerAX96 = sqrtPriceBPerAX96;
@@ -115,6 +147,7 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
             lpFee: 3_000,
             tickSpacing: 10,
             sqrtPriceBPerAX96: 1 << 96,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: address(this),
             nonce: 1,
             deadline: block.timestamp + 1 days
@@ -160,12 +193,14 @@ contract GeneralPoolCreatorRevenueHandler is Test {
         vm.stopPrank();
     }
 
-    function claim(uint256 rawCreator) external {
-        address creator = creators[rawCreator % creators.length];
-        uint256 credit = REVENUE.creatorRevenue(creator, ASSET);
+    function claim(uint256 rawPool) external {
+        uint256 index = rawPool % poolIds.length;
+        PoolId poolId = poolIds[index];
+        address creator = creators[index];
+        uint256 credit = REVENUE.creatorRevenue(poolId, ASSET);
         if (credit == 0) return;
         vm.prank(creator);
-        (uint256 amount, uint256 received) = REVENUE.claimCreatorRevenue(ASSET, creator, 0);
+        (uint256 amount, uint256 received) = REVENUE.claimCreatorRevenue(poolId, ASSET, creator, 0);
         if (amount > credit || received > amount) overpaidClaims++;
     }
 
@@ -175,6 +210,10 @@ contract GeneralPoolCreatorRevenueHandler is Test {
 
     function creatorAt(uint256 i) external view returns (address) {
         return creators[i];
+    }
+
+    function poolIdAt(uint256 i) external view returns (PoolId) {
+        return poolIds[i];
     }
 
     function feeAssetAddress() external view returns (address) {
@@ -213,7 +252,7 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
     function invariantAggregateEqualsSumOfCredits() public view {
         uint256 sum;
         for (uint256 i; i < handler.creatorCount(); ++i) {
-            sum += revenue.creatorRevenue(handler.creatorAt(i), handler.feeAssetAddress());
+            sum += revenue.creatorRevenue(handler.poolIdAt(i), handler.feeAssetAddress());
         }
         assertEq(revenue.totalCreatorRevenue(handler.feeAssetAddress()), sum);
     }
@@ -232,6 +271,7 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
             lpFee: 3_000,
             tickSpacing: tickSpacing,
             sqrtPriceBPerAX96: 1 << 96,
+            initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
             nonce: 1,
             deadline: block.timestamp + 1 days
