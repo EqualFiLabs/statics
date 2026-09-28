@@ -46,10 +46,11 @@ Hook-returned swap deltas use v4's packed signed `BeforeSwapDelta` and
 `BalanceDelta` types and settle inside the PoolManager unlock callback. The
 immutable Statics hook mints official PoolManager ERC-6909 claims against those
 deltas, tracks aggregate claim liabilities by currency, and burns matching POL
-claims when adding permanent liquidity. Distribution claims are redeemed with
-the official `burn` and `take` paths at a later routing boundary. Native fees
-earned by the permanent position are collected only through the configured
-Diamond harvester path.
+claims when permissionless settlement moves inventory into Diamond custody.
+Distribution claims are redeemed with the official `burn` and `take` paths
+through permissionless Diamond maintenance. Managed POL uses the pinned
+PositionManager through the Diamond-bound liquidity manager; its native LP fees
+are collected separately into Treasury accounting.
 
 Robinhood's deployed Universal Router uses the standard `V4_SWAP` command
 `0x10`, but its verified single-hop payload appends `minHopPriceX36` after

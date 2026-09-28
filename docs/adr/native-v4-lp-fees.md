@@ -1,6 +1,7 @@
 # ADR: Native Uniswap v4 LP compensation
 
-- Status: Partially superseded by `creator-led-pool-configuration.md`
+- Status: Partially superseded by `creator-led-pool-configuration.md` and
+  `managed-protocol-owned-liquidity.md`
 - Date: 2026-09-13
 - Scope: permanent Statics pools, LP compensation, bilateral hook fees, POL revenue, liquidity custody, and exact-output swaps
 - Supersedes: `canonical-lp-nft-rewards.md` and the zero-native-fee and custom-LP-reward decisions in `permissionless-protocol-pools.md`
@@ -29,18 +30,24 @@ Registration rejects a PoolKey whose fee differs from the hook value.
 The fee must be less than 1,000,000 pips; a 100% native LP fee is rejected.
 
 Ordinary Uniswap v4 LP positions earn native fees without Statics custody or
-reward enrollment. Concentrated and full-range positions use standard
-PositionManager ownership and accounting. Statics removes the custom LP reward
-facet, interface, storage, indexes, claims, PositionNFT leg, manager increase
-path, and `borrowAndStakeLiquidity`. `borrowAndProvideLiquidity` remains and
-mints each PositionManager NFT directly to the selected recipient.
+reward enrollment. Concentrated and full-range positions may use standard
+PositionManager ownership and accounting. Statics removes the former
+full-range-only LP reward system and `borrowAndStakeLiquidity`.
+`borrowAndProvideLiquidity` remains and mints each PositionManager NFT directly
+to the selected recipient.
+
+Phase 1 later adds a separate opt-in public range gauge. A user may transfer an
+approved PositionManager NFT to the immutable liquidity manager, bind it to a
+transferable Statics PositionNFT, and earn explicitly funded range incentives.
+That managed path has its own reward index and lifecycle methods, but it does
+not replace, redirect, or duplicate native Uniswap LP fees.
 
 The bilateral Statics hook fee remains separate from the native LP fee. Its
 initial allocations are:
 
 | Destination | Basket pool | General pool |
 | --- | ---: | ---: |
-| Permanent liquidity | 1,500 BPS | 4,000 BPS |
+| Managed protocol-owned liquidity | 1,500 BPS | 4,000 BPS |
 | Basket staking | 3,000 BPS | 0 BPS |
 | STATICS staking | 3,000 BPS | 3,500 BPS |
 | Creator, fixed | 500 BPS | 500 BPS |
@@ -49,8 +56,11 @@ initial allocations are:
 
 Governance may change the four configurable basket shares or three
 configurable general shares, which must total 9,500 BPS beside the fixed
-creator share. An unavailable basket-staking share redirects to permanent
-liquidity. An unavailable STATICS-staking share redirects to treasury.
+creator share. General pools have managed POL disabled by default, in which
+case its share redirects to Treasury without creating POL inventory. An
+unavailable basket-staking share redirects to active POL or Treasury when POL
+funding is disabled. An unavailable STATICS-staking share redirects to
+Treasury.
 
 ## Exact-output semantics
 
@@ -68,48 +78,22 @@ unspecified exact-output leg uses the same net-to-gross formula.
 
 ## Protocol-owned liquidity fees
 
-Native fees earned by the hook-owned permanent position are protocol revenue,
-not new POL principal. Every liquidity modification separates PoolManager's
-`feesAccrued` from its principal delta. The hook records that amount as a
-PoolManager ERC-6909 claim allocated only to treasury; it never adds native fees
-to pending permanent liquidity or compounds them.
+The current POL portfolio design is specified in
+[`managed-protocol-owned-liquidity.md`](./managed-protocol-owned-liquidity.md).
+The hook records the bilateral POL share as a PoolManager claim and exposes
+exact settlement into the Diamond's PoolId-specific custody account. It does
+not own or modify a liquidity position.
 
-Ordinary swaps do not zero-poke permanent positions solely to collect fees.
-Automatic POL compounding still modifies the position and therefore realizes
-any native LP fees reported by that modification. A separately configured
-harvester lets the Diamond realize fees while compounding is idle or one-sided,
-and the Diamond can only credit the resulting tokens to protocol treasury
-accounting. The caller cannot choose a recipient. Governance can replace the
-harvester, while the guardian can pause explicit harvesting and treasury
-distribution; only governance can unpause them.
+The governed operator manages explicit ordinary PositionManager NFTs through
+`StaticsLiquidityManager`. Native fees are collected and reserved as Treasury
+revenue before any principal decrease, close, or rebalance. Refunds and
+principal always return to protocol custody. A general pool must be activated
+by its immutable creator before future swaps can fund POL.
 
-Every permanent-position modification advances Uniswap v4's fee-growth
-checkpoint and may crystallize sub-unit rounding dust. Explicit harvesting
-avoids adding a zero-liquidity checkpoint to every swap, but it cannot remove
-the checkpoints required by automatic POL compounding. That residual is
-accepted to preserve keeperless compounding.
-
-Bilateral callback fees also remain as ERC-6909 claims until the next routing
-boundary. Claim liabilities are tracked by currency and checked against the
-hook's PoolManager claim balance. Matching POL claims are burned atomically when
-new permanent liquidity is added, preserving automatic swap-driven compounding
-without a keeper. Because eligibility can change while a distribution is
-pending, the routing boundary rechecks it: an unavailable basket-staker share
-becomes POL and an unavailable Statics-staker share becomes treasury. This keeps
-swaps, harvesting, and unwind live after the final eligible staker exits.
-
-The hook delegates only the pure full-range liquidity calculation to an
-immutable `StaticsPermanentLiquidityMath` contract so the hook retains explicit
-EIP-170 deployment headroom. The calculator holds no assets or protocol state
-and has no privileged entrypoint. Deployment records its address and runtime
-code hash beside the hook evidence, and the installation ceremony validates
-both that runtime hash and the hook's immutable binding.
-
-Decommissioning reports permanent-liquidity principal, unmatched POL, and
-ordinary fee distributions separately. Principal and unmatched POL follow the
-pool unwind policy, while eligible staker, creator, and treasury distributions
-retain their original destinations. Decommissioning alone does not make a
-basket-staker distribution ineligible.
+STATICS-staker fees are indexed during the authenticated swap callback. Their
+PoolManager claims may settle later, but later stake changes cannot reassign
+ownership. Creator, basket-staker, Treasury, and POL claims retain their
+separate settlement paths.
 
 Pool donation is forbidden, so an external caller cannot use the ordinary v4
 donation path to manufacture reported fees for the permanent position.
@@ -122,7 +106,8 @@ donation path to manufacture reported fees for the permanent position.
   hook and different pools rather than a governance update to existing keys.
 - Native LP fees and bilateral Statics fees must be displayed and quoted as
   distinct charges.
-- Native fee harvesting is operationally optional: delaying it affects only
-  treasury revenue, not swaps, user withdrawals, or automatic POL compounding.
-- Installation pins the exact runtime hashes of both the hook and liquidity
-  manager in addition to their immutable bindings.
+- Revenue and POL inventory settlement are operationally optional. Delaying
+  them affects only distribution liquidity and POL deployment, not swaps or
+  user withdrawals.
+- Installation pins the exact runtime hashes of the hook and liquidity manager
+  in addition to their immutable bindings.

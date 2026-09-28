@@ -50,8 +50,8 @@ for the canonical machine-readable integration-beta state.
 | **Self-backed lending** | Basket collateral releases its proportional constituent vector at a basket-defined LTV, with independent loan tranches, extension, repayment, and permissionless expiry recovery. |
 | **Flash composition** | Basket vectors or individual Diamond-held assets can be borrowed through dedicated typed callbacks while nested flash loans remain blocked. |
 | **Canonical v4 liquidity** | Basket creators choose each constituent pool's static native LP fee, tick spacing, price, and seed while the mandatory Statics hook charges governed bilateral input/output fees. |
-| **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s — gated by an independent creation fee and EIP-712 creator authorization — selecting the native LP fee, tick spacing, and initial price, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
-| **Permanent liquidity** | The hook converts matched POL allocations into hook-owned full-range liquidity with no ordinary withdrawal path. |
+| **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s, gated by an independent creation fee and EIP-712 creator authorization, selecting the native LP fee, tick spacing, and initial price, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
+| **Managed protocol liquidity** | Settled POL inventory funds PoolId-bound PositionManager NFT portfolios; strategy can manage explicit ranges but cannot redirect protocol principal, refunds, or NFTs. |
 | **Governed lifecycle** | A shared timelock owns both Diamonds; guardians can restrict exposure while repayment, recovery, and exit paths remain available. |
 
 ---
@@ -211,13 +211,13 @@ npm test --prefix sdk
 
 Test organization:
 
-- `test/genesis/` — standalone backing, issuance, metadata, v4 launch, fee, and invariant coverage.
-- `test/basket/`, `test/rewards/`, `test/position/` — focused module and real-flow coverage.
-- `test/dollar/unit/` and `test/dollar/integration/` — Core/periphery state machines and launch-level flows.
-- `test/liquidity/` — canonical pools, hook accounting, POL, lending composition, and flash behavior.
-- `test/invariant/` and `test/dollar/properties/` — stateful invariants and fuzz properties.
-- `test/deployment/` — complete launcher, selector, manifest, timelock, and genesis-ceremony proofs.
-- `test/**/fork/` — environment-gated checks against pinned external chain state.
+- `test/genesis/`: standalone backing, issuance, metadata, v4 launch, fee, and invariant coverage.
+- `test/basket/`, `test/rewards/`, `test/position/`: focused module and real-flow coverage.
+- `test/dollar/unit/` and `test/dollar/integration/`: Core/periphery state machines and launch-level flows.
+- `test/liquidity/`: canonical pools, hook accounting, POL, lending composition, and flash behavior.
+- `test/invariant/` and `test/dollar/properties/`: stateful invariants and fuzz properties.
+- `test/deployment/`: complete launcher, selector, manifest, timelock, and genesis-ceremony proofs.
+- `test/**/fork/`: environment-gated checks against pinned external chain state.
 
 The default profile uses 1,000 fuzz runs and 256 invariant runs at depth 50. The `security` profile enables fail-on-revert invariants with 128 runs at depth 64.
 
@@ -324,16 +324,68 @@ forge script script/DeployStaticsGenesis.s.sol:DeployStaticsGenesis \
 The reviewed deployment manifest and transaction records provide the canonical
 release evidence for an already completed launch.
 
-The canonical full-stack entry point is `script/DeployStatics.s.sol:DeployStatics`. It deploys `StaticsTimelock`, the Dollar Core, Dollar tokens, the unified `StaticsDiamond`, and the immutable canonical-liquidity hook and manager. Hook and manager installation is a separate timelocked ceremony.
+The staged production entry point is
+`script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
+`StaticsTimelock`, the 30-facet and 210-selector `StaticsDiamond`, separate permissionless and
+permissioned swap hooks, and a default venue-controller factory. It hard-codes the general-pool
+creation fee to zero, retaining owner-only curated public creation, while
+accepting the PositionNFT fee as a deployment input. The exact-0.8.26
+permissioned router, non-transferable position manager, and owner-claims
+companion are deployed separately before both hooks and all trusted periphery
+are installed with the public liquidity manager and POL operator configuration in one nine-call timelocked
+ceremony.
+
+Phase 1 includes arbitrary Statics-hooked ERC-20 pairs, protocol fee routing,
+custody-constrained managed POL portfolios, PositionNFT accounts, and global STATICS staking with
+per-position reward opt-ins. Public-pool PositionNFT range gauges expose five
+fixed reward slots. Slot 0 is reserved for weekly protocol STATICS incentives,
+while slots 1 through 4 remain independently and permissionlessly funded by
+creators, partners, and communities. Each direct slot may split future funding
+between active-range LPs and PoolId allocators at a creator-selected rate, with
+funder-side share and target-epoch protection. Stakers allocate raw staked STATICS to
+eligible public PoolIds for the next weekly epoch. A custody-backed reserve
+releases a governed percentage pro rata across every allocated PoolId without
+using Genesis or Operator multipliers. Pool shares activate lazily through
+ordinary pool activity or a permissionless checkpoint and expire after one
+extra weekly epoch. A Diamond-bound liquidity manager holds and mutates the
+underlying Uniswap v4 position NFTs. It also includes a separate permissioned market path with
+creator-operated controllers, approved traders and LPs,
+non-transferable LP NFTs, reward restrictions, and creator/timelock-agreed
+PoolId-local economics. Permissioned pools have no Statics POL. It excludes
+every basket, credit, flash-loan, Genesis-integration, Dollar, Morpho, and
+borrow-to-liquidity selector. The complete
+four-phase decision and authority model are recorded in the
+[staged-launch ADR](./docs/adr/staged-phase-one-launch.md).
+
+The canonical fresh full-stack entry point remains
+`script/DeployStatics.s.sol:DeployStatics`. It remains a regression reference,
+not the upgrade path for a live phased Diamond. The concrete Phase 2, 3, and 4
+implementation/deployment entry points are `runPhaseTwo()`, `runPhaseThree()`,
+and `runPhaseFour()` on `script/DeployStaticsPhases.s.sol:DeployStaticsPhases`.
+They deploy each phase's contracts and emit the exact Safe-to-timelock schedule
+and permissionless execute calldata.
+
+All staged and fresh cuts are derived from
+`script/libraries/StaticsProtocolPlan.sol`. The staged regression advances one
+Diamond through every timelocked batch, then compares all 367 selector routes
+and implementation runtime hashes, plus all 95 Dollar Core selector routes and
+runtimes, with a fresh full deployment.
 
 The launcher validates governance addresses, Dollar risk parameters, oracle bounds, sequencer requirements, WETH, chain-specific v4 dependencies, runtime code hashes, hook permissions, and immutable bindings. Its fresh-deployment architecture is:
 
 ```text
-StaticsDollarCoreDiamond: 11 facets, 95 selectors
-StaticsDiamond:           36 facets, 280 selectors
+Phase 1 StaticsDiamond:   29 facets, 189 selectors
+Phase 2 StaticsDiamond:   41 facets, 282 selectors cumulative
+Phase 3 StaticsDiamond:   46 facets, 340 selectors cumulative
+Phase 4 StaticsDiamond:   51 facets, 367 selectors cumulative
+Full StaticsDiamond:      51 facets, 367 selectors
+StaticsDollarCoreDiamond: 11 facets, 95 selectors (Phase 3 onward)
 Core.periphery == Core.positionNFT == StaticsDiamond
 Core owner == Diamond owner == StaticsTimelock
 ```
+
+For the Phase 1 launcher, `Core.*` does not exist and the Diamond alone is owned
+by `StaticsTimelock`.
 
 ### Local Anvil
 
@@ -507,6 +559,8 @@ USDstx, 1,000 STATICS, and 0.001 of each stock fixture.
 Focused deployment proofs:
 
 ```shell
+forge test --match-path test/deployment/DeployStaticsPhaseOne.t.sol -vv
+forge test --match-path test/deployment/ConfigureStaticsPhaseOneLiquidity.t.sol -vv
 forge test --match-path test/deployment/DeployStatics.t.sol -vv
 forge test --match-path test/deployment/RobinhoodDeploymentConfig.t.sol -vv
 forge test --match-path test/deployment/DeployStaticsGenesis.t.sol -vv
@@ -524,7 +578,69 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
   -vv
 ```
 
-After explicit authorization, the protocol deployment command is:
+After explicit authorization, the Phase 1 protocol deployment command is:
+
+```shell
+forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  -vv
+```
+
+Deploy the exact-0.8.26 permissioned periphery after the Diamond and hooks, and
+record the three emitted addresses and runtime hashes:
+
+```shell
+forge script \
+  script/DeployStaticsPermissionedPeriphery.s.sol:DeployStaticsPermissionedPeriphery \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  -vv
+```
+
+No transaction is performed by this repository change. Simulate and inspect
+each exact deployment before any separately authorized broadcast.
+
+After deployment, prepare the single timelock scheduling call for the nine-call
+Phase 1 liquidity configuration without signing or broadcasting a Safe
+transaction:
+
+```shell
+forge script \
+  script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
+  --sig "runPrepare()" \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  -vv
+```
+
+Submit the returned timelock scheduling calldata through the governance Safe.
+After the delay, any address may call `runExecute()` because execution is open.
+The ceremony refuses a mismatched Diamond runtime, selector manifest,
+selector-to-facet route, compiled facet runtime, active deployment phase,
+initialized guardian, treasury, staking token, fee, reserve-release setting,
+ERC-165 interface set, dependency runtime, immutable binding, hook flag, or
+pre-existing installation state. It does not call or reconfigure any deployed
+Genesis contract.
+
+Prepare later phases from the exact preceding phase with:
+
+```shell
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseTwo()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseThree()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+forge script script/DeployStaticsPhases.s.sol:DeployStaticsPhases \
+  --sig "runPhaseFour()" --rpc-url "$ROBINHOOD_MAINNET" --chain-id 4663 -vv
+```
+
+Add `--broadcast` only after explicit authorization and review of the preceding
+phase, dependency runtimes, deployed addresses, and emitted timelock calldata.
+Phase 2's Genesis handoff remains separate and operates against the existing
+Genesis deployment; it does not redeploy or transfer those contracts.
+
+The later full-stack deployment command is:
 
 ```shell
 forge script script/DeployStatics.s.sol:DeployStatics \
@@ -583,7 +699,32 @@ NFTs earn direct STATICS and WETH rewards independently of Position linkage.
 Registration stays with the token across transfers, activation resets to Tier
 0, and rewards earned before transfer crystallize to the prior owner.
 
-Liquidity providers earn the native Uniswap v4 LP fee directly through ordinary PositionManager accounting. Statics does not custody their LP NFTs or maintain a second LP reward ledger.
+Liquidity providers may keep ordinary PositionManager NFTs entirely outside
+Statics and earn the native Uniswap v4 LP fee through standard Uniswap
+accounting. Public protocol pools also support an opt-in managed path: a user
+can bind one concentrated-liquidity NFT per PoolId to a transferable Statics
+PositionNFT, with the immutable liquidity manager holding the underlying NFT
+and the Diamond accounting for separately funded range rewards. Native fees
+remain ordinary PositionManager fees and are not duplicated by the range gauge.
+
+Each range gauge has five reward slots. Protocol STATICS occupies slot 0 and
+cannot be funded through the direct funding function. Slots 1 through 4 retain
+ordinary permissionless direct funding, including a separate directly funded
+STATICS stream. For each direct slot, the pool creator may direct 0% through
+100% of future deposits to PositionNFTs that allocate to that PoolId. Funders
+pin the expected split and target epoch, LP and allocator custody remain separate, and funded
+allocator rewards target the next epoch without a protocol winner cutoff.
+Allocator claims follow PositionNFT ownership, expire after 26 weeks,
+and route ineligible, unclaimed, or rounding amounts to treasury. PositionNFT
+owners may allocate no more than their actual raw
+staked STATICS across at most 16 eligible public PoolIds. Allocation changes
+take effect in the next Monday-aligned epoch, and allocated stake must be
+explicitly deallocated before it can be unstaked. Every scheduled PoolId weight
+receives a pro-rata share of that epoch's reserve-backed budget. Permissioned
+venues are not eligible. A decommissioned or reward-restricted PoolId remains
+in the denominator as an abstention, and its unusable share recycles rather
+than increasing another pool's reward. Unemitted slot-0 rewards recycle into
+the reserve instead of becoming a perpetual pool entitlement.
 
 ### Lending and recovery
 
@@ -591,15 +732,15 @@ Basket lending locks deposited BasketTokens and releases the proportional consti
 
 ### Canonical liquidity and bilateral fees
 
-Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The creator selects each pool's static native LP fee (`0…999,999` pips), tick spacing, initial price, and paired-asset seed. `StaticsSwapFeeHook` separately charges governed fees on both input and output, then allocates them across permanent POL, deposited BasketTokens, global Statics stakers, a fixed 500-bps creator share, and treasury.
+Each basket has one canonical BasketToken/constituent Uniswap v4 pool per asset. The creator selects each pool's static native LP fee (`0…999,999` pips), tick spacing, initial price, and paired-asset seed. `StaticsSwapFeeHook` separately charges governed fees on both input and output, then allocates them across managed POL, deposited BasketTokens, global Statics stakers, a fixed 500-bps creator share, and treasury.
 
-Matched POL inventory is converted into hook-owned full-range liquidity. It has no normal withdrawal path and can unwind only after the basket enters `ExitOnly` and its canonical pool is decommissioned. The hook-fee default is 25 BPS on each leg. Governance may change that global default, set a PoolId override, or clear an override back to the current default. Fee **allocation** remains governed by two global profiles (basket and general); the fixed creator share sits outside those profiles and the configurable shares always total 9,500 bps.
+POL inventory is settled permissionlessly from PoolManager claims into a PoolId-specific Diamond custody account. An authorized operator may open, increase, decrease, harvest, and close explicit positions through the liquidity manager, but every principal and NFT recipient is fixed to protocol custody. Native LP fees earned by POL route to treasury instead of compounding into principal. General pools start with POL disabled, and the would-be share routes to treasury without creating dormant inventory until the creator pays the exact governed activation fee. The hook-fee default is 5 BPS on each leg. Basket pools inherit the live default. A general-pool creator may select a higher initial rate, provided each leg is at least the live default at execution and both legs total at most 200 BPS. Selecting the exact default stores no override; selecting either leg above it stores both legs as a fixed PoolId override. Governance may change the global default, replace a PoolId override, or clear an override back to the current default. Creators have no post-creation fee setter. Fee **allocation** remains governed by two global profiles (basket and general); the fixed creator share sits outside those profiles and the configurable shares always total 9,500 bps.
 
 ### Permissionless general pools
 
-Beyond basket canonical pools, anyone can create a **general pool** — a Statics-hook Uniswap v4 pool between two compatible ERC-20s with no basket association — once permissionless creation is enabled. `createPool` (preceded by a deterministic `quotePool`) lets the creator select a static native LP fee below 100%, valid tick spacing, and initial price; Statics fixes the installed hook. Creation is gated by an independent `poolCreationFeeAmount` that doubles as the permissionless switch: zero means only the Diamond owner may create (disabled), while a nonzero fee requires exact payment from every caller and forwards it to treasury.
+Beyond basket canonical pools, anyone can create a **general pool**, a Statics-hook Uniswap v4 pool between two compatible ERC-20s with no basket association, once permissionless creation is enabled. `createPool` (preceded by a deterministic `quotePool`) lets the creator select a static native LP fee below 100%, valid tick spacing, initial price, and an initial bilateral hook-fee rate subject to the governed per-leg floor and combined ceiling; Statics fixes the installed hook. Creation is gated by an independent `poolCreationFeeAmount` that doubles as the permissionless switch: zero means only the Diamond owner may create (disabled), while a nonzero fee requires exact payment from every caller and forwards it to treasury.
 
-Creator attribution uses EIP-712 authorization version 2 (domain `"Statics Protocol Pools"`) validated for EOA and ERC-1271 signers, binding the PoolId, normalized price, creator, an unordered nonce, and a deadline. PoolId commits to the pair, native LP fee, tick spacing, and hook. When permissionless creation is enabled, a direct creator needs no signature; relayed authorization does not bind `msg.sender`, so front-running cannot steal creator identity, and unused nonces can be cancelled with `invalidatePoolCreationNonce`. General pools require no mandatory liquidity seed and may begin with zero liquidity, growing POL from swap activity. A different native LP fee or tick spacing creates a distinct PoolId; price alone does not. The immutable creator earns a fixed 500-bps perpetual share, claimed pull-based through `claimCreatorRevenue`. General pools never gain basket backing, collateral, or lending status, and a pool's price is never a Statics solvency input. The owner-only `decommissionGeneralPool` is the terminal exit; it preserves accrued creator credits and user LP principal. General pools carry no privacy guarantees: the immutable creator address, creation events, nonces, every swap and LP action, and every revenue claim are permanently public and linkable onchain, so use a fresh creator address per pool where identity separation matters.
+Creator attribution uses EIP-712 authorization version 4 (domain `"Statics Protocol Pools"`) validated for EOA and ERC-1271 signers, binding the PoolId, normalized price, both initial hook-fee legs, managed-POL activation choice, creator, an unordered nonce, and a deadline. PoolId commits to the pair, native LP fee, tick spacing, and hook. When permissionless creation is enabled, a direct creator needs no signature; relayed authorization does not bind `msg.sender`, so front-running cannot steal creator identity, and unused nonces can be cancelled with `invalidatePoolCreationNonce`. General pools require no mandatory liquidity seed. Managed POL is disabled by default, routes its would-be share to treasury without accumulating dormant inventory, and can be permanently activated by the creator through an exact governed native fee. Activation enables only future funding. An authorized operator may manage any number of explicit PoolId-bound positions but cannot redirect principal, refunds, or NFTs. A different native LP fee or tick spacing creates a distinct PoolId; price or hook fee alone does not. The immutable creator earns a fixed 500-bps perpetual share, claimed pull-based through `claimCreatorRevenue`. General pools never gain basket backing, collateral, or lending status, and a pool's price is never a Statics solvency input. Owner-only decommissioning is staged: begin stops swaps and the gauge, explicit bounded transactions close POL positions, and finalization requires none remain. Accrued creator credits and user LP principal are preserved. General pools carry no privacy guarantees: the immutable creator address, creation events, nonces, every swap and LP action, and every revenue claim are permanently public and linkable onchain, so use a fresh creator address per pool where identity separation matters.
 
 ### Statics Dollar profiles
 
@@ -708,6 +849,10 @@ IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.Cre
     lpFee: 3_000,
     tickSpacing: 60,
     sqrtPriceBPerAX96: initialSqrtPriceBPerAX96,
+    initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({
+        inputFeeBps: 5,
+        outputFeeBps: 5
+    }),
     creator: msg.sender,
     nonce: nonce,
     deadline: block.timestamp + 1 hours
@@ -733,12 +878,15 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 |---|---|
 | `PRIVATE_KEY` | Local broadcaster key; never commit a populated value |
 | `MULTISIG` | Initial timelock proposer and governance authority |
-| `GUARDIAN` | Basket and initial Dollar emergency guardian |
+| `GUARDIAN` | Phase 1 staking/liquidity emergency guardian and later module guardian |
 | `TREASURY` | Shared protocol treasury |
 | `STAKING_TOKEN` | Statics ERC-20 used as the global reward denominator |
+| `WEEKLY_GAUGE_RELEASE_BPS` | Initial weekly release from the available protocol gauge reserve; defaults to 400 bps and cannot exceed 1,000 bps |
 | `BASKET_CREATION_FEE_AMOUNT` | Exact native fee opening permissionless basket creation; zero permits owner-only genesis |
 | `POSITION_CREATION_FEE_AMOUNT` | Exact native fee for each new PositionNFT; zero keeps creation free |
 | `POOL_CREATION_FEE_AMOUNT` | Exact native fee for each permissionless general pool; zero disables permissionless creation (owner-only) and is not free public creation |
+| `STATICS_POL_OPERATOR` | Operational address permitted to manage explicit protocol-owned liquidity positions without withdrawal authority |
+| `STATICS_POL_ACTIVATION_FEE` | Exact native Treasury fee a general-pool creator pays to permanently enable future managed-POL funding |
 | `STATICS_GENESIS_CONTRACT_URI` | Optional local-fork override; production uses the launcher's onchain ERC-7572 collection metadata URI |
 | `STATICS_GENESIS_RESERVE_SHARE_BPS` | Governed share of harvested WETH routed into the permanent Genesis native reserve |
 | `STATICS_GENESIS_CREDIT_ORIGINATION_FEE` | Ratified flat native Genesis secured-credit origination fee |
@@ -753,13 +901,33 @@ Deployment reads protocol parameters from environment variables. Selected keys f
 | `STATICS_DOLLAR_PRICE_BAND_BPS` | Initial volatile-profile transition band |
 | `STATICS_DOLLAR_DEBT_CEILING` | Initial volatile-profile issuance ceiling |
 | `STATICS_DOLLAR_RISK_URI` | ERC-1155 metadata URI for Risk Share series |
+| `STATICS_DOLLAR_BASE_BPS` | Initial share of Dollar fees routed to the base reward path; defaults to 7,000 bps |
+| `STATICS_DOLLAR_INSURANCE_BPS` | Initial share of Dollar fees routed to insurance; defaults to 3,000 bps and must sum with base to 10,000 |
+| `STATICS_DOLLAR_REDEMPTION_FEE_BPS` | Initial pairing-vault redemption fee; defaults to 50 bps |
+| `STATICS_DOLLAR_REDEMPTION_SUPPLIER_SHARE_BPS` | Initial supplier share of pairing-vault redemption fees; defaults to 8,000 bps |
 | `STATICS_DIAMOND_ADDRESS` | Existing Diamond used by post-deployment ceremonies |
+| `STATICS_DIAMOND_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed Diamond, including its immutable native sender binding |
+| `STATICS_POOL_MANAGER_ADDRESS` | Existing v4 PoolManager already bound to the Phase 1 hook |
+| `STATICS_POSITION_MANAGER_ADDRESS` | Existing v4 PositionManager bound to the Phase 1 liquidity manager |
+| `STATICS_PERMIT2_ADDRESS` | Existing Permit2 bound to the Phase 1 liquidity manager |
 | `STATICS_SWAP_FEE_HOOK_ADDRESS` | Deployed canonical swap-fee hook |
 | `STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed canonical swap-fee hook; required by installation |
-| `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Deployed v4 liquidity manager |
-| `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the deployed v4 liquidity manager; required by installation |
-| `STATICS_PERMANENT_LIQUIDITY_HARVESTER` | Initial address authorized to harvest native fees earned by permanent liquidity into treasury accounting |
+| `STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS` | Deployed separate permissioned exact-input output-fee hook |
+| `STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned hook |
+| `STATICS_PERMISSIONED_ROUTER_ADDRESS` | Exact-input trusted router for permissioned pools |
+| `STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned router |
+| `STATICS_PERMISSIONED_POSITION_MANAGER_ADDRESS` | Non-transferable approved-LP v4 Position Manager |
+| `STATICS_PERMISSIONED_POSITION_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash of the permissioned Position Manager |
+| `STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH` | Exact runtime hash of the companion claim-backed unwind proceeds contract |
+| `STATICS_LIQUIDITY_MANAGER_ADDRESS` | Phase 1 v4 liquidity manager deployed by the launcher and installed through the liquidity ceremony |
+| `STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_HASH` | Exact runtime hash required by Phase 1 installation and later-phase provenance checks |
+| `STATICS_REVENUE_MAINTENANCE_TIP_BPS` | Permissionless revenue-settlement tip paid from the settled treasury share; default 500 BPS |
+| `STATICS_PROTOCOL_POL_OPERATOR` | Optional strategy operator authorized to manage custody-constrained protocol POL positions |
+| `STATICS_POL_ACTIVATION_FEE` | Exact native fee a general-pool creator pays to activate prospective managed POL funding |
 | `STATICS_LIQUIDITY_TIMELOCK_SALT` | Unique salt binding the liquidity-installation batch |
+| `STATICS_PHASE_TWO_TIMELOCK_SALT` | Unique salt binding the basket/credit/flash activation batch |
+| `STATICS_PHASE_THREE_TIMELOCK_SALT` | Unique salt binding the Dollar activation and core-finalization batch |
+| `STATICS_PHASE_FOUR_TIMELOCK_SALT` | Unique salt binding the Morpho selector activation batch |
 | `STATICS_GENESIS_BASKET_CONFIG` | Reviewed owner-funded genesis basket JSON |
 | `STATICS_GENESIS_TIMELOCK_SALT` | Unique salt binding genesis approvals and launch |
 | `STATICS_MORPHO_ADDRESS` | Reusable chain-local Morpho Blue deployment |

@@ -1,7 +1,8 @@
 # ADR: Governed Uniswap v4 protocol pools
 
-- Status: Superseded by `docs/adr/permissionless-protocol-pools.md` and
-  `docs/adr/native-v4-lp-fees.md`
+- Status: Superseded by `docs/adr/permissionless-protocol-pools.md`,
+  `docs/adr/native-v4-lp-fees.md`, and
+  `docs/adr/managed-protocol-owned-liquidity.md`
 - Date: 2026-08-06
 - Note: The governed generic-pool model described here was never shipped as a
   standalone rail. The permissionless-protocol-pools ADR replaces its
@@ -11,7 +12,8 @@
   permissionless `General` pool class, creator-selected static LP fee and tick
   spacing, EIP-712 creator authorization, independent creation-fee gate,
   admin-controlled global hook fees with PoolId overrides, and a fixed 500-bps
-  creator share. This document is retained only as a historical design
+  creator share. The managed-POL ADR separately replaces hook-owned full-range
+  positions, automatic compounding, and single-step decommissioning. This document is retained only as a historical design
   record; the current implementation follows the superseding ADR.
 - Scope: Statics pool registration, permanent liquidity, fee routing, LP rewards,
   governance, indexing, and upgrade compatibility
@@ -521,7 +523,8 @@ or backing reduction.
 Absent
   └── governance timelock: createGovernancePool with funded payer
         └── Active
-              ├── swaps: any router/user; fees and matched POL compound in-hook
+              ├── swaps: any router/user; fees accrue as backed hook claims
+              ├── maintenance: any caller; fees settle and matched POL compounds
               ├── stake/increase/activate: authorized users or permissionless activation
               ├── claim/unstake: authorized PositionNFT controller
               └── governance timelock: decommissionGovernancePool
@@ -533,7 +536,9 @@ Absent
 Nothing depends on an automatic background action:
 
 - Pool creation and decommissioning happen only after governance execution.
-- Fee allocation and compounding are driven by swaps.
+- Swaps accrue backed claims without depending on revenue settlement or POL
+  compounding. Permissionless callers execute those maintenance operations and
+  receive bounded treasury-funded tips.
 - LP activation is permissionless; a position that nobody activates simply
   remains ineligible and earns nothing.
 - Claims and exits are called by the users entitled to the assets.

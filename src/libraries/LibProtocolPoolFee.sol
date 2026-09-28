@@ -18,11 +18,6 @@ library LibProtocolPoolFee {
     uint256 internal constant MAX_COMBINED_FEE_BPS = 200;
 
     uint16 internal constant MAX_REVENUE_TIP_BPS = 2_000;
-    uint16 internal constant MAX_COMPOUND_TIP_BPS = 500;
-    uint32 internal constant MIN_MAINTENANCE_TWAP_WINDOW = 15 minutes;
-    uint32 internal constant MAX_MAINTENANCE_TWAP_WINDOW = 1 days;
-    uint24 internal constant MIN_MAINTENANCE_TICK_DEVIATION = 1;
-    uint24 internal constant MAX_MAINTENANCE_TICK_DEVIATION = 2_000;
 
     /// @dev Highest creator-selectable static Uniswap v4 LP fee. Statics intentionally excludes
     /// the 100% boundary and the dynamic-fee flag.

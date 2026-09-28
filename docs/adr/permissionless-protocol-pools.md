@@ -1,12 +1,15 @@
 # ADR: Permissionless Uniswap v4 protocol pools
 
-- Status: Partially superseded by `native-v4-lp-fees.md` and
-  `creator-led-pool-configuration.md`
+- Status: Partially superseded by `native-v4-lp-fees.md`,
+  `creator-led-pool-configuration.md`, and
+  `managed-protocol-owned-liquidity.md`
 - Date: 2026-08-21
 - Scope: Statics pool creation, PoolKey policy, Statics fee configuration, creator revenue, permanent liquidity, LP rewards, governance, indexing, routing, and DEX market structure
 - Supersedes: `docs/adr/governed-protocol-pools.md` where the decisions conflict
 - Superseded decisions: zero native LP fees, custom Diamond-custodied LP
-  rewards, creator-selected hook fees, and a deployment-wide native LP fee
+  rewards, creator-selected hook fees without governed per-leg floors, and a
+  deployment-wide native LP fee. The managed-POL ADR replaces every hook-owned
+  full-range compounding and decommissioning decision in this document.
 
 ## Context
 
@@ -526,9 +529,10 @@ struct PoolSwapFeeRate {
 struct CreatePoolParams {
     address tokenA;
     address tokenB;
+    uint24 lpFee;
     int24 tickSpacing;
     uint160 sqrtPriceBPerAX96;
-    PoolSwapFeeRate feeRate;
+    PoolSwapFeeRate initialFeeRate;
     address creator;
     uint256 nonce;
     uint256 deadline;
@@ -538,7 +542,6 @@ struct GeneralPoolQuote {
     PoolKey key;
     PoolId poolId;
     uint160 sqrtPriceX96;
-    PoolSwapFeeRate feeRate;
     uint256 creationFee;
     bytes32 authorizationDigest;
 }
@@ -567,9 +570,11 @@ creator is a nonzero address
 native currency is unsupported
 1 <= tickSpacing <= 32,767
 TickMath.MIN_SQRT_PRICE <= normalized sqrtPriceX96 < TickMath.MAX_SQRT_PRICE
-PoolKey.fee == 0
+0 <= PoolKey.fee <= 999,999 pips and the dynamic-fee flag is absent
 PoolKey.hooks == installed Statics hook
 inputFeeBps + outputFeeBps <= 200
+inputFeeBps >= live default inputFeeBps at transaction execution
+outputFeeBps >= live default outputFeeBps at transaction execution
 PoolId is absent from basket and general registries
 PoolId is absent from hook registration
 PoolManager has not initialized the PoolId
@@ -602,7 +607,7 @@ The EIP-712 domain binds:
 
 ```text
 name = "Statics Protocol Pools"
-version = "1"
+version = "3"
 chainId
 verifyingContract = Statics Diamond
 ```
@@ -948,7 +953,7 @@ NVDA/WETH spacing 60
     -> independent NVDA/WETH POL
 ```
 
-When both sides of a pool contain matched pending inventory, the hook may compound it into full-range permanent liquidity during normal swap execution.
+When both sides of a pool contain matched pending inventory, any caller may compound it into full-range permanent liquidity after the canonical MarketTape TWAP and spot-deviation guard passes. Swap execution only accrues the claim-backed inventory.
 
 A general pool can begin with zero permanent liquidity.
 
@@ -1393,12 +1398,15 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 
 ## Security and trust boundaries
 
-- Every Statics protocol PoolKey has zero native Uniswap v4 LP fee.
+- Every Statics protocol PoolKey has a static native Uniswap v4 LP fee from 0
+  through 999,999 pips.
 - Every Statics protocol pool uses the installed Statics hook.
 - Only the Diamond may register PoolKeys with the hook.
 - Exact PoolKey duplicates cannot create a second Statics market or creator.
 - Tick spacing is creator-selectable only within valid PoolManager bounds.
-- Initial Statics fee rates are creator-selectable only within canonical protocol fee bounds.
+- Initial Statics fee rates are creator-selectable only when each leg is at
+  least the live governed default and the combined rate is within canonical
+  protocol bounds.
 - Pool registration rejects a zero creator, and zero-fee creation remains owner-only even when the caller names itself as creator.
 - Creator authorization binds PoolId, normalized price, fee rate, creator, nonce, and deadline under the Diamond's EIP-712 domain.
 - Relayed creator authorization supports EOAs and ERC-1271 creators.
@@ -1445,16 +1453,17 @@ and none of these public artifacts can be redacted after the fact.
 
 1. A PoolId belongs to at most one Statics protocol-pool class.
 2. Every protocol-pool record hashes to the exact PoolKey registered with the Statics hook.
-3. Every Statics protocol PoolKey uses `fee == 0`.
+3. Every Statics protocol PoolKey uses a static native fee from 0 through 999,999 pips.
 4. Every Statics protocol PoolKey uses the installed Statics hook.
 5. Every general pool uses two distinct non-native ERC-20 currencies.
 6. Every general pool uses tick spacing in the inclusive range 1 through 32,767.
 7. Every normalized initial price is at least `TickMath.MIN_SQRT_PRICE` and less than `TickMath.MAX_SQRT_PRICE`.
 8. Exact duplicate PoolKeys cannot create a second creator identity.
-9. Distinct tick spacings for the same pair may create distinct PoolIds.
+9. Distinct native fees or tick spacings for the same pair may create distinct PoolIds.
 10. A different Statics fee rate alone cannot create a distinct PoolId.
 11. A different initial price alone cannot create a distinct PoolId.
-12. Every accepted fee rate satisfies `inputFeeBps + outputFeeBps <= 200`.
+12. Every accepted initial fee rate satisfies `inputFeeBps + outputFeeBps <= 200`
+    and each leg is at least the corresponding live default at execution.
 13. When `poolCreationFeeAmount == 0`, only the Diamond owner may create a general pool and `msg.value` must be zero.
 14. When `poolCreationFeeAmount > 0`, every caller supplies exactly the configured amount.
 15. The pool creation fee is independent from basket and PositionNFT creation fees.
