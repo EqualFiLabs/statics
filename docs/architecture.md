@@ -45,12 +45,14 @@ StaticsBasketToken (one address per basket)
 
 StaticsSwapFeeHook
 ├── bilateral canonical-pool swap fees
-└── hook-owned full-range permanent liquidity
+├── claim-backed managed-POL inventory
+└── swap-time STATICS-staker reward classification
 
 StaticsLiquidityManager
 ├── immutable Diamond, v4 PositionManager, PoolManager, and Permit2 bindings
 ├── registered PoolKey validation and token settlement
-└── typed user-position minting with NFTs delivered directly to users
+├── typed user and range-gauge position management
+└── custody-constrained protocol POL position management
 
 StaticsGenesisRenderer
 ├── deterministic Base64 JSON and SVG for the scarce Genesis collection
@@ -64,15 +66,21 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The fresh-deployment launcher installs 36 facets and 280 selectors on
-`StaticsDiamond`, and 11 facets and 95 selectors on
+The staged Phase 1 launcher installs 30 facets and 209 selectors for arbitrary
+Statics-hooked pairs, permissioned venues, PositionNFT accounts, and global
+STATICS staking on `StaticsDiamond`. It also installs public-pool PositionNFT
+range gauges, weekly reserve-backed protocol incentives, and the Diamond-bound
+liquidity manager used to custody their Uniswap v4 position NFTs. The
+full-stack fresh-deployment launcher installs 52 facets and 387 selectors
+on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
-`script/dollar/DeployStaticsProtocol.s.sol` and
+`script/libraries/StaticsProtocolPlan.sol` and
 `script/dollar/DeployCoreBootstrap.s.sol`; deployment tests enumerate every
-installed selector, verify its routed facet and that every facet has runtime
-code, and assert those fresh-launch totals. Runtime hashes are recorded in
-release and rehearsal manifests rather than asserted by the fresh-deployment
-manifest test. Later governed upgrades can change the deployed selector set;
+installed selector, verify its routed facet and runtime code, assert all four
+cumulative totals, and compare the completed staged Diamond against a fresh
+full deployment selector by selector. The same rehearsal compares all Dollar
+Core selector runtimes, while later-phase preparation rejects drifted earlier
+facet bytecode. Later governed upgrades can change the deployed selector set;
 the current deployment manifest records that live release state.
 
 ## One address without one economic book
@@ -87,6 +95,12 @@ separately namespaced:
 
 - PositionNFT ownership and active-leg state;
 - global and module-local physical reservations;
+- the protocol STATICS gauge reserve, its available, deferred, and committed
+  partitions, anchored weekly budgets, persistent PositionNFT allocations,
+  PoolId eligibility versions, and continuous pro-rata routing index;
+- creator-funded allocator streams, PositionNFT and aggregate PoolId indexes,
+  persistent claims, eligibility-generation cutoffs, explicit forfeiture, and
+  separately reserved custody;
 - Statics Dollar consumable Risk liquidity, pairing proceeds, migration, and
   insurance ingress;
 - pegged-profile fee ingress;
@@ -94,8 +108,9 @@ separately namespaced:
 - canonical-pool registration, lifecycle, and decommission state;
 - direct Genesis STATICS/WETH indexes, prior-owner credits, registration, and
   an isolated Genesis reward reservation;
-- one global staking balance per PositionNFT, withdrawable without a cooldown
-  except while supplied to Morpho, an initial active limit of 12 selected
+- one global staking balance per PositionNFT, withdrawable without a time
+  cooldown except while supplied to Morpho, with each positive stake ingress
+  starting or extending the separate gauge-allocation cooldown, an initial active limit of 12 selected
   reward assets under a 64-asset hard ceiling, and independent hourly
   24-to-25-hour eligibility rings for an unlimited set of global asset indexes;
   and
@@ -141,8 +156,8 @@ Every configured basket constituent has one canonical BasketToken/constituent
 pool key with the immutable Statics hook and creator-selected static native LP
 fee and tick spacing. Basket creation atomically deploys the BasketToken, initializes every
 constituent pool, registers every key with the manager, mints the aggregate
-pool BasketTokens through ordinary backing and fee accounting, and seeds
-full-range permanent liquidity from creator-supplied assets. All pool and
+pool BasketTokens through ordinary backing and fee accounting, and opens an
+initial protocol-owned managed position from creator-supplied assets. All pool and
 custody changes roll back if any constituent cannot launch. The same path is
 used for owner-created genesis baskets and public exact-fee creation.
 Creation includes a caller-selected deadline and measured aggregate
@@ -168,20 +183,24 @@ StaticsDiamond
 
 StaticsSwapFeeHook
 ├── per-pool/per-currency pending POL
-├── hook-owned full-range v4 liquidity
-└── immutable stateless full-range liquidity calculator
+├── PoolManager claim backing
+└── bilateral fee classification
 
 StaticsLiquidityManager
 ├── normalized protocol-pool validation by PoolId
-└── typed user PositionManager NFT creation
+├── typed user PositionManager NFT management
+└── protocol-owned PositionManager NFT custody
 ```
 
 Raw balances at any location are not shared liquidity. The hook charges both
 realized swap legs, rounded up, separately from each pool's creator-selected
-native LP fee. The global hook-fee default is 25 basis points on input and 25
-basis points on output. Pools inherit the live default unless an administrator
-sets a PoolId-specific override; clearing that override resumes the then-current
-global default. Fee **allocation** is governed separately by two global
+native LP fee. The global hook-fee default is 5 basis points on input and 5
+basis points on output. Basket pools inherit the live default. A general-pool
+creator may select higher initial rates when each leg is at least the live
+default and their sum does not exceed 200 BPS. Selecting the exact default
+continues inheritance; selecting a higher rate stores both legs as a PoolId
+override. An administrator may replace or clear an override after creation,
+while creators have no post-creation setter. Fee **allocation** is governed separately by two global
 profiles. The creator share is permanently fixed at 500 BPS; governance
 configures the remaining 9,500 BPS through independent basket and general
 allocation profiles. The initial basket-pool split is 15% to POL, 30% to
@@ -207,32 +226,34 @@ rewards, Statics-staker rewards, treasury revenue, or pending POL, and never
 alter decommissioning. Changing a rate does not change the applicable profile,
 and vice versa.
 
-Protocol pools reject native Uniswap v4 donations in `beforeDonate`. This
-prevents third parties from injecting an opposite-side asset into pending POL
-and forcing hook-owned inventory to compound at a manipulated spot price.
-Protocol seeding and swap-fee routing remain the only POL inventory sources.
+Protocol pools reject native Uniswap v4 donations in `beforeDonate`. This keeps
+donations outside protocol fee and POL accounting. Basket launch funding and
+activated swap-fee routing remain the POL inventory sources.
 
 The normalized registry recognizes existing basket canonical pools and stores
 general pools in a fresh namespace (`statics.storage.protocol.pools.v2`). A
 general pool is a permissionless Statics-hook PoolKey between any two compatible
-ERC-20s, with no basket association. Anyone may create one — subject to the
-independent pool creation fee and EIP-712 creator authorization — selecting a
-valid static native LP fee, tick spacing, and initial price. Creation does
-not require an initial permanent-liquidity seed; the market may begin with zero
-liquidity and grow POL from swap activity. Registration does not admit either
+ERC-20s, with no basket association. Anyone may create one, subject to the
+independent pool creation fee and EIP-712 creator authorization, selecting a
+valid static native LP fee, tick spacing, initial price, and bounded initial
+hook-fee rate. Creation does not require an initial protocol-liquidity seed; the
+market may begin with zero liquidity. General-pool POL is disabled by default,
+and its would-be allocation routes to Treasury without accumulating dormant
+inventory. The immutable creator may pay the governed native activation fee to
+enable prospective managed-POL funding. Registration does not admit either
 asset as basket backing, Dollar collateral, or a borrowable asset, and a pool's
 spot price, TWAP, or liquidity is never a Statics solvency input.
 
-After every swap, matched POL amounts are added as hook-owned full-range
-liquidity in the same pool. No caller, administrator, or treasury can withdraw
-active-pool POL. On `ExitOnly`, permissionless decommissioning releases it,
-burns the released BasketTokens, and reserves the resulting constituents for
-the common treasury. General pools instead use the owner-only terminal
-`decommissionGeneralPool`, which stops later swaps, releases permanent
-liquidity to treasury accounting, preserves accrued creator credits, and never
-seizes user LP principal; the creator cannot decommission a pool. User-owned v4
-positions remain under their owners' control and earn the native v4 LP fee
-through ordinary PositionManager accounting.
+Anyone may settle claim-backed POL inventory into the PoolId-specific Diamond
+custody account. The governed strategy operator then targets explicit positions
+and caller-selected ranges through the liquidity manager. Every refund and
+principal output returns to the same protocol account, while native LP fees are
+classified separately as Treasury revenue. No transaction iterates every pool
+position, and there is no protocol-wide position limit. Setting future POL
+funding to zero does not close the existing portfolio. Decommissioning first
+stops swaps and the gauge, then requires positions to be closed in explicit
+bounded calls before final inventory can move to Treasury. User-owned v4
+positions remain outside this protocol-principal lifecycle.
 
 `borrowAndProvideLiquidity` is an optional typed Diamond action. It originates
 the ordinary position-owned loan, burns the ordinary origination fee, uses
@@ -243,16 +264,18 @@ no user inventory, and the v4 NFTs remain independent of the PositionNFT and
 its loan lifecycle.
 
 Quarantine and liquidity pause block new combined borrowing. Exit-only baskets
-can permissionlessly decommission each canonical pool and unwind its permanent
-hook liquidity. User-owned v4 NFTs remain under their owners' control.
+can permissionlessly finalize each canonical pool only after its managed POL
+positions have been explicitly closed. User-owned v4 NFTs remain under their
+owners' control.
 
 ## Liquidity threat model
 
 The hook fee cannot make unhooked competing pools pay Statics. Canonical status,
 POL, SDK metadata, and supported routing are the incentive for concentrating
 activity in the hooked pool. Concentrated liquidity also carries ordinary
-price-range and inventory risk; Statics uses full-range POL and does not swap
-mismatched inventory to hide that exposure.
+price-range and inventory risk. Statics constrains POL custody rather than range
+strategy. The initial primitive does not swap mismatched inventory; a later
+inventory-swap capability must keep every output PoolId-bound and protocol-owned.
 
 Permissionless baskets may contain taxed, rebasing, callback-capable, or
 otherwise hostile tokens. Measured transfer deltas and location-local
@@ -305,19 +328,24 @@ maintain a second upgrade policy beside ownership.
 
 ## Governance boundary
 
-The canonical launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
-of both Diamonds. Core administration derives from the Core Diamond owner; it
-does not maintain a second protocol-governor role, internal proposal queue, or
-irreversible configuration locks. The timelock constructor selects two minutes
-for Robinhood testnet and local development, while Robinhood mainnet and other
-chains default to 24 hours. After deployment, the delay can change only
-through a scheduled timelock call to the timelock itself. The configured multisig proposes
-and may cancel scheduled operations, while execution is open after the current
-delay. The emergency guardian is not a timelock canceller.
+The Phase 1 launcher deploys one OpenZeppelin-based `StaticsTimelock` as owner
+of `StaticsDiamond`. Later phases add selectors to that same address; the
+full-stack fresh-deployment reference applies the same ownership model to both
+Diamonds. Core administration derives from the Core Diamond owner
+and does not maintain a second protocol-governor role, internal proposal queue,
+or irreversible configuration locks. The timelock constructor selects two
+minutes for Robinhood testnet and local development, while Robinhood mainnet
+and other chains default to 24 hours. After deployment, the delay can change
+only through a scheduled timelock call to the timelock itself. The configured
+multisig proposes and may cancel scheduled operations, while execution is open
+after the current delay. The emergency guardian is an additional canceller but
+does not gain proposal authority.
 
-The basket guardian can immediately pause exposure-increasing actions and
-quarantine baskets. Only timelocked governance can unpause, release quarantine,
-or mark a basket `ExitOnly`. The Dollar guardian can pause profile operations,
+The Phase 1 guardian can immediately pause new global staking and liquidity
+actions and stop all or individual registered protocol-pool swaps. Basket
+pause, quarantine, and decommission selectors are not installed until the
+basket phase. Only timelocked governance can unpause or restore Phase 1 paths.
+The Dollar guardian can pause profile operations,
 reduce a debt ceiling, or enter reduce-only mode, but cannot block proportional
 holder exits, create profiles, restore operations, increase risk, or change an
 oracle. A Dollar profile can be permanently retired only from reduce-only mode;

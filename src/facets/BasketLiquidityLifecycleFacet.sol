@@ -181,6 +181,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
         IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
         LibRangeGauge.stopGauge(poolId, key.tickSpacing, liveTick, currentTime);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
         emit IStaticsRangeGauge.PoolGaugeStopped(poolId);
     }
 

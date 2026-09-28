@@ -14,7 +14,7 @@ import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
 import {LibGaugeEligibility} from "../libraries/LibGaugeEligibility.sol";
-import {LibGaugeEpoch} from "../libraries/LibGaugeEpoch.sol";
+import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
@@ -28,7 +28,6 @@ contract RangeGaugeFacet is ReentrancyGuard {
         address asset;
         uint16 allocatorShareBps;
         bytes32 eligibilityVersion;
-        uint64 allocatorEpoch;
         uint64 fundingRestrictionSequence;
         uint40 currentTime;
         uint256 lpAmount;
@@ -75,13 +74,12 @@ contract RangeGaugeFacet is ReentrancyGuard {
         uint8 slot,
         uint256 amount,
         uint40 minRemainingDuration,
-        uint16 expectedAllocatorShareBps,
-        uint64 expectedAllocatorEpoch
+        uint16 expectedAllocatorShareBps
     ) external nonReentrant returns (uint256 received) {
         _enforceLiquidityAvailable();
         _enforceActivePublicGauge(poolId);
         if (slot == LibRangeGauge.STATICS_SLOT) revert IStaticsRangeGauge.ProtocolRewardSlotReserved(poolId);
-        FundingContext memory context = _fundingContext(poolId, slot, expectedAllocatorShareBps, expectedAllocatorEpoch);
+        FundingContext memory context = _fundingContext(poolId, slot, expectedAllocatorShareBps);
         received = _pullReward(poolId, slot, context.asset, amount);
         context.allocatorAmount = Math.mulDiv(received, context.allocatorShareBps, BPS);
         context.lpAmount = received - context.allocatorAmount;
@@ -101,12 +99,17 @@ contract RangeGaugeFacet is ReentrancyGuard {
         );
         if (context.allocatorAmount != 0) {
             emit IStaticsRangeGauge.PoolAllocatorRewardFunded(
-                poolId, context.asset, msg.sender, slot, context.allocatorAmount, context.allocatorEpoch
+                poolId,
+                context.asset,
+                msg.sender,
+                slot,
+                context.allocatorAmount,
+                LibGaugeBribes.bribeStorage().streams[poolId][slot].periodFinish
             );
         }
     }
 
-    function _fundingContext(PoolId poolId, uint8 slot, uint16 expectedAllocatorShareBps, uint64 expectedAllocatorEpoch)
+    function _fundingContext(PoolId poolId, uint8 slot, uint16 expectedAllocatorShareBps)
         private
         view
         returns (FundingContext memory context)
@@ -120,19 +123,10 @@ contract RangeGaugeFacet is ReentrancyGuard {
             revert IStaticsRangeGauge.AllocatorShareChanged(expectedAllocatorShareBps, context.allocatorShareBps);
         }
         context.currentTime = LibRangeGauge.timestamp40(block.timestamp);
-        if (context.allocatorShareBps == 0) {
-            if (expectedAllocatorEpoch != 0) {
-                revert IStaticsRangeGauge.AllocatorEpochChanged(expectedAllocatorEpoch, 0);
-            }
-            return context;
-        }
+        if (context.allocatorShareBps == 0) return context;
         context.eligibilityVersion = LibGaugeEligibility.version(poolId);
         if (context.eligibilityVersion == bytes32(0)) {
             revert IStaticsRangeGauge.GaugeAllocatorPoolIneligible(poolId);
-        }
-        context.allocatorEpoch = LibGaugeEpoch.epochAt(block.timestamp) + 1;
-        if (context.allocatorEpoch != expectedAllocatorEpoch) {
-            revert IStaticsRangeGauge.AllocatorEpochChanged(expectedAllocatorEpoch, context.allocatorEpoch);
         }
         context.fundingRestrictionSequence = LibRewardPolicy.restrictionSequence();
     }
@@ -161,18 +155,25 @@ contract RangeGaugeFacet is ReentrancyGuard {
             );
         }
         if (context.allocatorAmount == 0) return;
-        bytes32 allocatorAccount = LibGaugeBribes.account(poolId, slot, context.allocatorEpoch);
+        uint256 priorWeight = LibGaugeRouting.routingStorage().poolWeights[poolId].weight;
+        // Settle the existing allocator stream against the denominator that was active before
+        // routing applies an eligibility transition or removes stale pool weight.
+        LibGaugeBribes.checkpointPool(poolId, context.currentTime, priorWeight);
+        LibGaugeRouting.checkpointPool(poolId, context.currentTime);
+        uint256 poolWeight = LibGaugeRouting.routingStorage().poolWeights[poolId].weight;
+        bytes32 allocatorAccount = LibGaugeBribes.account(poolId, slot);
         LibCustody.moveReservation(
             LibRangeGauge.rewardAccount(poolId, slot), allocatorAccount, context.asset, context.allocatorAmount
         );
         LibGaugeBribes.recordFunding(
             poolId,
             slot,
-            context.allocatorEpoch,
             context.asset,
             context.eligibilityVersion,
             context.fundingRestrictionSequence,
             context.currentTime,
+            rgs.gaugeRewardDuration,
+            poolWeight,
             context.allocatorAmount
         );
     }

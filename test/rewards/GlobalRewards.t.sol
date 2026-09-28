@@ -50,6 +50,34 @@ contract FeeAccrualHarness {
 
 contract GlobalRewardsTest is StaticsTestBase {
     uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
+    uint256 private constant PAUSE_STAKE = 1 << 7;
+
+    function testGuardianPauseBlocksStakeIngressButPreservesExits() external {
+        address[] memory selectedAssets = _asset(address(assetA));
+        stakingAsset.mint(alice, 20 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 20 ether);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, selectedAssets);
+        vm.stopPrank();
+
+        vm.prank(guardian);
+        governance.pause(PAUSE_STAKE);
+
+        vm.startPrank(alice);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, PAUSE_STAKE));
+        globalRewards.createAndStake(1 ether, alice, selectedAssets);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, PAUSE_STAKE));
+        globalRewards.stake(positionId, 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, PAUSE_STAKE));
+        globalRewards.optInRewardAssets(positionId, _asset(address(assetB)));
+
+        globalRewards.optOutRewardAssets(positionId, selectedAssets);
+        globalRewards.unstake(positionId, 10 ether, alice);
+        vm.stopPrank();
+
+        assertEq(globalRewards.totalStaked(), 0);
+        assertEq(stakingAsset.balanceOf(alice), 20 ether);
+    }
 
     function testBasketFeesAccrueAgainstSingleStakingBalanceAndRemainInKind() external {
         address[] memory selectedAssets = _assets(address(assetA), address(assetB));

@@ -12,6 +12,7 @@ import {RangeGaugePositionFacet} from "../../src/facets/RangeGaugePositionFacet.
 import {RangeGaugePositionManagementFacet} from "../../src/facets/RangeGaugePositionManagementFacet.sol";
 import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
+import {LibGaugeBribes} from "../../src/libraries/LibGaugeBribes.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {CanonicalPoolTestBase} from "./CanonicalPoolTestBase.sol";
@@ -25,6 +26,11 @@ contract RangeGaugeTestStateFacet {
     function setGaugeRewardCapacityUsed(PoolId poolId, uint256 slot, uint256 used) external {
         if (slot >= LibRangeGauge.MAX_REWARD_SLOTS || used > LibRangeGauge.MAX_INDEXABLE_REWARD) revert();
         LibRangeGauge.rangeGaugeStorage().gauges[poolId].capacities[slot].used = used;
+    }
+
+    function allocatorIndexRemainder(PoolId poolId, uint256 slot) external view returns (uint256 remainder) {
+        if (slot >= LibRangeGauge.MAX_REWARD_SLOTS) revert();
+        remainder = LibGaugeBribes.bribeStorage().streams[poolId][uint8(slot)].indexRemainder;
     }
 
     function addGaugeRange(
@@ -176,7 +182,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     }
 
     function _actionSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = RangeGaugeFacet.setGaugeRewardAssetAllowed.selector;
         selectors[1] = RangeGaugeFacet.setGaugeRewardDuration.selector;
         selectors[2] = RangeGaugeFacet.appendPoolRewardAsset.selector;
@@ -224,11 +230,12 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     }
 
     function _stateSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = RangeGaugeTestStateFacet.setActiveGaugeLiquidity.selector;
         selectors[1] = RangeGaugeTestStateFacet.addGaugeRange.selector;
         selectors[2] = RangeGaugeTestStateFacet.seedLpLeg.selector;
         selectors[3] = RangeGaugeTestStateFacet.nextGaugeBoundary.selector;
         selectors[4] = RangeGaugeTestStateFacet.setGaugeRewardCapacityUsed.selector;
+        selectors[5] = RangeGaugeTestStateFacet.allocatorIndexRemainder.selector;
     }
 }

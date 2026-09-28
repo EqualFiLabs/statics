@@ -120,16 +120,100 @@ case "$TARGET" in
     run_halmos "$ROOT" StaticsLaunchLiquidityGovernanceHalmosTest launch-liquidity-proposer-boundary 8 \
       out-formal-genesis '^check_proposerCannotChangeOwnerOnlyConfiguration'
     ;;
-  permanent-liquidity)
+  protocol-pol)
     # Unknown branch-feasibility results are conservatively explored on both sides by Halmos.
     # Bound those pruning queries so full-precision mulDiv internals cannot monopolize the job.
-    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMANENT_BRANCH_TIMEOUT:-100ms}"
-    run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-allocation 8 \
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PROTOCOL_POL_BRANCH_TIMEOUT:-100ms}"
+    run_halmos "$ROOT" StaticsProtocolPolHookHalmosTest protocol-pol-allocation 8 \
       out-formal-genesis '^check_specifiedFeeAllocationEqualsMintedClaim'
-    run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-compounding 8 \
-      out-formal-genesis '^check_claimFundedCompoundingConservesLiabilities'
-    run_halmos "$ROOT" StaticsPermanentLiquidityHookHalmosTest permanent-liquidity-overspend 8 \
-      out-formal-genesis '^check_claimFundedCompoundingRejectsOverspend'
+    run_halmos "$ROOT" StaticsProtocolPolHookHalmosTest protocol-pol-activated-share 8 \
+      out-formal-genesis '^check_activatedPolAccruesConfiguredShare'
+    run_halmos "$ROOT" StaticsProtocolPolHookHalmosTest protocol-pol-override-cap 8 \
+      out-formal-genesis '^check_polOverrideCannotExceedCurrentGlobalBucket'
+    ;;
+  phase-one)
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-pause-authority 8 \
+      out-formal-genesis '^check_onlyGuardianOrOwnerCanStopAllProtocolSwaps'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-restore-authority 8 \
+      out-formal-genesis '^check_guardianCannotRestoreProtocolSwaps'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-pool-quarantine-isolation 8 \
+      out-formal-genesis '^check_poolQuarantineRemainsIsolatedUntilGlobalPause'
+    run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-stake-pause-separation 8 \
+      out-formal-genesis '^check_guardianStakePauseCannotSetOwnerOnlyAction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-add-authority 8 \
+      out-formal-genesis '^check_onlyGuardianOrOwnerCanAddRewardRestriction'
+    run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-reward-restriction-remove-authority 8 \
+      out-formal-genesis '^check_onlyOwnerCanRemoveRewardRestriction'
+    # The minimum nonzero rate is the hardest configured fee to keep above zero. Prove that
+    # boundary across every uint64 gross output; uint128 amounts and general rates are fuzz-covered.
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-both-restricted-split 8 \
+        out-formal-genesis '^check_bothRestrictedDistributionConservesFee'
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_PERMISSIONED_FEE_BRANCH_TIMEOUT:-100ms}" \
+      run_halmos "$ROOT" PhaseOnePermissionedPolicyHalmosTest phase-one-permissioned-minimum-fee-nonzero 8 \
+        out-formal-genesis '^check_minimumGrossFeeNeverRoundsToZero'
+    run_halmos "$ROOT" MarketTapeAccountingHalmosTest phase-one-market-tape-saturation 8 \
+      out-formal-genesis '^check_externalVolumeSaturatesWithoutWrapping'
+    ;;
+  range-gauges)
+    # Full-precision mulDiv and modular-growth branches can make feasibility refinement
+    # dominate otherwise small rules. As in the protocol-POL suite, unknown
+    # branch feasibility is conservatively explored on both sides while assertions
+    # retain their unbounded solver timeout. The two-claim rule exhausts uint8
+    # budgets and weights in a 256-unit normalized domain, replacing exact
+    # floor division with a right shift. Full-width Foundry fuzz tests execute mulDiv
+    # across arbitrary raw weights in the production uint256 domain.
+    HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-stream-conservation 8 \
+      out-formal-genesis '^check_streamEmitsEntireBudgetAtFinish'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-zero-liquidity-pause 8 \
+      out-formal-genesis '^check_zeroLiquidityPausesWithoutEmitting'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-top-up-conservation 8 \
+      out-formal-genesis '^check_topUpPreservesFinishAndConservesBudget'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-lifetime-index-capacity 8 \
+      out-formal-genesis '^check_lifetimeIndexCapacityTracksConsecutivePeriods'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-index-capacity-bound 8 \
+      out-formal-genesis '^check_indexCapacityBoundPreventsGlobalOverflow'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-position-remainder 8 \
+      out-formal-genesis '^check_positionRemainderCarryConservesNumerator'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-denominator-remainder-bound 8 \
+      out-formal-genesis '^check_denominatorRemainderCannotReachOneRawUnit'
+    run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-final-reconciliation-gate 8 \
+      out-formal-genesis '^check_finalReconciliationRequiresResolvedLiabilities'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-commitment 8 \
+      out-formal-genesis '^check_releaseCommitmentPreservesReservePartition'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-reserve-recycling 8 \
+      out-formal-genesis '^check_claimAndRecycleConserveBackedReserve'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-matured-release-schedule 8 \
+      out-formal-genesis '^check_maturedScheduleCannotBeOverwritten'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-unmatured-release-replacement 8 \
+      out-formal-genesis '^check_unmaturedScheduleMayBeReplaced'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-continuous-release-checkpoint-invariance 8 \
+      out-formal-genesis '^check_continuousReleaseIsCheckpointInvariant'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-pro-rata-conservation 8 \
+      out-formal-genesis '^check_twoPoolProRataSharesRemainWithinBudget'
+    run_halmos "$ROOT" GaugeReserveHalmosTest range-gauge-weight-splitting 8 \
+      out-formal-genesis '^check_splittingPoolWeightCannotIncreaseBudget'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-funding-split 8 \
+      out-formal-genesis '^check_fundingSplitConservesReceived'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-claim-rounding 8 \
+      out-formal-genesis '^check_claimRoundingCannotExceedBudget'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-proration 8 \
+      out-formal-genesis '^check_prorationAndTreasuryConserveBudget'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-carry-normalization 8 \
+      out-formal-genesis '^check_indexCarryNormalizesAcrossDenominatorChange'
+    run_halmos "$ROOT" GaugeAllocatorRewardsHalmosTest range-gauge-allocator-terminal-carry 8 \
+      out-formal-genesis '^check_terminalCarryReconcilesSingleWeight'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-boundary-symmetry 8 \
+      out-formal-genesis '^check_boundaryAddRemoveSymmetry'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-right-crossing-inversion 8 \
+      out-formal-genesis '^check_rightThenLeftCrossingRestoresLiquidity'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-left-crossing-inversion 8 \
+      out-formal-genesis '^check_leftThenRightCrossingRestoresLiquidity'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-topology-restoration 8 \
+      out-formal-genesis '^check_registerThenUnregisterRestoresTopology'
+    run_halmos "$ROOT" RangeGaugeBoundaryHalmosTest range-gauge-inside-growth 8 \
+      out-formal-genesis '^check_insideGrowthMatchesRegionIdentity'
     ;;
   established)
     for target in vault fees distributor genesis vesting credit rewards position genesis-rewards launch-liquidity; do
@@ -139,7 +223,9 @@ case "$TARGET" in
     ;;
   all)
     "$0" established
-    "$0" permanent-liquidity
+    "$0" protocol-pol
+    "$0" phase-one
+    "$0" range-gauges
     ;;
   *)
     printf 'unknown formal target: %s\n' "$TARGET" >&2

@@ -3,7 +3,7 @@ pragma solidity 0.8.33;
 
 import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
-import {LibGaugeEpoch} from "../libraries/LibGaugeEpoch.sol";
+import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibRewardPolicy} from "../libraries/LibRewardPolicy.sol";
 
@@ -24,10 +24,13 @@ contract RewardPolicyFacet is IStaticsRewardPolicy {
         if (state.restricted) revert RewardRestrictionAlreadySet(asset);
         state.restricted = true;
         ++state.nonce;
-        uint64 epoch = LibGaugeEpoch.epochAt(block.timestamp);
-        if (state.firstRestrictedAt[epoch] == 0) state.firstRestrictedAt[epoch] = uint40(block.timestamp);
+        uint40 currentTime = uint40(block.timestamp);
+        LibGaugeRouting.checkpointSchedule(currentTime, LibGaugeRouting.MAX_CATCHUP_PERIODS);
+        LibGaugeRouting.enforceScheduleCurrent(currentTime);
         uint64 sequence = ++LibRewardPolicy.rewardPolicyStorage().restrictionSequence;
-        LibRewardPolicy.recordRestrictionSequence(asset, epoch, sequence);
+        LibRewardPolicy.recordRestriction(
+            asset, sequence, currentTime, LibGaugeRouting.routingStorage().globalIndexX160
+        );
         emit RewardRestrictionAdded(asset, msg.sender);
     }
 
@@ -47,7 +50,7 @@ contract RewardPolicyFacet is IStaticsRewardPolicy {
         return LibRewardPolicy.restrictionNonce(asset);
     }
 
-    function rewardRestrictionTimestamp(address asset, uint64 epoch) external view returns (uint40 timestamp) {
-        return LibRewardPolicy.firstRestrictedAt(asset, epoch);
+    function rewardRestrictionTimestamp(address asset, uint64 sequence) external view returns (uint40 timestamp) {
+        (,, timestamp,) = LibRewardPolicy.firstRestrictionAfter(asset, sequence);
     }
 }

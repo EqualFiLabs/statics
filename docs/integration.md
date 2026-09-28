@@ -9,17 +9,19 @@ Most applications need:
 - `StaticsFeeReceiver`, `GenesisActivationRegistry`, and
   `GenesisLaunchDistributor` for permanent launch-fee ingress, activation, and
   temporary Genesis rewards;
-- `IStaticsGenesisIntegration` at `StaticsDiamond` for permanent Genesis
-  rewards, Position linkage, and recovery after the governed handoff;
-- `StaticsDiamond`, the PositionNFT, basket, global-reward, canonical-liquidity,
-  and ordinary Statics Dollar gateway address;
-- `StaticsDollarCoreDiamond` for advanced Dollar state and direct operations;
-- `StaticsDollar` and `StaticsDollarRiskShares`;
+- `IStaticsGenesisIntegration` at `StaticsDiamond` only after its later-phase
+  selectors are installed for permanent Genesis rewards, Position linkage, and
+  recovery;
+- `StaticsDiamond` as the Phase 1 PositionNFT, global-reward, general-pool, and
+  protocol-revenue address, with basket and Dollar surfaces added later;
+- `StaticsDollarCoreDiamond` for Phase 3 Dollar state and direct operations;
+- the Phase 3 `StaticsDollar` and `StaticsDollarRiskShares` tokens;
 - WETH and the configured Dollar oracle;
 - the configured global staking token;
-- one `StaticsBasketToken` address per discovered basket;
-- the installed `StaticsSwapFeeHook` and `StaticsLiquidityManager` when using
-  canonical Uniswap v4 pools.
+- one `StaticsBasketToken` address per discovered basket after Phase 2; and
+- the installed `StaticsSwapFeeHook` for Phase 1 general pools, plus
+  the installed Phase 1 `StaticsLiquidityManager` for managed public-pool
+  PositionNFT range-gauge positions.
 
 Do not configure a separate user router, periphery, or PositionNFT address.
 
@@ -40,11 +42,15 @@ Use compiled ABIs from these sources:
 | Global rewards | `src/interfaces/IStaticsGlobalRewards.sol` | Stake, select reward assets, claim, distribute treasury fees, and inspect asset books |
 | Basket lending | `src/interfaces/IStaticsLending.sol` | Quote, borrow, repay, extend, recover, and inspect loans |
 | Canonical liquidity | `src/interfaces/IStaticsBasketLiquidity.sol` | Pool lifecycle, fee configuration, and ExitOnly unwind |
+| Public range gauges | `src/interfaces/IStaticsRangeGauge.sol` | Configure direct-slot allocator shares, fund continuous LP and allocator streams with funder-side share protection, inspect reserved protocol slot 0 and lifetime index-capacity usage, manage PositionNFT-owned v4 range positions, claim or forfeit LP rewards, exit principal, and inspect position state |
+| Protocol gauge incentives | `src/interfaces/IStaticsGaugeIncentives.sol` | Fund and activate the STATICS reserve schedule, set persistent PositionNFT PoolId allocations, checkpoint bounded weekly reserve rollover and continuous pool routing, configure the allocation cooldown, claim or explicitly forfeit creator-funded allocator rewards, and inspect reserve, allocation, pool-weight, and index state |
+| Canonical market tape | `src/interfaces/IStaticsMarketTape.sol` | Read gapless external and internal volume, Statics fees, swap counts, tick cumulative, current native LP fee rate, and the canonical sequence |
+| Market observations | `src/interfaces/IStaticsMarketObservations.sol` | Configure bounded observation cadence and capacity, read retained snapshots, query snapshots at or before lookback timestamps, and inspect failed best-effort writes |
 | Borrow-to-liquidity | `src/interfaces/IStaticsBorrowLiquidity.sol` | Atomic ordinary borrow, mint, and external or PositionNFT-owned v4 positions |
 | Flash loans | `src/interfaces/IStaticsFlashLoan.sol` | Quote and execute basket-vector or single-asset flash loans |
 | Flash receiver | `src/interfaces/IStaticsFlashBorrower.sol` | Required callback interface and return hash |
 | PositionNFT | `src/interfaces/IStaticsPosition.sol` plus OpenZeppelin `IERC721` | Create, transfer, approve, inspect metadata, and close positions |
-| Basket lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read pauses and status; governance lifecycle operations |
+| Basket and emergency lifecycle | `src/interfaces/IStaticsGovernance.sol` | Read action pauses, basket status, global swap stops, and PoolId quarantine; governance lifecycle operations |
 | Custody | `src/interfaces/IStaticsCustody.sol` | Inspect global and account reservation coverage |
 | Dollar gateway | `src/dollar/interfaces/IStaticsDollarGateway.sol` | ETH/WETH series operations and pegged wrappers |
 | Dollar Risk liquidity | `src/dollar/interfaces/IStaticsDollarRiskLiquidity.sol` | Stake consumable Risk Shares, inspect liquidity, withdraw unconsumed shares, and claim fill proceeds |
@@ -94,10 +100,57 @@ facet ABIs under `src/dollar/periphery/facets`. The TypeScript package in
 `sdk/` provides common quote helpers and calldata builders. Onchain quotes
 remain authoritative.
 
-`IStaticsSwapFeeHook` exposes hook fee configuration, pending
-permanent-liquidity inventory, and locked liquidity. The installed manager is
-used for typed user PositionManager NFT creation; canonical permanent liquidity
-is hook-owned and has no protocol PositionManager token ID.
+The staged Phase 1 deployment installs parallel public and permissioned
+Statics-hooked pools, their separate fee paths, PositionNFT, and global STATICS
+staking/reward opt-ins. Public pools retain bilateral hook fees and POL.
+Permissioned pools use a separate hook address, exact-input trusted router,
+non-transferable LP positions, creator-selected controller and native v4 fee,
+and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
+flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
+Morpho. The cumulative selector counts are 209, 302, 360, and 387. Integrators
+must feature-detect complete ERC-165 interfaces and individual selector routes
+instead of assuming that a live Diamond exposes a later phase.
+
+`IStaticsSwapFeeHook` exposes hook fee configuration and claim-backed pending
+POL inventory. Ordinary user LP positions
+remain available through Uniswap v4 periphery. Phase 1 additionally installs a
+Statics liquidity manager for opt-in PositionNFT range-gauge positions; the
+manager immutably binds the Diamond, canonical PoolManager, PositionManager,
+and Permit2. Managed POL uses ordinary PositionManager NFTs held by the same
+manager and typed as protocol-owned so orphan recovery cannot move them.
+
+Both hook paths send a compact permanent swap envelope to the Diamond. Canonical market counters are
+gapless and swap-critical. Historical observation commits are bounded, best-effort, and replaceable;
+their failures do not revert trading and are visible through failure counters and canonical sequence
+comparison. Permissioned fee normalization is recorded separately from external venue volume, with
+both records using the final post-normalization tick for the atomic venue operation. The tape exposes
+the current native LP fee rate in pips, not an exact cumulative native LP fee amount; Uniswap position
+accounting remains authoritative for native fee revenue.
+
+`IStaticsPermissionedPools` exposes permissioned pool creation quotes,
+creator-authorized economics and controller replacement, and PoolId-local
+views. Controller replacement requires the creator's exact authorization and
+timelock execution, installs only a compatible controller that already reports
+the pool halted, and preserves the PoolId and current liquidity. A trusted periphery
+reports the real user through `IMsgSender`; direct or untrusted wrappers are
+rejected. External permissioned swaps are exact-input only. The default general
+allocation is 80% creator, 10% treasury, and 10% global STATICS stakers. If the
+output is reward-restricted, only the staker share may be normalized through
+the paired currency. If both currencies are restricted, no conversion or
+reward liability is created: 80% remains creator revenue and 20% accrues to
+treasury. Creator revenue is claimed by PoolId and currency.
+
+Permissioned asset admission must treat ERC-20 behavior as part of the venue
+support agreement. PoolManager, the permissioned hook, router, position
+manager, and claims companion must be permitted counterparties wherever the
+asset enforces transfer policy. Guaranteed operation requires exact debits and
+credits with stable `balanceOf` behavior; fee-on-transfer, negative-rebasing,
+externally burning, deceptive, or callback-gas-hostile assets are not supported
+as exact-settlement assets. An issuer freeze can still block operations for
+that asset, including owner withdrawal, and a Statics controller cannot
+override the issuer contract. Operators should halt or replace a controller
+before decommissioning its pool, and replaced public liquidity managers must
+remain deployed until every position recorded against them has exited.
 
 The standalone STATICS/WETH market is the Doppler pool recorded by the launch
 manifest. Applications should use Doppler/Uniswap v4 quoting and routing for
@@ -164,7 +217,7 @@ plus a `launchDeadline` after which the complete transaction must revert:
 The single `createBasket` transaction deploys the permit-enabled BasketToken,
 registers and initializes all PoolKeys, registers them with the installed
 manager, mints fully backed BasketTokens through the ordinary fee path, and
-locks full-range hook-owned liquidity in every pool. Any failure rolls back the
+opens the initial managed POL position in every pool. Any failure rolls back the
 fee transfer, token deployment, pool initialization, backing, and custody.
 There is no separate pool-initialization or manager-sync transaction.
 Canonical v4 launch requires exact-transfer-compatible constituents: a taxed
@@ -176,10 +229,9 @@ basket; there is no privileged bootstrap path. A successfully launched pool is
 immediately swappable and available to the typed liquidity paths.
 
 Index `BasketCreated`, `BasketConfigured`, `BasketFeeTiersConfigured`,
-`CanonicalPoolInitialized`, `CanonicalPoolSyncedToManager`,
-`PermanentLiquiditySeeded`, and `BasketLaunched`, then reconcile with
-`basketCount`, `basket`, `basketIdOf`, `basketStatus`, `canonicalPool`, and
-hook `lockedLiquidity`. Creator identity is discovery metadata, not
+`CanonicalPoolInitialized`, `ProtocolPolPositionOpened`, and `BasketLaunched`,
+then reconcile with `basketCount`, `basket`, `basketIdOf`, `basketStatus`,
+`canonicalPool`, `protocolPool`, and `protocolPolPosition`. Creator identity is discovery metadata, not
 administration.
 
 Each flat tier is `(minActionShares, feeShares)`. The protocol scans the whole
@@ -235,9 +287,13 @@ hard-code either value in clients. Use `optInRewardAssets` and
 `optOutRewardAssets` to change the selection. A new selection and every top-up
 enter a pending tranche that matures at the next hourly boundary at least 24
 hours later. Existing mature stake remains eligible and undeployed stake has no
-cooldown. Stake supplied to Morpho must first be recalled. Withdrawals consume
-pending stake first. A full unstake clears selections but preserves settled
-claims.
+withdrawal cooldown. Separately, each positive stake ingress starts or extends
+the PositionNFT's governed gauge-allocation deadline. Until that deadline,
+existing PoolId allocations remain active and may be reduced or removed, but
+they cannot be increased or redirected and a new destination cannot be added.
+Unallocated principal remains withdrawable. Stake supplied to Morpho must first
+be recalled. Withdrawals consume pending stake first. A full unstake clears
+selections but preserves settled claims.
 
 Timelock governance may only raise the active selection limit. Index
 `MaxRewardAssetsPerPositionIncreased` and refresh client-side capacity when it
@@ -314,7 +370,7 @@ initial deposited shares and 19 times initial debt. External looping helpers
 must impose depth, approval, quote-freshness, and slippage limits. Statics has
 no arbitrary execution surface.
 
-## Protocol pools and permanent liquidity
+## Protocol pools and managed POL
 
 There is one canonical hooked pool per basket constituent. Read
 `canonicalPool(basketId, asset)` for its PoolId, currencies, hook, configured
@@ -333,12 +389,12 @@ LP fee, tick spacing, normalized initial price, and initial tick. Indexers
 reconstruct and rank markets from `ProtocolPoolCreated`,
 `CanonicalPoolInitialized`, `ProtocolPoolFeeRateSet`, `PoolCreationFeeSet`,
 `PoolCreationNonceInvalidated`, creator credit and claim events,
-`GeneralPoolDecommissioned`, hook permanent-liquidity and fee events, and
+the staged decommission events, managed-POL position and fee events, and
 PoolManager state. A first-party frontend may
 maintain curated token lists and hide spam without changing contract-level
 permissionlessness.
 
-Pool initialization and permanent seeding are inseparable from basket creation.
+Pool initialization and the initial managed position are inseparable from basket creation.
 The creator supplies every starting price and paired-asset budget. A successful
 creation makes every canonical pool immediately swappable and available to the
 typed liquidity paths; no post-launch activation transaction is required.
@@ -347,9 +403,9 @@ Display input and output hook fees separately from native v4 LP fees:
 
 ```text
 native v4 LP fee: creator selected per pool (static, 0 through 999,999 pips)
-default input hook fee:  25 BPS on the realized input leg
-default output hook fee: 25 BPS on the realized output leg
-launch split: 15% permanent liquidity / 30% deposited BasketTokens /
+default input hook fee:   5 BPS on the realized input leg
+default output hook fee:  5 BPS on the realized output leg
+launch split: 15% managed POL / 30% deposited BasketTokens /
               30% global Statics stakers /
               5% creator (fixed) / 20% treasury
 ```
@@ -361,41 +417,44 @@ configurable shares always total 9,500 BPS beside the fixed 500-BPS creator
 share. Hook fees apply to every canonical swap without caller,
 router, flash-receiver, or LP-owner exemption. Treasury receives split dust.
 If the basket reward route cannot accrue its asset, that
-share redirects to permanent liquidity. If the global Statics reward route
+share redirects to activated managed POL. If the global Statics reward route
 cannot accrue its asset, that share redirects to treasury.
 
 Anyone may create a general pool with
 `createPool(params, creatorAuthorization)` once permissionless creation is
 enabled. Call `quotePool(params)` first to derive the sorted PoolKey, PoolId,
-normalized sorted price, exact `creationFee`, and EIP-712
+normalized sorted price, exact creation, POL activation, and total native fees, and EIP-712
 `authorizationDigest`. The creator supplies two token addresses, a static
 `lpFee` from 0 through 999,999 pips, a valid `tickSpacing` from 1 through
 32,767, the initial price as `sqrtPriceBPerAX96` in raw-unit B-per-A
-orientation, the creator identity, an unordered `nonce`, and a `deadline`.
+orientation, a nested `initialFeeRate`, the creator identity, an unordered
+managed-POL activation choice, `nonce`, and a `deadline`.
 Statics sorts the currencies and always installs the mandatory Statics hook.
 Dynamic-fee pools and the 1,000,000-pip boundary are rejected.
 
 General-pool creation is separate from liquidity provision. A successful
 `createPool` establishes the PoolId, price, native LP fee, tick spacing,
-creator, hook-fee policy inheritance, hook registration, and protocol
-registration; it does not require an
-initial permanent-liquidity seed and the market may begin with zero liquidity.
+creator, initial hook-fee policy, hook registration, and protocol registration;
+it does not require an initial protocol-liquidity seed and the market may begin with zero liquidity.
+Managed POL is disabled by default. Its would-be share routes to Treasury until
+the creator pays the governed activation fee at creation or later.
 Basket canonical launch retains its own mandatory creator-funded seed.
 
 The `poolCreationFeeAmount` is independent from the basket and PositionNFT
 creation fees and doubles as the permissionless-creation switch. When it is
 zero, only the Diamond owner may create a pool and `msg.value` must be zero;
-when it is nonzero, every caller — including the owner — must pay the exact
+when it is nonzero, every caller, including the owner, must pay the exact
 amount, which is forwarded atomically to treasury. Read it through
 `poolCreationFee()` and configure it independently at deployment via
 `POOL_CREATION_FEE_AMOUNT`.
 
 Creator attribution uses EIP-712 authorization under the domain
-`name = "Statics Protocol Pools"`, `version = "2"`, the current `chainId`, and
+`name = "Statics Protocol Pools"`, `version = "4"`, the current `chainId`, and
 `verifyingContract = StaticsDiamond`. `SignatureChecker` validates both EOA and
-ERC-1271 creators. The signed digest binds the PoolId, normalized price,
-creator, nonce, and deadline. Because PoolId commits to the currencies, native
-LP fee, tick spacing, and hook, those parameters cannot be changed by a relayer.
+ERC-1271 creators. The signed digest binds the PoolId, normalized price, input
+hook fee, output hook fee, creator, managed-POL activation choice, nonce, and deadline. Because PoolId commits
+to the currencies, native LP fee, tick spacing, and hook, those parameters
+cannot be changed by a relayer.
 Three paths apply:
 when the creation fee is nonzero, a direct creator (`creator == msg.sender`) may
 pass empty authorization and consumes no nonce; while creation is disabled the
@@ -404,7 +463,7 @@ the named creator must supply a valid authorization and its unordered nonce is
 consumed. Relayed authorizations
 deliberately do not bind `msg.sender`, so a copied transaction may pay the fee
 and initialize the pool first but can never replace the creator or change the
-PoolId or price. Cancel an unused authorization with
+PoolId, price, or initial hook fees. Cancel an unused authorization with
 `invalidatePoolCreationNonce(nonce)` and check state through
 `isPoolCreationNonceUsed(creator, nonce)`.
 
@@ -413,19 +472,24 @@ PoolIds and independent markets. An initial-price change alone does not create
 a new PoolId, so a second creation with the same currencies, native LP fee,
 tick spacing, and Statics hook reverts as a duplicate.
 
-Hook-fee **rate** and fee **allocation** are separate policy dimensions.
-Creators do not select the hook fee. New basket and general pools inherit the
-live global default, initially 25 BPS input plus 25 BPS output. Timelocked
-governance may update it with `setDefaultProtocolPoolFeeRate(feeRate)`, affecting
-every non-overridden pool immediately. It may set an exception with
+Hook-fee **rate** and fee **allocation** are separate policy dimensions. New
+basket pools inherit the live global default, initially 5 BPS input plus 5 BPS
+output. A general-pool creator supplies `initialFeeRate`. Each selected leg must
+be at least the live default at transaction execution and the combined rate must
+satisfy `inputFeeBps + outputFeeBps <= 200`. Selecting the exact default stores
+no override, so the pool inherits future default changes. Selecting either leg
+above the default stores both selected legs as a fixed PoolId override.
+
+Timelocked governance may update the default with
+`setDefaultProtocolPoolFeeRate(feeRate)`, affecting every non-overridden pool
+immediately. It may replace a pool rate with
 `setProtocolPoolFeeRate(poolId, feeRate)` and restore inheritance with
-`clearProtocolPoolFeeRate(poolId)`. Every rate satisfies
-`inputFeeBps + outputFeeBps <= 200`. Read the global rate through
+`clearProtocolPoolFeeRate(poolId)`. Creators have no post-creation rate setter.
+Read the global rate through
 `defaultProtocolPoolFeeRate()` and the effective rate plus `overridden` flag
 through `protocolPoolFeeRate(poolId)`.
 
-Fee allocation is governed by two global profiles rather than per-pool
-configuration. The creator share is permanently fixed at 500 BPS and is not
+Fee allocation starts from two global profiles. The creator share is permanently fixed at 500 BPS and is not
 part of any governance-mutable structure. Governance configures the remaining
 9,500 BPS through `setBasketFeeAllocation(allocation)` and
 `setGeneralFeeAllocation(allocation)`, readable through `basketFeeAllocation()`
@@ -435,7 +499,7 @@ to 10,000 BPS. The initial launch-default profiles are:
 
 ```text
                         basket pool    general pool
-permanent liquidity     1,500 BPS      4,000 BPS
+managed POL             1,500 BPS      4,000 BPS
 basket stakers           3,000 BPS      0 BPS
 global Statics stakers   3,000 BPS      3,500 BPS
 creator, fixed             500 BPS        500 BPS
@@ -447,8 +511,11 @@ General pools have no basket-staker share; the profile encodes this explicitly
 rather than relying on a runtime fallback. Changing a global allocation profile
 affects only subsequent accrual and never rewrites accrued creator credits,
 basket rewards, Statics-staker rewards, treasury revenue, or POL
-inventory. Changing a PoolId's fee rate does not change the applicable
-allocation profile, and vice versa.
+inventory. Governance may override only the effective POL share for a PoolId,
+using the current POL-plus-Treasury bucket; the balance remains Treasury. A
+later profile reduction caps an older override to that current bucket rather
+than allowing fee accounting to fail. Changing a PoolId's fee rate does not
+change the applicable allocation profile, and vice versa.
 
 Creator revenue equals exactly 500 BPS of the collected Statics bilateral fee
 in both pool currencies. It is pull-based: swap execution never calls the
@@ -457,59 +524,59 @@ creator. Claim it with
 through the creator-credit views. Creator credits never expire, cannot be
 confiscated by governance, and survive decommissioning.
 
-The hook records bilateral fees as PoolManager ERC-6909 claims. At the next
-routing boundary, non-POL claims move into the Diamond's basket-staker,
-Statics-staker, creator, and treasury ledgers. Matching POL claims are burned
-atomically to fund hook-owned full-range liquidity on swaps. Unmatched
-inventory is visible through `pendingPermanentLiquidity`; deployed liquidity
-is visible through `lockedLiquidity`; aggregate claim coverage is visible
-through `claimLiability`. There is no public manual compounding entry point.
+The hook records bilateral fees as PoolManager ERC-6909 claims without routing
+or managing positions in the swap callback. Any caller may settle one pool
+currency with `settleProtocolPoolRevenue(poolId, asset)`. The Diamond redeems
+that currency's non-POL claims, pays the configured maintenance tip solely from
+the treasury share, and records the remaining basket-staker, creator, and
+treasury liabilities. STATICS-staker ownership is crystallized during the swap
+using the eligible weight at fee generation; its claim backing may be settled
+later without changing ownership.
 
-Native fees earned by the hook-owned position are treasury revenue rather than
-POL. Automatic POL compounding necessarily modifies the permanent position and
-can realize native fees during a swap. A configured
-`permanentLiquidityHarvester()` may additionally call
-`harvestPermanentLiquidityFees(poolId)` to realize fees while compounding is
-idle or one-sided; the call has no recipient argument. The Diamond books every
-realized token to treasury accounting. Governance may replace the harvester,
-the guardian may pause explicit harvesting and treasury distribution, and only
-governance may unpause them. Delaying explicit harvesting does not block swaps,
-user liquidity, or automatic POL compounding.
+Any caller may separately settle activated POL claims with
+`settleProtocolPoolPol(poolId, asset, maximumAmount)`. Settled amounts enter the
+PoolId-specific POL custody account. The governed operator targets explicit
+positions through `openProtocolPolPosition`, `increaseProtocolPolPosition`,
+`decreaseProtocolPolPosition`, `collectProtocolPolFees`, and
+`closeProtocolPolPosition`. Every principal output and refund returns to
+protocol custody. Native LP fees are harvested before principal mutations and
+reserved as Treasury revenue rather than POL.
 
 Native PoolManager donations to a protocol pool always revert in
 `beforeDonate`. Integrators must not use Uniswap donation routers with Statics
-pools. Protocol seeding and swap-fee allocation are the supported sources of
+pools. Basket launch funding and activated swap-fee allocation are the supported sources of
 pending POL.
 
-There is no primary-fee POL reserve, epoch, ramp, minimum compound size, hook
-settlement call, protocol PositionManager NFT, or manager-owned protocol
-inventory. The standalone manager resolves exact PoolKeys from the Diamond's
-protocol-pool registry and executes transaction-scoped PositionManager NFT
-mint operations.
+There is no primary-fee POL reserve, epoch, ramp, minimum deployment size, or
+protocol-wide position-count ceiling. Each managed NFT is bound to one protocol
+position record and one originating manager. Manager replacement affects new
+positions only; existing positions continue through their recorded manager.
 
-Only a general pool may use `decommissionGeneralPool(poolId)`, an owner-only
-terminal transition. The creator cannot decommission a pool. The call stops
-later swaps and managed LP actions, sends permanent-liquidity principal and
-unmatched POL to treasury accounting, preserves ordinary fee allocations, and
-leaves all user PositionManager NFTs untouched. Existing creator credits
-remain claimable. Decommissioning is irreversible for that PoolKey; a
-replacement market requires a different supported PoolKey, which generally
-means a different tick spacing. Basket canonical pools retain their separate
-`ExitOnly` unwind and are never processed with general-pool decommission
-accounting.
+Only a general pool may use the owner-only staged decommission path. The creator
+cannot decommission a pool. `beginGeneralPoolDecommission` stops later swaps and
+the range gauge. Operators then close protocol positions in bounded explicit
+transactions. `finalizeGeneralPoolDecommission` requires zero active POL
+positions, settles remaining hook inventory, and moves undeployed POL to
+Treasury. User PositionManager NFTs and accrued creator credits remain untouched.
 
 When a basket is `ExitOnly`, anyone may call `unwindBasketLiquidity` once per
-constituent. It decommissions the pool, releases hook liquidity, burns returned
-BasketTokens, and routes released value to global treasury accrual. User-owned
+constituent after every managed POL position for that PoolId has been closed. It
+decommissions the pool, burns returned BasketTokens, and routes released value
+to global treasury accrual. User-owned
 PositionManager liquidity is never decreased or burned by unwind.
 
 ## Native LP fees
 
 User-owned full-range or concentrated PositionManager NFTs earn the configured
-native v4 LP fee through standard Uniswap accounting. Statics does not custody
-these NFTs or expose LP reward activation, claim, increase, or unstake methods.
-Native fees earned by the hook-owned permanent position are collected after
-swaps and routed only to treasury; they never enter pending POL or compounding.
+native v4 LP fee through standard Uniswap accounting. They may remain entirely
+external to Statics. A separate opt-in range-gauge path transfers an approved
+PositionManager NFT to the immutable liquidity manager, binds it to a Statics
+PositionNFT, and exposes managed increase, decrease, fee collection, exit,
+rebalance, and separately funded reward-claim methods. The underlying NFT is
+custodied only while that managed leg is active. Range rewards do not replace
+or duplicate native LP fees.
+Native fees earned by managed POL positions route only to Treasury; they never
+enter the PoolId-specific POL principal account.
 
 ## Optional borrow-to-liquidity flow
 
@@ -751,9 +818,10 @@ physical Diamond balance >= global reserved
 ```
 
 Unsolicited token transfers are unreserved. Risk incentive funding through the
-typed selectors is reserved under the Dollar account. Core collateral and hook
-permanent liquidity live at separate physical addresses and are not part of
-this Diamond equation.
+typed selectors is reserved under the Dollar account. Settled undeployed POL is
+reserved under `protocolPolCustodyAccount(poolId)`. Unsettled hook claims,
+PositionManager principal, and Core collateral live at separate physical
+addresses and are not part of the Diamond balance equation.
 
 ## Event index
 
@@ -791,16 +859,17 @@ Index these event families, then reconcile with current views:
   `MorphoSyncBountyClaimed`, `MorphoAccountTokenRecovered`, and
   `MorphoPerformanceFeeRouted`;
 - canonical lifecycle: `LiquidityIntegrationInstalled`,
-  `CanonicalPoolInitialized`, `CanonicalPoolSyncedToManager`,
-  `SwapFeeConfigurationChanged`, and `BasketLiquidityUnwound`;
-- hook: `SwapLegFeeAccrued`, `PermanentLiquidityAdded`,
-  `PermanentLiquidityFeesCollected`, `PermanentLiquidityReleased`,
-  and `PoolDecommissioned`;
+  `CanonicalPoolInitialized`, `ProtocolPolPositionOpened`,
+  `ProtocolPolPositionClosed`, and `BasketLiquidityUnwound`;
+- hook and POL inventory: `SwapLegFeeAccrued`, `ProtocolPolSettled`,
+  `ProtocolPolInventorySettled`, `ProtocolPolFeesCollected`, and
+  `PoolDecommissioned`;
 - user v4 positions: `BorrowedLiquidityPositionMinted`,
   `BorrowedLiquidityProvided`, manager `UserPositionMinted`, and PositionManager
   `Transfer`;
 - lifecycle: `BasketQuarantined`, `BasketQuarantineReleased`,
-  `BasketDecommissioned`, `ActionsPaused`, and `ActionsUnpaused`;
+  `BasketDecommissioned`, `ActionsPaused`, `ActionsUnpaused`,
+  `ProtocolSwapsPauseSet`, and `ProtocolPoolQuarantineSet`;
 - shared positions: ERC-721 `Transfer` and `Approval`, `PositionCreated`,
   `PositionClosed`, `PositionLegAttached`, `PositionLegDetached`, and
   `PositionStateChanged`; and

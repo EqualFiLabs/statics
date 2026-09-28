@@ -69,7 +69,6 @@ interface IStaticsRangeGauge {
         bool assigned;
         uint8 slot;
         address asset;
-        uint64 protocolEpoch;
         uint40 periodStart;
         uint40 periodFinish;
         uint40 lastUpdate;
@@ -125,7 +124,7 @@ interface IStaticsRangeGauge {
         address indexed funder,
         uint8 slot,
         uint256 allocatorAmount,
-        uint64 allocatorEpoch
+        uint40 periodFinish
     );
     event ManagedLiquidityProvided(
         uint256 indexed positionId,
@@ -187,7 +186,6 @@ interface IStaticsRangeGauge {
     error ProtocolRewardSlotReserved(PoolId poolId);
     error InvalidAllocatorShareBps(uint256 allocatorShareBps);
     error AllocatorShareChanged(uint16 expectedAllocatorShareBps, uint16 actualAllocatorShareBps);
-    error AllocatorEpochChanged(uint64 expectedAllocatorEpoch, uint64 actualAllocatorEpoch);
     error GaugeAllocatorPoolIneligible(PoolId poolId);
     error MinimumRemainingDurationNotMet(uint40 available, uint40 minimum);
     error RewardBudgetExceedsIndexCapacity(uint256 committedBudget, uint256 received, uint256 maximumBudget);
@@ -217,8 +215,7 @@ interface IStaticsRangeGauge {
         uint8 slot,
         uint256 amount,
         uint40 minRemainingDuration,
-        uint16 expectedAllocatorShareBps,
-        uint64 expectedAllocatorEpoch
+        uint16 expectedAllocatorShareBps
     ) external returns (uint256 received);
 
     function installLiquidityManager(address manager) external;

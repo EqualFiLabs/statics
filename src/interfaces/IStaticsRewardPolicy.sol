@@ -9,5 +9,5 @@ interface IStaticsRewardPolicy {
     function removeRewardRestriction(address asset) external;
     function rewardRestricted(address asset) external view returns (bool restricted);
     function rewardRestrictionNonce(address asset) external view returns (uint64 nonce);
-    function rewardRestrictionTimestamp(address asset, uint64 epoch) external view returns (uint40 timestamp);
+    function rewardRestrictionTimestamp(address asset, uint64 afterSequence) external view returns (uint40 timestamp);
 }

@@ -12,6 +12,7 @@ import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol";
@@ -21,6 +22,12 @@ import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
+import {IStaticsMarketTape} from "../interfaces/IStaticsMarketTape.sol";
+import {IStaticsMarketObservations} from "../interfaces/IStaticsMarketObservations.sol";
+import {IStaticsSwapCallback} from "../interfaces/IStaticsSwapCallback.sol";
+import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
+import {IStaticsPermissionedPools} from "../interfaces/IStaticsPermissionedPools.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
@@ -29,8 +36,120 @@ import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsMorpho} from "../interfaces/IStaticsMorpho.sol";
 import {StaticsInterfaceInit} from "../diamond/StaticsInterfaceInit.sol";
+import {IStaticsDollarSeriesMigration} from "../dollar/interfaces/IStaticsDollarSeriesMigration.sol";
+import {FeeRouterFacet} from "../dollar/periphery/facets/FeeRouterFacet.sol";
+import {PairingVaultFacet} from "../dollar/periphery/facets/PairingVaultFacet.sol";
+import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
+import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
 library StaticsSelectors {
+    function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
+        selectors[1] = IStaticsRangeGauge.setGaugeRewardDuration.selector;
+        selectors[2] = IStaticsRangeGauge.appendPoolRewardAsset.selector;
+        selectors[3] = IStaticsRangeGauge.setPoolRewardAllocatorShare.selector;
+        selectors[4] = IStaticsRangeGauge.fundPoolReward.selector;
+    }
+
+    function rangeGaugePositionIngress() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsRangeGauge.provideLiquidity.selector;
+        selectors[1] = IStaticsRangeGauge.attachLiquidity.selector;
+    }
+
+    function rangeGaugePositionManagement() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsRangeGauge.increaseLiquidity.selector;
+        selectors[1] = IStaticsRangeGauge.decreaseLiquidity.selector;
+        selectors[2] = IStaticsRangeGauge.collectNativeFees.selector;
+        selectors[3] = IStaticsRangeGauge.rebalanceLiquidity.selector;
+    }
+
+    function rangeGaugeLiveness() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsRangeGauge.exitLiquidity.selector;
+        selectors[1] = IStaticsRangeGauge.claimLpRewards.selector;
+        selectors[2] = IStaticsRangeGauge.forfeitLpReward.selector;
+        selectors[3] = IStaticsRangeGauge.recoverUnboundPosm.selector;
+        selectors[4] = IStaticsRangeGauge.reconcilePoolRewardSurplus.selector;
+    }
+
+    /// @dev liquidityManager() is intentionally routed through BasketLiquidityFacet.
+    function rangeGaugeViews() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](12);
+        selectors[0] = IStaticsRangeGauge.gaugeRewardDuration.selector;
+        selectors[1] = IStaticsRangeGauge.gaugeRewardAssetAllowed.selector;
+        selectors[2] = IStaticsRangeGauge.poolRewardConfig.selector;
+        selectors[3] = IStaticsRangeGauge.gaugePool.selector;
+        selectors[4] = IStaticsRangeGauge.poolRewardStream.selector;
+        selectors[5] = IStaticsRangeGauge.poolRewardCustodyAccount.selector;
+        selectors[6] = IStaticsRangeGauge.gaugeBoundary.selector;
+        selectors[7] = IStaticsRangeGauge.lpLeg.selector;
+        selectors[8] = IStaticsRangeGauge.positionGaugePools.selector;
+        selectors[9] = IStaticsRangeGauge.posmBinding.selector;
+        selectors[10] = IStaticsRangeGauge.recordedLiquidityManager.selector;
+        selectors[11] = IStaticsRangeGauge.previewLpRewards.selector;
+    }
+
+    function rangeGaugeCallback() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsSwapCallback.afterStaticsPoolSwap.selector;
+    }
+
+    function marketTapeViews() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsMarketTape.canonicalMarketState.selector;
+    }
+
+    function marketTapeObservations() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsMarketObservations.setMarketObservationConfig.selector;
+        selectors[1] = IStaticsMarketObservations.recordMarketObservation.selector;
+        selectors[2] = IStaticsMarketObservations.marketObservationConfig.selector;
+        selectors[3] = IStaticsMarketObservations.marketObservation.selector;
+        selectors[4] = IStaticsMarketObservations.observeMarket.selector;
+    }
+
+    function gaugeIncentiveActions() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](10);
+        selectors[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
+        selectors[1] = IStaticsGaugeIncentives.activateGaugeSchedule.selector;
+        selectors[2] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
+        selectors[3] = IStaticsGaugeIncentives.checkpointGaugeSchedule.selector;
+        selectors[4] = IStaticsGaugeIncentives.checkpointGaugePool.selector;
+        selectors[5] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
+        selectors[6] = IStaticsGaugeIncentives.setGaugeAllocationCooldown.selector;
+        selectors[7] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        selectors[8] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        selectors[9] = IStaticsGaugeIncentives.forfeitGaugeAllocatorReward.selector;
+    }
+
+    function gaugeIncentiveViews() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](12);
+        selectors[0] = IStaticsGaugeIncentives.currentGaugePeriod.selector;
+        selectors[1] = IStaticsGaugeIncentives.gaugePeriodAt.selector;
+        selectors[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
+        selectors[3] = IStaticsGaugeIncentives.gaugePoolWeight.selector;
+        selectors[4] = IStaticsGaugeIncentives.gaugePositionAllocations.selector;
+        selectors[5] = IStaticsGaugeIncentives.previewGaugePoolReward.selector;
+        selectors[6] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
+        selectors[7] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
+        selectors[8] = IStaticsGaugeIncentives.maxGaugeCatchupPeriods.selector;
+        selectors[9] = IStaticsGaugeIncentives.gaugeAllocationCooldown.selector;
+        selectors[10] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;
+        selectors[11] = IStaticsGaugeIncentives.previewGaugeAllocatorRewards.selector;
+    }
+
+    function rewardPolicy() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsRewardPolicy.addRewardRestriction.selector;
+        selectors[1] = IStaticsRewardPolicy.removeRewardRestriction.selector;
+        selectors[2] = IStaticsRewardPolicy.rewardRestricted.selector;
+        selectors[3] = IStaticsRewardPolicy.rewardRestrictionNonce.selector;
+        selectors[4] = IStaticsRewardPolicy.rewardRestrictionTimestamp.selector;
+    }
+
     function diamondCut() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = IDiamondCut.diamondCut.selector;
@@ -52,7 +171,7 @@ library StaticsSelectors {
     }
 
     function governance() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](16);
         selectors[0] = IStaticsGovernance.guardian.selector;
         selectors[1] = IStaticsGovernance.pausedActions.selector;
         selectors[2] = IStaticsGovernance.isPaused.selector;
@@ -62,6 +181,37 @@ library StaticsSelectors {
         selectors[6] = IStaticsGovernance.quarantineBasket.selector;
         selectors[7] = IStaticsGovernance.releaseBasketQuarantine.selector;
         selectors[8] = IStaticsGovernance.decommissionBasket.selector;
+        selectors[9] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        selectors[10] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        selectors[11] = IStaticsGovernance.quarantineProtocolPool.selector;
+        selectors[12] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        selectors[13] = IStaticsGovernance.protocolSwapsPaused.selector;
+        selectors[14] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        selectors[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+    }
+
+    function phaseOneGovernance() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](13);
+        selectors[0] = IStaticsGovernance.guardian.selector;
+        selectors[1] = IStaticsGovernance.pausedActions.selector;
+        selectors[2] = IStaticsGovernance.isPaused.selector;
+        selectors[3] = IStaticsGovernance.setGuardian.selector;
+        selectors[4] = IStaticsGovernance.pause.selector;
+        selectors[5] = IStaticsGovernance.unpause.selector;
+        selectors[6] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        selectors[7] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        selectors[8] = IStaticsGovernance.quarantineProtocolPool.selector;
+        selectors[9] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        selectors[10] = IStaticsGovernance.protocolSwapsPaused.selector;
+        selectors[11] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        selectors[12] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+    }
+
+    function phaseTwoGovernance() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsGovernance.quarantineBasket.selector;
+        selectors[1] = IStaticsGovernance.releaseBasketQuarantine.selector;
+        selectors[2] = IStaticsGovernance.decommissionBasket.selector;
     }
 
     function position() internal pure returns (bytes4[] memory selectors) {
@@ -110,6 +260,24 @@ library StaticsSelectors {
         selectors[5] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
     }
 
+    function phaseTwoPositionPortfolio() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
+        selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
+        selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
+        selectors[3] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
+    }
+
+    function phaseThreePositionPortfolio() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+    }
+
+    function phaseFourPositionPortfolio() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
+    }
+
     function morphoAdmin() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](5);
         selectors[0] = IStaticsMorpho.initializeMorphoIntegration.selector;
@@ -120,21 +288,21 @@ library StaticsSelectors {
     }
 
     function morphoActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](7);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsMorpho.deployMorphoCollateral.selector;
         selectors[1] = IStaticsMorpho.recallMorphoCollateral.selector;
         selectors[2] = IStaticsMorpho.borrowMorphoUsd.selector;
         selectors[3] = IStaticsMorpho.repayMorphoUsd.selector;
-        selectors[4] = IStaticsMorpho.syncMorpho.selector;
-        selectors[5] = IStaticsMorpho.syncMorphoForModule.selector;
-        selectors[6] = IStaticsMorpho.liquidateMorphoAndSync.selector;
+        selectors[4] = IStaticsMorpho.liquidateMorphoAndSync.selector;
     }
 
     function morphoSettlement() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](3);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsMorpho.claimMorphoSyncBounties.selector;
         selectors[1] = IStaticsMorpho.routeMorphoPerformanceFee.selector;
         selectors[2] = IStaticsMorpho.recoverMorphoAccountToken.selector;
+        selectors[3] = IStaticsMorpho.syncMorpho.selector;
+        selectors[4] = IStaticsMorpho.syncMorphoForModule.selector;
     }
 
     function morphoRecovery() internal pure returns (bytes4[] memory selectors) {
@@ -157,15 +325,39 @@ library StaticsSelectors {
     }
 
     function custody() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsCustody.globalReservedByToken.selector;
         selectors[1] = IStaticsCustody.reservedByAccount.selector;
         selectors[2] = IStaticsCustody.unreservedBalance.selector;
-        selectors[3] = IStaticsCustody.dollarCustodyAccount.selector;
-        selectors[4] = IStaticsCustody.basketCustodyAccount.selector;
-        selectors[5] = IStaticsCustody.feeCustodyAccount.selector;
-        selectors[6] = IStaticsCustody.stakingCustodyAccount.selector;
-        selectors[7] = IStaticsCustody.genesisRewardCustodyAccount.selector;
+        selectors[3] = IStaticsCustody.feeCustodyAccount.selector;
+        selectors[4] = IStaticsCustody.stakingCustodyAccount.selector;
+        selectors[5] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
+        selectors[6] = IStaticsCustody.protocolPolCustodyAccount.selector;
+        selectors[7] = IStaticsCustody.basketCustodyAccount.selector;
+        selectors[8] = IStaticsCustody.genesisRewardCustodyAccount.selector;
+        selectors[9] = IStaticsCustody.dollarCustodyAccount.selector;
+    }
+
+    function phaseOneCustody() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](7);
+        selectors[0] = IStaticsCustody.globalReservedByToken.selector;
+        selectors[1] = IStaticsCustody.reservedByAccount.selector;
+        selectors[2] = IStaticsCustody.unreservedBalance.selector;
+        selectors[3] = IStaticsCustody.feeCustodyAccount.selector;
+        selectors[4] = IStaticsCustody.stakingCustodyAccount.selector;
+        selectors[5] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
+        selectors[6] = IStaticsCustody.protocolPolCustodyAccount.selector;
+    }
+
+    function phaseTwoCustody() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsCustody.basketCustodyAccount.selector;
+        selectors[1] = IStaticsCustody.genesisRewardCustodyAccount.selector;
+    }
+
+    function phaseThreeCustody() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsCustody.dollarCustodyAccount.selector;
     }
 
     function basketCreation() internal pure returns (bytes4[] memory selectors) {
@@ -215,7 +407,7 @@ library StaticsSelectors {
     }
 
     function globalRewards() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](24);
+        selectors = new bytes4[](28);
         selectors[0] = IStaticsGlobalRewards.createAndStake.selector;
         selectors[1] = IStaticsGlobalRewards.stake.selector;
         selectors[2] = IStaticsGlobalRewards.unstake.selector;
@@ -236,10 +428,14 @@ library StaticsSelectors {
         selectors[17] = IStaticsGlobalRewards.totalStaked.selector;
         selectors[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
         selectors[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        selectors[20] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
-        selectors[21] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
-        selectors[22] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
-        selectors[23] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
+        selectors[20] = IStaticsGlobalRewards.unfundedSwapRewards.selector;
+        selectors[21] = IStaticsGlobalRewards.fundedGlobalRewards.selector;
+        selectors[22] = IStaticsGlobalRewards.outstandingGlobalRewardLiability.selector;
+        selectors[23] = IStaticsGlobalRewards.settlePublicSwapRewards.selector;
+        selectors[24] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        selectors[25] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        selectors[26] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        selectors[27] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
     }
 
     function genesisNFT() internal pure returns (bytes4[] memory selectors) {
@@ -288,8 +484,20 @@ library StaticsSelectors {
         selectors[3] = IStaticsBasketAdmin.treasury.selector;
     }
 
+    function phaseOneTreasuryAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsBasketAdmin.setTreasury.selector;
+        selectors[1] = IStaticsBasketAdmin.treasury.selector;
+    }
+
+    function phaseTwoBasketAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsBasketAdmin.setCreationFee.selector;
+        selectors[1] = IStaticsBasketAdmin.creationFee.selector;
+    }
+
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](8);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
@@ -298,6 +506,26 @@ library StaticsSelectors {
         selectors[5] = IStaticsBasketLiquidity.liquidityManager.selector;
         selectors[6] = IStaticsBasketLiquidity.canonicalPool.selector;
         selectors[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+    }
+
+    function phaseOneLiquidityIntegration() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
+        selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
+        selectors[2] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[3] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[4] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[5] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+    }
+
+    function phaseTwoBasketLiquidity() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsBasketLaunchModule.launchBasketPools.selector;
+        selectors[1] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
+        selectors[2] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[3] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
     }
 
     function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {
@@ -312,22 +540,84 @@ library StaticsSelectors {
         selectors[2] = IStaticsProtocolPools.invalidatePoolCreationNonce.selector;
     }
 
+    function permissionedPoolCreation() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsPermissionedPools.quotePermissionedPool.selector;
+        selectors[1] = IStaticsPermissionedPools.createPermissionedPool.selector;
+        selectors[2] = IStaticsPermissionedPools.invalidatePermissionedAuthorizationNonce.selector;
+    }
+
+    function permissionedPoolAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](7);
+        selectors[0] = IStaticsPermissionedPools.applyPermissionedPoolTerms.selector;
+        selectors[1] = IStaticsPermissionedPools.replacePermissionedPoolController.selector;
+        selectors[2] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
+        selectors[3] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
+        selectors[4] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
+        selectors[5] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        selectors[6] = IStaticsPermissionedPools.permissionedControllerReplacementDigest.selector;
+    }
+
+    function permissionedPoolView() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsPermissionedPools.permissionedPool.selector;
+        selectors[1] = IStaticsPermissionedPools.isPermissionedPool.selector;
+        selectors[2] = IStaticsPermissionedPools.isPermissionedAuthorizationNonceUsed.selector;
+    }
+
     function protocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](10);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
         selectors[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
         selectors[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
         selectors[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
         selectors[4] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
         selectors[5] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
-        selectors[6] = IStaticsProtocolPools.decommissionGeneralPool.selector;
+        selectors[6] = IStaticsProtocolPools.beginGeneralPoolDecommission.selector;
+        selectors[7] = IStaticsProtocolPools.finalizeGeneralPoolDecommission.selector;
+        selectors[8] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+    }
+
+    function phaseOneProtocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](8);
+        selectors[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
+        selectors[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
+        selectors[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
+        selectors[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
+        selectors[4] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
+        selectors[5] = IStaticsProtocolPools.beginGeneralPoolDecommission.selector;
+        selectors[6] = IStaticsProtocolPools.finalizeGeneralPoolDecommission.selector;
         selectors[7] = IStaticsProtocolPools.replaceLiquidityManager.selector;
-        selectors[8] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
-        selectors[9] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
+    }
+
+    function phaseTwoProtocolPoolAdmin() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
+    }
+
+    function protocolPoolMaintenance() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsProtocolPools.setProtocolPoolMaintenanceConfig.selector;
+        selectors[1] = IStaticsProtocolPools.settleProtocolPoolRevenue.selector;
+    }
+
+    function protocolPol() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](11);
+        selectors[0] = IStaticsProtocolPools.setProtocolPolOperator.selector;
+        selectors[1] = IStaticsProtocolPools.setProtocolPolActivationFee.selector;
+        selectors[2] = IStaticsProtocolPools.activateProtocolPoolPol.selector;
+        selectors[3] = IStaticsProtocolPools.setProtocolPoolPolShare.selector;
+        selectors[4] = IStaticsProtocolPools.clearProtocolPoolPolShare.selector;
+        selectors[5] = IStaticsProtocolPools.settleProtocolPoolPol.selector;
+        selectors[6] = IStaticsProtocolPools.openProtocolPolPosition.selector;
+        selectors[7] = IStaticsProtocolPools.increaseProtocolPolPosition.selector;
+        selectors[8] = IStaticsProtocolPools.decreaseProtocolPolPosition.selector;
+        selectors[9] = IStaticsProtocolPools.collectProtocolPolFees.selector;
+        selectors[10] = IStaticsProtocolPools.closeProtocolPolPosition.selector;
     }
 
     function protocolPoolView() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](10);
+        selectors = new bytes4[](14);
         selectors[0] = IStaticsProtocolPools.protocolPool.selector;
         selectors[1] = IStaticsProtocolPools.isProtocolPool.selector;
         selectors[2] = IStaticsProtocolPools.poolCreationFee.selector;
@@ -337,16 +627,57 @@ library StaticsSelectors {
         selectors[6] = IStaticsProtocolPools.defaultProtocolPoolFeeRate.selector;
         selectors[7] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
         selectors[8] = IStaticsProtocolPools.protocolPoolCreator.selector;
-        selectors[9] = IStaticsProtocolPools.permanentLiquidityHarvester.selector;
+        selectors[9] = IStaticsProtocolPools.protocolPoolMaintenanceConfig.selector;
+        selectors[10] = IStaticsProtocolPools.protocolPolActivationFee.selector;
+        selectors[11] = IStaticsProtocolPools.protocolPolOperator.selector;
+        selectors[12] = IStaticsProtocolPools.protocolPolPosition.selector;
+        selectors[13] = IStaticsProtocolPools.protocolPolPositionIds.selector;
+    }
+
+    function phaseOneProtocolPoolView() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](13);
+        selectors[0] = IStaticsProtocolPools.protocolPool.selector;
+        selectors[1] = IStaticsProtocolPools.isProtocolPool.selector;
+        selectors[2] = IStaticsProtocolPools.poolCreationFee.selector;
+        selectors[3] = IStaticsProtocolPools.isPoolCreationNonceUsed.selector;
+        selectors[4] = IStaticsProtocolPools.generalFeeAllocation.selector;
+        selectors[5] = IStaticsProtocolPools.defaultProtocolPoolFeeRate.selector;
+        selectors[6] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
+        selectors[7] = IStaticsProtocolPools.protocolPoolCreator.selector;
+        selectors[8] = IStaticsProtocolPools.protocolPoolMaintenanceConfig.selector;
+        selectors[9] = IStaticsProtocolPools.protocolPolActivationFee.selector;
+        selectors[10] = IStaticsProtocolPools.protocolPolOperator.selector;
+        selectors[11] = IStaticsProtocolPools.protocolPolPosition.selector;
+        selectors[12] = IStaticsProtocolPools.protocolPolPositionIds.selector;
+    }
+
+    function phaseTwoProtocolPoolView() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsProtocolPools.basketFeeAllocation.selector;
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         selectors[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         selectors[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         selectors[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
         selectors[4] = IStaticsProtocolRevenue.canAccrueBasketRewards.selector;
+        selectors[5] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+    }
+
+    function phaseOneProtocolRevenue() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
+        selectors[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
+        selectors[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
+        selectors[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
+        selectors[4] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+    }
+
+    function phaseTwoProtocolRevenue() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsProtocolRevenue.canAccrueBasketRewards.selector;
     }
 
     function lending() internal pure returns (bytes4[] memory selectors) {
@@ -377,5 +708,81 @@ library StaticsSelectors {
         selectors[4] = IStaticsFlashLoan.maxFlashLoan.selector;
         selectors[5] = IStaticsFlashLoan.singleAssetFlashFeeBps.selector;
         selectors[6] = IStaticsFlashLoan.setSingleAssetFlashFeeBps.selector;
+    }
+
+    function dollarStaking() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](22);
+        selectors[0] = StakingFacet.createAndStakeRiskShares.selector;
+        selectors[1] = StakingFacet.stakeRiskShares.selector;
+        selectors[2] = StakingFacet.unstakeRiskShares.selector;
+        selectors[3] = StakingFacet.claimRiskProceeds.selector;
+        selectors[4] = StakingFacet.closeRiskLiquidity.selector;
+        selectors[5] = StakingFacet.riskLiquidity.selector;
+        selectors[6] = StakingFacet.totalRiskLiquidity.selector;
+        selectors[7] = StakingFacet.riskLiquidityScaleRay.selector;
+        selectors[8] = StakingFacet.positionSeriesCount.selector;
+        selectors[9] = StakingFacet.positionSeriesAt.selector;
+        selectors[10] = StakingFacet.reservedBalance.selector;
+        selectors[11] = StakingFacet.onERC1155Received.selector;
+        selectors[12] = StakingFacet.onERC1155BatchReceived.selector;
+        selectors[13] = StakingFacet.pool.selector;
+        selectors[14] = StakingFacet.staticsDollar.selector;
+        selectors[15] = StakingFacet.staticsDollarRisk.selector;
+        selectors[16] = StakingFacet.positionNFT.selector;
+        selectors[17] = StakingFacet.fundRiskCollateralIncentives.selector;
+        selectors[18] = StakingFacet.fundRiskDollarIncentives.selector;
+        selectors[19] = StakingFacet.fundRiskStaticsIncentives.selector;
+        selectors[20] = StakingFacet.riskIncentives.selector;
+        selectors[21] = StakingFacet.finalizeRiskIncentives.selector;
+    }
+
+    function dollarSeriesMigration() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](3);
+        selectors[0] = IStaticsDollarSeriesMigration.processSeriesTransition.selector;
+        selectors[1] = IStaticsDollarSeriesMigration.settleSeriesMigration.selector;
+        selectors[2] = IStaticsDollarSeriesMigration.seriesMigration.selector;
+    }
+
+    function dollarFeeRouter() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](7);
+        selectors[0] = FeeRouterFacet.onSeriesFee.selector;
+        selectors[1] = FeeRouterFacet.onPeggedProfileFee.selector;
+        selectors[2] = FeeRouterFacet.onRetiredSurplus.selector;
+        selectors[3] = FeeRouterFacet.routePendingInsurance.selector;
+        selectors[4] = FeeRouterFacet.setSplit.selector;
+        selectors[5] = FeeRouterFacet.splits.selector;
+        selectors[6] = FeeRouterFacet.pendingInsurance.selector;
+    }
+
+    function dollarPairingVault() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](6);
+        selectors[0] = PairingVaultFacet.redeem.selector;
+        selectors[1] = PairingVaultFacet.redeemToETH.selector;
+        selectors[2] = PairingVaultFacet.previewRedeem.selector;
+        selectors[3] = PairingVaultFacet.setRedemptionParams.selector;
+        selectors[4] = PairingVaultFacet.redemptionParams.selector;
+        selectors[5] = PairingVaultFacet.redeemableLiquidity.selector;
+    }
+
+    function dollarGateway() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](18);
+        selectors[0] = StaticsDollarGatewayFacet.depositETH.selector;
+        selectors[1] = StaticsDollarGatewayFacet.depositWETH.selector;
+        selectors[2] = StaticsDollarGatewayFacet.recombineToWETH.selector;
+        selectors[3] = StaticsDollarGatewayFacet.recombineToWETHWithPermit.selector;
+        selectors[4] = StaticsDollarGatewayFacet.recombineToETH.selector;
+        selectors[5] = StaticsDollarGatewayFacet.recombineToETHWithPermit.selector;
+        selectors[6] = StaticsDollarGatewayFacet.weth.selector;
+        selectors[7] = StaticsDollarGatewayFacet.wethProfileId.selector;
+        selectors[8] = StaticsDollarGatewayFacet.previewPeggedMint.selector;
+        selectors[9] = StaticsDollarGatewayFacet.mintPegged.selector;
+        selectors[10] = StaticsDollarGatewayFacet.mintPeggedWithPermit.selector;
+        selectors[11] = StaticsDollarGatewayFacet.quoteMintPeggedAndRecombine.selector;
+        selectors[12] = StaticsDollarGatewayFacet.mintPeggedAndRecombine.selector;
+        selectors[13] = StaticsDollarGatewayFacet.mintPeggedAndRecombineWithPermit.selector;
+        selectors[14] = StaticsDollarGatewayFacet.previewPeggedRedemption.selector;
+        selectors[15] = StaticsDollarGatewayFacet.redeemPegged.selector;
+        selectors[16] = StaticsDollarGatewayFacet.redeemPeggedWithPermit.selector;
+        selectors[17] = StaticsDollarGatewayFacet.peggedRedemptionStatus.selector;
     }
 }

@@ -211,7 +211,7 @@ contract RangeGaugeCheckpointCadenceTest is RangeGaugeLifecycleTestBase {
         reward.mint(alice, amount);
         vm.startPrank(alice);
         reward.approve(address(diamond), amount);
-        rangeGauge.fundPoolReward(poolId, slot, amount, 0, 0, 0);
+        rangeGauge.fundPoolReward(poolId, slot, amount, 0, 0);
         vm.stopPrank();
     }
 

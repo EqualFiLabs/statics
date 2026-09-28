@@ -4,18 +4,28 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
+import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsLending} from "../../src/interfaces/IStaticsLending.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
+import {IStaticsMarketTape} from "../../src/interfaces/IStaticsMarketTape.sol";
+import {IStaticsMarketObservations} from "../../src/interfaces/IStaticsMarketObservations.sol";
+import {IStaticsSwapCallback} from "../../src/interfaces/IStaticsSwapCallback.sol";
+import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
+import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
+import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
 import {
     IStaticsPosition,
@@ -25,6 +35,244 @@ import {
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 
 contract SelectorManifestTest is Test {
+    function testPhaseOneSelectorSubsetsAreExactAndCollisionFree() public pure {
+        bytes4[] memory governance = new bytes4[](13);
+        governance[0] = IStaticsGovernance.guardian.selector;
+        governance[1] = IStaticsGovernance.pausedActions.selector;
+        governance[2] = IStaticsGovernance.isPaused.selector;
+        governance[3] = IStaticsGovernance.setGuardian.selector;
+        governance[4] = IStaticsGovernance.pause.selector;
+        governance[5] = IStaticsGovernance.unpause.selector;
+        governance[6] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        governance[7] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        governance[8] = IStaticsGovernance.quarantineProtocolPool.selector;
+        governance[9] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        governance[10] = IStaticsGovernance.protocolSwapsPaused.selector;
+        governance[11] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        governance[12] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        _assertExact(StaticsSelectors.phaseOneGovernance(), governance);
+
+        bytes4[] memory custody = new bytes4[](7);
+        custody[0] = IStaticsCustody.globalReservedByToken.selector;
+        custody[1] = IStaticsCustody.reservedByAccount.selector;
+        custody[2] = IStaticsCustody.unreservedBalance.selector;
+        custody[3] = IStaticsCustody.feeCustodyAccount.selector;
+        custody[4] = IStaticsCustody.stakingCustodyAccount.selector;
+        custody[5] = IStaticsCustody.gaugeReserveCustodyAccount.selector;
+        custody[6] = IStaticsCustody.protocolPolCustodyAccount.selector;
+        _assertExact(StaticsSelectors.phaseOneCustody(), custody);
+
+        bytes4[] memory treasury = new bytes4[](2);
+        treasury[0] = IStaticsBasketAdmin.setTreasury.selector;
+        treasury[1] = IStaticsBasketAdmin.treasury.selector;
+        _assertExact(StaticsSelectors.phaseOneTreasuryAdmin(), treasury);
+
+        bytes4[] memory liquidity = new bytes4[](6);
+        liquidity[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
+        liquidity[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
+        liquidity[2] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        liquidity[3] = IStaticsBasketLiquidity.liquidityManager.selector;
+        liquidity[4] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        liquidity[5] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+        _assertExact(StaticsSelectors.phaseOneLiquidityIntegration(), liquidity);
+
+        bytes4[] memory admin = new bytes4[](8);
+        admin[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
+        admin[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
+        admin[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
+        admin[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
+        admin[4] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
+        admin[5] = IStaticsProtocolPools.beginGeneralPoolDecommission.selector;
+        admin[6] = IStaticsProtocolPools.finalizeGeneralPoolDecommission.selector;
+        admin[7] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        _assertExact(StaticsSelectors.phaseOneProtocolPoolAdmin(), admin);
+
+        bytes4[] memory maintenance = new bytes4[](2);
+        maintenance[0] = IStaticsProtocolPools.setProtocolPoolMaintenanceConfig.selector;
+        maintenance[1] = IStaticsProtocolPools.settleProtocolPoolRevenue.selector;
+        _assertExact(StaticsSelectors.protocolPoolMaintenance(), maintenance);
+
+        bytes4[] memory pol = new bytes4[](11);
+        pol[0] = IStaticsProtocolPools.setProtocolPolOperator.selector;
+        pol[1] = IStaticsProtocolPools.setProtocolPolActivationFee.selector;
+        pol[2] = IStaticsProtocolPools.activateProtocolPoolPol.selector;
+        pol[3] = IStaticsProtocolPools.setProtocolPoolPolShare.selector;
+        pol[4] = IStaticsProtocolPools.clearProtocolPoolPolShare.selector;
+        pol[5] = IStaticsProtocolPools.settleProtocolPoolPol.selector;
+        pol[6] = IStaticsProtocolPools.openProtocolPolPosition.selector;
+        pol[7] = IStaticsProtocolPools.increaseProtocolPolPosition.selector;
+        pol[8] = IStaticsProtocolPools.decreaseProtocolPolPosition.selector;
+        pol[9] = IStaticsProtocolPools.collectProtocolPolFees.selector;
+        pol[10] = IStaticsProtocolPools.closeProtocolPolPosition.selector;
+        _assertExact(StaticsSelectors.protocolPol(), pol);
+
+        bytes4[] memory views = new bytes4[](13);
+        views[0] = IStaticsProtocolPools.protocolPool.selector;
+        views[1] = IStaticsProtocolPools.isProtocolPool.selector;
+        views[2] = IStaticsProtocolPools.poolCreationFee.selector;
+        views[3] = IStaticsProtocolPools.isPoolCreationNonceUsed.selector;
+        views[4] = IStaticsProtocolPools.generalFeeAllocation.selector;
+        views[5] = IStaticsProtocolPools.defaultProtocolPoolFeeRate.selector;
+        views[6] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
+        views[7] = IStaticsProtocolPools.protocolPoolCreator.selector;
+        views[8] = IStaticsProtocolPools.protocolPoolMaintenanceConfig.selector;
+        views[9] = IStaticsProtocolPools.protocolPolActivationFee.selector;
+        views[10] = IStaticsProtocolPools.protocolPolOperator.selector;
+        views[11] = IStaticsProtocolPools.protocolPolPosition.selector;
+        views[12] = IStaticsProtocolPools.protocolPolPositionIds.selector;
+        _assertExact(StaticsSelectors.phaseOneProtocolPoolView(), views);
+
+        bytes4[] memory revenue = new bytes4[](5);
+        revenue[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
+        revenue[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
+        revenue[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
+        revenue[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
+        revenue[4] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+        _assertExact(StaticsSelectors.phaseOneProtocolRevenue(), revenue);
+    }
+
+    function testRangeGaugeSelectorSubsetsAreExactAndCollisionFree() public pure {
+        bytes4[] memory actions = new bytes4[](5);
+        actions[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
+        actions[1] = IStaticsRangeGauge.setGaugeRewardDuration.selector;
+        actions[2] = IStaticsRangeGauge.appendPoolRewardAsset.selector;
+        actions[3] = IStaticsRangeGauge.setPoolRewardAllocatorShare.selector;
+        actions[4] = IStaticsRangeGauge.fundPoolReward.selector;
+        _assertExact(StaticsSelectors.rangeGaugeActions(), actions);
+
+        bytes4[] memory ingress = new bytes4[](2);
+        ingress[0] = IStaticsRangeGauge.provideLiquidity.selector;
+        ingress[1] = IStaticsRangeGauge.attachLiquidity.selector;
+        _assertExact(StaticsSelectors.rangeGaugePositionIngress(), ingress);
+
+        bytes4[] memory positions = new bytes4[](4);
+        positions[0] = IStaticsRangeGauge.increaseLiquidity.selector;
+        positions[1] = IStaticsRangeGauge.decreaseLiquidity.selector;
+        positions[2] = IStaticsRangeGauge.collectNativeFees.selector;
+        positions[3] = IStaticsRangeGauge.rebalanceLiquidity.selector;
+        _assertExact(StaticsSelectors.rangeGaugePositionManagement(), positions);
+
+        bytes4[] memory liveness = new bytes4[](5);
+        liveness[0] = IStaticsRangeGauge.exitLiquidity.selector;
+        liveness[1] = IStaticsRangeGauge.claimLpRewards.selector;
+        liveness[2] = IStaticsRangeGauge.forfeitLpReward.selector;
+        liveness[3] = IStaticsRangeGauge.recoverUnboundPosm.selector;
+        liveness[4] = IStaticsRangeGauge.reconcilePoolRewardSurplus.selector;
+        _assertExact(StaticsSelectors.rangeGaugeLiveness(), liveness);
+
+        bytes4[] memory views = new bytes4[](12);
+        views[0] = IStaticsRangeGauge.gaugeRewardDuration.selector;
+        views[1] = IStaticsRangeGauge.gaugeRewardAssetAllowed.selector;
+        views[2] = IStaticsRangeGauge.poolRewardConfig.selector;
+        views[3] = IStaticsRangeGauge.gaugePool.selector;
+        views[4] = IStaticsRangeGauge.poolRewardStream.selector;
+        views[5] = IStaticsRangeGauge.poolRewardCustodyAccount.selector;
+        views[6] = IStaticsRangeGauge.gaugeBoundary.selector;
+        views[7] = IStaticsRangeGauge.lpLeg.selector;
+        views[8] = IStaticsRangeGauge.positionGaugePools.selector;
+        views[9] = IStaticsRangeGauge.posmBinding.selector;
+        views[10] = IStaticsRangeGauge.recordedLiquidityManager.selector;
+        views[11] = IStaticsRangeGauge.previewLpRewards.selector;
+        _assertExact(StaticsSelectors.rangeGaugeViews(), views);
+
+        bytes4[] memory callback = new bytes4[](1);
+        callback[0] = IStaticsSwapCallback.afterStaticsPoolSwap.selector;
+        _assertExact(StaticsSelectors.rangeGaugeCallback(), callback);
+
+        bytes4[] memory all = new bytes4[](29);
+        uint256 cursor;
+        cursor = _copy(actions, all, cursor);
+        cursor = _copy(ingress, all, cursor);
+        cursor = _copy(positions, all, cursor);
+        cursor = _copy(liveness, all, cursor);
+        cursor = _copy(views, all, cursor);
+        _copy(callback, all, cursor);
+        for (uint256 i; i < all.length; ++i) {
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(all[i], all[j]);
+            }
+        }
+    }
+
+    function testMarketTapeSelectorSubsetIsExact() public pure {
+        bytes4[] memory views = new bytes4[](1);
+        views[0] = IStaticsMarketTape.canonicalMarketState.selector;
+        _assertExact(StaticsSelectors.marketTapeViews(), views);
+
+        bytes4[] memory observations = new bytes4[](5);
+        observations[0] = IStaticsMarketObservations.setMarketObservationConfig.selector;
+        observations[1] = IStaticsMarketObservations.recordMarketObservation.selector;
+        observations[2] = IStaticsMarketObservations.marketObservationConfig.selector;
+        observations[3] = IStaticsMarketObservations.marketObservation.selector;
+        observations[4] = IStaticsMarketObservations.observeMarket.selector;
+        _assertExact(StaticsSelectors.marketTapeObservations(), observations);
+    }
+
+    function testGaugeIncentiveSelectorSubsetsAreExact() public pure {
+        bytes4[] memory actions = new bytes4[](10);
+        actions[0] = IStaticsGaugeIncentives.fundGaugeReserve.selector;
+        actions[1] = IStaticsGaugeIncentives.activateGaugeSchedule.selector;
+        actions[2] = IStaticsGaugeIncentives.setGaugeAllocations.selector;
+        actions[3] = IStaticsGaugeIncentives.checkpointGaugeSchedule.selector;
+        actions[4] = IStaticsGaugeIncentives.checkpointGaugePool.selector;
+        actions[5] = IStaticsGaugeIncentives.scheduleGaugeReleaseBps.selector;
+        actions[6] = IStaticsGaugeIncentives.setGaugeAllocationCooldown.selector;
+        actions[7] = IStaticsGaugeIncentives.syncGaugeAllocationsAfterStakeLoss.selector;
+        actions[8] = IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector;
+        actions[9] = IStaticsGaugeIncentives.forfeitGaugeAllocatorReward.selector;
+        _assertExact(StaticsSelectors.gaugeIncentiveActions(), actions);
+
+        bytes4[] memory views = new bytes4[](12);
+        views[0] = IStaticsGaugeIncentives.currentGaugePeriod.selector;
+        views[1] = IStaticsGaugeIncentives.gaugePeriodAt.selector;
+        views[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
+        views[3] = IStaticsGaugeIncentives.gaugePoolWeight.selector;
+        views[4] = IStaticsGaugeIncentives.gaugePositionAllocations.selector;
+        views[5] = IStaticsGaugeIncentives.previewGaugePoolReward.selector;
+        views[6] = IStaticsGaugeIncentives.maxGaugeAllocationsPerPosition.selector;
+        views[7] = IStaticsGaugeIncentives.maxWeeklyGaugeReleaseBps.selector;
+        views[8] = IStaticsGaugeIncentives.maxGaugeCatchupPeriods.selector;
+        views[9] = IStaticsGaugeIncentives.gaugeAllocationCooldown.selector;
+        views[10] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;
+        views[11] = IStaticsGaugeIncentives.previewGaugeAllocatorRewards.selector;
+        _assertExact(StaticsSelectors.gaugeIncentiveViews(), views);
+    }
+
+    function testPhaseTwoLiquidityDeltaExcludesPhaseOneManagerSelectors() public pure {
+        bytes4[] memory liquidity = new bytes4[](4);
+        liquidity[0] = IStaticsBasketLaunchModule.launchBasketPools.selector;
+        liquidity[1] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
+        liquidity[2] = IStaticsBasketLiquidity.canonicalPool.selector;
+        liquidity[3] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        _assertExact(StaticsSelectors.phaseTwoBasketLiquidity(), liquidity);
+
+        bytes4[] memory admin = new bytes4[](1);
+        admin[0] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
+        _assertExact(StaticsSelectors.phaseTwoProtocolPoolAdmin(), admin);
+    }
+
+    function testGovernanceSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.governance();
+        bytes4[] memory expected = new bytes4[](16);
+        expected[0] = IStaticsGovernance.guardian.selector;
+        expected[1] = IStaticsGovernance.pausedActions.selector;
+        expected[2] = IStaticsGovernance.isPaused.selector;
+        expected[3] = IStaticsGovernance.setGuardian.selector;
+        expected[4] = IStaticsGovernance.pause.selector;
+        expected[5] = IStaticsGovernance.unpause.selector;
+        expected[6] = IStaticsGovernance.quarantineBasket.selector;
+        expected[7] = IStaticsGovernance.releaseBasketQuarantine.selector;
+        expected[8] = IStaticsGovernance.decommissionBasket.selector;
+        expected[9] = IStaticsGovernance.pauseProtocolSwaps.selector;
+        expected[10] = IStaticsGovernance.unpauseProtocolSwaps.selector;
+        expected[11] = IStaticsGovernance.quarantineProtocolPool.selector;
+        expected[12] = IStaticsGovernance.releaseProtocolPoolQuarantine.selector;
+        expected[13] = IStaticsGovernance.protocolSwapsPaused.selector;
+        expected[14] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
+        expected[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        _assertExact(actual, expected);
+    }
+
     function testFlashLoanSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.flashLoan();
         bytes4[] memory expected = new bytes4[](7);
@@ -109,7 +357,7 @@ contract SelectorManifestTest is Test {
 
     function testLiquiditySelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.basketLiquidity();
-        bytes4[] memory expected = new bytes4[](8);
+        bytes4[] memory expected = new bytes4[](10);
         expected[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         expected[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         expected[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
@@ -118,6 +366,8 @@ contract SelectorManifestTest is Test {
         expected[5] = IStaticsBasketLiquidity.liquidityManager.selector;
         expected[6] = IStaticsBasketLiquidity.canonicalPool.selector;
         expected[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        expected[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        expected[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
 
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
@@ -143,25 +393,64 @@ contract SelectorManifestTest is Test {
         _assertExact(actual, expected);
     }
 
+    function testPermissionedAndRewardPolicySelectorManifestsAreExact() public pure {
+        bytes4[] memory reward = new bytes4[](5);
+        reward[0] = IStaticsRewardPolicy.addRewardRestriction.selector;
+        reward[1] = IStaticsRewardPolicy.removeRewardRestriction.selector;
+        reward[2] = IStaticsRewardPolicy.rewardRestricted.selector;
+        reward[3] = IStaticsRewardPolicy.rewardRestrictionNonce.selector;
+        reward[4] = IStaticsRewardPolicy.rewardRestrictionTimestamp.selector;
+        _assertExact(StaticsSelectors.rewardPolicy(), reward);
+
+        bytes4[] memory creation = new bytes4[](3);
+        creation[0] = IStaticsPermissionedPools.quotePermissionedPool.selector;
+        creation[1] = IStaticsPermissionedPools.createPermissionedPool.selector;
+        creation[2] = IStaticsPermissionedPools.invalidatePermissionedAuthorizationNonce.selector;
+        _assertExact(StaticsSelectors.permissionedPoolCreation(), creation);
+
+        bytes4[] memory admin = new bytes4[](7);
+        admin[0] = IStaticsPermissionedPools.applyPermissionedPoolTerms.selector;
+        admin[1] = IStaticsPermissionedPools.replacePermissionedPoolController.selector;
+        admin[2] = IStaticsPermissionedPools.invalidatePermissionedConfigurationNonce.selector;
+        admin[3] = IStaticsPermissionedPools.decommissionPermissionedPool.selector;
+        admin[4] = IStaticsPermissionedPools.setPermissionedTrustedPeriphery.selector;
+        admin[5] = IStaticsPermissionedPools.permissionedTermsDigest.selector;
+        admin[6] = IStaticsPermissionedPools.permissionedControllerReplacementDigest.selector;
+        _assertExact(StaticsSelectors.permissionedPoolAdmin(), admin);
+
+        bytes4[] memory views = new bytes4[](3);
+        views[0] = IStaticsPermissionedPools.permissionedPool.selector;
+        views[1] = IStaticsPermissionedPools.isPermissionedPool.selector;
+        views[2] = IStaticsPermissionedPools.isPermissionedAuthorizationNonceUsed.selector;
+        _assertExact(StaticsSelectors.permissionedPoolView(), views);
+    }
+
     function testProtocolPoolAdminSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.protocolPoolAdmin();
-        bytes4[] memory expected = new bytes4[](10);
+        bytes4[] memory expected = new bytes4[](9);
         expected[0] = IStaticsProtocolPools.setPoolCreationFee.selector;
         expected[1] = IStaticsProtocolPools.setDefaultProtocolPoolFeeRate.selector;
         expected[2] = IStaticsProtocolPools.setProtocolPoolFeeRate.selector;
         expected[3] = IStaticsProtocolPools.clearProtocolPoolFeeRate.selector;
         expected[4] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
         expected[5] = IStaticsProtocolPools.setGeneralFeeAllocation.selector;
-        expected[6] = IStaticsProtocolPools.decommissionGeneralPool.selector;
-        expected[7] = IStaticsProtocolPools.replaceLiquidityManager.selector;
-        expected[8] = IStaticsProtocolPools.setPermanentLiquidityHarvester.selector;
-        expected[9] = IStaticsProtocolPools.harvestPermanentLiquidityFees.selector;
+        expected[6] = IStaticsProtocolPools.beginGeneralPoolDecommission.selector;
+        expected[7] = IStaticsProtocolPools.finalizeGeneralPoolDecommission.selector;
+        expected[8] = IStaticsProtocolPools.replaceLiquidityManager.selector;
+        _assertExact(actual, expected);
+    }
+
+    function testProtocolPoolMaintenanceSelectorManifestIsExactAndCollisionFree() public pure {
+        bytes4[] memory actual = StaticsSelectors.protocolPoolMaintenance();
+        bytes4[] memory expected = new bytes4[](2);
+        expected[0] = IStaticsProtocolPools.setProtocolPoolMaintenanceConfig.selector;
+        expected[1] = IStaticsProtocolPools.settleProtocolPoolRevenue.selector;
         _assertExact(actual, expected);
     }
 
     function testProtocolPoolViewSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.protocolPoolView();
-        bytes4[] memory expected = new bytes4[](10);
+        bytes4[] memory expected = new bytes4[](14);
         expected[0] = IStaticsProtocolPools.protocolPool.selector;
         expected[1] = IStaticsProtocolPools.isProtocolPool.selector;
         expected[2] = IStaticsProtocolPools.poolCreationFee.selector;
@@ -171,18 +460,23 @@ contract SelectorManifestTest is Test {
         expected[6] = IStaticsProtocolPools.defaultProtocolPoolFeeRate.selector;
         expected[7] = IStaticsProtocolPools.protocolPoolFeeRate.selector;
         expected[8] = IStaticsProtocolPools.protocolPoolCreator.selector;
-        expected[9] = IStaticsProtocolPools.permanentLiquidityHarvester.selector;
+        expected[9] = IStaticsProtocolPools.protocolPoolMaintenanceConfig.selector;
+        expected[10] = IStaticsProtocolPools.protocolPolActivationFee.selector;
+        expected[11] = IStaticsProtocolPools.protocolPolOperator.selector;
+        expected[12] = IStaticsProtocolPools.protocolPolPosition.selector;
+        expected[13] = IStaticsProtocolPools.protocolPolPositionIds.selector;
         _assertExact(actual, expected);
     }
 
     function testProtocolRevenueSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.protocolRevenue();
-        bytes4[] memory expected = new bytes4[](5);
+        bytes4[] memory expected = new bytes4[](6);
         expected[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         expected[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         expected[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         expected[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
         expected[4] = IStaticsProtocolRevenue.canAccrueBasketRewards.selector;
+        expected[5] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
         _assertExact(actual, expected);
     }
 
@@ -194,6 +488,13 @@ contract SelectorManifestTest is Test {
                 assertNotEq(actual[i], actual[j]);
             }
         }
+    }
+
+    function _copy(bytes4[] memory source, bytes4[] memory destination, uint256 cursor) private pure returns (uint256) {
+        for (uint256 i; i < source.length; ++i) {
+            destination[cursor++] = source[i];
+        }
+        return cursor;
     }
 
     function testPositionPortfolioSelectorManifestIsExactAndCollisionFree() public pure {
@@ -221,8 +522,8 @@ contract SelectorManifestTest is Test {
         bytes4[] memory recovery = StaticsSelectors.morphoRecovery();
         bytes4[] memory views = StaticsSelectors.morphoView();
         assertEq(admin.length, 5);
-        assertEq(actions.length, 7);
-        assertEq(settlement.length, 3);
+        assertEq(actions.length, 5);
+        assertEq(settlement.length, 5);
         assertEq(recovery.length, 1);
         assertEq(views.length, 10);
         bytes4[] memory all = new bytes4[](26);
@@ -249,6 +550,8 @@ contract SelectorManifestTest is Test {
         assertEq(admin[0], IStaticsMorpho.initializeMorphoIntegration.selector);
         assertEq(actions[0], IStaticsMorpho.deployMorphoCollateral.selector);
         assertEq(settlement[2], IStaticsMorpho.recoverMorphoAccountToken.selector);
+        assertEq(settlement[3], IStaticsMorpho.syncMorpho.selector);
+        assertEq(settlement[4], IStaticsMorpho.syncMorphoForModule.selector);
         assertEq(recovery[0], IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector);
         assertEq(views[0], IStaticsMorpho.morpho.selector);
         assertEq(views[9], IStaticsMorpho.enforceMorphoAccountEmpty.selector);
@@ -284,7 +587,7 @@ contract SelectorManifestTest is Test {
 
     function testGlobalRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.globalRewards();
-        bytes4[] memory expected = new bytes4[](24);
+        bytes4[] memory expected = new bytes4[](28);
         expected[0] = IStaticsGlobalRewards.createAndStake.selector;
         expected[1] = IStaticsGlobalRewards.stake.selector;
         expected[2] = IStaticsGlobalRewards.unstake.selector;
@@ -305,10 +608,14 @@ contract SelectorManifestTest is Test {
         expected[17] = IStaticsGlobalRewards.totalStaked.selector;
         expected[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
         expected[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        expected[20] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
-        expected[21] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
-        expected[22] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
-        expected[23] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
+        expected[20] = IStaticsGlobalRewards.unfundedSwapRewards.selector;
+        expected[21] = IStaticsGlobalRewards.fundedGlobalRewards.selector;
+        expected[22] = IStaticsGlobalRewards.outstandingGlobalRewardLiability.selector;
+        expected[23] = IStaticsGlobalRewards.settlePublicSwapRewards.selector;
+        expected[24] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        expected[25] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        expected[26] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        expected[27] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);
