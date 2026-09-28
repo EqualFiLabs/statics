@@ -9,7 +9,9 @@ import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
 import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {LibMorphoSync} from "../libraries/LibMorphoSync.sol";
 import {StaticsMorphoAccount} from "../morpho/StaticsMorphoAccount.sol";
+import {LibPosition} from "../position/LibPosition.sol";
 
 contract MorphoSettlementFacet is ReentrancyGuard {
     error InvalidAmount();
@@ -18,6 +20,15 @@ contract MorphoSettlementFacet is ReentrancyGuard {
     error MorphoAccountNotDeployed(uint256 positionId);
     error MinimumRecoveryNotMet(address token, uint256 minimum, uint256 actual);
     error UnauthorizedPerformanceFeeRouter(address caller, address expected);
+
+    function syncMorpho(uint256 positionId, bytes32 marketId_) external nonReentrant returns (uint256 trackedLoss) {
+        return LibMorphoSync.syncOne(positionId, marketId_, msg.sender);
+    }
+
+    function syncMorphoForModule(uint256 positionId, address keeper) external {
+        if (msg.sender != address(this)) revert LibPosition.InvalidModuleAuthority();
+        LibMorphoSync.syncAll(positionId, keeper);
+    }
 
     function claimMorphoSyncBounties(address[] calldata assets, address receiver)
         external

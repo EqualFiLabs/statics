@@ -137,15 +137,6 @@ contract MorphoFacet is ReentrancyGuard {
         emit IStaticsMorpho.MorphoRepaid(positionId, marketId_, assetsRepaid, sharesRepaid);
     }
 
-    function syncMorpho(uint256 positionId, bytes32 marketId_) external nonReentrant returns (uint256 trackedLoss) {
-        return LibMorphoSync.syncOne(positionId, marketId_, msg.sender);
-    }
-
-    function syncMorphoForModule(uint256 positionId, address keeper) external {
-        if (msg.sender != address(this)) revert LibPosition.InvalidModuleAuthority();
-        LibMorphoSync.syncAll(positionId, keeper);
-    }
-
     function liquidateMorphoAndSync(
         uint256 positionId,
         bytes32 marketId_,

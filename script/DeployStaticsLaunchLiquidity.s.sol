@@ -97,7 +97,7 @@ contract DeployStaticsLaunchLiquidity is Script {
         proposers[0] = config.governance;
         address[] memory executors = new address[](1);
         executors[0] = address(0);
-        deployment.timelock = new StaticsTimelock(proposers, executors, address(0));
+        deployment.timelock = new StaticsTimelock(proposers, executors, new address[](0), address(0));
         deployment.feeClaimRedeemer = new StaticsLaunchFeeClaimRedeemer(IPoolManager(config.poolManager));
 
         bytes memory args = abi.encode(

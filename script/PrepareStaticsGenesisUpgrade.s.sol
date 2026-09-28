@@ -19,26 +19,42 @@ struct StaticsGenesisUpgradeParts {
 }
 
 library StaticsGenesisUpgradeCut {
+    uint256 private constant PHASE_ONE_GLOBAL_REWARD_SELECTORS = 24;
+    uint256 private constant PHASE_ONE_POSITION_SELECTORS = 26;
+    uint256 private constant PHASE_ONE_CUSTODY_SELECTORS = 7;
+
     function build(StaticsGenesisUpgradeParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
         bytes4[] memory globalSelectors = StaticsSelectors.globalRewards();
         bytes4[] memory positionSelectors = StaticsSelectors.position();
         bytes4[] memory custodySelectors = StaticsSelectors.custody();
         cut = new IDiamondCut.FacetCut[](7);
         cut[0] = IDiamondCut.FacetCut(
-            parts.globalRewards, IDiamondCut.FacetCutAction.Replace, _slice(globalSelectors, 0, 20)
+            parts.globalRewards,
+            IDiamondCut.FacetCutAction.Replace,
+            _slice(globalSelectors, 0, PHASE_ONE_GLOBAL_REWARD_SELECTORS)
         );
         cut[1] = IDiamondCut.FacetCut(
-            parts.globalRewards, IDiamondCut.FacetCutAction.Add, _slice(globalSelectors, 20, globalSelectors.length)
+            parts.globalRewards,
+            IDiamondCut.FacetCutAction.Add,
+            _slice(globalSelectors, PHASE_ONE_GLOBAL_REWARD_SELECTORS, globalSelectors.length)
         );
         cut[2] = IDiamondCut.FacetCut(
-            parts.positionNFT, IDiamondCut.FacetCutAction.Replace, _slice(positionSelectors, 0, 26)
+            parts.positionNFT,
+            IDiamondCut.FacetCutAction.Replace,
+            _slice(positionSelectors, 0, PHASE_ONE_POSITION_SELECTORS)
         );
         cut[3] = IDiamondCut.FacetCut(
-            parts.positionNFT, IDiamondCut.FacetCutAction.Add, _slice(positionSelectors, 26, positionSelectors.length)
+            parts.positionNFT,
+            IDiamondCut.FacetCutAction.Add,
+            _slice(positionSelectors, PHASE_ONE_POSITION_SELECTORS, positionSelectors.length)
         );
-        cut[4] = IDiamondCut.FacetCut(parts.custody, IDiamondCut.FacetCutAction.Replace, _slice(custodySelectors, 0, 7));
+        cut[4] = IDiamondCut.FacetCut(
+            parts.custody, IDiamondCut.FacetCutAction.Replace, _slice(custodySelectors, 0, PHASE_ONE_CUSTODY_SELECTORS)
+        );
         cut[5] = IDiamondCut.FacetCut(
-            parts.custody, IDiamondCut.FacetCutAction.Add, _slice(custodySelectors, 7, custodySelectors.length)
+            parts.custody,
+            IDiamondCut.FacetCutAction.Add,
+            _slice(custodySelectors, PHASE_ONE_CUSTODY_SELECTORS, custodySelectors.length)
         );
         cut[6] = IDiamondCut.FacetCut(parts.genesisNFT, IDiamondCut.FacetCutAction.Add, StaticsSelectors.genesisNFT());
     }
