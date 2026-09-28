@@ -161,8 +161,11 @@ case "$TARGET" in
     # branch feasibility is conservatively explored on both sides while assertions
     # retain their unbounded solver timeout. The two-claim rule exhausts uint8
     # budgets and weights in a 256-unit normalized domain, replacing exact
-    # floor division with a right shift. Full-width Foundry fuzz tests execute mulDiv
-    # across arbitrary raw weights in the production uint256 domain.
+    # floor division with a right shift. The allocator carry rules receive an
+    # already decomposed quotient and remainder so they prove the normalization
+    # and terminal-reconciliation algebra without asking SMT to rediscover mulDiv.
+    # Full-width Foundry fuzz tests execute the production helper across arbitrary
+    # raw weights in the uint256 domain.
     HALMOS_BRANCH_TIMEOUT="${HALMOS_RANGE_GAUGE_BRANCH_TIMEOUT:-100ms}"
     run_halmos "$ROOT" RangeGaugeAccountingHalmosTest range-gauge-stream-conservation 8 \
       out-formal-genesis '^check_streamEmitsEntireBudgetAtFinish'

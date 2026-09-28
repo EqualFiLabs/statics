@@ -51,7 +51,11 @@ contract FormalProtocolPolPoolManager {
 
     function unlock(bytes calldata data) external returns (bytes memory result) {
         (bool success, bytes memory returned) = msg.sender.call(abi.encodeWithSignature("unlockCallback(bytes)", data));
-        require(success, "unlock callback");
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(returned, 0x20), mload(returned))
+            }
+        }
         return abi.decode(returned, (bytes));
     }
 

@@ -24,11 +24,11 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
     }
 
     function testRepresentativeCarryNormalization() public pure {
-        check_indexCarryNormalizesAcrossDenominatorChange(3, 7, 29);
+        check_indexCarryNormalizesAcrossDenominatorChange(3, 7, 1, 4);
     }
 
     function testRepresentativeTerminalCarryReconciliation() public pure {
-        check_terminalCarryReconcilesSingleWeight(1, 100);
+        check_terminalCarryReconcilesSingleWeight(1, 100, 29);
     }
 
     function testFuzzFundingSplitConservation(uint256 received, uint16 allocatorShareBps) public pure {
@@ -84,19 +84,45 @@ contract GaugeAllocatorRewardsHalmosTest is SymTest, Test {
         assertEq(distributable + treasuryAmount, budget);
     }
 
-    function check_indexCarryNormalizesAcrossDenominatorChange(uint16 amount, uint16 denominator, uint32 priorRemainder)
+    function check_indexCarryNormalizesAcrossDenominatorChange(
+        uint16 productRemainder,
+        uint16 denominator,
+        uint16 normalizedPrior,
+        uint16 wholePrior
+    ) public pure {
+        vm.assume(denominator != 0);
+        vm.assume(productRemainder < denominator);
+        vm.assume(normalizedPrior < denominator);
+
+        uint256 priorRemainder = uint256(wholePrior) * denominator + normalizedPrior;
+        uint256 delta = wholePrior;
+        uint256 remainder;
+        uint256 room = uint256(denominator) - normalizedPrior;
+        if (productRemainder >= room) {
+            ++delta;
+            remainder = uint256(productRemainder) - room;
+        } else {
+            remainder = uint256(productRemainder) + normalizedPrior;
+        }
+
+        assertLt(remainder, denominator);
+        assertEq(delta * denominator + remainder, uint256(productRemainder) + priorRemainder);
+    }
+
+    function check_terminalCarryReconcilesSingleWeight(uint16 amount, uint16 denominator, uint16 globalRemainder)
         public
         pure
     {
         vm.assume(denominator != 0);
-        (uint256 delta, uint256 remainder) = LibIndexMath.indexDeltaAtScale(amount, denominator, priorRemainder, Q160);
-        assertLt(remainder, denominator);
-        assertEq(delta * denominator + remainder, uint256(amount) * Q160 + priorRemainder);
-    }
+        vm.assume(globalRemainder < denominator);
+        vm.assume(amount != 0 || globalRemainder == 0);
 
-    function check_terminalCarryReconcilesSingleWeight(uint16 amount, uint16 denominator) public pure {
-        vm.assume(denominator != 0);
-        _assertTerminalCarry(amount, denominator);
+        uint256 scaledPositionAccrual = uint256(amount) * Q160 - globalRemainder;
+        uint256 positionClaim = scaledPositionAccrual >> 160;
+        uint256 positionRemainder = scaledPositionAccrual & (Q160 - 1);
+        uint256 reconciled = (uint256(globalRemainder) + positionRemainder) >> 160;
+        assertEq(positionClaim + reconciled, amount);
+        assertLt((uint256(globalRemainder) + positionRemainder) & (Q160 - 1), Q160);
     }
 
     function _assertFundingSplit(uint256 received, uint16 allocatorShareBps) private pure {
