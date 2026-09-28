@@ -204,6 +204,14 @@ operator and must report the pool halted before installation. Replacement does
 not call or require consent from the old controller, preserving recovery from a
 broken or abandoned provider. The pool key, creator, economics, liquidity, and
 user exit rights do not change, and the guardian cannot replace controllers.
+
+ERC-1271 wallets used for creator authorizations or as permissioned-position
+owners are supported only when signature validation binds the digest to that
+wallet's own account domain, such as an account-specific digest or ERC-7739
+defensive rehashing. The position manager retains the canonical Uniswap permit
+surface. Wallets that intentionally accept one raw digest across multiple
+accounts are outside the supported permission model.
+
 Phase 2 adds baskets, self-secured credit, flash composition, basket liquidity,
 and Genesis integration; Phase 3 adds Statics Dollar; Phase 4 adds Morpho. All four selector
 deltas and one-time initializers exist now and derive from one canonical plan.
