@@ -264,7 +264,7 @@ contract RangeGaugeInvariantHandler is Test {
     function decommission() external {
         if (pools.protocolPool(poolId).decommissioned) return;
         vm.prank(owner);
-        try pools.decommissionGeneralPool(poolId) returns (uint256, uint256) {
+        try pools.beginGeneralPoolDecommission(poolId) {
             ++successfulCalls;
         } catch {}
     }
@@ -476,31 +476,6 @@ contract RangeGaugeInvariantPropertiesTest is RangeGaugeLifecycleTestBase {
     function testUnmanagedV4LiquidityNeverChangesGaugeWeight() public {
         PoolId poolId = _createRangeGaugePool(alice);
         _mintUnmanagedPosition(_poolKey(poolId), alice);
-        assertEq(rangeGauge.gaugePool(poolId).activeGaugeLiquidity, 0);
-        assertEq(rangeGauge.gaugePool(poolId).managedLegCount, 0);
-    }
-
-    function testPermanentProtocolLiquidityNeverChangesGaugeWeight() public {
-        PoolId poolId = _createRangeGaugePool(alice);
-        PoolKey memory key = _poolKey(poolId);
-        uint128 liquidity = 1 ether;
-        uint160 sqrtLower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(key.tickSpacing));
-        uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(key.tickSpacing));
-        uint256 amount0 = SqrtPriceMath.getAmount0Delta(1 << 96, sqrtUpper, liquidity, true);
-        uint256 amount1 = SqrtPriceMath.getAmount1Delta(sqrtLower, 1 << 96, liquidity, true);
-        MockERC20 token0 = MockERC20(Currency.unwrap(key.currency0));
-        MockERC20 token1 = MockERC20(Currency.unwrap(key.currency1));
-        token0.mint(address(diamond), amount0);
-        token1.mint(address(diamond), amount1);
-        vm.startPrank(address(diamond));
-        token0.approve(address(swapFeeHook), amount0);
-        token1.approve(address(swapFeeHook), amount1);
-        IStaticsSwapFeeHook.PermanentLiquiditySeed[] memory seeds = new IStaticsSwapFeeHook.PermanentLiquiditySeed[](1);
-        seeds[0] = IStaticsSwapFeeHook.PermanentLiquiditySeed({key: key, liquidity: liquidity});
-        swapFeeHook.seedPermanentLiquidity(seeds);
-        vm.stopPrank();
-
-        assertEq(swapFeeHook.lockedLiquidity(poolId), liquidity);
         assertEq(rangeGauge.gaugePool(poolId).activeGaugeLiquidity, 0);
         assertEq(rangeGauge.gaugePool(poolId).managedLegCount, 0);
     }

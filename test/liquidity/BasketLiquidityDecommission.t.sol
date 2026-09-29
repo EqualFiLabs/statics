@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
@@ -14,6 +15,7 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {BasketLiquidityLifecycleFacet} from "../../src/facets/BasketLiquidityLifecycleFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
@@ -48,25 +50,34 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
             tickSpacing: configured.tickSpacing,
             hooks: IHooks(configured.hook)
         });
+        vm.startPrank(alice);
+        IERC20(basketToken).approve(address(diamond), 1 ether);
+        uint256 rewardPosition = basketCollateral.createAndDepositBasketCollateral(basketId, 1 ether, alice);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 25 hours);
         _seedAndSwap();
+        vm.prank(alice);
+        basketCollateral.withdrawBasketCollateral(rewardPosition, basketId, 1 ether, alice);
         vm.warp(block.timestamp + 1 hours);
     }
 
     function testExitOnlyReleasesPolAndRoutesItToGlobalTreasury() public {
-        uint128 lockedBefore = swapFeeHook.lockedLiquidity(canonicalKey.toId());
         uint256 supplyBefore = IERC20(basketToken).totalSupply();
         uint256 vaultBefore = baskets.vaultBalance(basketId, constituent);
         uint256 treasuryBefore = globalRewards.treasuryAccrued(constituent);
-        assertGt(lockedBefore, 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonicalKey.toId()).activePolPositions, 1);
 
         governance.decommissionBasket(basketId);
+        _closeProtocolPol();
         vm.prank(bob);
         basketLiquidity.unwindBasketLiquidity(basketId, constituent);
 
         assertTrue(basketLiquidity.basketLiquidityUnwound(basketId, constituent));
         assertTrue(swapFeeHook.poolDecommissioned(canonicalKey.toId()));
         assertTrue(IStaticsRangeGauge(address(diamond)).gaugePool(canonicalKey.toId()).stopped);
-        assertEq(swapFeeHook.lockedLiquidity(canonicalKey.toId()), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonicalKey.toId()).activePolPositions, 0);
+        _assertHookSettlementCleared(canonicalKey.currency0);
+        _assertHookSettlementCleared(canonicalKey.currency1);
         assertLt(IERC20(basketToken).totalSupply(), supplyBefore);
         assertLt(baskets.vaultBalance(basketId, constituent), vaultBefore);
         assertGt(globalRewards.treasuryAccrued(constituent), treasuryBefore);
@@ -77,6 +88,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         basketLiquidity.unwindBasketLiquidity(basketId, constituent);
 
         governance.decommissionBasket(basketId);
+        _closeProtocolPol();
         basketLiquidity.unwindBasketLiquidity(basketId, constituent);
         vm.expectRevert();
         v4Router.swap(
@@ -89,6 +101,23 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
                     : TickMath.MAX_SQRT_PRICE - 1
             })
         );
+    }
+
+    function _closeProtocolPol() private {
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        uint256[] memory positionIds = pools.protocolPolPositionIds(canonicalKey.toId());
+        assertEq(positionIds.length, 1);
+        pools.closeProtocolPolPosition(positionIds[0], 0, 0, block.timestamp + 1 days);
+    }
+
+    function _assertHookSettlementCleared(Currency currency) private view {
+        PoolId poolId = canonicalKey.toId();
+        assertEq(swapFeeHook.pendingProtocolPol(poolId, currency), 0);
+        IStaticsSwapFeeHook.FeeDistribution memory pending = swapFeeHook.pendingFeeDistribution(poolId, currency);
+        assertEq(pending.basketStaker, 0);
+        assertEq(pending.staticsStaker, 0);
+        assertEq(pending.creator, 0);
+        assertEq(pending.treasury, 0);
     }
 
     function testGovernanceCanUpdateCappedFeeConfiguration() public {

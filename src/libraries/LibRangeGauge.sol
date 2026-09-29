@@ -11,6 +11,8 @@ import {LibIndexMath} from "./LibIndexMath.sol";
 
 /// @notice Diamond storage and accounting primitives for public-pool PNFT range gauges.
 library LibRangeGauge {
+    bytes32 internal constant PNFT_BINDING_DOMAIN = keccak256("statics.position.binding.pnft");
+    bytes32 internal constant PROTOCOL_POL_BINDING_DOMAIN = keccak256("statics.position.binding.protocol.pol");
     using TickBitmap for mapping(int16 wordPos => uint256 word);
 
     bytes32 internal constant STORAGE_POSITION = keccak256("statics.storage.range.gauge.v3");
@@ -237,7 +239,30 @@ library LibRangeGauge {
     }
 
     function bindingFor(uint256 positionId, PoolId poolId) internal pure returns (bytes32) {
-        return keccak256(abi.encode(positionId, PoolId.unwrap(poolId)));
+        return keccak256(abi.encode(PNFT_BINDING_DOMAIN, positionId, PoolId.unwrap(poolId)));
+    }
+
+    function protocolPolBindingFor(uint256 positionId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(PROTOCOL_POL_BINDING_DOMAIN, positionId));
+    }
+
+    function enforceProtocolPolBinding(uint256 posmTokenId, uint256 positionId) internal view {
+        bytes32 expected = protocolPolBindingFor(positionId);
+        bytes32 actual = rangeGaugeStorage().posmBinding[posmTokenId];
+        if (actual != expected) revert PosmBindingMismatch(posmTokenId, expected, actual);
+    }
+
+    function bindProtocolPol(uint256 posmTokenId, uint256 positionId) internal returns (bytes32 binding) {
+        RangeGaugeStorage storage rgs = rangeGaugeStorage();
+        bytes32 current = rgs.posmBinding[posmTokenId];
+        if (current != bytes32(0)) revert PosmAlreadyBound(posmTokenId, current);
+        binding = protocolPolBindingFor(positionId);
+        rgs.posmBinding[posmTokenId] = binding;
+    }
+
+    function unbindProtocolPol(uint256 posmTokenId, uint256 positionId) internal {
+        enforceProtocolPolBinding(posmTokenId, positionId);
+        delete rangeGaugeStorage().posmBinding[posmTokenId];
     }
 
     function bindPosm(uint256 posmTokenId, uint256 positionId, PoolId poolId) internal returns (bytes32 binding) {

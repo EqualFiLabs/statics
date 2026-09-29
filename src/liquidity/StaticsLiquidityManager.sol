@@ -94,7 +94,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         returns (ManagedPositionMovement memory movement)
     {
         _enforceDiamond();
-        _validateReceiver(refundRecipient);
+        _validateManagedOutputReceiver(refundRecipient);
         _validateMintRequest(request);
         PositionMovement memory minted = _executeMint(request, address(this));
         ManagedPositionState memory state = _managedState(minted.tokenId, true);
@@ -234,6 +234,17 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         _enforceDiamond();
         _validateOutputRequest(request, false);
         ManagedPositionState memory beforeState = _managedState(request.tokenId, false);
+        // Uniswap rejects a zero-delta fee poke after all liquidity is removed. The position has
+        // already passed the same ownership, pool, receiver, and deadline checks as a normal collect.
+        if (beforeState.liquidity == 0) {
+            movement.tokenId = request.tokenId;
+            movement.liquidityBefore = 0;
+            movement.liquidityAfter = 0;
+            emit ManagedPositionFeesCollected(
+                PoolId.unwrap(beforeState.poolId), request.tokenId, request.receiver, 0, 0
+            );
+            return movement;
+        }
         movement = _executeOutputChange(beforeState, request, Actions.DECREASE_LIQUIDITY, 0, false);
         ManagedPositionState memory afterState = _managedState(request.tokenId, false);
         _enforceSamePosition(request.tokenId, beforeState, afterState);
@@ -461,7 +472,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     }
 
     function _validateInputRequest(ManagedLiquidityRequest calldata request) private view {
-        _validateReceiver(request.receiver);
+        _validateManagedOutputReceiver(request.receiver);
         if (
             request.liquidity == 0 || request.deadline < block.timestamp || request.amount0Limit > type(uint128).max
                 || request.amount1Limit > type(uint128).max

@@ -4,7 +4,6 @@ pragma solidity ^0.8.26;
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {IStaticsPermanentLiquidityMath} from "./IStaticsPermanentLiquidityMath.sol";
 
 interface IStaticsSwapFeeHook {
     /// @dev Normalized protocol-pool class. Mirrors `IStaticsProtocolPools.ProtocolPoolKind` but is
@@ -14,11 +13,6 @@ interface IStaticsSwapFeeHook {
         None,
         BasketCanonical,
         General
-    }
-
-    struct PermanentLiquiditySeed {
-        PoolKey key;
-        uint128 liquidity;
     }
 
     struct PoolRegistration {
@@ -60,23 +54,6 @@ interface IStaticsSwapFeeHook {
         uint256 treasury;
     }
 
-    struct PermanentLiquidityRelease {
-        uint256 principal0;
-        uint256 principal1;
-        uint256 pendingPol0;
-        uint256 pendingPol1;
-        FeeDistribution distribution0;
-        FeeDistribution distribution1;
-    }
-
-    struct PermanentLiquidityCompound {
-        uint128 liquidityAdded;
-        uint256 amount0Consumed;
-        uint256 amount1Consumed;
-        uint256 tip0;
-        uint256 tip1;
-    }
-
     event PoolRegistered(
         PoolId indexed poolId, Currency indexed currency0, Currency indexed currency1, PoolKind kind, address creator
     );
@@ -95,13 +72,8 @@ interface IStaticsSwapFeeHook {
     event PendingFeeDistributionReallocated(
         PoolId indexed poolId, Currency indexed currency, uint256 basketStakerToPol, uint256 staticsStakerToTreasury
     );
-    event PermanentLiquidityAdded(
-        PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1, uint256 pending0, uint256 pending1
-    );
-    event PermanentLiquiditySeeded(PoolId indexed poolId, uint128 liquidity, uint256 amount0, uint256 amount1);
-    event PermanentLiquidityFeesAccrued(PoolId indexed poolId, Currency indexed currency, uint256 amount);
-    event PermanentLiquidityReleased(
-        PoolId indexed poolId, address indexed receiver, uint128 liquidity, uint256 amount0, uint256 amount1
+    event ProtocolPolSettled(
+        PoolId indexed poolId, Currency indexed currency, address indexed receiver, uint256 amount
     );
     event PoolDecommissioned(PoolId indexed poolId);
     event PoolFeeRateSet(PoolId indexed poolId, uint16 inputFeeBps, uint16 outputFeeBps, bool overridden);
@@ -112,7 +84,6 @@ interface IStaticsSwapFeeHook {
     event GeneralFeeAllocationSet(uint16 polShareBps, uint16 staticsStakerShareBps, uint16 treasuryShareBps);
 
     function staticsDiamond() external view returns (address);
-    function permanentLiquidityMath() external view returns (IStaticsPermanentLiquidityMath);
 
     // --- Fee rate (PoolId-local) ---
     function defaultFeeRate() external view returns (uint16 inputFeeBps, uint16 outputFeeBps);
@@ -133,26 +104,19 @@ interface IStaticsSwapFeeHook {
     function poolDecommissioned(PoolId poolId) external view returns (bool decommissioned);
     function poolRegistration(PoolId poolId) external view returns (PoolRegistration memory registration);
 
-    // --- Permanent liquidity ---
-    function pendingPermanentLiquidity(PoolId poolId, Currency currency) external view returns (uint256 amount);
+    // --- Managed POL inventory ---
+    function pendingProtocolPol(PoolId poolId, Currency currency) external view returns (uint256 amount);
     function pendingStakerRewards(Currency currency) external view returns (uint256 amount);
     function pendingFeeDistribution(PoolId poolId, Currency currency)
         external
         view
         returns (FeeDistribution memory distribution);
     function claimLiability(Currency currency) external view returns (uint256 amount);
-    function lockedLiquidity(PoolId poolId) external view returns (uint128 liquidity);
-    function seedPermanentLiquidity(PermanentLiquiditySeed[] calldata seeds) external;
     function settleFeeDistribution(PoolKey calldata key, Currency currency, address receiver)
         external
         returns (FeeDistribution memory distribution);
-    function settleStakerRewards(Currency currency, address receiver, uint256 amount)
+    function settleStakerRewards(Currency currency, address receiver, uint256 amount) external returns (uint256 settled);
+    function settleProtocolPol(PoolKey calldata key, Currency currency, address receiver, uint256 maximumAmount)
         external
-        returns (uint256 settled);
-    function compoundPermanentLiquidity(PoolKey calldata key, uint16 tipBps, address tipReceiver)
-        external
-        returns (PermanentLiquidityCompound memory result);
-    function releasePermanentLiquidity(PoolKey calldata key, address receiver)
-        external
-        returns (PermanentLiquidityRelease memory released);
+        returns (uint256 amount);
 }

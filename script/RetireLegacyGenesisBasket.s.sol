@@ -15,6 +15,7 @@ import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity
 import {IStaticsGlobalRewards} from "../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGovernance} from "../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsLending} from "../src/interfaces/IStaticsLending.sol";
+import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../src/interfaces/IStaticsSwapFeeHook.sol";
 
 struct LegacyBasketRetirementConfig {
@@ -161,8 +162,10 @@ contract RetireLegacyGenesisBasket is Script {
             }
             PoolId poolId = PoolId.wrap(config.poolIds[i]);
             if (!hook.poolDecommissioned(poolId)) revert PoolNotRetired(config.basketId, asset);
-            uint256 locked = hook.lockedLiquidity(poolId);
-            if (locked != 0) revert LockedProtocolLiquidityRemaining(config.poolIds[i], locked);
+            uint256 activePositions = IStaticsProtocolPools(config.diamond).protocolPool(poolId).activePolPositions;
+            if (activePositions != 0) {
+                revert LockedProtocolLiquidityRemaining(config.poolIds[i], activePositions);
+            }
             IStaticsBasketLiquidity.CanonicalPoolView memory pool = liquidity.canonicalPool(config.basketId, asset);
             _validateNoPending(hook, poolId, pool.currency0);
             _validateNoPending(hook, poolId, pool.currency1);
@@ -241,7 +244,10 @@ contract RetireLegacyGenesisBasket is Script {
             if (liquidity.basketLiquidityUnwound(config.basketId, asset) || hook.poolDecommissioned(poolId)) {
                 revert PoolAlreadyRetired(config.basketId, asset);
             }
-            if (hook.lockedLiquidity(poolId) == 0) revert NoLockedProtocolLiquidity(config.basketId, asset);
+            uint256 activePositions = IStaticsProtocolPools(config.diamond).protocolPool(poolId).activePolPositions;
+            if (activePositions != 0) {
+                revert LockedProtocolLiquidityRemaining(config.poolIds[i], activePositions);
+            }
         }
     }
 
@@ -315,7 +321,7 @@ contract RetireLegacyGenesisBasket is Script {
     }
 
     function _validateNoPending(IStaticsSwapFeeHook hook, PoolId poolId, address currency) private view {
-        uint256 pending = hook.pendingPermanentLiquidity(poolId, Currency.wrap(currency));
+        uint256 pending = hook.pendingProtocolPol(poolId, Currency.wrap(currency));
         if (pending != 0) revert PendingProtocolLiquidityRemaining(PoolId.unwrap(poolId), currency, pending);
     }
 }

@@ -18,6 +18,7 @@ library LibCustody {
     bytes32 internal constant GENESIS_REWARD_ACCOUNT = keccak256("statics.custody.account.genesis.rewards");
     bytes32 internal constant GAUGE_RESERVE_ACCOUNT = keccak256("statics.custody.account.gauge.reserve");
     bytes32 internal constant BASKET_ACCOUNT_DOMAIN = keccak256("statics.custody.account.basket");
+    bytes32 internal constant PROTOCOL_POL_ACCOUNT_DOMAIN = keccak256("statics.custody.account.protocol.pol");
 
     struct CustodyStorage {
         mapping(address token => uint256 amount) globalReservedByToken;
@@ -64,6 +65,10 @@ library LibCustody {
 
     function gaugeReserveAccount() internal pure returns (bytes32) {
         return GAUGE_RESERVE_ACCOUNT;
+    }
+
+    function protocolPolAccount(bytes32 poolId) internal pure returns (bytes32) {
+        return keccak256(abi.encode(PROTOCOL_POL_ACCOUNT_DOMAIN, poolId));
     }
 
     function globalReserved(address token) internal view returns (uint256) {

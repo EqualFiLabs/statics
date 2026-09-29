@@ -29,6 +29,9 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
 
     error LiquidityIntegrationNotInstalled();
     error PoolAlreadyDecommissioned(PoolId poolId);
+    error PoolNotDecommissioned(PoolId poolId);
+    error PoolDecommissionAlreadyFinalized(PoolId poolId);
+    error ActiveProtocolPolPositions(PoolId poolId, uint256 count);
     error IncompatibleTokenTransfer(address token, uint256 expected, uint256 observed);
     error InvalidLiquidityManager(address manager);
     error LiquidityManagerBindingMismatch(address manager, address expected, address actual);
@@ -95,29 +98,42 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         );
     }
 
-    function decommissionGeneralPool(PoolId poolId) external nonReentrant returns (uint256 amount0, uint256 amount1) {
+    function beginGeneralPoolDecommission(PoolId poolId) external nonReentrant {
         LibDiamond.enforceIsContractOwner();
         LibProtocolPools.GeneralPool storage stored = LibProtocolPools.generalPool(poolId);
         LibBasketLiquidity.LiquidityStorage storage ls = _liquidityStorage();
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
         if (hook.poolDecommissioned(poolId)) revert PoolAlreadyDecommissioned(poolId);
         _stopRangeGauge(ls, stored.key, poolId);
+        hook.decommissionPool(stored.key);
+        emit IStaticsProtocolPools.GeneralPoolDecommissionStarted(poolId);
+    }
+
+    function finalizeGeneralPoolDecommission(PoolId poolId)
+        external
+        nonReentrant
+        returns (uint256 amount0, uint256 amount1)
+    {
+        LibDiamond.enforceIsContractOwner();
+        LibProtocolPools.GeneralPool storage stored = LibProtocolPools.generalPool(poolId);
+        LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(_liquidityStorage().hook);
+        if (!hook.poolDecommissioned(poolId)) revert PoolNotDecommissioned(poolId);
+        if (ps.polDecommissionFinalized[poolId]) revert PoolDecommissionAlreadyFinalized(poolId);
+        uint256 activePositions = ps.activePolPositionCount[poolId];
+        if (activePositions != 0) revert ActiveProtocolPolPositions(poolId, activePositions);
+
+        _settleDecommissionAsset(hook, stored.key, poolId, stored.key.currency0);
+        _settleDecommissionAsset(hook, stored.key, poolId, stored.key.currency1);
+        bytes32 polAccount = LibCustody.protocolPolAccount(PoolId.unwrap(poolId));
         address currency0 = Currency.unwrap(stored.key.currency0);
         address currency1 = Currency.unwrap(stored.key.currency1);
-        uint256 before0 = IERC20(currency0).balanceOf(address(this));
-        uint256 before1 = IERC20(currency1).balanceOf(address(this));
-        hook.decommissionPool(stored.key);
-        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released =
-            hook.releasePermanentLiquidity(stored.key, address(this));
-        amount0 = released.principal0 + released.pendingPol0;
-        amount1 = released.principal1 + released.pendingPol1;
-        _enforceReceived(currency0, before0, amount0 + _distributionTotal(released.distribution0));
-        _enforceReceived(currency1, before1, amount1 + _distributionTotal(released.distribution1));
-        _accrueDistribution(poolId, currency0, released.distribution0);
-        _accrueDistribution(poolId, currency1, released.distribution1);
-        _reserveTreasury(currency0, amount0);
-        _reserveTreasury(currency1, amount1);
-        emit IStaticsProtocolPools.GeneralPoolDecommissioned(poolId, currency0, currency1, amount0, amount1);
+        amount0 = LibCustody.accountReserved(polAccount, currency0);
+        amount1 = LibCustody.accountReserved(polAccount, currency1);
+        _movePolToTreasury(polAccount, currency0, amount0);
+        _movePolToTreasury(polAccount, currency1, amount1);
+        ps.polDecommissionFinalized[poolId] = true;
+        emit IStaticsProtocolPools.GeneralPoolDecommissionFinalized(poolId, currency0, currency1, amount0, amount1);
     }
 
     function replaceLiquidityManager(address newManager) external {
@@ -144,6 +160,30 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         if (amount == 0) return;
         LibCustody.reserve(LibCustody.feeAccount(), token, amount);
         LibGlobalRewards.accrueReservedTreasuryFee(token, amount);
+    }
+
+    function _settleDecommissionAsset(IStaticsSwapFeeHook hook, PoolKey storage key, PoolId poolId, Currency currency)
+        private
+    {
+        address asset = Currency.unwrap(currency);
+        uint256 pending = hook.pendingProtocolPol(poolId, currency);
+        if (pending != 0) {
+            uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
+            uint256 settled = hook.settleProtocolPol(key, currency, address(this), pending);
+            _enforceReceived(asset, beforeBalance, settled);
+            LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, settled);
+        }
+        uint256 revenueBefore = IERC20(asset).balanceOf(address(this));
+        IStaticsSwapFeeHook.FeeDistribution memory distribution =
+            hook.settleFeeDistribution(key, currency, address(this));
+        _enforceReceived(asset, revenueBefore, _distributionTotal(distribution));
+        _accrueDistribution(poolId, asset, distribution);
+    }
+
+    function _movePolToTreasury(bytes32 polAccount, address asset, uint256 amount) private {
+        if (amount == 0) return;
+        LibCustody.moveReservation(polAccount, LibCustody.feeAccount(), asset, amount);
+        LibGlobalRewards.accrueReservedTreasuryFee(asset, amount);
     }
 
     function _accrueDistribution(PoolId poolId, address token, IStaticsSwapFeeHook.FeeDistribution memory distribution)

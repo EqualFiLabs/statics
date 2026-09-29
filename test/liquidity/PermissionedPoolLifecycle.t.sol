@@ -315,7 +315,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(creatorAmount, fee * 8_000 / BPS);
         assertEq(rewardAmount, fee * 1_000 / BPS);
         assertEq(treasuryAmount, fee - creatorAmount - rewardAmount);
-        assertEq(swapFeeHook.lockedLiquidity(poolId), 0);
+        assertEq(protocolPools.protocolPool(poolId).activePolPositions, 0);
     }
 
     function testBothRestrictedCurrenciesRouteEightyCreatorTwentyTreasury() public {
@@ -457,6 +457,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
             sqrtPriceBPerAX96: 1 << 96,
             initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
+            activateManagedPol: false,
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
@@ -1426,7 +1427,7 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(uint256(registered.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral));
         assertEq(address(registered.key.hooks), address(permissionedHook));
         assertEq(registered.creator, creator);
-        assertEq(registered.permanentLiquidity, 0);
+        assertEq(registered.activePolPositions, 0);
     }
 
     function _controllerReplacementAuthorization(

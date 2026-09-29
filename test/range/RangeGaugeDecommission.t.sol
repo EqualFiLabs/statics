@@ -29,7 +29,7 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         _fundReward(poolId, stakingAsset, 700 ether);
         vm.warp(block.timestamp + 1 days);
         uint256 treasuryBefore = globalRewards.treasuryAccrued(address(stakingAsset));
-        IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
+        IStaticsProtocolPools(address(diamond)).beginGeneralPoolDecommission(poolId);
 
         IStaticsRangeGauge.GaugePoolView memory gauge = rangeGauge.gaugePool(poolId);
         IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
@@ -50,7 +50,7 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         _provide(positionId, poolId, alice);
         MockERC20 extraReward = new MockERC20("Extra Reward", "EXTRA", 18);
         rangeGauge.setGaugeRewardAssetAllowed(address(extraReward), true);
-        IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
+        IStaticsProtocolPools(address(diamond)).beginGeneralPoolDecommission(poolId);
 
         uint256 emptyPosition = _createPosition(alice);
         vm.prank(alice);
@@ -138,7 +138,7 @@ contract RangeGaugeDecommissionTest is RangeGaugeLifecycleTestBase {
         _fundReward(poolId, stakingAsset, 1);
         uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         vm.warp(block.timestamp + 7 days);
-        IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
+        IStaticsProtocolPools(address(diamond)).beginGeneralPoolDecommission(poolId);
 
         IStaticsRangeGauge.GaugeRewardStreamView memory beforeExit = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(beforeExit.indexedLiability, 1);

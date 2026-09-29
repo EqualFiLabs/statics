@@ -261,12 +261,12 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
 
     // --- Authorization ---
 
-    function testQuoteAuthorizationDigestMatchesVersionThreeSchema() public view {
+    function testQuoteAuthorizationDigestMatchesVersionFourSchema() public view {
         IStaticsProtocolPools.CreatePoolParams memory params = _params(address(assetA), address(assetB), alice);
         params.initialFeeRate = IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 40, outputFeeBps: 60});
         IStaticsProtocolPools.GeneralPoolQuote memory quote = pools.quotePool(params);
 
-        assertEq(quote.authorizationDigest, _versionThreeAuthorizationDigest(params, quote));
+        assertEq(quote.authorizationDigest, _versionFourAuthorizationDigest(params, quote));
     }
 
     function testEoaCreatorAuthorizationSucceedsAndConsumesNonce() public {
@@ -526,9 +526,7 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
     function testPermissionlessRevenueSettlementIsConfiguredAndGuardianPaused() public {
         PoolId poolId = pools.createPool(_params(address(assetA), address(assetB), alice), "");
         IStaticsProtocolPools.ProtocolPoolMaintenanceConfig memory config =
-            IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({
-                revenueTipBps: 500, compoundTipBps: 100, twapWindow: 30 minutes, maxTickDeviation: 500
-            });
+            IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: 500});
 
         IStaticsProtocolPools.ProtocolPoolMaintenanceConfig memory invalid = config;
         invalid.revenueTipBps = 2_001;
@@ -576,6 +574,7 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
             sqrtPriceBPerAX96: SQRT_PRICE_1_1,
             initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
+            activateManagedPol: false,
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
@@ -614,7 +613,7 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 
-    function _versionThreeAuthorizationDigest(
+    function _versionFourAuthorizationDigest(
         IStaticsProtocolPools.CreatePoolParams memory params,
         IStaticsProtocolPools.GeneralPoolQuote memory quote
     ) private view returns (bytes32 digest) {
@@ -622,13 +621,13 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
             abi.encode(
                 EIP712_DOMAIN_TYPEHASH,
                 keccak256(bytes("Statics Protocol Pools")),
-                keccak256(bytes("3")),
+                keccak256(bytes("4")),
                 block.chainid,
                 address(diamond)
             )
         );
         bytes32 typeHash = keccak256(
-            "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,uint256 nonce,uint256 deadline)"
+            "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,bool activateManagedPol,uint256 nonce,uint256 deadline)"
         );
         bytes32 structHash = keccak256(
             abi.encode(
@@ -638,6 +637,7 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
                 params.initialFeeRate.inputFeeBps,
                 params.initialFeeRate.outputFeeBps,
                 params.creator,
+                params.activateManagedPol,
                 params.nonce,
                 params.deadline
             )

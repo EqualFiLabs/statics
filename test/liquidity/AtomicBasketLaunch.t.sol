@@ -15,6 +15,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
 import {LibBasket} from "../../src/libraries/LibBasket.sol";
@@ -42,7 +43,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         for (uint256 i; i < assets.length; ++i) {
             IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
                 basketLiquidity.canonicalPool(basketId, address(assets[i]));
-            assertGt(swapFeeHook.lockedLiquidity(canonical.poolId), 0);
+            assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonical.poolId).activePolPositions, 1);
             assertGt(poolManager.getLiquidity(canonical.poolId), 0);
             assertGt(assets[i].balanceOf(address(poolManager)), 0);
             assertEq(
@@ -81,7 +82,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         assertGt(assetA.balanceOf(alice), assetBefore);
         assertTrue(delta.amount0() != 0);
         assertTrue(delta.amount1() != 0);
-        assertGt(swapFeeHook.lockedLiquidity(canonical.poolId), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonical.poolId).activePolPositions, 1);
     }
 
     function testFuzzLaunchUsesSemanticAssetPerBasketPrice(uint256 rawTick, uint256 rawPairedAmount) public {

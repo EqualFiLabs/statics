@@ -66,7 +66,6 @@ struct StaticsDollarStackDeployment {
     address poolManager;
     address positionManager;
     address permit2;
-    address permanentLiquidityMath;
     address swapFeeHook;
     address liquidityManager;
     address stateView;
@@ -113,9 +112,6 @@ abstract contract DeployStaticsDollarBase is DeployCoreBootstrap {
             console2.log("STATICS_POOL_MANAGER_ADDRESS", deployment.poolManager);
             console2.log("STATICS_POSITION_MANAGER_ADDRESS", deployment.positionManager);
             console2.log("STATICS_PERMIT2_ADDRESS", deployment.permit2);
-            console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_ADDRESS", deployment.permanentLiquidityMath);
-            console2.log("STATICS_PERMANENT_LIQUIDITY_MATH_RUNTIME_CODE_HASH");
-            console2.logBytes32(deployment.permanentLiquidityMath.codehash);
             console2.log("STATICS_SWAP_FEE_HOOK_ADDRESS", deployment.swapFeeHook);
             console2.log("STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH");
             console2.logBytes32(deployment.swapFeeHook.codehash);

@@ -17,7 +17,7 @@ jobs:
   slither:
     name: Security / Slither baseline
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,7 +78,9 @@ jobs:
       matrix:
         target:
           - established
-          - permanent-liquidity
+          - protocol-pol
+          - phase-one
+          - range-gauges
     steps:
       - name: Checkout
         uses: actions/checkout@v4

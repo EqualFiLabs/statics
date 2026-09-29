@@ -19,8 +19,8 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 contract RangeGaugeGasHarness is RangeGaugeCallbackHarness, MarketTapeObservationFacet {}
 
 contract RangeGaugeGasTest is Test {
-    uint256 private constant REVIEWED_HOOK_BASELINE = 24_228;
-    uint256 private constant MARKET_TAPE_PUBLIC_HOOK_RUNTIME = 24_303;
+    uint256 private constant REVIEWED_HOOK_BASELINE = 17_081;
+    uint256 private constant MANAGED_POL_PUBLIC_HOOK_RUNTIME = 17_081;
     uint256 private constant MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME = 15_576;
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
     uint256 private constant MIN_HOOK_HEADROOM = 256;
@@ -52,11 +52,11 @@ contract RangeGaugeGasTest is Test {
     }
 
     /// @dev The granular event is emitted by the Diamond and must not alter either immutable hook.
-    function test_MarketTapeEventDoesNotChangeHookRuntimes() public {
+    function test_ReviewedHookRuntimesRemainPinned() public {
         uint256 publicRuntime = vm.getDeployedCode("src/liquidity/StaticsSwapFeeHook.sol:StaticsSwapFeeHook").length;
         uint256 permissionedRuntime =
             vm.getDeployedCode("src/liquidity/StaticsPermissionedSwapFeeHook.sol:StaticsPermissionedSwapFeeHook").length;
-        assertEq(publicRuntime, MARKET_TAPE_PUBLIC_HOOK_RUNTIME);
+        assertEq(publicRuntime, MANAGED_POL_PUBLIC_HOOK_RUNTIME);
         assertEq(permissionedRuntime, MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME);
     }
 

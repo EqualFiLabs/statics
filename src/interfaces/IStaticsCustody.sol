@@ -18,4 +18,5 @@ interface IStaticsCustody {
 
     function genesisRewardCustodyAccount() external pure returns (bytes32);
     function gaugeReserveCustodyAccount() external pure returns (bytes32);
+    function protocolPolCustodyAccount(bytes32 poolId) external pure returns (bytes32);
 }

@@ -28,4 +28,8 @@ interface IStaticsProtocolRevenue {
     function creatorRevenue(PoolId poolId, address asset) external view returns (uint256 amount);
     function totalCreatorRevenue(address asset) external view returns (uint256 amount);
     function canAccrueBasketRewards(PoolId poolId) external view returns (bool eligible);
+    function protocolPolFundingConfig(PoolId poolId)
+        external
+        view
+        returns (bool activated, bool overridden, uint16 shareBps);
 }

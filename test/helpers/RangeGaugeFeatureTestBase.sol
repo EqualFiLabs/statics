@@ -175,6 +175,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
             sqrtPriceBPerAX96: SQRT_PRICE_1_1,
             initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
+            activateManagedPol: false,
             nonce: rangePoolNonce++,
             deadline: type(uint256).max
         });

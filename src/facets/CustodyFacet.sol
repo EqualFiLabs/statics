@@ -40,4 +40,8 @@ contract CustodyFacet is IStaticsCustody {
     function gaugeReserveCustodyAccount() external pure returns (bytes32) {
         return LibCustody.gaugeReserveAccount();
     }
+
+    function protocolPolCustodyAccount(bytes32 poolId) external pure returns (bytes32) {
+        return LibCustody.protocolPolAccount(poolId);
+    }
 }

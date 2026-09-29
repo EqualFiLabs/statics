@@ -17,9 +17,11 @@ contract ConfigureStaticsLiquidityTest is Test {
             permit2: makeAddr("permit2"),
             hook: makeAddr("hook"),
             manager: makeAddr("manager"),
-            permanentLiquidityHarvester: makeAddr("harvester"),
+            revenueMaintenanceTipBps: 500,
             inputFeeBps: 25,
             outputFeeBps: 25,
+            protocolPolOperator: makeAddr("protocolPolOperator"),
+            protocolPolActivationFee: 0.1 ether,
             poolManagerCodeHash: bytes32(0),
             positionManagerCodeHash: bytes32(0),
             permit2CodeHash: bytes32(0),
@@ -30,9 +32,9 @@ contract ConfigureStaticsLiquidityTest is Test {
         (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
             ceremony.buildBatch(diamond, config);
 
-        assertEq(targets.length, 3);
-        assertEq(values.length, 3);
-        assertEq(payloads.length, 3);
+        assertEq(targets.length, 5);
+        assertEq(values.length, 5);
+        assertEq(payloads.length, 5);
         assertEq(targets[0], diamond);
         assertEq(targets[1], diamond);
         assertEq(targets[2], diamond);
@@ -41,11 +43,13 @@ contract ConfigureStaticsLiquidityTest is Test {
         assertEq(values[2], 0);
         assertEq(_selector(payloads[0]), IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector);
         assertEq(_selector(payloads[1]), IStaticsBasketLiquidity.installLiquidityManager.selector);
-        assertEq(_selector(payloads[2]), IStaticsProtocolPools.setPermanentLiquidityHarvester.selector);
+        assertEq(_selector(payloads[2]), IStaticsProtocolPools.setProtocolPoolMaintenanceConfig.selector);
+        assertEq(_selector(payloads[3]), IStaticsProtocolPools.setProtocolPolOperator.selector);
+        assertEq(_selector(payloads[4]), IStaticsProtocolPools.setProtocolPolActivationFee.selector);
         assertEq(_addressArgument(payloads[0], 0), config.poolManager);
         assertEq(_addressArgument(payloads[0], 1), config.hook);
         assertEq(_addressArgument(payloads[1], 0), config.manager);
-        assertEq(_addressArgument(payloads[2], 0), config.permanentLiquidityHarvester);
+        assertEq(_uintArgument(payloads[2], 0), config.revenueMaintenanceTipBps);
     }
 
     function _selector(bytes memory payload) private pure returns (bytes4 selector) {
@@ -55,6 +59,12 @@ contract ConfigureStaticsLiquidityTest is Test {
     }
 
     function _addressArgument(bytes memory payload, uint256 index) private pure returns (address value) {
+        assembly ("memory-safe") {
+            value := mload(add(add(payload, 0x24), mul(index, 0x20)))
+        }
+    }
+
+    function _uintArgument(bytes memory payload, uint256 index) private pure returns (uint256 value) {
         assembly ("memory-safe") {
             value := mload(add(add(payload, 0x24), mul(index, 0x20)))
         }

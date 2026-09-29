@@ -34,11 +34,7 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         super.setUp();
         revenue = IStaticsProtocolRevenue(address(diamond));
         staticsStakers = IStaticsGlobalRewards(address(diamond));
-        pools.setProtocolPoolMaintenanceConfig(
-            IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({
-                revenueTipBps: 0, compoundTipBps: 0, twapWindow: 30 minutes, maxTickDeviation: 500
-            })
-        );
+        pools.setProtocolPoolMaintenanceConfig(IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: 0}));
     }
 
     function testGeneralPoolUsesNativeFeesAndRoutesPolFeesToTreasury() public {
@@ -60,7 +56,8 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
 
         assertGt(revenue.creatorRevenue(poolId, tokenA), 0);
         assertGt(revenue.creatorRevenue(poolId, tokenB), 0);
-        assertGt(swapFeeHook.lockedLiquidity(poolId), 0);
+        assertEq(swapFeeHook.pendingProtocolPol(poolId, key.currency0), 0);
+        assertEq(swapFeeHook.pendingProtocolPol(poolId, key.currency1), 0);
         address[] memory rewardAssets = new address[](2);
         rewardAssets[0] = tokenA;
         rewardAssets[1] = tokenB;
@@ -82,9 +79,10 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         assertEq(claimed, creatorOwed);
         assertEq(IERC20(tokenA).balanceOf(creator) - creatorBefore, creatorOwed);
 
-        pools.decommissionGeneralPool(poolId);
+        pools.beginGeneralPoolDecommission(poolId);
+        pools.finalizeGeneralPoolDecommission(poolId);
         assertTrue(pools.protocolPool(poolId).decommissioned);
-        assertEq(swapFeeHook.lockedLiquidity(poolId), 0);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 0);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), lp);
 
         MockERC20(Currency.unwrap(key.currency0)).mint(trader, 0.01 ether);
@@ -108,12 +106,18 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
 
         _mintFullRangeGeneralPosition(keyLow, lp, 5 ether);
         _mintFullRangeGeneralPosition(keyHigh, makeAddr("second-lp"), 5 ether);
+        vm.prank(creator);
+        pools.activateProtocolPoolPol(poolHigh);
         _swapGeneralPool(keyHigh, trader, true, 0.05 ether);
         _swapGeneralPool(keyHigh, trader, false, 0.05 ether);
         _maintainPool(poolHigh, keyHigh);
 
-        assertEq(swapFeeHook.lockedLiquidity(poolLow), 0);
-        assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
+        assertEq(swapFeeHook.pendingProtocolPol(poolLow, keyLow.currency0), 0);
+        assertGt(
+            swapFeeHook.pendingProtocolPol(poolHigh, keyHigh.currency0)
+                + swapFeeHook.pendingProtocolPol(poolHigh, keyHigh.currency1),
+            0
+        );
     }
 
     function testSamePairDifferentNativeFeesSwapAndAccountIndependently() public {
@@ -127,6 +131,10 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
 
         _mintFullRangeGeneralPosition(keyLow, lp, 5 ether);
         _mintFullRangeGeneralPosition(keyHigh, makeAddr("fee-high-lp"), 5 ether);
+        vm.prank(creator);
+        pools.activateProtocolPoolPol(poolLow);
+        vm.prank(creator);
+        pools.activateProtocolPoolPol(poolHigh);
         _swapGeneralPool(keyLow, trader, true, 0.05 ether);
         _swapGeneralPool(keyLow, trader, false, 0.05 ether);
         _swapGeneralPool(keyHigh, trader, true, 0.05 ether);
@@ -134,8 +142,16 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         _maintainPool(poolLow, keyLow);
         _maintainPool(poolHigh, keyHigh);
 
-        assertGt(swapFeeHook.lockedLiquidity(poolLow), 0);
-        assertGt(swapFeeHook.lockedLiquidity(poolHigh), 0);
+        assertGt(
+            swapFeeHook.pendingProtocolPol(poolLow, keyLow.currency0)
+                + swapFeeHook.pendingProtocolPol(poolLow, keyLow.currency1),
+            0
+        );
+        assertGt(
+            swapFeeHook.pendingProtocolPol(poolHigh, keyHigh.currency0)
+                + swapFeeHook.pendingProtocolPol(poolHigh, keyHigh.currency1),
+            0
+        );
     }
 
     function testSwapTimeStakerOwnershipSurvivesDelayedFundingAndStakeTurnover() public {
@@ -333,7 +349,6 @@ contract GeneralPoolLifecycleTest is GeneralPoolLifecycleTestBase {
         vm.warp(block.timestamp + 30 minutes);
         vm.roll(block.number + 1);
         _swapGeneralPool(key, trader, true, 0.001 ether);
-        pools.compoundProtocolPoolPol(poolId);
         _settlePool(poolId, key);
     }
 

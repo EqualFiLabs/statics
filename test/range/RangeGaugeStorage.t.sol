@@ -125,7 +125,8 @@ contract RangeGaugeStorageTest is Test {
         vm.expectRevert(abi.encodeWithSelector(LibRangeGauge.PosmAlreadyBound.selector, 91, binding));
         gauge.bindPosm(91, 8, POOL_B);
 
-        bytes32 wrong = keccak256(abi.encode(uint256(8), PoolId.unwrap(POOL_A)));
+        bytes32 wrong =
+            keccak256(abi.encode(keccak256("statics.position.binding.pnft"), uint256(8), PoolId.unwrap(POOL_A)));
         vm.expectRevert(abi.encodeWithSelector(LibRangeGauge.PosmBindingMismatch.selector, 91, wrong, binding));
         gauge.unbindPosm(91, 8, POOL_A);
 

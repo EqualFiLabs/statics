@@ -74,4 +74,16 @@ contract ProtocolRevenueFacet is IStaticsProtocolRevenue, ReentrancyGuard {
         if (kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) return false;
         return LibBasketRewards.canAccrue(basketId);
     }
+
+    function protocolPolFundingConfig(PoolId poolId)
+        external
+        view
+        returns (bool activated, bool overridden, uint16 shareBps)
+    {
+        (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = LibProtocolPools.enforceRegistered(poolId);
+        LibProtocolPools.PolFundingConfig storage config = LibProtocolPools.protocolPoolStorage().polFunding[poolId];
+        activated = kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical || config.activated;
+        overridden = config.overrideSet;
+        shareBps = config.shareBps;
+    }
 }

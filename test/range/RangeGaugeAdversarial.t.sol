@@ -129,7 +129,9 @@ contract RangeGaugeAdversarialTest is RangeGaugeLifecycleTestBase {
         _fundReward(poolId, stakingAsset, 700 ether);
         uint8 staticsSlot = _ordinaryRewardSlot(poolId, address(stakingAsset));
         uint256 treasuryBefore = globalRewards.treasuryAccrued(address(stakingAsset));
-        IStaticsProtocolPools(address(diamond)).decommissionGeneralPool(poolId);
+        IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
+        protocolPools.beginGeneralPoolDecommission(poolId);
+        protocolPools.finalizeGeneralPoolDecommission(poolId);
 
         IStaticsRangeGauge.GaugeRewardStreamView memory stream = rangeGauge.poolRewardStream(poolId, staticsSlot);
         assertEq(stream.periodBudget, stream.periodEmitted);

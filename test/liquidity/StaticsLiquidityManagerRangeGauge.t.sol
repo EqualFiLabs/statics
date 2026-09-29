@@ -232,6 +232,32 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
         _assertNoManagerResidue();
     }
 
+    function testEmptyManagedPositionFeeCollectionIsValidatedNoOp() public {
+        IStaticsLiquidityManager.ManagedPositionMovement memory minted = _mintManaged(5 ether, 6 ether);
+        liquidityManager.decreaseManagedPosition(_managedRequest(minted.tokenId, 5 ether, 0, 0, alice));
+
+        uint256 alice0Before = IERC20(Currency.unwrap(canonicalKey.currency0)).balanceOf(alice);
+        uint256 alice1Before = IERC20(Currency.unwrap(canonicalKey.currency1)).balanceOf(alice);
+        IStaticsLiquidityManager.ManagedPositionMovement memory collected =
+            liquidityManager.collectManagedPositionFees(_managedRequest(minted.tokenId, 0, 0, 0, alice));
+
+        assertEq(collected.tokenId, minted.tokenId);
+        assertEq(collected.liquidityBefore, 0);
+        assertEq(collected.liquidityAfter, 0);
+        assertEq(collected.received0, 0);
+        assertEq(collected.received1, 0);
+        assertEq(IERC20(Currency.unwrap(canonicalKey.currency0)).balanceOf(alice), alice0Before);
+        assertEq(IERC20(Currency.unwrap(canonicalKey.currency1)).balanceOf(alice), alice1Before);
+        assertEq(IERC721(address(positionManagerContract)).ownerOf(minted.tokenId), address(liquidityManager));
+        _assertNoManagerResidue();
+
+        IStaticsLiquidityManager.ManagedLiquidityRequest memory expired =
+            _managedRequest(minted.tokenId, 0, 0, 0, alice);
+        expired.deadline = block.timestamp - 1;
+        vm.expectRevert(StaticsLiquidityManager.InvalidPositionParameters.selector);
+        liquidityManager.collectManagedPositionFees(expired);
+    }
+
     function testManagedMethodsRemainDiamondOnly() public {
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(StaticsLiquidityManager.OnlyStaticsDiamond.selector, bob));

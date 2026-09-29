@@ -149,6 +149,7 @@ contract GeneralPoolCreationFuzzTest is CanonicalPoolTestBase {
             sqrtPriceBPerAX96: 1 << 96,
             initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: address(this),
+            activateManagedPol: false,
             nonce: 1,
             deadline: block.timestamp + 1 days
         });
@@ -273,6 +274,7 @@ contract GeneralPoolCreatorRevenueInvariantTest is StdInvariant, CanonicalPoolTe
             sqrtPriceBPerAX96: 1 << 96,
             initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
             creator: creator,
+            activateManagedPol: false,
             nonce: 1,
             deadline: block.timestamp + 1 days
         });

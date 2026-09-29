@@ -33,9 +33,9 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant DOMAIN_NAME_HASH = keccak256(bytes("Statics Protocol Pools"));
-    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("3"));
+    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("4"));
     bytes32 private constant CREATE_POOL_TYPEHASH = keccak256(
-        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,uint256 nonce,uint256 deadline)"
+        "CreatePool(bytes32 poolId,uint160 sqrtPriceX96,uint16 inputFeeBps,uint16 outputFeeBps,address creator,bool activateManagedPol,uint256 nonce,uint256 deadline)"
     );
 
     error LiquidityIntegrationNotInstalled();
@@ -85,7 +85,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         if (initializedPrice != 0) revert PoolAlreadyInitialized(poolId);
 
         _authorizeCreator(params, quote.authorizationDigest, creatorAuthorization);
-        _collectCreationFee(quote.creationFee);
+        _collectCreationFee(quote.totalNativeFee);
         bool overrideInitialFeeRate = _validateInitialFeeRate(hook, params.initialFeeRate);
         _registerAndInitialize(ls, hook, params, quote, overrideInitialFeeRate);
     }
@@ -102,6 +102,9 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
         stored.key = quote.key;
         stored.creator = params.creator;
         stored.registered = true;
+        if (params.activateManagedPol) {
+            LibProtocolPools.protocolPoolStorage().polFunding[poolId].activated = true;
+        }
 
         hook.registerPool(quote.key, IStaticsSwapFeeHook.PoolKind.General, params.creator);
         if (overrideInitialFeeRate) {
@@ -121,6 +124,9 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
             quote.sqrtPriceX96,
             tick
         );
+        if (params.activateManagedPol) {
+            emit IStaticsProtocolPools.ProtocolPolActivated(poolId, params.creator, quote.polActivationFee);
+        }
     }
 
     function invalidatePoolCreationNonce(uint256 nonce) external {
@@ -152,7 +158,10 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
             hooks: IHooks(ls.hook)
         });
         quote.poolId = quote.key.toId();
-        quote.creationFee = LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount;
+        LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
+        quote.creationFee = ps.poolCreationFeeAmount;
+        quote.polActivationFee = params.activateManagedPol ? ps.polActivationFeeAmount : 0;
+        quote.totalNativeFee = quote.creationFee + quote.polActivationFee;
         quote.authorizationDigest = _authorizationDigest(quote.poolId, quote.sqrtPriceX96, params);
     }
 
@@ -184,6 +193,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
                 params.initialFeeRate.inputFeeBps,
                 params.initialFeeRate.outputFeeBps,
                 params.creator,
+                params.activateManagedPol,
                 params.nonce,
                 params.deadline
             )

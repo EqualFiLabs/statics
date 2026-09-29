@@ -20,18 +20,40 @@ contract ProtocolPoolViewFacet {
         bool registered = kind != IStaticsProtocolPools.ProtocolPoolKind.None;
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(_liquidityStorage().hook);
         bool permissioned = kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral;
-        pool = IStaticsProtocolPools.ProtocolPoolView({
-            poolId: poolId,
-            key: key,
-            kind: kind,
-            decommissioned: permissioned
-                ? LibPermissionedPools.resolve(poolId).decommissioned
-                : registered && hook.poolDecommissioned(poolId),
-            basketId: basketId,
-            basketAsset: basketAsset,
-            creator: LibProtocolPools.creatorOf(poolId),
-            permanentLiquidity: registered && !permissioned ? hook.lockedLiquidity(poolId) : 0
-        });
+        pool.poolId = poolId;
+        pool.key = key;
+        pool.kind = kind;
+        pool.decommissioned = permissioned
+            ? LibPermissionedPools.resolve(poolId).decommissioned
+            : registered && hook.poolDecommissioned(poolId);
+        pool.basketId = basketId;
+        pool.basketAsset = basketAsset;
+        pool.creator = LibProtocolPools.creatorOf(poolId);
+
+        LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
+        LibProtocolPools.PolFundingConfig storage polConfig = ps.polFunding[poolId];
+        pool.polActivated = kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical || polConfig.activated;
+        pool.polShareOverridden = polConfig.overrideSet;
+        if (pool.polActivated && !permissioned) {
+            if (polConfig.overrideSet) {
+                uint16 available;
+                if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
+                    IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();
+                    available = allocation.polShareBps + allocation.treasuryShareBps;
+                } else {
+                    IStaticsSwapFeeHook.GeneralFeeAllocation memory allocation = hook.generalFeeAllocation();
+                    available = allocation.polShareBps + allocation.treasuryShareBps;
+                }
+                pool.polShareBps = polConfig.shareBps < available ? polConfig.shareBps : available;
+            } else if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
+                IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();
+                pool.polShareBps = allocation.polShareBps;
+            } else {
+                IStaticsSwapFeeHook.GeneralFeeAllocation memory allocation = hook.generalFeeAllocation();
+                pool.polShareBps = allocation.polShareBps;
+            }
+        }
+        pool.activePolPositions = ps.activePolPositionCount[poolId];
     }
 
     function isProtocolPool(PoolId poolId) external view returns (bool registered) {
@@ -41,6 +63,14 @@ contract ProtocolPoolViewFacet {
 
     function poolCreationFee() external view returns (uint256 amount) {
         return LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount;
+    }
+
+    function protocolPolActivationFee() external view returns (uint256 amount) {
+        return LibProtocolPools.protocolPoolStorage().polActivationFeeAmount;
+    }
+
+    function protocolPolOperator() external view returns (address operator) {
+        return LibProtocolPools.protocolPoolStorage().polOperator;
     }
 
     function isPoolCreationNonceUsed(address creator, uint256 nonce) external view returns (bool used) {
@@ -103,12 +133,30 @@ contract ProtocolPoolViewFacet {
         returns (IStaticsProtocolPools.ProtocolPoolMaintenanceConfig memory config)
     {
         LibProtocolPools.ProtocolPoolStorage storage ps = LibProtocolPools.protocolPoolStorage();
-        config = IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({
-            revenueTipBps: ps.revenueTipBps,
-            compoundTipBps: ps.compoundTipBps,
-            twapWindow: ps.twapWindow,
-            maxTickDeviation: ps.maxTickDeviation
+        config = IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: ps.revenueTipBps});
+    }
+
+    function protocolPolPosition(uint256 positionId)
+        external
+        view
+        returns (IStaticsProtocolPools.ProtocolPolPositionView memory position)
+    {
+        LibProtocolPools.ProtocolPolPosition storage stored =
+            LibProtocolPools.protocolPoolStorage().polPositions[positionId];
+        position = IStaticsProtocolPools.ProtocolPolPositionView({
+            positionId: positionId,
+            poolId: stored.poolId,
+            manager: stored.manager,
+            posmTokenId: stored.posmTokenId,
+            tickLower: stored.tickLower,
+            tickUpper: stored.tickUpper,
+            liquidity: stored.liquidity,
+            active: stored.active
         });
+    }
+
+    function protocolPolPositionIds(PoolId poolId) external view returns (uint256[] memory positionIds) {
+        return LibProtocolPools.protocolPoolStorage().polPositionIds[poolId];
     }
 
     function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {

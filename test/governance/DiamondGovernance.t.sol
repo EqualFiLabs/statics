@@ -10,13 +10,15 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
@@ -25,13 +27,12 @@ import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
+import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
-import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
 contract VersionFacet {
     function version() external pure returns (uint256) {
@@ -80,7 +81,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 51);
+        assertEq(loupe.facetAddresses().length, 52);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
@@ -307,8 +308,7 @@ contract DiamondGovernanceTest is Test {
         assertGt(baskets.vaultBalance(0, address(constituent)), 0);
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
             IStaticsBasketLiquidity(address(diamond)).canonicalPool(0, address(constituent));
-        (, address hook,) = IStaticsBasketLiquidity(address(diamond)).liquidityIntegration();
-        assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(canonical.poolId), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonical.poolId).activePolPositions, 1);
     }
 
     function testTimelockCanReconfigurePeripheryParametersRepeatedly() public {
@@ -474,15 +474,21 @@ contract DiamondGovernanceTest is Test {
     function _installBasketLaunchLiquidity() private {
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(hook), expected);
-        MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(address(diamond), address(poolManager));
+        IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        IPositionManager positionManager = IPositionManager(
+            deployCode(
+                "out/PositionManager.sol/PositionManager.json",
+                abi.encode(address(poolManager), address(permit2), uint256(100_000), address(0), address(0))
+            )
+        );
+        StaticsLiquidityManager manager = new StaticsLiquidityManager(
+            address(diamond), address(positionManager), address(poolManager), address(permit2)
+        );
         _executeThroughTimelock(
             abi.encodeCall(
                 IStaticsBasketLiquidity.installCanonicalPoolIntegration, (address(poolManager), address(hook))

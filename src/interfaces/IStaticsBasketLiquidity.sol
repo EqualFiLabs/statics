@@ -30,7 +30,7 @@ interface IStaticsBasketLiquidity {
     event CanonicalPoolSyncedToManager(
         uint256 indexed basketId, address indexed asset, PoolId indexed poolId, address manager
     );
-    event PermanentLiquidityTreasuryAccrued(
+    event ProtocolPolTreasuryAccrued(
         uint256 indexed basketId, address indexed sourcePoolAsset, address indexed rewardAsset, uint256 amount
     );
     event BasketLiquidityUnwound(

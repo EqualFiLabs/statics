@@ -24,14 +24,35 @@ library LibProtocolPools {
         bool registered;
     }
 
+    struct PolFundingConfig {
+        bool activated;
+        bool overrideSet;
+        uint16 shareBps;
+    }
+
+    struct ProtocolPolPosition {
+        PoolId poolId;
+        address manager;
+        uint256 posmTokenId;
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+        bool active;
+    }
+
     struct ProtocolPoolStorage {
         mapping(PoolId poolId => GeneralPool pool) generalPools;
         mapping(address creator => mapping(uint256 nonce => bool used)) poolCreationNonceUsed;
         uint256 poolCreationFeeAmount;
         uint16 revenueTipBps;
-        uint16 compoundTipBps;
-        uint32 twapWindow;
-        uint24 maxTickDeviation;
+        address polOperator;
+        uint256 polActivationFeeAmount;
+        uint256 nextPolPositionId;
+        mapping(PoolId poolId => PolFundingConfig config) polFunding;
+        mapping(uint256 positionId => ProtocolPolPosition position) polPositions;
+        mapping(PoolId poolId => uint256[] positionIds) polPositionIds;
+        mapping(PoolId poolId => uint256 count) activePolPositionCount;
+        mapping(PoolId poolId => bool finalized) polDecommissionFinalized;
     }
 
     error ProtocolPoolNotRegistered(PoolId poolId);
