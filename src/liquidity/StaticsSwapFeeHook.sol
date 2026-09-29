@@ -48,9 +48,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     uint8 private constant UNLOCK_SEED = 2;
     uint8 private constant UNLOCK_SETTLE = 3;
     uint8 private constant UNLOCK_COMPOUND = 4;
+    uint8 private constant UNLOCK_STAKER = 5;
     uint8 private constant MARKET_FLAG_ZERO_FOR_ONE = 1 << 0;
     uint8 private constant MARKET_FLAG_EXACT_OUTPUT = 1 << 1;
     bytes32 private constant PERMANENT_LIQUIDITY_SALT = keccak256("statics.permanent.swap.fee.liquidity");
+    bytes32 private constant SPECIFIED_STAKER_SLOT_DOMAIN = keccak256("statics.swap.specified.staker.v1");
 
     struct ReleaseRequest {
         PoolKey key;
@@ -82,6 +84,16 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         uint16 outputFeeBps;
     }
 
+    struct UnspecifiedCharge {
+        bool exactInput;
+        bool specifiedCurrencyIs0;
+        uint16 specifiedFeeBps;
+        uint16 unspecifiedFeeBps;
+        uint256 specifiedCharged;
+        Currency currency;
+        uint256 realized;
+    }
+
     struct AllocationShares {
         uint256 pol;
         uint256 basketStaker;
@@ -102,6 +114,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     mapping(PoolId poolId => PoolFeeRate rate) private poolRates;
     mapping(PoolId poolId => mapping(Currency currency => uint256 amount)) private polPending;
     mapping(Currency currency => uint256 amount) private totalClaimLiability;
+    mapping(Currency currency => uint256 amount) private stakerPending;
     mapping(PoolId poolId => mapping(Currency currency => FeeDistribution amount)) private distributions;
     mapping(PoolId poolId => uint128 liquidity) public lockedLiquidity;
     mapping(PoolId poolId => bool decommissioned) public poolDecommissioned;
@@ -272,6 +285,10 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         return polPending[poolId][currency];
     }
 
+    function pendingStakerRewards(Currency currency) external view returns (uint256 amount) {
+        return stakerPending[currency];
+    }
+
     function pendingFeeDistribution(PoolId poolId, Currency currency)
         external
         view
@@ -319,6 +336,19 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             abi.encode(UNLOCK_SETTLE, abi.encode(SettleRequest({key: key, currency: currency, receiver: receiver})))
         );
         distribution = abi.decode(result, (FeeDistribution));
+    }
+
+    function settleStakerRewards(Currency currency, address receiver, uint256 amount)
+        external
+        returns (uint256 settled)
+    {
+        _enforceDiamond();
+        if (receiver == address(0)) revert InvalidReleaseReceiver();
+        uint256 pending = stakerPending[currency];
+        if (amount > pending) revert PermanentLiquidityExceedsPending(currency, amount, pending);
+        if (amount == 0) return 0;
+        poolManager.unlock(abi.encode(UNLOCK_STAKER, abi.encode(currency, receiver, amount)));
+        return amount;
     }
 
     function compoundPermanentLiquidity(PoolKey calldata key, uint16 tipBps, address tipReceiver)
@@ -374,8 +404,12 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         if (action == UNLOCK_COMPOUND) {
             return _compoundPermanentLiquidity(abi.decode(payload, (CompoundRequest)));
         }
-        if (action != UNLOCK_RELEASE) revert();
-        return _releasePermanentLiquidity(abi.decode(payload, (ReleaseRequest)));
+        if (action == UNLOCK_RELEASE) return _releasePermanentLiquidity(abi.decode(payload, (ReleaseRequest)));
+        if (action != UNLOCK_STAKER) revert();
+        (Currency currency, address receiver, uint256 amount) = abi.decode(payload, (Currency, address, uint256));
+        stakerPending[currency] -= amount;
+        _redeemClaims(currency, receiver, amount);
+        return "";
     }
 
     function _settleFeeDistribution(SettleRequest memory request) private returns (bytes memory) {
@@ -513,15 +547,24 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         _enforceRegistered(poolId);
         if (poolDecommissioned[poolId]) revert PoolIsDecommissioned();
         if (IStaticsSwapQuarantine(staticsDiamond).protocolPoolSwapsBlocked(poolId)) revert SwapsQuarantined(poolId);
+        uint256 charged = _chargeSpecifiedLeg(poolId, key, params);
+        if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
+        return (IHooks.beforeSwap.selector, toBeforeSwapDelta(charged.toInt128(), 0), 0);
+    }
+
+    function _chargeSpecifiedLeg(PoolId poolId, PoolKey calldata key, SwapParams calldata params)
+        private
+        returns (uint256 charged)
+    {
         bool exactInput = params.amountSpecified < 0;
         EffectiveRate memory rate = _effectiveRate(poolId);
         uint16 feeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
         uint256 realized = _absolute(params.amountSpecified);
-        uint256 charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
-        if (charged == 0) return (IHooks.beforeSwap.selector, toBeforeSwapDelta(0, 0), 0);
+        charged = exactInput ? _feeFromGross(realized, feeBps) : _feeFromNet(realized, feeBps);
         Currency specified = (params.zeroForOne == exactInput) ? key.currency0 : key.currency1;
-        _accrueSwapLegFee(poolId, specified, realized, charged, true);
-        return (IHooks.beforeSwap.selector, toBeforeSwapDelta(charged.toInt128(), 0), 0);
+        uint256 stakerAmount;
+        if (charged != 0) stakerAmount = _accrueSwapLegFee(poolId, specified, realized, charged, true);
+        _storeSpecifiedStaker(poolId, specified == key.currency1 ? stakerAmount << 128 : stakerAmount);
     }
 
     function _afterSwap(address, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta, bytes calldata)
@@ -530,14 +573,22 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         returns (bytes4, int128)
     {
         PoolId poolId = key.toId();
-        (uint256 charged, uint256 packedFees) = _chargeUnspecifiedLeg(poolId, key, params, delta);
+        (uint256 charged, uint256 packedFees, uint256 packedStakerFees) =
+            _chargeUnspecifiedLeg(poolId, key, params, delta);
+        packedStakerFees |= _takeSpecifiedStaker(poolId);
         uint8 flags = params.zeroForOne ? MARKET_FLAG_ZERO_FOR_ONE : 0;
         if (params.amountSpecified >= 0) flags |= MARKET_FLAG_EXACT_OUTPUT;
-        _afterStaticsPoolSwap(poolId, delta, packedFees, flags);
+        _afterStaticsPoolSwap(poolId, delta, packedFees, packedStakerFees, flags);
         return (IHooks.afterSwap.selector, charged.toInt128());
     }
 
-    function _afterStaticsPoolSwap(PoolId poolId, BalanceDelta delta, uint256 staticsFeesPacked, uint8 flags) private {
+    function _afterStaticsPoolSwap(
+        PoolId poolId,
+        BalanceDelta delta,
+        uint256 staticsFeesPacked,
+        uint256 staticsStakerFeesPacked,
+        uint8 flags
+    ) private {
         address diamond = staticsDiamond;
         bytes4 selector = IStaticsSwapCallback.afterStaticsPoolSwap.selector;
         assembly ("memory-safe") {
@@ -546,8 +597,9 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             mstore(add(ptr, 4), poolId)
             mstore(add(ptr, 36), delta)
             mstore(add(ptr, 68), staticsFeesPacked)
-            mstore(add(ptr, 100), flags)
-            if iszero(call(gas(), diamond, 0, ptr, 132, 0, 0)) {
+            mstore(add(ptr, 100), staticsStakerFeesPacked)
+            mstore(add(ptr, 132), flags)
+            if iszero(call(gas(), diamond, 0, ptr, 164, 0, 0)) {
                 returndatacopy(ptr, 0, returndatasize())
                 revert(ptr, returndatasize())
             }
@@ -556,35 +608,43 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     function _chargeUnspecifiedLeg(PoolId poolId, PoolKey calldata key, SwapParams calldata params, BalanceDelta delta)
         private
-        returns (uint256 charged, uint256 packedFees)
+        returns (uint256 charged, uint256 packedFees, uint256 packedStakerFees)
     {
-        bool exactInput = params.amountSpecified < 0;
-        bool specifiedCurrencyIs0 = exactInput == params.zeroForOne;
+        UnspecifiedCharge memory context;
+        context.exactInput = params.amountSpecified < 0;
+        context.specifiedCurrencyIs0 = context.exactInput == params.zeroForOne;
         EffectiveRate memory rate = _effectiveRate(poolId);
-        uint16 specifiedFeeBps = exactInput ? rate.inputFeeBps : rate.outputFeeBps;
-        uint16 unspecifiedFeeBps = exactInput ? rate.outputFeeBps : rate.inputFeeBps;
-        uint256 specifiedCharged = exactInput
-            ? _feeFromGross(_absolute(params.amountSpecified), specifiedFeeBps)
-            : _feeFromNet(_absolute(params.amountSpecified), specifiedFeeBps);
+        context.specifiedFeeBps = context.exactInput ? rate.inputFeeBps : rate.outputFeeBps;
+        context.unspecifiedFeeBps = context.exactInput ? rate.outputFeeBps : rate.inputFeeBps;
+        context.specifiedCharged = context.exactInput
+            ? _feeFromGross(_absolute(params.amountSpecified), context.specifiedFeeBps)
+            : _feeFromNet(_absolute(params.amountSpecified), context.specifiedFeeBps);
         _enforceCompleteSpecifiedFill(
-            params.amountSpecified, specifiedCurrencyIs0 ? delta.amount0() : delta.amount1(), specifiedCharged
+            params.amountSpecified,
+            context.specifiedCurrencyIs0 ? delta.amount0() : delta.amount1(),
+            context.specifiedCharged
         );
-        Currency unspecified = specifiedCurrencyIs0 ? key.currency1 : key.currency0;
-        int128 unspecifiedDelta = specifiedCurrencyIs0 ? delta.amount1() : delta.amount0();
-        uint256 realized = _absolute(int256(unspecifiedDelta));
-        charged = exactInput ? _feeFromGross(realized, unspecifiedFeeBps) : _feeFromNet(realized, unspecifiedFeeBps);
+        context.currency = context.specifiedCurrencyIs0 ? key.currency1 : key.currency0;
+        context.realized = _absolute(int256(context.specifiedCurrencyIs0 ? delta.amount1() : delta.amount0()));
+        charged = context.exactInput
+            ? _feeFromGross(context.realized, context.unspecifiedFeeBps)
+            : _feeFromNet(context.realized, context.unspecifiedFeeBps);
         if (charged != 0) {
-            _accrueSwapLegFee(poolId, unspecified, realized, charged, false);
+            uint256 stakerAmount = _accrueSwapLegFee(poolId, context.currency, context.realized, charged, false);
+            packedStakerFees = context.specifiedCurrencyIs0 ? stakerAmount << 128 : stakerAmount;
         }
-        packedFees = specifiedCurrencyIs0 ? specifiedCharged | charged << 128 : charged | specifiedCharged << 128;
+        packedFees = context.specifiedCurrencyIs0
+            ? context.specifiedCharged | charged << 128
+            : charged | context.specifiedCharged << 128;
     }
 
     /// @dev Keep claim issuance and its matching liability allocation inseparable for both swap legs.
     function _accrueSwapLegFee(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg)
         internal
+        returns (uint256 staticsStakerAmount)
     {
         _mintClaim(currency, charged);
-        _allocate(poolId, currency, realized, charged, specifiedLeg);
+        return _allocate(poolId, currency, realized, charged, specifiedLeg);
     }
 
     function _enforceCompleteSpecifiedFill(int256 amountSpecified, int128 specifiedDelta, uint256 specifiedFee)
@@ -597,12 +657,15 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         }
     }
 
-    function _allocate(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg) private {
+    function _allocate(PoolId poolId, Currency currency, uint256 realized, uint256 charged, bool specifiedLeg)
+        private
+        returns (uint256 staticsStakerAmount)
+    {
         AllocationShares memory shares = _computeShares(poolId, currency, charged);
         polPending[poolId][currency] += shares.pol;
+        stakerPending[currency] += shares.staticsStaker;
         FeeDistribution storage pending = distributions[poolId][currency];
         pending.basketStaker += shares.basketStaker;
-        pending.staticsStaker += shares.staticsStaker;
         pending.creator += shares.creator;
         pending.treasury += shares.treasury;
         emit SwapLegFeeAccrued(
@@ -617,6 +680,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             shares.creator,
             shares.treasury
         );
+        return shares.staticsStaker;
     }
 
     /// @dev Carves the fixed creator share first, then applies the class allocation profile. Fallback
@@ -827,27 +891,37 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     function _normalizePendingDistribution(PoolId poolId, Currency currency) private {
         FeeDistribution storage pending = distributions[poolId][currency];
         uint256 basketStakerToPol;
-        uint256 staticsStakerToTreasury;
         if (pending.basketStaker != 0 && !IStaticsProtocolRevenue(staticsDiamond).canAccrueBasketRewards(poolId)) {
             basketStakerToPol = pending.basketStaker;
             pending.basketStaker = 0;
             polPending[poolId][currency] += basketStakerToPol;
         }
-        if (
-            pending.staticsStaker != 0
-                && !IStaticsGlobalRewards(staticsDiamond).canAccrueStakerRewards(Currency.unwrap(currency))
-        ) {
-            staticsStakerToTreasury = pending.staticsStaker;
-            pending.staticsStaker = 0;
-            pending.treasury += staticsStakerToTreasury;
-        }
-        if (basketStakerToPol != 0 || staticsStakerToTreasury != 0) {
-            emit PendingFeeDistributionReallocated(poolId, currency, basketStakerToPol, staticsStakerToTreasury);
+        if (basketStakerToPol != 0) {
+            emit PendingFeeDistributionReallocated(poolId, currency, basketStakerToPol, 0);
         }
     }
 
     function _distributionTotal(FeeDistribution memory distribution) private pure returns (uint256) {
         return distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
+    }
+
+    function _specifiedStakerSlot(PoolId poolId) private pure returns (bytes32 slot) {
+        return keccak256(abi.encode(SPECIFIED_STAKER_SLOT_DOMAIN, PoolId.unwrap(poolId)));
+    }
+
+    function _storeSpecifiedStaker(PoolId poolId, uint256 packedAmount) private {
+        bytes32 slot = _specifiedStakerSlot(poolId);
+        assembly ("memory-safe") {
+            tstore(slot, packedAmount)
+        }
+    }
+
+    function _takeSpecifiedStaker(PoolId poolId) private returns (uint256 packedAmount) {
+        bytes32 slot = _specifiedStakerSlot(poolId);
+        assembly ("memory-safe") {
+            packedAmount := tload(slot)
+            tstore(slot, 0)
+        }
     }
 
     function _enforceExactDebit(Currency currency, uint256 beforeBalance, uint256 afterBalance, uint256 expected)

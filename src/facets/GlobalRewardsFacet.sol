@@ -2,10 +2,14 @@
 pragma solidity 0.8.33;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
+import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
+import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -14,6 +18,7 @@ import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {LibRewardPolicy} from "../libraries/LibRewardPolicy.sol";
 
 contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error InvalidAmount();
@@ -25,6 +30,8 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
     error MinimumOutputNotMet(address asset, uint256 actual, uint256 minimum);
     error NoRewards(uint256 positionId);
     error ActionPaused(uint256 action);
+    error LiquidityIntegrationNotInstalled();
+    error IncompatibleRewardFunding(address asset, uint256 expected, uint256 received);
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
@@ -116,6 +123,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
             LibGlobalRewards.settleAsset(positionId, asset);
             uint256 amount = position.claimable[asset];
             if (amount != 0) {
+                _fundRewardShortfall(asset, amount);
                 hasRewards = true;
                 position.claimable[asset] = 0;
                 --position.claimAssetCount;
@@ -141,6 +149,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         amount = rs.treasuryAccrued[asset];
         if (amount == 0) return 0;
+        _fundRewardShortfall(asset, amount);
         rs.treasuryAccrued[asset] = 0;
         address treasury_ = LibBasket.basketStorage().treasury;
         LibCustody.pushReserved(LibCustody.feeAccount(), asset, treasury_, amount, amount);
@@ -237,8 +246,31 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         return LibGlobalRewards.rewardStorage().treasuryAccrued[asset];
     }
 
+    function unfundedSwapRewards(address asset) external view returns (uint256) {
+        return LibGlobalRewards.unfundedSwapRewards(asset);
+    }
+
+    function fundedGlobalRewards(address asset) external view returns (uint256) {
+        return LibGlobalRewards.fundedRewards(asset);
+    }
+
+    function outstandingGlobalRewardLiability(address asset) external view returns (uint256) {
+        return LibGlobalRewards.outstandingLiability(asset);
+    }
+
+    function settlePublicSwapRewards(address asset, uint256 maximumAmount)
+        external
+        nonReentrant
+        returns (uint256 amount)
+    {
+        uint256 unfunded = LibGlobalRewards.unfundedSwapRewards(asset);
+        amount = maximumAmount < unfunded ? maximumAmount : unfunded;
+        if (amount != 0) _settlePublicSwapRewards(asset, amount);
+    }
+
     function canAccrueStakerRewards(address asset) external view returns (bool) {
-        return LibGlobalRewards.effectiveEligibleWeight(LibGlobalRewards.rewardStorage().books[asset]) != 0;
+        return !LibRewardPolicy.isRestricted(asset)
+            && LibGlobalRewards.effectiveEligibleWeight(LibGlobalRewards.rewardStorage().books[asset]) != 0;
     }
 
     function checkpointRewardAssets(address[] calldata assets) external {
@@ -277,5 +309,23 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         if (LibGovernance.governanceStorage().pausedActions & LibGovernance.PAUSE_STAKE != 0) {
             revert ActionPaused(LibGovernance.PAUSE_STAKE);
         }
+    }
+
+    function _fundRewardShortfall(address asset, uint256 requested) private {
+        uint256 shortfall = LibGlobalRewards.fundingShortfall(asset, requested);
+        if (shortfall != 0) _settlePublicSwapRewards(asset, shortfall);
+        LibGlobalRewards.enforceFunded(asset, requested);
+    }
+
+    function _settlePublicSwapRewards(address asset, uint256 amount) private {
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
+        uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
+        uint256 settled = IStaticsSwapFeeHook(ls.hook).settleStakerRewards(Currency.wrap(asset), address(this), amount);
+        uint256 afterBalance = IERC20(asset).balanceOf(address(this));
+        uint256 received = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
+        if (settled != amount || received != amount) revert IncompatibleRewardFunding(asset, amount, received);
+        LibCustody.reserve(LibCustody.feeAccount(), asset, amount);
+        LibGlobalRewards.fundCrystallizedSwapFee(asset, amount);
     }
 }

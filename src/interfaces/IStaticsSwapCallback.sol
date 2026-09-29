@@ -8,6 +8,11 @@ import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 /// @dev The raw PoolManager delta and exact Statics fees are irrecoverable after the callback.
 /// Pool state such as the final tick and current native LP fee is resolved by the Diamond.
 interface IStaticsSwapCallback {
-    function afterStaticsPoolSwap(PoolId poolId, BalanceDelta poolDelta, uint256 staticsFeesPacked, uint8 flags)
-        external;
+    function afterStaticsPoolSwap(
+        PoolId poolId,
+        BalanceDelta poolDelta,
+        uint256 staticsFeesPacked,
+        uint256 staticsStakerFeesPacked,
+        uint8 flags
+    ) external;
 }

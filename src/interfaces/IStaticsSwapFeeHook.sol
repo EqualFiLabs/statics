@@ -135,6 +135,7 @@ interface IStaticsSwapFeeHook {
 
     // --- Permanent liquidity ---
     function pendingPermanentLiquidity(PoolId poolId, Currency currency) external view returns (uint256 amount);
+    function pendingStakerRewards(Currency currency) external view returns (uint256 amount);
     function pendingFeeDistribution(PoolId poolId, Currency currency)
         external
         view
@@ -145,6 +146,9 @@ interface IStaticsSwapFeeHook {
     function settleFeeDistribution(PoolKey calldata key, Currency currency, address receiver)
         external
         returns (FeeDistribution memory distribution);
+    function settleStakerRewards(Currency currency, address receiver, uint256 amount)
+        external
+        returns (uint256 settled);
     function compoundPermanentLiquidity(PoolKey calldata key, uint16 tipBps, address tipReceiver)
         external
         returns (PermanentLiquidityCompound memory result);

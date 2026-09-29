@@ -75,9 +75,13 @@ contract HookDiamondMock {
         rejectRangeGaugeCallback = rejected;
     }
 
-    function afterStaticsPoolSwap(PoolId poolId, BalanceDelta poolDelta, uint256 staticsFeesPacked, uint8 flags)
-        external
-    {
+    function afterStaticsPoolSwap(
+        PoolId poolId,
+        BalanceDelta poolDelta,
+        uint256 staticsFeesPacked,
+        uint256,
+        uint8 flags
+    ) external {
         require(msg.sender == hook, "only hook");
         lastRangeGaugeCallbackPoolId = poolId;
         lastPoolDelta = poolDelta;

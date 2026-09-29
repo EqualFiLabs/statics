@@ -20,7 +20,6 @@ import {Deployers} from "@uniswap/v4-core/test/utils/Deployers.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
 contract HookInvariantFeeReceiver {
@@ -48,6 +47,10 @@ contract HookInvariantFeeReceiver {
         return false;
     }
 
+    function protocolPolFundingConfig(PoolId) external pure returns (bool, bool, uint16) {
+        return (false, false, 0);
+    }
+
     function routeProtocolSwapFees(
         PoolId,
         address asset,
@@ -62,7 +65,7 @@ contract HookInvariantFeeReceiver {
         treasuryFees[asset] += distribution.treasury;
     }
 
-    function afterStaticsPoolSwap(PoolId, BalanceDelta, uint256, uint8) external view {
+    function afterStaticsPoolSwap(PoolId, BalanceDelta, uint256, uint256, uint8) external view {
         require(msg.sender == hook);
     }
 
@@ -89,9 +92,7 @@ contract HookAccountingHandler is Test {
     PoolId private immutable poolId;
     PoolKey private key;
 
-    uint128 public lastLockedLiquidity;
     uint256 public successfulSwaps;
-    bool public liquidityDecreased;
 
     constructor(
         PoolSwapTest router_,
@@ -158,9 +159,6 @@ contract HookAccountingHandler is Test {
             BalanceDelta
         ) {
             ++successfulSwaps;
-            uint128 locked = hook.lockedLiquidity(poolId);
-            if (locked < lastLockedLiquidity) liquidityDecreased = true;
-            lastLockedLiquidity = locked;
         } catch {}
     }
 }
@@ -204,10 +202,6 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         assertGt(handler.successfulSwaps(), 0, "swap accounting invariant is vacuous");
     }
 
-    function invariantPermanentLiquidityNeverDecreasesDuringSwaps() public view {
-        assertFalse(handler.liquidityDecreased(), "locked POL liquidity decreased");
-    }
-
     function invariantReceiverBalancesMatchRoutedFeeLedgers() public view {
         _assertReceiverBalance(currency0);
         _assertReceiverBalance(currency1);
@@ -241,21 +235,17 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
         uint256 liability = hook.claimLiability(currency);
         uint256 claimBalance = manager.balanceOf(address(hook), uint256(uint160(Currency.unwrap(currency))));
         IStaticsSwapFeeHook.FeeDistribution memory distribution = hook.pendingFeeDistribution(poolId, currency);
-        uint256 pending = hook.pendingPermanentLiquidity(poolId, currency) + distribution.basketStaker
-            + distribution.staticsStaker + distribution.creator + distribution.treasury;
+        uint256 pending = distribution.basketStaker + distribution.staticsStaker + distribution.creator
+            + distribution.treasury + hook.pendingStakerRewards(currency);
         assertEq(claimBalance, liability);
         assertEq(liability, pending);
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(
-            manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS, permanentLiquidityMath
-        );
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
         assertEq(address(deployed), expected);
     }
 }

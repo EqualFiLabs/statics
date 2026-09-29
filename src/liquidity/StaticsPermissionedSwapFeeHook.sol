@@ -303,11 +303,17 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
         uint256 observedInput = signedInput < 0 ? uint256(-int256(signedInput)) : uint256(uint128(signedInput));
         uint256 requestedInput = uint256(-(params.amountSpecified + 1)) + 1;
         if (observedInput != requestedInput) flags |= MARKET_FLAG_PARTIAL;
-        _afterStaticsPoolSwap(poolId, delta, fee0 | fee1 << 128, flags);
+        _afterStaticsPoolSwap(poolId, delta, fee0 | fee1 << 128, 0, flags);
     }
 
     /// @dev Preserve exact revert data while avoiding the code-size overhead of general ABI call machinery.
-    function _afterStaticsPoolSwap(PoolId poolId, BalanceDelta delta, uint256 staticsFeesPacked, uint8 flags) private {
+    function _afterStaticsPoolSwap(
+        PoolId poolId,
+        BalanceDelta delta,
+        uint256 staticsFeesPacked,
+        uint256 staticsStakerFeesPacked,
+        uint8 flags
+    ) private {
         address diamond = staticsDiamond;
         bytes4 selector = IStaticsSwapCallback.afterStaticsPoolSwap.selector;
         assembly ("memory-safe") {
@@ -316,8 +322,9 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
             mstore(add(ptr, 4), poolId)
             mstore(add(ptr, 36), delta)
             mstore(add(ptr, 68), staticsFeesPacked)
-            mstore(add(ptr, 100), flags)
-            if iszero(call(gas(), diamond, 0, ptr, 132, 0, 0)) {
+            mstore(add(ptr, 100), staticsStakerFeesPacked)
+            mstore(add(ptr, 132), flags)
+            if iszero(call(gas(), diamond, 0, ptr, 164, 0, 0)) {
                 returndatacopy(ptr, 0, returndatasize())
                 revert(ptr, returndatasize())
             }
@@ -359,7 +366,7 @@ contract StaticsPermissionedSwapFeeHook is BaseHook, IStaticsPermissionedSwapFee
         if (zeroForOne) flags |= MARKET_FLAG_ZERO_FOR_ONE;
         // PoolManager suppresses callbacks when a hook swaps its own pool. Record the
         // normalization explicitly so headline volume remains limited to external trades.
-        _afterStaticsPoolSwap(poolId, delta, 0, flags);
+        _afterStaticsPoolSwap(poolId, delta, 0, 0, flags);
         _settleExact(input, amountIn);
         amountOut = uint256(uint128(outputDelta));
         _takeExact(output, address(this), amountOut);
