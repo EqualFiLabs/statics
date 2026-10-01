@@ -1,0 +1,85 @@
+# Phase 1 Robinhood fork rehearsal
+
+This runner uses the deployed Genesis launch and deploys only the Phase 1 Statics
+stack against a pinned Robinhood Mainnet fork. The production Phase 1 launcher
+validates the live STATICS, WETH, and treasury bindings from the Genesis manifest.
+The runner impersonates the deployed governance Safe for local timelock scheduling.
+Forge deployment scripts create the new Phase 1 contracts. Cast performs the
+stateful lifecycle transactions, reads, time warps, revert checks, and gas
+measurements.
+
+The canonical private RPC file is loaded only by `start-fork.sh`. RPC values and
+private endpoints are never written to the run artifacts.
+
+## Complete run
+
+```sh
+scripts/phase-one-rehearsal/run-all.sh
+```
+
+The command leaves Anvil running in a detached tmux session for inspection. Stop
+it with:
+
+```sh
+scripts/phase-one-rehearsal/stop-fork.sh
+```
+
+The configured provider prunes historical trie proofs, so each run captures the
+provider's current executable block before Anvil starts and records the exact
+block and hash in `state.env`. The resulting run remains pinned and reproducible
+for the life of that Anvil process, while later runs use a fresh executable state.
+Generated receipts, logs, selector inventories, gas measurements, and the final
+summary live under `artifacts/phase-one-rehearsal/<run-id>/` and are ignored by
+Git. Deployment compilation uses run-scoped artifact and cache directories so
+runtime verification cannot accidentally accept stale shared build output.
+
+## Evidence layers
+
+- `verify-deployment.sh` validates canonical Robinhood dependencies, immutable
+  bindings, exact source runtime bytecode, all 30 installed facets, and all 209
+  Diamond selector routes.
+- `vanilla-v4-gas.sh` initializes a no-hook v4 pool, mints full-range liquidity,
+  and records cold and steady exact-input swap gas.
+- `public-market-tape.sh` creates a Statics public pool, provides two managed
+  ranges, verifies exact-input and exact-output canonical MarketTape records,
+  crosses a managed boundary, and grows and wraps the observation ring.
+- `managed-lp-lifecycle.sh` proves native-fee collection, increase, partial
+  decrease, rebalance, exit, and PositionNFT closure through the managed LP path.
+- `permissioned-lifecycle.sh` proves creator authorization, trader and LP
+  admission, permissioned trading, creator and Treasury revenue, restricted-asset
+  normalization, normalized staker claims, halt enforcement, forced unwind,
+  backed owner credit, and claims.
+- `protocol-pol-lifecycle.sh` proves disabled-POL fallback, paid activation,
+  two-asset PoolId custody, managed position operations, the empty-position
+  lifecycle, native LP fee routing to Treasury, and incremental decommissioning.
+- `direct-range-rewards.sh` funds direct LP reward slot 1, accrues the stream,
+  and claims it through a real managed position.
+- `allocator-rewards.sh` proves a creator-funded slot can split continuously
+  between the LP and allocator paths while protocol slot 0 remains isolated.
+- `public-revenue-rewards.sh` proves swap-time global reward ownership, later
+  staker isolation, delayed backing, creator and Treasury claims, and restriction
+  fallback and recovery.
+- `staking-and-gauges.sh` proves stake and allocation cooldowns, allocation locks,
+  reserve funding, slot-0 delivery, and bounded missed-period catch-up.
+- `multi-pool-gauges.sh` proves persistent allocation across two PoolIds and
+  pro-rata protocol reward delivery to both productive markets.
+- `governance-controls.sh` proves guardian-only emergency actions and timelock-only
+  releases for liquidity and public-market swap controls.
+
+The selector inventory proves every installed route is present and points to the
+expected facet. Stateful scenarios exercise each Phase 1 subsystem, but the
+inventory does not claim that every selector receives every possible argument
+combination. Foundry unit, fuzz, invariant, and formal suites remain separate
+evidence.
+
+After every scenario the runner scans all mined JSON receipts and rejects any
+transaction whose status is not `0x1`. This is required because a mined revert
+can still be serialized successfully by `cast send --json`.
+
+## Gas interpretation
+
+Each scenario reverts to the same post-deployment base snapshot. Gas files
+separate first-use cold initialization from steady-state swaps. The vanilla and
+Statics pools use the same fork, assets, PoolManager, native LP fee, tick spacing,
+router family, direction, and exact-input amount. Managed-boundary gas is reported
+separately because it includes an active-liquidity denominator transition.

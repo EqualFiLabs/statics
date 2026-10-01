@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=../lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+
+require_commands cast jq awk bc
+load_current_run
+require_local_chain
+reset_to_base
+
+LP_INDEX=18
+LP=$(anvil_address "$LP_INDEX")
+LP_KEY=$(anvil_private_key "$LP_INDEX")
+POSITION_FEE=1000000000000000
+POOL_ID=$(create_public_pool "$STAKING_TOKEN" "$WETH_ADDRESS" "$LP" 5 direct-rewards)
+
+if [[ "${WETH_ADDRESS,,}" < "${STAKING_TOKEN,,}" ]]; then
+    CURRENCY0=$WETH_ADDRESS
+    CURRENCY1=$STAKING_TOKEN
+else
+    CURRENCY0=$STAKING_TOKEN
+    CURRENCY1=$WETH_ADDRESS
+fi
+
+acquire_genesis_statics "$LP_INDEX" 2000000000000000000 direct-reward-lp >/dev/null
+wrap_weth "$LP_INDEX" 100000000000000000000 direct-reward-lp
+cast send "$CURRENCY0" 'approve(address,uint256)' "$STATICS_DIAMOND_ADDRESS" "$(cast max-uint)" \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-currency0-approve.json"
+cast send "$CURRENCY1" 'approve(address,uint256)' "$STATICS_DIAMOND_ADDRESS" "$(cast max-uint)" \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-currency1-approve.json"
+
+POSITION_ID=$(cast call "$STATICS_DIAMOND_ADDRESS" 'nextPositionId()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'createPosition(address)(uint256)' "$LP" \
+    --value "$POSITION_FEE" --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-create-position.json"
+DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 3600 ))
+cast send "$STATICS_DIAMOND_ADDRESS" \
+    'provideLiquidity(uint256,(bytes32,int24,int24,uint128,uint256,uint256,uint256))((uint256,uint128,uint256,uint256,uint256,uint256))' \
+    "$POSITION_ID" "($POOL_ID,-1200,1200,100000000000000000000,90000000000000000000,90000000000000000000,$DEADLINE)" \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-provide.json"
+
+ALLOW_CALLDATA=$(cast calldata 'setGaugeRewardAssetAllowed(address,bool)' "$WETH_ADDRESS" true)
+timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$ALLOW_CALLDATA" direct-reward-allow-weth
+cast send "$STATICS_DIAMOND_ADDRESS" 'appendPoolRewardAsset(bytes32,address)(uint8)' "$POOL_ID" "$WETH_ADDRESS" \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-append.json"
+
+CONFIG=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'poolRewardConfig(bytes32)((bool,uint8,address[5],uint16[5]))' "$POOL_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][1]' <<<"$CONFIG")" 2 "range reward slot count"
+assert_eq "$(jq -r '.[0][2][1]' <<<"$CONFIG")" "$WETH_ADDRESS" "direct reward asset"
+
+FUND_AMOUNT=7000000000000000000
+cast send "$WETH_ADDRESS" 'approve(address,uint256)' "$STATICS_DIAMOND_ADDRESS" "$FUND_AMOUNT" \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-fund-approve.json"
+cast send "$STATICS_DIAMOND_ADDRESS" 'fundPoolReward(bytes32,uint8,uint256,uint40,uint16)(uint256)' \
+    "$POOL_ID" 1 "$FUND_AMOUNT" 604800 0 \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/direct-reward-fund.json"
+
+rpc_warp_by 86400
+PREVIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'previewLpRewards(uint256,bytes32)((uint8,address[5],uint256[5]))' "$POSITION_ID" "$POOL_ID" \
+    --rpc-url "$RPC_URL" --json)
+PREVIEW_AMOUNT=$(jq -r '.[0][2][1]' <<<"$PREVIEW")
+[[ "$PREVIEW_AMOUNT" != 0 ]] || fail "direct LP reward preview did not accrue"
+BALANCE_BEFORE=$(cast call "$WETH_ADDRESS" 'balanceOf(address)(uint256)' "$LP" --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" \
+    'claimLpRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
+    "$POSITION_ID" "$POOL_ID" '[1]' '[0]' "$LP" \
+    --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/direct-reward-claim.json"
+BALANCE_AFTER=$(cast call "$WETH_ADDRESS" 'balanceOf(address)(uint256)' "$LP" --rpc-url "$RPC_URL" | awk '{print $1}')
+CLAIMED=$(printf '%s - %s\n' "$BALANCE_AFTER" "$BALANCE_BEFORE" | bc)
+[[ "$CLAIMED" != 0 ]] || fail "direct LP reward claim transferred no WETH"
+
+STREAM=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'poolRewardStream(bytes32,uint8)((bool,uint8,address,uint40,uint40,uint40,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))' \
+    "$POOL_ID" 1 --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][2]' <<<"$STREAM")" "$WETH_ADDRESS" "direct stream reward asset"
+record_result range-gauge direct-reward-funding pass "$FUND_AMOUNT WETH wei"
+record_result range-gauge direct-reward-claim pass "$CLAIMED WETH wei"
+note "direct range-gauge funding and LP claim scenario passed"
