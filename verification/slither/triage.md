@@ -10,7 +10,7 @@ are not blanket suppressions for future findings.
 All 832 current findings are reviewed as intentional behavior or false
 positives.
 
-The exact CI artifact for commit `92b1822d6e618889117a43d14d02278d3134714c`
+The exact CI artifact for commit `0ac62f5a05d1a6b1c15d330fd71bdf6c2f6456c8`
 produced the current source scope and reviewed fingerprint baseline. It records
 200 false positives and 632 intentional findings. No detector family is
 suppressed.

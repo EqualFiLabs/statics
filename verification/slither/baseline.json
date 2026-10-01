@@ -166,12 +166,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "13f4879fe46052fec7876a36"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "14062421f7eecf1d6b94269c"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "Reentrancy in StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#218-245):",
       "rationale": "The enclosing transition is non-reentrant or authenticated by an immutable dependency, and the apparent post-call balance read is an exact-delta validation rather than reentrancy-sensitive state.",
       "occurrences": 1,
       "id": "151d2e8cfaa5da0a1ba96fc8"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "152b2349274c734da7640c61"
     },
     {
       "impact": "High",
@@ -230,60 +278,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "26b6e5ea11fed50801e2660d"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "2ac1ad49e53aa13a63e8b7a0"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "2b5c0d96607e845fc874b2b3"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
       "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
       "id": "2c7836e28533444865664a22"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "2df7fea22fca0bda897c97f7"
     },
     {
       "impact": "High",
@@ -315,71 +331,7 @@
       "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "32f84941975ffebcff2f0d36"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "3587b200e83b2e971780e197"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "38c07f3df6e21164ec726c8b"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "3abdc49c16526337f977209c"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "3f98cc0099b0ee1754eec5a8"
+      "id": "456e38d3b50e6887c053074e"
     },
     {
       "impact": "High",
@@ -406,12 +358,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+        "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#304-317):",
-      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "592501167e240f7ab56815a8"
+      "id": "57edac028a652845d2bf7a8d"
     },
     {
       "impact": "High",
@@ -422,12 +374,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._mintAndSellRoute(uint256,address[],StaticsFlashArbitrageReceiver.MintAndSellRoute) (src/periphery/StaticsFlashArbitrageReceiver.sol#304-317):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "59b358d24cb5c510d89c88bf"
+      "id": "592501167e240f7ab56815a8"
     },
     {
       "impact": "High",
@@ -456,10 +408,10 @@
       "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "651e736d2ebaaeff529f5c63"
+      "id": "64e7d0d1fbf101d066359d42"
     },
     {
       "impact": "High",
@@ -555,7 +507,7 @@
       "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "7f17c096561b2d5c8f117632"
+      "id": "84e0f4e032759ffa69671958"
     },
     {
       "impact": "High",
@@ -587,23 +539,7 @@
       "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "9b7a0ebb069ae57510164ba5"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
-      "occurrences": 1,
-      "id": "9cb6cbf0e9c97acf44164877"
+      "id": "9ac321dbba4ce5e087b32086"
     },
     {
       "impact": "High",
@@ -696,6 +632,38 @@
       "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "a43fc1134f80ee8fc1b5bd9e"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "a87f00bd417f1be398782d74"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
       "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
@@ -726,12 +694,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
+        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#400-409):",
+      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
       "occurrences": 1,
-      "id": "b3385f6a03ce0ba9e62312cb"
+      "id": "b6c7c735aebe16afb6c8c6c4"
     },
     {
       "impact": "High",
@@ -742,12 +710,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
+        "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._takeExact(Currency,address,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#400-409):",
-      "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "b6c7c735aebe16afb6c8c6c4"
+      "id": "c434445474c34fb47a815a89"
     },
     {
       "impact": "High",
@@ -795,7 +763,7 @@
       "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "c8546d0cb1733eaf834441f6"
+      "id": "c94276ec6cb3dfebb535c18b"
     },
     {
       "impact": "High",
@@ -854,12 +822,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "d7e591bc6291451ce982a53e"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#411-424):",
       "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
       "occurrences": 1,
       "id": "e37fe07be0b89aef2646da24"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "occurrences": 1,
+      "id": "e726a12907f20eb455416071"
     },
     {
       "impact": "High",
@@ -902,12 +902,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/periphery/StaticsFlashArbitrageReceiver.sol"
+        "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
-      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
+      "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#306-338):",
+      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
-      "id": "f84dd7973d472a77a524ce63"
+      "id": "f800184c8903c9ddc71c9323"
     },
     {
       "impact": "High",
@@ -918,12 +918,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
+        "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
-      "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#152-205):",
-      "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
+      "summary": "Reentrancy in StaticsFlashArbitrageReceiver._settle(Currency,int128) (src/periphery/StaticsFlashArbitrageReceiver.sol#447-470):",
+      "rationale": "Both public routes hold the non-reentrancy guard through the authenticated Diamond and PoolManager callbacks; exact balance snapshots deliberately validate atomic token movement and any failed check reverts the complete route.",
       "occurrences": 1,
-      "id": "f8a9b7fe42787d608c7a56a3"
+      "id": "f84dd7973d472a77a524ce63"
     },
     {
       "impact": "High",
@@ -1363,22 +1363,6 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "StaticsLiquidityManager._enforcePublicPool(PoolKey,bool) (src/liquidity/StaticsLiquidityManager.sol#517-533) uses a dangerous strict equality:",
-      "rationale": "The comparison checks the explicit None enum sentinel before accepting a registered public pool; approximate comparison has no meaning for this state discriminator.",
-      "occurrences": 1,
-      "id": "59b53fa552470284c0793b44"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "High",
-      "check": "incorrect-equality",
-      "classification": "FALSE POSITIVE",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1523,6 +1507,22 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "StaticsLiquidityManager._refundUser(address,address,uint256) (src/liquidity/StaticsLiquidityManager.sol#437-450) uses a dangerous strict equality:",
+      "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
+      "occurrences": 1,
+      "id": "a1469feb0967f238f1608e34"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1640,10 +1640,10 @@
       "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "StaticsLiquidityManager.collectManagedPositionFees(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#229-258) uses a dangerous strict equality:",
-      "rationale": "Exact zero liquidity is the invalid empty-position sentinel for managed PNFT attachment; approximate comparison is not meaningful for integer liquidity.",
+      "summary": "StaticsLiquidityManager._enforcePublicPool(PoolKey,bool) (src/liquidity/StaticsLiquidityManager.sol#523-539) uses a dangerous strict equality:",
+      "rationale": "The comparison checks the explicit None enum sentinel before accepting a registered public pool; approximate comparison has no meaning for this state discriminator.",
       "occurrences": 1,
-      "id": "cd94a353b594700b3b7f0362"
+      "id": "c6a379418ad7d83b19c73dcc"
     },
     {
       "impact": "Medium",
@@ -1656,10 +1656,10 @@
       "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "StaticsLiquidityManager._refundUser(address,address,uint256) (src/liquidity/StaticsLiquidityManager.sol#431-444) uses a dangerous strict equality:",
-      "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
+      "summary": "StaticsLiquidityManager.collectManagedPositionFees(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#229-258) uses a dangerous strict equality:",
+      "rationale": "Exact zero liquidity is the invalid empty-position sentinel for managed PNFT attachment; approximate comparison is not meaningful for integer liquidity.",
       "occurrences": 1,
-      "id": "e5b076013c1bb297c8d8b99f"
+      "id": "cd94a353b594700b3b7f0362"
     },
     {
       "impact": "Medium",
@@ -10747,12 +10747,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "StaticsLiquidityManager._validateInputRequest(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#474-480) uses timestamp for comparisons",
+      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "occurrences": 1,
+      "id": "a1c577996655c57ea056adf3"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/GaugeIncentiveFacet.sol"
       ],
       "summary": "GaugeIncentiveFacet.forfeitGaugeAllocatorReward(uint256,PoolId,uint8) (src/facets/GaugeIncentiveFacet.sol#173-196) uses timestamp for comparisons",
       "rationale": "Timestamp comparisons define continuous accrual, period boundaries, cooldowns, maturity, and reward-stream timing rather than randomness.",
       "occurrences": 1,
       "id": "a2978c6137c73a14fea6ec3d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "StaticsLiquidityManager._validateOutputRequest(IStaticsLiquidityManager.ManagedLiquidityRequest,bool) (src/liquidity/StaticsLiquidityManager.sol#482-489) uses timestamp for comparisons",
+      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
+      "occurrences": 1,
+      "id": "a67cfbbcce8397ad8e29fc01"
     },
     {
       "impact": "Low",
@@ -10801,22 +10833,6 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "abff77a562bf49eae626e808"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "StaticsLiquidityManager._validateInputRequest(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#468-474) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
-      "occurrences": 1,
-      "id": "acf65a0b6242e0ed61c26201"
     },
     {
       "impact": "Low",
@@ -11021,10 +11037,10 @@
       "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
-      "summary": "StaticsLiquidityManager._validateOutputRequest(IStaticsLiquidityManager.ManagedLiquidityRequest,bool) (src/liquidity/StaticsLiquidityManager.sol#476-483) uses timestamp for comparisons",
+      "summary": "StaticsLiquidityManager._validateMintRequest(IStaticsLiquidityManager.PositionRequest) (src/liquidity/StaticsLiquidityManager.sol#465-472) uses timestamp for comparisons",
       "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
-      "id": "d244e817ddc643c24b704373"
+      "id": "d13e9684c5792bafff8d05ff"
     },
     {
       "impact": "Low",
@@ -11057,22 +11073,6 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "d50bc36c5faf28fb3207cd49"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "StaticsLiquidityManager._validateMintRequest(IStaticsLiquidityManager.PositionRequest) (src/liquidity/StaticsLiquidityManager.sol#459-466) uses timestamp for comparisons",
-      "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
-      "occurrences": 1,
-      "id": "d65c6c8e492cea060c85622c"
     },
     {
       "impact": "Low",
@@ -11979,6 +11979,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/liquidity/StaticsLiquidityManager.sol"
+      ],
+      "summary": "Low level call in StaticsLiquidityManager._enforcePositionDestroyed(uint256) (src/liquidity/StaticsLiquidityManager.sol#577-580):",
+      "rationale": "The fixed-selector staticcall is only an existence probe immediately after an atomic canonical PositionManager burn. A successful ownerOf call means the PNFT remains; returndata is never trusted, and the PositionManager binding is immutable and installation-verified.",
+      "occurrences": 1,
+      "id": "8c17d0507bf77e308e8476d5"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "Low level call in StaticsDollarGatewayFacet._executeRecombinationToETH(LibPeriphery.PS,uint256,uint256,uint256,address,uint256) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#831-860):",
@@ -12097,22 +12113,6 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "cd68e248972e426a9e139e65"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/liquidity/StaticsLiquidityManager.sol"
-      ],
-      "summary": "Low level call in StaticsLiquidityManager._enforcePositionDestroyed(uint256) (src/liquidity/StaticsLiquidityManager.sol#571-574):",
-      "rationale": "The fixed-selector staticcall is only an existence probe immediately after an atomic canonical PositionManager burn. A successful ownerOf call means the PNFT remains; returndata is never trusted, and the PositionManager binding is immutable and installation-verified.",
-      "occurrences": 1,
-      "id": "de0a91138a14107e63727dee"
     },
     {
       "impact": "Informational",
