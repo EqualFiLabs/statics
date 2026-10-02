@@ -63,6 +63,14 @@ assert_eq "$PENDING0" 0 "disabled POL currency0 pending"
 assert_eq "$PENDING1" 0 "disabled POL currency1 pending"
 
 TREASURY_BEFORE=$(cast balance "$TREASURY" --rpc-url "$RPC_URL")
+expect_call_revert "non-creator POL activation" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
+    --value 100000000000000000 --from "$TRADER" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/protocol-pol-unauthorized-activation-revert.txt"
+expect_call_revert "incorrect POL activation fee" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
+    --from "$CREATOR" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/protocol-pol-wrong-activation-fee-revert.txt"
 cast send "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
     --value 100000000000000000 \
     --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
@@ -71,6 +79,10 @@ TREASURY_AFTER=$(cast balance "$TREASURY" --rpc-url "$RPC_URL")
 assert_eq "$(printf '%s - %s\n' "$TREASURY_AFTER" "$TREASURY_BEFORE" | bc)" \
     100000000000000000 \
     "POL activation fee transfer"
+expect_call_revert "duplicate POL activation" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'activateProtocolPoolPol(bytes32)' "$POOL_ID" \
+    --value 100000000000000000 --from "$CREATOR" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/protocol-pol-duplicate-activation-revert.txt"
 
 v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" true 500000000000000000 protocol-pol-funded-zero-for-one
@@ -101,6 +113,37 @@ RESERVE1=$(cast call "$STATICS_DIAMOND_ADDRESS" 'reservedByAccount(bytes32,addre
 [[ "$RESERVE0" != 0 && "$RESERVE1" != 0 ]] || fail "settled POL inventory was not reserved by PoolId"
 
 DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 86400 ))
+OLD_OPERATOR=$(anvil_address 3)
+NEW_OPERATOR_INDEX=16
+NEW_OPERATOR=$(anvil_address "$NEW_OPERATOR_INDEX")
+NEW_OPERATOR_KEY=$(anvil_private_key "$NEW_OPERATOR_INDEX")
+SET_OPERATOR_CALLDATA=$(cast calldata 'setProtocolPolOperator(address)' "$NEW_OPERATOR")
+timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$SET_OPERATOR_CALLDATA" protocol-pol-replace-operator
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolOperator()(address)' --rpc-url "$RPC_URL")" \
+    "$NEW_OPERATOR" \
+    "replacement POL operator"
+DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 86400 ))
+expect_call_revert "old POL operator after replacement" \
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+    'openProtocolPolPosition((bytes32,int24,int24,uint128,uint256,uint256,uint256))(uint256)' \
+    "($POOL_ID,-600,600,100000000000000,$RESERVE0,$RESERVE1,$DEADLINE)" \
+    --from "$OLD_OPERATOR" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/protocol-pol-old-operator-revert.txt"
+EXPIRED_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") - 1 ))
+expect_call_revert "expired POL open deadline" \
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+    'openProtocolPolPosition((bytes32,int24,int24,uint128,uint256,uint256,uint256))(uint256)' \
+    "($POOL_ID,-600,600,100000000000000,$RESERVE0,$RESERVE1,$EXPIRED_DEADLINE)" \
+    --from "$NEW_OPERATOR" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/protocol-pol-expired-open-revert.txt"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" \
+        'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))' \
+        "$POOL_ID" --rpc-url "$RPC_URL" --json | jq -r '.[0][10]')" \
+    0 \
+    "failed POL opens preserve active position count"
+OPERATOR_KEY=$NEW_OPERATOR_KEY
 cast send "$STATICS_DIAMOND_ADDRESS" \
     'openProtocolPolPosition((bytes32,int24,int24,uint128,uint256,uint256,uint256))(uint256)' \
     "($POOL_ID,-600,600,100000000000000,$RESERVE0,$RESERVE1,$DEADLINE)" \
@@ -191,6 +234,7 @@ assert_eq \
 
 record_result protocol-pol disabled-fallback pass "$POOL_ID"
 record_result protocol-pol activation-and-custody pass "$POL_POSITION_ID"
+record_result protocol-pol operator-replacement pass "$OLD_OPERATOR to $NEW_OPERATOR"
 record_result protocol-pol empty-position-lifecycle pass "$POL_POSITION_ID"
 record_result protocol-pol native-fees-to-treasury pass "$NATIVE_FEE0 currency0 wei, $NATIVE_FEE1 currency1 wei"
 record_result protocol-pol incremental-decommission pass "$POOL_ID"
