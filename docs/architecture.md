@@ -66,12 +66,12 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The staged Phase 1 launcher installs 30 facets and 209 selectors for arbitrary
+The staged Phase 1 launcher installs 31 facets and 215 selectors for arbitrary
 Statics-hooked pairs, permissioned venues, PositionNFT accounts, and global
 STATICS staking on `StaticsDiamond`. It also installs public-pool PositionNFT
 range gauges, weekly reserve-backed protocol incentives, and the Diamond-bound
 liquidity manager used to custody their Uniswap v4 position NFTs. The
-full-stack fresh-deployment launcher installs 52 facets and 387 selectors
+full-stack fresh-deployment launcher installs 53 facets and 392 selectors
 on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/libraries/StaticsProtocolPlan.sol` and
@@ -89,6 +89,12 @@ the current deployment manifest records that live release state.
 periphery custody address. A single position ID can contain multiple Dollar
 series and multiple basket legs, and ERC-721 approval authorizes every attached
 module operation.
+
+Phase 1 treats each PositionNFT as a live transferable financial account. Its
+market views are public, bounded, and assembled from the same namespaced state
+used by staking and range-gauge accounting. They add no marketplace nonce or
+financial-path writes. ERC-2981 advertises a governed collection royalty while
+ordinary ERC-721 transfers remain royalty-unenforced.
 
 That shared ownership does not merge economics. The following storage books are
 separately namespaced:

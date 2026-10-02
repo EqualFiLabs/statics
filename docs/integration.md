@@ -107,9 +107,16 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 209, 302, 360, and 387. Integrators
+Morpho. The cumulative selector counts are 215, 307, 365, and 392. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
+
+PositionNFT financial views are intentionally public so a prospective buyer can
+value the live account immediately before transfer. `IStaticsPositionMarket`
+provides bounded reward-asset discovery, allocator-pool discovery, and native LP
+fee previews; the existing Global Rewards and Range Gauge ABIs expose the
+corresponding detailed state. ERC-2981 royalty information is marketplace
+signaling only and is not enforced by `transferFrom` or `safeTransferFrom`.
 
 `IStaticsSwapFeeHook` exposes hook fee configuration and claim-backed pending
 POL inventory. Ordinary user LP positions
