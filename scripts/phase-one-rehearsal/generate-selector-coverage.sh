@@ -25,7 +25,7 @@ is_indirect() {
 
 is_deployment_only() {
     case "$1" in
-        diamondCut|installLiquidityIntegration|installPermissionedLiquidityIntegration|transferOwnership)
+        diamondCut|installCanonicalPoolIntegration|installLiquidityIntegration|installLiquidityManager|installPermissionedLiquidityIntegration|installPermissionedPoolIntegration|setInterfaces|transferOwnership)
             return 0
             ;;
     esac

@@ -35,6 +35,7 @@ SCENARIOS=(
     creator-handover.sh
     staking-and-gauges.sh
     multi-pool-gauges.sh
+    configuration-surface.sh
     governance-controls.sh
     composed-soak.sh
 )

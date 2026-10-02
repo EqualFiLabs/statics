@@ -99,6 +99,11 @@ assert_eq "$(jq -r '.[0][0]' <<<"$LATER_PENDING")" 0 "later staker currency0 his
 assert_eq "$(jq -r '.[0][1]' <<<"$LATER_PENDING")" 0 "later staker currency1 historical entitlement"
 
 # Claiming funds the already crystallized liability without changing its owner.
+for asset in "$CURRENCY0" "$CURRENCY1"; do
+    cast send "$STATICS_DIAMOND_ADDRESS" 'settlePublicSwapRewards(address,uint256)(uint256)' \
+        "$asset" "$(cast max-uint)" --private-key "$(anvil_private_key "$MAINTAINER_INDEX")" \
+        --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/public-revenue-fund-${asset,,}.json"
+done
 BALANCE0_BEFORE=$(cast call "$CURRENCY0" 'balanceOf(address)(uint256)' "$STAKER" --rpc-url "$RPC_URL" | awk '{print $1}')
 BALANCE1_BEFORE=$(cast call "$CURRENCY1" 'balanceOf(address)(uint256)' "$STAKER" --rpc-url "$RPC_URL" | awk '{print $1}')
 cast send "$STATICS_DIAMOND_ADDRESS" 'claimRewards(uint256,address[],address,uint256[])(uint256[])' \

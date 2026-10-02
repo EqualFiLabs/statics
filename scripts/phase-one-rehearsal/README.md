@@ -72,8 +72,9 @@ verification cannot accidentally accept stale shared build output.
 - `protocol-pol-lifecycle.sh` proves disabled-POL fallback, paid activation,
   two-asset PoolId custody, managed position operations, the empty-position
   lifecycle, native LP fee routing to Treasury, and incremental decommissioning.
-- `direct-range-rewards.sh` funds direct LP reward slot 1, accrues the stream,
-  and claims it through a real managed position.
+- `direct-range-rewards.sh` funds direct LP reward slot 1, proves reserved-slot
+  and duplicate-asset guards, and exercises claim, exit, forfeiture, and close
+  liveness through real managed positions.
 - `allocator-rewards.sh` proves a creator-funded slot can split continuously
   between the LP and allocator paths while protocol slot 0 remains isolated.
 - `public-revenue-rewards.sh` proves swap-time global reward ownership, later
@@ -90,6 +91,9 @@ verification cannot accidentally accept stale shared build output.
   recovered through bounded 52, 52, and 1 period calls.
 - `multi-pool-gauges.sh` proves persistent allocation across two PoolIds and
   pro-rata protocol reward delivery to both productive markets.
+- `configuration-surface.sh` exercises the timelocked guardian, Treasury,
+  PositionNFT fee, global reward limit, maintenance tip, POL activation fee,
+  gauge duration/release/cooldown, and permissioned-periphery configuration.
 - `governance-controls.sh` executes real swaps, staking, liquidity, POL, claims,
   and Treasury distribution across guardian pauses, pool quarantine, and the
   global public-swap pause, including exit liveness and timelock-delay proof.
