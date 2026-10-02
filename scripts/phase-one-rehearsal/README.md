@@ -36,8 +36,8 @@ runtime verification cannot accidentally accept stale shared build output.
 ## Evidence layers
 
 - `verify-deployment.sh` validates canonical Robinhood dependencies, immutable
-  bindings, exact source runtime bytecode, all 30 installed facets, and all 209
-  Diamond selector routes.
+  bindings, exact source runtime bytecode, all 31 installed facets, all 219
+  Diamond selector routes, and the PositionNFT market and royalty defaults.
 - `vanilla-v4-gas.sh` initializes a no-hook v4 pool, mints full-range liquidity,
   and records cold and steady exact-input swap gas.
 - `public-market-tape.sh` creates a Statics public pool, provides two managed

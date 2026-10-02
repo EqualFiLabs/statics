@@ -10,8 +10,8 @@ load_current_run
 require_local_chain
 cd_repo
 
-EXPECTED_FACETS=30
-EXPECTED_SELECTORS=209
+EXPECTED_FACETS=31
+EXPECTED_SELECTORS=219
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)
@@ -34,6 +34,33 @@ assert_eq \
     "$(cast call "$STATICS_DIAMOND_ADDRESS" 'stakingToken()(address)' --rpc-url "$RPC_URL")" \
     "$STAKING_TOKEN" \
     "staking token"
+
+read -r royalty_receiver royalty_bps <<<"$(
+    cast call "$STATICS_DIAMOND_ADDRESS" 'positionRoyalty()(address,uint16)' --rpc-url "$RPC_URL" \
+        | tr '\n' ' '
+)"
+assert_eq "$royalty_receiver" "$TREASURY" "PositionNFT royalty receiver"
+assert_eq "$royalty_bps" "500" "PositionNFT royalty BPS"
+read -r quoted_royalty_receiver quoted_royalty_amount <<<"$(
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+        'royaltyInfo(uint256,uint256)(address,uint256)' 1 1000000000000000000 \
+        --rpc-url "$RPC_URL" | awk '{print $1}' | tr '\n' ' '
+)"
+assert_eq "$quoted_royalty_receiver" "$TREASURY" "ERC-2981 royalty receiver"
+assert_eq "$quoted_royalty_amount" "50000000000000000" "ERC-2981 royalty amount"
+
+declare -A required_interfaces=(
+    [ERC2981]=0x2a55205a
+    [IStaticsPositionRoyalty]=0x4847d81b
+    [IStaticsPositionMarket]=0x079c0632
+)
+for interface_name in "${!required_interfaces[@]}"; do
+    assert_eq \
+        "$(cast call "$STATICS_DIAMOND_ADDRESS" 'supportsInterface(bytes4)(bool)' \
+            "${required_interfaces[$interface_name]}" --rpc-url "$RPC_URL")" \
+        "true" \
+        "$interface_name support"
+done
 
 read -r installed_pool_manager installed_hook public_installed <<<"$(
     cast call "$STATICS_DIAMOND_ADDRESS" 'liquidityIntegration()(address,address,bool)' --rpc-url "$RPC_URL" \
@@ -111,6 +138,21 @@ assert_runtime_matches_artifact \
     "$STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS" \
     "$PHASE_ONE_OUT/StaticsPermissionedSwapFeeHook.sol/StaticsPermissionedSwapFeeHook.json" \
     "permissioned hook"
+
+position_market_facet=$(
+    cast call "$STATICS_DIAMOND_ADDRESS" 'facetAddress(bytes4)(address)' 0x2a55205a --rpc-url "$RPC_URL"
+)
+assert_nonzero_address "$position_market_facet" "PositionMarket facet"
+assert_runtime_matches_artifact \
+    "$position_market_facet" \
+    "$PHASE_ONE_OUT/PositionMarketFacet.sol/PositionMarketFacet.json" \
+    "PositionMarket facet"
+for selector in 0x2a55205a 0x24840dbe 0x4696f5ff 0xff05754e 0x38c8ae38; do
+    assert_eq \
+        "$(cast call "$STATICS_DIAMOND_ADDRESS" 'facetAddress(bytes4)(address)' "$selector" --rpc-url "$RPC_URL")" \
+        "$position_market_facet" \
+        "PositionMarket route for $selector"
+done
 assert_runtime_matches_build_context \
     "$STATICS_PERMISSIONED_ROUTER_ADDRESS" \
     "$PERIPHERY_OUT/DeployStaticsPermissionedPeriphery.s.sol/DeployStaticsPermissionedPeriphery.json" \
@@ -230,6 +272,9 @@ jq -n \
     --arg liquidityManager "$STATICS_LIQUIDITY_MANAGER_ADDRESS" \
     --arg permissionedRouter "$STATICS_PERMISSIONED_ROUTER_ADDRESS" \
     --arg permissionedPositionManager "$STATICS_PERMISSIONED_POSITION_MANAGER_ADDRESS" \
+    --arg positionMarketFacet "$position_market_facet" \
+    --arg royaltyReceiver "$royalty_receiver" \
+    --argjson royaltyBps "$royalty_bps" \
     --argjson facets "$EXPECTED_FACETS" \
     --argjson selectors "$EXPECTED_SELECTORS" \
     '{
@@ -244,6 +289,8 @@ jq -n \
             liquidityManager: $liquidityManager,
             permissionedRouter: $permissionedRouter,
             permissionedPositionManager: $permissionedPositionManager,
+            positionMarketFacet: $positionMarketFacet,
+            positionRoyalty: {receiver: $royaltyReceiver, bps: $royaltyBps},
             facets: $facets,
             selectors: $selectors
         }
