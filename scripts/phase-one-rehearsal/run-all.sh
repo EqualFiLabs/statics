@@ -23,6 +23,7 @@ SCENARIOS=(
     managed-lp-lifecycle.sh
     position-market-transfer.sh
     permissioned-lifecycle.sh
+    permissioned-creator-handover.sh
     protocol-pol-lifecycle.sh
     direct-range-rewards.sh
     allocator-rewards.sh

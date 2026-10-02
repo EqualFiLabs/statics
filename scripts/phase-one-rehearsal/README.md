@@ -57,6 +57,10 @@ runtime verification cannot accidentally accept stale shared build output.
   admission, permissioned trading, creator and Treasury revenue, restricted-asset
   normalization, normalized staker claims, halt enforcement, forced unwind,
   backed owner credit, and claims.
+- `permissioned-creator-handover.sh` preserves the controller, LP ownership,
+  trading, and credit through creator transfer; invalidates historical signed
+  terms and controller approvals; exercises successor-approved configuration;
+  and preserves creator rights after decommission.
 - `protocol-pol-lifecycle.sh` proves disabled-POL fallback, paid activation,
   two-asset PoolId custody, managed position operations, the empty-position
   lifecycle, native LP fee routing to Treasury, and incremental decommissioning.
