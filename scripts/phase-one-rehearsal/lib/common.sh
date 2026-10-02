@@ -411,6 +411,27 @@ assert_nonzero_address() {
     [[ "${value,,}" != "0x0000000000000000000000000000000000000000" ]] || fail "$context is zero"
 }
 
+assert_token_solvency() {
+    local token=$1
+    local context=$2
+    local reserved balance
+    reserved=$(cast call "$STATICS_DIAMOND_ADDRESS" 'globalReservedByToken(address)(uint256)' \
+        "$token" --rpc-url "$RPC_URL" | awk '{print $1}')
+    balance=$(cast call "$token" 'balanceOf(address)(uint256)' \
+        "$STATICS_DIAMOND_ADDRESS" --rpc-url "$RPC_URL" | awk '{print $1}')
+    assert_le "$reserved" "$balance" "$context custody solvency"
+}
+
+assert_phase_one_solvency() {
+    local context=$1
+    shift
+    local token
+    for token in "$@"; do
+        assert_token_solvency "$token" "$context $token"
+    done
+    record_result accounting "$context" pass "$# token balances cover global reserves"
+}
+
 assert_runtime_matches_artifact() {
     local address=$1
     local artifact=$2

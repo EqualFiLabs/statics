@@ -59,6 +59,9 @@ runtime verification cannot accidentally accept stale shared build output.
 - `public-revenue-rewards.sh` proves swap-time global reward ownership, later
   staker isolation, delayed backing, creator and Treasury claims, and restriction
   fallback and recovery.
+- `creator-handover.sh` proves the public creator proposal state machine, fixed
+  revenue recipients, settled-credit continuity, authority replacement, POL and
+  gauge administration transfer, and PoolId-local claim backing.
 - `staking-and-gauges.sh` proves stake and allocation cooldowns, allocation locks,
   reserve funding, slot-0 delivery, two-period catch-up, and a 105-period gap
   recovered through bounded 52, 52, and 1 period calls.
