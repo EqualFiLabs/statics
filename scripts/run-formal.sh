@@ -132,6 +132,8 @@ case "$TARGET" in
       out-formal-genesis '^check_polOverrideCannotExceedCurrentGlobalBucket'
     ;;
   phase-one)
+    run_halmos "$ROOT" PoolCreatorHalmosTest phase-one-pool-creator 8 \
+      out-formal-genesis '^check_'
     run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-pause-authority 8 \
       out-formal-genesis '^check_onlyGuardianOrOwnerCanStopAllProtocolSwaps'
     run_halmos "$ROOT" PhaseOneEmergencyControlsHalmosTest phase-one-swap-restore-authority 8 \

@@ -54,7 +54,7 @@ Basket canonical pools are POL-capable because their creator-funded launch posit
 atomic basket launch.
 
 General pools start with POL disabled. While disabled, the configured POL share routes to Treasury
-and the hook does not accumulate dormant POL inventory. The immutable pool creator may permanently
+and the hook does not accumulate dormant POL inventory. The current pool creator may permanently
 activate managed POL by paying the exact governed native activation fee, which is sent entirely to
 Treasury. Activation affects future swaps only.
 

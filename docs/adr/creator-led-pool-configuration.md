@@ -31,8 +31,36 @@ Statics recognizes two registered pool classes:
 Every registered pool uses the installed `StaticsSwapFeeHook`. The creator
 selects the static native v4 LP fee, tick spacing, and initial price. A basket
 creator also selects the paired-asset launch amount for each constituent market.
-A general-pool creator selects both token addresses and an immutable creator
-identity.
+A general-pool creator selects both token addresses and the initial creator
+identity. Public and permissioned general pools support two-step creator transfers.
+
+## Creator authority and revenue recipients
+
+The current creator calls `proposePoolCreator(poolId, newCreator)` and the proposed
+account calls `acceptPoolCreator(poolId)`. A zero proposal cancels the pending
+transfer. Acceptance changes the authoritative Diamond creator, clears the proposal
+and custom revenue recipient, and advances the permissioned configuration nonce.
+Returning to a former creator cannot revive old permissioned terms or controller
+replacement signatures. Controllers and user LP ownership remain unchanged.
+
+Creator revenue remains PoolId/asset credit. Acceptance transfers authority over
+outstanding Diamond credits and unsettled hook creator fees without moving balances
+or affecting accrual. Hook registration records the original creation attribution;
+`protocolPoolCreator` and permissioned pool views report the current authority.
+
+`setCreatorRevenueRecipient(poolId, recipient)` sets an independent payout address;
+zero restores the current creator. `poolCreatorConfiguration(poolId)` returns the
+current creator, pending creator, and effective recipient. Anyone may trigger
+`claimCreatorRevenue`, but its receiver must equal the effective recipient even
+when the creator initiates the claim. Revenue collection does not call the recipient;
+an automation contract explicitly collects and funds direct gauge programs in one
+transaction. Exact-transfer and custody checks remain in force.
+
+Creator-management controls remain available after decommissioning for outstanding
+revenue. Unknown and basket canonical pools reject these new controls. Basket
+canonical claims retain creator-only authorization and their existing receiver behavior.
+No governance recovery or forced creator reassignment is provided: guardian containment
+and timelocked decommissioning address compromise, preserving recorded liabilities.
 
 Valid creator-selected native fees are `0…999_999` pips. Tick spacing is
 `1…32_767`. Native ETH, dynamic LP fees, a 100% LP fee, alternative hooks,

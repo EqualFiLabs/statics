@@ -63,6 +63,8 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         assertEq(revenue.totalCreatorRevenue(tokenA), creatorAmount);
 
         address receiver = makeAddr("revenue-receiver");
+        vm.prank(creator);
+        revenue.setCreatorRevenueRecipient(poolId, receiver);
         uint256 receiverBefore = IERC20(tokenA).balanceOf(receiver);
         vm.prank(creator);
         (uint256 amount, uint256 received) = revenue.claimCreatorRevenue(poolId, tokenA, receiver, creatorAmount);
@@ -91,7 +93,7 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
 
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(ProtocolRevenueFacet.NoCreatorRevenue.selector, creator, tokenA));
-        revenue.claimCreatorRevenue(poolId, tokenA, makeAddr("r"), 0);
+        revenue.claimCreatorRevenue(poolId, tokenA, creator, 0);
     }
 
     function testClaimEnforcesMinimumOutput() public {
@@ -100,7 +102,7 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         revenue.routeProtocolSwapFees(poolId, tokenA, _distribution(0, 0, 500, 0));
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(ProtocolRevenueFacet.MinimumOutputNotMet.selector, tokenA, 500, 501));
-        revenue.claimCreatorRevenue(poolId, tokenA, makeAddr("r"), 501);
+        revenue.claimCreatorRevenue(poolId, tokenA, creator, 501);
         // credit preserved after failed claim
         assertEq(revenue.creatorRevenue(poolId, tokenA), 500);
     }

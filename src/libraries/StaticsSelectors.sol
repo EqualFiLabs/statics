@@ -667,22 +667,30 @@ library StaticsSelectors {
     }
 
     function protocolRevenue() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         selectors[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         selectors[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         selectors[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
         selectors[4] = IStaticsProtocolRevenue.canAccrueBasketRewards.selector;
         selectors[5] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+        selectors[6] = IStaticsProtocolRevenue.proposePoolCreator.selector;
+        selectors[7] = IStaticsProtocolRevenue.acceptPoolCreator.selector;
+        selectors[8] = IStaticsProtocolRevenue.setCreatorRevenueRecipient.selector;
+        selectors[9] = IStaticsProtocolRevenue.poolCreatorConfiguration.selector;
     }
 
     function phaseOneProtocolRevenue() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         selectors[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         selectors[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         selectors[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
         selectors[4] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+        selectors[5] = IStaticsProtocolRevenue.proposePoolCreator.selector;
+        selectors[6] = IStaticsProtocolRevenue.acceptPoolCreator.selector;
+        selectors[7] = IStaticsProtocolRevenue.setCreatorRevenueRecipient.selector;
+        selectors[8] = IStaticsProtocolRevenue.poolCreatorConfiguration.selector;
     }
 
     function phaseTwoProtocolRevenue() internal pure returns (bytes4[] memory selectors) {

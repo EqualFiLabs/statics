@@ -20,6 +20,8 @@ library LibProtocolRevenue {
     struct ProtocolRevenueStorage {
         mapping(PoolId poolId => mapping(address asset => uint256 amount)) creatorCredit;
         mapping(address asset => uint256 amount) totalCreatorCredit;
+        mapping(PoolId poolId => address creator) pendingCreator;
+        mapping(PoolId poolId => address recipient) revenueRecipient;
     }
 
     error InvalidRewardAsset(PoolId poolId, address asset);

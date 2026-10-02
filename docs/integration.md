@@ -107,7 +107,7 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 215, 307, 365, and 392. Integrators
+Morpho. The cumulative selector counts are 219, 311, 369, and 396. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
@@ -387,9 +387,25 @@ The Diamond also supports permissionless **general pools** between two
 compatible ERC-20 assets with no basket association. Read
 `protocolPool(poolId)` to resolve either class (`BasketCanonical` or
 `General`) and `isProtocolPool(poolId)` for a bounded registration check.
-`protocolPoolCreator(poolId)` returns the immutable creator. Index
+`protocolPoolCreator(poolId)` returns the current creator. Index
 `CanonicalPoolInitialized` and `ProtocolPoolCreated` for discovery; the
 Diamond deliberately provides no unbounded pool array.
+
+Public and permissioned general pools expose `poolCreatorConfiguration(poolId)` for
+the current creator, proposed successor and effective fee recipient. The creator
+proposes a successor with `proposePoolCreator`; only that successor can accept with
+`acceptPoolCreator`. Zero cancels a proposal. Acceptance clears custom recipients and
+invalidates outstanding permissioned configuration signatures. Index
+`PoolCreatorProposed`, `PoolCreatorProposalCancelled`, `PoolCreatorTransferred`, and
+`CreatorRevenueRecipientSet` alongside creation events.
+
+The creator may independently configure a fee recipient; zero restores the current
+creator. Anyone can call `claimCreatorRevenue` for a general pool, but `receiver` must
+match the effective recipient. A contract can collect and fund direct gauge incentives
+atomically without acquiring creator authority. Read the recipient immediately before
+constructing a claim; a stale receiver reverts without consuming credit. Outstanding
+credits and unsettled fees follow accepted creator transfers. These controls remain
+available after decommissioning. Basket canonical claims keep their existing behavior.
 
 The `ProtocolPoolCreated` event carries the creator, sorted currencies, native
 LP fee, tick spacing, normalized initial price, and initial tick. Indexers

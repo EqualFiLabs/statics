@@ -441,7 +441,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }
-        if (selectorCount != 215) revert UnexpectedSelectorCount(215, selectorCount);
+        if (selectorCount != 219) revert UnexpectedSelectorCount(219, selectorCount);
 
         bytes4[][] memory selectorSets = _phaseOneSelectorSets();
         for (uint256 i; i < selectorSets.length; ++i) {

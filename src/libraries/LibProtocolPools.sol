@@ -97,7 +97,7 @@ library LibProtocolPools {
         }
     }
 
-    /// @dev Normalized immutable creator resolver. Basket canonical -> basket creator; general ->
+    /// @dev Current creator authority. Basket canonical -> basket creator; general ->
     /// stored general-pool creator. Downstream fee routing consumes this rather than duplicating
     /// pool-class-specific lookups.
     function creatorOf(PoolId poolId) internal view returns (address creator) {

@@ -66,12 +66,12 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The staged Phase 1 launcher installs 31 facets and 215 selectors for arbitrary
+The staged Phase 1 launcher installs 31 facets and 219 selectors for arbitrary
 Statics-hooked pairs, permissioned venues, PositionNFT accounts, and global
 STATICS staking on `StaticsDiamond`. It also installs public-pool PositionNFT
 range gauges, weekly reserve-backed protocol incentives, and the Diamond-bound
 liquidity manager used to custody their Uniswap v4 position NFTs. The
-full-stack fresh-deployment launcher installs 53 facets and 392 selectors
+full-stack fresh-deployment launcher installs 53 facets and 396 selectors
 on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/libraries/StaticsProtocolPlan.sol` and
@@ -216,7 +216,7 @@ POL, 35% to global Statics stakers, 5% to the fixed creator share, and 20% to
 treasury; general pools have no basket-staker share. An unavailable basket-staker
 allocation redirects to PoolId-local POL. An unavailable global
 Statics-staker allocation redirects to treasury. The fixed creator allocation
-never falls back and always credits the immutable creator.
+never falls back and always credits the current creator.
 
 Basket-specific entrypoints resolve a canonical pool by `basketId` and
 constituent, while protocol-pool entrypoints address either pool class directly
@@ -245,7 +245,7 @@ valid static native LP fee, tick spacing, initial price, and bounded initial
 hook-fee rate. Creation does not require an initial protocol-liquidity seed; the
 market may begin with zero liquidity. General-pool POL is disabled by default,
 and its would-be allocation routes to Treasury without accumulating dormant
-inventory. The immutable creator may pay the governed native activation fee to
+inventory. The current creator may pay the governed native activation fee to
 enable prospective managed-POL funding. Registration does not admit either
 asset as basket backing, Dollar collateral, or a borrowable asset, and a pool's
 spot price, TWAP, or liquidity is never a Statics solvency input.

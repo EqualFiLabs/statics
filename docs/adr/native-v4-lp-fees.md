@@ -88,7 +88,7 @@ The governed operator manages explicit ordinary PositionManager NFTs through
 `StaticsLiquidityManager`. Native fees are collected and reserved as Treasury
 revenue before any principal decrease, close, or rebalance. Refunds and
 principal always return to protocol custody. A general pool must be activated
-by its immutable creator before future swaps can fund POL.
+by its current creator before future swaps can fund POL.
 
 STATICS-staker fees are indexed during the authenticated swap callback. Their
 PoolManager claims may settle later, but later stake changes cannot reassign

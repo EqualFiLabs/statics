@@ -124,12 +124,16 @@ contract SelectorManifestTest is Test {
         views[12] = IStaticsProtocolPools.protocolPolPositionIds.selector;
         _assertExact(StaticsSelectors.phaseOneProtocolPoolView(), views);
 
-        bytes4[] memory revenue = new bytes4[](5);
+        bytes4[] memory revenue = new bytes4[](9);
         revenue[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         revenue[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         revenue[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         revenue[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
         revenue[4] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+        revenue[5] = IStaticsProtocolRevenue.proposePoolCreator.selector;
+        revenue[6] = IStaticsProtocolRevenue.acceptPoolCreator.selector;
+        revenue[7] = IStaticsProtocolRevenue.setCreatorRevenueRecipient.selector;
+        revenue[8] = IStaticsProtocolRevenue.poolCreatorConfiguration.selector;
         _assertExact(StaticsSelectors.phaseOneProtocolRevenue(), revenue);
     }
 
@@ -488,13 +492,17 @@ contract SelectorManifestTest is Test {
 
     function testProtocolRevenueSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.protocolRevenue();
-        bytes4[] memory expected = new bytes4[](6);
+        bytes4[] memory expected = new bytes4[](10);
         expected[0] = IStaticsProtocolRevenue.routeProtocolSwapFees.selector;
         expected[1] = IStaticsProtocolRevenue.claimCreatorRevenue.selector;
         expected[2] = IStaticsProtocolRevenue.creatorRevenue.selector;
         expected[3] = IStaticsProtocolRevenue.totalCreatorRevenue.selector;
         expected[4] = IStaticsProtocolRevenue.canAccrueBasketRewards.selector;
         expected[5] = IStaticsProtocolRevenue.protocolPolFundingConfig.selector;
+        expected[6] = IStaticsProtocolRevenue.proposePoolCreator.selector;
+        expected[7] = IStaticsProtocolRevenue.acceptPoolCreator.selector;
+        expected[8] = IStaticsProtocolRevenue.setCreatorRevenueRecipient.selector;
+        expected[9] = IStaticsProtocolRevenue.poolCreatorConfiguration.selector;
         _assertExact(actual, expected);
     }
 

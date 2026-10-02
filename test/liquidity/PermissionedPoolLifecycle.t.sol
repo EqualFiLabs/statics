@@ -1377,6 +1377,101 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(positionClaims.creditOf(poolId, lp, key.currency1), 0);
     }
 
+    function testCreatorTransferPreservesRealSwapCreditsAndController() public {
+        (PoolId poolId, PoolKey memory key, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Transfer A", "TA", 18)), address(new MockERC20("Transfer B", "TB", 18)), 3_000, 100
+        );
+        uint256 tokenId = _mintFullRangePosition(key, controller, lp, 20 ether);
+        address asset = Currency.unwrap(key.currency1);
+        _swapForOutput(key, controller, trader, asset, 1 ether);
+        uint256 owed = revenue.creatorRevenue(poolId, asset);
+        assertGt(owed, 0);
+        address successor = makeAddr("new-venue-creator");
+        vm.startPrank(creator);
+        revenue.setCreatorRevenueRecipient(poolId, makeAddr("old-recipient"));
+        revenue.proposePoolCreator(poolId, successor);
+        vm.stopPrank();
+        vm.prank(successor);
+        revenue.acceptPoolCreator(poolId);
+        IStaticsPermissionedPools.PermissionedPoolView memory info = permissionedPools.permissionedPool(poolId);
+        assertEq(info.creator, successor);
+        assertEq(info.controller, address(controller));
+        assertEq(info.configurationNonce, 1);
+        assertEq(permissionedPositionManager.ownerOf(tokenId), lp);
+        (, address pending, address recipient) = revenue.poolCreatorConfiguration(poolId);
+        assertEq(pending, address(0));
+        assertEq(recipient, successor);
+        vm.prank(creator);
+        vm.expectRevert();
+        permissionedPools.invalidatePermissionedConfigurationNonce(poolId, 1);
+        uint256 before = IERC20(asset).balanceOf(successor);
+        revenue.claimCreatorRevenue(poolId, asset, successor, owed);
+        assertEq(IERC20(asset).balanceOf(successor) - before, owed);
+        assertEq(revenue.totalCreatorRevenue(asset), 0);
+        _swapForOutput(key, controller, trader, asset, 1 ether);
+        assertGt(revenue.creatorRevenue(poolId, asset), 0);
+    }
+
+    function testCreatorRoundTripInvalidatesOldTermsAndControllerSignatures() public {
+        (PoolId poolId,, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Nonce A", "NA", 18)), address(new MockERC20("Nonce B", "NB", 18)), 3_000, 100
+        );
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreement = keccak256("creator-round-trip");
+        IStaticsPermissionedSwapFeeHook.PoolEconomics memory terms = _economics(150, 8_000, 1_000, 1_000);
+        bytes memory termsSignature =
+            _sign(creatorKey, permissionedPools.permissionedTermsDigest(poolId, terms, 0, deadline, agreement));
+        DefaultVenueController replacement = new DefaultVenueController(creator);
+        bytes memory controllerSignature = _controllerReplacementAuthorization(
+            poolId, address(controller), address(replacement), 0, deadline, agreement, creatorKey
+        );
+        address successor = makeAddr("temporary-creator");
+        vm.prank(creator);
+        revenue.proposePoolCreator(poolId, successor);
+        vm.startPrank(successor);
+        revenue.acceptPoolCreator(poolId);
+        revenue.proposePoolCreator(poolId, creator);
+        vm.stopPrank();
+        vm.prank(creator);
+        revenue.acceptPoolCreator(poolId);
+        assertEq(permissionedPools.permissionedPool(poolId).configurationNonce, 2);
+        vm.expectRevert(
+            abi.encodeWithSelector(PermissionedPoolAdminFacet.InvalidConfigurationNonce.selector, poolId, 2, 0)
+        );
+        permissionedPools.applyPermissionedPoolTerms(poolId, terms, 0, deadline, agreement, termsSignature);
+        vm.expectRevert(
+            abi.encodeWithSelector(PermissionedPoolAdminFacet.InvalidConfigurationNonce.selector, poolId, 2, 0)
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(controller), address(replacement), 0, deadline, agreement, controllerSignature
+        );
+        bytes memory currentSignature =
+            _sign(creatorKey, permissionedPools.permissionedTermsDigest(poolId, terms, 2, deadline, agreement));
+        permissionedPools.applyPermissionedPoolTerms(poolId, terms, 2, deadline, agreement, currentSignature);
+        assertEq(permissionedPools.permissionedPool(poolId).configurationNonce, 3);
+    }
+
+    function testDecommissionedPermissionedPoolKeepsCreatorRevenueManageable() public {
+        (PoolId poolId, PoolKey memory key, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Exit A", "EA", 18)), address(new MockERC20("Exit B", "EB", 18)), 3_000, 100
+        );
+        _mintFullRangePosition(key, controller, lp, 20 ether);
+        address asset = Currency.unwrap(key.currency1);
+        _swapForOutput(key, controller, trader, asset, 1 ether);
+        uint256 owed = revenue.creatorRevenue(poolId, asset);
+        permissionedPools.decommissionPermissionedPool(poolId);
+        address successor = makeAddr("exit-creator");
+        vm.prank(creator);
+        revenue.proposePoolCreator(poolId, successor);
+        vm.prank(successor);
+        revenue.acceptPoolCreator(poolId);
+        vm.prank(successor);
+        revenue.setCreatorRevenueRecipient(poolId, trader);
+        uint256 before = IERC20(asset).balanceOf(trader);
+        revenue.claimCreatorRevenue(poolId, asset, trader, owed);
+        assertEq(IERC20(asset).balanceOf(trader) - before, owed);
+    }
+
     function testPermissionedPositionManagerRetainsRuntimeHeadroom() public view {
         assertLe(address(permissionedPositionManager).code.length, POSITION_MANAGER_SIZE_LIMIT);
     }
