@@ -19,7 +19,7 @@ struct StaticsGenesisUpgradeParts {
 }
 
 library StaticsGenesisUpgradeCut {
-    uint256 private constant PHASE_ONE_GLOBAL_REWARD_SELECTORS = 24;
+    uint256 private constant PHASE_ONE_GLOBAL_REWARD_SELECTORS = 19;
     uint256 private constant PHASE_ONE_POSITION_SELECTORS = 26;
     uint256 private constant PHASE_ONE_CUSTODY_SELECTORS = 7;
 

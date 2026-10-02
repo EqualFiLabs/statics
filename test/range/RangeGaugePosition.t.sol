@@ -174,6 +174,10 @@ contract RangeGaugePositionTest is RangeGaugeFeatureTestBase {
             })
         );
 
+        vm.prank(bob);
+        (uint256 preview0, uint256 preview1) = rangeGauge.previewNativeLpFees(positionId, poolId);
+        assertGt(preview0 + preview1, 0);
+
         bytes32 legBefore = keccak256(abi.encode(rangeGauge.lpLeg(positionId, poolId)));
         bytes32 poolBefore = keccak256(abi.encode(rangeGauge.gaugePool(poolId)));
         bytes32 lowerBefore = keccak256(abi.encode(rangeGauge.gaugeBoundary(poolId, _fullLower())));
@@ -182,10 +186,31 @@ contract RangeGaugePositionTest is RangeGaugeFeatureTestBase {
         IStaticsRangeGauge.LiquidityMovement memory collected =
             rangeGauge.collectNativeFees(positionId, poolId, 0, 0, block.timestamp + 1 hours);
         assertGt(collected.received0 + collected.received1, 0);
+        assertEq(collected.received0, preview0);
+        assertEq(collected.received1, preview1);
+        (preview0, preview1) = rangeGauge.previewNativeLpFees(positionId, poolId);
+        assertEq(preview0 + preview1, 0);
         assertEq(keccak256(abi.encode(rangeGauge.lpLeg(positionId, poolId))), legBefore);
         assertEq(keccak256(abi.encode(rangeGauge.gaugePool(poolId))), poolBefore);
         assertEq(keccak256(abi.encode(rangeGauge.gaugeBoundary(poolId, _fullLower()))), lowerBefore);
         assertEq(keccak256(abi.encode(rangeGauge.gaugeBoundary(poolId, _fullUpper()))), upperBefore);
+    }
+
+    function testNativeFeePreviewHandlesEmptyLegAndRejectsUnknownLeg() public {
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 positionId = _createPosition(alice);
+        _provide(positionId, poolId, _fullLower(), _fullUpper(), INITIAL_LIQUIDITY, alice);
+        _fundStatics(poolId, 700 ether);
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(alice);
+        rangeGauge.exitLiquidity(positionId, poolId, 0, 0, block.timestamp + 1 hours);
+        (uint256 amount0, uint256 amount1) = rangeGauge.previewNativeLpFees(positionId, poolId);
+        assertEq(amount0 + amount1, 0);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IStaticsRangeGauge.InvalidPositionState.selector, positionId + 1, poolId)
+        );
+        rangeGauge.previewNativeLpFees(positionId + 1, poolId);
     }
 
     function testPnftTransferChangesAuthorizationWithoutChangingGaugeOrCustody() public {

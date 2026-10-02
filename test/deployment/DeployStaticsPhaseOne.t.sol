@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -26,6 +27,8 @@ import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
+import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoyalty.sol";
+import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
@@ -79,8 +82,8 @@ contract PhaseOnePermissionedBindingMock {
 }
 
 contract DeployStaticsPhaseOneTest is Test {
-    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 30;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 209;
+    uint256 private constant EXPECTED_PHASE_ONE_FACETS = 31;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 215;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -491,6 +494,7 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.exitLiquidity.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRangeGauge.previewLpRewards.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsPosition.createPosition.selector) != address(0));
+        assertTrue(loupe.facetAddress(IStaticsPositionRoyalty.royaltyInfo.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGlobalRewards.createAndStake.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.setGaugeAllocations.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsGaugeIncentives.claimGaugeAllocatorRewards.selector) != address(0));
@@ -506,6 +510,9 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(loupe.facetAddress(IStaticsProtocolRevenue.routeProtocolSwapFees.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsRewardPolicy.addRewardRestriction.selector) != address(0));
         assertTrue(loupe.facetAddress(IStaticsPermissionedPools.createPermissionedPool.selector) != address(0));
+        assertTrue(IERC165(diamond).supportsInterface(type(IERC2981).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionRoyalty).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionMarket).interfaceId));
     }
 
     function _assertDeferredSelectorsAbsent(address diamond) private view {

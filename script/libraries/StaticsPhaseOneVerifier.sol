@@ -12,6 +12,7 @@ import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
+import {PositionMarketFacet} from "../../src/facets/PositionMarketFacet.sol";
 import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
 import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCreationFacet.sol";
 import {PermissionedPoolViewFacet} from "../../src/facets/PermissionedPoolViewFacet.sol";
@@ -45,6 +46,7 @@ library StaticsPhaseOneVerifier {
         _validateFacetSet(diamond, StaticsSelectors.ownership(), keccak256(type(OwnershipFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.phaseOneGovernance(), keccak256(type(GovernanceFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.position(), keccak256(type(PositionNFTFacet).runtimeCode));
+        _validateFacetSet(diamond, StaticsSelectors.positionMarket(), keccak256(type(PositionMarketFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.phaseOneCustody(), keccak256(type(CustodyFacet).runtimeCode));
         _validateFacetSet(
             diamond, StaticsSelectors.phaseOneTreasuryAdmin(), keccak256(type(BasketAdminFacet).runtimeCode)

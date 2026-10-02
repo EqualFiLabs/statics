@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
 import {IStaticsDollarGateway} from "../dollar/interfaces/IStaticsDollarGateway.sol";
 import {IStaticsDollarRiskIncentives} from "../dollar/interfaces/IStaticsDollarRiskIncentives.sol";
@@ -13,6 +14,8 @@ import {LibPeriphery} from "../dollar/periphery/libraries/LibPeriphery.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol";
+import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
@@ -76,6 +79,9 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IModularPositionNFT).interfaceId] = true;
         ds.supportedInterfaces[type(IPositionOwnerIndex).interfaceId] = true;
         ds.supportedInterfaces[type(IERC5192).interfaceId] = true;
+        ds.supportedInterfaces[type(IERC2981).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsPositionRoyalty).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsPositionMarket).interfaceId] = true;
     }
 
     function initializePhaseTwo(uint256 creationFeeAmount, uint256 singleAssetFlashFeeBps) internal {

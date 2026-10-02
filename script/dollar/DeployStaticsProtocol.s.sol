@@ -12,6 +12,7 @@ import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {PositionMarketFacet} from "../../src/facets/PositionMarketFacet.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
 import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
@@ -201,6 +202,7 @@ abstract contract DeployStaticsProtocol {
         parts.ownership = address(new OwnershipFacet());
         parts.governance = address(new GovernanceFacet());
         parts.position = address(new PositionNFTFacet());
+        parts.positionMarket = address(new PositionMarketFacet());
         parts.custody = address(new CustodyFacet());
         parts.globalRewards = address(new GlobalRewardsFacet());
         parts.basketAdmin = address(new BasketAdminFacet());

@@ -1,18 +1,18 @@
 # Slither triage
 
-The reviewed repository-wide CI artifact covers 238 production Solidity files
+The reviewed repository-wide CI artifact covers 242 production Solidity files
 and explicitly excludes 17 test, formal-fixture, and vendor files as finding
-subjects. It normalizes to 832 stable findings: 66 high, 412 medium, 222 low,
-and 132 informational. Every stable fingerprint has an explicit classification
+subjects. It normalizes to 836 stable findings: 66 high, 414 medium, 222 low,
+and 134 informational. Every stable fingerprint has an explicit classification
 and rationale in `baseline.json`; detector families are summarized below but
 are not blanket suppressions for future findings.
 
-All 832 current findings are reviewed as intentional behavior or false
+All 836 current findings are reviewed as intentional behavior or false
 positives.
 
-The exact CI artifact for commit `0ac62f5a05d1a6b1c15d330fd71bdf6c2f6456c8`
+The exact CI artifact for commit `e42e92fd0ef65b9f9469db38d19a87e3d736974b`
 produced the current source scope and reviewed fingerprint baseline. It records
-200 false positives and 632 intentional findings. No detector family is
+200 false positives and 636 intentional findings. No detector family is
 suppressed.
 
 ## High
@@ -33,8 +33,8 @@ suppressed.
 | `divide-before-multiply` | 3 | INTENTIONAL | The affected paths intentionally round at an accounting-bucket or staged fee boundary. |
 | `incorrect-equality` | 44 | FALSE POSITIVE | Exact equality enforces zero state, fixed configuration, period boundaries, caps, sentinels, transfer compatibility, or conservation checks. |
 | `reentrancy-no-eth` | 16 | INTENTIONAL | Guarded protocol entrypoints and PoolManager callbacks intentionally update accounting around external settlement; liabilities or custody are cleared before transfers where required. |
-| `uninitialized-local` | 61 | FALSE POSITIVE | The values are intentional Solidity-zero accumulators, binary-search bounds, optional branch results, memory contexts, or bitmaps. |
-| `unused-return` | 288 | INTENTIONAL | Calls are side-effect transitions, capability probes, partial tuple reads, callback boundaries, or Forge JSON serialization; security-sensitive asset movement is checked independently. |
+| `uninitialized-local` | 60 | FALSE POSITIVE | The values are intentional Solidity-zero accumulators, binary-search bounds, optional branch results, memory contexts, or bitmaps. |
+| `unused-return` | 291 | INTENTIONAL | Calls are side-effect transitions, capability probes, partial tuple reads, callback boundaries, or Forge JSON serialization; security-sensitive asset movement is checked independently. |
 
 ## Low
 
@@ -52,14 +52,14 @@ suppressed.
 
 | Detector | Count | Classification | Review conclusion |
 | --- | ---: | --- | --- |
-| `assembly` | 34 | INTENTIONAL | Assembly implements established Diamond storage/dispatch, calldata, transient swap state, proxy, or exact revert-forwarding patterns. |
+| `assembly` | 35 | INTENTIONAL | Assembly implements established Diamond storage/dispatch, calldata, transient swap state, proxy, or exact revert-forwarding patterns. |
 | `cyclomatic-complexity` | 2 | INTENTIONAL | Deployment, Genesis binding, and bounded gauge allocation validation preserve atomic transitions. |
 | `dead-code` | 4 | INTENTIONAL | Internal phase-cut and accounting helpers remain explicit reusable composition boundaries for derived deployment tooling. |
 | `low-level-calls` | 16 | INTENTIONAL | Calls are checked dispatch, capability, token-compatibility, native-fee forwarding, fallback-credit, or revert-forwarding boundaries. |
 | `missing-inheritance` | 6 | FALSE POSITIVE | Structural suggestions cross interface or legacy-compatibility boundaries and do not indicate missing implementations. |
 | `naming-convention` | 4 | INTENTIONAL | Names preserve established external interfaces or mathematical notation. |
 | `solc-version` | 2 | INTENTIONAL | The repository pins the reviewed compilers through Foundry configuration and source pragmas. |
-| `too-many-digits` | 59 | INTENTIONAL | Exact hashes, hook permission masks, deployment identifiers, and protocol constants must remain literal. |
+| `too-many-digits` | 60 | INTENTIONAL | Exact hashes, hook permission masks, deployment identifiers, and protocol constants must remain literal. |
 | `unimplemented-functions` | 1 | FALSE POSITIVE | Implementations are provided by the concrete contract or inherited boundary used at runtime. |
 | `unindexed-event-address` | 4 | INTENTIONAL | Established compatibility event signatures retain their topic layout and include full addresses in data. |
 

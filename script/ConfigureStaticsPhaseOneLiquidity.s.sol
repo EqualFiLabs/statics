@@ -425,13 +425,13 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
     function _validatePhaseOneSelectors(address diamond) private view {
         IDiamondLoupe.Facet[] memory facets = IDiamondLoupe(diamond).facets();
-        if (facets.length != 30) revert UnexpectedFacetCount(30, facets.length);
+        if (facets.length != 31) revert UnexpectedFacetCount(31, facets.length);
 
         uint256 selectorCount = 0;
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }
-        if (selectorCount != 209) revert UnexpectedSelectorCount(209, selectorCount);
+        if (selectorCount != 215) revert UnexpectedSelectorCount(215, selectorCount);
 
         bytes4[][] memory selectorSets = _phaseOneSelectorSets();
         for (uint256 i; i < selectorSets.length; ++i) {

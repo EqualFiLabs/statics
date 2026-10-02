@@ -13,6 +13,7 @@ import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionRoyalty} from "../libraries/LibPositionRoyalty.sol";
 
 /// @notice Constructor-only initializer for the Phase 1 DEX and global staking selector surface.
 contract StaticsPhaseOneInit is ERC721Upgradeable {
@@ -39,6 +40,7 @@ contract StaticsPhaseOneInit is ERC721Upgradeable {
         LibRangeGauge.initializeGlobalConfig();
         LibGaugeRouting.initialize(args.weeklyGaugeReleaseBps);
         LibRangeGauge.setRewardAssetAllowed(args.stakingToken, true);
+        LibPositionRoyalty.initialize(args.treasury);
 
         LibDeploymentPhases.initializePhaseOneInterfaces();
 

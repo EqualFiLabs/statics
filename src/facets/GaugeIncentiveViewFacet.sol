@@ -2,13 +2,13 @@
 pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
 import {LibGaugeEligibility} from "../libraries/LibGaugeEligibility.sol";
 import {LibGaugeReserve} from "../libraries/LibGaugeReserve.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
-import {LibPosition} from "../position/LibPosition.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 contract GaugeIncentiveViewFacet {
@@ -78,7 +78,7 @@ contract GaugeIncentiveViewFacet {
             uint256 lockedStake
         )
     {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
+        _requirePosition(positionId);
         LibGaugeRouting.PositionAllocations storage stored = LibGaugeRouting.routingStorage().positions[positionId];
         nextAllocationAt = stored.nextAllocationAt;
         totalAllocated = stored.totalAllocated;
@@ -138,7 +138,7 @@ contract GaugeIncentiveViewFacet {
         view
         returns (IStaticsGaugeIncentives.AllocatorClaimPreview[] memory rewards)
     {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
+        _requirePosition(positionId);
         (uint256 allocation, bytes32 allocationVersion) = LibGaugeRouting.positionAllocation(positionId, poolId);
         rewards = new IStaticsGaugeIncentives.AllocatorClaimPreview[](slots.length);
         for (uint256 i; i < slots.length; ++i) {
@@ -150,6 +150,19 @@ contract GaugeIncentiveViewFacet {
                 slot: slot, asset: asset, allocation: allocation, amount: amount
             });
         }
+    }
+
+    function positionGaugeAllocatorPools(uint256 positionId, uint256 cursor, uint256 limit)
+        external
+        view
+        returns (PoolId[] memory poolIds, uint256 nextCursor)
+    {
+        _requirePosition(positionId);
+        return LibGaugeBribes.positionPools(positionId, cursor, limit);
+    }
+
+    function _requirePosition(uint256 positionId) private view {
+        IERC721(address(this)).ownerOf(positionId);
     }
 
     function _copy(LibGaugeRouting.Allocation[] storage stored)

@@ -13,6 +13,7 @@ struct StaticsProtocolParts {
     address ownership;
     address governance;
     address position;
+    address positionMarket;
     address positionPortfolio;
     address custody;
     address basketCreation;
@@ -73,37 +74,38 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](30);
+        cut = new IDiamondCut.FacetCut[](31);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
         cut[3] = _add(parts.governance, StaticsSelectors.phaseOneGovernance());
         cut[4] = _add(parts.position, StaticsSelectors.position());
-        cut[5] = _add(parts.custody, StaticsSelectors.phaseOneCustody());
-        cut[6] = _add(parts.basketAdmin, StaticsSelectors.phaseOneTreasuryAdmin());
-        cut[7] = _add(parts.basketLiquidity, StaticsSelectors.phaseOneLiquidityIntegration());
-        cut[8] = _add(parts.globalRewards, StaticsSelectors.globalRewards());
-        cut[9] = _add(parts.interfaceInit, StaticsSelectors.interfaceInit());
-        cut[10] = _add(parts.protocolPoolCreation, StaticsSelectors.protocolPoolCreation());
-        cut[11] = _add(parts.protocolPoolAdmin, StaticsSelectors.phaseOneProtocolPoolAdmin());
-        cut[12] = _add(parts.protocolPoolMaintenance, StaticsSelectors.protocolPoolMaintenance());
-        cut[13] = _add(parts.protocolPol, StaticsSelectors.protocolPol());
-        cut[14] = _add(parts.protocolPoolView, StaticsSelectors.phaseOneProtocolPoolView());
-        cut[15] = _add(parts.protocolRevenue, StaticsSelectors.phaseOneProtocolRevenue());
-        cut[16] = _add(parts.rewardPolicy, StaticsSelectors.rewardPolicy());
-        cut[17] = _add(parts.permissionedPoolCreation, StaticsSelectors.permissionedPoolCreation());
-        cut[18] = _add(parts.permissionedPoolAdmin, StaticsSelectors.permissionedPoolAdmin());
-        cut[19] = _add(parts.permissionedPoolView, StaticsSelectors.permissionedPoolView());
-        cut[20] = _add(parts.rangeGauge, StaticsSelectors.rangeGaugeActions());
-        cut[21] = _add(parts.rangeGaugePosition, StaticsSelectors.rangeGaugePositionIngress());
-        cut[22] = _add(parts.rangeGaugePositionManagement, StaticsSelectors.rangeGaugePositionManagement());
-        cut[23] = _add(parts.rangeGaugeLiveness, StaticsSelectors.rangeGaugeLiveness());
-        cut[24] = _add(parts.rangeGaugeView, StaticsSelectors.rangeGaugeViews());
-        cut[25] = _add(parts.rangeGaugeCallback, StaticsSelectors.rangeGaugeCallback());
-        cut[26] = _add(parts.gaugeIncentiveActions, StaticsSelectors.gaugeIncentiveActions());
-        cut[27] = _add(parts.gaugeIncentiveViews, StaticsSelectors.gaugeIncentiveViews());
-        cut[28] = _add(parts.marketTapeViews, StaticsSelectors.marketTapeViews());
-        cut[29] = _add(parts.marketTapeObservations, StaticsSelectors.marketTapeObservations());
+        cut[5] = _add(parts.positionMarket, StaticsSelectors.positionMarket());
+        cut[6] = _add(parts.custody, StaticsSelectors.phaseOneCustody());
+        cut[7] = _add(parts.basketAdmin, StaticsSelectors.phaseOneTreasuryAdmin());
+        cut[8] = _add(parts.basketLiquidity, StaticsSelectors.phaseOneLiquidityIntegration());
+        cut[9] = _add(parts.globalRewards, StaticsSelectors.globalRewards());
+        cut[10] = _add(parts.interfaceInit, StaticsSelectors.interfaceInit());
+        cut[11] = _add(parts.protocolPoolCreation, StaticsSelectors.protocolPoolCreation());
+        cut[12] = _add(parts.protocolPoolAdmin, StaticsSelectors.phaseOneProtocolPoolAdmin());
+        cut[13] = _add(parts.protocolPoolMaintenance, StaticsSelectors.protocolPoolMaintenance());
+        cut[14] = _add(parts.protocolPol, StaticsSelectors.protocolPol());
+        cut[15] = _add(parts.protocolPoolView, StaticsSelectors.phaseOneProtocolPoolView());
+        cut[16] = _add(parts.protocolRevenue, StaticsSelectors.phaseOneProtocolRevenue());
+        cut[17] = _add(parts.rewardPolicy, StaticsSelectors.rewardPolicy());
+        cut[18] = _add(parts.permissionedPoolCreation, StaticsSelectors.permissionedPoolCreation());
+        cut[19] = _add(parts.permissionedPoolAdmin, StaticsSelectors.permissionedPoolAdmin());
+        cut[20] = _add(parts.permissionedPoolView, StaticsSelectors.permissionedPoolView());
+        cut[21] = _add(parts.rangeGauge, StaticsSelectors.rangeGaugeActions());
+        cut[22] = _add(parts.rangeGaugePosition, StaticsSelectors.rangeGaugePositionIngress());
+        cut[23] = _add(parts.rangeGaugePositionManagement, StaticsSelectors.rangeGaugePositionManagement());
+        cut[24] = _add(parts.rangeGaugeLiveness, StaticsSelectors.rangeGaugeLiveness());
+        cut[25] = _add(parts.rangeGaugeView, StaticsSelectors.rangeGaugeViews());
+        cut[26] = _add(parts.rangeGaugeCallback, StaticsSelectors.rangeGaugeCallback());
+        cut[27] = _add(parts.gaugeIncentiveActions, StaticsSelectors.gaugeIncentiveActions());
+        cut[28] = _add(parts.gaugeIncentiveViews, StaticsSelectors.gaugeIncentiveViews());
+        cut[29] = _add(parts.marketTapeViews, StaticsSelectors.marketTapeViews());
+        cut[30] = _add(parts.marketTapeObservations, StaticsSelectors.marketTapeObservations());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {

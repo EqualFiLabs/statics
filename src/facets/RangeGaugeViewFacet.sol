@@ -2,7 +2,12 @@
 pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {FixedPoint128} from "@uniswap/v4-core/src/libraries/FixedPoint128.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibIndexMath} from "../libraries/LibIndexMath.sol";
@@ -10,6 +15,8 @@ import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 
 /// @notice Read-only discovery and accounting previews for public range gauges.
 contract RangeGaugeViewFacet {
+    using StateLibrary for IPoolManager;
+
     function gaugeRewardDuration() external view returns (uint40 duration) {
         duration = LibRangeGauge.rangeGaugeStorage().gaugeRewardDuration;
     }
@@ -164,6 +171,43 @@ contract RangeGaugeViewFacet {
                 amount += unsettled;
             }
             pending.amounts[slot] = amount;
+        }
+    }
+
+    function previewNativeLpFees(uint256 positionId, PoolId poolId)
+        external
+        view
+        returns (uint256 amount0, uint256 amount1)
+    {
+        LibRangeGauge.RangeGaugeStorage storage rgs = LibRangeGauge.rangeGaugeStorage();
+        LibRangeGauge.LpLeg storage leg = rgs.lpLegs[positionId][poolId];
+        if (!LibRangeGauge.hasPositionPool(positionId, poolId)) {
+            revert IStaticsRangeGauge.InvalidPositionState(positionId, poolId);
+        }
+
+        // An exited-but-unresolved leg remains indexed while gauge rewards are
+        // claimable, but its v4 position has been burned and cannot hold fees.
+        uint128 liquidity = leg.liquidity;
+        if (liquidity == 0) return (0, 0);
+
+        address manager = leg.manager;
+        if (
+            manager == address(0) || rgs.posmBinding[leg.posmTokenId] != LibRangeGauge.bindingFor(positionId, poolId)
+                || IStaticsLiquidityManager(manager).staticsDiamond() != address(this)
+        ) {
+            revert IStaticsRangeGauge.InvalidPositionState(positionId, poolId);
+        }
+
+        address positionManager = IStaticsLiquidityManager(manager).positionManager();
+        IPoolManager poolManager = IPoolManager(IStaticsLiquidityManager(manager).poolManager());
+        (uint128 coreLiquidity, uint256 checkpoint0X128, uint256 checkpoint1X128) =
+            poolManager.getPositionInfo(poolId, positionManager, leg.tickLower, leg.tickUpper, bytes32(leg.posmTokenId));
+        if (coreLiquidity != liquidity) revert IStaticsRangeGauge.PositionMutationMismatch(leg.posmTokenId);
+        (uint256 current0X128, uint256 current1X128) =
+            poolManager.getFeeGrowthInside(poolId, leg.tickLower, leg.tickUpper);
+        unchecked {
+            amount0 = FullMath.mulDiv(current0X128 - checkpoint0X128, liquidity, FixedPoint128.Q128);
+            amount1 = FullMath.mulDiv(current1X128 - checkpoint1X128, liquidity, FixedPoint128.Q128);
         }
     }
 

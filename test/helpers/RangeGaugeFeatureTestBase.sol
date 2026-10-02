@@ -192,7 +192,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     }
 
     function _viewSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](12);
+        selectors = new bytes4[](13);
         selectors[0] = RangeGaugeViewFacet.gaugeRewardDuration.selector;
         selectors[1] = RangeGaugeViewFacet.gaugeRewardAssetAllowed.selector;
         selectors[2] = RangeGaugeViewFacet.poolRewardConfig.selector;
@@ -205,6 +205,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         selectors[9] = RangeGaugeViewFacet.posmBinding.selector;
         selectors[10] = RangeGaugeViewFacet.recordedLiquidityManager.selector;
         selectors[11] = RangeGaugeViewFacet.previewLpRewards.selector;
+        selectors[12] = RangeGaugeViewFacet.previewNativeLpFees.selector;
     }
 
     function _positionIngressSelectors() private pure returns (bytes4[] memory selectors) {

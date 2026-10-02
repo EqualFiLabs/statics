@@ -14,6 +14,7 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibPositionRoyalty} from "../libraries/LibPositionRoyalty.sol";
 
 contract StaticsProtocolInit is ERC721Upgradeable {
     struct UnifiedInitArgs {
@@ -116,6 +117,7 @@ contract StaticsProtocolInit is ERC721Upgradeable {
         LibRangeGauge.initializeGlobalConfig();
         LibGaugeRouting.initialize(LibGaugeReserve.DEFAULT_WEEKLY_RELEASE_BPS);
         LibRangeGauge.setRewardAssetAllowed(stakingToken, true);
+        LibPositionRoyalty.initialize(treasury);
         LibDeploymentPhases.initializePhaseOneInterfaces();
 
         LibGovernance.governanceStorage().guardian = guardian;

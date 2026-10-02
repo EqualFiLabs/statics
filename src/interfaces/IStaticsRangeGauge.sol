@@ -279,4 +279,8 @@ interface IStaticsRangeGauge {
         external
         view
         returns (PendingRewardsView memory pending);
+    function previewNativeLpFees(uint256 positionId, PoolId poolId)
+        external
+        view
+        returns (uint256 amount0, uint256 amount1);
 }

@@ -722,7 +722,17 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         vm.warp(block.timestamp + 7 days);
 
         _clearAllocations(alice, positionId);
+        vm.prank(bob);
+        (PoolId[] memory unresolvedPools, uint256 nextCursor) =
+            incentives.positionGaugeAllocatorPools(positionId, 0, 100);
+        assertEq(unresolvedPools.length, 1);
+        assertEq(PoolId.unwrap(unresolvedPools[0]), PoolId.unwrap(poolId));
+        assertEq(nextCursor, 1);
         assertApproxEqAbs(_claimAllocator(alice, positionId, poolId, slot), 100 ether, 2);
+        (PoolId[] memory resolvedPools, uint256 resolvedCursor) =
+            incentives.positionGaugeAllocatorPools(positionId, 0, 100);
+        assertEq(resolvedPools.length, 0);
+        assertEq(resolvedCursor, 0);
         vm.prank(alice);
         globalRewards.unstake(positionId, 100 ether, alice);
         vm.prank(alice);
@@ -938,7 +948,7 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
     }
 
     function _incentiveViewSelectors() private pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](12);
+        selectors = new bytes4[](13);
         selectors[0] = GaugeIncentiveViewFacet.currentGaugePeriod.selector;
         selectors[1] = GaugeIncentiveViewFacet.gaugePeriodAt.selector;
         selectors[2] = GaugeIncentiveViewFacet.gaugeReserve.selector;
@@ -951,5 +961,6 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         selectors[9] = GaugeIncentiveViewFacet.gaugeAllocationCooldown.selector;
         selectors[10] = GaugeIncentiveViewFacet.gaugeAllocatorReward.selector;
         selectors[11] = GaugeIncentiveViewFacet.previewGaugeAllocatorRewards.selector;
+        selectors[12] = GaugeIncentiveViewFacet.positionGaugeAllocatorPools.selector;
     }
 }

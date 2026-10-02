@@ -30,6 +30,8 @@ import {IStaticsRewardPolicy} from "../interfaces/IStaticsRewardPolicy.sol";
 import {IStaticsPermissionedPools} from "../interfaces/IStaticsPermissionedPools.sol";
 import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
+import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol";
+import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
@@ -77,7 +79,7 @@ library StaticsSelectors {
 
     /// @dev liquidityManager() is intentionally routed through BasketLiquidityFacet.
     function rangeGaugeViews() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](12);
+        selectors = new bytes4[](13);
         selectors[0] = IStaticsRangeGauge.gaugeRewardDuration.selector;
         selectors[1] = IStaticsRangeGauge.gaugeRewardAssetAllowed.selector;
         selectors[2] = IStaticsRangeGauge.poolRewardConfig.selector;
@@ -90,6 +92,7 @@ library StaticsSelectors {
         selectors[9] = IStaticsRangeGauge.posmBinding.selector;
         selectors[10] = IStaticsRangeGauge.recordedLiquidityManager.selector;
         selectors[11] = IStaticsRangeGauge.previewLpRewards.selector;
+        selectors[12] = IStaticsRangeGauge.previewNativeLpFees.selector;
     }
 
     function rangeGaugeCallback() internal pure returns (bytes4[] memory selectors) {
@@ -126,7 +129,7 @@ library StaticsSelectors {
     }
 
     function gaugeIncentiveViews() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](12);
+        selectors = new bytes4[](13);
         selectors[0] = IStaticsGaugeIncentives.currentGaugePeriod.selector;
         selectors[1] = IStaticsGaugeIncentives.gaugePeriodAt.selector;
         selectors[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
@@ -139,6 +142,7 @@ library StaticsSelectors {
         selectors[9] = IStaticsGaugeIncentives.gaugeAllocationCooldown.selector;
         selectors[10] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;
         selectors[11] = IStaticsGaugeIncentives.previewGaugeAllocatorRewards.selector;
+        selectors[12] = IStaticsGaugeIncentives.positionGaugeAllocatorPools.selector;
     }
 
     function rewardPolicy() internal pure returns (bytes4[] memory selectors) {
@@ -245,27 +249,38 @@ library StaticsSelectors {
         selectors[26] = IERC5192.locked.selector;
     }
 
+    function positionMarket() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](9);
+        selectors[0] = IStaticsPositionRoyalty.royaltyInfo.selector;
+        selectors[1] = IStaticsPositionRoyalty.positionRoyalty.selector;
+        selectors[2] = IStaticsPositionRoyalty.setPositionRoyalty.selector;
+        selectors[3] = IStaticsGlobalRewards.pendingRewards.selector;
+        selectors[4] = IStaticsGlobalRewards.stakePosition.selector;
+        selectors[5] = IStaticsGlobalRewards.positionRewardAssets.selector;
+        selectors[6] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
+        selectors[7] = IStaticsGlobalRewards.rewardSelection.selector;
+        selectors[8] = IStaticsPositionMarket.globalRewardAssetsOfPosition.selector;
+    }
+
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](1);
         selectors[0] = StaticsInterfaceInit.setInterfaces.selector;
     }
 
     function positionPortfolio() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](6);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
         selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
         selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
-        selectors[3] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
-        selectors[4] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
-        selectors[5] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
+        selectors[3] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+        selectors[4] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
     }
 
     function phaseTwoPositionPortfolio() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](3);
         selectors[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
         selectors[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
         selectors[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
-        selectors[3] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
     }
 
     function phaseThreePositionPortfolio() internal pure returns (bytes4[] memory selectors) {
@@ -407,7 +422,7 @@ library StaticsSelectors {
     }
 
     function globalRewards() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](28);
+        selectors = new bytes4[](23);
         selectors[0] = IStaticsGlobalRewards.createAndStake.selector;
         selectors[1] = IStaticsGlobalRewards.stake.selector;
         selectors[2] = IStaticsGlobalRewards.unstake.selector;
@@ -415,27 +430,22 @@ library StaticsSelectors {
         selectors[4] = IStaticsGlobalRewards.optOutRewardAssets.selector;
         selectors[5] = IStaticsGlobalRewards.claimRewards.selector;
         selectors[6] = IStaticsGlobalRewards.distributeTreasuryFees.selector;
-        selectors[7] = IStaticsGlobalRewards.pendingRewards.selector;
-        selectors[8] = IStaticsGlobalRewards.stakePosition.selector;
-        selectors[9] = IStaticsGlobalRewards.rewardAsset.selector;
-        selectors[10] = IStaticsGlobalRewards.positionRewardAssets.selector;
-        selectors[11] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
-        selectors[12] = IStaticsGlobalRewards.rewardSelection.selector;
-        selectors[13] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
-        selectors[14] = IStaticsGlobalRewards.rewardEligibilityDelay.selector;
-        selectors[15] = IStaticsGlobalRewards.rewardEligibilityBucketSize.selector;
-        selectors[16] = IStaticsGlobalRewards.stakingToken.selector;
-        selectors[17] = IStaticsGlobalRewards.totalStaked.selector;
-        selectors[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
-        selectors[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        selectors[20] = IStaticsGlobalRewards.unfundedSwapRewards.selector;
-        selectors[21] = IStaticsGlobalRewards.fundedGlobalRewards.selector;
-        selectors[22] = IStaticsGlobalRewards.outstandingGlobalRewardLiability.selector;
-        selectors[23] = IStaticsGlobalRewards.settlePublicSwapRewards.selector;
-        selectors[24] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
-        selectors[25] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
-        selectors[26] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
-        selectors[27] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
+        selectors[7] = IStaticsGlobalRewards.rewardAsset.selector;
+        selectors[8] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
+        selectors[9] = IStaticsGlobalRewards.rewardEligibilityDelay.selector;
+        selectors[10] = IStaticsGlobalRewards.rewardEligibilityBucketSize.selector;
+        selectors[11] = IStaticsGlobalRewards.stakingToken.selector;
+        selectors[12] = IStaticsGlobalRewards.totalStaked.selector;
+        selectors[13] = IStaticsGlobalRewards.treasuryAccrued.selector;
+        selectors[14] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
+        selectors[15] = IStaticsGlobalRewards.unfundedSwapRewards.selector;
+        selectors[16] = IStaticsGlobalRewards.fundedGlobalRewards.selector;
+        selectors[17] = IStaticsGlobalRewards.outstandingGlobalRewardLiability.selector;
+        selectors[18] = IStaticsGlobalRewards.settlePublicSwapRewards.selector;
+        selectors[19] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        selectors[20] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        selectors[21] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        selectors[22] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
     }
 
     function genesisNFT() internal pure returns (bytes4[] memory selectors) {

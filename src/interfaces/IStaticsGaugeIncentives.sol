@@ -111,6 +111,8 @@ interface IStaticsGaugeIncentives {
     error GaugeAllocatorAmountBelowMinimum(address asset, uint256 received, uint256 minimum);
     error GaugeAllocatorLiabilityUnderflow(PoolId poolId, uint8 slot, uint256 liability, uint256 amount);
     error InvalidGaugeTimestamp(uint256 timestamp);
+    error InvalidGaugeAllocatorPoolPageSize(uint256 requested, uint256 maximum);
+    error GaugeAllocatorPoolIndexCorrupted(uint256 positionId, PoolId poolId);
 
     function fundGaugeReserve(uint256 amount) external returns (uint256 received);
     function activateGaugeSchedule() external returns (uint256 budget);
@@ -151,4 +153,8 @@ interface IStaticsGaugeIncentives {
         external
         view
         returns (AllocatorClaimPreview[] memory rewards);
+    function positionGaugeAllocatorPools(uint256 positionId, uint256 cursor, uint256 limit)
+        external
+        view
+        returns (PoolId[] memory poolIds, uint256 nextCursor);
 }

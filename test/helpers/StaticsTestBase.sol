@@ -34,6 +34,7 @@ import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {PositionMarketFacet} from "../../src/facets/PositionMarketFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
@@ -71,7 +72,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](39);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](40);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -114,6 +115,7 @@ contract StaticsTestDeployer {
         cut[36] = _cut(address(new MarketTapeObservationFacet()), StaticsSelectors.marketTapeObservations());
         cut[37] = _cut(address(new ProtocolPoolMaintenanceFacet()), StaticsSelectors.protocolPoolMaintenance());
         cut[38] = _cut(address(new ProtocolPolFacet()), StaticsSelectors.protocolPol());
+        cut[39] = _cut(address(new PositionMarketFacet()), StaticsSelectors.positionMarket());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,

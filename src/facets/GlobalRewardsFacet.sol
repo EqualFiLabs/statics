@@ -20,7 +20,7 @@ import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibRewardPolicy} from "../libraries/LibRewardPolicy.sol";
 
-contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
+contract GlobalRewardsFacet is ReentrancyGuard {
     error InvalidAmount();
     error InvalidReceiver();
     error InvalidAmountsLength();
@@ -47,7 +47,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         );
         _optIn(positionId, rewardAssets);
         _increaseStake(positionId, amount);
-        emit StakingPositionCreated(positionId, receiver, amount);
+        emit IStaticsGlobalRewards.StakingPositionCreated(positionId, receiver, amount);
     }
 
     function stake(uint256 positionId, uint256 amount) external nonReentrant {
@@ -80,7 +80,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
             LibCustody.pushReserved(LibCustody.stakingAccount(), rs.stakingToken, receiver, amount, amount);
         if (spent != amount || received != amount) revert IncompatibleStakingToken(amount, received);
         LibGlobalRewards.deactivateStakingLegIfEmpty(positionId);
-        emit Unstaked(positionId, receiver, amount, position.balance);
+        emit IStaticsGlobalRewards.Unstaked(positionId, receiver, amount, position.balance);
     }
 
     function optInRewardAssets(uint256 positionId, address[] calldata assets) external nonReentrant {
@@ -132,7 +132,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
                     LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
                 }
                 (, amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
-                emit RewardClaimed(positionId, receiver, asset, amount);
+                emit IStaticsGlobalRewards.RewardClaimed(positionId, receiver, asset, amount);
             }
             if (amountsOut[i] < minAmountsOut[i]) {
                 revert MinimumOutputNotMet(asset, amountsOut[i], minAmountsOut[i]);
@@ -153,37 +153,13 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         rs.treasuryAccrued[asset] = 0;
         address treasury_ = LibBasket.basketStorage().treasury;
         LibCustody.pushReserved(LibCustody.feeAccount(), asset, treasury_, amount, amount);
-        emit TreasuryFeesDistributed(asset, treasury_, amount);
+        emit IStaticsGlobalRewards.TreasuryFeesDistributed(asset, treasury_, amount);
     }
 
-    function pendingRewards(uint256 positionId, address[] calldata assets)
-        external
-        view
-        returns (uint256[] memory amounts)
-    {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        uint256 length = assets.length;
-        amounts = new uint256[](length);
-        for (uint256 i; i < length; ++i) {
-            amounts[i] = LibGlobalRewards.pending(positionId, assets[i]);
-        }
-    }
-
-    function stakePosition(uint256 positionId) external view returns (StakePositionView memory position) {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        LibGlobalRewards.StakePosition storage stored = LibGlobalRewards.rewardStorage().positions[positionId];
-        position = StakePositionView({
-            stakedBalance: stored.balance,
-            rewardMultiplierBps: LibGlobalRewards.effectiveRewardMultiplier(stored),
-            claimAssetCount: stored.claimAssetCount,
-            optedInAssetCount: stored.optedInAssets.length
-        });
-    }
-
-    function rewardAsset(address asset) external view returns (RewardAssetView memory state) {
+    function rewardAsset(address asset) external view returns (IStaticsGlobalRewards.RewardAssetView memory state) {
         LibGlobalRewards.RewardStorage storage rs = LibGlobalRewards.rewardStorage();
         LibGlobalRewards.RewardBook storage stored = rs.books[asset];
-        state = RewardAssetView({
+        state = IStaticsGlobalRewards.RewardAssetView({
             eligibleStake: LibGlobalRewards.effectiveEligibleStake(stored),
             eligibleWeight: LibGlobalRewards.effectiveEligibleWeight(stored),
             pendingStake: LibGlobalRewards.effectivePendingStake(stored),
@@ -192,25 +168,6 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
             indexedReserve: stored.indexedAmount,
             totalClaimable: rs.totalClaimable[asset]
         });
-    }
-
-    function positionRewardAssets(uint256 positionId) external view returns (address[] memory assets) {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        return LibGlobalRewards.rewardStorage().positions[positionId].optedInAssets;
-    }
-
-    function isRewardAssetOptedIn(uint256 positionId, address asset) external view returns (bool) {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        return LibGlobalRewards.isOptedIn(positionId, asset);
-    }
-
-    function rewardSelection(uint256 positionId, address asset)
-        external
-        view
-        returns (RewardSelectionView memory selection)
-    {
-        LibPosition.enforceAuthorized(positionId, msg.sender);
-        return LibGlobalRewards.selectionView(positionId, asset);
     }
 
     function maxRewardAssetsPerPosition() external view returns (uint256) {
@@ -302,7 +259,7 @@ contract GlobalRewardsFacet is IStaticsGlobalRewards, ReentrancyGuard {
         if (extended) {
             emit IStaticsGaugeIncentives.PositionGaugeAllocationCooldownExtended(positionId, nextAllocationAt);
         }
-        emit Staked(positionId, msg.sender, amount, position.balance);
+        emit IStaticsGlobalRewards.Staked(positionId, msg.sender, amount, position.balance);
     }
 
     function _enforceStakeIngressAvailable() private view {

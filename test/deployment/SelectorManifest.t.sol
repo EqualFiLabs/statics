@@ -24,6 +24,8 @@ import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol"
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
+import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoyalty.sol";
+import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
@@ -160,7 +162,7 @@ contract SelectorManifestTest is Test {
         liveness[4] = IStaticsRangeGauge.reconcilePoolRewardSurplus.selector;
         _assertExact(StaticsSelectors.rangeGaugeLiveness(), liveness);
 
-        bytes4[] memory views = new bytes4[](12);
+        bytes4[] memory views = new bytes4[](13);
         views[0] = IStaticsRangeGauge.gaugeRewardDuration.selector;
         views[1] = IStaticsRangeGauge.gaugeRewardAssetAllowed.selector;
         views[2] = IStaticsRangeGauge.poolRewardConfig.selector;
@@ -173,13 +175,14 @@ contract SelectorManifestTest is Test {
         views[9] = IStaticsRangeGauge.posmBinding.selector;
         views[10] = IStaticsRangeGauge.recordedLiquidityManager.selector;
         views[11] = IStaticsRangeGauge.previewLpRewards.selector;
+        views[12] = IStaticsRangeGauge.previewNativeLpFees.selector;
         _assertExact(StaticsSelectors.rangeGaugeViews(), views);
 
         bytes4[] memory callback = new bytes4[](1);
         callback[0] = IStaticsSwapCallback.afterStaticsPoolSwap.selector;
         _assertExact(StaticsSelectors.rangeGaugeCallback(), callback);
 
-        bytes4[] memory all = new bytes4[](29);
+        bytes4[] memory all = new bytes4[](30);
         uint256 cursor;
         cursor = _copy(actions, all, cursor);
         cursor = _copy(ingress, all, cursor);
@@ -222,7 +225,7 @@ contract SelectorManifestTest is Test {
         actions[9] = IStaticsGaugeIncentives.forfeitGaugeAllocatorReward.selector;
         _assertExact(StaticsSelectors.gaugeIncentiveActions(), actions);
 
-        bytes4[] memory views = new bytes4[](12);
+        bytes4[] memory views = new bytes4[](13);
         views[0] = IStaticsGaugeIncentives.currentGaugePeriod.selector;
         views[1] = IStaticsGaugeIncentives.gaugePeriodAt.selector;
         views[2] = IStaticsGaugeIncentives.gaugeReserve.selector;
@@ -235,7 +238,22 @@ contract SelectorManifestTest is Test {
         views[9] = IStaticsGaugeIncentives.gaugeAllocationCooldown.selector;
         views[10] = IStaticsGaugeIncentives.gaugeAllocatorReward.selector;
         views[11] = IStaticsGaugeIncentives.previewGaugeAllocatorRewards.selector;
+        views[12] = IStaticsGaugeIncentives.positionGaugeAllocatorPools.selector;
         _assertExact(StaticsSelectors.gaugeIncentiveViews(), views);
+    }
+
+    function testPositionMarketSelectorManifestIsExact() public pure {
+        bytes4[] memory expected = new bytes4[](9);
+        expected[0] = IStaticsPositionRoyalty.royaltyInfo.selector;
+        expected[1] = IStaticsPositionRoyalty.positionRoyalty.selector;
+        expected[2] = IStaticsPositionRoyalty.setPositionRoyalty.selector;
+        expected[3] = IStaticsGlobalRewards.pendingRewards.selector;
+        expected[4] = IStaticsGlobalRewards.stakePosition.selector;
+        expected[5] = IStaticsGlobalRewards.positionRewardAssets.selector;
+        expected[6] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
+        expected[7] = IStaticsGlobalRewards.rewardSelection.selector;
+        expected[8] = IStaticsPositionMarket.globalRewardAssetsOfPosition.selector;
+        _assertExact(StaticsSelectors.positionMarket(), expected);
     }
 
     function testPhaseTwoLiquidityDeltaExcludesPhaseOneManagerSelectors() public pure {
@@ -499,13 +517,12 @@ contract SelectorManifestTest is Test {
 
     function testPositionPortfolioSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.positionPortfolio();
-        bytes4[] memory expected = new bytes4[](6);
+        bytes4[] memory expected = new bytes4[](5);
         expected[0] = IStaticsPositionPortfolio.positionPortfolioCounts.selector;
         expected[1] = IStaticsPositionPortfolio.basketIdsOfPosition.selector;
         expected[2] = IStaticsPositionPortfolio.loanIdsOfPosition.selector;
-        expected[3] = IStaticsPositionPortfolio.globalRewardAssetsOfPosition.selector;
-        expected[4] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
-        expected[5] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
+        expected[3] = IStaticsPositionPortfolio.riskSeriesIdsOfPosition.selector;
+        expected[4] = IStaticsPositionPortfolio.morphoMarketIdsOfPosition.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);
@@ -587,7 +604,7 @@ contract SelectorManifestTest is Test {
 
     function testGlobalRewardsSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.globalRewards();
-        bytes4[] memory expected = new bytes4[](28);
+        bytes4[] memory expected = new bytes4[](23);
         expected[0] = IStaticsGlobalRewards.createAndStake.selector;
         expected[1] = IStaticsGlobalRewards.stake.selector;
         expected[2] = IStaticsGlobalRewards.unstake.selector;
@@ -595,27 +612,22 @@ contract SelectorManifestTest is Test {
         expected[4] = IStaticsGlobalRewards.optOutRewardAssets.selector;
         expected[5] = IStaticsGlobalRewards.claimRewards.selector;
         expected[6] = IStaticsGlobalRewards.distributeTreasuryFees.selector;
-        expected[7] = IStaticsGlobalRewards.pendingRewards.selector;
-        expected[8] = IStaticsGlobalRewards.stakePosition.selector;
-        expected[9] = IStaticsGlobalRewards.rewardAsset.selector;
-        expected[10] = IStaticsGlobalRewards.positionRewardAssets.selector;
-        expected[11] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
-        expected[12] = IStaticsGlobalRewards.rewardSelection.selector;
-        expected[13] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
-        expected[14] = IStaticsGlobalRewards.rewardEligibilityDelay.selector;
-        expected[15] = IStaticsGlobalRewards.rewardEligibilityBucketSize.selector;
-        expected[16] = IStaticsGlobalRewards.stakingToken.selector;
-        expected[17] = IStaticsGlobalRewards.totalStaked.selector;
-        expected[18] = IStaticsGlobalRewards.treasuryAccrued.selector;
-        expected[19] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
-        expected[20] = IStaticsGlobalRewards.unfundedSwapRewards.selector;
-        expected[21] = IStaticsGlobalRewards.fundedGlobalRewards.selector;
-        expected[22] = IStaticsGlobalRewards.outstandingGlobalRewardLiability.selector;
-        expected[23] = IStaticsGlobalRewards.settlePublicSwapRewards.selector;
-        expected[24] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
-        expected[25] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
-        expected[26] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
-        expected[27] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
+        expected[7] = IStaticsGlobalRewards.rewardAsset.selector;
+        expected[8] = IStaticsGlobalRewards.maxRewardAssetsPerPosition.selector;
+        expected[9] = IStaticsGlobalRewards.rewardEligibilityDelay.selector;
+        expected[10] = IStaticsGlobalRewards.rewardEligibilityBucketSize.selector;
+        expected[11] = IStaticsGlobalRewards.stakingToken.selector;
+        expected[12] = IStaticsGlobalRewards.totalStaked.selector;
+        expected[13] = IStaticsGlobalRewards.treasuryAccrued.selector;
+        expected[14] = IStaticsGlobalRewards.canAccrueStakerRewards.selector;
+        expected[15] = IStaticsGlobalRewards.unfundedSwapRewards.selector;
+        expected[16] = IStaticsGlobalRewards.fundedGlobalRewards.selector;
+        expected[17] = IStaticsGlobalRewards.outstandingGlobalRewardLiability.selector;
+        expected[18] = IStaticsGlobalRewards.settlePublicSwapRewards.selector;
+        expected[19] = IStaticsGlobalRewards.checkpointRewardAssets.selector;
+        expected[20] = IStaticsGlobalRewards.rewardBookNeedsCheckpoint.selector;
+        expected[21] = IStaticsGlobalRewards.hardMaxRewardAssetsPerPosition.selector;
+        expected[22] = IStaticsGlobalRewards.increaseMaxRewardAssetsPerPosition.selector;
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
             assertEq(actual[i], expected[i]);

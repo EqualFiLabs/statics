@@ -17,6 +17,7 @@ library LibGaugeBribes {
     bytes32 internal constant ACCOUNT_DOMAIN = keccak256("statics.custody.account.gauge.bribes.v1");
     uint256 internal constant INDEX_SCALE = 1 << 160;
     uint256 internal constant MAX_INDEXABLE_REWARD = type(uint256).max / INDEX_SCALE;
+    uint256 internal constant MAX_POSITION_POOL_PAGE_SIZE = 100;
 
     struct Stream {
         address asset;
@@ -51,10 +52,16 @@ library LibGaugeBribes {
         uint256[5] claimable;
     }
 
+    struct PoolIndex {
+        PoolId[] values;
+        mapping(PoolId poolId => uint256 indexPlusOne) indexPlusOne;
+    }
+
     struct BribeStorage {
         mapping(PoolId poolId => mapping(uint8 slot => Stream stream)) streams;
         mapping(uint256 positionId => mapping(PoolId poolId => PositionLeg leg)) legs;
         mapping(PoolId poolId => mapping(uint8 slot => mapping(bytes32 version => Generation generation))) generations;
+        mapping(uint256 positionId => PoolIndex index) positionPools;
     }
 
     error GaugeBribeAssetMismatch(address expected, address actual);
@@ -337,9 +344,58 @@ library LibGaugeBribes {
         bool active = LibPosition.positionStorage().activeLeg[positionId][key];
         if (unresolved && !active) {
             LibPosition.activateLeg(positionId, LibPosition.GAUGE_ALLOCATOR_MODULE, PoolId.unwrap(poolId));
+            _addPositionPool(positionId, poolId);
         } else if (!unresolved && active) {
             LibPosition.deactivateLeg(positionId, key);
+            _removePositionPool(positionId, poolId);
         }
+    }
+
+    function positionPools(uint256 positionId, uint256 cursor, uint256 limit)
+        internal
+        view
+        returns (PoolId[] memory poolIds, uint256 nextCursor)
+    {
+        if (limit == 0 || limit > MAX_POSITION_POOL_PAGE_SIZE) {
+            revert IStaticsGaugeIncentives.InvalidGaugeAllocatorPoolPageSize(limit, MAX_POSITION_POOL_PAGE_SIZE);
+        }
+        PoolId[] storage values = bribeStorage().positionPools[positionId].values;
+        uint256 length = values.length;
+        if (cursor >= length) return (new PoolId[](0), length);
+        uint256 pageLength = length - cursor;
+        if (pageLength > limit) pageLength = limit;
+        poolIds = new PoolId[](pageLength);
+        for (uint256 i; i < pageLength; ++i) {
+            poolIds[i] = values[cursor + i];
+        }
+        nextCursor = cursor + pageLength;
+    }
+
+    function _addPositionPool(uint256 positionId, PoolId poolId) private {
+        PoolIndex storage index = bribeStorage().positionPools[positionId];
+        if (index.indexPlusOne[poolId] != 0) return;
+        index.values.push(poolId);
+        index.indexPlusOne[poolId] = index.values.length;
+    }
+
+    function _removePositionPool(uint256 positionId, PoolId poolId) private {
+        PoolIndex storage index = bribeStorage().positionPools[positionId];
+        uint256 indexPlusOne = index.indexPlusOne[poolId];
+        if (indexPlusOne == 0) {
+            revert IStaticsGaugeIncentives.GaugeAllocatorPoolIndexCorrupted(positionId, poolId);
+        }
+        uint256 valueIndex = indexPlusOne - 1;
+        if (valueIndex >= index.values.length || PoolId.unwrap(index.values[valueIndex]) != PoolId.unwrap(poolId)) {
+            revert IStaticsGaugeIncentives.GaugeAllocatorPoolIndexCorrupted(positionId, poolId);
+        }
+        uint256 lastIndex = index.values.length - 1;
+        if (valueIndex != lastIndex) {
+            PoolId moved = index.values[lastIndex];
+            index.values[valueIndex] = moved;
+            index.indexPlusOne[moved] = indexPlusOne;
+        }
+        index.values.pop();
+        delete index.indexPlusOne[poolId];
     }
 
     function _indexForVersion(

@@ -7,6 +7,7 @@ import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
@@ -34,6 +35,17 @@ contract RangeGaugeManagerMigrationTest is RangeGaugeFeatureTestBase {
         (address activeManager, bool installed) = rangeGauge.liquidityManager();
         assertTrue(installed);
         assertEq(activeManager, address(replacement));
+
+        _fundAndApprovePoolAssets(key, bob, 1 ether);
+        vm.prank(bob);
+        v4Router.swap(
+            key,
+            SwapParams({
+                zeroForOne: true, amountSpecified: -int256(0.01 ether), sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            })
+        );
+        (uint256 nativeFee0, uint256 nativeFee1) = rangeGauge.previewNativeLpFees(positionId, poolId);
+        assertGt(nativeFee0 + nativeFee1, 0);
 
         _fundAndApprovePoolAssets(key, alice, 3 ether);
         vm.prank(alice);
@@ -144,6 +156,8 @@ contract RangeGaugeManagerMigrationTest is RangeGaugeFeatureTestBase {
         vm.startPrank(user);
         IERC20(Currency.unwrap(key.currency0)).approve(address(diamond), type(uint256).max);
         IERC20(Currency.unwrap(key.currency1)).approve(address(diamond), type(uint256).max);
+        IERC20(Currency.unwrap(key.currency0)).approve(address(v4Router), type(uint256).max);
+        IERC20(Currency.unwrap(key.currency1)).approve(address(v4Router), type(uint256).max);
         vm.stopPrank();
     }
 
