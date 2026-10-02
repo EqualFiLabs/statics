@@ -40,6 +40,8 @@ for scenario in "${SCENARIOS[@]}"; do
     assert_all_receipts_succeeded "${scenario%.sh}"
 done
 
+"$SCRIPT_DIR/generate-selector-coverage.sh"
+
 load_current_run
 jq -s \
     --slurpfile vanilla "$RUN_DIR/vanilla-swap-gas.json" \

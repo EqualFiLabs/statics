@@ -220,41 +220,70 @@ assert_eq "$selector_count" "$EXPECTED_SELECTORS" "Phase 1 selector count"
 assert_eq "$unique_selector_count" "$EXPECTED_SELECTORS" "unique Phase 1 selector count"
 
 METHOD_TSV="$RUN_DIR/compiled-methods.tsv"
-find out -name '*.json' -type f -print0 \
+find "$PHASE_ONE_OUT" -name '*.json' -type f -print0 \
     | while IFS= read -r -d '' artifact; do
         jq -r '
-            (.methodIdentifiers // {})
+            def abi_type:
+                if (.type | startswith("tuple")) then
+                    ([.components[] | abi_type] | join(",")) as $components
+                    | (.type | sub("^tuple"; "(" + $components + ")"))
+                else .type
+                end;
+            def signature:
+                .name + "(" + ([.inputs[] | abi_type] | join(",")) + ")";
+            ([.abi[]? | select(.type == "function") | {(signature): .stateMutability}] | add // {}) as $mutability
+            | (.methodIdentifiers // {})
             | to_entries[]
-            | ["0x" + (.value | ascii_downcase), .key]
+            | ["0x" + (.value | ascii_downcase), .key, ($mutability[.key] // "unknown")]
             | @tsv
         ' "$artifact"
     done \
     | sort -u >"$METHOD_TSV"
 
+FACET_NAMES_TSV="$RUN_DIR/facet-names.tsv"
+jq -r '
+    .transactions[]
+    | select(.transactionType == "CREATE" and .contractAddress != null and .contractName != null)
+    | [(.contractAddress | ascii_downcase), .contractName]
+    | @tsv
+' broadcast/DeployStaticsPhaseOne.s.sol/4663/run-latest.json | sort -u >"$FACET_NAMES_TSV"
+
 MAPPED_TSV="$RUN_DIR/selector-inventory.tsv"
 awk -F '\t' '
     NR == FNR {
         key = tolower($1)
-        if (signatures[key] == "") signatures[key] = $2
-        else if (index("|" signatures[key] "|", "|" $2 "|") == 0) signatures[key] = signatures[key] "|" $2
+        if (signatures[key] == "") {
+            signatures[key] = $2
+            mutability[key] = $3
+        } else if (index("|" signatures[key] "|", "|" $2 "|") == 0) {
+            signatures[key] = signatures[key] "|" $2
+        }
         next
     }
     {
         key = tolower($1)
-        print key "\t" $2 "\t" signatures[key]
+        print key "\t" $2 "\t" signatures[key] "\t" mutability[key]
     }
 ' "$METHOD_TSV" "$ONCHAIN_TSV" >"$MAPPED_TSV"
 
 unmapped=$(awk -F '\t' '$3 == "" { count++ } END { print count + 0 }' "$MAPPED_TSV")
 assert_eq "$unmapped" "0" "unmapped selector count"
 
+awk -F '\t' '
+    NR == FNR { facetName[tolower($1)] = $2; next }
+    { print $0 "\t" facetName[tolower($2)] }
+' "$FACET_NAMES_TSV" "$MAPPED_TSV" >"$MAPPED_TSV.named"
+mv "$MAPPED_TSV.named" "$MAPPED_TSV"
+
 jq -Rn '
     [inputs
         | split("\t")
         | {
             selector: .[0],
-            facet: .[1],
-            signatures: (.[2] | split("|"))
+            facetAddress: .[1],
+            signatures: (.[2] | split("|")),
+            stateMutability: .[3],
+            facet: .[4]
         }
     ]
 ' <"$MAPPED_TSV" >"$RUN_DIR/selector-inventory.json"

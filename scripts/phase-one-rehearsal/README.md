@@ -28,10 +28,11 @@ The configured provider prunes historical trie proofs, so each run captures the
 provider's current executable block before Anvil starts and records the exact
 block and hash in `state.env`. The resulting run remains pinned and reproducible
 for the life of that Anvil process, while later runs use a fresh executable state.
-Generated receipts, logs, selector inventories, gas measurements, and the final
-summary live under `artifacts/phase-one-rehearsal/<run-id>/` and are ignored by
-Git. Deployment compilation uses run-scoped artifact and cache directories so
-runtime verification cannot accidentally accept stale shared build output.
+Generated receipts, logs, selector inventories, selector coverage, gas
+measurements, and the final summary live under
+`artifacts/phase-one-rehearsal/<run-id>/` and are ignored by Git. Deployment
+compilation uses run-scoped artifact and cache directories so runtime
+verification cannot accidentally accept stale shared build output.
 
 ## Evidence layers
 
@@ -87,11 +88,11 @@ runtime verification cannot accidentally accept stale shared build output.
   and Treasury distribution across guardian pauses, pool quarantine, and the
   global public-swap pause, including exit liveness and timelock-delay proof.
 
-The selector inventory proves every installed route is present and points to the
-expected facet. Stateful scenarios exercise each Phase 1 subsystem, but the
-inventory does not claim that every selector receives every possible argument
-combination. Foundry unit, fuzz, invariant, and formal suites remain separate
-evidence.
+The selector coverage manifest joins every installed selector to its signature,
+facet name, direct-success and revert evidence, and explicit classification.
+Selectors without a direct fork scenario remain visible as `not-rehearsed`;
+route verification is never presented as behavioral coverage. Foundry unit,
+fuzz, invariant, and formal suites remain separate evidence.
 
 After every scenario the runner scans all mined JSON receipts and rejects any
 transaction whose status is not `0x1`. This is required because a mined revert
