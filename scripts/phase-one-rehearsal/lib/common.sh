@@ -168,6 +168,35 @@ timelock_call() {
         --json >"$RUN_DIR/timelock-$label-execute.json"
 }
 
+timelock_call_prove_delay() {
+    local target=$1
+    local value=$2
+    local data=$3
+    local label=$4
+    local executor_key delay salt
+    local predecessor=0x0000000000000000000000000000000000000000000000000000000000000000
+    executor_key=$(anvil_private_key 5)
+    delay=$(cast call "$STATICS_TIMELOCK_ADDRESS" 'getMinDelay()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+    salt=$(cast keccak "$RUN_ID-$label-$(cast block-number --rpc-url "$RPC_URL")")
+
+    cast send "$STATICS_TIMELOCK_ADDRESS" \
+        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)' \
+        "$target" "$value" "$data" "$predecessor" "$salt" "$delay" \
+        --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
+        >"$RUN_DIR/timelock-$label-schedule.json"
+    expect_call_revert "$label early timelock execution" \
+        cast call "$STATICS_TIMELOCK_ADDRESS" \
+        'execute(address,uint256,bytes,bytes32,bytes32)' \
+        "$target" "$value" "$data" "$predecessor" "$salt" \
+        --from "$(anvil_address 5)" --rpc-url "$RPC_URL" >/dev/null
+    rpc_warp_by "$(( delay + 1 ))"
+    cast send "$STATICS_TIMELOCK_ADDRESS" \
+        'execute(address,uint256,bytes,bytes32,bytes32)' \
+        "$target" "$value" "$data" "$predecessor" "$salt" \
+        --private-key "$executor_key" --rpc-url "$RPC_URL" --legacy --json \
+        >"$RUN_DIR/timelock-$label-execute.json"
+}
+
 acquire_genesis_statics() {
     local account_index=$1
     local amount_in=$2
@@ -316,6 +345,39 @@ v4_swap_exact_in() {
         --gas-limit 3000000 \
         --legacy \
         --json >"$RUN_DIR/$label-swap.json"
+}
+
+v4_swap_exact_in_simulate() {
+    local account_index=$1
+    local currency0=$2
+    local currency1=$3
+    local fee=$4
+    local tick_spacing=$5
+    local hook=$6
+    local zero_for_one=$7
+    local amount_in=$8
+    local account permit2 universal_router input_token exact_param settle_param take_param plan deadline
+    account=$(anvil_address "$account_index")
+    permit2=$(jq -er '.contracts.permit2.address' "$REPO_ROOT/deployments/robinhood-chain-4663.json")
+    universal_router=$(jq -er '.contracts.universalRouter.address' "$REPO_ROOT/deployments/robinhood-chain-4663.json")
+    input_token=$currency1
+    [[ "$zero_for_one" == "true" ]] && input_token=$currency0
+    # The caller prepares token and Permit2 approvals before invoking this read-only execution.
+    cast call "$input_token" 'allowance(address,address)(uint256)' "$account" "$permit2" \
+        --rpc-url "$RPC_URL" >/dev/null
+    exact_param=$(cast abi-encode \
+        'f(((address,address,uint24,int24,address),bool,uint128,uint128,uint256,bytes))' \
+        "(($currency0,$currency1,$fee,$tick_spacing,$hook),$zero_for_one,$amount_in,0,0,0x)")
+    settle_param=$(cast abi-encode 'f(address,uint256)' "$input_token" "$amount_in")
+    if [[ "$zero_for_one" == "true" ]]; then
+        take_param=$(cast abi-encode 'f(address,uint256)' "$currency1" 0)
+    else
+        take_param=$(cast abi-encode 'f(address,uint256)' "$currency0" 0)
+    fi
+    plan=$(cast abi-encode 'f(bytes,bytes[])' 0x060c0f "[$exact_param,$settle_param,$take_param]")
+    deadline=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 3600 ))
+    cast call "$universal_router" 'execute(bytes,bytes[],uint256)' 0x10 "[$plan]" "$deadline" \
+        --from "$account" --rpc-url "$RPC_URL"
 }
 
 v4_swap_exact_out() {
