@@ -50,6 +50,9 @@ verification cannot accidentally accept stale shared build output.
   crosses a managed boundary, and grows and wraps the observation ring.
 - `managed-lp-lifecycle.sh` proves native-fee collection, increase, partial
   decrease, rebalance, exit, and PositionNFT closure through the managed LP path.
+- `external-posm-attachment.sh` mints a real external Uniswap v4 position,
+  rejects unauthorized, wrong-pool, permissioned-pool, and duplicate attachment,
+  then exercises rewards, mutations, fees, rebalance, and exit after attachment.
 - `liquidity-manager-replacement.sh` rejects incompatible replacements, installs
   a compatible manager through governance, keeps legacy positions operational,
   opens new positions under the replacement, and lazily migrates a legacy POSM
