@@ -2,13 +2,13 @@
   "schema": 2,
   "counts": {
     "High": 66,
-    "Medium": 414,
+    "Medium": 416,
     "Low": 222,
     "Informational": 134
   },
   "raw_counts": {
     "High": 66,
-    "Medium": 414,
+    "Medium": 416,
     "Low": 282,
     "Informational": 134
   },
@@ -3110,22 +3110,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolRevenueFacet.sol"
-      ],
-      "summary": "ProtocolRevenueFacet.routeProtocolSwapFees(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/facets/ProtocolRevenueFacet.sol#33-46) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#37)",
-      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
-      "occurrences": 1,
-      "id": "058f1205fb42269e377e6363"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._recombineForRedemption(LibPeriphery.PS,PairingVaultFacet.RedemptionContext,PairingVaultFacet.RedemptionRequest) (src/dollar/periphery/facets/PairingVaultFacet.sol#231-257) ignores return value by (recombinationStatus,None) = ctx.core.recombineManaged(request.seriesId,ctx.fill,ctx.fill,0,address(this)) (src/dollar/periphery/facets/PairingVaultFacet.sol#250-251)",
@@ -3164,6 +3148,22 @@
       "rationale": "The caller consumes the required state transition or tuple fields; omitted diagnostic values do not alter authority, custody, or accounting and failures still revert atomically.",
       "occurrences": 1,
       "id": "0878e3eeca041a47056d7f03"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibProtocolRevenue.sol"
+      ],
+      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#30-71) ignores return value by LibBasketRewards.accrueReserved(basketId,LibBasket.basketStorage().baskets[basketId],asset,distribution.basketStaker) (src/libraries/LibProtocolRevenue.sol#56-58)",
+      "rationale": "Reward accrual is used for its exact reserved-accounting state transition; the prevalidated distribution amount is authoritative and failure reverts the complete fee route.",
+      "occurrences": 1,
+      "id": "09c62b949668366e68770b70"
     },
     {
       "impact": "Medium",
@@ -3558,22 +3558,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolRevenueFacet.sol"
-      ],
-      "summary": "ProtocolRevenueFacet.creatorRevenue(PoolId,address) (src/facets/ProtocolRevenueFacet.sol#63-66) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#64)",
-      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
-      "occurrences": 1,
-      "id": "21e9f8848dbf3a2afc0143bc"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/genesis/StaticsFeeReceiver.sol"
       ],
       "summary": "StaticsFeeReceiver._harvest(address) (src/genesis/StaticsFeeReceiver.sol#218-245) ignores return value by feeSource.collectFees(poolId) (src/genesis/StaticsFeeReceiver.sol#225)",
@@ -3628,22 +3612,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "244f9b6270b3cfa8f59e0da4"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolRevenueFacet.sol"
-      ],
-      "summary": "ProtocolRevenueFacet.claimCreatorRevenue(PoolId,address,address,uint256) (src/facets/ProtocolRevenueFacet.sol#48-61) ignores return value by (None,received) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/ProtocolRevenueFacet.sol#58)",
-      "rationale": "The received amount is consumed as the transfer result; the omitted tuple member is not needed because reserved accounting and the exact requested amount gate the withdrawal.",
-      "occurrences": 1,
-      "id": "25b200753e76cfea78b9b40a"
     },
     {
       "impact": "Medium",
@@ -3830,6 +3798,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.claimCreatorRevenue(PoolId,address,address,uint256) (src/facets/ProtocolRevenueFacet.sol#126-145) ignores return value by (None,received) = LibCustody.pushReserved(LibCustody.feeAccount(),asset,receiver,amount,amount) (src/facets/ProtocolRevenueFacet.sol#142)",
+      "rationale": "The received amount is consumed as the transfer result; the omitted tuple member is not needed because reserved accounting and the exact requested amount gate the withdrawal.",
+      "occurrences": 1,
+      "id": "2a6debf8d7ae626c169035a5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolPolFacet.sol"
       ],
       "summary": "ProtocolPolFacet.activateProtocolPoolPol(PoolId) (src/facets/ProtocolPolFacet.sol#48-61) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPolFacet.sol#49)",
@@ -3916,22 +3900,6 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "2f5cb12a39d1cab787d0e1ba"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolRevenueFacet.sol"
-      ],
-      "summary": "ProtocolRevenueFacet.protocolPolFundingConfig(PoolId) (src/facets/ProtocolRevenueFacet.sol#78-88) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#83)",
-      "rationale": "Registration validation and the pool kind determine the effective activation rule; the view intentionally ignores unrelated registry fields.",
-      "occurrences": 1,
-      "id": "2fb4cca7e83df96585349fd8"
     },
     {
       "impact": "Medium",
@@ -4604,6 +4572,38 @@
       "rationale": "The ownerOf call is an existence check: it must revert for an unknown PositionNFT, while its successful return value is deliberately unused.",
       "occurrences": 1,
       "id": "4f2914ad357b2a86ec674eeb"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.routeProtocolSwapFees(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/facets/ProtocolRevenueFacet.sol#111-124) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#115)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "5013ccaf4ec42568280cd334"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.protocolPolFundingConfig(PoolId) (src/facets/ProtocolRevenueFacet.sol#162-172) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#167)",
+      "rationale": "Registration validation and the pool kind determine the effective activation rule; the view intentionally ignores unrelated registry fields.",
+      "occurrences": 1,
+      "id": "503bb32a229998e86f13aabe"
     },
     {
       "impact": "Medium",
@@ -5334,6 +5334,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibProtocolRevenue.sol"
+      ],
+      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#30-71) ignores return value by (kind,key,basketId,None) = LibProtocolPools.enforceRegistered(poolId) (src/libraries/LibProtocolRevenue.sol#35-36)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "6faaf40ec271b709c1bc2ee8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/ProtocolPoolViewFacet.sol"
       ],
       "summary": "ProtocolPoolViewFacet.protocolPoolFeeRate(PoolId) (src/facets/ProtocolPoolViewFacet.sol#105-119) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPoolViewFacet.sol#110)",
@@ -5484,6 +5500,22 @@
       "rationale": "The call activates the deterministic allocator leg as its required state transition; the returned key is already known from gaugeAllocatorLegKey and needs no second use.",
       "occurrences": 1,
       "id": "7b440d4a319bcbcecfd15fc8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet._enforceCreatorPool(PoolId) (src/facets/ProtocolRevenueFacet.sol#98-104) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#99)",
+      "rationale": "Registration validation and the pool kind enforce the supported creator-managed pool classes; unrelated registry fields are intentionally ignored.",
+      "occurrences": 1,
+      "id": "7b7cd85e84b95c8076e7969b"
     },
     {
       "impact": "Medium",
@@ -5859,6 +5891,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.canAccrueBasketRewards(PoolId) (src/facets/ProtocolRevenueFacet.sol#156-160) ignores return value by (kind,None,basketId,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolRevenueFacet.sol#157)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "9173d67b280e1bae8597263a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -5900,6 +5948,22 @@
       "rationale": "The caller intentionally consumes only the state transition or tuple fields needed here; the callee still validates and reverts atomically, and the omitted value does not affect this decision.",
       "occurrences": 1,
       "id": "96b6fff1f38376dc449bde96"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.creatorRevenue(PoolId,address) (src/facets/ProtocolRevenueFacet.sol#147-150) ignores return value by LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#148)",
+      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
+      "occurrences": 1,
+      "id": "97cebec2b7c5d16e618986ac"
     },
     {
       "impact": "Medium",
@@ -6204,22 +6268,6 @@
       "rationale": "This view deliberately returns only the restriction timestamp; the other binary-search result fields are exposed through separate policy and sequence views.",
       "occurrences": 1,
       "id": "aa10066bf654a89dc2c94d77"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolRevenueFacet.sol"
-      ],
-      "summary": "ProtocolRevenueFacet.canAccrueBasketRewards(PoolId) (src/facets/ProtocolRevenueFacet.sol#72-76) ignores return value by (kind,None,basketId,None) = LibProtocolPools.resolve(poolId) (src/facets/ProtocolRevenueFacet.sol#73)",
-      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
-      "occurrences": 1,
-      "id": "abad9e1fc3810811cbef1214"
     },
     {
       "impact": "Medium",
@@ -6979,22 +7027,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibProtocolRevenue.sol"
-      ],
-      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-69) ignores return value by (kind,key,basketId,None) = LibProtocolPools.enforceRegistered(poolId) (src/libraries/LibProtocolRevenue.sol#33-34)",
-      "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
-      "occurrences": 1,
-      "id": "d2e70f3383c505f92d3c372f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7347,22 +7379,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/libraries/LibProtocolRevenue.sol"
-      ],
-      "summary": "LibProtocolRevenue.accrueReceived(PoolId,address,IStaticsProtocolRevenue.ProtocolFeeDistribution) (src/libraries/LibProtocolRevenue.sol#28-69) ignores return value by LibBasketRewards.accrueReserved(basketId,LibBasket.basketStorage().baskets[basketId],asset,distribution.basketStaker) (src/libraries/LibProtocolRevenue.sol#54-56)",
-      "rationale": "Reward accrual is used for its exact reserved-accounting state transition; the prevalidated distribution amount is authoritative and failure reverts the complete fee route.",
-      "occurrences": 1,
-      "id": "e0c8131a0511714b1dcc30f8"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7372,6 +7388,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "e37b60bac02a0dd76b76c37c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolRevenueFacet.sol"
+      ],
+      "summary": "ProtocolRevenueFacet.claimCreatorRevenue(PoolId,address,address,uint256) (src/facets/ProtocolRevenueFacet.sol#126-145) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolRevenueFacet.sol#132)",
+      "rationale": "Registration validation and the pool kind select the claim authorization policy; unrelated registry fields are intentionally ignored.",
+      "occurrences": 1,
+      "id": "e42d70c0416433a2d0b25da0"
     },
     {
       "impact": "Medium",
@@ -11405,22 +11437,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibProtocolRevenue.sol"
-      ],
-      "summary": "LibProtocolRevenue.protocolRevenueStorage() (src/libraries/LibProtocolRevenue.sol#71-76) uses assembly",
-      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
-      "occurrences": 1,
-      "id": "26da9614a50d20500ef9a963"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "assembly",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibMorpho.sol"
       ],
       "summary": "LibMorpho.morphoStorage() (src/libraries/LibMorpho.sol#71-76) uses assembly",
@@ -11763,6 +11779,22 @@
       "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
       "id": "e4689be0b4c61637aec86d13"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibProtocolRevenue.sol"
+      ],
+      "summary": "LibProtocolRevenue.protocolRevenueStorage() (src/libraries/LibProtocolRevenue.sol#73-78) uses assembly",
+      "rationale": "The assembly block assigns an audited namespaced Diamond storage slot to a Solidity storage pointer; it performs no arbitrary memory or external-call operation.",
+      "occurrences": 1,
+      "id": "e748108e5d561799da6226b7"
     },
     {
       "impact": "Informational",
