@@ -21,6 +21,7 @@ SCENARIOS=(
     vanilla-v4-gas.sh
     public-market-tape.sh
     managed-lp-lifecycle.sh
+    liquidity-manager-replacement.sh
     position-market-transfer.sh
     permissioned-lifecycle.sh
     permissioned-creator-handover.sh

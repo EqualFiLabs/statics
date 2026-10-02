@@ -49,6 +49,10 @@ runtime verification cannot accidentally accept stale shared build output.
   crosses a managed boundary, and grows and wraps the observation ring.
 - `managed-lp-lifecycle.sh` proves native-fee collection, increase, partial
   decrease, rebalance, exit, and PositionNFT closure through the managed LP path.
+- `liquidity-manager-replacement.sh` rejects incompatible replacements, installs
+  a compatible manager through governance, keeps legacy positions operational,
+  opens new positions under the replacement, and lazily migrates a legacy POSM
+  while preserving its reward entitlement and binding integrity.
 - `position-market-transfer.sh` builds a live PositionNFT financial account,
   proves bounded public valuation views, transfers staking, allocation, range,
   and reward state, clears ERC-721 authority, and exercises timelocked ERC-2981
@@ -79,8 +83,9 @@ runtime verification cannot accidentally accept stale shared build output.
   recovered through bounded 52, 52, and 1 period calls.
 - `multi-pool-gauges.sh` proves persistent allocation across two PoolIds and
   pro-rata protocol reward delivery to both productive markets.
-- `governance-controls.sh` proves guardian-only emergency actions and timelock-only
-  releases for liquidity and public-market swap controls.
+- `governance-controls.sh` executes real swaps, staking, liquidity, POL, claims,
+  and Treasury distribution across guardian pauses, pool quarantine, and the
+  global public-swap pause, including exit liveness and timelock-delay proof.
 
 The selector inventory proves every installed route is present and points to the
 expected facet. Stateful scenarios exercise each Phase 1 subsystem, but the
