@@ -17,6 +17,7 @@ fi
 "$SCRIPT_DIR/verify-deployment.sh"
 
 SCENARIOS=(
+    public-pool-creation.sh
     vanilla-v4-gas.sh
     public-market-tape.sh
     managed-lp-lifecycle.sh
