@@ -15,6 +15,7 @@ fi
 "$SCRIPT_DIR/start-fork.sh"
 "$SCRIPT_DIR/deploy-stack.sh"
 "$SCRIPT_DIR/verify-deployment.sh"
+load_current_run
 
 SCENARIOS=(
     public-pool-creation.sh
