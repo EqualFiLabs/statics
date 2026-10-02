@@ -60,7 +60,8 @@ runtime verification cannot accidentally accept stale shared build output.
   staker isolation, delayed backing, creator and Treasury claims, and restriction
   fallback and recovery.
 - `staking-and-gauges.sh` proves stake and allocation cooldowns, allocation locks,
-  reserve funding, slot-0 delivery, and bounded missed-period catch-up.
+  reserve funding, slot-0 delivery, two-period catch-up, and a 105-period gap
+  recovered through bounded 52, 52, and 1 period calls.
 - `multi-pool-gauges.sh` proves persistent allocation across two PoolIds and
   pro-rata protocol reward delivery to both productive markets.
 - `governance-controls.sh` proves guardian-only emergency actions and timelock-only

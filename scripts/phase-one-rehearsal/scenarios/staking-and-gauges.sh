@@ -152,4 +152,50 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugeSchedule(uint16)(uint64,uin
     --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/gauge-catchup-two.json"
 record_result gauges bounded-weekly-catchup pass "two missed periods processed across bounded calls"
 
+PERIOD_BEFORE_LONG_GAP=$(cast call "$STATICS_DIAMOND_ADDRESS" 'currentGaugePeriod()(uint64)' \
+    --rpc-url "$RPC_URL" | awk '{print $1}')
+rpc_warp_by $(( 105 * 7 * 86400 ))
+long_gap_revert=$(expect_call_revert "pool checkpoint must require explicit long-gap catch-up" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_ID" \
+    --from "$USER" --rpc-url "$RPC_URL")
+[[ "$long_gap_revert" == *"GaugeScheduleCatchupRequired"* || "$long_gap_revert" == *"execution reverted"* ]] \
+    || fail "long-gap pool checkpoint reverted for an unexpected reason"
+
+cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugeSchedule(uint16)(uint64,uint16,uint256)' 52 \
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/gauge-long-catchup-first.json"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'currentGaugePeriod()(uint64)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "$(( PERIOD_BEFORE_LONG_GAP + 52 ))" \
+    "first bounded long-gap checkpoint"
+
+cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugeSchedule(uint16)(uint64,uint16,uint256)' 52 \
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/gauge-long-catchup-second.json"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'currentGaugePeriod()(uint64)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "$(( PERIOD_BEFORE_LONG_GAP + 104 ))" \
+    "second bounded long-gap checkpoint"
+
+cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugeSchedule(uint16)(uint64,uint16,uint256)' 1 \
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/gauge-long-catchup-final.json"
+assert_eq \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'currentGaugePeriod()(uint64)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    "$(( PERIOD_BEFORE_LONG_GAP + 105 ))" \
+    "final bounded long-gap checkpoint"
+
+cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_ID" \
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/gauge-long-gap-pool-credit.json"
+LONG_GAP_BALANCE_BEFORE=$(cast call "$STAKING_TOKEN" 'balanceOf(address)(uint256)' "$USER" \
+    --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" \
+    'claimLpRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
+    "$SECOND_POSITION_ID" "$POOL_ID" '[0]' '[0]' "$USER" \
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
+    >"$RUN_DIR/gauge-long-gap-slot-zero-claim.json"
+LONG_GAP_BALANCE_AFTER=$(cast call "$STAKING_TOKEN" 'balanceOf(address)(uint256)' "$USER" \
+    --rpc-url "$RPC_URL" | awk '{print $1}')
+LONG_GAP_CLAIMED=$(printf '%s - %s\n' "$LONG_GAP_BALANCE_AFTER" "$LONG_GAP_BALANCE_BEFORE" | bc)
+[[ "$LONG_GAP_CLAIMED" != 0 ]] || fail "long-gap catch-up produced no protocol slot-0 claim"
+record_result gauges long-gap-catchup pass "105 periods processed across 52, 52, and 1 period calls"
+record_result gauges long-gap-slot-zero-claim pass "$LONG_GAP_CLAIMED STATICS wei"
+
 note "staking and gauge scenarios passed"
