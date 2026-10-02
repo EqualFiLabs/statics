@@ -93,6 +93,10 @@ verification cannot accidentally accept stale shared build output.
 - `governance-controls.sh` executes real swaps, staking, liquidity, POL, claims,
   and Treasury distribution across guardian pauses, pool quarantine, and the
   global public-swap pause, including exit liveness and timelock-delay proof.
+- `composed-soak.sh` keeps one accumulated state across staking, allocations,
+  direct and protocol incentives, POL, creator and PositionNFT transfers,
+  restrictions, emergency controls, decommissioning, claims, and solvency
+  reconciliation without resetting between transitions.
 
 The selector coverage manifest joins every installed selector to its signature,
 facet name, direct-success and revert evidence, and explicit classification.
