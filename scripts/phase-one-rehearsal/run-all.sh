@@ -21,6 +21,7 @@ SCENARIOS=(
     vanilla-v4-gas.sh
     public-market-tape.sh
     managed-lp-lifecycle.sh
+    position-market-transfer.sh
     permissioned-lifecycle.sh
     protocol-pol-lifecycle.sh
     direct-range-rewards.sh

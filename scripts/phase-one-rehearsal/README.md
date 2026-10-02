@@ -49,6 +49,10 @@ runtime verification cannot accidentally accept stale shared build output.
   crosses a managed boundary, and grows and wraps the observation ring.
 - `managed-lp-lifecycle.sh` proves native-fee collection, increase, partial
   decrease, rebalance, exit, and PositionNFT closure through the managed LP path.
+- `position-market-transfer.sh` builds a live PositionNFT financial account,
+  proves bounded public valuation views, transfers staking, allocation, range,
+  and reward state, clears ERC-721 authority, and exercises timelocked ERC-2981
+  signaling without charging raw transfers.
 - `permissioned-lifecycle.sh` proves creator authorization, trader and LP
   admission, permissioned trading, creator and Treasury revenue, restricted-asset
   normalization, normalized staker claims, halt enforcement, forced unwind,
