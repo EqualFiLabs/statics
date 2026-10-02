@@ -79,6 +79,9 @@ verification cannot accidentally accept stale shared build output.
 - `public-revenue-rewards.sh` proves swap-time global reward ownership, later
   staker isolation, delayed backing, creator and Treasury claims, and restriction
   fallback and recovery.
+- `fee-configuration.sh` proves default and PoolId-local fee precedence, exact
+  creator/staker/POL/Treasury allocation across bilateral swaps, POL override
+  capping, and Treasury-funded maintenance tips.
 - `creator-handover.sh` proves the public creator proposal state machine, fixed
   revenue recipients, settled-credit continuity, authority replacement, POL and
   gauge administration transfer, and PoolId-local claim backing.

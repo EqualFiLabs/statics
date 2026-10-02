@@ -30,6 +30,7 @@ SCENARIOS=(
     direct-range-rewards.sh
     allocator-rewards.sh
     public-revenue-rewards.sh
+    fee-configuration.sh
     creator-handover.sh
     staking-and-gauges.sh
     multi-pool-gauges.sh
