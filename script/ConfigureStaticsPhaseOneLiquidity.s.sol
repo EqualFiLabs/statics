@@ -5,6 +5,7 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
@@ -26,6 +27,8 @@ import {IStaticsLiquidityManager} from "../src/interfaces/IStaticsLiquidityManag
 import {IStaticsPermissionedPools} from "../src/interfaces/IStaticsPermissionedPools.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../src/interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {IStaticsPosition, IStaticsPositionFees} from "../src/interfaces/IStaticsPosition.sol";
+import {IStaticsPositionMarket} from "../src/interfaces/IStaticsPositionMarket.sol";
+import {IStaticsPositionRoyalty} from "../src/interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../src/interfaces/IStaticsRangeGauge.sol";
 import {IStaticsRewardPolicy} from "../src/interfaces/IStaticsRewardPolicy.sol";
@@ -96,6 +99,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     uint256 private constant LOCAL_CHAIN_ID = 31_337;
     uint256 private constant MAX_WEEKLY_GAUGE_RELEASE_BPS = 1_000;
     uint256 private constant MAX_REVENUE_MAINTENANCE_TIP_BPS = 2_000;
+    uint256 private constant DEFAULT_POSITION_ROYALTY_BPS = 500;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -301,6 +305,9 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
             config.weeklyGaugeReleaseBps,
             IStaticsGaugeIncentives(diamond).gaugeReserve().releaseBps
         );
+        (address royaltyReceiver, uint16 royaltyBps) = IStaticsPositionRoyalty(diamond).positionRoyalty();
+        _initializedAddress("positionRoyaltyReceiver", config.treasury, royaltyReceiver);
+        _initializedUint("positionRoyaltyBps", DEFAULT_POSITION_ROYALTY_BPS, royaltyBps);
 
         _supportedInterface(diamond, type(IERC165).interfaceId);
         _supportedInterface(diamond, type(IDiamondCut).interfaceId);
@@ -308,9 +315,12 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _supportedInterface(diamond, type(IERC173).interfaceId);
         _supportedInterface(diamond, type(IERC721).interfaceId);
         _supportedInterface(diamond, type(IERC721Metadata).interfaceId);
+        _supportedInterface(diamond, type(IERC2981).interfaceId);
         _supportedInterface(diamond, type(IStaticsGlobalRewards).interfaceId);
         _supportedInterface(diamond, type(IStaticsPosition).interfaceId);
         _supportedInterface(diamond, type(IStaticsPositionFees).interfaceId);
+        _supportedInterface(diamond, type(IStaticsPositionRoyalty).interfaceId);
+        _supportedInterface(diamond, type(IStaticsPositionMarket).interfaceId);
         _supportedInterface(diamond, type(IStaticsRangeGauge).interfaceId);
         _supportedInterface(diamond, type(IStaticsGaugeIncentives).interfaceId);
         _supportedInterface(diamond, type(IStaticsMarketTape).interfaceId);
@@ -447,7 +457,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     }
 
     function _phaseOneSelectorSets() private pure returns (bytes4[][] memory sets) {
-        sets = new bytes4[][](30);
+        sets = new bytes4[][](31);
         sets[0] = StaticsSelectors.diamondCut();
         sets[1] = StaticsSelectors.diamondLoupe();
         sets[2] = StaticsSelectors.ownership();
@@ -478,6 +488,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         sets[27] = StaticsSelectors.gaugeIncentiveViews();
         sets[28] = StaticsSelectors.marketTapeViews();
         sets[29] = StaticsSelectors.marketTapeObservations();
+        sets[30] = StaticsSelectors.positionMarket();
     }
 
     function _containsSelector(IDiamondLoupe.Facet[] memory facets, bytes4 expected) private pure returns (bool) {

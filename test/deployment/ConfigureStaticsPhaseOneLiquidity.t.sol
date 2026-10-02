@@ -19,6 +19,7 @@ import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../../src/interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
+import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
@@ -287,6 +288,28 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
             )
         );
         ceremony.prepare(deployment.diamond, config, keccak256("reject unexpected initialized state"));
+    }
+
+    function testCeremonyRejectsUnexpectedPositionRoyaltyState() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        address unexpectedReceiver = makeAddr("unexpected royalty receiver");
+        vm.prank(address(timelock));
+        IStaticsPositionRoyalty(deployment.diamond).setPositionRoyalty(unexpectedReceiver, 500);
+
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.InvalidInitializedAddress.selector,
+                bytes32("positionRoyaltyReceiver"),
+                config.treasury,
+                unexpectedReceiver
+            )
+        );
+        ceremony.prepare(deployment.diamond, config, keccak256("reject unexpected royalty state"));
     }
 
     function testCeremonyRejectsUnexpectedDeploymentPhase() public {
