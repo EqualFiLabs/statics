@@ -12,6 +12,7 @@ import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
 import {RangeGaugeFacet} from "../../src/facets/RangeGaugeFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
+import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibGaugeBribes} from "../../src/libraries/LibGaugeBribes.sol";
 import {MockERC20, MockReentrantERC20, MockRevertingERC20} from "../mocks/MockERC20.sol";
 import {GeneralPoolLifecycleTestBase} from "../helpers/GeneralPoolLifecycleTestBase.sol";
@@ -21,17 +22,21 @@ import {GeneralPoolLifecycleTestBase} from "../helpers/GeneralPoolLifecycleTestB
 contract CreatorGaugeFunder {
     IStaticsProtocolRevenue public immutable revenue;
     IStaticsRangeGauge public immutable gauge;
+    PoolId public immutable poolId;
+    address public immutable asset;
 
-    constructor(address diamond) {
+    constructor(address diamond, PoolId poolId_, address asset_) {
         revenue = IStaticsProtocolRevenue(diamond);
         gauge = IStaticsRangeGauge(diamond);
+        poolId = poolId_;
+        asset = asset_;
     }
 
-    function collectAndFund(PoolId poolId, address asset, uint8 slot, uint16 allocatorShareBps)
-        external
-        returns (uint256 amount)
-    {
-        (, amount) = revenue.claimCreatorRevenue(poolId, asset, address(this), 0);
+    function collectAndFund(uint8 slot, uint16 allocatorShareBps) external returns (uint256 amount) {
+        if (revenue.creatorRevenue(poolId, asset) != 0) {
+            revenue.claimCreatorRevenue(poolId, asset, address(this), 0);
+        }
+        amount = IERC20(asset).balanceOf(address(this));
         IERC20(asset).approve(address(gauge), amount);
         gauge.fundPoolReward(poolId, slot, amount, 0, allocatorShareBps);
     }
@@ -60,7 +65,19 @@ contract PoolCreatorTest is GeneralPoolLifecycleTestBase {
         address distributor = makeAddr("old-distributor");
         vm.prank(creator);
         revenue.setCreatorRevenueRecipient(poolId, distributor);
+
+        address settledAsset = Currency.unwrap(key.currency0);
+        uint256 creditBefore = revenue.creatorRevenue(poolId, settledAsset);
+        uint256 aggregateBefore = revenue.totalCreatorRevenue(settledAsset);
+        uint256 reservedBefore = custody.reservedByAccount(LibCustody.feeAccount(), settledAsset);
+        uint256 globalReservedBefore = custody.globalReservedByToken(settledAsset);
+        uint256 balanceBefore = IERC20(settledAsset).balanceOf(address(diamond));
         _transfer(poolId, creator, successor);
+        assertEq(revenue.creatorRevenue(poolId, settledAsset), creditBefore);
+        assertEq(revenue.totalCreatorRevenue(settledAsset), aggregateBefore);
+        assertEq(custody.reservedByAccount(LibCustody.feeAccount(), settledAsset), reservedBefore);
+        assertEq(custody.globalReservedByToken(settledAsset), globalReservedBefore);
+        assertEq(IERC20(settledAsset).balanceOf(address(diamond)), balanceBefore);
         _settlePool(poolId, key);
         assertEq(pools.protocolPoolCreator(poolId), successor);
         (address actual, address pending, address recipient) = revenue.poolCreatorConfiguration(poolId);
@@ -157,6 +174,22 @@ contract PoolCreatorTest is GeneralPoolLifecycleTestBase {
         revenue.poolCreatorConfiguration(canonical);
     }
 
+    function testBasketCanonicalClaimAuthorizationRemainsUnchanged() public {
+        (uint256 basketId,) = _createDefaultBasket(0, 0);
+        PoolId canonical = basketLiquidity.canonicalPool(basketId, address(assetA)).poolId;
+        address basketCreator = pools.protocolPoolCreator(canonical);
+        address receiver = makeAddr("basket-receiver");
+        _credit(canonical, address(assetA), 500);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(ProtocolRevenueFacet.OnlyPoolCreator.selector, address(this), basketCreator)
+        );
+        revenue.claimCreatorRevenue(canonical, address(assetA), receiver, 500);
+        vm.prank(basketCreator);
+        revenue.claimCreatorRevenue(canonical, address(assetA), receiver, 500);
+        assertEq(assetA.balanceOf(receiver), 500);
+    }
+
     function testTokenCallbackCannotChangeCreatorOrRecipientDuringClaim() public {
         MockReentrantERC20 token = new MockReentrantERC20();
         (PoolId callbackPool,) = _createGeneralPool(address(token), address(assetB), 10, address(token));
@@ -194,6 +227,8 @@ contract PoolCreatorTest is GeneralPoolLifecycleTestBase {
         assertEq(revenue.creatorRevenue(blockedPool, address(token)), 500);
         assertEq(revenue.totalCreatorRevenue(address(token)), 500);
         assertEq(token.balanceOf(address(diamond)), 500);
+        assertEq(custody.reservedByAccount(LibCustody.feeAccount(), address(token)), 500);
+        assertEq(custody.globalReservedByToken(address(token)), 500);
         token.setTransfersRevert(false);
         revenue.claimCreatorRevenue(blockedPool, address(token), creator, 500);
         assertEq(token.balanceOf(creator), 500);
@@ -215,16 +250,46 @@ contract PoolCreatorTest is GeneralPoolLifecycleTestBase {
         uint8 slot = gauge.appendPoolRewardAsset(poolId, asset);
         vm.prank(creator);
         gauge.setPoolRewardAllocatorShare(poolId, slot, 10_000);
-        CreatorGaugeFunder funder = new CreatorGaugeFunder(address(diamond));
+        CreatorGaugeFunder funder = new CreatorGaugeFunder(address(diamond), poolId, asset);
         vm.prank(creator);
         revenue.setCreatorRevenueRecipient(poolId, address(funder));
         uint256 owed = revenue.creatorRevenue(poolId, asset);
         assertGt(owed, 0);
-        assertEq(funder.collectAndFund(poolId, asset, slot, 10_000), owed);
+        assertEq(funder.collectAndFund(slot, 10_000), owed);
         assertEq(revenue.creatorRevenue(poolId, asset), 0);
         assertEq(IERC20(asset).balanceOf(address(funder)), 0);
         assertEq(IERC20(asset).allowance(address(funder), address(diamond)), 0);
         assertEq(custody.reservedByAccount(LibGaugeBribes.account(poolId, slot), asset), owed);
+
+        _swapGeneralPool(key, makeAddr("second-trader"), true, 0.05 ether);
+        _settlePool(poolId, key);
+        uint256 precollected = revenue.creatorRevenue(poolId, asset);
+        revenue.claimCreatorRevenue(poolId, asset, address(funder), precollected);
+        assertEq(IERC20(asset).balanceOf(address(funder)), precollected);
+        assertEq(funder.collectAndFund(slot, 10_000), precollected);
+        assertEq(IERC20(asset).balanceOf(address(funder)), 0);
+    }
+
+    function testCreatorTransferMovesGaugeConfigurationAuthority() public {
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut(
+            address(new RangeGaugeFacet()), IDiamondCut.FacetCutAction.Add, StaticsSelectors.rangeGaugeActions()
+        );
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+        IStaticsRangeGauge gauge = IStaticsRangeGauge(address(diamond));
+        gauge.setGaugeRewardAssetAllowed(address(assetA), true);
+        _transfer(poolId, creator, successor);
+
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsRangeGauge.NotPoolCreator.selector, poolId, creator, successor));
+        gauge.appendPoolRewardAsset(poolId, address(assetA));
+        vm.prank(successor);
+        uint8 slot = gauge.appendPoolRewardAsset(poolId, address(assetA));
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(IStaticsRangeGauge.NotPoolCreator.selector, poolId, creator, successor));
+        gauge.setPoolRewardAllocatorShare(poolId, slot, 5_000);
+        vm.prank(successor);
+        gauge.setPoolRewardAllocatorShare(poolId, slot, 5_000);
     }
 
     function testFuzz_TransferAndClaimKeepPoolsAndAssetsIsolated(uint256 first, uint256 second) public {

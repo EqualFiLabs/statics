@@ -540,12 +540,13 @@ later profile reduction caps an older override to that current bucket rather
 than allowing fee accounting to fail. Changing a PoolId's fee rate does not
 change the applicable allocation profile, and vice versa.
 
-Creator revenue equals exactly 500 BPS of the collected Statics bilateral fee
-in both pool currencies. It is pull-based: swap execution never calls the
-creator. Claim it with
-`claimCreatorRevenue(asset, receiver, minReceived)` and read pending amounts
-through the creator-credit views. Creator credits never expire, cannot be
-confiscated by governance, and survive decommissioning.
+Public general-pool creator revenue equals exactly 500 BPS of the collected
+Statics bilateral fee in both pool currencies. Permissioned pool creator shares
+follow their governed venue terms. Revenue is pull-based: swap execution never
+calls the creator. Claim it with
+`claimCreatorRevenue(poolId, asset, receiver, minReceived)` and read pending
+amounts through the creator-credit views. Creator credits never expire, cannot
+be confiscated by governance, and survive decommissioning.
 
 The hook records bilateral fees as PoolManager ERC-6909 claims without routing
 or managing positions in the swap callback. Any caller may settle one pool

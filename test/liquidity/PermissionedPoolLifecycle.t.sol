@@ -1451,6 +1451,65 @@ contract PermissionedPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(permissionedPools.permissionedPool(poolId).configurationNonce, 3);
     }
 
+    function testTransferredCreatorAloneAuthorizesCurrentPermissionedConfiguration() public {
+        (PoolId poolId,,) = _createDefaultPool(
+            address(new MockERC20("Successor A", "SA", 18)), address(new MockERC20("Successor B", "SB", 18)), 3_000, 100
+        );
+        (address successor, uint256 successorKey) = makeAddrAndKey("permissioned-successor");
+        vm.prank(creator);
+        revenue.proposePoolCreator(poolId, successor);
+        vm.prank(successor);
+        revenue.acceptPoolCreator(poolId);
+
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 agreement = keccak256("successor-configuration");
+        IStaticsPermissionedSwapFeeHook.PoolEconomics memory terms = _economics(150, 8_000, 1_000, 1_000);
+        bytes32 termsDigest = permissionedPools.permissionedTermsDigest(poolId, terms, 1, deadline, agreement);
+        bytes memory oldAuthorization = _sign(creatorKey, termsDigest);
+        bytes memory successorAuthorization = _sign(successorKey, termsDigest);
+        vm.expectRevert(
+            abi.encodeWithSelector(PermissionedPoolAdminFacet.InvalidCreatorAuthorization.selector, successor)
+        );
+        permissionedPools.applyPermissionedPoolTerms(poolId, terms, 1, deadline, agreement, oldAuthorization);
+        permissionedPools.applyPermissionedPoolTerms(poolId, terms, 1, deadline, agreement, successorAuthorization);
+        assertEq(permissionedPools.permissionedPool(poolId).configurationNonce, 2);
+    }
+
+    function testTransferredCreatorAloneAuthorizesCurrentControllerReplacement() public {
+        (PoolId poolId,, DefaultVenueController controller) = _createDefaultPool(
+            address(new MockERC20("Controller A", "CA", 18)),
+            address(new MockERC20("Controller B", "CB", 18)),
+            3_000,
+            100
+        );
+        (address successor, uint256 successorKey) = makeAddrAndKey("controller-successor");
+        vm.prank(creator);
+        revenue.proposePoolCreator(poolId, successor);
+        vm.prank(successor);
+        revenue.acceptPoolCreator(poolId);
+        DefaultVenueController replacement = new DefaultVenueController(creator);
+        vm.prank(creator);
+        replacement.setPoolStatus(poolId, IVenueController.TradingStatus.Halted);
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 replacementAgreement = keccak256("successor-controller");
+        bytes32 replacementDigest = permissionedPools.permissionedControllerReplacementDigest(
+            poolId, address(controller), address(replacement), 1, deadline, replacementAgreement
+        );
+        bytes memory oldAuthorization = _sign(creatorKey, replacementDigest);
+        bytes memory successorAuthorization = _sign(successorKey, replacementDigest);
+        vm.expectRevert(
+            abi.encodeWithSelector(PermissionedPoolAdminFacet.InvalidCreatorAuthorization.selector, successor)
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(controller), address(replacement), 1, deadline, replacementAgreement, oldAuthorization
+        );
+        permissionedPools.replacePermissionedPoolController(
+            poolId, address(controller), address(replacement), 1, deadline, replacementAgreement, successorAuthorization
+        );
+        assertEq(permissionedPools.permissionedPool(poolId).controller, address(replacement));
+        assertEq(permissionedPools.permissionedPool(poolId).configurationNonce, 2);
+    }
+
     function testDecommissionedPermissionedPoolKeepsCreatorRevenueManageable() public {
         (PoolId poolId, PoolKey memory key, DefaultVenueController controller) = _createDefaultPool(
             address(new MockERC20("Exit A", "EA", 18)), address(new MockERC20("Exit B", "EB", 18)), 3_000, 100
