@@ -59,6 +59,25 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
     --private-key "$(anvil_private_key "$CREATOR_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/governance-provide.json"
 
+# Prepare an empty PositionNFT and a distinct valid PoolKey before pausing so
+# both failed ingress operations can be retried unchanged after governance
+# restores liquidity availability.
+PAUSED_LP_POSITION=$(cast call "$STATICS_DIAMOND_ADDRESS" 'nextPositionId()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'createPosition(address)(uint256)' "$CREATOR" \
+    --value "$POSITION_FEE" --private-key "$(anvil_private_key "$CREATOR_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-paused-lp-position.json"
+CREATION_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 604800 ))
+PAUSED_POOL_PARAMS="($STAKING_TOKEN,$WETH_ADDRESS,500,10,79228162514264337593543950336,(5,5),$CREATOR,false,404,$CREATION_DEADLINE)"
+PAUSED_POOL_QUOTE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'quotePool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256))(((address,address,uint24,int24,address),bytes32,uint160,uint256,uint256,uint256,bytes32))' \
+    "$PAUSED_POOL_PARAMS" --rpc-url "$RPC_URL" --json)
+PAUSED_POOL_ID=$(jq -r '.[0][1]' <<<"$PAUSED_POOL_QUOTE")
+PAUSED_POOL_CALLDATA=$(cast calldata \
+    'createPool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256),bytes)' \
+    "$PAUSED_POOL_PARAMS" 0x)
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
+    "$PAUSED_POOL_ID" --rpc-url "$RPC_URL")" false "fresh pause-test PoolKey"
+
 acquire_genesis_statics "$STAKER_INDEX" 1000000000000000000 governance-staker >/dev/null
 cast send "$STAKING_TOKEN" 'approve(address,uint256)' "$STATICS_DIAMOND_ADDRESS" "$(cast max-uint)" \
     --private-key "$(anvil_private_key "$STAKER_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
@@ -99,6 +118,19 @@ expect_call_revert "increase while liquidity paused" \
     'increaseLiquidity(uint256,bytes32,(uint128,uint256,uint256,uint256))((uint256,uint128,uint256,uint256,uint256,uint256))' \
     "$LP_POSITION" "$POOL_ID" "(1000000000000000000,90000000000000000000,90000000000000000000,$DEADLINE)" \
     --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
+expect_call_revert "provide while liquidity paused" \
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+    'provideLiquidity(uint256,(bytes32,int24,int24,uint128,uint256,uint256,uint256))((uint256,uint128,uint256,uint256,uint256,uint256))' \
+    "$PAUSED_LP_POSITION" "($POOL_ID,-600,600,1000000000000000000,10000000000000000000,10000000000000000000,$DEADLINE)" \
+    --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' \
+    "$PAUSED_LP_POSITION" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
+    "paused provide leaves PositionNFT unchanged"
+expect_call_revert "create pool while liquidity paused" \
+    cast call "$STATICS_DIAMOND_ADDRESS" --from "$STATICS_TIMELOCK_ADDRESS" --value 0 \
+    --data "$PAUSED_POOL_CALLDATA" --rpc-url "$RPC_URL" >/dev/null
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
+    "$PAUSED_POOL_ID" --rpc-url "$RPC_URL")" false "paused pool creation is atomic"
 expect_call_revert "POL growth while liquidity paused" \
     cast call "$STATICS_DIAMOND_ADDRESS" \
     'openProtocolPolPosition((bytes32,int24,int24,uint128,uint256,uint256,uint256))(uint256)' \
@@ -123,6 +155,17 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
     "$LP_POSITION" "$POOL_ID" "(1000000000000000000,90000000000000000000,90000000000000000000,$DEADLINE)" \
     --private-key "$(anvil_private_key "$CREATOR_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/governance-unpaused-increase.json"
+cast send "$STATICS_DIAMOND_ADDRESS" \
+    'provideLiquidity(uint256,(bytes32,int24,int24,uint128,uint256,uint256,uint256))((uint256,uint128,uint256,uint256,uint256,uint256))' \
+    "$PAUSED_LP_POSITION" "($POOL_ID,-600,600,1000000000000000000,10000000000000000000,10000000000000000000,$DEADLINE)" \
+    --private-key "$(anvil_private_key "$CREATOR_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/governance-unpaused-provide.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' \
+    "$PAUSED_LP_POSITION" --rpc-url "$RPC_URL" | awk '{print $1}')" 1 \
+    "same provide succeeds after unpause"
+timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$PAUSED_POOL_CALLDATA" governance-unpaused-create-pool
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
+    "$PAUSED_POOL_ID" --rpc-url "$RPC_URL")" true "same PoolKey succeeds after unpause"
 
 # Settle the currently accrued reward before testing the staking ingress pause.
 PENDING=$(cast call "$STATICS_DIAMOND_ADDRESS" 'pendingRewards(uint256,address[])(uint256[])' \
@@ -236,7 +279,7 @@ v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" false 100000000000000000 governance-global-unpaused-swap
 
 assert_phase_one_solvency governance "$CURRENCY0" "$CURRENCY1"
-record_result governance liquidity-pause pass "ingress blocked; collect and decrease preserved"
+record_result governance liquidity-pause pass "create, provide, increase, and POL ingress blocked; exits preserved"
 record_result governance stake-pause pass "stake ingress blocked; opt-out, unstake, and claim preserved"
 record_result governance treasury-pause pass "settlement and distribution blocked atomically"
 record_result governance pool-quarantine pass "$POOL_ID real router execution"

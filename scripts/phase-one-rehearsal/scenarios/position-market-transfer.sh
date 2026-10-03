@@ -228,13 +228,10 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' \
     "$SAFE_POSITION_A" --rpc-url "$RPC_URL")" "$BOB" "operator safe-transfer owner"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' \
     "$SAFE_POSITION_B" --rpc-url "$RPC_URL")" "$BOB" "data safe-transfer owner"
-cast send "$STATICS_DIAMOND_ADDRESS" 'setApprovalForAll(address,bool)' "$OPERATOR" false \
-    --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
-    >"$RUN_DIR/position-market-clear-operator.json"
-assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isApprovedForAll(address,address)(bool)' \
-    "$ALICE" "$OPERATOR" --rpc-url "$RPC_URL")" false "PositionNFT operator revocation"
 
 # ERC-721 transfer moves the live financial account and clears token approval.
+# Alice's operator-wide approval deliberately remains active through transfer
+# to prove it is owner-scoped and cannot follow the PositionNFT to Bob.
 cast send "$STATICS_DIAMOND_ADDRESS" 'approve(address,uint256)' "$OPERATOR" "$POSITION_ID" \
     --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/position-market-token-approve.json"
@@ -246,6 +243,10 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'transferFrom(address,address,uint256)' "$A
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' "$POSITION_ID" --rpc-url "$RPC_URL")" "$BOB" "transferred PositionNFT owner"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'getApproved(uint256)(address)' "$POSITION_ID" --rpc-url "$RPC_URL")" \
     0x0000000000000000000000000000000000000000 "cleared token approval"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isApprovedForAll(address,address)(bool)' \
+    "$ALICE" "$OPERATOR" --rpc-url "$RPC_URL")" true "Alice operator approval remains owner-scoped"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isApprovedForAll(address,address)(bool)' \
+    "$BOB" "$OPERATOR" --rpc-url "$RPC_URL")" false "Bob does not inherit Alice operator approval"
 assert_eq "$(cast balance "$TREASURY" --rpc-url "$RPC_URL")" "$TREASURY_ETH_BEFORE" "raw transfer charges no royalty"
 POST_STAKE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'stakePosition(uint256)((uint256,uint16,uint256,uint256))' \
     "$POSITION_ID" --from "$OUTSIDER" --rpc-url "$RPC_URL" --json)
@@ -263,9 +264,16 @@ assert_eq "$(jq -r '.[0][4]' <<<"$POST_LEG")" "$(jq -r '.[0][4]' <<<"$LP_LEG")" 
 expect_call_revert "previous owner position mutation" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'setGaugeAllocations(uint256,bytes32[],uint256[])' \
     "$POSITION_ID" "[$POOL_ID]" "[$STAKE]" --from "$ALICE" --rpc-url "$RPC_URL" >/dev/null
-expect_call_revert "cleared operator position mutation" \
+expect_call_revert "Alice operator cannot mutate Bob allocation" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'setGaugeAllocations(uint256,bytes32[],uint256[])' \
     "$POSITION_ID" "[$POOL_ID]" "[$STAKE]" --from "$OPERATOR" --rpc-url "$RPC_URL" >/dev/null
+expect_call_revert "Alice operator cannot collect Bob native fees" \
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+    'collectNativeFees(uint256,bytes32,uint256,uint256,uint256)((uint256,uint128,uint256,uint256,uint256,uint256))' \
+    "$POSITION_ID" "$POOL_ID" 0 0 "$(( DEADLINE + 172800 ))" --from "$OPERATOR" --rpc-url "$RPC_URL" >/dev/null
+expect_call_revert "Alice operator cannot transfer Bob PositionNFT" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'transferFrom(address,address,uint256)' \
+    "$BOB" "$OUTSIDER" "$POSITION_ID" --from "$OPERATOR" --rpc-url "$RPC_URL" >/dev/null
 expect_call_revert "previous owner fee collection" \
     cast call "$STATICS_DIAMOND_ADDRESS" \
     'collectNativeFees(uint256,bytes32,uint256,uint256,uint256)((uint256,uint128,uint256,uint256,uint256,uint256))' \
@@ -279,6 +287,11 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
     'collectNativeFees(uint256,bytes32,uint256,uint256,uint256)((uint256,uint128,uint256,uint256,uint256,uint256))' \
     "$POSITION_ID" "$POOL_ID" 0 0 "$COLLECT_DEADLINE" --private-key "$(anvil_private_key "$BOB_INDEX")" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/position-market-bob-collect.json"
+cast send "$STATICS_DIAMOND_ADDRESS" 'setApprovalForAll(address,bool)' "$OPERATOR" false \
+    --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/position-market-clear-operator.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isApprovedForAll(address,address)(bool)' \
+    "$ALICE" "$OPERATOR" --rpc-url "$RPC_URL")" false "Alice operator revocation after scope proof"
 
 # Royalty policy is timelocked signaling only and remains isolated from raw transfer mechanics.
 expect_call_revert "unauthorized royalty setter" \
@@ -313,6 +326,7 @@ assert_phase_one_solvency position-market-transfer "$CURRENCY0" "$CURRENCY1"
 record_result position-market public-introspection pass "stake, rewards, allocations, range, and fee views"
 record_result position-market live-account-transfer pass "position $POSITION_ID from $ALICE to $BOB"
 record_result position-market approval-clearing pass "$OPERATOR"
+record_result position-market operator-ownership-scope pass "$OPERATOR cannot act on Bob position $POSITION_ID"
 record_result position-market safe-transfer-overloads pass "$SAFE_POSITION_A and $SAFE_POSITION_B"
 record_result position-market owner-index-sync pass "$POSITION_ID"
 record_result position-market royalty-governance pass "0 to 1000 BPS signaling"

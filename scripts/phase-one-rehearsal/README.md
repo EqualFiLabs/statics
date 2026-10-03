@@ -94,13 +94,16 @@ verification cannot accidentally accept stale shared build output.
 - `configuration-surface.sh` exercises the timelocked guardian, Treasury,
   PositionNFT fee, global reward limit, maintenance tip, POL activation fee,
   gauge duration/release/cooldown, and permissioned-periphery configuration.
+- `governance-upgrade-surface.sh` executes a timelocked ephemeral facet add,
+  invocation, and removal, then proves the live Diamond ownership handoff path.
 - `governance-controls.sh` executes real swaps, staking, liquidity, POL, claims,
   and Treasury distribution across guardian pauses, pool quarantine, and the
   global public-swap pause, including exit liveness and timelock-delay proof.
 - `composed-soak.sh` keeps one accumulated state across staking, allocations,
   direct and protocol incentives, POL, creator and PositionNFT transfers,
   restrictions, emergency controls, decommissioning, claims, and solvency
-  reconciliation without resetting between transitions.
+  reconciliation without resetting between transitions. Its terminal checks
+  separately report custody backing and PoolId-local liability reconciliation.
 
 The selector coverage manifest joins every installed selector to its exact
 signature, facet name, direct-success and revert evidence, and explicit

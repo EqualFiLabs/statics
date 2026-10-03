@@ -172,7 +172,7 @@ TOP_UP_DURATION=$(( REMAINING_DURATION - 10 ))
 assert_gt "$TOP_UP_DURATION" 0 "direct reward top-up execution margin"
 cast send "$STATICS_DIAMOND_ADDRESS" 'fundPoolReward(bytes32,uint8,uint256,uint40,uint16)(uint256)' \
     "$POOL_ID" 1 "$FUND_AMOUNT" "$TOP_UP_DURATION" 0 --private-key "$LP_KEY" \
-    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/direct-reward-second-fund.json"
+    --rpc-url "$RPC_URL" --gas-limit 500000 --legacy --json >"$RUN_DIR/direct-reward-second-fund.json"
 rpc_warp_by 86400
 DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 3600 ))
 cast send "$STATICS_DIAMOND_ADDRESS" \

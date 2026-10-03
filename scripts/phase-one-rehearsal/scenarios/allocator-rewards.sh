@@ -135,7 +135,8 @@ SECOND_NEXT_AT=$(printf '%s\n' "$SECOND_STATE" | sed -n '1s/ .*//p')
 rpc_warp_to "$SECOND_NEXT_AT"
 cast send "$STATICS_DIAMOND_ADDRESS" 'setGaugeAllocations(uint256,bytes32[],uint256[])' \
     "$SECOND_POSITION" "[$POOL_ID]" "[$STAKE]" --private-key "$CREATOR_KEY" \
-    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/allocator-second-set-weight.json"
+    --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
+    >"$RUN_DIR/allocator-second-set-weight.json"
 rpc_warp_by 86400
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_ID" \
     --private-key "$(anvil_private_key 8)" --rpc-url "$RPC_URL" --legacy --json \

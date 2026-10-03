@@ -30,6 +30,30 @@ else
     CURRENCY1=$WETH_ADDRESS
 fi
 
+# Snapshot global accounting before this scenario adds any token liabilities.
+# Terminal checks compare back to these values rather than assuming a globally
+# empty deployment, while PoolId-local state is expected to reconcile to zero.
+BASE_CREATOR_TOTAL0=$(cast call "$STATICS_DIAMOND_ADDRESS" 'totalCreatorRevenue(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_CREATOR_TOTAL1=$(cast call "$STATICS_DIAMOND_ADDRESS" 'totalCreatorRevenue(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_TREASURY0=$(cast call "$STATICS_DIAMOND_ADDRESS" 'treasuryAccrued(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_TREASURY1=$(cast call "$STATICS_DIAMOND_ADDRESS" 'treasuryAccrued(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_UNFUNDED0=$(cast call "$STATICS_DIAMOND_ADDRESS" 'unfundedSwapRewards(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_UNFUNDED1=$(cast call "$STATICS_DIAMOND_ADDRESS" 'unfundedSwapRewards(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_OUTSTANDING0=$(cast call "$STATICS_DIAMOND_ADDRESS" 'outstandingGlobalRewardLiability(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_OUTSTANDING1=$(cast call "$STATICS_DIAMOND_ADDRESS" 'outstandingGlobalRewardLiability(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_FUNDED0=$(cast call "$STATICS_DIAMOND_ADDRESS" 'fundedGlobalRewards(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
+BASE_FUNDED1=$(cast call "$STATICS_DIAMOND_ADDRESS" 'fundedGlobalRewards(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')
+
 # Build one PositionNFT carrying stake, reward selections, allocation weight,
 # managed liquidity, direct LP rewards, allocator rewards, and protocol slot 0.
 acquire_genesis_statics "$CREATOR_INDEX" 4000000000000000000 composed-owner >/dev/null
@@ -166,6 +190,15 @@ expect_call_revert "stake ingress in composed pause" \
     --from "$SUCCESSOR" --rpc-url "$RPC_URL" >"$RUN_DIR/composed-paused-stake-revert.txt"
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$(cast calldata 'unpause(uint256)' 128)" composed-unpause-stake
 
+# Back every swap-time entitlement before shutdown. Claim timing may change
+# liquidity, but it must not leave the crystallized global reward liability
+# dependent on a later maintenance call.
+for asset in "$CURRENCY0" "$CURRENCY1"; do
+    cast send "$STATICS_DIAMOND_ADDRESS" 'settlePublicSwapRewards(address,uint256)(uint256)' \
+        "$asset" "$(cast max-uint)" --private-key "$(anvil_private_key "$MAINTAINER_INDEX")" \
+        --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/composed-settle-global-${asset,,}.json"
+done
+
 # Decommission with live user rewards, creator revenue, and POL. Resolve each
 # liability incrementally, then reconcile custody after finalization.
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
@@ -190,9 +223,18 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
     'claimGaugeAllocatorRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
     "$POSITION_ID" "$POOL_ID" '[1]' '[0]' "$SUCCESSOR" --private-key "$SUCCESSOR_KEY" \
     --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json >"$RUN_DIR/composed-claim-allocator.json"
+cast send "$STATICS_DIAMOND_ADDRESS" 'forfeitGaugeAllocatorReward(uint256,bytes32,uint8)(uint256)' \
+    "$POSITION_ID" "$POOL_ID" 1 --private-key "$SUCCESSOR_KEY" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/composed-clear-allocator-dust.json"
 cast send "$STATICS_DIAMOND_ADDRESS" 'claimRewards(uint256,address[],address,uint256[])(uint256[])' \
     "$POSITION_ID" "[$CURRENCY0,$CURRENCY1]" "$SUCCESSOR" '[0,0]' --private-key "$SUCCESSOR_KEY" \
     --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json >"$RUN_DIR/composed-claim-global.json"
+RECONCILED_PROTOCOL_SURPLUS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'reconcilePoolRewardSurplus(bytes32,uint8)(uint256)' "$POOL_ID" 0 \
+    --from "$(anvil_address "$MAINTAINER_INDEX")" --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'reconcilePoolRewardSurplus(bytes32,uint8)(uint256)' \
+    "$POOL_ID" 0 --private-key "$(anvil_private_key "$MAINTAINER_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/composed-reconcile-protocol-surplus.json"
 RECONCILED_REWARD_SURPLUS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'reconcilePoolRewardSurplus(bytes32,uint8)(uint256)' "$POOL_ID" 1 \
     --from "$(anvil_address "$MAINTAINER_INDEX")" --rpc-url "$RPC_URL" | awk '{print $1}')
@@ -231,8 +273,140 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolCreator(bytes32)(
     "$SUCCESSOR" "composed successor creator"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' "$POSITION_ID" --rpc-url "$RPC_URL")" \
     "$SUCCESSOR" "composed successor PositionNFT owner"
+
+# PoolId-local terminal reconciliation. POL position IDs are an immutable
+# history, so every recorded ID must be inactive and the live count must be
+# zero; an empty historical array is not required.
+for asset in "$CURRENCY0" "$CURRENCY1"; do
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'creatorRevenue(bytes32,address)(uint256)' \
+        "$POOL_ID" "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
+        "terminal PoolId creator credit for $asset"
+done
+POL_IDS=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolPositionIds(bytes32)(uint256[])' \
+    "$POOL_ID" --rpc-url "$RPC_URL" --json)
+assert_ge "$(jq -r '.[0] | length' <<<"$POL_IDS")" 1 "terminal POL history"
+while IFS= read -r pol_id; do
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" \
+        'protocolPolPosition(uint256)((uint256,bytes32,address,uint256,int24,int24,uint128,bool))' \
+        "$pol_id" --rpc-url "$RPC_URL" --json | jq -r '.[0][7]')" false \
+        "terminal POL position $pol_id inactive"
+done < <(jq -r '.[0][]' <<<"$POL_IDS")
+POOL_STATE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))' \
+    "$POOL_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][10]' <<<"$POOL_STATE")" 0 "terminal active POL position count"
+
+POL_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolCustodyAccount(bytes32)(bytes32)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")
+FEE_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'feeCustodyAccount()(bytes32)' --rpc-url "$RPC_URL")
+GAUGE_RESERVE_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'gaugeReserveCustodyAccount()(bytes32)' --rpc-url "$RPC_URL")
+STAKING_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'stakingCustodyAccount()(bytes32)' --rpc-url "$RPC_URL")
+for asset in "$CURRENCY0" "$CURRENCY1"; do
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'reservedByAccount(bytes32,address)(uint256)' \
+        "$POL_ACCOUNT" "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
+        "terminal PoolId POL custody for $asset"
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'reservedByAccount(bytes32,address)(uint256)' \
+        "$FEE_ACCOUNT" "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
+        "terminal fee custody for $asset"
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'reservedByAccount(bytes32,address)(uint256)' \
+        "$STAKING_ACCOUNT" "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
+        "terminal staking custody for $asset"
+done
+
+POSITION_STATE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'positionState(uint256)((bool,uint256,uint256,uint256))' "$POSITION_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][2]' <<<"$POSITION_STATE")" 0 "terminal PositionNFT active leg count"
+assert_eq "$(jq -r '.[0][3]' <<<"$POSITION_STATE")" 0 "terminal PositionNFT obligations"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isPositionClosable(uint256)(bool)' \
+    "$POSITION_ID" --rpc-url "$RPC_URL")" true "terminal PositionNFT closable"
+FINAL_ALLOCATIONS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'gaugePositionAllocations(uint256)(uint40,uint256,(bytes32,uint256,bytes32)[],uint256)' \
+    "$POSITION_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[1]' <<<"$FINAL_ALLOCATIONS")" 0 "terminal gauge allocation total"
+assert_eq "$(jq -r '.[2] | length' <<<"$FINAL_ALLOCATIONS")" 0 "terminal gauge allocation entries"
+assert_eq "$(jq -r '.[3]' <<<"$FINAL_ALLOCATIONS")" 0 "terminal locked stake"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'positionGaugePools(uint256,uint256,uint256)(bytes32[],uint256)' \
+    "$POSITION_ID" 0 100 --rpc-url "$RPC_URL" --json | jq -r '.[0] | length')" 0 \
+    "terminal PositionNFT range pool index"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'positionGaugeAllocatorPools(uint256,uint256,uint256)(bytes32[],uint256)' \
+    "$POSITION_ID" 0 100 --rpc-url "$RPC_URL" --json | jq -r '.[0] | length')" 0 \
+    "terminal PositionNFT allocator pool index"
+
+GAUGE_STATE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'gaugePool(bytes32)((bool,bool,uint40,int24,uint128,uint64,uint64))' \
+    "$POOL_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][1]' <<<"$GAUGE_STATE")" true "terminal gauge stopped"
+assert_eq "$(jq -r '.[0][4]' <<<"$GAUGE_STATE")" 0 "terminal active gauge liquidity"
+assert_eq "$(jq -r '.[0][5]' <<<"$GAUGE_STATE")" 0 "terminal managed gauge legs"
+assert_eq "$(jq -r '.[0][6]' <<<"$GAUGE_STATE")" 0 "terminal unresolved gauge legs"
+for slot in 0 1; do
+    STREAM=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+        'poolRewardStream(bytes32,uint8)((bool,uint8,address,uint40,uint40,uint40,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))' \
+        "$POOL_ID" "$slot" --rpc-url "$RPC_URL" --json)
+    assert_eq "$(jq -r '.[0][10]' <<<"$STREAM")" 0 "terminal slot $slot index remainder"
+    assert_eq "$(jq -r '.[0][11]' <<<"$STREAM")" 0 "terminal slot $slot indexed liability"
+    assert_eq "$(jq -r '.[0][12]' <<<"$STREAM")" 0 "terminal slot $slot claim liability"
+    read -r REWARD_ACCOUNT ASSIGNED <<<"$(cast call "$STATICS_DIAMOND_ADDRESS" \
+        'poolRewardCustodyAccount(bytes32,uint8)(bytes32,bool)' "$POOL_ID" "$slot" \
+        --rpc-url "$RPC_URL" | tr '\n' ' ')"
+    assert_eq "$ASSIGNED" true "terminal slot $slot custody assignment"
+    STREAM_ASSET=$(jq -r '.[0][2]' <<<"$STREAM")
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'reservedByAccount(bytes32,address)(uint256)' \
+        "$REWARD_ACCOUNT" "$STREAM_ASSET" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 \
+        "terminal slot $slot custody"
+done
+ALLOCATOR_STREAM=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'gaugeAllocatorReward(bytes32,uint8)((address,bytes32,uint64,uint40,uint40,uint40,uint256,uint256,uint256,uint256,uint256,bool))' \
+    "$POOL_ID" 1 --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][9]' <<<"$ALLOCATOR_STREAM")" 0 "terminal allocator indexed liability"
+assert_eq "$(jq -r '.[0][10]' <<<"$ALLOCATOR_STREAM")" 0 "terminal allocator claim liability"
+
+# Global liabilities created by this scenario return to their baseline. The
+# only intentional reservation left is the funded protocol gauge reserve.
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'totalCreatorRevenue(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_CREATOR_TOTAL0" \
+    "terminal aggregate creator currency0"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'totalCreatorRevenue(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_CREATOR_TOTAL1" \
+    "terminal aggregate creator currency1"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'treasuryAccrued(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_TREASURY0" \
+    "terminal Treasury currency0"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'treasuryAccrued(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_TREASURY1" \
+    "terminal Treasury currency1"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'unfundedSwapRewards(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_UNFUNDED0" \
+    "terminal unfunded global currency0"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'unfundedSwapRewards(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_UNFUNDED1" \
+    "terminal unfunded global currency1"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'outstandingGlobalRewardLiability(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_OUTSTANDING0" \
+    "terminal outstanding global currency0"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'outstandingGlobalRewardLiability(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_OUTSTANDING1" \
+    "terminal outstanding global currency1"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'fundedGlobalRewards(address)(uint256)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_FUNDED0" \
+    "terminal funded global currency0"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'fundedGlobalRewards(address)(uint256)' \
+    "$CURRENCY1" --rpc-url "$RPC_URL" | awk '{print $1}')" "$BASE_FUNDED1" \
+    "terminal funded global currency1"
+for asset in "$CURRENCY0" "$CURRENCY1"; do
+    GAUGE_RESERVED=$(cast call "$STATICS_DIAMOND_ADDRESS" 'reservedByAccount(bytes32,address)(uint256)' \
+        "$GAUGE_RESERVE_ACCOUNT" "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')
+    GLOBAL_RESERVED=$(cast call "$STATICS_DIAMOND_ADDRESS" 'globalReservedByToken(address)(uint256)' \
+        "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')
+    assert_eq "$GLOBAL_RESERVED" "$GAUGE_RESERVED" "terminal intentional reserve for $asset"
+done
 record_result composed-soak accumulated-state-lifecycle pass "$POOL_ID"
 record_result composed-soak authority-transfers pass "creator and PositionNFT moved to $SUCCESSOR"
 record_result composed-soak incremental-shutdown pass "LP, allocator, global, creator, POL, and Treasury resolved"
-record_result composed-soak reward-surplus-reconciliation pass "$RECONCILED_REWARD_SURPLUS WETH wei"
+record_result composed-soak reward-surplus-reconciliation pass \
+    "$RECONCILED_PROTOCOL_SURPLUS protocol wei; $RECONCILED_REWARD_SURPLUS direct wei"
+record_result terminal-reconciliation composed-soak pass \
+    "creator, Treasury, global rewards, POL, range, allocator, custody, and allocations reconciled"
 note "composed no-reset Phase 1 soak passed"

@@ -133,6 +133,13 @@ LEGACY_AFTER_INSTALL=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     "$LEGACY_POSITION" "$POOL_ID" --rpc-url "$RPC_URL" --json)
 assert_eq "$(jq -r '.[0][0]' <<<"$LEGACY_AFTER_INSTALL")" "$OLD_MANAGER" "legacy leg keeps Manager A"
 assert_eq "$(jq -r '.[0][1]' <<<"$LEGACY_AFTER_INSTALL")" "$OLD_POSM_TOKEN" "legacy POSM remains bound"
+NATIVE_AFTER_INSTALL=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'previewNativeLpFees(uint256,bytes32)(uint256,uint256)' "$LEGACY_POSITION" "$POOL_ID" \
+    --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0]' <<<"$NATIVE_AFTER_INSTALL")" "$(jq -r '.[0]' <<<"$NATIVE_BEFORE")" \
+    "legacy currency0 fee preview remains Manager-A aware"
+assert_eq "$(jq -r '.[1]' <<<"$NATIVE_AFTER_INSTALL")" "$(jq -r '.[1]' <<<"$NATIVE_BEFORE")" \
+    "legacy currency1 fee preview remains Manager-A aware"
 DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 86400 ))
 cast send "$STATICS_DIAMOND_ADDRESS" \
     'collectNativeFees(uint256,bytes32,uint256,uint256,uint256)((uint256,uint128,uint256,uint256,uint256,uint256))' \
@@ -186,6 +193,16 @@ expect_call_revert "retired POSM owner lookup" \
     cast call "$POSITION_MANAGER" 'ownerOf(uint256)(address)' "$OLD_POSM_TOKEN" --rpc-url "$RPC_URL" >/dev/null
 assert_eq "$(cast call "$POSITION_MANAGER" 'ownerOf(uint256)(address)' "$NEW_POSM_TOKEN" --rpc-url "$RPC_URL")" \
     "$NEW_MANAGER" "migrated POSM owned by Manager B"
+v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
+    "$STATICS_SWAP_FEE_HOOK_ADDRESS" true 100000000000000000 manager-replacement-migrated-swap0
+v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
+    "$STATICS_SWAP_FEE_HOOK_ADDRESS" false 100000000000000000 manager-replacement-migrated-swap1
+NATIVE_AFTER_MIGRATION=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'previewNativeLpFees(uint256,bytes32)(uint256,uint256)' "$LEGACY_POSITION" "$POOL_ID" \
+    --rpc-url "$RPC_URL" --json)
+assert_gt "$(printf '%s + %s\n' "$(jq -r '.[0]' <<<"$NATIVE_AFTER_MIGRATION")" \
+    "$(jq -r '.[1]' <<<"$NATIVE_AFTER_MIGRATION")" | bc)" 0 \
+    "migrated native fee preview uses Manager B"
 MIGRATED_REWARD=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'previewLpRewards(uint256,bytes32)((uint8,address[5],uint256[5]))' \
     "$LEGACY_POSITION" "$POOL_ID" --rpc-url "$RPC_URL" --json)
@@ -196,5 +213,7 @@ assert_phase_one_solvency manager-replacement "$CURRENCY0" "$CURRENCY1"
 record_result range-gauge manager-binding-rejection pass "$BAD_MANAGER"
 record_result range-gauge compatible-manager-replacement pass "$OLD_MANAGER to $NEW_MANAGER"
 record_result range-gauge legacy-manager-operation pass "$OLD_POSM_TOKEN"
+record_result position-market legacy-manager-native-fee-preview pass "$OLD_MANAGER after active manager became $NEW_MANAGER"
 record_result range-gauge lazy-manager-migration pass "$OLD_POSM_TOKEN to $NEW_POSM_TOKEN"
+record_result position-market migrated-manager-native-fee-preview pass "$NEW_MANAGER"
 note "liquidity manager replacement and lazy migration scenarios passed"

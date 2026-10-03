@@ -209,6 +209,21 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
     'exitLiquidity(uint256,bytes32,uint256,uint256,uint256)((uint256,uint128,uint256,uint256,uint256,uint256))' \
     "$POSITION_ID" "$POOL_ID" 0 0 "$DEADLINE" --private-key "$OWNER_KEY" \
     --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json >"$RUN_DIR/attach-exit.json"
+# If Anvil advances the exit beyond the pre-exit claim timestamp, the exit
+# checkpoints one final entitlement. Prove that obligation is real and resolve
+# it; a same-timestamp exit can retire the leg immediately.
+AFTER_EXIT_LEGS=$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' \
+    "$POSITION_ID" --rpc-url "$RPC_URL" | awk '{print $1}')
+if [[ "$AFTER_EXIT_LEGS" == 1 ]]; then
+    EXIT_REWARD=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+        'previewLpRewards(uint256,bytes32)((uint8,address[5],uint256[5]))' \
+        "$POSITION_ID" "$POOL_ID" --rpc-url "$RPC_URL" --json | jq -r '.[0][2][1]')
+    assert_gt "$EXIT_REWARD" 0 "attached LP final exit reward"
+    cast send "$STATICS_DIAMOND_ADDRESS" \
+        'claimLpRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
+        "$POSITION_ID" "$POOL_ID" '[1]' '[0]' "$OWNER" --private-key "$OWNER_KEY" \
+        --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/attach-exit-residual-claim.json"
+fi
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' \
     "$POSITION_ID" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 "attached leg exited"
 

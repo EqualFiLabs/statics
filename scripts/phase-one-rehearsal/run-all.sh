@@ -36,6 +36,7 @@ SCENARIOS=(
     staking-and-gauges.sh
     multi-pool-gauges.sh
     configuration-surface.sh
+    governance-upgrade-surface.sh
     governance-controls.sh
     composed-soak.sh
 )
@@ -106,7 +107,13 @@ jq -s \
             unrehearsed: ($selectorCoverage[0] | map(select(.classification == "not-rehearsed"))),
             unqueriedViews: ($selectorCoverage[0] | map(select(.classification == "view" and .successCovered == false)))
         },
-        finalSolvencyStatus: (if ((map(select(.suite == "accounting" and .status != "pass")) | length) == 0) then "pass" else "fail" end),
+        finalBackingStatus: (if ((map(select(.suite == "accounting" and .status != "pass")) | length) == 0) then "pass" else "fail" end),
+        terminalReconciliationStatus: (
+            if ((map(select(.suite == "terminal-reconciliation")) | length) != 1) then "missing"
+            elif ((map(select(.suite == "terminal-reconciliation" and .status != "pass")) | length) == 0) then "pass"
+            else "fail"
+            end
+        ),
         gas: {
             vanilla: $vanilla[0],
             public: $public[0],
@@ -118,4 +125,6 @@ jq -s \
 FAILURES=$(jq -r '.counts.fail // 0' "$RUN_DIR/summary.json")
 assert_eq "$FAILURES" 0 "rehearsal failure count"
 assert_eq "$receipt_failed" 0 "failed mined receipt count"
+assert_eq "$(jq -r '.terminalReconciliationStatus' "$RUN_DIR/summary.json")" pass \
+    "terminal reconciliation status"
 note "complete: $RUN_DIR/summary.json"
