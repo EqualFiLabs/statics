@@ -58,7 +58,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
                 || (pool.currency1 == pool.basketToken && pool.currency0 == assets[0])
         );
 
-        assertGt(swapFeeHook.lockedLiquidity(pool.poolId), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(pool.poolId).activePolPositions, 1);
     }
 
     function testCanonicalPoolFeeOverrideIsOwnerControlledAndUsesRegisteredPool() public {

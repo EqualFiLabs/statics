@@ -10,7 +10,6 @@ import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../src/liquidity/StaticsLiquidityManager.sol";
-import {StaticsPermanentLiquidityMath} from "../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../src/liquidity/StaticsSwapFeeHook.sol";
 import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 
@@ -25,9 +24,11 @@ struct StaticsLiquidityConfig {
     address permit2;
     address hook;
     address manager;
-    address permanentLiquidityHarvester;
+    uint16 revenueMaintenanceTipBps;
     uint16 inputFeeBps;
     uint16 outputFeeBps;
+    address protocolPolOperator;
+    uint256 protocolPolActivationFee;
     bytes32 poolManagerCodeHash;
     bytes32 positionManagerCodeHash;
     bytes32 permit2CodeHash;
@@ -37,6 +38,7 @@ struct StaticsLiquidityConfig {
 
 /// @notice Timelock ceremony for installing immutable Statics v4 dependencies.
 contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
+    uint256 private constant MAX_REVENUE_MAINTENANCE_TIP_BPS = 2_000;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -45,11 +47,11 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
     error InvalidContract(address target);
     error InvalidCodeHash(address target, bytes32 expected, bytes32 actual);
     error InvalidBinding(address target, address expected, address actual);
-    error InvalidPermanentLiquidityHarvester(address harvester);
     error InvalidHookFlags(uint160 expected, uint160 actual);
     error InvalidHookFees(uint256 expectedInput, uint256 actualInput, uint256 expectedOutput, uint256 actualOutput);
     error LiquidityAlreadyInstalled();
     error LiquidityInstallationFailed();
+    error InvalidMaintenanceConfiguration();
 
     event StaticsLiquidityBatchPrepared(
         bytes32 indexed operationId,
@@ -106,17 +108,24 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         pure
         returns (address[] memory targets, uint256[] memory values, bytes[] memory payloads)
     {
-        targets = new address[](3);
+        targets = new address[](5);
         targets[0] = diamond;
         targets[1] = diamond;
         targets[2] = diamond;
-        values = new uint256[](3);
-        payloads = new bytes[](3);
+        targets[3] = diamond;
+        targets[4] = diamond;
+        values = new uint256[](5);
+        payloads = new bytes[](5);
         payloads[0] =
             abi.encodeCall(IStaticsBasketLiquidity.installCanonicalPoolIntegration, (config.poolManager, config.hook));
         payloads[1] = abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (config.manager));
-        payloads[2] =
-            abi.encodeCall(IStaticsProtocolPools.setPermanentLiquidityHarvester, (config.permanentLiquidityHarvester));
+        payloads[2] = abi.encodeCall(
+            IStaticsProtocolPools.setProtocolPoolMaintenanceConfig,
+            (IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: config.revenueMaintenanceTipBps}))
+        );
+        payloads[3] = abi.encodeCall(IStaticsProtocolPools.setProtocolPolOperator, (config.protocolPolOperator));
+        payloads[4] =
+            abi.encodeCall(IStaticsProtocolPools.setProtocolPolActivationFee, (config.protocolPolActivationFee));
     }
 
     function _validate(address diamond, StaticsLiquidityConfig memory config, bool requireInstalled)
@@ -125,9 +134,6 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         returns (TimelockController timelock)
     {
         if (diamond.code.length == 0) revert InvalidDiamond(diamond);
-        if (config.permanentLiquidityHarvester == address(0) || config.permanentLiquidityHarvester == diamond) {
-            revert InvalidPermanentLiquidityHarvester(config.permanentLiquidityHarvester);
-        }
         address owner = IERC173(diamond).owner();
         if (owner.code.length == 0) revert InvalidTimelock(owner);
         timelock = TimelockController(payable(owner));
@@ -145,9 +151,6 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
-        _validateContract(
-            address(hook.permanentLiquidityMath()), keccak256(type(StaticsPermanentLiquidityMath).runtimeCode)
-        );
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
             revert InvalidHookFees(config.inputFeeBps, inputFeeBps, config.outputFeeBps, outputFeeBps);
@@ -161,17 +164,30 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         _binding(config.manager, config.positionManager, manager.positionManager());
         _binding(config.manager, config.permit2, manager.permit2());
 
+        _validateInstallState(diamond, config, requireInstalled);
+    }
+
+    function _validateInstallState(address diamond, StaticsLiquidityConfig memory config, bool requireInstalled)
+        private
+        view
+    {
         (address installedPoolManager, address installedHook, bool integrationInstalled) =
             IStaticsBasketLiquidity(diamond).liquidityIntegration();
         (address installedManager, bool managerInstalled) = IStaticsBasketLiquidity(diamond).liquidityManager();
-        address installedHarvester = IStaticsProtocolPools(diamond).permanentLiquidityHarvester();
+        uint16 installedRevenueTipBps = IStaticsProtocolPools(diamond).protocolPoolMaintenanceConfig().revenueTipBps;
         if (requireInstalled) {
             if (
                 !integrationInstalled || !managerInstalled || installedPoolManager != config.poolManager
                     || installedHook != config.hook || installedManager != config.manager
-                    || installedHarvester != config.permanentLiquidityHarvester
+                    || installedRevenueTipBps != config.revenueMaintenanceTipBps
+                    || IStaticsProtocolPools(diamond).protocolPolOperator() != config.protocolPolOperator
+                    || IStaticsProtocolPools(diamond).protocolPolActivationFee() != config.protocolPolActivationFee
             ) revert LiquidityInstallationFailed();
-        } else if (integrationInstalled || managerInstalled || installedHarvester != address(0)) {
+        } else if (
+            integrationInstalled || managerInstalled || installedRevenueTipBps != 0
+                || IStaticsProtocolPools(diamond).protocolPolOperator() != address(0)
+                || IStaticsProtocolPools(diamond).protocolPolActivationFee() != 0
+        ) {
             revert LiquidityAlreadyInstalled();
         }
     }
@@ -192,18 +208,22 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         string memory manifest = vm.readFile(_robinhoodManifestPath(block.chainid));
         uint256 inputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.inputFeeBps");
         uint256 outputFee = vm.parseJsonUint(manifest, ".staticsLiquidityCalibration.outputFeeBps");
+        uint256 revenueTipBps = vm.envOr("STATICS_REVENUE_MAINTENANCE_TIP_BPS", uint256(500));
         if (inputFee > type(uint16).max || outputFee > type(uint16).max) {
             revert InvalidHookFees(type(uint16).max, inputFee, type(uint16).max, outputFee);
         }
+        if (revenueTipBps > MAX_REVENUE_MAINTENANCE_TIP_BPS) revert InvalidMaintenanceConfiguration();
         config = StaticsLiquidityConfig({
             poolManager: vm.parseJsonAddress(manifest, ".contracts.poolManager.address"),
             positionManager: vm.parseJsonAddress(manifest, ".contracts.positionManager.address"),
             permit2: vm.parseJsonAddress(manifest, ".contracts.permit2.address"),
             hook: vm.envAddress("STATICS_SWAP_FEE_HOOK_ADDRESS"),
             manager: vm.envAddress("STATICS_LIQUIDITY_MANAGER_ADDRESS"),
-            permanentLiquidityHarvester: vm.envAddress("STATICS_PERMANENT_LIQUIDITY_HARVESTER"),
+            revenueMaintenanceTipBps: uint16(revenueTipBps),
             inputFeeBps: uint16(inputFee),
             outputFeeBps: uint16(outputFee),
+            protocolPolOperator: vm.envAddress("STATICS_POL_OPERATOR"),
+            protocolPolActivationFee: vm.envUint("STATICS_POL_ACTIVATION_FEE"),
             poolManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.poolManager.runtimeCodeHash"),
             positionManagerCodeHash: vm.parseJsonBytes32(manifest, ".contracts.positionManager.runtimeCodeHash"),
             permit2CodeHash: vm.parseJsonBytes32(manifest, ".contracts.permit2.runtimeCodeHash"),

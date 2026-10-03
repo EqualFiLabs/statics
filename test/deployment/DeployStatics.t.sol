@@ -16,11 +16,13 @@ import {IStaticsBasketRewards} from "../../src/interfaces/IStaticsBasketRewards.
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
+import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
+import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {IStaticsPositionFees} from "../../src/interfaces/IStaticsPosition.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
@@ -34,7 +36,6 @@ import {StaticsDollar} from "../../src/dollar/StaticsDollar.sol";
 import {StaticsDollarRiskShares} from "../../src/dollar/StaticsDollarRiskShares.sol";
 import {CoreViewFacet} from "../../src/dollar/core/facets/CoreViewFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
 import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
@@ -134,9 +135,11 @@ contract DeployStaticsTest is Test {
             permit2: deployment.permit2,
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
-            permanentLiquidityHarvester: makeAddr("permanentLiquidityHarvester"),
+            revenueMaintenanceTipBps: 500,
             inputFeeBps: 25,
             outputFeeBps: 25,
+            protocolPolOperator: config.multisig,
+            protocolPolActivationFee: 0.1 ether,
             poolManagerCodeHash: deployment.poolManager.codehash,
             positionManagerCodeHash: deployment.positionManager.codehash,
             permit2CodeHash: deployment.permit2.codehash,
@@ -155,7 +158,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 36, 280);
+        _assertManifest(diamond, 53, 396);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
         _assertRetiredLiquiditySelectorsAbsent(diamond);
@@ -177,6 +180,8 @@ contract DeployStaticsTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBasketLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBorrowLiquidity).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsProtocolPools).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPermissionedPools).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsRewardPolicy).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsFlashLoan).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGenesisIntegration).interfaceId));
@@ -195,7 +200,6 @@ contract DeployStaticsTest is Test {
         assertTrue(integrationInstalled);
         assertTrue(managerInstalled);
         assertEq(poolManager, deployment.poolManager);
-        assertGt(deployment.permanentLiquidityMath.code.length, 0);
         assertEq(hook, deployment.swapFeeHook);
         assertEq(manager, deployment.liquidityManager);
         assertEq(StaticsSwapFeeHook(payable(hook)).staticsDiamond(), diamond);
@@ -244,22 +248,6 @@ contract DeployStaticsTest is Test {
         );
         ceremony.schedule(diamond, invalidHashConfig, keccak256("reject wrong manager hash"));
         invalidHashConfig.managerCodeHash = deployment.liquidityManager.codehash;
-
-        // Synthetic corruption is required to reach the installer's immutable dependency-code rejection branch.
-        bytes memory expectedMathRuntime = deployment.permanentLiquidityMath.code;
-        vm.etch(deployment.permanentLiquidityMath, hex"60006000fd");
-        bytes32 expectedMathHash = keccak256(type(StaticsPermanentLiquidityMath).runtimeCode);
-        bytes32 actualMathHash = deployment.permanentLiquidityMath.codehash;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ConfigureStaticsLiquidity.InvalidCodeHash.selector,
-                deployment.permanentLiquidityMath,
-                expectedMathHash,
-                actualMathHash
-            )
-        );
-        ceremony.schedule(diamond, invalidHashConfig, keccak256("reject noncanonical permanent math"));
-        vm.etch(deployment.permanentLiquidityMath, expectedMathRuntime);
     }
 
     function _assertBasketRoutes(address diamond) private view {
@@ -302,6 +290,8 @@ contract DeployStaticsTest is Test {
         assertTrue(actions != settlement && actions != recovery && settlement != recovery);
         assertEq(loupe.facetAddress(IStaticsMorpho.borrowMorphoUsd.selector), actions);
         assertEq(loupe.facetAddress(IStaticsMorpho.claimMorphoSyncBounties.selector), settlement);
+        assertEq(loupe.facetAddress(IStaticsMorpho.syncMorpho.selector), settlement);
+        assertEq(loupe.facetAddress(IStaticsMorpho.syncMorphoForModule.selector), settlement);
     }
 
     function _assertRetiredLiquiditySelectorsAbsent(address diamond) private view {

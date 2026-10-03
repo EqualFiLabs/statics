@@ -2,10 +2,12 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
+import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
@@ -50,6 +52,71 @@ contract FeeAccrualHarness {
 
 contract GlobalRewardsTest is StaticsTestBase {
     uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
+    uint256 private constant PAUSE_STAKE = 1 << 7;
+
+    function testFinancialViewsArePublicAndControlFollowsPositionTransfer() external {
+        address[] memory selectedAssets = _assets(address(assetA), address(assetB));
+        stakingAsset.mint(alice, 10 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 10 ether);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, selectedAssets);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        assertEq(globalRewards.stakePosition(positionId).stakedBalance, 10 ether);
+        assertEq(globalRewards.positionRewardAssets(positionId).length, 2);
+        assertTrue(globalRewards.isRewardAssetOptedIn(positionId, address(assetA)));
+        assertEq(globalRewards.pendingRewards(positionId, selectedAssets).length, 2);
+        assertEq(globalRewards.rewardSelection(positionId, address(assetA)).pendingStake, 10 ether);
+        (address[] memory assets, uint256 nextCursor) =
+            IStaticsPositionMarket(address(diamond)).globalRewardAssetsOfPosition(positionId, 0, 1);
+        assertEq(assets.length, 1);
+        assertEq(assets[0], address(assetA));
+        assertEq(nextCursor, 1);
+        (assets, nextCursor) =
+            IStaticsPositionMarket(address(diamond)).globalRewardAssetsOfPosition(positionId, nextCursor, 100);
+        assertEq(assets.length, 1);
+        assertEq(assets[0], address(assetB));
+        assertEq(nextCursor, 2);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        IERC721(address(diamond)).transferFrom(alice, bob, positionId);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LibPosition.NotPositionOwnerOrApproved.selector, positionId, alice));
+        globalRewards.unstake(positionId, 1 ether, alice);
+        vm.prank(bob);
+        globalRewards.unstake(positionId, 1 ether, bob);
+        assertEq(globalRewards.stakePosition(positionId).stakedBalance, 9 ether);
+    }
+
+    function testGuardianPauseBlocksStakeIngressButPreservesExits() external {
+        address[] memory selectedAssets = _asset(address(assetA));
+        stakingAsset.mint(alice, 20 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 20 ether);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, selectedAssets);
+        vm.stopPrank();
+
+        vm.prank(guardian);
+        governance.pause(PAUSE_STAKE);
+
+        vm.startPrank(alice);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, PAUSE_STAKE));
+        globalRewards.createAndStake(1 ether, alice, selectedAssets);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, PAUSE_STAKE));
+        globalRewards.stake(positionId, 1 ether);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.ActionPaused.selector, PAUSE_STAKE));
+        globalRewards.optInRewardAssets(positionId, _asset(address(assetB)));
+
+        globalRewards.optOutRewardAssets(positionId, selectedAssets);
+        globalRewards.unstake(positionId, 10 ether, alice);
+        vm.stopPrank();
+
+        assertEq(globalRewards.totalStaked(), 0);
+        assertEq(stakingAsset.balanceOf(alice), 20 ether);
+    }
 
     function testBasketFeesAccrueAgainstSingleStakingBalanceAndRemainInKind() external {
         address[] memory selectedAssets = _assets(address(assetA), address(assetB));

@@ -7,15 +7,16 @@ exposure to assets, earn from their activity, and access liquidity without
 giving up that earning position.
 
 Statics is designed so a creator can begin with modest liquidity and build
-permanent market depth from use. A project might initially place an illustrative
-$2,000 into each BasketToken/constituent pool rather than funding institutional
-depth on day one. The Statics hook directs a governed portion of every charged
-swap-fee leg into protocol-owned liquidity and also redirects unavailable LP or
-staking allocations there. When both sides are available, the hook compounds
-that inventory into permanent full-range liquidity. The project cannot withdraw
+protocol-owned market depth from use. A project might initially place an
+illustrative $2,000 into each BasketToken/constituent pool rather than funding
+institutional depth on day one. The Statics hook directs a governed portion of
+every charged swap-fee leg into PoolId-bound POL inventory. A custody-constrained
+operator can deploy that inventory across explicit Uniswap v4 positions without
+gaining authority to withdraw principal, refunds, or position NFTs. Native fees
+earned by those positions remain treasury revenue. The project cannot withdraw
 this POL, but its market benefits from the depth it creates. Growth requires
-actual trading and balanced fee inventory; seed liquidity is a starting point,
-not a promise of future depth.
+actual trading and sound portfolio management; seed liquidity is a starting
+point, not a promise of future depth.
 
 Shared constituents make this more powerful than isolated liquidity mining. A
 basket containing a project token and USDG creates canonical paths from its
@@ -58,11 +59,11 @@ arbitrage graph rather than creating only one disconnected pair.
   NFTs earn ordinary native Uniswap v4 fees under the user's control.
 - Canonical Uniswap v4 pools provide public liquidity and standard routing
   surfaces. The Statics hook charges configurable fees on realized input and
-  output, compounds permanent protocol-owned liquidity, and routes revenue
-  among permanent liquidity, deposited BasketTokens, eligible STATICS stakers,
-  creators, and treasury. Protocol-owned liquidity has no ordinary withdrawal path while the
-  pool is active, so activity can build enduring market infrastructure instead
-  of temporary rented liquidity.
+  output, funds managed protocol-owned liquidity, and routes revenue among
+  PoolId-bound POL, deposited BasketTokens, eligible STATICS stakers, creators,
+  and treasury. POL inventory is managed through explicit positions by a
+  strategy operator that cannot redirect principal, refunds, or NFTs. Native
+  LP fees earned by protocol positions remain treasury revenue.
 - Statics Dollar adds a stable monetary layer. Pegged profiles provide direct
   collateral wrappers. Volatile profiles issue senior `USDstx` and junior
   `ethLEV` Risk Shares; the junior claim absorbs first loss and can supply exit
@@ -86,7 +87,7 @@ For asset creators and launchpads, Statics turns token inventory and treasury
 capital into a redeemable product, canonical liquidity, arbitrage routes,
 staking, and credit. The basket-creation charge is a predictable service fee,
 while the resulting market can continue producing activity after launch. A
-modest bootstrap can grow into deeper permanent liquidity, and choosing common
+  modest bootstrap can grow into deeper managed protocol liquidity, and choosing common
 constituents connects the new basket to existing Statics markets and external
 liquidity through shared arbitrage routes.
 
@@ -107,7 +108,7 @@ volatile collateral uses series-specific junior Risk Shares, insurance, and
 recovery rather than hiding every profile inside one shared solvency book.
 
 For the protocol, each new market can generate upfront revenue and recurring
-activity. Revenue can fund treasury, permanent liquidity, canonical LPs,
+activity. Revenue can fund treasury, managed POL, canonical LPs,
 deposited BasketTokens, and STATICS stakers according to the applicable governed
 route.
 

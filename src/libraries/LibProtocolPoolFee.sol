@@ -17,6 +17,8 @@ library LibProtocolPoolFee {
     /// @dev Maximum combined bilateral swap-fee rate.
     uint256 internal constant MAX_COMBINED_FEE_BPS = 200;
 
+    uint16 internal constant MAX_REVENUE_TIP_BPS = 2_000;
+
     /// @dev Highest creator-selectable static Uniswap v4 LP fee. Statics intentionally excludes
     /// the 100% boundary and the dynamic-fee flag.
     uint24 internal constant MAX_STATIC_LP_FEE_PIPS = 999_999;

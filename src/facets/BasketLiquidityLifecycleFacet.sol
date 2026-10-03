@@ -3,21 +3,28 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
+import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
+import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 
 contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
+    using StateLibrary for IPoolManager;
 
     error BasketNotFound(uint256 basketId);
     error AssetNotInBasket(uint256 basketId, address asset);
@@ -26,8 +33,9 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     error BasketLiquidityAlreadyUnwound(uint256 basketId, address asset);
     error ReleasedAmountMismatch(address token, uint256 reported, uint256 observed);
     error InsufficientVaultBalance(address asset, uint256 required, uint256 available);
+    error ActiveProtocolPolPositions(PoolId poolId, uint256 count);
 
-    event PermanentLiquidityTreasuryAccrued(
+    event ProtocolPolTreasuryAccrued(
         uint256 indexed basketId, address indexed sourcePoolAsset, address indexed rewardAsset, uint256 amount
     );
     event BasketLiquidityUnwound(
@@ -47,15 +55,6 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         bytes32 feeAccount;
     }
 
-    struct BasketReleaseContext {
-        PoolId poolId;
-        address basketToken;
-        address asset;
-        uint256 basketBefore;
-        uint256 assetBefore;
-        bool basketIsCurrency0;
-    }
-
     function unwindBasketLiquidity(uint256 basketId, address asset) external nonReentrant {
         LibBasket.Basket storage configured = _basket(basketId);
         if (configured.status != IStaticsBasket.BasketStatus.ExitOnly) {
@@ -65,53 +64,47 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         address basketToken = configured.token;
-        uint256 basketBefore = IERC20(basketToken).balanceOf(address(this));
-        uint256 assetBefore = IERC20(asset).balanceOf(address(this));
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
-        if (hook.poolDecommissioned(stored.key.toId())) revert BasketLiquidityAlreadyUnwound(basketId, asset);
-        hook.decommissionPool(stored.key);
         PoolId poolId = stored.key.toId();
-        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released =
-            hook.releasePermanentLiquidity(stored.key, address(this));
-        BasketReleaseContext memory context = BasketReleaseContext({
-            poolId: poolId,
-            basketToken: basketToken,
-            asset: asset,
-            basketBefore: basketBefore,
-            assetBefore: assetBefore,
-            basketIsCurrency0: Currency.unwrap(stored.key.currency0) == basketToken
-        });
-        (uint256 basketTokens, uint256 constituent) = _settleBasketRelease(context, released);
+        if (hook.poolDecommissioned(poolId)) revert BasketLiquidityAlreadyUnwound(basketId, asset);
+        uint256 activePositions = LibProtocolPools.protocolPoolStorage().activePolPositionCount[poolId];
+        if (activePositions != 0) revert ActiveProtocolPolPositions(poolId, activePositions);
+        _stopRangeGauge(ls, stored.key);
+        hook.decommissionPool(stored.key);
+        _settleHookAsset(hook, stored.key, poolId, stored.key.currency0);
+        _settleHookAsset(hook, stored.key, poolId, stored.key.currency1);
+
+        bytes32 polAccount = LibCustody.protocolPolAccount(PoolId.unwrap(poolId));
+        uint256 basketTokens = LibCustody.accountReserved(polAccount, basketToken);
+        uint256 constituent = LibCustody.accountReserved(polAccount, asset);
+        LibCustody.release(polAccount, basketToken, basketTokens);
 
         if (constituent != 0) {
-            LibCustody.reserve(LibCustody.feeAccount(), asset, constituent);
+            LibCustody.moveReservation(polAccount, LibCustody.feeAccount(), asset, constituent);
             LibGlobalRewards.accrueReservedTreasuryFee(asset, constituent);
-            emit PermanentLiquidityTreasuryAccrued(basketId, asset, asset, constituent);
+            emit ProtocolPolTreasuryAccrued(basketId, asset, asset, constituent);
         }
         _burnPolBasketTokens(configured, basketId, asset, basketTokens);
         emit BasketLiquidityUnwound(basketId, asset, poolId, constituent, basketTokens);
     }
 
-    function _settleBasketRelease(
-        BasketReleaseContext memory context,
-        IStaticsSwapFeeHook.PermanentLiquidityRelease memory released
-    ) private returns (uint256 basketTokens, uint256 constituent) {
-        basketTokens = context.basketIsCurrency0
-            ? released.principal0 + released.pendingPol0
-            : released.principal1 + released.pendingPol1;
-        constituent = context.basketIsCurrency0
-            ? released.principal1 + released.pendingPol1
-            : released.principal0 + released.pendingPol0;
-        IStaticsSwapFeeHook.FeeDistribution memory basketDistribution =
-            context.basketIsCurrency0 ? released.distribution0 : released.distribution1;
-        IStaticsSwapFeeHook.FeeDistribution memory assetDistribution =
-            context.basketIsCurrency0 ? released.distribution1 : released.distribution0;
-        _enforceReleased(
-            context.basketToken, context.basketBefore, basketTokens + _distributionTotal(basketDistribution)
-        );
-        _enforceReleased(context.asset, context.assetBefore, constituent + _distributionTotal(assetDistribution));
-        _accrueDistribution(context.poolId, context.basketToken, basketDistribution);
-        _accrueDistribution(context.poolId, context.asset, assetDistribution);
+    function _settleHookAsset(IStaticsSwapFeeHook hook, PoolKey storage key, PoolId poolId, Currency currency) private {
+        address token = Currency.unwrap(currency);
+        // Distribution settlement can reclassify an ineligible basket-staker share into POL.
+        // Normalize and accrue revenue first so the following POL drain includes that final amount.
+        uint256 revenueBefore = IERC20(token).balanceOf(address(this));
+        IStaticsSwapFeeHook.FeeDistribution memory distribution =
+            hook.settleFeeDistribution(key, currency, address(this));
+        _enforceReleased(token, revenueBefore, _distributionTotal(distribution));
+        _accrueDistribution(poolId, token, distribution);
+
+        uint256 pending = hook.pendingProtocolPol(poolId, currency);
+        if (pending != 0) {
+            uint256 beforeBalance = IERC20(token).balanceOf(address(this));
+            uint256 settled = hook.settleProtocolPol(key, currency, address(this), pending);
+            _enforceReleased(token, beforeBalance, settled);
+            LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), token, settled);
+        }
     }
 
     function _burnPolBasketTokens(
@@ -155,7 +148,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         bs.vaultBalances[accrual.basketId][rewardAsset] = available - amount;
         LibCustody.moveReservation(accrual.basketAccount, accrual.feeAccount, rewardAsset, amount);
         LibGlobalRewards.accrueReservedTreasuryFee(rewardAsset, amount);
-        emit PermanentLiquidityTreasuryAccrued(accrual.basketId, accrual.sourcePoolAsset, rewardAsset, amount);
+        emit ProtocolPolTreasuryAccrued(accrual.basketId, accrual.sourcePoolAsset, rewardAsset, amount);
     }
 
     function _configuredPool(uint256 basketId, address asset)
@@ -166,6 +159,16 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         ls = LibBasketLiquidity.liquidityStorage();
         stored = ls.canonicalPools[basketId][asset];
         if (address(stored.key.hooks) == address(0)) revert CanonicalPoolNotConfigured(basketId, asset);
+    }
+
+    function _stopRangeGauge(LibBasketLiquidity.LiquidityStorage storage ls, PoolKey storage key) private {
+        PoolId poolId = key.toId();
+        (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
+        uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
+        LibRangeGauge.stopGauge(poolId, key.tickSpacing, liveTick, currentTime);
+        IStaticsGaugeIncentives(address(this)).checkpointGaugePool(poolId);
+        emit IStaticsRangeGauge.PoolGaugeStopped(poolId);
     }
 
     function _basket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {

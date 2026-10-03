@@ -390,7 +390,8 @@ contract FlashCompositionHandler is Test {
                 IERC20(v4BasketToken).balanceOf(address(poolManager)),
                 IERC20(assetA).balanceOf(address(v4Receiver)),
                 IERC20(v4BasketToken).balanceOf(address(v4Receiver)),
-                swapFeeHook.lockedLiquidity(v4Pool.toId()),
+                swapFeeHook.pendingProtocolPol(v4Pool.toId(), v4Pool.currency0),
+                swapFeeHook.pendingProtocolPol(v4Pool.toId(), v4Pool.currency1),
                 sqrtPriceX96,
                 tick
             )

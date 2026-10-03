@@ -15,7 +15,6 @@ import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDol
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
-import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -215,9 +214,11 @@ contract LaunchGenesisBasketIntegrationTest is Test {
             permit2: v4.permit2,
             hook: deployment.swapFeeHook,
             manager: deployment.liquidityManager,
-            permanentLiquidityHarvester: address(this),
+            revenueMaintenanceTipBps: 500,
             inputFeeBps: v4.inputFeeBps,
             outputFeeBps: v4.outputFeeBps,
+            protocolPolOperator: address(ceremony),
+            protocolPolActivationFee: 0.1 ether,
             poolManagerCodeHash: v4.poolManagerCodeHash,
             positionManagerCodeHash: v4.positionManagerCodeHash,
             permit2CodeHash: v4.permit2CodeHash,
@@ -284,12 +285,12 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         assertEq(pool.basketToken, basketToken);
         assertEq(pool.asset, asset);
         assertEq(pool.hook, hook);
-        assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId), 0);
         IStaticsProtocolPools.ProtocolPoolView memory protocolPool =
             IStaticsProtocolPools(deployment.diamond).protocolPool(pool.poolId);
         assertEq(uint256(protocolPool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical));
         assertEq(protocolPool.basketId, 0);
         assertEq(protocolPool.basketAsset, asset);
+        assertEq(protocolPool.activePolPositions, 1);
         assertFalse(protocolPool.decommissioned);
     }
 

@@ -66,8 +66,8 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertGe(receiver.lastProfit(address(assetB)), minimumProfits[1]);
         assertEq(assetA.balanceOf(address(receiver)), startingA + receiver.lastProfit(address(assetA)));
         assertEq(assetB.balanceOf(address(receiver)), startingB + receiver.lastProfit(address(assetB)));
-        assertGt(swapFeeHook.lockedLiquidity(fixture.pools[0].toId()), 0);
-        assertGt(swapFeeHook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[0].toId()).activePolPositions, 1);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[1].toId()).activePolPositions, 1);
         assertGt(globalRewards.treasuryAccrued(fixture.basketToken), 0);
 
         address[] memory rewardAssets = new address[](3);
@@ -114,8 +114,8 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertEq(IERC20(fixture.basketToken).balanceOf(address(receiver)), 0);
         assertEq(assetA.allowance(address(receiver), address(diamond)), 0);
         assertEq(assetB.allowance(address(receiver), address(diamond)), 0);
-        assertGt(swapFeeHook.lockedLiquidity(fixture.pools[0].toId()), 0);
-        assertGt(swapFeeHook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[0].toId()).activePolPositions, 1);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[1].toId()).activePolPositions, 1);
     }
 
     function testProductionReceiverRejectsExpiredQuoteBeforePullingTopUps() public {
@@ -230,8 +230,8 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertEq(IERC20(fixture.basketToken).balanceOf(address(receiver)), 0);
         assertEq(assetA.allowance(address(receiver), address(diamond)), 0);
         assertEq(assetB.allowance(address(receiver), address(diamond)), 0);
-        assertGt(swapFeeHook.lockedLiquidity(fixture.pools[0].toId()), 0);
-        assertGt(swapFeeHook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[0].toId()).activePolPositions, 1);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[1].toId()).activePolPositions, 1);
         assertGt(globalRewards.treasuryAccrued(fixture.basketToken), 0);
         address[] memory rewardAssets = new address[](3);
         rewardAssets[0] = address(assetA);
@@ -363,13 +363,13 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertGt(basketTreasuryDelta, 0);
         // The non-POL reservation now also covers the fixed 500-bps creator credit, so the fee-account
         // reserve delta equals treasury accrual plus the creator credit for this leg.
-        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(alice, basketToken);
+        uint256 basketCreatorCredit = IStaticsProtocolRevenue(address(diamond)).creatorRevenue(pool.toId(), basketToken);
         assertEq(
             custody.reservedByAccount(custody.feeCustodyAccount(), basketToken) - basketFeeReserveBefore,
             basketTreasuryDelta + basketCreatorCredit
         );
-        assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(basketToken)), 0);
-        assertEq(swapFeeHook.pendingPermanentLiquidity(pool.toId(), Currency.wrap(address(assetA))), 0);
+        assertEq(swapFeeHook.pendingProtocolPol(pool.toId(), Currency.wrap(basketToken)), 0);
+        assertEq(swapFeeHook.pendingProtocolPol(pool.toId(), Currency.wrap(address(assetA))), 0);
     }
 
     struct UnprofitableBookSnapshot {
@@ -382,7 +382,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 managerAsset;
         uint256 managerBasket;
         uint256 receiverAsset;
-        uint128 lockedLiquidity;
+        uint256 activePolPositions;
         uint160 price;
         int24 tick;
     }
@@ -410,7 +410,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertEq(after_.managerAsset, before.managerAsset);
         assertEq(after_.managerBasket, before.managerBasket);
         assertEq(after_.receiverAsset, before.receiverAsset);
-        assertEq(after_.lockedLiquidity, before.lockedLiquidity);
+        assertEq(after_.activePolPositions, before.activePolPositions);
         assertEq(uint256(after_.price), uint256(before.price));
         assertEq(int256(after_.tick), int256(before.tick));
     }
@@ -436,7 +436,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         assertEq(after_.managerAsset, before.managerAsset);
         assertEq(after_.managerBasket, before.managerBasket);
         assertEq(after_.receiverAsset, before.receiverAsset);
-        assertEq(after_.lockedLiquidity, before.lockedLiquidity);
+        assertEq(after_.activePolPositions, before.activePolPositions);
         assertEq(uint256(after_.price), uint256(before.price));
         assertEq(int256(after_.tick), int256(before.tick));
     }
@@ -456,7 +456,7 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         snapshot.managerAsset = assetA.balanceOf(address(poolManager));
         snapshot.managerBasket = IERC20(fixture.basketToken).balanceOf(address(poolManager));
         snapshot.receiverAsset = assetA.balanceOf(receiver);
-        snapshot.lockedLiquidity = swapFeeHook.lockedLiquidity(poolId);
+        snapshot.activePolPositions = IStaticsProtocolPools(address(diamond)).protocolPool(poolId).activePolPositions;
         (snapshot.price, snapshot.tick,,) = poolManager.getSlot0(poolId);
     }
 
@@ -753,16 +753,24 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
 
     function _harvestPermanentFees(PoolKey[] memory pools) private {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
-        protocolPools.setPermanentLiquidityHarvester(address(this));
         for (uint256 i; i < pools.length; ++i) {
-            protocolPools.harvestPermanentLiquidityFees(pools[i].toId());
+            uint256[] memory positionIds = protocolPools.protocolPolPositionIds(pools[i].toId());
+            protocolPools.collectProtocolPolFees(positionIds[0], block.timestamp + 1 days);
+            protocolPools.settleProtocolPoolPol(pools[i].toId(), Currency.unwrap(pools[i].currency0), 0);
+            protocolPools.settleProtocolPoolPol(pools[i].toId(), Currency.unwrap(pools[i].currency1), 0);
+            protocolPools.settleProtocolPoolRevenue(pools[i].toId(), Currency.unwrap(pools[i].currency0));
+            protocolPools.settleProtocolPoolRevenue(pools[i].toId(), Currency.unwrap(pools[i].currency1));
         }
     }
 
     function _harvestPermanentFee(PoolKey memory pool) private {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
-        protocolPools.setPermanentLiquidityHarvester(address(this));
-        protocolPools.harvestPermanentLiquidityFees(pool.toId());
+        uint256[] memory positionIds = protocolPools.protocolPolPositionIds(pool.toId());
+        protocolPools.collectProtocolPolFees(positionIds[0], block.timestamp + 1 days);
+        protocolPools.settleProtocolPoolPol(pool.toId(), Currency.unwrap(pool.currency0), 0);
+        protocolPools.settleProtocolPoolPol(pool.toId(), Currency.unwrap(pool.currency1), 0);
+        protocolPools.settleProtocolPoolRevenue(pool.toId(), Currency.unwrap(pool.currency0));
+        protocolPools.settleProtocolPoolRevenue(pool.toId(), Currency.unwrap(pool.currency1));
     }
 
     function _setHookFees(uint256 rawInputFeeBps, uint256 rawOutputFeeBps) private {

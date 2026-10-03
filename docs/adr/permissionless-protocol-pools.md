@@ -1,12 +1,15 @@
 # ADR: Permissionless Uniswap v4 protocol pools
 
-- Status: Partially superseded by `native-v4-lp-fees.md` and
-  `creator-led-pool-configuration.md`
+- Status: Partially superseded by `native-v4-lp-fees.md`,
+  `creator-led-pool-configuration.md`, and
+  `managed-protocol-owned-liquidity.md`
 - Date: 2026-08-21
 - Scope: Statics pool creation, PoolKey policy, Statics fee configuration, creator revenue, permanent liquidity, LP rewards, governance, indexing, routing, and DEX market structure
 - Supersedes: `docs/adr/governed-protocol-pools.md` where the decisions conflict
 - Superseded decisions: zero native LP fees, custom Diamond-custodied LP
-  rewards, creator-selected hook fees, and a deployment-wide native LP fee
+  rewards, creator-selected hook fees without governed per-leg floors, and a
+  deployment-wide native LP fee. The managed-POL ADR replaces every hook-owned
+  full-range compounding and decommissioning decision in this document.
 
 ## Context
 
@@ -159,7 +162,7 @@ Statics therefore economically, rather than artificially, enforces its LP system
 - **Basket canonical pool**: a protocol pool associated with one basket and one constituent.
 - **General pool**: a protocol pool with no basket association.
 - **Permissionless creation**: the ability for a non-governance caller to create a general pool by paying the configured creation fee.
-- **Pool creator**: the immutable address entitled to the creator allocation from a protocol pool's Statics bilateral swap fees.
+- **Pool creator**: the current authority over a protocol pool's creator revenue and creator-specific controls.
 - **Pool creation fee**: the governance-configured native-currency fee that both enables permissionless general-pool creation and discourages frivolous market creation.
 - **Native v4 LP fee**: the Uniswap v4 LP fee encoded in `PoolKey.fee`. It is always zero for Statics protocol pools.
 - **Statics fee rate**: the bilateral swap fee charged through `StaticsSwapFeeHook`, including its supported input-side and output-side fee configuration.
@@ -254,7 +257,7 @@ ProtocolPoolKind.Governance
     -> ProtocolPoolKind.General
 
 GovernancePool storage
-    -> GeneralPool storage with immutable creator
+    -> GeneralPool storage with current creator
 
 quoteGovernancePool
     -> quotePool
@@ -462,7 +465,7 @@ The fallback policy remains explicit:
 - an unavailable LP allocation routes to PoolId-local POL;
 - an unavailable basket-staker allocation routes to PoolId-local POL;
 - an unavailable global Statics-staker allocation routes to treasury; and
-- the creator allocation always credits the immutable creator and never falls back.
+- the creator allocation always credits the current creator and never falls back.
 
 The hook applies those rules before redeeming PoolManager claims. The Diamond
 rechecks after its token pull; if token callback execution removes the final
@@ -526,9 +529,10 @@ struct PoolSwapFeeRate {
 struct CreatePoolParams {
     address tokenA;
     address tokenB;
+    uint24 lpFee;
     int24 tickSpacing;
     uint160 sqrtPriceBPerAX96;
-    PoolSwapFeeRate feeRate;
+    PoolSwapFeeRate initialFeeRate;
     address creator;
     uint256 nonce;
     uint256 deadline;
@@ -538,7 +542,6 @@ struct GeneralPoolQuote {
     PoolKey key;
     PoolId poolId;
     uint160 sqrtPriceX96;
-    PoolSwapFeeRate feeRate;
     uint256 creationFee;
     bytes32 authorizationDigest;
 }
@@ -567,9 +570,11 @@ creator is a nonzero address
 native currency is unsupported
 1 <= tickSpacing <= 32,767
 TickMath.MIN_SQRT_PRICE <= normalized sqrtPriceX96 < TickMath.MAX_SQRT_PRICE
-PoolKey.fee == 0
+0 <= PoolKey.fee <= 999,999 pips and the dynamic-fee flag is absent
 PoolKey.hooks == installed Statics hook
 inputFeeBps + outputFeeBps <= 200
+inputFeeBps >= live default inputFeeBps at transaction execution
+outputFeeBps >= live default outputFeeBps at transaction execution
 PoolId is absent from basket and general registries
 PoolId is absent from hook registration
 PoolManager has not initialized the PoolId
@@ -602,7 +607,7 @@ The EIP-712 domain binds:
 
 ```text
 name = "Statics Protocol Pools"
-version = "1"
+version = "3"
 chainId
 verifyingContract = Statics Diamond
 ```
@@ -656,7 +661,7 @@ A successful general pool creation performs one atomic transition:
    authorization before consuming its unordered nonce.
 7. Require zero `msg.value` for the governed zero-fee path or the exact fee
    from every nonzero-fee caller, then transfer that fee to treasury.
-8. Record the general pool and immutable creator.
+8. Record the general pool and current creator.
 9. Register the PoolKey with `StaticsSwapFeeHook`.
 10. Store the initial PoolId-specific Statics fee rate.
 11. Initialize the pool through PoolManager.
@@ -840,9 +845,9 @@ Governance may reconfigure POL, LP, basket-staker where applicable, global Stati
 
 ## Creator revenue
 
-Every protocol pool resolves to one immutable creator.
+Every protocol pool resolves to one current creator.
 
-For basket canonical pools, the creator is the basket creator. For general pools, the creator is recorded during `createPool`.
+For basket canonical pools, the creator is the basket creator. General pools record an initial creator during creation and support two-step authority transfers.
 
 Creator revenue is calculated only from the Statics bilateral fee. There is no native v4 LP fee to include.
 
@@ -851,13 +856,13 @@ Creator revenue is pull-based. Swap execution never makes an arbitrary external 
 A dedicated namespaced revenue store records both point credits and aggregate liabilities:
 
 ```solidity
-mapping(address creator => mapping(address asset => uint256 amount))
+mapping(PoolId poolId => mapping(address asset => uint256 amount))
     creatorCredit;
 mapping(address asset => uint256 amount)
     totalCreatorCredit;
 ```
 
-The aggregate is required for custody and invariant reconciliation because creator mappings cannot be enumerated.
+The aggregate is required for custody and invariant reconciliation because pool mappings cannot be enumerated.
 
 The complete non-POL distribution is pulled from the hook and reserved once under `LibCustody.feeAccount()`. Creator credit is one liability within that reservation, separate from LP, basket-staker, Statics-staker, and treasury liabilities.
 
@@ -865,6 +870,7 @@ The claim surface is conceptually:
 
 ```solidity
 function claimCreatorRevenue(
+    PoolId poolId,
     address asset,
     address receiver,
     uint256 minReceived
@@ -873,9 +879,9 @@ function claimCreatorRevenue(
 
 A claim:
 
-1. uses `msg.sender` as the credited creator;
+1. resolves the current creator and effective recipient for the PoolId;
 2. rejects a zero receiver;
-3. clears the creator credit and decreases the aggregate liability before transfer;
+3. requires the effective recipient for every general-pool claim, then clears PoolId credit and decreases the aggregate liability before transfer;
 4. pays through `LibCustody.pushReserved` from the fee account;
 5. enforces `minReceived`; and
 6. emits nominal and measured received amounts.
@@ -883,6 +889,14 @@ A claim:
 The claim path is non-reentrant. Any transfer or minimum-output failure reverts the liability changes and leaves the credit intact.
 
 Creator credits do not expire. Governance cannot confiscate an accrued creator credit. Decommissioning does not alter accrued creator credits. Selecting a receiver does not change creator identity.
+
+For public and permissioned general pools, anyone may trigger collection to the fixed
+effective recipient. The creator configures that recipient separately from authority;
+zero restores the creator default. Creator transfer requires proposal and acceptance,
+clears the custom recipient, and transfers control of outstanding settled and unsettled
+fees. Permissioned acceptance advances the configuration nonce. These controls remain
+available after decommissioning. Basket canonical claims remain creator-only. See
+`creator-led-pool-configuration.md` for the exact transfer and recipient interfaces.
 
 ## Fee-routing interface
 
@@ -914,7 +928,7 @@ The route:
 4. accrues LP rewards by PoolId;
 5. accrues basket-staker rewards only for basket canonical pools;
 6. accrues global Statics-staker rewards by exact token address;
-7. credits creator revenue to the resolved immutable creator;
+7. credits creator revenue to the resolved current creator;
 8. accrues treasury revenue; and
 9. preserves exact custody reservation accounting.
 
@@ -948,7 +962,7 @@ NVDA/WETH spacing 60
     -> independent NVDA/WETH POL
 ```
 
-When both sides of a pool contain matched pending inventory, the hook may compound it into full-range permanent liquidity during normal swap execution.
+When both sides of a pool contain matched pending inventory, any caller may compound it into full-range permanent liquidity after the canonical MarketTape TWAP and spot-deviation guard passes. Swap execution only accrues the claim-backed inventory.
 
 A general pool can begin with zero permanent liquidity.
 
@@ -1275,7 +1289,7 @@ ProtocolPoolKind.Governance
     -> ProtocolPoolKind.General
 
 GovernancePool storage
-    -> GeneralPool storage with immutable creator
+    -> GeneralPool storage with current creator
 
 quoteGovernancePool
     -> quotePool
@@ -1296,7 +1310,7 @@ combined per-pool rate/allocation configuration
     -> PoolId-local fee rate + configurable global class profiles
 
 no creator routing
-    -> immutable creator + fixed 5% pull-credit accounting
+    -> current creator + fixed 5% pull-credit accounting
 
 governance-only generic creation
     -> independent creation-fee-gated permissionless creation
@@ -1393,12 +1407,15 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 
 ## Security and trust boundaries
 
-- Every Statics protocol PoolKey has zero native Uniswap v4 LP fee.
+- Every Statics protocol PoolKey has a static native Uniswap v4 LP fee from 0
+  through 999,999 pips.
 - Every Statics protocol pool uses the installed Statics hook.
 - Only the Diamond may register PoolKeys with the hook.
 - Exact PoolKey duplicates cannot create a second Statics market or creator.
 - Tick spacing is creator-selectable only within valid PoolManager bounds.
-- Initial Statics fee rates are creator-selectable only within canonical protocol fee bounds.
+- Initial Statics fee rates are creator-selectable only when each leg is at
+  least the live governed default and the combined rate is within canonical
+  protocol bounds.
 - Pool registration rejects a zero creator, and zero-fee creation remains owner-only even when the caller names itself as creator.
 - Creator authorization binds PoolId, normalized price, fee rate, creator, nonce, and deadline under the Diamond's EIP-712 domain.
 - Relayed creator authorization supports EOAs and ERC-1271 creators.
@@ -1426,15 +1443,14 @@ Exact paths may change as implementation work is decomposed, but the split-facet
 Permissionless general pools are fully public onchain constructs and carry no
 privacy guarantees:
 
-- The immutable creator address bound into each pool's EIP-712 authorization is
-  recorded permanently and is publicly readable through `protocolPoolCreator`
-  and the `ProtocolPoolCreated` event.
+- The initial creator bound into creation authorization remains visible in
+  `ProtocolPoolCreated`; `protocolPoolCreator` resolves current authority.
 - Creation transactions, the relayer/`msg.sender` that submitted them, consumed
   and invalidated nonces, every swap, every LP action, and every
   `claimCreatorRevenue` call are permanently public and linkable to the same
   creator and participant addresses.
-- Because a general pool cannot be reassigned to a new creator, creator identity
-  and its complete revenue history are permanently correlatable.
+- Accepted creator transfers and recipient changes are public events; changing
+  authority does not hide the pool's revenue history.
 
 Integrators and creators who want to separate a market's onchain identity from
 other activity should use a fresh creator address (or a dedicated smart-contract
@@ -1445,16 +1461,17 @@ and none of these public artifacts can be redacted after the fact.
 
 1. A PoolId belongs to at most one Statics protocol-pool class.
 2. Every protocol-pool record hashes to the exact PoolKey registered with the Statics hook.
-3. Every Statics protocol PoolKey uses `fee == 0`.
+3. Every Statics protocol PoolKey uses a static native fee from 0 through 999,999 pips.
 4. Every Statics protocol PoolKey uses the installed Statics hook.
 5. Every general pool uses two distinct non-native ERC-20 currencies.
 6. Every general pool uses tick spacing in the inclusive range 1 through 32,767.
 7. Every normalized initial price is at least `TickMath.MIN_SQRT_PRICE` and less than `TickMath.MAX_SQRT_PRICE`.
 8. Exact duplicate PoolKeys cannot create a second creator identity.
-9. Distinct tick spacings for the same pair may create distinct PoolIds.
+9. Distinct native fees or tick spacings for the same pair may create distinct PoolIds.
 10. A different Statics fee rate alone cannot create a distinct PoolId.
 11. A different initial price alone cannot create a distinct PoolId.
-12. Every accepted fee rate satisfies `inputFeeBps + outputFeeBps <= 200`.
+12. Every accepted initial fee rate satisfies `inputFeeBps + outputFeeBps <= 200`
+    and each leg is at least the corresponding live default at execution.
 13. When `poolCreationFeeAmount == 0`, only the Diamond owner may create a general pool and `msg.value` must be zero.
 14. When `poolCreationFeeAmount > 0`, every caller supplies exactly the configured amount.
 15. The pool creation fee is independent from basket and PositionNFT creation fees.
@@ -1463,7 +1480,7 @@ and none of these public artifacts can be redacted after the fact.
 18. Signed creator authorization binds PoolId, normalized price, fee rate, creator, nonce, and deadline under the current chain and Diamond.
 19. A consumed or invalidated creator nonce cannot authorize creation.
 20. Independent creator authorizations do not require sequential nonce execution.
-21. Every active protocol pool resolves to exactly one immutable creator.
+21. Every active protocol pool resolves to exactly one current creator.
 22. Creator revenue equals exactly 500 bps of collected Statics bilateral fees,
     computed by floor division per fee leg; sub-wei rounding dust from that
     division accrues to treasury rather than the creator, so at dust-scale
@@ -1475,7 +1492,7 @@ and none of these public artifacts can be redacted after the fact.
 26. General pools never accrue basket-staker rewards.
 27. Unavailable LP and basket-staker allocations follow the defined PoolId-local POL fallback.
 28. Unavailable global Statics-staker allocations follow the defined treasury fallback.
-29. Creator allocations never fall back and always credit the immutable creator.
+29. Creator allocations never fall back and always credit the current creator.
 30. Direct unstaked liquidity receives no Statics LP-reward allocation.
 31. Every Statics-reward-eligible LP position is full range for its PoolKey.
 32. Statics LP rewards remain PoolId-local.
@@ -1532,7 +1549,7 @@ The implementation must cover:
 - consumed-nonce replay rejection;
 - creator nonce invalidation;
 - independent authorizations executing out of nonce order;
-- immutable creator attribution;
+- current creator attribution;
 - creator revenue accruing in both pool currencies;
 - creator revenue equal to 500 bps;
 - creator claim success;

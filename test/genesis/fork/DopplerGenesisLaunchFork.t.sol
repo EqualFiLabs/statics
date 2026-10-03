@@ -104,11 +104,12 @@ contract DopplerGenesisLaunchForkTest is Test {
         string memory manifest = vm.readFile(ROBINHOOD_MANIFEST);
         uint256 forkBlock = vm.parseJsonUint(manifest, ".forkBlock");
         bytes32 forkBlockHash = vm.parseJsonBytes32(manifest, ".forkBlockHash");
-        uint256 forkId = vm.createSelectFork(rpcUrl, forkBlock + 1);
-        assertEq(blockhash(forkBlock), forkBlockHash, "Robinhood manifest block hash drift");
-        vm.rollFork(forkId, forkBlock);
+        string memory pinnedBlock =
+            vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(forkBlockHash), "\",false]"));
+        assertEq(vm.parseJsonBytes32(pinnedBlock, ".hash"), forkBlockHash, "Robinhood manifest block hash drift");
+        assertEq(vm.parseJsonUint(pinnedBlock, ".number"), forkBlock, "Robinhood manifest block number drift");
+        vm.createSelectFork(rpcUrl, forkBlock);
         assertEq(block.chainid, 4_663);
-        assertEq(block.number, forkBlock);
         _deployAndAssert();
     }
 
@@ -758,8 +759,8 @@ contract DopplerGenesisLaunchForkTest is Test {
             (uint256 quotedSell,) = _forkQuoter()
                 .quoteExactInputSingle(
                     IV4Quoter.QuoteExactSingleParams({
-                    poolKey: key, zeroForOne: !buyZeroForOne, exactAmount: sellAmount, hookData: bytes("")
-                })
+                        poolKey: key, zeroForOne: !buyZeroForOne, exactAmount: sellAmount, hookData: bytes("")
+                    })
                 );
             minimumSell = uint128((quotedSell * 99) / 100);
         }

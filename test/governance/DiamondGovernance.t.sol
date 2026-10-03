@@ -7,15 +7,18 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
-import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
@@ -24,13 +27,12 @@ import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
+import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
-import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
 contract VersionFacet {
     function version() external pure returns (uint256) {
@@ -49,6 +51,7 @@ contract DiamondGovernanceTest is Test {
     uint256 internal constant PAUSE_REDEEM = 1 << 4;
     uint256 internal constant PAUSE_LIQUIDITY = 1 << 5;
     uint256 internal constant PAUSE_TREASURY = 1 << 6;
+    uint256 internal constant PAUSE_STAKE = 1 << 7;
 
     address internal multisig = makeAddr("multisig");
     address internal guardian = makeAddr("guardian");
@@ -78,7 +81,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 36);
+        assertEq(loupe.facetAddresses().length, 53);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
@@ -112,7 +115,7 @@ contract DiamondGovernanceTest is Test {
         assertEq(VersionFacet(address(diamond)).version(), 1);
     }
 
-    function testProposerCanCancelScheduledUpgradeButGuardianCannot() public {
+    function testProposerAndGuardianCanCancelScheduledUpgrade() public {
         VersionFacet versionFacet = new VersionFacet();
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = VersionFacet.version.selector;
@@ -127,11 +130,6 @@ contract DiamondGovernanceTest is Test {
         assertTrue(timelock.isOperationPending(operationId));
 
         vm.prank(guardian);
-        vm.expectPartialRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
-        timelock.cancel(operationId);
-        assertTrue(timelock.isOperationPending(operationId));
-
-        vm.prank(multisig);
         timelock.cancel(operationId);
         assertFalse(timelock.isOperation(operationId));
 
@@ -144,7 +142,7 @@ contract DiamondGovernanceTest is Test {
     function testGuardianCanStopRiskIncreasingActionsButNotRedemption() public {
         IStaticsGovernance governance = IStaticsGovernance(address(diamond));
         uint256 guardianActions =
-            PAUSE_MINT | PAUSE_BORROW | PAUSE_EXTEND | PAUSE_FLASH | PAUSE_LIQUIDITY | PAUSE_TREASURY;
+            PAUSE_MINT | PAUSE_BORROW | PAUSE_EXTEND | PAUSE_FLASH | PAUSE_LIQUIDITY | PAUSE_TREASURY | PAUSE_STAKE;
 
         vm.prank(guardian);
         governance.pause(guardianActions);
@@ -173,6 +171,50 @@ contract DiamondGovernanceTest is Test {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(GovernanceFacet.NotGuardianOrOwner.selector, stranger));
         IStaticsGovernance(address(diamond)).pause(PAUSE_MINT);
+    }
+
+    function testGuardianCanPauseProtocolSwapsAndTimelockMustRestore() public {
+        IStaticsGovernance governance = IStaticsGovernance(address(diamond));
+        assertFalse(governance.protocolSwapsPaused());
+
+        vm.prank(guardian);
+        governance.pauseProtocolSwaps();
+        assertTrue(governance.protocolSwapsPaused());
+
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, guardian, address(timelock)));
+        governance.unpauseProtocolSwaps();
+
+        _executeThroughTimelock(abi.encodeCall(IStaticsGovernance.unpauseProtocolSwaps, ()), "restore swaps");
+        assertFalse(governance.protocolSwapsPaused());
+    }
+
+    function testGuardianCanQuarantinePoolAndTimelockMustRelease() public {
+        uint256 basketId = _createBasket();
+        PoolId poolId = IStaticsBasketLiquidity(address(diamond)).canonicalPool(basketId, _basketAsset(basketId)).poolId;
+        IStaticsGovernance governance = IStaticsGovernance(address(diamond));
+
+        vm.prank(guardian);
+        governance.quarantineProtocolPool(poolId);
+        assertTrue(governance.isProtocolPoolQuarantined(poolId));
+
+        vm.prank(guardian);
+        vm.expectRevert(abi.encodeWithSelector(LibDiamond.NotContractOwner.selector, guardian, address(timelock)));
+        governance.releaseProtocolPoolQuarantine(poolId);
+
+        _executeThroughTimelock(
+            abi.encodeCall(IStaticsGovernance.releaseProtocolPoolQuarantine, (poolId)), "release pool quarantine"
+        );
+        assertFalse(governance.isProtocolPoolQuarantined(poolId));
+    }
+
+    function testOutsiderCannotPauseOrQuarantineProtocolPools() public {
+        vm.startPrank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(GovernanceFacet.NotGuardianOrOwner.selector, stranger));
+        IStaticsGovernance(address(diamond)).pauseProtocolSwaps();
+        vm.expectRevert(abi.encodeWithSelector(GovernanceFacet.NotGuardianOrOwner.selector, stranger));
+        IStaticsGovernance(address(diamond)).quarantineProtocolPool(PoolId.wrap(bytes32(uint256(1))));
+        vm.stopPrank();
     }
 
     function testTimelockControlsQuarantineReleaseAndExitOnly() public {
@@ -266,8 +308,7 @@ contract DiamondGovernanceTest is Test {
         assertGt(baskets.vaultBalance(0, address(constituent)), 0);
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
             IStaticsBasketLiquidity(address(diamond)).canonicalPool(0, address(constituent));
-        (, address hook,) = IStaticsBasketLiquidity(address(diamond)).liquidityIntegration();
-        assertGt(IStaticsSwapFeeHook(hook).lockedLiquidity(canonical.poolId), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonical.poolId).activePolPositions, 1);
     }
 
     function testTimelockCanReconfigurePeripheryParametersRepeatedly() public {
@@ -426,18 +467,28 @@ contract DiamondGovernanceTest is Test {
         vm.stopPrank();
     }
 
+    function _basketAsset(uint256 basketId) private view returns (address) {
+        return IStaticsBasket(address(diamond)).basket(basketId).assets[0];
+    }
+
     function _installBasketLaunchLiquidity() private {
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(hook), expected);
-        MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(address(diamond), address(poolManager));
+        IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        IPositionManager positionManager = IPositionManager(
+            deployCode(
+                "out/PositionManager.sol/PositionManager.json",
+                abi.encode(address(poolManager), address(permit2), uint256(100_000), address(0), address(0))
+            )
+        );
+        StaticsLiquidityManager manager = new StaticsLiquidityManager(
+            address(diamond), address(positionManager), address(poolManager), address(permit2)
+        );
         _executeThroughTimelock(
             abi.encodeCall(
                 IStaticsBasketLiquidity.installCanonicalPoolIntegration, (address(poolManager), address(hook))

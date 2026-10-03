@@ -7,7 +7,6 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {DeployStaticsDollar, StaticsDollarLocalConfig, StaticsDollarStackDeployment} from "./DeployStaticsDollar.s.sol";
 
@@ -51,16 +50,12 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
             "POSITION_MANAGER"
         );
         address stateView = _deployCode("out/StateView.sol/StateView.json", abi.encode(poolManager), "STATE_VIEW");
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-
-        bytes memory constructorArgs =
-            abi.encode(IPoolManager(poolManager), deployment.diamond, uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(IPoolManager(poolManager), deployment.diamond, uint16(25), uint16(25));
         (address expectedHook, bytes32 salt) = HookMiner.find(
             FOUNDRY_CREATE2_DEPLOYER, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs
         );
-        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
-            IPoolManager(poolManager), deployment.diamond, 25, 25, permanentLiquidityMath
-        );
+        StaticsSwapFeeHook hook =
+            new StaticsSwapFeeHook{salt: salt}(IPoolManager(poolManager), deployment.diamond, 25, 25);
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager liquidityManager =
             new StaticsLiquidityManager(deployment.diamond, positionManager, poolManager, permit2);
@@ -72,7 +67,6 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
         deployment.poolManager = poolManager;
         deployment.positionManager = positionManager;
         deployment.permit2 = permit2;
-        deployment.permanentLiquidityMath = address(permanentLiquidityMath);
         deployment.swapFeeHook = address(hook);
         deployment.liquidityManager = address(liquidityManager);
         deployment.stateView = stateView;

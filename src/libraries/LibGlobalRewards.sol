@@ -10,6 +10,7 @@ import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "./LibPositionPortfolio.sol";
 import {LibMorpho} from "./LibMorpho.sol";
 import {LibIndexMath} from "./LibIndexMath.sol";
+import {LibRewardPolicy} from "./LibRewardPolicy.sol";
 
 library LibGlobalRewards {
     using SafeCast for uint256;
@@ -72,6 +73,7 @@ library LibGlobalRewards {
         mapping(uint256 positionId => StakePosition position) positions;
         mapping(address asset => uint256 amount) totalClaimable;
         mapping(address asset => uint256 amount) treasuryAccrued;
+        mapping(address asset => uint256 amount) unfundedSwapRewards;
         uint8 activeMaxRewardAssetsPerPosition;
     }
 
@@ -93,6 +95,9 @@ library LibGlobalRewards {
     error InvalidRewardMultiplier(uint16 multiplierBps);
     error InvalidCheckpointAssetCount(uint256 count);
     error RewardBookNeedsCheckpoint(address asset);
+    error RewardAssetRestricted(address asset);
+    error InvalidSwapRewardCrystallization(address asset, uint256 amount);
+    error InsufficientFundedRewards(address asset, uint256 requested, uint256 available);
 
     function rewardStorage() internal pure returns (RewardStorage storage rs) {
         bytes32 position = REWARD_STORAGE_POSITION;
@@ -140,7 +145,7 @@ library LibGlobalRewards {
         RewardBook storage book = rs.books[asset];
         _rollMatured(asset, book);
         uint256 stakerAmount;
-        if (book.eligibleWeight != 0) {
+        if (!LibRewardPolicy.isRestricted(asset) && book.eligibleWeight != 0) {
             stakerAmount = Math.mulDiv(grossFee, STAKER_SHARE_BPS, LibBasket.BPS);
             _increaseIndex(book, stakerAmount, book.eligibleWeight);
         }
@@ -156,13 +161,67 @@ library LibGlobalRewards {
         _rollMatured(asset, book);
         // A swap share can be classified before the last eligible position exits. Preserve routing
         // liveness by applying the documented Statics-staker-to-treasury fallback at settlement.
-        if (book.eligibleWeight == 0) {
+        if (LibRewardPolicy.isRestricted(asset) || book.eligibleWeight == 0) {
             rs.treasuryAccrued[asset] += amount;
             emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, 0, amount, book.indexRay);
             return;
         }
         _increaseIndex(book, amount, book.eligibleWeight);
         emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, amount, 0, book.indexRay);
+    }
+
+    /// @notice Assigns public-swap reward ownership at fee generation while the matching
+    /// PoolManager claim remains unsettled in the hook.
+    function crystallizeUnfundedSwapFee(address asset, uint256 amount) internal {
+        if (amount == 0) return;
+        RewardStorage storage rs = rewardStorage();
+        RewardBook storage book = rs.books[asset];
+        _rollMatured(asset, book);
+        if (LibRewardPolicy.isRestricted(asset) || book.eligibleWeight == 0) {
+            revert InvalidSwapRewardCrystallization(asset, amount);
+        }
+        _increaseIndex(book, amount, book.eligibleWeight);
+        rs.unfundedSwapRewards[asset] += amount;
+        emit IStaticsGlobalRewards.GlobalFeeAccrued(asset, amount, amount, 0, book.indexRay);
+        emit IStaticsGlobalRewards.SwapRewardCrystallized(
+            asset, amount, book.eligibleWeight, book.indexRay, rs.unfundedSwapRewards[asset]
+        );
+    }
+
+    function fundCrystallizedSwapFee(address asset, uint256 amount) internal {
+        if (amount == 0) return;
+        RewardStorage storage rs = rewardStorage();
+        uint256 unfunded = rs.unfundedSwapRewards[asset];
+        if (amount > unfunded) revert InsufficientFundedRewards(asset, amount, unfunded);
+        rs.unfundedSwapRewards[asset] = unfunded - amount;
+        emit IStaticsGlobalRewards.SwapRewardFunded(asset, amount, unfunded - amount);
+    }
+
+    function unfundedSwapRewards(address asset) internal view returns (uint256) {
+        return rewardStorage().unfundedSwapRewards[asset];
+    }
+
+    function outstandingLiability(address asset) internal view returns (uint256 amount) {
+        RewardStorage storage rs = rewardStorage();
+        RewardBook storage book = rs.books[asset];
+        amount = rs.treasuryAccrued[asset] + rs.totalClaimable[asset];
+        if (book.indexedAmount > book.crystallizedAmount) amount += book.indexedAmount - book.crystallizedAmount;
+    }
+
+    function fundedRewards(address asset) internal view returns (uint256 amount) {
+        uint256 liability = outstandingLiability(asset);
+        uint256 unfunded = rewardStorage().unfundedSwapRewards[asset];
+        return liability > unfunded ? liability - unfunded : 0;
+    }
+
+    function fundingShortfall(address asset, uint256 requested) internal view returns (uint256 shortfall) {
+        uint256 available = fundedRewards(asset);
+        return requested > available ? requested - available : 0;
+    }
+
+    function enforceFunded(address asset, uint256 requested) internal view {
+        uint256 available = fundedRewards(asset);
+        if (requested > available) revert InsufficientFundedRewards(asset, requested, available);
     }
 
     function accrueReservedTreasuryFee(address asset, uint256 amount) internal {
@@ -173,6 +232,7 @@ library LibGlobalRewards {
 
     function optIn(uint256 positionId, address asset) internal {
         if (asset == address(0)) revert InvalidRewardAsset(asset);
+        if (LibRewardPolicy.isRestricted(asset)) revert RewardAssetRestricted(asset);
         RewardStorage storage rs = rewardStorage();
         StakePosition storage position = rs.positions[positionId];
         if (position.optedInIndexPlusOne[asset] != 0) revert RewardAssetAlreadyOptedIn(positionId, asset);
@@ -612,6 +672,7 @@ library LibGlobalRewards {
         if (forfeited == 0) return;
         uint256 bounty = Math.mulDiv(forfeited, bountyBps, LibBasket.BPS);
         if (bounty != 0) {
+            enforceFunded(asset, bounty);
             LibMorpho.creditSyncBounty(keeper, asset, bounty);
             book.indexedAmount -= bounty;
         }

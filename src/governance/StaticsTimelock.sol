@@ -9,9 +9,21 @@ contract StaticsTimelock is TimelockController {
     uint256 public constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
     uint256 public constant LOCAL_CHAIN_ID = 31_337;
 
-    constructor(address[] memory proposers, address[] memory executors, address bootstrapAdmin)
-        TimelockController(_initialDelay(block.chainid), proposers, executors, bootstrapAdmin)
-    {}
+    error InvalidCanceller(address canceller);
+
+    constructor(
+        address[] memory proposers,
+        address[] memory executors,
+        address[] memory cancellers,
+        address bootstrapAdmin
+    ) TimelockController(_initialDelay(block.chainid), proposers, executors, bootstrapAdmin) {
+        uint256 length = cancellers.length;
+        for (uint256 i; i < length; ++i) {
+            address canceller = cancellers[i];
+            if (canceller == address(0)) revert InvalidCanceller(canceller);
+            _grantRole(CANCELLER_ROLE, canceller);
+        }
+    }
 
     function _initialDelay(uint256 chainId) private pure returns (uint256) {
         if (chainId == ROBINHOOD_TESTNET_CHAIN_ID || chainId == LOCAL_CHAIN_ID) {

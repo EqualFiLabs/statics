@@ -83,6 +83,10 @@ interface IStaticsGlobalRewards {
     event GlobalFeeAccrued(
         address indexed asset, uint256 grossFee, uint256 stakerAmount, uint256 treasuryAmount, uint256 indexRay
     );
+    event SwapRewardCrystallized(
+        address indexed asset, uint256 amount, uint256 eligibleWeight, uint256 indexRay, uint256 unfundedAmount
+    );
+    event SwapRewardFunded(address indexed asset, uint256 amount, uint256 unfundedAmount);
     event PositionRewardSettled(uint256 indexed positionId, address indexed asset, uint256 amount);
     event RewardClaimed(uint256 indexed positionId, address indexed receiver, address indexed asset, uint256 amount);
     event TreasuryFeesDistributed(address indexed asset, address indexed treasury, uint256 amount);
@@ -143,6 +147,14 @@ interface IStaticsGlobalRewards {
     function totalStaked() external view returns (uint256);
 
     function treasuryAccrued(address asset) external view returns (uint256);
+
+    function unfundedSwapRewards(address asset) external view returns (uint256);
+
+    function fundedGlobalRewards(address asset) external view returns (uint256);
+
+    function outstandingGlobalRewardLiability(address asset) external view returns (uint256);
+
+    function settlePublicSwapRewards(address asset, uint256 maximumAmount) external returns (uint256 amount);
 
     function canAccrueStakerRewards(address asset) external view returns (bool);
 

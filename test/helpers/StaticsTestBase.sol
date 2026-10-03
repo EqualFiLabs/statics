@@ -6,6 +6,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
@@ -32,6 +34,7 @@ import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
 import {BasketCollateralFacet} from "../../src/facets/BasketCollateralFacet.sol";
 import {BasketRewardsFacet} from "../../src/facets/BasketRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {PositionMarketFacet} from "../../src/facets/PositionMarketFacet.sol";
 import {CustodyFacet} from "../../src/facets/CustodyFacet.sol";
 import {BasketAdminFacet} from "../../src/facets/BasketAdminFacet.sol";
 import {BasketLiquidityFacet} from "../../src/facets/BasketLiquidityFacet.sol";
@@ -42,25 +45,34 @@ import {LendingFacet} from "../../src/facets/LendingFacet.sol";
 import {PositionPortfolioFacet} from "../../src/facets/PositionPortfolioFacet.sol";
 import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
 import {ProtocolPoolAdminFacet} from "../../src/facets/ProtocolPoolAdminFacet.sol";
+import {ProtocolPoolMaintenanceFacet} from "../../src/facets/ProtocolPoolMaintenanceFacet.sol";
+import {ProtocolPolFacet} from "../../src/facets/ProtocolPolFacet.sol";
 import {ProtocolPoolViewFacet} from "../../src/facets/ProtocolPoolViewFacet.sol";
 import {ProtocolRevenueFacet} from "../../src/facets/ProtocolRevenueFacet.sol";
+import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
+import {PermissionedPoolCreationFacet} from "../../src/facets/PermissionedPoolCreationFacet.sol";
+import {PermissionedPoolAdminFacet} from "../../src/facets/PermissionedPoolAdminFacet.sol";
+import {PermissionedPoolViewFacet} from "../../src/facets/PermissionedPoolViewFacet.sol";
+import {RangeGaugeCallbackFacet} from "../../src/facets/RangeGaugeCallbackFacet.sol";
+import {MarketTapeViewFacet} from "../../src/facets/MarketTapeViewFacet.sol";
+import {MarketTapeObservationFacet} from "../../src/facets/MarketTapeObservationFacet.sol";
+import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {MorphoFacet} from "../../src/facets/MorphoFacet.sol";
 import {MorphoRecoveryFacet} from "../../src/facets/MorphoRecoveryFacet.sol";
 import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
+import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
-import {MockLaunchLiquidityManager} from "../mocks/MockLaunchLiquidityManager.sol";
 
 contract StaticsTestDeployer {
     function deploy(address owner, address guardian, address treasury, address stakingToken)
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](29);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](40);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -90,6 +102,20 @@ contract StaticsTestDeployer {
         cut[26] = _cut(address(new MorphoViewFacet()), StaticsSelectors.morphoView());
         cut[27] = _cut(address(new MorphoRecoveryFacet()), StaticsSelectors.morphoRecovery());
         cut[28] = _cut(address(new BasketLiquidityLifecycleFacet()), StaticsSelectors.basketLiquidityLifecycle());
+        cut[29] = _cut(address(new RewardPolicyFacet()), StaticsSelectors.rewardPolicy());
+        cut[30] = _cut(address(new PermissionedPoolCreationFacet()), StaticsSelectors.permissionedPoolCreation());
+        cut[31] = _cut(address(new PermissionedPoolAdminFacet()), StaticsSelectors.permissionedPoolAdmin());
+        cut[32] = _cut(address(new PermissionedPoolViewFacet()), StaticsSelectors.permissionedPoolView());
+        cut[33] = _cut(address(new RangeGaugeCallbackFacet()), StaticsSelectors.rangeGaugeCallback());
+        bytes4[] memory gaugeSync = new bytes4[](2);
+        gaugeSync[0] = GaugeIncentiveFacet.syncGaugeAllocationsAfterStakeLoss.selector;
+        gaugeSync[1] = GaugeIncentiveFacet.checkpointGaugePool.selector;
+        cut[34] = _cut(address(new GaugeIncentiveFacet()), gaugeSync);
+        cut[35] = _cut(address(new MarketTapeViewFacet()), StaticsSelectors.marketTapeViews());
+        cut[36] = _cut(address(new MarketTapeObservationFacet()), StaticsSelectors.marketTapeObservations());
+        cut[37] = _cut(address(new ProtocolPoolMaintenanceFacet()), StaticsSelectors.protocolPoolMaintenance());
+        cut[38] = _cut(address(new ProtocolPolFacet()), StaticsSelectors.protocolPol());
+        cut[39] = _cut(address(new PositionMarketFacet()), StaticsSelectors.positionMarket());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
@@ -163,8 +189,21 @@ abstract contract StaticsTestBase is Test {
             _localSwapFeeHook = _deployLocalHook(_localPoolManager);
             basketLiquidity.installCanonicalPoolIntegration(address(_localPoolManager), address(_localSwapFeeHook));
             if (_installDefaultLiquidityManager()) {
+                IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+                IPositionManager positionManager = IPositionManager(
+                    deployCode(
+                        "out/PositionManager.sol/PositionManager.json",
+                        abi.encode(
+                            address(_localPoolManager), address(permit2), uint256(100_000), address(0), address(0)
+                        )
+                    )
+                );
                 basketLiquidity.installLiquidityManager(
-                    address(new MockLaunchLiquidityManager(address(diamond), address(_localPoolManager)))
+                    address(
+                        new StaticsLiquidityManager(
+                            address(diamond), address(positionManager), address(_localPoolManager), address(permit2)
+                        )
+                    )
                 );
             }
         }
@@ -309,12 +348,10 @@ abstract contract StaticsTestBase is Test {
     }
 
     function _deployLocalHook(IPoolManager manager) private returns (StaticsSwapFeeHook deployed) {
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(manager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(manager, address(diamond), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
     }
 }

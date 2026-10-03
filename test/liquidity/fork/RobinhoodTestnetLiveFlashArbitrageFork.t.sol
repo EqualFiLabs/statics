@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -13,8 +13,11 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsFlashLoan} from "../../../src/interfaces/IStaticsFlashLoan.sol";
-import {IStaticsSwapFeeHook} from "../../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsFlashArbitrageReceiver} from "../../../src/periphery/StaticsFlashArbitrageReceiver.sol";
+
+interface ILegacyStaticsSwapFeeHook {
+    function lockedLiquidity(bytes32 poolId) external view returns (uint128 liquidity);
+}
 
 /// @notice Replays the observed TPA1/PLTR distortion without broadcasting a testnet transaction.
 contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
@@ -32,7 +35,7 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
     IStaticsBasket private baskets;
     IStaticsBasketLiquidity private liquidity;
     IStaticsFlashLoan private flashLoans;
-    IStaticsSwapFeeHook private hook;
+    ILegacyStaticsSwapFeeHook private hook;
     IPoolManager private poolManager;
     address private executor;
     uint256 private basketId;
@@ -67,7 +70,7 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
         assertTrue(manager.code.length != 0);
         assertTrue(hookAddress.code.length != 0);
         poolManager = IPoolManager(manager);
-        hook = IStaticsSwapFeeHook(hookAddress);
+        hook = ILegacyStaticsSwapFeeHook(hookAddress);
     }
 
     function testProductionReceiverCorrectsObservedTpa1PltrDistortion() public {
@@ -83,7 +86,7 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
         minimumProfits[2] = 1;
 
         (, int24 pltrTickBefore,,) = poolManager.getSlot0(pools[1].toId());
-        uint128 lockedLiquidityBefore = hook.lockedLiquidity(pools[1].toId());
+        uint128 lockedLiquidityBefore = hook.lockedLiquidity(PoolId.unwrap(pools[1].toId()));
         uint256 vaultBefore = baskets.vaultBalance(basketId, basketAssets[1]);
         uint256[] memory executorBalancesBefore = _balances(executor);
         StaticsFlashArbitrageReceiver receiver = new StaticsFlashArbitrageReceiver(address(baskets));
@@ -107,7 +110,9 @@ contract RobinhoodTestnetLiveFlashArbitrageForkTest is Test {
             vaultBefore + flashAmounts[1],
             "mint backing or flash principal not recorded"
         );
-        assertGt(hook.lockedLiquidity(pools[1].toId()), lockedLiquidityBefore, "route did not compound POL");
+        assertGt(
+            hook.lockedLiquidity(PoolId.unwrap(pools[1].toId())), lockedLiquidityBefore, "route did not compound POL"
+        );
         for (uint256 i; i < basketAssets.length; ++i) {
             assertGe(profits[i], minimumProfits[i]);
             assertEq(IERC20(basketAssets[i]).balanceOf(executor), executorBalancesBefore[i] + profits[i]);

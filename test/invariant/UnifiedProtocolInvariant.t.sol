@@ -9,6 +9,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -37,9 +39,8 @@ import {IStaticsLending} from "src/interfaces/IStaticsLending.sol";
 import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsPermanentLiquidityMath} from "src/liquidity/StaticsPermanentLiquidityMath.sol";
+import {StaticsLiquidityManager} from "src/liquidity/StaticsLiquidityManager.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
-import {MockLaunchLiquidityManager} from "test/mocks/MockLaunchLiquidityManager.sol";
 
 struct UnifiedHandlerConfig {
     address diamond;
@@ -925,15 +926,21 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     function _installBasketLaunchLiquidity() private {
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(poolManager, deployment.diamond, uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(poolManager, deployment.diamond, uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 25, 25, permanentLiquidityMath);
+        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 25, 25);
         assertEq(address(hook), expected);
-        MockLaunchLiquidityManager manager = new MockLaunchLiquidityManager(deployment.diamond, address(poolManager));
+        IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        IPositionManager positionManager = IPositionManager(
+            deployCode(
+                "out/PositionManager.sol/PositionManager.json",
+                abi.encode(address(poolManager), address(permit2), uint256(100_000), address(0), address(0))
+            )
+        );
+        StaticsLiquidityManager manager = new StaticsLiquidityManager(
+            deployment.diamond, address(positionManager), address(poolManager), address(permit2)
+        );
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
     }

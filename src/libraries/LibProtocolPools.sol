@@ -6,6 +6,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketLiquidity} from "./LibBasketLiquidity.sol";
+import {LibPermissionedPools} from "./LibPermissionedPools.sol";
 
 /// @notice Normalized protocol-pool registry resolving both basket canonical and general pools.
 /// @dev Uses a fresh namespaced storage version so the layout cannot be confused with the replaced
@@ -23,11 +24,35 @@ library LibProtocolPools {
         bool registered;
     }
 
+    struct PolFundingConfig {
+        bool activated;
+        bool overrideSet;
+        uint16 shareBps;
+    }
+
+    struct ProtocolPolPosition {
+        PoolId poolId;
+        address manager;
+        uint256 posmTokenId;
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+        bool active;
+    }
+
     struct ProtocolPoolStorage {
         mapping(PoolId poolId => GeneralPool pool) generalPools;
         mapping(address creator => mapping(uint256 nonce => bool used)) poolCreationNonceUsed;
         uint256 poolCreationFeeAmount;
-        address permanentLiquidityHarvester;
+        uint16 revenueTipBps;
+        address polOperator;
+        uint256 polActivationFeeAmount;
+        uint256 nextPolPositionId;
+        mapping(PoolId poolId => PolFundingConfig config) polFunding;
+        mapping(uint256 positionId => ProtocolPolPosition position) polPositions;
+        mapping(PoolId poolId => uint256[] positionIds) polPositionIds;
+        mapping(PoolId poolId => uint256 count) activePolPositionCount;
+        mapping(PoolId poolId => bool finalized) polDecommissionFinalized;
     }
 
     error ProtocolPoolNotRegistered(PoolId poolId);
@@ -65,9 +90,14 @@ library LibProtocolPools {
         if (general.registered && PoolId.unwrap(general.key.toId()) == PoolId.unwrap(poolId)) {
             return (IStaticsProtocolPools.ProtocolPoolKind.General, general.key, 0, address(0));
         }
+
+        LibPermissionedPools.PermissionedPool storage permissioned = LibPermissionedPools.resolve(poolId);
+        if (permissioned.registered && PoolId.unwrap(permissioned.key.toId()) == PoolId.unwrap(poolId)) {
+            return (IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral, permissioned.key, 0, address(0));
+        }
     }
 
-    /// @dev Normalized immutable creator resolver. Basket canonical -> basket creator; general ->
+    /// @dev Current creator authority. Basket canonical -> basket creator; general ->
     /// stored general-pool creator. Downstream fee routing consumes this rather than duplicating
     /// pool-class-specific lookups.
     function creatorOf(PoolId poolId) internal view returns (address creator) {
@@ -77,6 +107,9 @@ library LibProtocolPools {
         }
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.General) {
             return protocolPoolStorage().generalPools[poolId].creator;
+        }
+        if (kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
+            return LibPermissionedPools.resolve(poolId).creator;
         }
         return address(0);
     }

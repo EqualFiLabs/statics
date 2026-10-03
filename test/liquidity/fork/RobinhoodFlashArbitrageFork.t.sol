@@ -11,17 +11,18 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../../src/interfaces/IStaticsProtocolPools.sol";
 import {StaticsFlashArbitrageReceiver} from "../../../src/periphery/StaticsFlashArbitrageReceiver.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsPermanentLiquidityMath} from "../../../src/liquidity/StaticsPermanentLiquidityMath.sol";
+import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
 import {CanonicalV4Router} from "../../helpers/CanonicalPoolTestBase.sol";
 import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
 import {FlashArbitrageReceiver, ICanonicalV4SwapRouter} from "../../mocks/FlashArbitrageReceiver.sol";
 import {MockERC20} from "../../mocks/MockERC20.sol";
-import {MockLaunchLiquidityManager} from "../../mocks/MockLaunchLiquidityManager.sol";
 
 contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
     using PoolIdLibrary for PoolKey;
@@ -57,8 +58,19 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         );
         hook = _deployHook();
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
+        IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        IPositionManager positionManager = IPositionManager(
+            deployCode(
+                "out/PositionManager.sol/PositionManager.json",
+                abi.encode(address(poolManager), address(permit2), uint256(100_000), address(0), address(0))
+            )
+        );
         basketLiquidity.installLiquidityManager(
-            address(new MockLaunchLiquidityManager(address(diamond), address(poolManager)))
+            address(
+                new StaticsLiquidityManager(
+                    address(diamond), address(positionManager), address(poolManager), address(permit2)
+                )
+            )
         );
         router = new CanonicalV4Router(poolManager);
     }
@@ -83,8 +95,8 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         _harvestPermanentFees(fixture.pools);
         assertGe(mintReceiver.lastProfit(address(assetA)), minimumProfits[0]);
         assertGe(mintReceiver.lastProfit(address(assetB)), minimumProfits[1]);
-        assertGt(hook.lockedLiquidity(fixture.pools[0].toId()), 0);
-        assertGt(hook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[0].toId()).activePolPositions, 1);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[1].toId()).activePolPositions, 1);
         assertGt(globalRewards.treasuryAccrued(fixture.basketToken), 0);
         address[] memory multiRewardAssets = _rewardAssets(fixture.basketToken);
         vm.prank(alice);
@@ -114,8 +126,8 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
         assertEq(assetA.balanceOf(address(receiver)), 0);
         assertEq(assetB.balanceOf(address(receiver)), 0);
         assertEq(IERC20(fixture.basketToken).balanceOf(address(receiver)), 0);
-        assertGt(hook.lockedLiquidity(fixture.pools[0].toId()), 0);
-        assertGt(hook.lockedLiquidity(fixture.pools[1].toId()), 0);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[0].toId()).activePolPositions, 1);
+        assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(fixture.pools[1].toId()).activePolPositions, 1);
         assertGt(globalRewards.treasuryAccrued(fixture.basketToken), 0);
         address[] memory multiRewardAssets = _rewardAssets(fixture.basketToken);
         vm.prank(alice);
@@ -228,21 +240,24 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
 
     function _harvestPermanentFees(PoolKey[] memory pools) private {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
-        protocolPools.setPermanentLiquidityHarvester(address(this));
         for (uint256 i; i < pools.length; ++i) {
-            protocolPools.harvestPermanentLiquidityFees(pools[i].toId());
+            uint256[] memory positionIds = protocolPools.protocolPolPositionIds(pools[i].toId());
+            protocolPools.collectProtocolPolFees(positionIds[0], block.timestamp + 1 days);
+            protocolPools.settleProtocolPoolPol(pools[i].toId(), Currency.unwrap(pools[i].currency0), 0);
+            protocolPools.settleProtocolPoolPol(pools[i].toId(), Currency.unwrap(pools[i].currency1), 0);
+            protocolPools.settleProtocolPoolRevenue(pools[i].toId(), Currency.unwrap(pools[i].currency0));
+            protocolPools.settleProtocolPoolRevenue(pools[i].toId(), Currency.unwrap(pools[i].currency1));
         }
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
         (address expected, bytes32 salt) = HookMiner.find(
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath)
+            abi.encode(poolManager, address(diamond), uint16(25), uint16(25))
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
     }
 

@@ -11,6 +11,15 @@ compiler-selection units are excluded individually with a concrete reason. The
 scope check fails before Slither runs if a new owned Solidity file is neither
 included nor explicitly excluded.
 
+The staged Phase 1 launcher and its six-call liquidity configuration ceremony
+are production scripts, so they enter this mandatory scope automatically. No
+new exclusion or detector-family suppression is added for the staged launch.
+A separate file-list expansion would be misleading because all owned
+production contracts and scripts are already classified; tests and formal
+harnesses remain covered by their executable engines rather than the
+production Slither baseline. The phased launch does not add a Genesis ownership
+migration or modify the already deployed Genesis system.
+
 ## Reproduce
 
 GitHub Actions is the release-evidence runner. It pins Python 3.12, Foundry
@@ -24,14 +33,18 @@ python3.12 -m venv .slither-venv
 SLITHER_BIN="$PWD/.slither-venv/bin/slither" scripts/run-slither.sh
 ```
 
-The runner uses the `slither` Foundry profile, performs a normal
-`forge build --build-info`, and then passes `--foundry-ignore-compile` to
-Slither. The profile disables Foundry's dynamic test linker because its
-ephemeral `foundry-pp` sources cannot be reopened from cached build-info by
-Crytic Compile. Ignoring Slither's compile step is still required because the
-default Slither Foundry adapter invokes `forge clean` and a forced build, which
-are not allowed by this repository. Raw machine-specific output is written to
-the ignored `slither-results/` directory.
+The runner uses the `slither` Foundry profile, performs
+`forge build --build-info --skip test`, and then passes
+`--foundry-ignore-compile` to Slither. Tests and formal harnesses are executable
+verification inputs rather than production Slither subjects; omitting their
+compilation units keeps the analysis graph bounded while every owned `src/`
+and `script/` source remains classified by `scope.json`. The profile also
+disables Foundry's dynamic test linker because its ephemeral `foundry-pp`
+sources cannot be reopened from cached build-info by Crytic Compile. Ignoring
+Slither's compile step is still required because the default Slither Foundry
+adapter invokes `forge clean` and a forced build, which are not allowed by this
+repository. Raw machine-specific output is written to the ignored
+`slither-results/` directory.
 
 `baseline.json` contains a classification and rationale for each exact reviewed
 finding fingerprint; detector-wide defaults are not applied. Repeated findings

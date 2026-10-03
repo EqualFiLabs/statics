@@ -200,8 +200,7 @@ contract LaunchGenesisBasket is Script {
             if (
                 launched.assets[i] != asset || launched.bundleAmounts[i] != config.basket.bundleAmounts[i]
                     || baskets.vaultBalance(basketId, asset) == 0 || pool.asset != asset
-                    || pool.basketToken != launched.token || pool.hook != hook
-                    || IStaticsSwapFeeHook(hook).lockedLiquidity(pool.poolId) == 0
+                    || pool.basketToken != launched.token || pool.hook != hook || protocolPool.activePolPositions == 0
                     || protocolPool.kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
                     || protocolPool.basketId != basketId || protocolPool.basketAsset != asset
                     || protocolPool.decommissioned

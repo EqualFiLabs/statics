@@ -44,8 +44,8 @@ contract RobinhoodDeploymentConfigTest is Test {
         assertEq(config.poolManager, 0x8366a39CC670B4001A1121B8F6A443A643e40951);
         assertEq(config.positionManager, 0x58daec3116aae6D93017bAAea7749052E8a04fA7);
         assertEq(config.permit2, 0x000000000022D473030F116dDEE9F6B43aC78BA3);
-        assertEq(config.inputFeeBps, 25);
-        assertEq(config.outputFeeBps, 25);
+        assertEq(config.inputFeeBps, 5);
+        assertEq(config.outputFeeBps, 5);
         assertEq(config.positionManagerCodeHash, 0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d);
     }
 
@@ -113,6 +113,16 @@ contract RobinhoodDeploymentConfigTest is Test {
 
         assertEq(vm.parseJsonString(mainnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
         assertEq(vm.parseJsonString(testnetManifest, ".staticsLiquidityCalibration.hookPermissionMask"), "0x10ec");
+    }
+
+    function testRobinhoodManifestsUseFiveBpsPublicHookDefaults() public view {
+        string memory mainnetManifest = vm.readFile("deployments/robinhood-chain-4663.json");
+        string memory testnetManifest = vm.readFile("deployments/robinhood-chain-testnet-46630.json");
+
+        assertEq(vm.parseJsonUint(mainnetManifest, ".staticsLiquidityCalibration.inputFeeBps"), 5);
+        assertEq(vm.parseJsonUint(mainnetManifest, ".staticsLiquidityCalibration.outputFeeBps"), 5);
+        assertEq(vm.parseJsonUint(testnetManifest, ".staticsLiquidityCalibration.inputFeeBps"), 5);
+        assertEq(vm.parseJsonUint(testnetManifest, ".staticsLiquidityCalibration.outputFeeBps"), 5);
     }
 
     function _assertManifestContract(

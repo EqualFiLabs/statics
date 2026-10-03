@@ -2,7 +2,8 @@
 
 ## Status
 
-Superseded by [`native-v4-lp-fees.md`](./native-v4-lp-fees.md).
+Superseded by [`native-v4-lp-fees.md`](./native-v4-lp-fees.md) and
+[`managed-protocol-owned-liquidity.md`](./managed-protocol-owned-liquidity.md).
 
 This document records the former custom LP reward design. The permanent
 Statics Diamond was not deployed with that design, so there is no live reward
