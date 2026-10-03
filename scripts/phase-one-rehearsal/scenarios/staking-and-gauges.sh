@@ -129,6 +129,22 @@ RESERVE_VIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'gaugeReserve()((bool,uint16,uint16,uint40,uint40,uint40,uint40,uint40,uint40,uint64,uint40,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))' \
     --rpc-url "$RPC_URL")
 [[ "$RESERVE_VIEW" == *"true"* ]] || fail "gauge reserve did not activate"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'maxGaugeAllocationsPerPosition()(uint256)' \
+    --rpc-url "$RPC_URL" | awk '{print $1}')" 16 "maximum gauge allocations per PositionNFT"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'maxWeeklyGaugeReleaseBps()(uint16)' \
+    --rpc-url "$RPC_URL" | awk '{print $1}')" 1000 "maximum weekly gauge release"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'maxGaugeCatchupPeriods()(uint16)' \
+    --rpc-url "$RPC_URL" | awk '{print $1}')" 52 "maximum gauge catch-up periods"
+CURRENT_PERIOD=$(cast call "$STATICS_DIAMOND_ADDRESS" 'currentGaugePeriod()(uint64)' \
+    --rpc-url "$RPC_URL" | awk '{print $1}')
+NOW=$(cast block latest --field timestamp --rpc-url "$RPC_URL")
+PERIOD_AT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'gaugePeriodAt(uint256)(uint64,bool)' \
+    "$NOW" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0]' <<<"$PERIOD_AT")" "$CURRENT_PERIOD" "active gauge period lookup"
+assert_eq "$(jq -r '.[1]' <<<"$PERIOD_AT")" true "active gauge period marker"
+POOL_REWARD_PREVIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'previewGaugePoolReward(bytes32)(uint256,bool)' "$POOL_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[1]' <<<"$POOL_REWARD_PREVIEW")" true "weighted pool reward eligibility"
 
 rpc_warp_by 86400
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_ID" \

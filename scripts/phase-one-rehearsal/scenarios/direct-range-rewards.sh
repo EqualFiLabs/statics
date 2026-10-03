@@ -46,6 +46,8 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
 
 ALLOW_CALLDATA=$(cast calldata 'setGaugeRewardAssetAllowed(address,bool)' "$WETH_ADDRESS" true)
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$ALLOW_CALLDATA" direct-reward-allow-weth
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'gaugeRewardAssetAllowed(address)(bool)' \
+    "$WETH_ADDRESS" --rpc-url "$RPC_URL")" true "direct reward asset allowlist"
 cast send "$STATICS_DIAMOND_ADDRESS" 'appendPoolRewardAsset(bytes32,address)(uint8)' "$POOL_ID" "$WETH_ADDRESS" \
     --private-key "$LP_KEY" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/direct-reward-append.json"
@@ -58,6 +60,16 @@ CONFIG=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'poolRewardConfig(bytes32)((bool,uint8,address[5],uint16[5]))' "$POOL_ID" --rpc-url "$RPC_URL" --json)
 assert_eq "$(jq -r '.[0][1]' <<<"$CONFIG")" 2 "range reward slot count"
 assert_eq "$(jq -r '.[0][2][1]' <<<"$CONFIG")" "$WETH_ADDRESS" "direct reward asset"
+REWARD_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'poolRewardCustodyAccount(bytes32,uint8)(bytes32,bool)' "$POOL_ID" 1 --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[1]' <<<"$REWARD_ACCOUNT")" true "direct reward custody assignment"
+assert_eq "$(jq -r '.[0]' <<<"$REWARD_ACCOUNT")" \
+    "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolRewardCustodyAccount(bytes32,uint8)(bytes32,bool)' \
+        "$POOL_ID" 1 --rpc-url "$RPC_URL" | head -n 1)" "stable direct reward custody account"
+BOUNDARY=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'gaugeBoundary(bytes32,int24)((uint128,int128,uint256[5]))' "$POOL_ID" -1200 \
+    --rpc-url "$RPC_URL" --json)
+assert_gt "$(jq -r '.[0][0]' <<<"$BOUNDARY")" 0 "managed lower gauge boundary"
 
 FUND_AMOUNT=7000000000000000000
 cast send "$WETH_ADDRESS" 'approve(address,uint256)' "$STATICS_DIAMOND_ADDRESS" "$FUND_AMOUNT" \

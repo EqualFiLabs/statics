@@ -48,6 +48,44 @@ assert_eq \
     true \
     "permissioned pool registration"
 
+# A creator can invalidate an unused creation authorization before governance
+# attempts to consume it. Use a distinct PoolKey so duplicate-pool rejection
+# cannot mask the nonce check.
+INVALIDATED_CREATION_NONCE=2
+INVALIDATED_PARAMS="($STAKING_TOKEN,$WETH_ADDRESS,500,10,79228162514264337593543950336,$CREATOR,$CONTROLLER,$ECONOMICS,$INVALIDATED_CREATION_NONCE,$DEADLINE,$AGREEMENT)"
+INVALIDATED_QUOTE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'quotePermissionedPool((address,address,uint24,int24,uint160,address,address,(uint16,uint8,(uint16,uint16,uint16,uint16)),uint256,uint256,bytes32))(((address,address,uint24,int24,address),bytes32,uint160,bytes32))' \
+    "$INVALIDATED_PARAMS" --rpc-url "$RPC_URL" --json)
+INVALIDATED_DIGEST=$(jq -r '.[0][3]' <<<"$INVALIDATED_QUOTE")
+INVALIDATED_AUTHORIZATION=$(cast wallet sign --no-hash "$INVALIDATED_DIGEST" --private-key "$CREATOR_KEY")
+cast send "$STATICS_DIAMOND_ADDRESS" 'invalidatePermissionedAuthorizationNonce(uint256)' \
+    "$INVALIDATED_CREATION_NONCE" --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/permissioned-invalidate-creation-nonce.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'isPermissionedAuthorizationNonceUsed(address,uint256)(bool)' \
+    "$CREATOR" "$INVALIDATED_CREATION_NONCE" --rpc-url "$RPC_URL")" true \
+    "permissioned creation nonce invalidated"
+expect_call_revert "invalidated permissioned creation authorization" \
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+    'createPermissionedPool((address,address,uint24,int24,uint160,address,address,(uint16,uint8,(uint16,uint16,uint16,uint16)),uint256,uint256,bytes32),bytes)' \
+    "$INVALIDATED_PARAMS" "$INVALIDATED_AUTHORIZATION" --from "$STATICS_TIMELOCK_ADDRESS" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/permissioned-invalidated-creation-revert.txt"
+expect_call_revert "duplicate permissioned creation nonce invalidation" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'invalidatePermissionedAuthorizationNonce(uint256)' \
+    "$INVALIDATED_CREATION_NONCE" --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
+
+# Pool-specific configuration nonces are independently creator-controlled.
+# Invalidation advances the live nonce and permanently makes nonce zero stale.
+expect_call_revert "outsider permissioned configuration invalidation" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'invalidatePermissionedConfigurationNonce(bytes32,uint256)' \
+    "$POOL_ID" 0 --from "$TRADER" --rpc-url "$RPC_URL" >/dev/null
+cast send "$STATICS_DIAMOND_ADDRESS" 'invalidatePermissionedConfigurationNonce(bytes32,uint256)' \
+    "$POOL_ID" 0 --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/permissioned-invalidate-configuration-nonce.json"
+expect_call_revert "stale permissioned configuration nonce" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'invalidatePermissionedConfigurationNonce(bytes32,uint256)' \
+    "$POOL_ID" 0 --from "$CREATOR" --rpc-url "$RPC_URL" >/dev/null
+
 # Only the LP is eligible initially. The trader proves that admission is
 # enforced before the controller enables its swap permission.
 cast send "$CONTROLLER" 'setPermissions(bytes32,address[],uint256[])' "$POOL_ID" "[$LP]" '[2]' \
@@ -245,6 +283,7 @@ record_result permissioned admission pass "$POOL_ID"
 record_result permissioned forced-unwind pass "position $TOKEN_ID"
 record_result permissioned normalized-staker-reward pass "$STAKER_RECEIVED $CURRENCY0 wei"
 record_result permissioned creator-and-treasury-revenue pass "$CURRENCY1"
+record_result permissioned nonce-invalidation pass "creation $INVALIDATED_CREATION_NONCE and configuration 0"
 record_result market-tape permissioned-internal-normalization pass "sequence 4"
 record_result gas permissioned-cold pass "$COLD_GAS"
 record_result gas permissioned-steady pass "$STEADY_GAS"

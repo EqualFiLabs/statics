@@ -170,6 +170,9 @@ timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$(cast calldata 'unpause(uint256)' 1
 # liability incrementally, then reconcile custody after finalization.
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
     "$(cast calldata 'beginGeneralPoolDecommission(bytes32)' "$POOL_ID")" composed-begin-decommission
+expect_call_revert "reward surplus reconciliation with unresolved gauge leg" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'reconcilePoolRewardSurplus(bytes32,uint8)(uint256)' \
+    "$POOL_ID" 1 --from "$(anvil_address "$MAINTAINER_INDEX")" --rpc-url "$RPC_URL" >/dev/null
 expect_call_revert "composed finalization with active POL" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'finalizeGeneralPoolDecommission(bytes32)(uint256,uint256)' \
     "$POOL_ID" --from "$STATICS_TIMELOCK_ADDRESS" --rpc-url "$RPC_URL" \
@@ -190,6 +193,12 @@ cast send "$STATICS_DIAMOND_ADDRESS" \
 cast send "$STATICS_DIAMOND_ADDRESS" 'claimRewards(uint256,address[],address,uint256[])(uint256[])' \
     "$POSITION_ID" "[$CURRENCY0,$CURRENCY1]" "$SUCCESSOR" '[0,0]' --private-key "$SUCCESSOR_KEY" \
     --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json >"$RUN_DIR/composed-claim-global.json"
+RECONCILED_REWARD_SURPLUS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'reconcilePoolRewardSurplus(bytes32,uint8)(uint256)' "$POOL_ID" 1 \
+    --from "$(anvil_address "$MAINTAINER_INDEX")" --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'reconcilePoolRewardSurplus(bytes32,uint8)(uint256)' \
+    "$POOL_ID" 1 --private-key "$(anvil_private_key "$MAINTAINER_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/composed-reconcile-reward-surplus.json"
 cast send "$STATICS_DIAMOND_ADDRESS" 'unstake(uint256,uint256,address)' \
     "$POSITION_ID" "$STAKE" "$SUCCESSOR" --private-key "$SUCCESSOR_KEY" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/composed-unstake.json"
@@ -225,4 +234,5 @@ assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' "$
 record_result composed-soak accumulated-state-lifecycle pass "$POOL_ID"
 record_result composed-soak authority-transfers pass "creator and PositionNFT moved to $SUCCESSOR"
 record_result composed-soak incremental-shutdown pass "LP, allocator, global, creator, POL, and Treasury resolved"
+record_result composed-soak reward-surplus-reconciliation pass "$RECONCILED_REWARD_SURPLUS WETH wei"
 note "composed no-reset Phase 1 soak passed"

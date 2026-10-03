@@ -133,6 +133,11 @@ assert_eq "$(jq -r '.[0][2]' <<<"$POOL_RATE")" false "cleared pool fee marker"
 
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
     "$(cast calldata 'setGeneralFeeAllocation((uint16,uint16,uint16))' '(3000,4000,2500)')" fee-policy-allocation
+GENERAL_ALLOCATION=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'generalFeeAllocation()((uint16,uint16,uint16))' --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][0]' <<<"$GENERAL_ALLOCATION")" 3000 "general POL allocation"
+assert_eq "$(jq -r '.[0][1]' <<<"$GENERAL_ALLOCATION")" 4000 "general staker allocation"
+assert_eq "$(jq -r '.[0][2]' <<<"$GENERAL_ALLOCATION")" 2500 "general Treasury allocation"
 swap_and_assert_allocation fee-policy-global-allocation false 3000 4000
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 \
     "$(cast calldata 'setProtocolPoolPolShare(bytes32,uint16)' "$POOL_ID" 0)" fee-policy-zero-pol

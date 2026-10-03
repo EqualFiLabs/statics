@@ -71,9 +71,11 @@ ACTIVATE_CALLDATA=$(cast calldata 'activateGaugeSchedule()')
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$ACTIVATE_CALLDATA" multi-gauge-activate
 rpc_warp_by 86400
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_A" \
-    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/multi-gauge-credit-a.json"
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
+    >"$RUN_DIR/multi-gauge-credit-a.json"
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_B" \
-    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/multi-gauge-credit-b.json"
+    --private-key "$USER_KEY" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
+    >"$RUN_DIR/multi-gauge-credit-b.json"
 rpc_warp_by 86400
 
 BALANCE_BEFORE=$(cast call "$STAKING_TOKEN" 'balanceOf(address)(uint256)' "$USER" --rpc-url "$RPC_URL" | awk '{print $1}')

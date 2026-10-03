@@ -77,6 +77,11 @@ rpc_warp_by 86400
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_ID" \
     --private-key "$(anvil_private_key 8)" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/allocator-pool-checkpoint.json"
+ALLOCATOR_STREAM=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'gaugeAllocatorReward(bytes32,uint8)((address,bytes32,uint64,uint40,uint40,uint40,uint256,uint256,uint256,uint256,uint256,bool))' \
+    "$POOL_ID" 1 --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][0]' <<<"$ALLOCATOR_STREAM")" "$WETH_ADDRESS" \
+    "allocator stream reward asset"
 ALLOCATOR_PREVIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'previewGaugeAllocatorRewards(uint256,bytes32,uint8[])((uint8,address,uint256,uint256)[])' \
     "$POSITION_ID" "$POOL_ID" '[1]' --from "$CREATOR" --rpc-url "$RPC_URL" --json)

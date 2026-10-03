@@ -22,6 +22,15 @@ POSITION_FEE=1000000000000000
 STAKE=1000000000000000000000
 POOL_ID=$(create_public_pool "$STAKING_TOKEN" "$WETH_ADDRESS" "$CREATOR" 4 governance)
 
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'pausedActions()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    0 "initial action pause bitmap"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolSwapsPaused()(bool)' --rpc-url "$RPC_URL")" \
+    false "initial public-swap pause"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPoolQuarantined(bytes32)(bool)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")" false "initial pool quarantine"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolSwapsBlocked(bytes32)(bool)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")" false "initial pool swap availability"
+
 if [[ "${WETH_ADDRESS,,}" < "${STAKING_TOKEN,,}" ]]; then
     CURRENCY0=$WETH_ADDRESS
     CURRENCY1=$STAKING_TOKEN
@@ -145,6 +154,9 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'claimRewards(uint256,address[],address,uin
     >"$RUN_DIR/governance-paused-claim.json"
 UNPAUSE_STAKE_CALLDATA=$(cast calldata 'unpause(uint256)' 128)
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$UNPAUSE_STAKE_CALLDATA" governance-unpause-stake
+cast send "$STATICS_DIAMOND_ADDRESS" 'optInRewardAssets(uint256,address[])' \
+    "$STAKER_POSITION" "[$CURRENCY0,$CURRENCY1]" --private-key "$(anvil_private_key "$STAKER_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/governance-unpaused-opt-in.json"
 
 # Settle hook revenue, then prove Treasury pause preserves both the settled
 # liability and newly generated unsettled hook state until governance unpauses.
@@ -192,22 +204,34 @@ assert_eq "$(printf '%s - %s\n' "$TREASURY_BALANCE_AFTER" "$TREASURY_BALANCE_BEF
 cast send "$STATICS_DIAMOND_ADDRESS" 'quarantineProtocolPool(bytes32)' "$POOL_ID" \
     --private-key "$GUARDIAN_KEY" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/governance-quarantine-pool.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPoolQuarantined(bytes32)(bool)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")" true "active pool quarantine"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolSwapsBlocked(bytes32)(bool)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")" true "quarantine blocks pool swaps"
 expect_call_revert "quarantined pool swap" \
     v4_swap_exact_in_simulate "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" true 100000000000000000 >/dev/null
 RELEASE_CALLDATA=$(cast calldata 'releaseProtocolPoolQuarantine(bytes32)' "$POOL_ID")
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$RELEASE_CALLDATA" governance-release-pool
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPoolQuarantined(bytes32)(bool)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")" false "released pool quarantine"
 v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" true 100000000000000000 governance-released-swap
 
 cast send "$STATICS_DIAMOND_ADDRESS" 'pauseProtocolSwaps()' \
     --private-key "$GUARDIAN_KEY" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/governance-pause-public-swaps.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolSwapsPaused()(bool)' --rpc-url "$RPC_URL")" \
+    true "active global public-swap pause"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolSwapsBlocked(bytes32)(bool)' \
+    "$POOL_ID" --rpc-url "$RPC_URL")" true "global pause blocks pool swaps"
 expect_call_revert "globally paused public swap" \
     v4_swap_exact_in_simulate "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" false 100000000000000000 >/dev/null
 UNPAUSE_SWAPS_CALLDATA=$(cast calldata 'unpauseProtocolSwaps()')
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$UNPAUSE_SWAPS_CALLDATA" governance-unpause-public-swaps
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolSwapsPaused()(bool)' --rpc-url "$RPC_URL")" \
+    false "released global public-swap pause"
 v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" false 100000000000000000 governance-global-unpaused-swap
 

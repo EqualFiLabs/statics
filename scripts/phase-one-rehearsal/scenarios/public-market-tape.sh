@@ -145,6 +145,10 @@ expect_call_revert "wrapped observation must be unavailable" \
     cast call "$STATICS_DIAMOND_ADDRESS" \
     'marketObservation(bytes32,uint64)((uint40,int24,uint24,uint8,uint256,int256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))' \
     "$POOL_ID" 2 --rpc-url "$RPC_URL" >"$RUN_DIR/public-observation-wrapped-revert.txt"
+LATEST_OBSERVATION=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'marketObservation(bytes32,uint64)((uint40,int24,uint24,uint8,uint256,int256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256))' \
+    "$POOL_ID" 5 --rpc-url "$RPC_URL" --json)
+assert_gt "$(jq -r '.[0][0]' <<<"$LATEST_OBSERVATION")" 0 "latest stored observation timestamp"
 CURRENT_AND_PRIOR=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'observeMarket(bytes32,uint32[])((uint40,int24,uint24,uint8,uint256,int256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)[])' \
     "$POOL_ID" '[0,60]' --rpc-url "$RPC_URL" --json)

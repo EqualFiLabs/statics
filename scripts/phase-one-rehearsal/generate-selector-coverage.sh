@@ -48,22 +48,22 @@ while IFS= read -r item; do
         scenario=$(basename "$file" .sh)
         scenarios+=("$scenario")
         read -r file_success file_revert <<<"$(
-            awk -v target="$function_name(" '
-                BEGIN { success = 0; reverted = 0; window = 0 }
-                /expect_call_revert/ { window = 8 }
+            awk -v target="$signature" '
+                BEGIN { success = 0; reverted = 0; in_revert = 0 }
+                /expect_call_revert/ { in_revert = 1 }
                 index($0, target) {
-                    if (window > 0) reverted = 1
+                    if (in_revert) reverted = 1
                     else success = 1
                 }
-                { if (window > 0) window-- }
+                in_revert && $0 !~ /\\[[:space:]]*$/ { in_revert = 0 }
                 END { print success, reverted }
             ' "$file"
         )"
         [[ "$file_success" == 1 ]] && success=true
         [[ "$file_revert" == 1 ]] && revert=true
-    done < <(rg -l --glob '*.sh' "${function_name}\\(" "$SCRIPT_DIR/scenarios" 2>/dev/null | sort -u || true)
+    done < <(rg -l -F --glob '*.sh' -- "$signature" "$SCRIPT_DIR/scenarios" 2>/dev/null | sort -u || true)
 
-    if rg -q --glob '*.sh' "${function_name}\\(" \
+    if rg -q -F --glob '*.sh' -- "$signature" \
         "$SCRIPT_DIR/deploy-stack.sh" "$SCRIPT_DIR/verify-deployment.sh" 2>/dev/null; then
         scenarios+=(deployment)
         success=true
@@ -118,4 +118,9 @@ jq -n \
     | map({key: .[0].classification, value: length})
     | from_entries
 ' >"$RUN_DIR/selector-coverage-counts.json"
+unrehearsed_count=$(jq '[.[] | select(.classification == "not-rehearsed")] | length' "$OUTPUT_JSON")
+unqueried_view_count=$(jq \
+    '[.[] | select(.classification == "view" and .successCovered == false)] | length' "$OUTPUT_JSON")
+assert_eq "$unrehearsed_count" 0 "unrehearsed state-changing selector count"
+assert_eq "$unqueried_view_count" 0 "unqueried view selector count"
 note "selector coverage: $OUTPUT_JSON"

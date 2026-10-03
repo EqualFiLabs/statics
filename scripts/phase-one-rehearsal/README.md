@@ -102,11 +102,14 @@ verification cannot accidentally accept stale shared build output.
   restrictions, emergency controls, decommissioning, claims, and solvency
   reconciliation without resetting between transitions.
 
-The selector coverage manifest joins every installed selector to its signature,
-facet name, direct-success and revert evidence, and explicit classification.
-Selectors without a direct fork scenario remain visible as `not-rehearsed`;
-route verification is never presented as behavioral coverage. Foundry unit,
-fuzz, invariant, and formal suites remain separate evidence.
+The selector coverage manifest joins every installed selector to its exact
+signature, facet name, direct-success and revert evidence, and explicit
+classification. The runner fails when any externally callable state-changing
+selector lacks a direct fork scenario or any installed view remains unqueried.
+Deployment-only installation calls and authenticated hook callbacks remain
+separately classified; route verification is never presented as behavioral
+coverage. Foundry unit, fuzz, invariant, and formal suites remain separate
+evidence.
 
 After every scenario the runner scans all mined JSON receipts and rejects any
 transaction whose status is not `0x1`. This is required because a mined revert

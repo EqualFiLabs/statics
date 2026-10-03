@@ -103,7 +103,8 @@ jq -s \
         receipts: {mined:$receiptTotal,successful:$receiptSuccess,failed:$receiptFailed},
         selectorCoverage: {
             classifications: $selectorCounts[0],
-            unrehearsed: ($selectorCoverage[0] | map(select(.classification == "not-rehearsed")))
+            unrehearsed: ($selectorCoverage[0] | map(select(.classification == "not-rehearsed"))),
+            unqueriedViews: ($selectorCoverage[0] | map(select(.classification == "view" and .successCovered == false)))
         },
         finalSolvencyStatus: (if ((map(select(.suite == "accounting" and .status != "pass")) | length) == 0) then "pass" else "fail" end),
         gas: {

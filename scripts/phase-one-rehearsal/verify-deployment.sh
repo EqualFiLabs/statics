@@ -194,6 +194,10 @@ mapfile -t facets < <(
         | awk '/^0x[0-9a-fA-F]{40}$/'
 )
 assert_eq "${#facets[@]}" "$EXPECTED_FACETS" "Phase 1 facet count"
+FACET_DETAILS=$(cast call "$STATICS_DIAMOND_ADDRESS" 'facets()((address,bytes4[])[])' \
+    --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0] | length' <<<"$FACET_DETAILS")" "$EXPECTED_FACETS" \
+    "Phase 1 facet detail count"
 
 ONCHAIN_TSV="$RUN_DIR/onchain-selectors.tsv"
 : >"$ONCHAIN_TSV"

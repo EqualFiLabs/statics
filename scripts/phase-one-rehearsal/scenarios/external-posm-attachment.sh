@@ -86,6 +86,37 @@ cast send "$POSITION_MANAGER" 'modifyLiquidities(bytes,uint256)' "$MINT_PLAN" "$
 assert_eq "$(cast call "$POSITION_MANAGER" 'ownerOf(uint256)(address)' "$POSM_TOKEN_ID" --rpc-url "$RPC_URL")" \
     "$OWNER" "external POSM owner"
 
+# Mint a second real v4 position and deliberately transfer it into the
+# liquidity manager without a PositionNFT binding. Only timelocked governance
+# may recover this otherwise-stranded NFT, and recovery must preserve the NFT
+# rather than treating it as protocol POL or user-managed gauge state.
+RECOVERY_POSM_TOKEN_ID=$(cast call "$POSITION_MANAGER" 'nextTokenId()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+RECOVERY_MINT_PARAM=$(cast abi-encode \
+    'f((address,address,uint24,int24,address),int24,int24,uint256,uint128,uint128,address,bytes)' \
+    "$POOL_KEY" -600 600 1000000000000000000 \
+    5000000000000000000 5000000000000000000 "$OWNER" 0x)
+RECOVERY_MINT_PLAN=$(cast abi-encode 'f(bytes,bytes[])' 0x020d "[$RECOVERY_MINT_PARAM,$SETTLE_PARAM]")
+cast send "$POSITION_MANAGER" 'modifyLiquidities(bytes,uint256)' "$RECOVERY_MINT_PLAN" "$DEADLINE" \
+    --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
+    >"$RUN_DIR/attach-mint-recovery-posm.json"
+cast send "$POSITION_MANAGER" 'transferFrom(address,address,uint256)' \
+    "$OWNER" "$STATICS_LIQUIDITY_MANAGER_ADDRESS" "$RECOVERY_POSM_TOKEN_ID" \
+    --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/attach-strand-recovery-posm.json"
+assert_eq "$(cast call "$POSITION_MANAGER" 'ownerOf(uint256)(address)' \
+    "$RECOVERY_POSM_TOKEN_ID" --rpc-url "$RPC_URL")" "$STATICS_LIQUIDITY_MANAGER_ADDRESS" \
+    "unbound POSM held by liquidity manager"
+expect_call_revert "non-governance unbound POSM recovery" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'recoverUnboundPosm(address,uint256,address)' \
+    "$STATICS_LIQUIDITY_MANAGER_ADDRESS" "$RECOVERY_POSM_TOKEN_ID" "$OWNER" \
+    --from "$OWNER" --rpc-url "$RPC_URL" >/dev/null
+RECOVERY_CALLDATA=$(cast calldata 'recoverUnboundPosm(address,uint256,address)' \
+    "$STATICS_LIQUIDITY_MANAGER_ADDRESS" "$RECOVERY_POSM_TOKEN_ID" "$OWNER")
+timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$RECOVERY_CALLDATA" attach-recover-unbound-posm
+assert_eq "$(cast call "$POSITION_MANAGER" 'ownerOf(uint256)(address)' \
+    "$RECOVERY_POSM_TOKEN_ID" --rpc-url "$RPC_URL")" "$OWNER" \
+    "governance recovered unbound POSM"
+
 # A PositionNFT operator controls the financial account but cannot take a POSM
 # owned by somebody else. Pool-kind and PoolId checks also precede any transfer.
 cast send "$STATICS_DIAMOND_ADDRESS" 'approve(address,uint256)' "$OPERATOR" "$POSITION_ID" \
@@ -111,6 +142,10 @@ assert_eq "$(cast call "$POSITION_MANAGER" 'ownerOf(uint256)(address)' "$POSM_TO
 expect_call_revert "duplicate attached leg" \
     cast call "$STATICS_DIAMOND_ADDRESS" 'attachLiquidity(uint256,bytes32,uint256)((uint256,uint128,uint256,uint256,uint256,uint256))' \
     "$POSITION_ID" "$POOL_ID" "$POSM_TOKEN_ID" --from "$OWNER" --rpc-url "$RPC_URL" >/dev/null
+expect_call_revert "bound POSM cannot use unbound recovery" \
+    cast call "$STATICS_DIAMOND_ADDRESS" 'recoverUnboundPosm(address,uint256,address)' \
+    "$STATICS_LIQUIDITY_MANAGER_ADDRESS" "$POSM_TOKEN_ID" "$OWNER" \
+    --from "$STATICS_TIMELOCK_ADDRESS" --rpc-url "$RPC_URL" >/dev/null
 
 GAUGE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
     'gaugePool(bytes32)((bool,bool,uint40,int24,uint128,uint64,uint64))' "$POOL_ID" --rpc-url "$RPC_URL" --json)
@@ -181,4 +216,5 @@ assert_phase_one_solvency external-posm "$CURRENCY0" "$CURRENCY1"
 record_result range-gauge external-posm-authority pass "$POSM_TOKEN_ID"
 record_result range-gauge external-posm-pool-boundaries pass "$WRONG_POOL_ID and $PERMISSIONED_POOL_ID"
 record_result range-gauge external-posm-lifecycle pass "$POSITION_ID"
+record_result range-gauge unbound-posm-recovery pass "$RECOVERY_POSM_TOKEN_ID"
 note "external POSM attachment and managed lifecycle scenarios passed"

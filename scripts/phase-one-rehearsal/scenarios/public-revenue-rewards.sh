@@ -65,6 +65,21 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointRewardAssets(address[])' "[$CURR
     >"$RUN_DIR/public-revenue-reward-checkpoint.json"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'canAccrueStakerRewards(address)(bool)' "$CURRENCY0" --rpc-url "$RPC_URL")" true "currency0 reward eligibility"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'canAccrueStakerRewards(address)(bool)' "$CURRENCY1" --rpc-url "$RPC_URL")" true "currency1 reward eligibility"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardEligibilityDelay()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    86400 "global reward eligibility delay"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardEligibilityBucketSize()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    3600 "global reward eligibility bucket"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'hardMaxRewardAssetsPerPosition()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    64 "global reward hard asset limit"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'totalStaked()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
+    1000000000000000000000 "global staked STATICS"
+FEE_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'feeCustodyAccount()(bytes32)' --rpc-url "$RPC_URL")
+STAKING_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'stakingCustodyAccount()(bytes32)' --rpc-url "$RPC_URL")
+GAUGE_RESERVE_ACCOUNT=$(cast call "$STATICS_DIAMOND_ADDRESS" 'gaugeReserveCustodyAccount()(bytes32)' --rpc-url "$RPC_URL")
+[[ "$FEE_ACCOUNT" != "$STAKING_ACCOUNT" && "$FEE_ACCOUNT" != "$GAUGE_RESERVE_ACCOUNT" \
+    && "$STAKING_ACCOUNT" != "$GAUGE_RESERVE_ACCOUNT" ]] || fail "Phase 1 custody accounts are not distinct"
+cast call "$STATICS_DIAMOND_ADDRESS" 'unreservedBalance(address)(uint256)' "$CURRENCY0" \
+    --rpc-url "$RPC_URL" >/dev/null
 
 # Trade both ways so each asset enters the public fee accounting.
 wrap_weth "$TRADER_INDEX" 5000000000000000000 public-revenue-trader
@@ -103,6 +118,12 @@ for asset in "$CURRENCY0" "$CURRENCY1"; do
     cast send "$STATICS_DIAMOND_ADDRESS" 'settlePublicSwapRewards(address,uint256)(uint256)' \
         "$asset" "$(cast max-uint)" --private-key "$(anvil_private_key "$MAINTAINER_INDEX")" \
         --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/public-revenue-fund-${asset,,}.json"
+    assert_gt "$(cast call "$STATICS_DIAMOND_ADDRESS" 'fundedGlobalRewards(address)(uint256)' \
+        "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 "funded global rewards for $asset"
+    assert_gt "$(cast call "$STATICS_DIAMOND_ADDRESS" 'outstandingGlobalRewardLiability(address)(uint256)' \
+        "$asset" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 "outstanding global reward liability for $asset"
+    cast call "$STATICS_DIAMOND_ADDRESS" 'rewardBookNeedsCheckpoint(address)(bool)' \
+        "$asset" --rpc-url "$RPC_URL" >/dev/null
 done
 BALANCE0_BEFORE=$(cast call "$CURRENCY0" 'balanceOf(address)(uint256)' "$STAKER" --rpc-url "$RPC_URL" | awk '{print $1}')
 BALANCE1_BEFORE=$(cast call "$CURRENCY1" 'balanceOf(address)(uint256)' "$STAKER" --rpc-url "$RPC_URL" | awk '{print $1}')
@@ -145,6 +166,12 @@ done
 cast send "$STATICS_DIAMOND_ADDRESS" 'addRewardRestriction(address)' "$CURRENCY0" \
     --private-key "$(anvil_private_key 1)" --rpc-url "$RPC_URL" --legacy --json \
     >"$RUN_DIR/public-revenue-restrict.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardRestricted(address)(bool)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL")" true "active reward restriction"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardRestrictionNonce(address)(uint64)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')" 1 "reward restriction nonce"
+assert_gt "$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardRestrictionTimestamp(address,uint64)(uint40)' \
+    "$CURRENCY0" 0 --rpc-url "$RPC_URL" | awk '{print $1}')" 0 "reward restriction timestamp"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'canAccrueStakerRewards(address)(bool)' "$CURRENCY0" --rpc-url "$RPC_URL")" false "restricted reward eligibility"
 RESTRICTED_UNFUNDED_BEFORE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'unfundedSwapRewards(address)(uint256)' "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
 TREASURY_BUCKET_BEFORE=$(cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" \
@@ -159,6 +186,8 @@ TREASURY_BUCKET_AFTER=$(cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" \
 assert_gt "$TREASURY_BUCKET_AFTER" "$TREASURY_BUCKET_BEFORE" "restricted staker share Treasury fallback"
 REMOVE_CALLDATA=$(cast calldata 'removeRewardRestriction(address)' "$CURRENCY0")
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$REMOVE_CALLDATA" public-revenue-unrestrict
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardRestricted(address)(bool)' \
+    "$CURRENCY0" --rpc-url "$RPC_URL")" false "removed reward restriction"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'canAccrueStakerRewards(address)(bool)' "$CURRENCY0" --rpc-url "$RPC_URL")" true "restored reward eligibility"
 RESUMED_BEFORE=$(cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" 'pendingStakerRewards(address)(uint256)' "$CURRENCY0" --rpc-url "$RPC_URL" | awk '{print $1}')
 v4_swap_exact_in "$TRADER_INDEX" "$CURRENCY0" "$CURRENCY1" 3000 60 "$STATICS_SWAP_FEE_HOOK_ADDRESS" true 100000000000000000 public-revenue-resumed

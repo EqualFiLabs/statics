@@ -163,6 +163,77 @@ NATIVE_PREVIEW=$(cast call "$STATICS_DIAMOND_ADDRESS" \
 NATIVE_TOTAL=$(printf '%s + %s\n' "$(jq -r '.[0]' <<<"$NATIVE_PREVIEW")" "$(jq -r '.[1]' <<<"$NATIVE_PREVIEW")" | bc)
 assert_gt "$NATIVE_TOTAL" 0 "public native LP fee preview"
 
+# Exercise the complete PositionNFT discovery and transfer surface against live
+# Phase 1 state. The owner-index sync is permissionless and idempotent for a
+# position created by the current deployment.
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'name()(string)' --rpc-url "$RPC_URL")" \
+    '"Statics Position"' "PositionNFT name"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'symbol()(string)' --rpc-url "$RPC_URL")" \
+    '"STXPOS"' "PositionNFT symbol"
+TOKEN_URI=$(cast call "$STATICS_DIAMOND_ADDRESS" 'tokenURI(uint256)(string)' "$POSITION_ID" --rpc-url "$RPC_URL")
+[[ "$TOKEN_URI" == '"data:application/json;base64,'* ]] || fail "PositionNFT metadata URI is not inline JSON"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionInitializing(uint256)(bool)' \
+    "$POSITION_ID" --rpc-url "$RPC_URL")" false "PositionNFT initialization completed"
+POSITION_STATE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'positionState(uint256)((bool,uint256,uint256,uint256))' "$POSITION_ID" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][0]' <<<"$POSITION_STATE")" true "PositionNFT state exists"
+assert_gt "$(jq -r '.[0][2]' <<<"$POSITION_STATE")" 0 "PositionNFT live leg count"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isLegActive(uint256,bytes32)(bool)' \
+    "$POSITION_ID" 0x0000000000000000000000000000000000000000000000000000000000000000 \
+    --rpc-url "$RPC_URL")" false "unknown PositionNFT leg is inactive"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isPositionClosable(uint256)(bool)' \
+    "$POSITION_ID" --rpc-url "$RPC_URL")" false "live PositionNFT is not closable"
+assert_ge "$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionCount(address)(uint256)' \
+    "$ALICE" --rpc-url "$RPC_URL" | awk '{print $1}')" 1 "PositionNFT owner index count"
+OWNER_PAGE=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'positionsOfOwner(address,uint256,uint256)(uint256[],uint256)' "$ALICE" 0 100 \
+    --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq --arg id "$POSITION_ID" '[.[0][] | select(. == $id)] | length' <<<"$OWNER_PAGE")" \
+    1 "PositionNFT owner index membership"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'locked(uint256)(bool)' \
+    "$POSITION_ID" --rpc-url "$RPC_URL")" false "Phase 1 PositionNFT is unlocked"
+INDEX_COUNT_BEFORE=$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionCount(address)(uint256)' \
+    "$ALICE" --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'syncPositionOwnerIndex(uint256)' "$POSITION_ID" \
+    --private-key "$(anvil_private_key "$OUTSIDER_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/position-market-sync-owner-index.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionCount(address)(uint256)' \
+    "$ALICE" --rpc-url "$RPC_URL" | awk '{print $1}')" "$INDEX_COUNT_BEFORE" \
+    "idempotent PositionNFT owner-index sync"
+
+# Exercise operator-wide approval and both safe-transfer overloads on ordinary
+# PositionNFTs so the selector manifest represents real executions rather than
+# inherited ABI assumptions.
+SAFE_POSITION_A=$(cast call "$STATICS_DIAMOND_ADDRESS" 'nextPositionId()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'createPosition(address)(uint256)' "$ALICE" \
+    --value "$POSITION_FEE" --private-key "$(anvil_private_key "$ALICE_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/position-market-safe-position-a.json"
+SAFE_POSITION_B=$(cast call "$STATICS_DIAMOND_ADDRESS" 'nextPositionId()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" 'createPosition(address)(uint256)' "$ALICE" \
+    --value "$POSITION_FEE" --private-key "$(anvil_private_key "$ALICE_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/position-market-safe-position-b.json"
+cast send "$STATICS_DIAMOND_ADDRESS" 'setApprovalForAll(address,bool)' "$OPERATOR" true \
+    --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/position-market-set-operator.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isApprovedForAll(address,address)(bool)' \
+    "$ALICE" "$OPERATOR" --rpc-url "$RPC_URL")" true "PositionNFT operator approval"
+cast send "$STATICS_DIAMOND_ADDRESS" 'safeTransferFrom(address,address,uint256)' \
+    "$ALICE" "$BOB" "$SAFE_POSITION_A" --private-key "$(anvil_private_key "$OPERATOR_INDEX")" \
+    --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/position-market-safe-transfer-a.json"
+cast send "$STATICS_DIAMOND_ADDRESS" 'safeTransferFrom(address,address,uint256,bytes)' \
+    "$ALICE" "$BOB" "$SAFE_POSITION_B" 0x73746174696373 \
+    --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/position-market-safe-transfer-b.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' \
+    "$SAFE_POSITION_A" --rpc-url "$RPC_URL")" "$BOB" "operator safe-transfer owner"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'ownerOf(uint256)(address)' \
+    "$SAFE_POSITION_B" --rpc-url "$RPC_URL")" "$BOB" "data safe-transfer owner"
+cast send "$STATICS_DIAMOND_ADDRESS" 'setApprovalForAll(address,bool)' "$OPERATOR" false \
+    --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/position-market-clear-operator.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isApprovedForAll(address,address)(bool)' \
+    "$ALICE" "$OPERATOR" --rpc-url "$RPC_URL")" false "PositionNFT operator revocation"
+
 # ERC-721 transfer moves the live financial account and clears token approval.
 cast send "$STATICS_DIAMOND_ADDRESS" 'approve(address,uint256)' "$OPERATOR" "$POSITION_ID" \
     --private-key "$(anvil_private_key "$ALICE_INDEX")" --rpc-url "$RPC_URL" --legacy --json \
@@ -242,5 +313,7 @@ assert_phase_one_solvency position-market-transfer "$CURRENCY0" "$CURRENCY1"
 record_result position-market public-introspection pass "stake, rewards, allocations, range, and fee views"
 record_result position-market live-account-transfer pass "position $POSITION_ID from $ALICE to $BOB"
 record_result position-market approval-clearing pass "$OPERATOR"
+record_result position-market safe-transfer-overloads pass "$SAFE_POSITION_A and $SAFE_POSITION_B"
+record_result position-market owner-index-sync pass "$POSITION_ID"
 record_result position-market royalty-governance pass "0 to 1000 BPS signaling"
 note "PositionNFT introspection, transfer, authority, and royalty scenarios passed"
