@@ -36,7 +36,7 @@ Robinhood manifest, so it cannot create a Diamond that the later handoff cannot 
 
 ## Phase 1: arbitrary hooked pairs and STATICS staking
 
-Phase 1 installs 31 facets and 219 selectors for:
+Phase 1 installs 31 facets and 220 selectors for:
 
 - the Diamond cut, loupe, ownership, and timelocked governance kernel;
 - general Uniswap v4 pools between arbitrary compatible ERC-20s using the reusable
@@ -186,7 +186,7 @@ replacement cut; later activation scripts fail closed on an unexpected earlier r
 
 ## Audit boundary
 
-Phase 1's deployed review surface remains its 219 reachable selectors, facet paths and shared
+Phase 1's deployed review surface remains its 220 reachable selectors, facet paths and shared
 libraries, Diamond kernel and initializer, timelock, both hooks, permissioned periphery and claims,
 venue controller, public range-gauge accounting and custody, the liquidity manager,
 managed-POL custody and lifecycle, and deployment ceremonies. Each later audit covers its
