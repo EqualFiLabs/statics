@@ -20,7 +20,7 @@ phase-specific one-time initialization.
 - the fresh full-stack launcher concatenates those same four cuts instead of maintaining a second
   handwritten full manifest.
 
-The complete plan contains 396 selectors. CI deploys Phase 1, advances the same Diamond through all
+The complete plan contains 397 selectors. CI deploys Phase 1, advances the same Diamond through all
 four timelocked batches, and compares every final selector and implementation runtime hash with a
 fresh full deployment. A selector addition or reassignment must therefore update the canonical
 phase plan; the staged and fresh paths cannot silently diverge.
@@ -105,7 +105,7 @@ always owner/timelock executed and requires exact creator EIP-712 or ERC-1271 au
 
 ## Phase 2: baskets, credit, flash composition, and Genesis integration
 
-Phase 2 adds 92 selectors for a cumulative 311 selectors across 43 facets. It installs:
+Phase 2 adds 92 selectors for a cumulative 312 selectors across 43 facets. It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
@@ -130,7 +130,7 @@ runtimes and bindings.
 
 ## Phase 3: Statics Dollar
 
-Phase 3 adds 58 selectors for a cumulative 369 selectors across 48 facets. It adds Dollar custody,
+Phase 3 adds 58 selectors for a cumulative 370 selectors across 48 facets. It adds Dollar custody,
 Risk Share staking and incentives, fee routing, the pairing vault, the Dollar gateway, and series
 migration.
 
@@ -147,7 +147,7 @@ atomically install and initialize the periphery before finalizing the core-to-Di
 
 ## Phase 4: Morpho
 
-Phase 4 adds 27 selectors for the final 396 selectors across 53 facets. It installs the remaining
+Phase 4 adds 27 selectors for the final 397 selectors across 53 facets. It installs the remaining
 Position portfolio view plus Morpho administration, actions, settlement, recovery, and views.
 
 The phase deploys five Morpho facet implementations and `StaticsPhaseFourInit`: six contracts.

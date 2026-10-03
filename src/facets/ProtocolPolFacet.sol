@@ -37,7 +37,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
     error ProtocolPolAggregateDebitExceeded(uint256 debit0, uint256 debit1);
     error ProtocolPolRebalanceExpired(uint256 deadline);
 
-    /// @notice Replace up to eight positions atomically within one PoolId custody book.
+    /// @notice Seed or replace up to eight positions atomically within one PoolId custody book.
     /// @dev Opening maxima are gross debits; returned principal never offsets this bound.
     function rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams calldata params)
         external
@@ -47,9 +47,9 @@ contract ProtocolPolFacet is ReentrancyGuard {
         _enforcePolOperator();
         _enforceLiquidityActive();
         if (params.deadline < block.timestamp) revert ProtocolPolRebalanceExpired(params.deadline);
-        if (
-            params.closes.length == 0 || params.closes.length > 8 || params.opens.length == 0 || params.opens.length > 8
-        ) revert InvalidProtocolPolRebalanceLegs();
+        if (params.closes.length > 8 || params.opens.length == 0 || params.opens.length > 8) {
+            revert InvalidProtocolPolRebalanceLegs();
+        }
         _enforcePublicPool(params.poolId);
         uint256 debit0;
         uint256 debit1;

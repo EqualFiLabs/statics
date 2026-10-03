@@ -448,6 +448,53 @@ contract ProtocolPolLifecycleTest is GeneralPoolLifecycleTestBase {
         assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(operator), 0);
     }
 
+    function testAtomicInitialSeedOpensMultipleBandsWithoutRemovingCustody() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Seed Alpha", "Seed Beta");
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _initialSeedParams(poolId, key);
+        vm.prank(operator);
+        uint256[] memory ids = pools.rebalanceProtocolPolPositions(params);
+        assertEq(ids.length, 3);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 3);
+        for (uint256 i; i < ids.length; ++i) {
+            _assertProtocolBinding(ids[i]);
+        }
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(operator), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(operator), 0);
+    }
+
+    function testAtomicInitialSeedRollsBackEarlierMintsWhenLaterMintFails() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Seed Rollback Alpha", "Seed Rollback Beta");
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _initialSeedParams(poolId, key);
+        uint256 reserve0 = _polReserve(poolId, key.currency0);
+        uint256 reserve1 = _polReserve(poolId, key.currency1);
+        params.opens[2].tickUpper = params.opens[2].tickLower;
+        vm.prank(operator);
+        vm.expectRevert();
+        pools.rebalanceProtocolPolPositions(params);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 0);
+        assertEq(pools.protocolPolPositionIds(poolId).length, 0);
+        assertEq(_polReserve(poolId, key.currency0), reserve0);
+        assertEq(_polReserve(poolId, key.currency1), reserve1);
+    }
+
+    function _initialSeedParams(PoolId poolId, PoolKey memory key)
+        private
+        view
+        returns (IStaticsProtocolPools.ProtocolPolRebalanceParams memory params)
+    {
+        params.poolId = poolId;
+        params.closes = new IStaticsProtocolPools.ProtocolPolCloseLeg[](0);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](3);
+        params.maximumCustodyDebit0 = _polReserve(poolId, key.currency0);
+        params.maximumCustodyDebit1 = _polReserve(poolId, key.currency1);
+        uint256 cap0 = params.maximumCustodyDebit0 / 3;
+        uint256 cap1 = params.maximumCustodyDebit1 / 3;
+        params.opens[0] = IStaticsProtocolPools.ProtocolPolOpenLeg(-600, 600, 1e10, cap0, cap1);
+        params.opens[1] = IStaticsProtocolPools.ProtocolPolOpenLeg(600, 1_200, 1e10, cap0, 0);
+        params.opens[2] = IStaticsProtocolPools.ProtocolPolOpenLeg(-1_200, -600, 1e10, 0, cap1);
+        params.deadline = block.timestamp + 1 days;
+    }
+
     function _rebalanceParams(PoolId poolId, PoolKey memory key, uint256 id)
         private
         view

@@ -1,8 +1,9 @@
 # Atomic protocol POL repositioning
 
-`rebalanceProtocolPolPositions` replaces one to eight existing POL positions
-with one to eight new positions within a single registered public PoolId. It
-requires the existing POL operator or Diamond owner, active liquidity ingress,
+`rebalanceProtocolPolPositions` closes zero to eight existing POL positions
+and opens one to eight new positions within a single registered public PoolId. It
+can atomically seed an initial fee and accumulation portfolio with no close
+legs. It requires the existing POL operator or Diamond owner, active liquidity ingress,
 and an unexpired deadline. Duplicate close IDs and foreign-pool positions are
 rejected before any position changes.
 
