@@ -364,18 +364,82 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
     }
 
     function testCatchUpBeyondMaximumUsesMultipleBoundedCalls() public {
-        _fundReserve(alice, 1_000 ether);
+        uint256 funded = 1_000 ether;
+        _fundReserve(alice, funded);
         incentives.activateGaugeSchedule();
-        vm.warp(block.timestamp + 53 weeks);
+        IStaticsGaugeIncentives.ReserveView memory activated = incentives.gaugeReserve();
+        incentives.scheduleGaugeReleaseBps(500);
+        vm.warp(block.timestamp + 105 weeks);
+
+        vm.expectPartialRevert(LibGaugeRouting.GaugeScheduleCatchupRequired.selector);
+        incentives.scheduleGaugeReleaseBps(600);
+        IStaticsGaugeIncentives.ReserveView memory unchanged = incentives.gaugeReserve();
+        assertEq(unchanged.currentPeriod, 0);
+        assertEq(unchanged.lastCheckpoint, activated.scheduleStart);
+        assertEq(unchanged.pendingReleaseBps, 500);
+        assertEq(unchanged.pendingReleaseAt, activated.periodFinish);
 
         (uint64 period, uint16 processed,) = incentives.checkpointGaugeSchedule(52);
         assertEq(period, 52);
         assertEq(processed, 52);
+        IStaticsGaugeIncentives.ReserveView memory first = incentives.gaugeReserve();
+        assertEq(first.lastCheckpoint, uint256(activated.scheduleStart) + 52 weeks);
+        assertEq(first.periodStart, uint256(activated.scheduleStart) + 52 weeks);
+        assertEq(first.periodFinish, uint256(activated.scheduleStart) + 53 weeks);
+        assertEq(first.releaseBps, 500);
+        assertEq(first.pendingReleaseAt, 0);
+        assertEq(first.periodBudget, 50 ether);
+        assertEq(first.available, 950 ether);
+        assertEq(first.deferred, 0);
+        assertEq(first.committed, 50 ether);
+        _assertGaugeReserveBacked(funded);
+
+        (period, processed,) = incentives.checkpointGaugeSchedule(52);
+        assertEq(period, 104);
+        assertEq(processed, 52);
+        IStaticsGaugeIncentives.ReserveView memory second = incentives.gaugeReserve();
+        assertEq(second.lastCheckpoint, uint256(activated.scheduleStart) + 104 weeks);
+        assertEq(second.periodStart, uint256(activated.scheduleStart) + 104 weeks);
+        assertEq(second.periodFinish, uint256(activated.scheduleStart) + 105 weeks);
+        assertEq(second.available, 950 ether);
+        assertEq(second.committed, 50 ether);
+        _assertGaugeReserveBacked(funded);
 
         (period, processed,) = incentives.checkpointGaugeSchedule(1);
-        assertEq(period, 53);
+        assertEq(period, 105);
         assertEq(processed, 1);
-        assertEq(incentives.gaugeReserve().lastCheckpoint, block.timestamp);
+        IStaticsGaugeIncentives.ReserveView memory current = incentives.gaugeReserve();
+        assertEq(current.lastCheckpoint, block.timestamp);
+        assertEq(current.periodStart, block.timestamp);
+        assertEq(current.periodFinish, block.timestamp + 1 weeks);
+        assertEq(current.available, 950 ether);
+        assertEq(current.deferred, 0);
+        assertEq(current.committed, 50 ether);
+        _assertGaugeReserveBacked(funded);
+    }
+
+    function testExtendedCatchUpPreservesPoolEntitlementAndCustody() public {
+        uint256 funded = 1_000 ether;
+        PoolId poolId = _createRangeGaugePool(alice);
+        uint256 positionId = _createStakedPosition(alice, 100 ether);
+        _provide(positionId, poolId, alice);
+        _setAllocation(alice, positionId, poolId, 100 ether);
+        _fundReserve(alice, funded);
+        incentives.activateGaugeSchedule();
+
+        vm.warp(block.timestamp + 53 weeks);
+        incentives.checkpointGaugeSchedule(52);
+        incentives.checkpointGaugeSchedule(1);
+
+        IStaticsGaugeIncentives.ReserveView memory beforePool = incentives.gaugeReserve();
+        assertEq(beforePool.currentPeriod, 53);
+        assertEq(beforePool.lastCheckpoint, block.timestamp);
+        assertEq(beforePool.available + beforePool.deferred + beforePool.committed, funded);
+
+        (uint256 credited, uint256 recycled) = incentives.checkpointGaugePool(poolId);
+        assertGt(credited, 0);
+        assertEq(recycled, 0);
+        _assertLongGapRewardBackingAndClaim(positionId, poolId, funded, beforePool.committed, credited);
     }
 
     function testCreatorAllocatorRewardAccruesContinuouslyAndNeverUsesSlotZero() public {
@@ -889,6 +953,48 @@ contract GaugeIncentivesTest is RangeGaugeLifecycleTestBase {
         stakingAsset.approve(address(diamond), amount);
         incentives.fundGaugeReserve(amount);
         vm.stopPrank();
+    }
+
+    function _assertGaugeReserveBacked(uint256 expected) private view {
+        IStaticsGaugeIncentives.ReserveView memory reserve = incentives.gaugeReserve();
+        assertEq(reserve.available + reserve.deferred + reserve.committed, expected);
+        assertEq(custody.reservedByAccount(custody.gaugeReserveCustodyAccount(), address(stakingAsset)), expected);
+        assertEq(stakingAsset.balanceOf(address(diamond)), expected);
+    }
+
+    function _assertLongGapRewardBackingAndClaim(
+        uint256 positionId,
+        PoolId poolId,
+        uint256 funded,
+        uint256 committedBefore,
+        uint256 credited
+    ) private {
+        IStaticsGaugeIncentives.ReserveView memory reserve = incentives.gaugeReserve();
+        bytes32 rewardAccount = LibRangeGauge.rewardAccount(poolId, 0);
+        uint256 reserveBacking = custody.reservedByAccount(custody.gaugeReserveCustodyAccount(), address(stakingAsset));
+        uint256 rewardBacking = custody.reservedByAccount(rewardAccount, address(stakingAsset));
+        assertEq(reserve.committed, committedBefore);
+        assertEq(rewardBacking, credited);
+        assertEq(reserveBacking + rewardBacking, funded);
+        assertEq(reserveBacking + rewardBacking, reserve.available + reserve.deferred + reserve.committed);
+
+        uint8[] memory slots = new uint8[](1);
+        slots[0] = 0;
+        uint256[] memory minimums = new uint256[](1);
+        uint256 balanceBefore = stakingAsset.balanceOf(alice);
+        vm.prank(alice);
+        uint256 claimed = rangeGauge.claimLpRewards(positionId, poolId, slots, minimums, alice)[0];
+        assertApproxEqAbs(claimed, credited, 2);
+        assertEq(stakingAsset.balanceOf(alice) - balanceBefore, claimed);
+
+        IStaticsGaugeIncentives.ReserveView memory afterClaim = incentives.gaugeReserve();
+        uint256 residualRewardBacking = custody.reservedByAccount(rewardAccount, address(stakingAsset));
+        assertLe(residualRewardBacking, 2);
+        assertEq(afterClaim.committed, reserve.committed - claimed);
+        assertEq(
+            reserveBacking + residualRewardBacking, afterClaim.available + afterClaim.deferred + afterClaim.committed
+        );
+        assertEq(reserveBacking + residualRewardBacking + claimed, funded);
     }
 
     function _fundAllocatorReward(PoolId poolId, MockERC20 reward, uint256 amount) private {
