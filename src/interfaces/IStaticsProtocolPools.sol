@@ -61,6 +61,29 @@ interface IStaticsProtocolPools {
         uint256 deadline;
     }
 
+    struct ProtocolPolCloseLeg {
+        uint256 positionId;
+        uint256 amount0Minimum;
+        uint256 amount1Minimum;
+    }
+
+    struct ProtocolPolOpenLeg {
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+        uint256 amount0Maximum;
+        uint256 amount1Maximum;
+    }
+
+    struct ProtocolPolRebalanceParams {
+        PoolId poolId;
+        ProtocolPolCloseLeg[] closes;
+        ProtocolPolOpenLeg[] opens;
+        uint256 maximumCustodyDebit0;
+        uint256 maximumCustodyDebit1;
+        uint256 deadline;
+    }
+
     struct ProtocolPolLiquidityParams {
         uint256 positionId;
         uint128 liquidity;
@@ -193,6 +216,10 @@ interface IStaticsProtocolPools {
         external
         returns (uint256 amount);
     function openProtocolPolPosition(ProtocolPolOpenParams calldata params) external returns (uint256 positionId);
+    function rebalanceProtocolPolPositions(ProtocolPolRebalanceParams calldata params)
+        external
+        returns (uint256[] memory newPositionIds);
+
     function increaseProtocolPolPosition(ProtocolPolLiquidityParams calldata params) external;
     function decreaseProtocolPolPosition(ProtocolPolLiquidityParams calldata params) external;
     function collectProtocolPolFees(uint256 positionId, uint256 deadline) external;

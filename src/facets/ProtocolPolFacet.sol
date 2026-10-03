@@ -32,6 +32,97 @@ contract ProtocolPolFacet is ReentrancyGuard {
     error InvalidProtocolPolAsset(PoolId poolId, address asset);
     error ProtocolPolSettlementMismatch(address asset, uint256 reported, uint256 observed);
 
+    error InvalidProtocolPolRebalanceLegs();
+    error DuplicateProtocolPolClose(uint256 positionId);
+    error ProtocolPolAggregateDebitExceeded(uint256 debit0, uint256 debit1);
+    error ProtocolPolRebalanceExpired(uint256 deadline);
+
+    /// @notice Replace up to eight positions atomically within one PoolId custody book.
+    /// @dev Opening maxima are gross debits; returned principal never offsets this bound.
+    function rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams calldata params)
+        external
+        nonReentrant
+        returns (uint256[] memory newPositionIds)
+    {
+        _enforcePolOperator();
+        _enforceLiquidityActive();
+        if (params.deadline < block.timestamp) revert ProtocolPolRebalanceExpired(params.deadline);
+        if (
+            params.closes.length == 0 || params.closes.length > 8 || params.opens.length == 0 || params.opens.length > 8
+        ) revert InvalidProtocolPolRebalanceLegs();
+        _enforcePublicPool(params.poolId);
+        uint256 debit0;
+        uint256 debit1;
+        for (uint256 i; i < params.opens.length; ++i) {
+            debit0 += params.opens[i].amount0Maximum;
+            debit1 += params.opens[i].amount1Maximum;
+        }
+        if (debit0 > params.maximumCustodyDebit0 || debit1 > params.maximumCustodyDebit1) {
+            revert ProtocolPolAggregateDebitExceeded(debit0, debit1);
+        }
+        // Validate every close identity before any external position mutation.
+        for (uint256 i; i < params.closes.length; ++i) {
+            uint256 id = params.closes[i].positionId;
+            for (uint256 j; j < i; ++j) {
+                if (params.closes[j].positionId == id) revert DuplicateProtocolPolClose(id);
+            }
+            LibProtocolPools.ProtocolPolPosition storage position =
+                LibProtocolPools.protocolPoolStorage().polPositions[id];
+            if (!position.active) revert LibProtocolPol.ProtocolPolPositionNotFound(id);
+            if (PoolId.unwrap(position.poolId) != PoolId.unwrap(params.poolId)) {
+                revert LibProtocolPol.ProtocolPolPositionPoolMismatch(id, params.poolId, position.poolId);
+            }
+        }
+        for (uint256 i; i < params.closes.length; ++i) {
+            _rebalanceClose(params.closes[i], params.deadline);
+        }
+        newPositionIds = new uint256[](params.opens.length);
+        for (uint256 i; i < params.opens.length; ++i) {
+            newPositionIds[i] = _rebalanceOpen(params.poolId, params.opens[i], params.deadline);
+        }
+    }
+
+    function _rebalanceClose(IStaticsProtocolPools.ProtocolPolCloseLeg calldata leg, uint256 deadline) private {
+        (
+            LibProtocolPools.ProtocolPolPosition storage position,
+            IStaticsLiquidityManager.ManagedPositionMovement memory movement
+        ) = LibProtocolPol.close(leg.positionId, leg.amount0Minimum, leg.amount1Minimum, deadline);
+        emit IStaticsProtocolPools.ProtocolPolPositionClosed(
+            position.poolId, leg.positionId, movement.received0, movement.received1
+        );
+    }
+
+    function _rebalanceOpen(PoolId poolId, IStaticsProtocolPools.ProtocolPolOpenLeg calldata leg, uint256 deadline)
+        private
+        returns (uint256 positionId)
+    {
+        IStaticsLiquidityManager.ManagedPositionMovement memory movement;
+        (positionId, movement) = LibProtocolPol.open(
+            IStaticsProtocolPools.ProtocolPolOpenParams({
+                poolId: poolId,
+                tickLower: leg.tickLower,
+                tickUpper: leg.tickUpper,
+                liquidity: leg.liquidity,
+                amount0Maximum: leg.amount0Maximum,
+                amount1Maximum: leg.amount1Maximum,
+                deadline: deadline
+            })
+        );
+        LibProtocolPools.ProtocolPolPosition storage position =
+            LibProtocolPools.protocolPoolStorage().polPositions[positionId];
+        emit IStaticsProtocolPools.ProtocolPolPositionOpened(
+            poolId,
+            positionId,
+            position.manager,
+            position.posmTokenId,
+            position.tickLower,
+            position.tickUpper,
+            position.liquidity,
+            movement.spent0,
+            movement.spent1
+        );
+    }
+
     function setProtocolPolOperator(address operator) external {
         LibDiamond.enforceIsContractOwner();
         if (operator == address(this)) revert InvalidProtocolPolOperator(operator);

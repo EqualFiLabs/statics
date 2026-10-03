@@ -612,7 +612,7 @@ library StaticsSelectors {
     }
 
     function protocolPol() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](11);
+        selectors = new bytes4[](12);
         selectors[0] = IStaticsProtocolPools.setProtocolPolOperator.selector;
         selectors[1] = IStaticsProtocolPools.setProtocolPolActivationFee.selector;
         selectors[2] = IStaticsProtocolPools.activateProtocolPoolPol.selector;
@@ -624,6 +624,7 @@ library StaticsSelectors {
         selectors[8] = IStaticsProtocolPools.decreaseProtocolPolPosition.selector;
         selectors[9] = IStaticsProtocolPools.collectProtocolPolFees.selector;
         selectors[10] = IStaticsProtocolPools.closeProtocolPolPosition.selector;
+        selectors[11] = IStaticsProtocolPools.rebalanceProtocolPolPositions.selector;
     }
 
     function protocolPoolView() internal pure returns (bytes4[] memory selectors) {
