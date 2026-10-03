@@ -10,6 +10,7 @@ import {GeneralPoolLifecycleTestBase} from "../../test/helpers/GeneralPoolLifecy
 contract PolManagerForkFixture is GeneralPoolLifecycleTestBase {
     // Keep construction in the exporting transaction so dumpState includes the full genesis.
     function setUp() public override {}
+
     function testExportManagerForkGenesis() public {
         string memory destination = vm.envOr("POL_FIXTURE_DIRECTORY", string(""));
         if (bytes(destination).length == 0) {
