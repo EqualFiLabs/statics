@@ -66,3 +66,18 @@ suppressed.
 Future CI compares normalized findings to the exact reviewed fingerprints and
 fails on unreviewed occurrences or growth in a reviewed occurrence group. A
 detector appearing in this table still requires a new per-fingerprint decision.
+
+
+## Atomic POL rebalance extension
+
+The CI artifact for `8dbe6b8` contains 842 normalized findings. Independent
+local review classifies each of the eight new exact fingerprints in the
+baseline: four are shifted source-span identities for unchanged settlement and
+activation paths, and four describe bounded atomic rebalance accumulators,
+deadline enforcement and control-flow complexity. No shared occurrence group
+grows. The zero accumulators and branch-assigned currency are false positives;
+partial tuple reads, deadlines and bounded complexity are intentional. The
+settlement balance detector remains protected by nonReentrant, exact observed
+movement, a fixed Diamond receiver and atomic custody reservation. Native
+activation fee forwarding checks the configured fee and call result. No
+scope exclusion or detector-family suppression is added.

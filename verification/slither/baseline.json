@@ -2,15 +2,15 @@
   "schema": 2,
   "counts": {
     "High": 66,
-    "Medium": 416,
-    "Low": 222,
-    "Informational": 134
+    "Medium": 418,
+    "Low": 223,
+    "Informational": 135
   },
   "raw_counts": {
     "High": 66,
-    "Medium": 416,
-    "Low": 282,
-    "Informational": 134
+    "Medium": 418,
+    "Low": 283,
+    "Informational": 135
   },
   "findings": [
     {
@@ -444,22 +444,6 @@
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
       "id": "6661d4c502e8edd8f23e2e4a"
-    },
-    {
-      "impact": "High",
-      "confidence": "Medium",
-      "check": "reentrancy-balance",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "Reentrancy in ProtocolPolFacet.settleProtocolPoolPol(PoolId,address,uint256) (src/facets/ProtocolPolFacet.sol#73-94):",
-      "rationale": "The public settlement entrypoint is non-reentrant, fixes the receiver to Diamond custody, and verifies the exact balance increase before reserving inventory. The hook debits pending claims before transfer, and any callback, mismatch, or reserve failure reverts the complete transition.",
-      "occurrences": 1,
-      "id": "66cdc7ea66ae9d6fee3052c2"
     },
     {
       "impact": "High",
@@ -956,6 +940,22 @@
       "rationale": "The enclosing Diamond entrypoint is non-reentrant, authorization and accounting are checkpointed, and post-call balance deltas validate the immutable Morpho integration result.",
       "occurrences": 1,
       "id": "fa16a4c31fe7cd7ed06e5e2a"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "Reentrancy in ProtocolPolFacet.settleProtocolPoolPol(PoolId,address,uint256) (src/facets/ProtocolPolFacet.sol#164-185):",
+      "rationale": "Settlement is nonReentrant, fixes the receiver to Diamond custody, requires the observed balance increase to equal the reported amount, and reserves only that exact movement. The hook restricts settlement to the Diamond and debits pending claims before transferring; any mismatch or reserve failure reverts atomically.",
+      "occurrences": 1,
+      "id": "fc9b8f786257f62f407db5b9"
     },
     {
       "impact": "High",
@@ -2086,6 +2086,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams).debit0 (src/facets/ProtocolPolFacet.sol#54) is a local variable never initialized",
+      "rationale": "Solidity initializes debit0 to zero. The bounded loop accumulates every opening token0 maximum with checked arithmetic and enforces the aggregate cap before position mutation.",
+      "occurrences": 1,
+      "id": "0c02a575e0a0153767110141"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/metadata/LibAvatarSVG.sol"
       ],
       "summary": "LibAvatarSVG._staticField(string,bytes32).output (src/metadata/LibAvatarSVG.sol#106) is a local variable never initialized",
@@ -2771,6 +2787,22 @@
       "check": "uninitialized-local",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.settleProtocolPoolPol(PoolId,address,uint256).currency (src/facets/ProtocolPolFacet.sol#170) is a local variable never initialized",
+      "rationale": "Both accepted asset branches assign currency from the registered PoolKey. Every other asset reverts before the first currency use.",
+      "occurrences": 1,
+      "id": "b3ac24da79309c97ac3c8af3"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -2870,22 +2902,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "ProtocolPolFacet.settleProtocolPoolPol(PoolId,address,uint256).currency (src/facets/ProtocolPolFacet.sol#79) is a local variable never initialized",
-      "rationale": "The currency is assigned from one of the two registered PoolKey assets; every other asset takes the reverting branch before the value is used.",
-      "occurrences": 1,
-      "id": "d1f5a993cd19f29e483e98a7"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/metadata/LibAvatarSVG.sol"
       ],
       "summary": "LibAvatarSVG._field(uint8,string,bytes32).output (src/metadata/LibAvatarSVG.sol#63) is a local variable never initialized",
@@ -2956,6 +2972,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "e7c20ad0a428f539eed01a45"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams).debit1 (src/facets/ProtocolPolFacet.sol#55) is a local variable never initialized",
+      "rationale": "Solidity initializes debit1 to zero. The bounded loop accumulates every opening token1 maximum with checked arithmetic and enforces the aggregate cap before position mutation.",
+      "occurrences": 1,
+      "id": "e89429d1ddd417c0202c7fa3"
     },
     {
       "impact": "Medium",
@@ -3804,22 +3836,6 @@
       "rationale": "The received amount is consumed as the transfer result; the omitted tuple member is not needed because reserved accounting and the exact requested amount gate the withdrawal.",
       "occurrences": 1,
       "id": "2a6debf8d7ae626c169035a5"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "ProtocolPolFacet.activateProtocolPoolPol(PoolId) (src/facets/ProtocolPolFacet.sol#48-61) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPolFacet.sol#49)",
-      "rationale": "Registration validation is the required side effect boundary; activation needs only the returned pool kind and deliberately ignores the stored key and metadata.",
-      "occurrences": 1,
-      "id": "2b0837a2fe9baa541cf32bc2"
     },
     {
       "impact": "Medium",
@@ -6268,6 +6284,22 @@
       "rationale": "This view deliberately returns only the restriction timestamp; the other binary-search result fields are exposed through separate policy and sequence views.",
       "occurrences": 1,
       "id": "aa10066bf654a89dc2c94d77"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.activateProtocolPoolPol(PoolId) (src/facets/ProtocolPolFacet.sol#139-152) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPolFacet.sol#140)",
+      "rationale": "Activation requires registration validation and the returned pool kind. Key and basket metadata are deliberately ignored; creator authorization and activation state are checked independently.",
+      "occurrences": 1,
+      "id": "aa23d83db75ab017b66eb198"
     },
     {
       "impact": "Medium",
@@ -10365,6 +10397,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams) (src/facets/ProtocolPolFacet.sol#42-83) uses timestamp for comparisons",
+      "rationale": "The timestamp comparison enforces the caller transaction deadline before mutation; it supplies neither randomness nor valuation.",
+      "occurrences": 1,
+      "id": "235b0f35aaf217d176d07b7a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsTreasuryVesting.sol"
       ],
       "summary": "StaticsTreasuryVesting._vestedAt(uint256,uint256) (src/genesis/StaticsTreasuryVesting.sol#172-178) uses timestamp for comparisons",
@@ -11894,6 +11942,22 @@
     },
     {
       "impact": "Informational",
+      "confidence": "High",
+      "check": "cyclomatic-complexity",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams) (src/facets/ProtocolPolFacet.sol#42-83) has a high cyclomatic complexity (12).",
+      "rationale": "Complexity implements authority, pause, deadline, leg and gross-debit bounds plus duplicate and foreign-position validation. Both close and open counts are capped at eight; the custody library preserves atomic execution.",
+      "occurrences": 1,
+      "id": "b69ec43572a3dc765bb37971"
+    },
+    {
+      "impact": "Informational",
       "confidence": "Medium",
       "check": "dead-code",
       "classification": "INTENTIONAL",
@@ -11955,6 +12019,22 @@
       "rationale": "The unreachable private helper has no callable runtime surface or state effect. It is retained beside the equivalent incremental decommission accounting path as a local composition helper.",
       "occurrences": 1,
       "id": "b431d1770873a0434e7523ef"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "Low level call in ProtocolPolFacet._sendActivationFee(uint256) (src/facets/ProtocolPolFacet.sol#308-313):",
+      "rationale": "Guarded creator-paid activation forwards the exact configured native fee to configured Treasury after checking msg.value and updating activation. The call checks success and failure rolls back activation and payment atomically.",
+      "occurrences": 1,
+      "id": "0a64f0e4ad04044415ad56fc"
     },
     {
       "impact": "Informational",
@@ -12147,22 +12227,6 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "bae1b8d8f2781498a6d49c7d"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "Low level call in ProtocolPolFacet._sendActivationFee(uint256) (src/facets/ProtocolPolFacet.sol#217-222):",
-      "rationale": "Creator-paid activation deliberately forwards the exact native fee to the configured Treasury. The entrypoint is non-reentrant, checks call success, and a failed recipient call rolls back activation atomically.",
-      "occurrences": 1,
-      "id": "c09c1a6651e4f30f475fc149"
     },
     {
       "impact": "Informational",

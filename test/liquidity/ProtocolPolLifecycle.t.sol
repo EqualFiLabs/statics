@@ -292,6 +292,226 @@ contract ProtocolPolLifecycleTest is GeneralPoolLifecycleTestBase {
         assertEq(_polReserve(poolId, key.currency1), 0);
     }
 
+    function testAtomicRebalancePreservesCustodyAndRoutesFees() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Atomic Alpha", "Atomic Beta");
+        uint256 oldId = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        IStaticsProtocolPools.ProtocolPolPositionView memory oldPosition = pools.protocolPolPosition(oldId);
+        _swapGeneralPool(key, trader, true, 0.1 ether);
+        _swapGeneralPool(key, trader, false, 0.1 ether);
+        _settlePol(poolId, key);
+        uint256 feesBefore = globalRewards.treasuryAccrued(Currency.unwrap(key.currency0))
+            + globalRewards.treasuryAccrued(Currency.unwrap(key.currency1));
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, oldId);
+        vm.prank(operator);
+        uint256[] memory ids = pools.rebalanceProtocolPolPositions(params);
+        assertEq(ids.length, 1);
+        assertFalse(pools.protocolPolPosition(oldId).active);
+        assertEq(rangeGauge.posmBinding(oldPosition.posmTokenId), bytes32(0));
+        _assertProtocolBinding(ids[0]);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 1);
+        assertGt(
+            globalRewards.treasuryAccrued(Currency.unwrap(key.currency0))
+                + globalRewards.treasuryAccrued(Currency.unwrap(key.currency1)),
+            feesBefore
+        );
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(operator), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(operator), 0);
+        _closePosition(ids[0], operator);
+        assertGt(_polReserve(poolId, key.currency0), 0);
+        assertGt(_polReserve(poolId, key.currency1), 0);
+    }
+
+    function testAtomicRebalanceRollsBackCloseWhenLaterOpenFails() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Rollback Alpha", "Rollback Beta");
+        uint256 oldId = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        IStaticsProtocolPools.ProtocolPolPositionView memory oldPosition = pools.protocolPolPosition(oldId);
+        uint256 reserve0 = _polReserve(poolId, key.currency0);
+        uint256 reserve1 = _polReserve(poolId, key.currency1);
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, oldId);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](2);
+        params.opens[0] = IStaticsProtocolPools.ProtocolPolOpenLeg(-1_200, 1_200, 1e10, reserve0 / 2, reserve1 / 2);
+        // The second leg has an invalid range; the first new mint must also roll back.
+        params.opens[1] = IStaticsProtocolPools.ProtocolPolOpenLeg(0, 0, 1e10, reserve0 / 2, reserve1 / 2);
+        vm.prank(operator);
+        vm.expectRevert();
+        pools.rebalanceProtocolPolPositions(params);
+        assertTrue(pools.protocolPolPosition(oldId).active);
+        assertEq(pools.protocolPolPosition(oldId).liquidity, oldPosition.liquidity);
+        _assertProtocolBinding(oldId);
+        assertEq(_polReserve(poolId, key.currency0), reserve0);
+        assertEq(_polReserve(poolId, key.currency1), reserve1);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 1);
+        assertEq(pools.protocolPolPositionIds(poolId).length, 1);
+    }
+
+    function testAtomicRebalanceRejectsForeignDuplicateAndGrossDebits() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Bound Alpha", "Bound Beta");
+        uint256 id = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, id);
+        params.maximumCustodyDebit0 = params.opens[0].amount0Maximum - 1;
+        vm.prank(operator);
+        vm.expectPartialRevert(ProtocolPolFacet.ProtocolPolAggregateDebitExceeded.selector);
+        pools.rebalanceProtocolPolPositions(params);
+        params.maximumCustodyDebit0 += 1;
+        params.closes = new IStaticsProtocolPools.ProtocolPolCloseLeg[](2);
+        params.closes[0] = IStaticsProtocolPools.ProtocolPolCloseLeg(id, 0, 0);
+        params.closes[1] = IStaticsProtocolPools.ProtocolPolCloseLeg(id, 0, 0);
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSelector(ProtocolPolFacet.DuplicateProtocolPolClose.selector, id));
+        pools.rebalanceProtocolPolPositions(params);
+        (PoolId foreignId,) = _activatedFundedPool("Foreign Alpha", "Foreign Beta");
+        params.poolId = foreignId;
+        params.closes = new IStaticsProtocolPools.ProtocolPolCloseLeg[](1);
+        params.closes[0] = IStaticsProtocolPools.ProtocolPolCloseLeg(id, 0, 0);
+        vm.prank(operator);
+        vm.expectPartialRevert(bytes4(keccak256("ProtocolPolPositionPoolMismatch(uint256,bytes32,bytes32)")));
+        pools.rebalanceProtocolPolPositions(params);
+        assertTrue(pools.protocolPolPosition(id).active);
+    }
+
+    function testAtomicRebalanceRequiresOperatorDeadlineAndActiveIngress() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Authority Alpha", "Authority Beta");
+        uint256 id = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, id);
+        vm.prank(trader);
+        vm.expectPartialRevert(ProtocolPolFacet.OnlyProtocolPolOperator.selector);
+        pools.rebalanceProtocolPolPositions(params);
+        params.deadline = block.timestamp - 1;
+        vm.prank(operator);
+        vm.expectPartialRevert(ProtocolPolFacet.ProtocolPolRebalanceExpired.selector);
+        pools.rebalanceProtocolPolPositions(params);
+        params.deadline = block.timestamp + 1 days;
+        governance.pause(LibGovernance.PAUSE_LIQUIDITY);
+        vm.prank(operator);
+        vm.expectPartialRevert(ProtocolPolFacet.ActionPaused.selector);
+        pools.rebalanceProtocolPolPositions(params);
+        // The existing independent custody exit remains usable during the pause.
+        _closePosition(id, operator);
+    }
+
+    function testAtomicRebalanceUsesOriginatingManagerAndReplacementForNewLegs() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Rotate Alpha", "Rotate Beta");
+        uint256 id = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        address oldManager = pools.protocolPolPosition(id).manager;
+        StaticsLiquidityManager replacement = new StaticsLiquidityManager(
+            address(diamond), address(positionManagerContract), address(poolManager), address(permit2Contract)
+        );
+        pools.replaceLiquidityManager(address(replacement));
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, id);
+        vm.prank(operator);
+        uint256[] memory ids = pools.rebalanceProtocolPolPositions(params);
+        assertEq(pools.protocolPolPosition(id).manager, oldManager);
+        assertEq(pools.protocolPolPosition(ids[0]).manager, address(replacement));
+        _assertProtocolBinding(ids[0]);
+        _assertManagerHasNoTokenBalance(oldManager, key);
+        _assertManagerHasNoTokenBalance(address(replacement), key);
+    }
+
+    function testAtomicRebalanceRejectsEmptyOversizedAndDecommissionedLegs() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Leg Alpha", "Leg Beta");
+        uint256 id = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, id);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](0);
+        vm.prank(operator);
+        vm.expectPartialRevert(ProtocolPolFacet.InvalidProtocolPolRebalanceLegs.selector);
+        pools.rebalanceProtocolPolPositions(params);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](9);
+        vm.prank(operator);
+        vm.expectPartialRevert(ProtocolPolFacet.InvalidProtocolPolRebalanceLegs.selector);
+        pools.rebalanceProtocolPolPositions(params);
+        params = _rebalanceParams(poolId, key, id);
+        pools.beginGeneralPoolDecommission(poolId);
+        vm.prank(operator);
+        vm.expectRevert();
+        pools.rebalanceProtocolPolPositions(params);
+        assertTrue(pools.protocolPolPosition(id).active);
+        _closePosition(id, operator);
+    }
+
+    function testFuzzAtomicRebalanceRetainsPrincipalAndRefunds(uint256 nextLiquidity) public {
+        nextLiquidity = bound(nextLiquidity, 1e6, 1e10);
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Fuzz Alpha", "Fuzz Beta");
+        uint256 id = _openPosition(poolId, key, -600, 600, 1e15, operator);
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _rebalanceParams(poolId, key, id);
+        params.opens[0].liquidity = uint128(nextLiquidity);
+        uint256 reserve0 = _polReserve(poolId, key.currency0);
+        uint256 reserve1 = _polReserve(poolId, key.currency1);
+        vm.prank(operator);
+        uint256[] memory ids = pools.rebalanceProtocolPolPositions(params);
+        assertEq(pools.protocolPolPosition(ids[0]).liquidity, nextLiquidity);
+        _closePosition(ids[0], operator);
+        // Principal stays in this book; only small integer rounding loss is permitted.
+        assertGe(_polReserve(poolId, key.currency0) + 2, reserve0);
+        assertGe(_polReserve(poolId, key.currency1) + 2, reserve1);
+        _assertManagerHasNoTokenBalance(pools.protocolPolPosition(ids[0]).manager, key);
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(operator), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(operator), 0);
+    }
+
+    function testAtomicInitialSeedOpensMultipleBandsWithoutRemovingCustody() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Seed Alpha", "Seed Beta");
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _initialSeedParams(poolId, key);
+        vm.prank(operator);
+        uint256[] memory ids = pools.rebalanceProtocolPolPositions(params);
+        assertEq(ids.length, 3);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 3);
+        for (uint256 i; i < ids.length; ++i) {
+            _assertProtocolBinding(ids[i]);
+        }
+        assertEq(IERC20(Currency.unwrap(key.currency0)).balanceOf(operator), 0);
+        assertEq(IERC20(Currency.unwrap(key.currency1)).balanceOf(operator), 0);
+    }
+
+    function testAtomicInitialSeedRollsBackEarlierMintsWhenLaterMintFails() public {
+        (PoolId poolId, PoolKey memory key) = _activatedFundedPool("Seed Rollback Alpha", "Seed Rollback Beta");
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params = _initialSeedParams(poolId, key);
+        uint256 reserve0 = _polReserve(poolId, key.currency0);
+        uint256 reserve1 = _polReserve(poolId, key.currency1);
+        params.opens[2].tickUpper = params.opens[2].tickLower;
+        vm.prank(operator);
+        vm.expectRevert();
+        pools.rebalanceProtocolPolPositions(params);
+        assertEq(pools.protocolPool(poolId).activePolPositions, 0);
+        assertEq(pools.protocolPolPositionIds(poolId).length, 0);
+        assertEq(_polReserve(poolId, key.currency0), reserve0);
+        assertEq(_polReserve(poolId, key.currency1), reserve1);
+    }
+
+    function _initialSeedParams(PoolId poolId, PoolKey memory key)
+        private
+        view
+        returns (IStaticsProtocolPools.ProtocolPolRebalanceParams memory params)
+    {
+        params.poolId = poolId;
+        params.closes = new IStaticsProtocolPools.ProtocolPolCloseLeg[](0);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](3);
+        params.maximumCustodyDebit0 = _polReserve(poolId, key.currency0);
+        params.maximumCustodyDebit1 = _polReserve(poolId, key.currency1);
+        uint256 cap0 = params.maximumCustodyDebit0 / 3;
+        uint256 cap1 = params.maximumCustodyDebit1 / 3;
+        params.opens[0] = IStaticsProtocolPools.ProtocolPolOpenLeg(-600, 600, 1e10, cap0, cap1);
+        params.opens[1] = IStaticsProtocolPools.ProtocolPolOpenLeg(600, 1_200, 1e10, cap0, 0);
+        params.opens[2] = IStaticsProtocolPools.ProtocolPolOpenLeg(-1_200, -600, 1e10, 0, cap1);
+        params.deadline = block.timestamp + 1 days;
+    }
+
+    function _rebalanceParams(PoolId poolId, PoolKey memory key, uint256 id)
+        private
+        view
+        returns (IStaticsProtocolPools.ProtocolPolRebalanceParams memory params)
+    {
+        params.poolId = poolId;
+        params.closes = new IStaticsProtocolPools.ProtocolPolCloseLeg[](1);
+        params.closes[0] = IStaticsProtocolPools.ProtocolPolCloseLeg(id, 0, 0);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](1);
+        params.maximumCustodyDebit0 = _polReserve(poolId, key.currency0);
+        params.maximumCustodyDebit1 = _polReserve(poolId, key.currency1);
+        params.opens[0] = IStaticsProtocolPools.ProtocolPolOpenLeg(
+            -1_200, 1_200, 1e10, params.maximumCustodyDebit0, params.maximumCustodyDebit1
+        );
+        params.deadline = block.timestamp + 1 days;
+    }
+
     function _activatedFundedPool(string memory nameA, string memory nameB)
         private
         returns (PoolId poolId, PoolKey memory key)

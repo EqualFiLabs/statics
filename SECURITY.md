@@ -148,7 +148,7 @@ ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs 30 facets and 209 selectors for the Diamond
+The Phase 1 launcher installs 31 facets and 220 selectors for the Diamond
 kernel, public general Statics-hook pools, a separate permissioned venue path,
 protocol revenue and managed public POL, PositionNFT, reward restrictions, and global
 STATICS staking/reward opt-ins. It also installs public-pool PositionNFT range

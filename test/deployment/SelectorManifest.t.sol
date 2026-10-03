@@ -94,7 +94,7 @@ contract SelectorManifestTest is Test {
         maintenance[1] = IStaticsProtocolPools.settleProtocolPoolRevenue.selector;
         _assertExact(StaticsSelectors.protocolPoolMaintenance(), maintenance);
 
-        bytes4[] memory pol = new bytes4[](11);
+        bytes4[] memory pol = new bytes4[](12);
         pol[0] = IStaticsProtocolPools.setProtocolPolOperator.selector;
         pol[1] = IStaticsProtocolPools.setProtocolPolActivationFee.selector;
         pol[2] = IStaticsProtocolPools.activateProtocolPoolPol.selector;
@@ -106,6 +106,7 @@ contract SelectorManifestTest is Test {
         pol[8] = IStaticsProtocolPools.decreaseProtocolPolPosition.selector;
         pol[9] = IStaticsProtocolPools.collectProtocolPolFees.selector;
         pol[10] = IStaticsProtocolPools.closeProtocolPolPosition.selector;
+        pol[11] = IStaticsProtocolPools.rebalanceProtocolPolPositions.selector;
         _assertExact(StaticsSelectors.protocolPol(), pol);
 
         bytes4[] memory views = new bytes4[](13);
