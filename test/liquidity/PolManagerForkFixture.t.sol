@@ -8,6 +8,8 @@ import {GeneralPoolLifecycleTestBase} from "../../test/helpers/GeneralPoolLifecy
 /// funds a production wallet or contains credentials. Pool creation, liquidity and swaps occur
 /// afterwards as real transactions on a disposable Anvil fork, preserving receipt evidence.
 contract PolManagerForkFixture is GeneralPoolLifecycleTestBase {
+    // Keep construction in the exporting transaction so dumpState includes the full genesis.
+    function setUp() public override {}
     function testExportManagerForkGenesis() public {
         string memory destination = vm.envOr("POL_FIXTURE_DIRECTORY", string(""));
         if (bytes(destination).length == 0) {
@@ -15,6 +17,7 @@ contract PolManagerForkFixture is GeneralPoolLifecycleTestBase {
             vm.skip(true);
             return;
         }
+        super.setUp();
         address tokenA = _newToken("POL fixture Alpha");
         address tokenB = _newToken("POL fixture Beta");
         address stateView = deployCode("out/StateView.sol/StateView.json", abi.encode(address(poolManager)));
