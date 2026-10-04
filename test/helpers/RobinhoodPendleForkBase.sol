@@ -402,9 +402,9 @@ abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
             });
             maximums[i] = IERC20(assets[i]).balanceOf(alice);
         }
+        uint256 creationFee = basketAdmin.creationFee();
         vm.prank(alice);
-        return
-            baskets.createBasket{value: basketAdmin.creationFee()}(params, pools, maximums, block.timestamp + 1 hours);
+        return baskets.createBasket{value: creationFee}(params, pools, maximums, block.timestamp + 1 hours);
     }
 
     function _canonicalPool(uint256 basketId, address asset) internal view returns (PoolKey memory key) {
