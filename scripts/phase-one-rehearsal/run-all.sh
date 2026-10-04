@@ -75,7 +75,9 @@ expected_reverts=$(find "$RUN_DIR/expected-reverts" -maxdepth 1 -type f -name 'p
     | xargs -0 -r jq -r '.status' | awk '$0 == "0x0" {count++} END {print count+0}')
 facet_count=$(jq '[.[].facetAddress] | unique | length' "$RUN_DIR/selector-inventory.json")
 selector_count=$(jq 'length' "$RUN_DIR/selector-inventory.json")
-pr96_base=$(git merge-base "$HEAD_COMMIT" public/feat/staged-phase-one-launch)
+# Immutable published head of the Phase 1 foundation (PR #96). A retired
+# local branch ref must not prevent a fresh checkout from reporting its run.
+pr96_base=6ebb2e5580b72f9c1826114d61c8dac8137ef812
 jq -s \
     --slurpfile vanilla "$RUN_DIR/vanilla-swap-gas.json" \
     --slurpfile public "$RUN_DIR/public-swap-gas.json" \

@@ -17,6 +17,9 @@ private endpoints are never written to the run artifacts.
 scripts/phase-one-rehearsal/run-all.sh
 ```
 
+The summary records the exact tested commit and the immutable published Phase 1
+foundation commit from PR #96; no retired local branch is needed to finalize it.
+
 The command leaves Anvil running in a detached tmux session for inspection. Stop
 it with:
 
