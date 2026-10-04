@@ -11,6 +11,7 @@ an upgrade, or a change to the launch configuration. All timestamps below are UT
 
 | Field | Record |
 | --- | --- |
+| Release | [`genesis-v1.0.0`](https://github.com/EqualFiLabs/statics/releases/tag/genesis-v1.0.0) |
 | Network | Robinhood Chain Mainnet |
 | Chain ID | `4663` |
 | Preparation began | August 27, 2026, `19:22:37 UTC`, block `47688979` |
