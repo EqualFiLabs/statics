@@ -31,6 +31,15 @@ def values(output):
     return decoded
 
 
+def rpc_result(value, method, expected_revert=None):
+    if 'error' in value:
+        if expected_revert is None:raise RuntimeError('local Anvil RPC failed: '+method)
+        assert value['error']['code']==3 and value['error']['data']==expected_revert
+        return None
+    assert expected_revert is None, 'expected EVM revert not observed'
+    return value['result']
+
+
 def abi(value):
     if isinstance(value, tuple):
         return '(' + ','.join(map(abi, value)) + ')'
@@ -70,13 +79,11 @@ class Rehearsal:
         self.evidence = self.root/'selector-execution.jsonl'
         self.checks = []
 
-    def rpc(self, method, params):
+    def rpc(self, method, params, expected_revert=None):
         raw = json.dumps({'jsonrpc':'2.0', 'id':1, 'method':method, 'params':params}).encode()
         with urlopen(Request(self.url, raw, {'Content-Type':'application/json'}), timeout=30) as stream:
             value = json.load(stream)
-        if 'error' in value:
-            raise RuntimeError('local Anvil RPC failed: ' + method)
-        return value['result']
+        return rpc_result(value,method,expected_revert)
 
     def call(self, address, signature, *args):
         return values(command('cast', 'call', address, signature, *map(abi, args), '--rpc-url', self.url, '--json'))
@@ -243,10 +250,9 @@ class Rehearsal:
         for i in closes:
             p=self.position(i)
             assert not p[7] and int(p[6])==0 and self.scalar(self.diamond,'posmBinding(uint256)(bytes32)',p[3])==ZERO
-            try:self.scalar(self.posm,'ownerOf(uint256)(address)',p[3])
-            except subprocess.CalledProcessError as error:
-                assert 'NOT_MINTED' in error.stderr, 'ownerOf failure does not prove a burned NFT'
-            else:raise AssertionError('closed POSM NFT not burned')
+            data=command('cast','calldata','ownerOf(uint256)',str(p[3]))
+            self.rpc('eth_call',[{'to':self.posm,'data':data},'latest'],
+                     expected_revert=command('cast','calldata','Error(string)','NOT_MINTED'))
         for (i,values),leg in zip(opened,opens):
             p=self.position(i)
             assert p[2].lower()==self.managers[-1].lower() and int(p[6])==leg[2] and p[7]

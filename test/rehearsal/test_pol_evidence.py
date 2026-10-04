@@ -89,6 +89,13 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(helper.values('{"schema_version":1,"success":true,"data":["17",-120],"errors":[]}'),['17',-120])
         with self.assertRaises(AssertionError):helper.values('{"success":false,"data":[],"errors":["decode failed"]}')
 
+    def test_rpc_revert_requires_exact_evm_data(self):
+        helper=load('pol-rebalance')
+        self.assertIsNone(helper.rpc_result({'error':{'code':3,'data':'0x1234'}},'eth_call','0x1234'))
+        with self.assertRaises(AssertionError):helper.rpc_result({'error':{'code':-32000,'data':'0x1234'}},'eth_call','0x1234')
+        with self.assertRaises(AssertionError):helper.rpc_result({'error':{'code':3,'data':'0xffff'}},'eth_call','0x1234')
+        with self.assertRaises(AssertionError):helper.rpc_result({'result':'0x0'},'eth_call','0x1234')
+
     def test_redacts_private_endpoint_and_host(self):
         endpoint='https://user:password@example.invalid/private-token'
         result=load('redact-rpc').redact(endpoint+' example.invalid user:password@example.invalid',endpoint)
