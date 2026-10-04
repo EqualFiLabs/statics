@@ -42,7 +42,7 @@ contract RobinhoodBlendCrossHookForkTest is RobinhoodBlendBasketForkBase, Permit
     IBlendStaticsUniversalRouter private universalRouter;
 
     struct StaticsPoolAccounting {
-        uint128 lockedLiquidity;
+        PolAccounting pol;
     }
 
     struct ExactInputRequest {
@@ -378,13 +378,13 @@ contract RobinhoodBlendCrossHookForkTest is RobinhoodBlendBasketForkBase, Permit
     function _takeStaticsPoolAccounting() private view returns (StaticsPoolAccounting memory snapshot) {
         IStaticsBasketLiquidity.CanonicalPoolView memory configured =
             basketLiquidity.canonicalPool(staticsBasketId, BLEND_AI);
-        snapshot.lockedLiquidity = staticsHook.lockedLiquidity(configured.poolId);
+        snapshot.pol = _snapshotPol(configured.poolId);
     }
 
     function _assertStaticsPoolAccountingAdvanced(StaticsPoolAccounting memory beforeAction) private view {
         IStaticsBasketLiquidity.CanonicalPoolView memory configured =
             basketLiquidity.canonicalPool(staticsBasketId, BLEND_AI);
-        assertGt(staticsHook.lockedLiquidity(configured.poolId), beforeAction.lockedLiquidity);
+        _assertPolFeeGrowth(configured.poolId, beforeAction.pol);
         assertGt(_pendingDistributionTotal(configured.poolId, configured.currency0, configured.currency1), 0);
         _assertHookClaimsReconcile(Currency.wrap(configured.currency0));
         _assertHookClaimsReconcile(Currency.wrap(configured.currency1));

@@ -177,11 +177,11 @@ contract RobinhoodBlendCompositionValueForkTest is RobinhoodBlendBasketForkBase 
 
         IStaticsBasketLiquidity.CanonicalPoolView memory wrappedPool =
             basketLiquidity.canonicalPool(wrapped.basketId, BLEND_AI);
-        assertGt(staticsHook.lockedLiquidity(wrappedPool.poolId), 0);
+        assertGt(_managedPolLiquidity(wrappedPool.poolId), 0);
         for (uint256 i; i < constituents.length; ++i) {
             IStaticsBasketLiquidity.CanonicalPoolView memory flattenedPool =
                 basketLiquidity.canonicalPool(flattened.basketId, constituents[i]);
-            assertGt(staticsHook.lockedLiquidity(flattenedPool.poolId), 0);
+            assertGt(_managedPolLiquidity(flattenedPool.poolId), 0);
         }
     }
 

@@ -50,7 +50,7 @@ contract RobinhoodNestedFlashArbitrageForkTest is RobinhoodNestedBasketsForkBase
         uint256[3] parentReservations;
         uint256[3] treasuryAccruals;
         uint256[3] feeReservations;
-        uint128[3] lockedLiquidity;
+        PolAccounting[3] pol;
         uint256[3] purchaseQuotes;
     }
 
@@ -165,7 +165,7 @@ contract RobinhoodNestedFlashArbitrageForkTest is RobinhoodNestedBasketsForkBase
             snapshot.parentReservations[i] = custody.reservedByAccount(parentAccount, leafToken);
             snapshot.treasuryAccruals[i] = globalRewards.treasuryAccrued(leafToken);
             snapshot.feeReservations[i] = custody.reservedByAccount(feeAccount, leafToken);
-            snapshot.lockedLiquidity[i] = hook.lockedLiquidity(pools[i].toId());
+            snapshot.pol[i] = _snapshotPol(pools[i].toId());
             snapshot.purchaseQuotes[i] = _quoteParentPurchase(pools[i], leafToken);
         }
     }
@@ -232,7 +232,7 @@ contract RobinhoodNestedFlashArbitrageForkTest is RobinhoodNestedBasketsForkBase
                 result.fees[i] + redemptionFee
             );
             assertEq(IERC20(leafToken).balanceOf(address(diamond)), custody.globalReservedByToken(leafToken));
-            assertGt(uint256(hook.lockedLiquidity(pools[i].toId())), uint256(beforeAction.lockedLiquidity[i]));
+            _assertPolFeeGrowth(pools[i].toId(), beforeAction.pol[i]);
 
             uint256 quoteAfter = _quoteParentPurchase(pools[i], leafToken);
             assertLt(quoteAfter, beforeAction.purchaseQuotes[i], "arbitrage must make sCOMP more expensive");

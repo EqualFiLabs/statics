@@ -35,7 +35,7 @@ contract RobinhoodPendleParityArbitrageForkTest is RobinhoodPendleForkBase {
         uint256 topUp;
         uint256 treasuryBefore;
         uint256 holderBefore;
-        uint128 lockedBefore;
+        PolAccounting polBefore;
     }
 
     struct ParityExecution {
@@ -87,7 +87,7 @@ contract RobinhoodPendleParityArbitrageForkTest is RobinhoodPendleForkBase {
         context.fee = fees[0];
         context.topUp = baskets.quoteMint(wrapperBasketId, FLASH_SHARES)[0] - context.principal;
         context.treasuryBefore = globalRewards.treasuryAccrued(PT_NVDA);
-        context.lockedBefore = staticsHook.lockedLiquidity(context.pool.toId());
+        context.polBefore = _snapshotPol(context.pool.toId());
         context.holderBefore = IERC20(PT_NVDA).balanceOf(alice);
     }
 
@@ -107,7 +107,7 @@ contract RobinhoodPendleParityArbitrageForkTest is RobinhoodPendleForkBase {
         context.principal = principals[0];
         context.fee = fees[0];
         context.treasuryBefore = globalRewards.treasuryAccrued(PT_NVDA);
-        context.lockedBefore = staticsHook.lockedLiquidity(context.pool.toId());
+        context.polBefore = _snapshotPol(context.pool.toId());
         context.holderBefore = IERC20(PT_NVDA).balanceOf(address(this));
     }
 
@@ -180,7 +180,7 @@ contract RobinhoodPendleParityArbitrageForkTest is RobinhoodPendleForkBase {
             _difference(quoteAfter, context.baselineQuote), _difference(context.distortedQuote, context.baselineQuote)
         );
         assertGe(globalRewards.treasuryAccrued(PT_NVDA) - context.treasuryBefore, minimumFeeAccrual);
-        assertGt(staticsHook.lockedLiquidity(context.pool.toId()), context.lockedBefore);
+        _assertPolFeeGrowth(context.pool.toId(), context.polBefore);
         _assertReceiverClean(StaticsFlashArbitrageReceiver(execution.receiver));
     }
 

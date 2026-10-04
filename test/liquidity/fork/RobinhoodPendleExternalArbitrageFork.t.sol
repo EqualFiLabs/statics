@@ -428,7 +428,7 @@ contract RobinhoodPendleExternalArbitrageForkTest is RobinhoodPendleForkBase {
         uint256 diamondBefore = IERC20(USDG).balanceOf(address(diamond));
         uint256 reserveBefore = custody.globalReservedByToken(USDG);
         uint256 treasuryBefore = globalRewards.treasuryAccrued(USDG);
-        uint128[3] memory lockedBefore = _lockedLiquidity();
+        PolAccounting[3] memory polBefore = _termPolAccounting();
         uint256 callerBefore = IERC20(USDG).balanceOf(address(this));
 
         uint256 gasBefore = gasleft();
@@ -443,7 +443,7 @@ contract RobinhoodPendleExternalArbitrageForkTest is RobinhoodPendleForkBase {
         assertEq(custody.globalReservedByToken(USDG), reserveBefore + quotedFee);
         assertEq(globalRewards.treasuryAccrued(USDG), treasuryBefore + quotedFee);
         _assertPricesImproved(baseline, distorted);
-        _assertHookAndReceiverClean(receiver, lockedBefore);
+        _assertHookAndReceiverClean(receiver, polBefore);
 
         emit log("Statics-funded NAV route: USDG flash -> stock/SY/PT -> sTERM -> PT/SY/stock -> USDG");
         emit log_named_uint("Cross-venue Statics-funded gas", executionGas);
@@ -458,7 +458,7 @@ contract RobinhoodPendleExternalArbitrageForkTest is RobinhoodPendleForkBase {
         assertGt(distorted, baseline);
 
         PendleStaticsExternalArbitrageReceiver receiver = _receiver();
-        uint128 lockedBefore = staticsHook.lockedLiquidity(nvdaPool.toId());
+        PolAccounting memory polBefore = _snapshotPol(nvdaPool.toId());
         uint256 callerBefore = IERC20(USDG).balanceOf(address(this));
         uint256 gasBefore = gasleft();
         uint256 profit = receiver.executePendleFunded(PENDLE_FLASH_PT, MINIMUM_USDG_PROFIT);
@@ -472,7 +472,7 @@ contract RobinhoodPendleExternalArbitrageForkTest is RobinhoodPendleForkBase {
         assertEq(IERC20(USDG).balanceOf(address(this)), callerBefore + profit);
         assertLt(quoteAfter, distorted);
         assertLt(_difference(quoteAfter, baseline), _difference(distorted, baseline));
-        assertGt(staticsHook.lockedLiquidity(nvdaPool.toId()), lockedBefore);
+        _assertPolFeeGrowth(nvdaPool.toId(), polBefore);
         _assertReceiverBalances(receiver);
 
         emit log("Pendle-funded NAV route: exact PT callback -> cheap sTERM -> vector unwind -> exact SY settlement");
@@ -599,19 +599,19 @@ contract RobinhoodPendleExternalArbitrageForkTest is RobinhoodPendleForkBase {
         }
     }
 
-    function _lockedLiquidity() private view returns (uint128[3] memory locked) {
+    function _termPolAccounting() private view returns (PolAccounting[3] memory pol) {
         for (uint256 i; i < 3; ++i) {
-            locked[i] = staticsHook.lockedLiquidity(_canonicalPool(termBasketId, _termMarket(i).pt).toId());
+            pol[i] = _snapshotPol(_canonicalPool(termBasketId, _termMarket(i).pt).toId());
         }
     }
 
     function _assertHookAndReceiverClean(
         PendleStaticsExternalArbitrageReceiver receiver,
-        uint128[3] memory lockedBefore
+        PolAccounting[3] memory polBefore
     ) private view {
         for (uint256 i; i < 3; ++i) {
             PoolKey memory pool = _canonicalPool(termBasketId, _termMarket(i).pt);
-            assertGt(staticsHook.lockedLiquidity(pool.toId()), lockedBefore[i]);
+            _assertPolFeeGrowth(pool.toId(), polBefore[i]);
         }
         _assertReceiverBalances(receiver);
     }

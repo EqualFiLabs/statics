@@ -17,9 +17,8 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
-import {StaticsPermanentLiquidityMath} from "../../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
+import {ManagedPolForkTestBase} from "../../helpers/ManagedPolForkTestBase.sol";
 
 interface IBlendBasketFactory {
     function deployed(uint256 index) external view returns (address);
@@ -46,7 +45,7 @@ interface IBlendHook {
 ///
 /// The tests prove discovery, canonical-pool launch, fee-bearing mint/redemption, and optional
 /// look-through reads without adding any Blend-specific production logic to Statics.
-abstract contract RobinhoodBlendBasketForkBase is StaticsTestBase {
+abstract contract RobinhoodBlendBasketForkBase is ManagedPolForkTestBase {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
@@ -131,7 +130,7 @@ abstract contract RobinhoodBlendBasketForkBase is StaticsTestBase {
         assertEq(canonical.hook, address(staticsHook));
         assertNotEq(canonical.hook, BLEND_HOOK);
         assertGt(poolManager.getLiquidity(canonical.poolId), 0);
-        assertGt(staticsHook.lockedLiquidity(canonical.poolId), 0);
+        assertGt(_managedPolLiquidity(canonical.poolId), 0);
 
         PoolKey memory blendKey = IBlendHook(BLEND_HOOK).poolKeyFor(BLEND_AI, USDG);
         (uint160 blendSqrtPrice,,,) = poolManager.getSlot0(blendKey.toId());
@@ -317,21 +316,19 @@ abstract contract RobinhoodBlendBasketForkBase is StaticsTestBase {
     }
 
     function _deployStaticsHook() private returns (StaticsSwapFeeHook deployed) {
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
     }
 
     function _selectPinnedFork() private returns (bool selected) {
         if (block.chainid == 4_663) return true;
-        string memory rpcUrl = vm.envOr("ROBINHOOD_RPC_URL", string(""));
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
         if (bytes(rpcUrl).length == 0) {
             if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
-            vm.skip(true, "ROBINHOOD_RPC_URL is not configured");
+            vm.skip(true, "ROBINHOOD_MAINNET is not configured");
             return false;
         }
         string memory pinnedBlock =

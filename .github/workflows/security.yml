@@ -95,7 +95,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ROBINHOOD_MAINNET: ${{ secrets.ROBINHOOD_MAINNET }}
-      ROBINHOOD_RPC_URL: ${{ secrets.ROBINHOOD_MAINNET }}
       REQUIRE_DOPPLER_FORK_PROOF: "true"
       REQUIRE_ROBINHOOD_FORK: "true"
     steps:

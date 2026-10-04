@@ -25,9 +25,8 @@ import {IStaticsBasket} from "../../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsSwapFeeHook} from "../../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
-import {StaticsPermanentLiquidityMath} from "../../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
-import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
+import {ManagedPolForkTestBase} from "../../helpers/ManagedPolForkTestBase.sol";
 
 interface IRobinhoodNestedBasketUniversalRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
@@ -47,11 +46,11 @@ interface IRobinhoodNestedBasketUniversalRouter {
 /// Parent-layer fees are themselves leaf BasketTokens and remain backed until their
 /// eventual owner redeems them.
 ///
-/// The current branch's Diamond and permanent-liquidity hook are deployed into the
+/// The current branch's Diamond and managed-POL swap-fee hook are deployed into the
 /// fork because they are not live yet. STATICS, Stock Tokens, PoolManager, Quoter,
 /// Permit2, PositionManager, and Universal Router are the pinned mainnet contracts.
 /// Every leaf and parent mint or redemption charges a fixed 0.001-share fee.
-abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2SignatureHelpers {
+abstract contract RobinhoodNestedBasketsForkBase is ManagedPolForkTestBase, Permit2SignatureHelpers {
     using Planner for Plan;
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
@@ -137,7 +136,7 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
     }
 
     struct RouteAccountingSnapshot {
-        uint128[4] lockedLiquidity;
+        PolAccounting[4] pol;
         uint256[4] pendingDistributions;
     }
 
@@ -386,7 +385,7 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
             assertEq(canonical.asset, configured.assets[i]);
             assertEq(canonical.hook, address(hook));
             assertEq(PoolId.unwrap(_poolKey(canonical).toId()), PoolId.unwrap(canonical.poolId));
-            assertGt(hook.lockedLiquidity(canonical.poolId), 0);
+            assertGt(_managedPolLiquidity(canonical.poolId), 0);
             assertGt(poolManager.getLiquidity(canonical.poolId), 0);
         }
     }
@@ -629,7 +628,7 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         returns (RouteAccountingSnapshot memory snapshot)
     {
         for (uint256 i; i < route.poolIds.length; ++i) {
-            snapshot.lockedLiquidity[i] = hook.lockedLiquidity(route.poolIds[i]);
+            snapshot.pol[i] = _snapshotPol(route.poolIds[i]);
             snapshot.pendingDistributions[i] = _pendingDistributionTotal(
                 route.poolIds[i], Currency.wrap(route.currencies[i]), Currency.wrap(route.currencies[i + 1])
             );
@@ -641,11 +640,7 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
         view
     {
         for (uint256 i; i < route.poolIds.length; ++i) {
-            assertGt(
-                uint256(hook.lockedLiquidity(route.poolIds[i])),
-                uint256(beforeAction.lockedLiquidity[i]),
-                "every hop must compound swap fees into POL"
-            );
+            _assertPolFeeGrowth(route.poolIds[i], beforeAction.pol[i]);
             assertGt(
                 _pendingDistributionTotal(
                     route.poolIds[i], Currency.wrap(route.currencies[i]), Currency.wrap(route.currencies[i + 1])
@@ -754,12 +749,10 @@ abstract contract RobinhoodNestedBasketsForkBase is StaticsTestBase, Permit2Sign
     }
 
     function _deployHook() internal returns (StaticsSwapFeeHook deployed) {
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
     }
 

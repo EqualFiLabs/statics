@@ -21,10 +21,9 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
-import {StaticsPermanentLiquidityMath} from "../../src/liquidity/StaticsPermanentLiquidityMath.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {CanonicalV4Router} from "./CanonicalPoolTestBase.sol";
-import {StaticsTestBase} from "./StaticsTestBase.sol";
+import {ManagedPolForkTestBase} from "./ManagedPolForkTestBase.sol";
 
 interface IPendleMarket is IERC20Metadata {
     function swapExactPtForSy(address receiver, uint256 exactPtIn, bytes calldata data)
@@ -204,7 +203,7 @@ contract PendleForkSwapRouter is IPendleMarketSwapCallback {
 }
 
 /// @notice Shared deterministic Robinhood fork setup for PT composition, lending, and arbitrage proofs.
-abstract contract RobinhoodPendleForkBase is StaticsTestBase {
+abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
     using Math for uint256;
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
@@ -427,7 +426,7 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
         assertEq(configured.hook, address(staticsHook));
         assertEq(PoolId.unwrap(configured.poolId), PoolId.unwrap(key.toId()));
         assertGt(poolManager.getLiquidity(configured.poolId), 0);
-        assertGt(staticsHook.lockedLiquidity(configured.poolId), 0);
+        assertGt(_managedPolLiquidity(configured.poolId), 0);
     }
 
     function _swapCanonicalExactInput(
@@ -747,12 +746,10 @@ abstract contract RobinhoodPendleForkBase is StaticsTestBase {
     }
 
     function _deployStaticsHook() private returns (StaticsSwapFeeHook deployed) {
-        StaticsPermanentLiquidityMath permanentLiquidityMath = new StaticsPermanentLiquidityMath();
-        bytes memory constructorArgs =
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25), permanentLiquidityMath);
+        bytes memory constructorArgs = abi.encode(poolManager, address(diamond), uint16(25), uint16(25));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25, permanentLiquidityMath);
+        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
         assertEq(address(deployed), expected);
     }
 

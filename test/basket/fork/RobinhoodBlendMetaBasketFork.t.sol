@@ -172,7 +172,7 @@ contract RobinhoodBlendMetaBasketForkTest is RobinhoodBlendBasketForkBase {
             assertEq(canonical.asset, assets[i]);
             assertEq(canonical.hook, address(staticsHook));
             assertNotEq(canonical.hook, BLEND_HOOK);
-            assertGt(staticsHook.lockedLiquidity(canonical.poolId), 0);
+            assertGt(_managedPolLiquidity(canonical.poolId), 0);
 
             PoolKey memory blendMarket = IBlendHook(BLEND_HOOK).poolKeyFor(assets[i], USDG);
             assertEq(address(blendMarket.hooks), BLEND_HOOK);
