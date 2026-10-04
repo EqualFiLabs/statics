@@ -37,7 +37,7 @@ verification cannot accidentally accept stale shared build output.
 ## Evidence layers
 
 - `verify-deployment.sh` validates canonical Robinhood dependencies, immutable
-  bindings, exact source runtime bytecode, all 31 installed facets, all 219
+  bindings, exact source runtime bytecode, all 31 installed facets, all 220
   Diamond selector routes, and the PositionNFT market and royalty defaults.
 - `public-pool-creation.sh` exercises exact native creation fees, invalid
   payment and configuration paths, distinct PoolKeys, direct and relayed
@@ -72,6 +72,14 @@ verification cannot accidentally accept stale shared build output.
 - `protocol-pol-lifecycle.sh` proves disabled-POL fallback, paid activation,
   two-asset PoolId custody, managed position operations, the empty-position
   lifecycle, native LP fee routing to Treasury, and incremental decommissioning.
+- `protocol-pol-rebalance.sh` seeds dual-sided and both single-sided bands,
+  replaces portfolios at the eight-close/eight-open bound, replaces the manager,
+  checks exact per-asset principal/refund accounting and fee separation, and
+  mines malicious calls with unauthorized actors, expired deadlines, invalid
+  leg counts, duplicate/foreign/unknown closes, insufficient PoolId custody,
+  gross-debit violations, overflow, bad ranges and lifecycle stops. Late-open
+  failures must roll back earlier closes and valid mints, including POSM IDs,
+  ownership, gauge bindings, balances, custody and Treasury accounting.
 - `direct-range-rewards.sh` funds direct LP reward slot 1, proves reserved-slot
   and duplicate-asset guards, and exercises claim, exit, forfeiture, and close
   liveness through real managed positions.
@@ -114,7 +122,16 @@ separately classified; route verification is never presented as behavioral
 coverage. Foundry unit, fuzz, invariant, and formal suites remain separate
 evidence.
 
-After every scenario the runner scans all mined JSON receipts and rejects any
+The added rebalance selector requires observed transaction hashes for successful
+and reverted calls in `selector-execution.jsonl`; textual signature matching
+cannot satisfy that gate. Reverts are deliberately mined with explicit gas limits
+and retained separately under `expected-reverts/`. Each requires status `0x0`,
+the expected error in its trace, any required earlier successful calls, and equal
+before/after financial state. The final summary reports these intentional reverts
+separately from failed successful-path transactions. No formal verification is
+added or invoked by this rehearsal.
+
+After every scenario the runner scans all successful-path mined JSON receipts and rejects any
 transaction whose status is not `0x1`. This is required because a mined revert
 can still be serialized successfully by `cast send --json`.
 

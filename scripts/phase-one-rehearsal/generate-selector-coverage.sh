@@ -5,8 +5,9 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
-require_commands jq rg awk sort
+require_commands jq rg awk sort python3
 load_current_run
+python3 "$SCRIPT_DIR/helpers/validate-pol-evidence.py" "$RUN_DIR" >/dev/null
 
 INVENTORY="$RUN_DIR/selector-inventory.json"
 [[ -f "$INVENTORY" ]] || fail "selector inventory is missing: $INVENTORY"
@@ -42,6 +43,19 @@ while IFS= read -r item; do
     success=false
     revert=false
     scenarios=()
+    execution='[]'
+    if [[ -f "$RUN_DIR/selector-execution.jsonl" ]]; then
+        execution=$(jq -sc --arg selector "$selector" 'map(select(.selector == $selector))' \
+            "$RUN_DIR/selector-execution.jsonl")
+        if [[ $(jq '[.[] | select(.status == "0x1")] | length' <<<"$execution") -gt 0 ]]; then
+            success=true
+        fi
+        if [[ $(jq '[.[] | select(.status == "0x0")] | length' <<<"$execution") -gt 0 ]]; then
+            revert=true
+        fi
+        while IFS= read -r scenario; do scenarios+=("$scenario"); done \
+            < <(jq -r '.[].scenario' <<<"$execution")
+    fi
 
     while IFS= read -r file; do
         [[ -n "$file" ]] || continue
@@ -103,10 +117,11 @@ while IFS= read -r item; do
         --argjson scenarios "$scenario_json" \
         --argjson success "$success" \
         --argjson revert "$revert" \
+        --argjson execution "$execution" \
         --arg notes "$note" \
         '{selector:$selector,signature:$signature,facet:$facet,facetAddress:$facetAddress,
           scenarios:$scenarios,successCovered:$success,revertCovered:$revert,
-          classification:$classification,notes:$notes}' >>"$OUTPUT_JSONL"
+          classification:$classification,executionEvidence:$execution,notes:$notes}' >>"$OUTPUT_JSONL"
 done < <(jq -c '.[]' "$INVENTORY")
 
 jq -s '.' "$OUTPUT_JSONL" >"$OUTPUT_JSON"
@@ -123,4 +138,9 @@ unqueried_view_count=$(jq \
     '[.[] | select(.classification == "view" and .successCovered == false)] | length' "$OUTPUT_JSON")
 assert_eq "$unrehearsed_count" 0 "unrehearsed state-changing selector count"
 assert_eq "$unqueried_view_count" 0 "unqueried view selector count"
+# The added POL route requires observed transactions in both directions. Merely
+# mentioning its signature in a script cannot satisfy this release gate.
+assert_eq "$(jq '[.[] | select(.signature | startswith("rebalanceProtocolPolPositions("))
+    | select(any(.executionEvidence[]; .status == "0x1") and any(.executionEvidence[]; .status == "0x0"))]
+    | length' "$OUTPUT_JSON")" 1 "mined POL rebalance success and revert evidence"
 note "selector coverage: $OUTPUT_JSON"
