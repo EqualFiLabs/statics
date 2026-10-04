@@ -11,10 +11,13 @@ and [worked examples](./docs/examples.md). The repository also publishes an
 [LLM-oriented protocol index](./llms.txt). For protocol invariants, accounting,
 and lifecycle details, see [`Statics-Design.md`](./Statics-Design.md), the
 [architecture guide](./docs/architecture.md), and the
-[integration guide](./docs/integration.md). See the
-[current deployment record](./deployment.md) for a human-readable summary, and
-the [Robinhood testnet manifest](./deployments/robinhood-testnet-46630-statics.json)
-for the canonical machine-readable integration-beta state.
+[integration guide](./docs/integration.md). The live standalone Genesis launch
+is documented in the [Genesis release record](./docs/releases/genesis-launch.md)
+and [mainnet manifest](./deployments/robinhood-mainnet-genesis.json).
+[Historical testnet deployments](./deployment.md) and the
+[Robinhood testnet manifest](./deployments/robinhood-testnet-46630-statics.json)
+describe the separate integration-beta state. See the
+[release-record index](./docs/releases/README.md) for documented release boundaries.
 
 ---
 

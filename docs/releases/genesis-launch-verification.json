@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-04T13:03:56.025043Z",
+  "network": {
+    "name": "Robinhood Chain Mainnet",
+    "chainId": 4663
+  },
+  "launchSourceCommit": "43018f109006aa2c2eef2808adc2aa74dfc9a6d4",
+  "manifestCommit": "97ef0056e8c61d32a0ef4d05c5d74fd50a61d9bf",
+  "checkpoint": {
+    "tag": "finalized",
+    "blockNumber": 79944745,
+    "blockHash": "0xedcc496deea4801439fbfe7ceac67a16f30fa72cc497205df2905c4c3f060f61",
+    "timestampUtc": "2026-10-04T12:44:48Z"
+  },
+  "sourceProvenance": {
+    "scope": [
+      "src/genesis",
+      "script/DeployStaticsGenesis.s.sol",
+      "foundry.toml",
+      "remappings.txt",
+      "lib",
+      ".gitmodules"
+    ],
+    "changedPathsBetweenSourceAndManifestCommit": []
+  },
+  "methods": {
+    "contractRuntimes": "eth_getCode at finalized checkpoint number, hashed with cast keccak",
+    "receipts": "eth_getTransactionReceipt with canonical eth_getBlockByNumber hash comparison",
+    "launchCalldata": "eth_getTransactionByHash input, hashed with cast keccak"
+  },
+  "contractRuntimeChecks": [
+    {
+      "contract": "staticsToken",
+      "address": "0x2d8d6F4A93AcD7a916A5a654ec8b690bA3B3EAdd",
+      "expectedRuntimeCodeHash": "0xf10f86b05965a827a332e6c73086f18026fbe3917f4bffbec3f938b3b5397b56",
+      "observedRuntimeCodeHash": "0xf10f86b05965a827a332e6c73086f18026fbe3917f4bffbec3f938b3b5397b56",
+      "matchesManifest": true
+    },
+    {
+      "contract": "operatorsNft",
+      "address": "0xad5E9F96A91D1A6F550580b157af2068A0e8F0BE",
+      "expectedRuntimeCodeHash": "0x4999fbcee14596c8105be151c80a8f7f2ae2c75e48d869cd8f4003a59f7f8085",
+      "observedRuntimeCodeHash": "0x4999fbcee14596c8105be151c80a8f7f2ae2c75e48d869cd8f4003a59f7f8085",
+      "matchesManifest": true
+    },
+    {
+      "contract": "genesisVault",
+      "address": "0x8AAAF9a22f439589987B8f1e69d79ca4f648C297",
+      "expectedRuntimeCodeHash": "0x6d027e43d02497d10f651ada60a51f9fbf41b718dd416a1467c3050b99b9bec4",
+      "observedRuntimeCodeHash": "0x6d027e43d02497d10f651ada60a51f9fbf41b718dd416a1467c3050b99b9bec4",
+      "matchesManifest": true
+    },
+    {
+      "contract": "activationRegistry",
+      "address": "0xfC62e99CaE93878f83801f3d6Bb4f1762E720B30",
+      "expectedRuntimeCodeHash": "0xfcbf8ede9f8f15ff097f344c24d0751d9a23d7b49856e16066ab44caa635bffa",
+      "observedRuntimeCodeHash": "0xfcbf8ede9f8f15ff097f344c24d0751d9a23d7b49856e16066ab44caa635bffa",
+      "matchesManifest": true
+    },
+    {
+      "contract": "feeReceiver",
+      "address": "0x4aa7237527A120c5aFD8Eb89718b57DaB3EDb6cc",
+      "expectedRuntimeCodeHash": "0xb2ab7ae147c05cbf4efd701e89502b859d8fffec27ffe3bb3b56377ae43d8004",
+      "observedRuntimeCodeHash": "0xb2ab7ae147c05cbf4efd701e89502b859d8fffec27ffe3bb3b56377ae43d8004",
+      "matchesManifest": true
+    },
+    {
+      "contract": "launchDistributor",
+      "address": "0xB6583f04e8C606e9F07E39e754Aba77B250Dc3FD",
+      "expectedRuntimeCodeHash": "0x51c78d838690a5c86008f1ad912ce1ba8fb525c6476da5440c8ef2cc54bc7d22",
+      "observedRuntimeCodeHash": "0x51c78d838690a5c86008f1ad912ce1ba8fb525c6476da5440c8ef2cc54bc7d22",
+      "matchesManifest": true
+    },
+    {
+      "contract": "treasuryVesting",
+      "address": "0xBcf0e357c359858aB166aEBb74f0E527aAb3d6ee",
+      "expectedRuntimeCodeHash": "0x9664a61194930ea499bad99bffd0c69c218953888b5f707b47be52eb1bfbe603",
+      "observedRuntimeCodeHash": "0x9664a61194930ea499bad99bffd0c69c218953888b5f707b47be52eb1bfbe603",
+      "matchesManifest": true
+    },
+    {
+      "contract": "genesisRenderer",
+      "address": "0xBbF960f837166ab687FA5d69b605c2E70a83a017",
+      "expectedRuntimeCodeHash": "0x3ae699e07a0b5ba972410b2198c2a30f1cb551b2a834a55f64c17d4997573987",
+      "observedRuntimeCodeHash": "0x3ae699e07a0b5ba972410b2198c2a30f1cb551b2a834a55f64c17d4997573987",
+      "matchesManifest": true
+    },
+    {
+      "contract": "avatarSvg",
+      "address": "0x39601dFDDad3aa66303E231b0445Cd4Cb2D60204",
+      "expectedRuntimeCodeHash": "0x0f68dd8d29303123225778ef519ff922048828d7051fbe7fb2e23e225cc986bd",
+      "observedRuntimeCodeHash": "0x0f68dd8d29303123225778ef519ff922048828d7051fbe7fb2e23e225cc986bd",
+      "matchesManifest": true
+    }
+  ],
+  "transactionReceiptChecks": [
+    {
+      "phase": "prepare",
+      "transactionHash": "0xac96c3d6fcafa7fcccb82f433402792ca26b19c1337b6a2b7a5c365e33394ef6",
+      "blockNumber": 47688979,
+      "blockHash": "0x104700219ddfb8928caf8109ae3dea2bfaa326bbcb739f22d3f87ddfd45c4369",
+      "timestampUtc": "2026-08-27T19:22:37Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true
+    },
+    {
+      "phase": "prepare",
+      "transactionHash": "0x0e865ca090ee01b656a3f7e646d23cf1f04b6bbe81e0f08fa98ae46b81e8b761",
+      "blockNumber": 47688982,
+      "blockHash": "0xdc59a8ea054044152619756ce6fdfad1de63299166f91bbd73ddf11ac2d824f5",
+      "timestampUtc": "2026-08-27T19:22:38Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true
+    },
+    {
+      "phase": "launch",
+      "transactionHash": "0x4ab656be8c63583735636694b029b43b052a01b3169e674c94adc5ec542ebd8e",
+      "blockNumber": 47690074,
+      "blockHash": "0xff05e6b53aa8284acf54999453d74360b72c8a0a64b26012ceefed5f7117bae0",
+      "timestampUtc": "2026-08-27T19:24:28Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x5ece96401a93d49bfa3444faaec10e0119f70b4b93fbbb83964fa5cfef898804",
+      "blockNumber": 47690363,
+      "blockHash": "0xffbc4d6e868923de357024c9a681962ad2fb294308b01d8f4a29b35fb451257b",
+      "timestampUtc": "2026-08-27T19:24:58Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "bindMarket"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x5c35cb5584166ba534d15fee4603cae885d18ad605dd858059d6c4fcf95130cf",
+      "blockNumber": 47690385,
+      "blockHash": "0xcf34ed08d0083e0853039322a01eb4723411ab5762a589b2f9ca237b84709681",
+      "timestampUtc": "2026-08-27T19:25:00Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "deployActivationRegistry"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x9ac216560ec73ff17d1dca4e81259c3de7e1fbd3086c438cc928e5dac5024c89",
+      "blockNumber": 47690390,
+      "blockHash": "0x1e895bb1e901297639700e8debd8232934d169da2cca2570174d54b10b2ea6f5",
+      "timestampUtc": "2026-08-27T19:25:01Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "deployGenesisVault"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xcf9bcb5abe15c519126fd6ec6eb427a0dac43af2155009649852eaadf12f0dbd",
+      "blockNumber": 47690395,
+      "blockHash": "0xf592d39d43a8644867ec29653d20adcc1b22251ea1d44be9936f365d21a6e1c8",
+      "timestampUtc": "2026-08-27T19:25:01Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "deployAvatarSvg"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x0680caa6890b296b1ae829b6212aca5cccabd9ad7fe7e4757b4d43254276ca16",
+      "blockNumber": 47690417,
+      "blockHash": "0x0627fa11083a0311fe63cac0540884a3659b21777fab0e8d6077239ad4bf87c2",
+      "timestampUtc": "2026-08-27T19:25:03Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "deployGenesisRenderer"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xa779467c91943105834984beddc28cfa0ac0f90c32af0c18f28b1c8483e33425",
+      "blockNumber": 47690440,
+      "blockHash": "0x3b2bc88b5883ed4a0a5185507475a03cccf47a70eb7b33912977851019974f39",
+      "timestampUtc": "2026-08-27T19:25:06Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "deployOperatorsNft"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x25d03c1f22519260b9ff150ae7df7a3a130fb4dedbf92470b12b5e1207fa1845",
+      "blockNumber": 47690444,
+      "blockHash": "0xbc57bc167431e3aae3f168d4562f0f46c6ab63b78486a03001fe077097e25fc3",
+      "timestampUtc": "2026-08-27T19:25:06Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "bindGenesisCollection"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x6b08e12da1fce5fb4a6dc504b84368f30be6c4cda66699084e5112d6518f1c6d",
+      "blockNumber": 47690465,
+      "blockHash": "0x7c54f05bc3825fe81ca96a5a84d4716d7faeeeee6e51575caeb775409fa75c2b",
+      "timestampUtc": "2026-08-27T19:25:08Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "finalizeBootstrap"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x9e57c05d07933282cd93d43b39801b89ef6647d00331a9206d15b1a0a979a471",
+      "blockNumber": 47690469,
+      "blockHash": "0xf4e7a764cf1e17c6c6aab49c4448b49492a3d075bc3983511c9f0c5490cdb660",
+      "timestampUtc": "2026-08-27T19:25:09Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "bindReserveVault"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x43ce4afe4634cfccc2706371e044604722e942c21adb8287d545a2dcf58630af",
+      "blockNumber": 47690493,
+      "blockHash": "0xec90b67f2660c89aca1f4d8d9a4e835d9479ea188800827aded49d13bcce43a4",
+      "timestampUtc": "2026-08-27T19:25:11Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "setReserveShare"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x6a7f6e4be4cbc862efe4401137ac50e55faddfb2be7e11d8bf80ef421d539818",
+      "blockNumber": 47690515,
+      "blockHash": "0x1c01e48db43ed2cdf2b431558a81ee245a7b2d0e5cfbf57ec076d5dad33ef267",
+      "timestampUtc": "2026-08-27T19:25:13Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "deployLaunchDistributor"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xd574d0ee4741493ad291d190955727d5a61c581377ebae318407bfc0001c732c",
+      "blockNumber": 47690536,
+      "blockHash": "0x891e3112f2e3d1025acb0466f823779bc86e3d1f5416135b7ffe0dd2ff1ffa8f",
+      "timestampUtc": "2026-08-27T19:25:15Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeDistributor"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xa9c6e283c91fa90353e64450788188178844ed9a74b770b4da95930fd6fcdda9",
+      "blockNumber": 47690539,
+      "blockHash": "0xf9cf963a41edfc73f6c8d63ca14e77d607679b632e6ed848b2afbc36ca19dec6",
+      "timestampUtc": "2026-08-27T19:25:16Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "acceptFeeReceiverRole"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xb555c6fafa70da967903dec206563ee1b59453f6af10e29ece8eb7291d1f4989",
+      "blockNumber": 47690544,
+      "blockHash": "0x35f86f53fdc67cc8835b59562a12b5aee1ea1d36ccb3c5188e0be7817c12ef2f",
+      "timestampUtc": "2026-08-27T19:25:16Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeConsumer"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x9acbaf7801ce567da6dbe76248e2d7d036c7f3dcf74795de75674ccfab331c19",
+      "blockNumber": 47690565,
+      "blockHash": "0x94d26b077560ae3e050e44e51c303e6c9cb28317ee3505177e4f7a4ee1b3ed90",
+      "timestampUtc": "2026-08-27T19:25:18Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "acceptActivationConsumer"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x4f80235d97d89c0cbfaa3e3f9b804a9962a631fcdce829b585154d3b62f57630",
+      "blockNumber": 47690586,
+      "blockHash": "0x2991b42a6f94b23be48f4d393283b7c19c24a6ed1af12c314ea4041c27ba3701",
+      "timestampUtc": "2026-08-27T19:25:20Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeFeeReceiverOwnership"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xeac7e92b0a89f827084181ecf2b55ee45578753de142ba1d690a0da59aae2cdc",
+      "blockNumber": 47690589,
+      "blockHash": "0x90b02bb76cde8e68abb4c9c66bd67e42c75d0a5b7c366f92854894553cc7f478",
+      "timestampUtc": "2026-08-27T19:25:21Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeActivationRegistryOwnership"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x5e57cf0f93eb1901fcbb00db8dc7aa4c4026d4a3b51fb8eb239eeb220d126c2f",
+      "blockNumber": 47690593,
+      "blockHash": "0x5e7a32d47145c035253fc3d61ad041aa3c81cc04baed81499d89a69ed7715870",
+      "timestampUtc": "2026-08-27T19:25:21Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeGenesisVaultOwnership"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0xec54280a495b52d1105a327e6e9f337789af80d64e5fdc40e52ffc6851e74d67",
+      "blockNumber": 47690596,
+      "blockHash": "0xc17cae8c22be735a3cb7d68b99a95a48a33dd4aad14a03602b6ddd129d2869f2",
+      "timestampUtc": "2026-08-27T19:25:21Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeOperatorsNftOwnership"
+    },
+    {
+      "phase": "finalize",
+      "transactionHash": "0x49d5244503df3dc4126b7a84eeb9345dcabc9271b782f531ba2a6d272b59b0ca",
+      "blockNumber": 47690599,
+      "blockHash": "0x4ca3ce6b00d4603804be596b721c738caf54c2a08515f84a8ca020f33613837b",
+      "timestampUtc": "2026-08-27T19:25:22Z",
+      "successful": true,
+      "canonicalBlock": true,
+      "matchesManifest": true,
+      "atOrBeforeCheckpoint": true,
+      "action": "proposeLaunchDistributorOwnership"
+    }
+  ],
+  "launchTransactionCheck": {
+    "transactionHash": "0x4ab656be8c63583735636694b029b43b052a01b3169e674c94adc5ec542ebd8e",
+    "to": "0xeb7c034704ef8dcd2d32324c1545f62fb4ad0862",
+    "from": "0x4cf8e4d37f561815f208565a5b6ca8a85b143205",
+    "valueWei": "0",
+    "observedCalldataHash": "0x6b7ace963970bac4d7b38460af84b0fcd9152a850a3f558970f445725622df62",
+    "expectedCalldataHash": "0x6b7ace963970bac4d7b38460af84b0fcd9152a850a3f558970f445725622df62",
+    "matchesManifest": true,
+    "canonicalAirlock": true,
+    "recordedDeployer": true,
+    "zeroValue": true
+  },
+  "launchTimestampChecks": [
+    {
+      "event": "preparation",
+      "blockNumber": 47688979,
+      "observedTimestampUtc": "2026-08-27T19:22:37Z",
+      "expectedTimestampUtc": "2026-08-27T19:22:37Z",
+      "matchesManifest": true
+    },
+    {
+      "event": "launch",
+      "blockNumber": 47690074,
+      "observedTimestampUtc": "2026-08-27T19:24:28Z",
+      "expectedTimestampUtc": "2026-08-27T19:24:28Z",
+      "matchesManifest": true
+    },
+    {
+      "event": "finalization",
+      "blockNumber": 47690599,
+      "observedTimestampUtc": "2026-08-27T19:25:22Z",
+      "expectedTimestampUtc": "2026-08-27T19:25:22Z",
+      "matchesManifest": true
+    }
+  ],
+  "limitations": [
+    "Runtime checks compare deployed code with historical manifest hashes; they do not independently reproduce compilation.",
+    "Receipt checks establish transaction success and canonical inclusion, not complete semantic postconditions.",
+    "Current ownership, balances, configuration and integrations are outside this historical verification record.",
+    "No new tests, fork rehearsals, formal proofs or independent security audit were executed."
+  ],
+  "result": "pass"
+}
