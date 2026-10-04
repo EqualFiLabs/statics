@@ -66,6 +66,7 @@ class Rehearsal:
         self.close_topic = command('cast', 'keccak', CLOSE_EVENT)
         self.rpc('anvil_nodeInfo', [])
         assert int(self.rpc('eth_chainId', []), 16) == 4663
+        self.fee_account=command('cast','keccak','statics.custody.account.fees')
         self.evidence = self.root/'selector-execution.jsonl'
         self.checks = []
 
@@ -129,6 +130,7 @@ class Rehearsal:
                     liquidity=self.scalar(self.posm, 'getPositionLiquidity(uint256)(uint128)', p[3]))
         for a in self.assets:
             value['tokens'][a] = {'globalReserve':self.scalar(self.diamond,'globalReservedByToken(address)(uint256)',a),
+                'feeReserve':self.scalar(self.diamond,'reservedByAccount(bytes32,address)(uint256)',self.fee_account,a),
                 'treasury':self.scalar(self.diamond,'treasuryAccrued(address)(uint256)',a),
                 'balances':{who:self.scalar(a,'balanceOf(address)(uint256)',who) for who in
                             [self.diamond,self.operator,self.env['TRADER'],self.env['CREATOR'],*self.managers]}}
@@ -141,18 +143,20 @@ class Rehearsal:
             out.write(json.dumps({'suite':'protocol-pol-rebalance','scenario':label,'status':'pass','detail':detail})+'\n')
         print('[protocol-pol-rebalance] ' + label, flush=True)
 
+    def mined_receipt(self, tx, label):
+        for _ in range(100):
+            receipt=self.rpc('eth_getTransactionReceipt',[tx])
+            if receipt is not None:return receipt
+            time.sleep(.1)
+        raise AssertionError('mined receipt missing: '+label)
+
     def send(self, label, data, sender=None, expected_error=None, success_calls=()):
         before = self.snapshot()
         sender = sender or self.operator
         self.rpc('anvil_impersonateAccount', [sender])
         tx = self.rpc('eth_sendTransaction', [{'from':sender,'to':self.diamond,'data':data,
             'gas':hex(15000000),'gasPrice':self.rpc('eth_gasPrice',[])}])
-        receipt = None
-        for _ in range(100):
-            receipt = self.rpc('eth_getTransactionReceipt',[tx])
-            if receipt is not None:break
-            time.sleep(.1)
-        if receipt is None:raise AssertionError('mined receipt missing: ' + label)
+        receipt=self.mined_receipt(tx,label)
         expected_status = '0x0' if expected_error else '0x1'
         transaction = self.rpc('eth_getTransactionByHash',[tx])
         assert transaction['to'].lower() == self.diamond.lower() and transaction['input'] == data
@@ -231,7 +235,8 @@ class Rehearsal:
             assert spent<=sum(leg[3+asset] for leg in opens)
             key=self.assets[asset]
             assert int(after['tokens'][key]['treasury'])==int(before['tokens'][key]['treasury'])+fees[asset]
-            assert int(after['tokens'][key]['globalReserve'])==int(before['tokens'][key]['globalReserve'])+returned-spent
+            assert int(after['tokens'][key]['globalReserve'])==int(before['tokens'][key]['globalReserve'])+returned-spent+fees[asset]
+            assert int(after['tokens'][key]['feeReserve'])==int(before['tokens'][key]['feeReserve'])+fees[asset]
             assert int(after['tokens'][key]['balances'][self.diamond])==int(before['tokens'][key]['balances'][self.diamond])+returned-spent+fees[asset]
         if require_fees:
             assert any(int(after['tokens'][a]['treasury'])>int(before['tokens'][a]['treasury']) for a in self.assets), 'real POL fees not credited to Treasury'
@@ -264,7 +269,7 @@ class Rehearsal:
         before=self.snapshot()
         data=command('cast','calldata','closeProtocolPolPosition(uint256,uint256,uint256,uint256)',str(position),'0','0',str(self.deadline()))
         tx=self.rpc('eth_sendTransaction',[{'from':self.operator,'to':self.diamond,'data':data,'gas':hex(3000000)}])
-        receipt=self.rpc('eth_getTransactionReceipt',[tx])
+        receipt=self.mined_receipt(tx,label)
         assert receipt and receipt['status']=='0x1'
         (self.root/('pol-rebalance-'+label+'.json')).write_text(json.dumps(receipt)+'\n')
         closed=self.events(receipt,self.close_topic,'f()(uint256,uint256)')
@@ -330,6 +335,8 @@ def run(r):
                            ('reversed-ticks',(120,-120,10**10,*own),'InvalidPositionParameters()'),
                            ('unaligned-ticks',(-119,120,10**10,*own),'TickMisaligned(int24,int24)')]:
         r.send(label,r.data(r.pool,closes,[leg]),expected_error=error)
+    r.send('close-slippage',r.data(r.pool,[(ids[0],2**128-1,2**128-1)],single),expected_error='MinimumAmountInsufficient(uint128,uint128)')
+    r.send('open-slippage-after-close',r.data(r.pool,closes,[(-120,120,10**10,0,0)]),expected_error='MaximumAmountExceeded(uint128,uint128)',success_calls=[(exit_sig,1)])
     r.send('replace-late-mint-rollback',r.data(r.pool,[(i,0,0) for i in ids],bad),
            expected_error='InvalidPositionParameters()',success_calls=[(exit_sig,3),(mint,2)])
     # Guardian pause is a mined transaction; authorized exits remain live.
@@ -337,7 +344,7 @@ def run(r):
     r.rpc('anvil_impersonateAccount',[guardian])
     pause=command('cast','calldata','pause(uint256)',str(32))
     h=r.rpc('eth_sendTransaction',[{'from':guardian,'to':r.diamond,'data':pause,'gas':hex(1000000)}])
-    receipt=r.rpc('eth_getTransactionReceipt',[h]);assert receipt and receipt['status']=='0x1'
+    receipt=r.mined_receipt(h,'pause');assert receipt and receipt['status']=='0x1'
     (r.root/'pol-rebalance-pause.json').write_text(json.dumps(receipt)+'\n')
     r.send('paused',r.data(r.pool,closes,single),expected_error='ActionPaused(uint256)')
     r.close('exit-while-paused',ids[-1])
@@ -347,7 +354,7 @@ def run(r):
     artifact=json.loads((Path(r.env['PHASE_ONE_OUT'])/'StaticsLiquidityManager.sol/StaticsLiquidityManager.json').read_text())
     args=command('cast','abi-encode','f(address,address,address,address)',r.diamond,r.posm,r.pool_manager,r.permit2)
     tx=r.rpc('eth_sendTransaction',[{'from':r.env['DEPLOYER'],'data':'0x'+artifact['bytecode']['object'].removeprefix('0x')+args[2:],'gas':hex(10000000)}])
-    receipt=r.rpc('eth_getTransactionReceipt',[tx]);assert receipt and receipt['status']=='0x1'
+    receipt=r.mined_receipt(tx,'deploy-replacement');assert receipt and receipt['status']=='0x1'
     (r.root/'pol-rebalance-deploy-replacement.json').write_text(json.dumps(receipt)+'\n')
     replacement=receipt['contractAddress']
     r.govern('replace-manager','replaceLiquidityManager(address)',replacement)

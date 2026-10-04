@@ -9,12 +9,13 @@ SIGNATURE = 'rebalanceProtocolPolPositions((bytes32,(uint256,uint256,uint256)[],
 SELECTOR = '0x4b4217ad'
 
 
-def validate(root):
+def validate(root, diamond):
     root = Path(root).resolve()
     rows = [json.loads(line) for line in (root/'selector-execution.jsonl').read_text().splitlines()]
     assert rows, 'POL transaction evidence is missing'
     statuses = set()
     for row in rows:
+        assert row['to'].lower() == diamond.lower()
         assert row['status'] in ('0x0', '0x1')
         path = (root/row['receiptFile']).resolve()
         assert path.is_relative_to(root), 'receipt outside this run'
@@ -49,4 +50,4 @@ def validate(root):
 
 
 if __name__ == '__main__':
-    print(validate(sys.argv[1]))
+    print(validate(sys.argv[1],sys.argv[2]))

@@ -45,43 +45,43 @@ class EvidenceTests(unittest.TestCase):
         (self.root/'selector-execution.jsonl').write_text('\n'.join(map(json.dumps,self.rows)))
 
     def test_accepts_only_complete_mined_pair(self):
-        self.assertEqual(self.validator.validate(self.root),2)
+        self.assertEqual(self.validator.validate(self.root,'0x'+'a'*40),2)
 
     def test_rejects_wrong_receipt_status(self):
         self.rows[0]['status']='0x1'
         self.save()
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
 
     def test_rejects_mutated_rollback_state(self):
         self.state['after']['reserve']=0
         self.save()
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
 
     def test_rejects_wrong_transaction_and_missing_outcome(self):
         self.rows[0]['transactionHash']='0x'+'f'*64
         self.save()
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
         self.rows=self.rows[1:]
         self.save()
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
 
     def test_rejects_unrelated_trace(self):
         self.state['trace']['input']='0xdeadbeef'
         self.save()
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
 
     def test_rejects_relabelled_unrelated_success(self):
         path=self.root/self.rows[1]['transactionFile']
         transaction=json.loads(path.read_text())
         transaction['input']='0xdeadbeef'
         path.write_text(json.dumps(transaction))
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
 
     def test_rejects_fabricated_selector(self):
         self.rows[1]['selector']='0xdeadbeef'
         self.rows[1]['calldata']='0xdeadbeef00'
         self.save()
-        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+        with self.assertRaises(AssertionError):self.validator.validate(self.root,'0x'+'a'*40)
 
     def test_cast_output_envelopes(self):
         helper=load('pol-rebalance')

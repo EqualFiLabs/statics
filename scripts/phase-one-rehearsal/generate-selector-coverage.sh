@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 require_commands jq rg awk sort python3
 load_current_run
-python3 "$SCRIPT_DIR/helpers/validate-pol-evidence.py" "$RUN_DIR" >/dev/null
+python3 "$SCRIPT_DIR/helpers/validate-pol-evidence.py" "$RUN_DIR" "$STATICS_DIAMOND_ADDRESS" >/dev/null
 
 INVENTORY="$RUN_DIR/selector-inventory.json"
 [[ -f "$INVENTORY" ]] || fail "selector inventory is missing: $INVENTORY"
