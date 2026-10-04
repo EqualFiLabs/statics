@@ -73,6 +73,27 @@ contract RobinhoodPendleBasketForkTest is RobinhoodPendleForkBase {
         emit log_named_uint("sTERM launch gas", termLaunchGas);
     }
 
+    function testTermCanonicalSaleQuotesTrackWholeBasketNav() public {
+        uint256 probeShares = 0.001 ether;
+        uint256[] memory redeemQuote = baskets.quoteRedeem(termBasketId, 1 ether);
+        uint256 nav;
+        for (uint256 i; i < 3; ++i) {
+            nav += _quotePtUsdg(i, redeemQuote[i]);
+        }
+        uint256 expectedUsdg = Math.mulDiv(nav, probeShares, SHARE_SCALE);
+        for (uint256 i; i < 3; ++i) {
+            uint256 ptOut = _quoteCanonicalExactInput(
+                _canonicalPool(termBasketId, _termMarket(i).pt),
+                termBasketToken,
+                _termMarket(i).pt,
+                uint128(probeShares)
+            );
+            uint256 saleUsdg = _quotePtUsdg(i, ptOut);
+            // Compare real canonical and external quotes, including fees and probe slippage.
+            assertApproxEqRel(saleUsdg, expectedUsdg, 0.03 ether, "canonical price omits basket components");
+        }
+    }
+
     function testFeeBearingTermBasketMintsAndRedeemsThroughGenericCustody() public {
         uint256 shares = 2 ether;
         BasketBooks memory beforeAction = _snapshot();

@@ -332,7 +332,7 @@ abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
         bundles[0] = SHARE_SCALE;
         uint256[] memory poolSeeds = new uint256[](1);
         poolSeeds[0] = poolSeed;
-        (basketId, basketToken) = _launchPendleBasket("Statics PT-NVDA", "sPT-NVDA", assets, bundles, poolSeeds);
+        (basketId, basketToken) = _launchPendleBasket("Statics PT-NVDA", "sPT-NVDA", assets, bundles, poolSeeds, 1);
         wrapperBasketId = basketId;
         wrapperBasketToken = basketToken;
     }
@@ -344,7 +344,7 @@ abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
         for (uint256 i; i < 3; ++i) {
             poolSeeds[i] = Math.mulDiv(bundles[i], seedShares, SHARE_SCALE);
         }
-        (basketId, basketToken) = _launchPendleBasket("Statics Equal-Dollar PT", "sTERM", assets, bundles, poolSeeds);
+        (basketId, basketToken) = _launchPendleBasket("Statics Equal-Dollar PT", "sTERM", assets, bundles, poolSeeds, 3);
         termBasketId = basketId;
         termBasketToken = basketToken;
     }
@@ -361,7 +361,7 @@ abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
         bundles[0] = 1_000_000;
         uint256[] memory poolSeeds = new uint256[](1);
         poolSeeds[0] = poolSeed;
-        (basketId, basketToken) = _launchPendleBasket("Statics USDG Reserve", "sUSDG", assets, bundles, poolSeeds);
+        (basketId, basketToken) = _launchPendleBasket("Statics USDG Reserve", "sUSDG", assets, bundles, poolSeeds, 1);
         uint256[] memory quote = baskets.quoteMint(basketId, reserveShares);
         vm.prank(alice);
         baskets.mint(basketId, reserveShares, alice, quote);
@@ -372,7 +372,8 @@ abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
         string memory symbol,
         address[] memory assets,
         uint256[] memory bundles,
-        uint256[] memory poolSeeds
+        uint256[] memory poolSeeds,
+        uint256 equalValueComponents
     ) internal returns (uint256 basketId, address basketToken) {
         uint256 length = assets.length;
         IStaticsBasket.CreateBasketParams memory params = IStaticsBasket.CreateBasketParams({
@@ -397,7 +398,8 @@ abstract contract RobinhoodPendleForkBase is ManagedPolForkTestBase {
             pools[i] = IStaticsBasket.PoolLaunchParams({
                 lpFee: 3_000,
                 tickSpacing: 10,
-                sqrtPriceAssetPerBasketX96: _semanticSqrtPrice(bundles[i]),
+                // A basket share represents the complete NAV, not one component.
+                sqrtPriceAssetPerBasketX96: _semanticSqrtPrice(bundles[i] * equalValueComponents),
                 pairedAssetAmount: poolSeeds[i]
             });
             maximums[i] = IERC20(assets[i]).balanceOf(alice);
