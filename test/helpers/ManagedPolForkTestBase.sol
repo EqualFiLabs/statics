@@ -21,6 +21,26 @@ abstract contract ManagedPolForkTestBase is StaticsTestBase {
         uint256 pending1;
     }
 
+    function _selectPinnedComposabilityFork(uint256 forkBlock, bytes32 expectedHash) internal returns (bool selected) {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
+            vm.skip(true, "ROBINHOOD_MAINNET is not configured");
+            return false;
+        }
+        // Robinhood uses Arbitrum: BLOCKNUMBER/BLOCKHASH refer to L1, not the rollup height.
+        // Verify the rollup header directly, then select exactly the pinned state.
+        string memory header =
+            vm.rpcJson(rpcUrl, "eth_getBlockByHash", string.concat("[\"", vm.toString(expectedHash), "\",false]"));
+        assertEq(vm.parseJsonBytes32(header, ".hash"), expectedHash, "fork block hash drift");
+        assertEq(vm.parseJsonUint(header, ".number"), forkBlock, "fork block number drift");
+        vm.createSelectFork(rpcUrl, forkBlock);
+        assertEq(block.chainid, 4_663, "fork chain id drift");
+        assertEq(block.number, vm.parseJsonUint(header, ".l1BlockNumber"), "fork L1 block number drift");
+        assertEq(block.timestamp, vm.parseJsonUint(header, ".timestamp"), "fork timestamp drift");
+        return true;
+    }
+
     function _managedPolLiquidity(PoolId poolId) internal view returns (uint128 liquidity) {
         IStaticsProtocolPools protocolPools = IStaticsProtocolPools(address(diamond));
         IStaticsProtocolPools.ProtocolPoolView memory pool = protocolPools.protocolPool(poolId);

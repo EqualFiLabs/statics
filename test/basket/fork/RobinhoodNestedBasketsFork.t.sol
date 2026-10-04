@@ -757,19 +757,7 @@ abstract contract RobinhoodNestedBasketsForkBase is ManagedPolForkTestBase, Perm
     }
 
     function _selectPinnedFork() internal returns (bool selected) {
-        if (block.chainid == 4_663 && block.number == FORK_BLOCK) return true;
-        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            if (vm.envOr("REQUIRE_ROBINHOOD_FORK", false)) fail("Robinhood fork required");
-            vm.skip(true, "ROBINHOOD_MAINNET is not configured");
-            return false;
-        }
-        uint256 forkId = vm.createSelectFork(rpcUrl, FORK_BLOCK + 1);
-        assertEq(blockhash(FORK_BLOCK), FORK_BLOCK_HASH, "fork block hash drift");
-        vm.rollFork(forkId, FORK_BLOCK);
-        assertEq(block.chainid, 4_663);
-        assertEq(block.number, FORK_BLOCK);
-        return true;
+        return _selectPinnedComposabilityFork(FORK_BLOCK, FORK_BLOCK_HASH);
     }
 
     function _installLocalLiquidityIntegration() internal pure virtual override returns (bool) {
