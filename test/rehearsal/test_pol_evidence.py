@@ -25,11 +25,15 @@ class EvidenceTests(unittest.TestCase):
         self.rows = []
         for status in ('0x0', '0x1'):
             row = dict(status=status, transactionHash='0x'+status[-1]*64,
-                       to='0x'+'a'*40, selector='0x12345678', calldata='0x1234567800',
-                       signature='rebalanceProtocolPolPositions(...)',
+                       to='0x'+'a'*40, sender='0x'+'c'*40, selector=self.validator.SELECTOR, calldata=self.validator.SELECTOR+'00',
+                       signature=self.validator.SIGNATURE, transactionFile=f'{status}-transaction.json',
                        receiptFile=f'{status}.json', stateFile='state.json')
-            receipt = dict(status=status, transactionHash=row['transactionHash'], to=row['to'], logs=[])
+            receipt = dict(status=status, transactionHash=row['transactionHash'], to=row['to'], logs=[], blockHash='0x'+'b'*64, blockNumber='0x1')
+            receipt['from']=row['sender']
             (self.root/row['receiptFile']).write_text(json.dumps(receipt))
+            transaction=dict(hash=row['transactionHash'],blockHash=receipt['blockHash'],to=row['to'],input=row['calldata'],blockNumber='0x1')
+            transaction['from']=row['sender']
+            (self.root/row['transactionFile']).write_text(json.dumps(transaction))
             self.rows.append(row)
         self.state = dict(before={'reserve':123}, after={'reserve':123}, errorSelector='0xaabbccdd',
                           trace=dict(error='execution reverted', input=self.rows[0]['calldata'],
@@ -65,6 +69,25 @@ class EvidenceTests(unittest.TestCase):
         self.state['trace']['input']='0xdeadbeef'
         self.save()
         with self.assertRaises(AssertionError):self.validator.validate(self.root)
+
+    def test_rejects_relabelled_unrelated_success(self):
+        path=self.root/self.rows[1]['transactionFile']
+        transaction=json.loads(path.read_text())
+        transaction['input']='0xdeadbeef'
+        path.write_text(json.dumps(transaction))
+        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+
+    def test_rejects_fabricated_selector(self):
+        self.rows[1]['selector']='0xdeadbeef'
+        self.rows[1]['calldata']='0xdeadbeef00'
+        self.save()
+        with self.assertRaises(AssertionError):self.validator.validate(self.root)
+
+    def test_cast_output_envelopes(self):
+        helper=load('pol-rebalance')
+        self.assertEqual(helper.values('["17", -120]'),['17',-120])
+        self.assertEqual(helper.values('{"schema_version":1,"success":true,"data":["17",-120],"errors":[]}'),['17',-120])
+        with self.assertRaises(AssertionError):helper.values('{"success":false,"data":[],"errors":["decode failed"]}')
 
     def test_redacts_private_endpoint_and_host(self):
         endpoint='https://user:password@example.invalid/private-token'

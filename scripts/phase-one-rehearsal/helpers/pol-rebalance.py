@@ -12,6 +12,7 @@ REBALANCE = 'rebalanceProtocolPolPositions((bytes32,(uint256,uint256,uint256)[],
 POOL_VIEW = 'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))'
 POSITION_VIEW = 'protocolPolPosition(uint256)((uint256,bytes32,address,uint256,int24,int24,uint128,bool))'
 OPEN_EVENT = 'ProtocolPolPositionOpened(bytes32,uint256,address,uint256,int24,int24,uint128,uint256,uint256)'
+FEE_EVENT = 'ManagedPositionFeesCollected(bytes32,uint256,address,uint256,uint256)'
 CLOSE_EVENT = 'ProtocolPolPositionClosed(bytes32,uint256,uint256,uint256)'
 MAX = 2**256 - 1
 ZERO = '0x' + '0'*64
@@ -19,6 +20,15 @@ ZERO = '0x' + '0'*64
 
 def command(*args):
     return subprocess.check_output(args, text=True, stderr=subprocess.PIPE).strip()
+
+
+def values(output):
+    decoded=json.loads(output)
+    if isinstance(decoded,dict):
+        assert decoded.get('success') is True and not decoded.get('errors')
+        decoded=decoded['data']
+    assert isinstance(decoded,list)
+    return decoded
 
 
 def abi(value):
@@ -52,6 +62,7 @@ class Rehearsal:
         self.permit2 = environment['PERMIT2']
         self.selector = command('cast', 'sig', REBALANCE)
         self.open_topic = command('cast', 'keccak', OPEN_EVENT)
+        self.fee_topic = command('cast', 'keccak', FEE_EVENT)
         self.close_topic = command('cast', 'keccak', CLOSE_EVENT)
         self.rpc('anvil_nodeInfo', [])
         assert int(self.rpc('eth_chainId', []), 16) == 4663
@@ -67,7 +78,7 @@ class Rehearsal:
         return value['result']
 
     def call(self, address, signature, *args):
-        return json.loads(command('cast', 'call', address, signature, *map(abi, args), '--rpc-url', self.url, '--json'))
+        return values(command('cast', 'call', address, signature, *map(abi, args), '--rpc-url', self.url, '--json'))
 
     def scalar(self, address, signature, *args):
         return self.call(address, signature, *args)[0]
@@ -143,12 +154,14 @@ class Rehearsal:
             time.sleep(.1)
         if receipt is None:raise AssertionError('mined receipt missing: ' + label)
         expected_status = '0x0' if expected_error else '0x1'
-        if receipt['status'] != expected_status:raise AssertionError('unexpected mined status: ' + label)
         transaction = self.rpc('eth_getTransactionByHash',[tx])
         assert transaction['to'].lower() == self.diamond.lower() and transaction['input'] == data
         assert transaction['from'].lower() == sender.lower()
         path = (self.failed if expected_error else self.root)/('pol-rebalance-'+label+'.json')
         path.write_text(json.dumps(receipt,indent=2)+'\n')
+        transaction_path=self.root/('pol-rebalance-'+label+'-transaction.json')
+        transaction_path.write_text(json.dumps(transaction,indent=2)+'\n')
+        if receipt['status'] != expected_status:raise AssertionError('unexpected mined status: ' + label)
         if expected_error:
             trace = self.rpc('debug_traceTransaction',[tx,{'tracer':'callTracer'}])
             error_selector = command('cast','sig',expected_error)
@@ -179,26 +192,47 @@ class Rehearsal:
         with self.evidence.open('a') as out:
             out.write(json.dumps({'selector':self.selector,'signature':REBALANCE,'scenario':'protocol-pol-rebalance',
                 'label':label,'transactionHash':tx,'status':receipt['status'],'to':self.diamond,
-                'calldata':data,'receiptFile':str(path.relative_to(self.root)),
+                'calldata':data,'sender':sender,'receiptFile':str(path.relative_to(self.root)),
+                'transactionFile':str(transaction_path.relative_to(self.root)),
                 'stateFile':str((self.failed/(label+'-state.json')).relative_to(self.root)) if expected_error else None})+'\n')
         return receipt,before,after
 
     def events(self, receipt, topic, signature):
-        return [(int(log['topics'][2],16),json.loads(command('cast','abi-decode',signature,log['data'],'--json')))
+        return [(int(log['topics'][2],16),values(command('cast','abi-decode',signature,log['data'],'--json')))
             for log in receipt['logs'] if log['address'].lower()==self.diamond.lower() and log['topics'][0]==topic]
+
+    def collected_fees(self, receipt, positions):
+        expected={int(self.position(i)[3]):self.position(i)[2].lower() for i in positions}
+        seen=set()
+        totals=[0,0]
+        for log in receipt['logs']:
+            if log['topics'][0] != self.fee_topic:continue
+            token=int(log['topics'][2],16)
+            assert token in expected and token not in seen
+            assert log['address'].lower()==expected[token]
+            assert log['topics'][1]==self.pool
+            assert ('0x'+log['topics'][3][-40:]).lower()==self.diamond.lower()
+            seen.add(token)
+            fees=values(command('cast','abi-decode','f()(uint256,uint256)',log['data'],'--json'))
+            totals=[total+int(fee) for total,fee in zip(totals,fees)]
+        assert seen==set(expected), 'exact per-position fee harvest evidence missing'
+        return totals
 
     def rebalance(self, label, closes, opens, require_fees=False):
         receipt,before,after = self.send(label,self.data(self.pool,[(i,0,0) for i in closes],opens))
         opened = self.events(receipt,self.open_topic,'f()(uint256,int24,int24,uint128,uint256,uint256)')
         closed = self.events(receipt,self.close_topic,'f()(uint256,uint256)')
         assert len(opened)==len(opens) and [i for i,_ in closed]==closes
+        fees=self.collected_fees(receipt,closes)
         for asset in (0,1):
             returned=sum(int(values[asset]) for _,values in closed)
             spent=sum(int(values[4+asset]) for _,values in opened)
             assert after['pools'][self.pool]['reserve'][asset] == before['pools'][self.pool]['reserve'][asset]+returned-spent
             assert spent<=sum(leg[3+asset] for leg in opens)
             key=self.assets[asset]
-            assert int(after['tokens'][key]['treasury'])>=int(before['tokens'][key]['treasury'])
+            assert int(after['tokens'][key]['treasury'])==int(before['tokens'][key]['treasury'])+fees[asset]
+            assert int(after['tokens'][key]['globalReserve'])==int(before['tokens'][key]['globalReserve'])+returned-spent
+            assert int(after['tokens'][key]['balances'][self.diamond])==int(before['tokens'][key]['balances'][self.diamond])+returned-spent+fees[asset]
         if require_fees:
             assert any(int(after['tokens'][a]['treasury'])>int(before['tokens'][a]['treasury']) for a in self.assets), 'real POL fees not credited to Treasury'
         for i in closes:
@@ -214,7 +248,8 @@ class Rehearsal:
             assert [int(p[4]),int(p[5])]==list(leg[:2])
             assert self.scalar(self.posm,'ownerOf(uint256)(address)',p[3]).lower()==p[2].lower()
             assert int(self.scalar(self.posm,'getPositionLiquidity(uint256)(uint128)',p[3]))==leg[2]
-            assert self.scalar(self.diamond,'posmBinding(uint256)(bytes32)',p[3])!=ZERO
+            binding=command('cast','keccak',command('cast','abi-encode','f(bytes32,uint256)',command('cast','keccak','statics.position.binding.protocol.pol'),str(i)))
+            assert self.scalar(self.diamond,'posmBinding(uint256)(bytes32)',p[3])==binding
         assert int(after['pools'][self.pool]['pool'][10])==len(self.active())
         self.check(label+'-principal-accounting','Exact per-asset principal returns minus gross spends; LP fees excluded from POL')
         return [i for i,_ in opened],dict(closed),dict(opened)
@@ -235,8 +270,11 @@ class Rehearsal:
         closed=self.events(receipt,self.close_topic,'f()(uint256,uint256)')
         assert len(closed)==1 and closed[0][0]==position
         after=self.snapshot()
+        fees=self.collected_fees(receipt,[position])
         for asset in (0,1):
             assert after['pools'][self.pool]['reserve'][asset]==before['pools'][self.pool]['reserve'][asset]+int(closed[0][1][asset])
+            a=self.assets[asset]
+            assert int(after['tokens'][a]['treasury'])==int(before['tokens'][a]['treasury'])+fees[asset]
         assert not self.position(position)[7]
         self.check(label,'Authorized exit returns principal to the same POL account')
 
@@ -290,7 +328,7 @@ def run(r):
     for label,leg,error in [('zero-liquidity',(-120,120,0,*own),'InvalidPositionParameters()'),
                            ('equal-ticks',(0,0,10**10,*own),'InvalidPositionParameters()'),
                            ('reversed-ticks',(120,-120,10**10,*own),'InvalidPositionParameters()'),
-                           ('unaligned-ticks',(-119,120,10**10,*own),'InvalidPositionParameters()')]:
+                           ('unaligned-ticks',(-119,120,10**10,*own),'TickMisaligned(int24,int24)')]:
         r.send(label,r.data(r.pool,closes,[leg]),expected_error=error)
     r.send('replace-late-mint-rollback',r.data(r.pool,[(i,0,0) for i in ids],bad),
            expected_error='InvalidPositionParameters()',success_calls=[(exit_sig,3),(mint,2)])
