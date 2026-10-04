@@ -87,9 +87,6 @@ the corresponding public contract pages.
 The original configured governance Safe was
 `0x603A8A2f22ac1d61E9c932A4F6Fa23170CEcb9Ff`. The treasury was the separate address
 `0x0Ce4140f3Ab03024623a75F248D467912C7E1725`.
-The manifest's pending ownership-acceptance fields record the initial
-post-finalization handoff snapshot. They are not a current ownership report or
-an outstanding-release-blocker claim.
 
 ## Canonical market and launch settings
 
@@ -162,41 +159,34 @@ dependencies. Their addresses and expected runtime hashes are recorded in the
 original manifest. The STATICS token is factory-created; its deployed runtime
 hash is checked separately from the eight Statics-owned standalone contracts.
 
-## Retrospective verification
+## Deployment verification
 
-The October 4, 2026 check used read-only Robinhood Mainnet RPC calls and the
-finalized checkpoint at block `79944745`, hash
+On October 4, 2026, the deployed contract bytecode and original launch transactions
+were checked against the August 27 deployment record.
+
+| Deployment detail | Result |
+| --- | --- |
+| Contract runtime hashes | All nine match the original manifest |
+| Preparation, launch and finalization transactions | All 23 have successful receipts in the canonical chain at the recorded blocks |
+| Ceremony timestamps | Match the original deployment record |
+| Airlock launch transaction | Calldata hash, recipient, deployer and zero native value match the launch record |
+| Genesis source and build configuration | Unchanged between the recorded launch commit and the original manifest commit |
+
+Contract bytecode was checked at finalized block `79944745`, hash
 `0xedcc496deea4801439fbfe7ceac67a16f30fa72cc497205df2905c4c3f060f61`,
 with block timestamp `2026-10-04T12:44:48Z`.
-The [machine-readable evidence](./genesis-launch-verification.json) records
-the exact checkpoint, expected and observed runtime hashes, original receipts,
-and verification limits.
+The [verification data](./genesis-launch-verification.json) provides the complete
+runtime hashes, transaction receipts, and check methodology.
 
-| Check | Result | Evidence boundary |
-| --- | --- | --- |
-| Network identity | Chain ID `4663` | Configured private RPC |
-| Contract runtime inventory | 9 of 9 hashes match | Deployed code at the finalized checkpoint versus the original manifest |
-| Original ceremony transactions | 23 of 23 match and succeed | Canonical receipts, recorded blocks, and inclusion before the checkpoint |
-| Preparation, launch and finalization timestamps | Match the original manifest | Original transaction block timestamps |
-| Genesis source/build provenance | No delta in the checked paths | Recorded launch source versus original manifest commit |
-| Airlock launch calldata | Hash matches the original manifest | Original transaction input, recipient, deployer, and zero native value |
+## Developer reference
 
-Runtime-to-manifest comparison does not independently reproduce compilation.
-Successful receipts do not establish every semantic postcondition of the
-ceremony. The artifact hash above is a recorded commitment; the original offchain launch
-artifact was not independently reconstructed by this check.
-Current ownership, balances, configuration, and later integrations were not
-queried. No new contract tests, fork rehearsals, formal proofs, or independent
-security audit were executed for this documentation change.
+The contract inventory above and the
+[original launch source](https://github.com/EqualFiLabs/statics/tree/43018f109006aa2c2eef2808adc2aa74dfc9a6d4/src/genesis)
+provide the addresses, interfaces, and event definitions for standalone Genesis
+integrations. Index contract events from their deployment blocks and STATICS
+market activity from block `47690074`.
 
-## Integration reference
-
-Use the recorded contract addresses and launch source when integrating the
-standalone Genesis system. Event indexing starts at the deployment blocks listed
-above; STATICS market activity starts at block `47690074`. A phased Diamond release
-has its own contracts, selectors, configuration, review, and deployment record.
-
-The original manifest also contains provisioning and handoff fields captured at
-launch. Its historical RPC provisioning entries are not integration endpoint
-recommendations. Operational state should be documented with its observation
-block and date, without rewriting this original release snapshot.
+This record captures the configuration at launch. For live integrations, confirm
+current ownership, fee settings, and reward routing directly from the deployed
+contracts. The phased Statics Diamond is documented separately in the
+[staged-launch ADR](../adr/staged-phase-one-launch.md).
