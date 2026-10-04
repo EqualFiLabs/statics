@@ -28,6 +28,7 @@ SCENARIOS=(
     permissioned-lifecycle.sh
     permissioned-creator-handover.sh
     protocol-pol-lifecycle.sh
+    protocol-pol-rebalance.sh
     direct-range-rewards.sh
     allocator-rewards.sh
     public-revenue-rewards.sh
@@ -70,9 +71,13 @@ receipt_statuses=$(find "$RUN_DIR" -maxdepth 1 -type f -name '*.json' -print0 \
 receipt_total=$(awk 'NF { count++ } END { print count + 0 }' <<<"$receipt_statuses")
 receipt_success=$(awk '$0 == "0x1" { count++ } END { print count + 0 }' <<<"$receipt_statuses")
 receipt_failed=$(( receipt_total - receipt_success ))
+expected_reverts=$(find "$RUN_DIR/expected-reverts" -maxdepth 1 -type f -name 'pol-rebalance-*.json' -print0 2>/dev/null \
+    | xargs -0 -r jq -r '.status' | awk '$0 == "0x0" {count++} END {print count+0}')
 facet_count=$(jq '[.[].facetAddress] | unique | length' "$RUN_DIR/selector-inventory.json")
 selector_count=$(jq 'length' "$RUN_DIR/selector-inventory.json")
-pr96_base=$(git merge-base "$HEAD_COMMIT" public/feat/staged-phase-one-launch)
+# Immutable published head of the Phase 1 foundation (PR #96). A retired
+# local branch ref must not prevent a fresh checkout from reporting its run.
+pr96_base=6ebb2e5580b72f9c1826114d61c8dac8137ef812
 jq -s \
     --slurpfile vanilla "$RUN_DIR/vanilla-swap-gas.json" \
     --slurpfile public "$RUN_DIR/public-swap-gas.json" \
@@ -88,7 +93,8 @@ jq -s \
     --argjson selectorCount "$selector_count" \
     --argjson receiptTotal "$receipt_total" \
     --argjson receiptSuccess "$receipt_success" \
-    --argjson receiptFailed "$receipt_failed" '
+    --argjson receiptFailed "$receipt_failed" \
+    --argjson expectedReverts "$expected_reverts" '
     {
         commitTested: $commit,
         phaseOneBaseCommit: $phaseOneBase,
@@ -101,7 +107,7 @@ jq -s \
         scenarios: $scenarios,
         scenarioCount: ($scenarios | length),
         recordedChecks: length,
-        receipts: {mined:$receiptTotal,successful:$receiptSuccess,failed:$receiptFailed},
+        receipts: {mined:$receiptTotal,successful:$receiptSuccess,failed:$receiptFailed,expectedReverts:$expectedReverts},
         selectorCoverage: {
             classifications: $selectorCounts[0],
             unrehearsed: ($selectorCoverage[0] | map(select(.classification == "not-rehearsed"))),

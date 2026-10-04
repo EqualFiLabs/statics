@@ -236,6 +236,8 @@ jobs:
           forge fmt --check "${files[@]}"
       - name: Check diff whitespace
         run: git diff --check
+      - name: Test fork rehearsal evidence guards
+        run: python3 -m unittest discover -s test/rehearsal -v
 
   solidity:
     name: Solidity / test

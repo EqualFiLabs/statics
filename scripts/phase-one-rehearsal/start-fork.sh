@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
-require_commands anvil cast jq git tmux
+require_commands anvil cast jq git tmux python3
 
 RPC_ENV=/home/hooftly/.openclaw/workspace/.rpc
 [[ -r "$RPC_ENV" ]] || fail "canonical RPC environment is unavailable"
@@ -30,8 +30,16 @@ mkdir -p "$RUN_DIR"
 
 ANVIL_LOG="$RUN_DIR/anvil.log"
 ANVIL_SESSION="statics-p1-$RUN_ID"
-tmux new-session -d -s "$ANVIL_SESSION" \
-    "exec anvil --fork-url '$ROBINHOOD_MAINNET' --fork-block-number '$FORK_BLOCK' --chain-id 4663 --host 127.0.0.1 --port 8545 --mnemonic '$ANVIL_MNEMONIC' --accounts 20 --balance 1000000 >'$ANVIL_LOG' 2>&1"
+ANVIL_PORT=$(python3 -c 'import sys; from urllib.parse import urlsplit
+p=urlsplit(sys.argv[1])
+assert p.scheme=="http" and p.hostname=="127.0.0.1" and p.port and not p.username and not p.password
+print(p.port)' "$RPC_URL")
+# The detached command contains the variable name, never its secret value.
+# Load the canonical environment in that shell and redact even error output.
+printf -v launch_command 'set -o pipefail; set -a; source %q; set +a; anvil --silent --fork-url "$ROBINHOOD_MAINNET" --fork-block-number %q --chain-id 4663 --host 127.0.0.1 --port %q --mnemonic %q --accounts 20 --balance 1000000 2>&1 | python3 %q >%q' \
+    "$RPC_ENV" "$FORK_BLOCK" "$ANVIL_PORT" "$ANVIL_MNEMONIC" "$SCRIPT_DIR/helpers/redact-rpc.py" "$ANVIL_LOG"
+printf -v tmux_command 'exec bash --noprofile --norc -c %q' "$launch_command"
+tmux new-session -d -s "$ANVIL_SESSION" "$tmux_command"
 
 ready=0
 for _ in $(seq 1 120); do
