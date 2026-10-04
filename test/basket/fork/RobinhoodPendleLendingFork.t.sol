@@ -196,10 +196,19 @@ contract RobinhoodPendleLendingForkTest is RobinhoodPendleForkBase {
         for (uint256 i; i < 3; ++i) {
             address pt = _termMarket(i).pt;
             AssetSnapshot memory prior = beforePosition.assets[i];
-            uint256 mintPrincipal = Math.mulDiv(termBundles[i], POSITION_SHARES, SHARE_SCALE);
+            // Minting and fee-share burns change ceiling-rounded backing at total supply.
+            // Keep exact assertions rather than accepting a one-unit accounting tolerance.
+            uint256 backingBefore =
+                Math.mulDiv(termBundles[i], beforePosition.termSupply, SHARE_SCALE, Math.Rounding.Ceil);
+            uint256 backingAfterMint = Math.mulDiv(
+                termBundles[i], beforePosition.termSupply + POSITION_SHARES, SHARE_SCALE, Math.Rounding.Ceil
+            );
+            uint256 backingAfterFee = Math.mulDiv(
+                termBundles[i], beforePosition.termSupply + run.unlockedShares, SHARE_SCALE, Math.Rounding.Ceil
+            );
+            uint256 mintPrincipal = backingAfterMint - backingBefore;
             uint256 mintFee = run.mintQuote[i] - mintPrincipal;
-            uint256 originationFee =
-                Math.mulDiv(termBundles[i], run.borrowQuote.feeShares, SHARE_SCALE, Math.Rounding.Ceil);
+            uint256 originationFee = backingAfterMint - backingAfterFee;
 
             assertEq(lending.outstandingPrincipal(termBasketId, pt), 0);
             assertEq(IERC20(pt).balanceOf(bob), 0);
