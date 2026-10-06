@@ -35,6 +35,10 @@ contract RestrictedSettlementProtocol {
         token.authorizePoolSettlement(inbound, outbound);
     }
 
+    function claim(StaticsRestrictedBasketToken token, address receiver, uint256 amount) external {
+        token.authorizePoolClaim(receiver, amount);
+    }
+
     function configureMorpho(StaticsRestrictedBasketToken token, address morpho) external {
         token.configureMorpho(morpho);
     }
@@ -83,7 +87,7 @@ contract RestrictedBasketSettlementTest is Test, IUnlockCallback {
 
     function setUp() public {
         protocol = new RestrictedSettlementProtocol();
-        manager = IPoolManager(deployCode("PoolManager.sol:PoolManager", abi.encode(address(this))));
+        manager = IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
         token = protocol.deploy(manager);
         protocol.mint(token, alice, 100 ether);
     }
@@ -214,7 +218,11 @@ contract RestrictedBasketSettlementTest is Test, IUnlockCallback {
         manager.burn(address(this), uint160(address(token)), amount);
         vm.expectRevert();
         manager.take(Currency.wrap(address(token)), alice, amount);
-        protocol.budgets(token, 0, amount);
+        protocol.claim(token, alice, amount);
+        vm.expectRevert();
+        manager.take(Currency.wrap(address(token)), bob, amount);
+        vm.expectRevert();
+        manager.take(Currency.wrap(address(token)), alice, amount - 1);
         manager.take(Currency.wrap(address(token)), alice, amount);
         vm.expectRevert();
         token.transferFrom(alice, address(manager), 1);

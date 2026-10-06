@@ -5,6 +5,7 @@ pragma solidity 0.8.33;
 interface IStaticsRestrictedBasketToken {
     function authorizeProtocolTransfer(address from, address to, uint256 amount) external;
     function authorizePoolSettlement(uint256 inbound, uint256 outbound) external;
+    function authorizePoolClaim(address receiver, uint256 amount) external;
     function configureMorpho(address morpho) external;
     function authorizeMorphoIngress(uint256 amount) external;
     function settlementBudgets() external view returns (uint256 inbound, uint256 outbound);

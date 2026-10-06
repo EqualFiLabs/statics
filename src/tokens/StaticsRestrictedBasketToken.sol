@@ -17,6 +17,7 @@ contract StaticsRestrictedBasketToken is StaticsBasketToken, IStaticsRestrictedB
     bytes32 private constant INBOUND_SLOT = keccak256("statics.basket.pool.inbound.v1");
     bytes32 private constant OUTBOUND_SLOT = keccak256("statics.basket.pool.outbound.v1");
     bytes32 private constant MORPHO_SLOT = keccak256("statics.basket.morpho.ingress.v1");
+    bytes32 private constant CLAIM_DOMAIN = keccak256("statics.basket.pool.claim.v1");
 
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     IPoolManager public immutable poolManager;
@@ -64,6 +65,16 @@ contract StaticsRestrictedBasketToken is StaticsBasketToken, IStaticsRestrictedB
         OUTBOUND_SLOT.asUint256().tstore(OUTBOUND_SLOT.asUint256().tload() + outbound);
     }
 
+    function authorizePoolClaim(address receiver, uint256 amount) external onlyProtocol {
+        if (!poolManager.isUnlocked()) revert PoolManagerLocked();
+        if (receiver == address(0) || receiver == address(poolManager)) {
+            revert TransferNotAuthorized(address(poolManager), receiver, amount);
+        }
+        bytes32 slot = _claimSlot(receiver, amount);
+        if (slot.asBoolean().tload()) revert AuthorizationAlreadyPending(address(poolManager), receiver, amount);
+        slot.asBoolean().tstore(true);
+    }
+
     /// @dev Set once when the protocol binds a tracked market; outbound liquidation has no Diamond callback.
     function configureMorpho(address morpho_) external onlyProtocol {
         if (morpho != address(0)) revert MorphoAlreadyConfigured(morpho);
@@ -93,11 +104,19 @@ contract StaticsRestrictedBasketToken is StaticsBasketToken, IStaticsRestrictedB
             if (from == address(poolManager) || to == address(poolManager)) {
                 if (!poolManager.isUnlocked()) revert PoolManagerLocked();
                 if (from == to) revert TransferNotAuthorized(from, to, amount);
+                if (from == address(poolManager) && msg.sender != address(poolManager)) {
+                    revert TransferNotAuthorized(from, to, amount);
+                }
                 bool inbound = to == address(poolManager);
-                bytes32 slot = inbound ? INBOUND_SLOT : OUTBOUND_SLOT;
-                uint256 available = slot.asUint256().tload();
-                if (amount > available) revert SettlementBudgetExceeded(inbound, amount, available);
-                slot.asUint256().tstore(available - amount);
+                bytes32 claimSlot = _claimSlot(to, amount);
+                if (!inbound && claimSlot.asBoolean().tload()) {
+                    claimSlot.asBoolean().tstore(false);
+                } else {
+                    bytes32 slot = inbound ? INBOUND_SLOT : OUTBOUND_SLOT;
+                    uint256 available = slot.asUint256().tload();
+                    if (amount > available) revert SettlementBudgetExceeded(inbound, amount, available);
+                    slot.asUint256().tstore(available - amount);
+                }
             } else if (morpho != address(0) && from == morpho && msg.sender == morpho) {
                 // Direct Morpho recall/liquidation must remain independent of Diamond dispatch.
             } else if (morpho != address(0) && to == morpho && from == protocol && msg.sender == morpho) {
@@ -116,5 +135,9 @@ contract StaticsRestrictedBasketToken is StaticsBasketToken, IStaticsRestrictedB
 
     function _transferSlot(address from, address to, uint256 amount) private pure returns (bytes32) {
         return keccak256(abi.encode(TRANSFER_DOMAIN, from, to, amount));
+    }
+
+    function _claimSlot(address receiver, uint256 amount) private pure returns (bytes32) {
+        return keccak256(abi.encode(CLAIM_DOMAIN, receiver, amount));
     }
 }

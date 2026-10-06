@@ -13,6 +13,7 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsMarketObservations} from "../interfaces/IStaticsMarketObservations.sol";
 import {IStaticsSwapCallback} from "../interfaces/IStaticsSwapCallback.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 import {LibMarketTape} from "../libraries/LibMarketTape.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
@@ -88,6 +89,10 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
         if (!installed) revert LiquidityIntegrationNotInstalled(state.permissioned);
 
         address expectedHook = state.permissioned ? ls.permissionedHook : ls.hook;
+        if (!state.permissioned) {
+            LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+            if (market.lifecycle != LibBasketMarkets.Lifecycle.None) expectedHook = address(market.key.hooks);
+        }
         if (msg.sender != expectedHook) revert OnlyInstalledSwapHook(msg.sender, expectedHook);
 
         IStaticsProtocolPools.ProtocolPoolKind kind;
