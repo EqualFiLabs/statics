@@ -39,12 +39,15 @@ contract MeasuredCampaignRevenue is ReentrancyGuard {
         ) {
             revert InvalidRevenueIntegration();
         }
+        _validateCampaignBinding(destination);
         (address asset,,,) = destination.inventory(index);
         if (asset != address(payoutAsset)) revert InvalidRevenueIntegration();
         campaign = destination;
         assetIndex = index;
         emit CampaignBound(address(destination), index);
     }
+
+    function _validateCampaignBinding(BasketBootstrapCampaign) internal view virtual {}
 
     function recipient() public view returns (address) {
         if (address(campaign) == address(0) || !campaign.prepared()) revert InvalidRevenueIntegration();

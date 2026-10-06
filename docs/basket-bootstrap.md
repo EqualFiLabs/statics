@@ -77,9 +77,9 @@ be used to lock existing users' exits. Callers must still measure actual claim
 debits/receipts and automatic fee callbacks. Fork tests establish offer getter
 layout, clearing on fill/cancel, and the exact-deadline rejection. SDK custody
 encoders expose these market operations; they do not implement pooled adapter
-accounting or enable deposits.
+accounting by themselves.
 
-PONS and Mosh-specific harvesting/share adapters are not enabled yet. The
+PONS and Mosh team-specific collectors remain unfinished. The
 closed-source Mosh integration uses its published documentation/ABIs and
 runtime-pinned fork evidence, not a source-audit claim. Public Solidity source
 is not a prerequisite. Each enabled generation still requires actual adapter
@@ -104,7 +104,35 @@ operator only to produce upstream conversion; Statics does not gain that role.
 These tests prove the probe's movement paths, not completed campaign reward
 accounting or compatibility with other generations/payout assets.
 
-The planned share adapter accounts actual receipts lazily: funding-period
-receipts contribute to the campaign, and newly accounted terminal receipts
+`MoshShareRevenueAdapter` accounts native receipts lazily: funding-period
+receipts reserve revenue for the campaign, and newly accounted terminal receipts
 belong to depositors. Previously reserved campaign rewards stay campaign-owned.
-It does not reconstruct trade-time entitlement from harvest timestamps.
+Permissionless `sync()` collects only the adapter's available fees, not projected
+PONS conversion. `flushCampaignRevenue()` wraps and forwards the existing reserve
+separately; a failed forward leaves it retryable and does not enter withdrawal.
+User rewards and return sale proceeds are paid as the configured WETH through
+`claimRewards()`. Unsolicited native/WETH balances cannot fund those liabilities.
+
+Deposit fills an exact creator-supplied buyer-bound offer with one wei and checks
+both actual claim deltas. `withdraw(amount, deadline)` lists the return; the owner
+then fills that market offer directly. Anyone calls `checkpointWithdrawal(owner)`
+after a successful fill to reconcile its cleared record and measured custody
+decrease. Reconciliation must precede another fill or share movement; it is not
+owner/keeper-gated and does not push funds to a rejecting wallet. Concurrent
+return listings are supported, including equal amounts, without scanning users.
+Automatic fees use the old balance distribution; the one-wei sale receipt is
+credited only to the returning owner, never counted as source fees. Expired
+listings are cancelled by their owner through `cancelWithdrawal()` before retry.
+
+The adapter uses Q160 reward indexing, per-owner sub-unit carry, and numerator
+carry while the denominator is unchanged. Tracked claims are bounded to uint128;
+terminal-index lifetime reward capacity is `2^96 - 1` raw native units. Changing
+shares resets only a sub-`2^-32` raw-unit numerator fraction; reserved assets remain
+backed. Entry pins current factory/market policy; exit does not require the current
+factory implementation pointer and accepts supported zero-rounded current market
+fees. Upstream registry/market authority remains an external recovery dependency.
+`RobinhoodMoshShareAdapterFork.t.sol` executes the production adapter against the
+pinned source, including multi-depositor/terminal accounting and forwarding
+rollback, with a local real Statics/POL launch. This is not verified-source,
+all-generation, deployment, or release-CI assurance. No trade-time entitlement
+is reconstructed from harvest timestamps.
