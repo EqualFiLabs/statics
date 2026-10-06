@@ -20,7 +20,12 @@ Changed implementation or economics commitments invalidate execution.
 
 `fund`, `fundPayment` and `fundNative` credit explicit launch, project-token
 payment and native-fee inventory. Unsolicited balances do not establish readiness.
-Campaigns presently accept ordinary project tokens and ordinary constituents.
+Ordinary tokens work directly. Restricted BasketToken project inventory and
+constituents require governance to install the fixed campaign factory with its
+verified runtime and creation-code hashes. Its actual deployed campaigns and
+asset lists are registered permanently. Approve the Diamond, not the campaign,
+for restricted funding: each exact pull/push passes through Diamond custody,
+restores its prior balance and leaves no reusable transfer authorization.
 Project-token constituent backing and payment inventory remain separately
 accounted even when they share the same ERC-20 address.
 
@@ -56,7 +61,8 @@ routes may acquire restricted constituents or internally net restricted hops.
 `MeasuredCampaignRevenue` binds once to a creator-approved campaign and exact
 constituent. Explicit realized ERC-20 receipts fund the live campaign, then
 route to its fixed beneficiary after success or expiry. It does not count
-future fees, transfer share principal, or harvest an external protocol.
+future fees, transfer share principal, or harvest an external protocol. Generic
+delivery uses ordinary payout tokens; it does not bridge restricted revenue tokens.
 
 `NativeCampaignRevenue` uses the same one-time binding and fixed routing. Its
 `deliverNative()` wraps exactly `msg.value` using a runtime-pinned WETH, verifies
@@ -79,8 +85,7 @@ layout, clearing on fill/cancel, and the exact-deadline rejection. SDK custody
 encoders expose these market operations; they do not implement pooled adapter
 accounting by themselves.
 
-PONS and Mosh team-specific collectors remain unfinished. The
-closed-source Mosh integration uses its published documentation/ABIs and
+The closed-source Mosh integration uses its published documentation/ABIs and
 runtime-pinned fork evidence, not a source-audit claim. Public Solidity source
 is not a prerequisite. Each enabled generation still requires actual adapter
 entry, recovery, collection and terminal-accounting tests.
@@ -136,3 +141,25 @@ pinned source, including multi-depositor/terminal accounting and forwarding
 rollback, with a local real Statics/POL launch. This is not verified-source,
 all-generation, deployment, or release-CI assurance. No trade-time entitlement
 is reconstructed from harvest timestamps.
+
+`MoshTeamRevenueAdapter` permanently routes authorized team fee claims. Deploy
+before a new launch names it as team recipient, then bind the actual launched
+source; alternatively the historical team recipient explicitly hands off selected
+claims through an exact buyer-bound market offer. Campaign-creator authority
+cannot substitute for that seller's authority. Collection and retryable wrapping/
+delivery are separate; all terminal revenue belongs to the fixed beneficiary.
+Existing-team handoff and later real swap fees are fork-tested. A full new-Swarm
+launch naming the adapter as team recipient is not yet fork-proven.
+
+`PonsRevenueAdapter` binds one pinned V2 factory, launched token, curve and fee
+escrow. The current fee recipient must first transfer its rights to the adapter
+before campaign binding. Permissionless bounded `collect(maximum)` checks exact
+escrow debit and native-to-WETH or configured quote-token receipt. Terminal
+`handoff()` transfers future rights separately to the fixed beneficiary; old
+adapter escrow credits remain collectible. Recipient-level escrow aggregates
+credits, so collection does not independently attest per-token fee origin.
+Upstream conversion/sweep authority remains a revenue-liveness dependency;
+Statics gains no operator role and does not release buyback vesting or principal.
+Native and approved quote-token collection, handoff/retry and independent real
+POL finalization execute in pinned forks. Payout proxy implementations and the
+upstream owner's delayed recipient override remain deployment-review concerns.
