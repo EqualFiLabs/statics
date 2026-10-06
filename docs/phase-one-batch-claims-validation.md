@@ -35,14 +35,14 @@ call. They are reproducible test evidence, not production transaction estimates.
 
 | Case | Measured gas |
 |---|---:|
-| Mixed: 6 groups, 10 entries, two NFTs/pools, all reward sources | 3,340,017 |
-| Maximum: 16 LP groups, 64 bribe entries | 6,988,363 |
-| Maximum: 16 LP groups, 64 entries, protocol reserve + bribes, 50-week lazy settlement | 9,042,329 |
-| LP claim after explicit 60-week catch-up | 516,645 |
+| Mixed: 6 groups, 10 entries, two NFTs/pools, all reward sources | 3,340,021 |
+| Maximum: 16 LP groups, 64 bribe entries | 6,988,379 |
+| Maximum: 16 LP groups, 64 entries, protocol reserve + bribes, 50-week lazy settlement | 9,042,345 |
+| LP claim after explicit 60-week catch-up | 516,646 |
 
 `BatchRewardsFacet` runtime is 3,824 bytes, below EIP-170's 24,576-byte limit.
 Runtime keccak256:
-`0x6837295bfcf8a941f69ff02d47aaf1b8b4e41e0e2d6aef9bd050891dd9647429`.
+`0x22a64a82b3504f7618d770ad1f46b1b8b2e40fdc9799f5a6b5c109e88f697757`.
 Coverage instrumentation must exclude the bytecode-size test as described in
 `AGENTS.md`. The fixed input limits cannot guarantee gas availability for
 arbitrary token behavior or gauge boundary density.

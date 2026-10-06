@@ -103,7 +103,7 @@ contract BatchRewardsFacet is IStaticsBatchRewards, ReentrancyGuard {
             if (length != item.minimumAmounts.length) revert BatchRewardLengthMismatch();
             entries += length;
             if (entries > MAX_ENTRIES) revert BatchRewardEntryLimitExceeded(entries, MAX_ENTRIES);
-            uint256 seen;
+            uint256 seen = 0;
             for (uint256 j; j < length; ++j) {
                 uint8 slot = item.slots[j];
                 if (slot > 4 || (allocator && slot == 0)) revert InvalidBatchRewardSlot(slot);
