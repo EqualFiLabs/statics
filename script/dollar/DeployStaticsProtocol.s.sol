@@ -8,6 +8,7 @@ import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {BasketArbitrageDeploymentFacet} from "../../src/facets/BasketArbitrageDeploymentFacet.sol";
 import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {BasketMintFacet} from "../../src/facets/BasketMintFacet.sol";
 import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
@@ -165,6 +166,7 @@ abstract contract DeployStaticsProtocol {
         parts.basketPreparation = address(new BasketPreparationFacet());
         parts.basketSettlement = address(new BasketSettlementFacet());
         parts.basketMarkets = address(new BasketMarketCreationFacet());
+        parts.basketArbitrageDeployment = address(new BasketArbitrageDeploymentFacet());
         parts.basketMint = address(new BasketMintFacet());
         parts.basketRedemption = address(new BasketRedemptionFacet());
         parts.basketView = address(new BasketViewFacet());

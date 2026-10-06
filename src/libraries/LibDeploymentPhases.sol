@@ -18,6 +18,7 @@ import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
@@ -98,6 +99,10 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId ^ IStaticsBasket.createBasketPrepared.selector] = true;
         ds.supportedInterfaces[type(IStaticsBasketPreparation).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketMarkets).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketArbitrage).interfaceId] = true;
+        ds.supportedInterfaces[
+            type(IStaticsBasketLiquidity).interfaceId ^ IStaticsBasketLiquidity.unwindBasketMarket.selector
+        ] = true;
         ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;

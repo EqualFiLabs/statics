@@ -30,6 +30,7 @@ import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {BasketArbitrageDeploymentFacet} from "../../src/facets/BasketArbitrageDeploymentFacet.sol";
 import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
 import {BasketFactoryTestTools} from "./BasketFactoryTestTools.sol";
@@ -77,7 +78,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](43);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](44);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -124,6 +125,7 @@ contract StaticsTestDeployer {
         cut[40] = _cut(address(new BasketPreparationFacet()), StaticsSelectors.basketPreparation());
         cut[41] = _cut(address(new BasketSettlementFacet()), StaticsSelectors.basketSettlement());
         cut[42] = _cut(address(new BasketMarketCreationFacet()), StaticsSelectors.basketMarkets());
+        cut[43] = _cut(address(new BasketArbitrageDeploymentFacet()), StaticsSelectors.basketArbitrageDeployment());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,

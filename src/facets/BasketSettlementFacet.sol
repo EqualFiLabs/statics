@@ -9,9 +9,27 @@ import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBas
 import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
+import {LibBasketArbitrageSettlement} from "../libraries/LibBasketArbitrageSettlement.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @notice Hook-authenticated capabilities. Deliberately callable during guarded protocol actions.
-contract BasketSettlementFacet is IStaticsBasketSettlement {
+contract BasketSettlementFacet is IStaticsBasketSettlement, ReentrancyGuard {
+    function beginBasketArbitrage(uint256 basketId, uint256 shares, address executor) external nonReentrant {
+        LibBasketArbitrageSettlement.begin(basketId, shares, executor);
+    }
+
+    function settleBasketArbitrageInput(address token, address executor, uint256 amount) external nonReentrant {
+        LibBasketArbitrageSettlement.settleInput(token, executor, amount);
+    }
+
+    function settleBasketArbitrageOutput(address token, address executor, uint256 amount) external nonReentrant {
+        LibBasketArbitrageSettlement.settleOutput(token, executor, amount);
+    }
+
+    function endBasketArbitrage() external nonReentrant {
+        LibBasketArbitrageSettlement.end();
+    }
+
     function isRestrictedBasketToken(address token) external view returns (bool) {
         return LibRestrictedBasket.isRestricted(token);
     }

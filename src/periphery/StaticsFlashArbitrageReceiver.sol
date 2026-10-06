@@ -17,6 +17,8 @@ import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsFlashBorrower} from "../interfaces/IStaticsFlashBorrower.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
+import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
+import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 
 /// @notice Permissionless typed receiver for canonical-pool basket arbitrage in either price direction.
 /// @dev The caller supplies only canonical pool keys, bounded exact-input amounts, and per-asset net profit floors.
@@ -27,6 +29,8 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
 
     bytes32 private constant CALLBACK_SUCCESS = keccak256("IStaticsFlashBorrower.onStaticsFlashLoan");
     bytes32 private constant REDEEMED_SHARES_SLOT = keccak256("statics.periphery.flash.arbitrage.redeemed.shares");
+    bytes32 private constant RESTRICTED_SETTLEMENT_SLOT =
+        keccak256("statics.periphery.flash.arbitrage.restricted.settlement");
     uint8 private constant MINT_AND_SELL = 1;
     uint8 private constant BUY_AND_REDEEM = 2;
 
@@ -96,6 +100,7 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         uint256 deadline
     ) external nonReentrant returns (address[] memory assets, uint256[] memory profits) {
         if (block.timestamp > deadline) revert DeadlineExpired(deadline, block.timestamp);
+        _beginRestrictedSettlement(basketId, shares);
 
         uint256[] memory startingBalances;
         uint256[] memory topUps;
@@ -103,6 +108,7 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         _executeFlashRoute(basketId, shares, pools, basketAmountsIn);
 
         profits = _collectProfits(assets, minimumProfits, startingBalances, topUps);
+        _endRestrictedSettlement();
         emit MintAndSellArbitrageExecuted(msg.sender, basketId, shares, assets, profits);
     }
 
@@ -117,6 +123,7 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         uint256 deadline
     ) external nonReentrant returns (address[] memory assets, uint256[] memory profits) {
         if (block.timestamp > deadline) revert DeadlineExpired(deadline, block.timestamp);
+        _beginRestrictedSettlement(basketId, shares);
 
         uint256[] memory startingBalances;
         (assets, startingBalances) = _prepareBuyAndRedeem(basketId, shares, pools, constituentAmountsIn, minimumProfits);
@@ -125,6 +132,7 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
 
         uint256 redeemedShares = REDEEMED_SHARES_SLOT.asUint256().tload();
         profits = _collectProfits(assets, minimumProfits, startingBalances, new uint256[](assets.length));
+        _endRestrictedSettlement();
         emit BuyAndRedeemArbitrageExecuted(msg.sender, basketId, shares, redeemedShares, assets, profits);
     }
 
@@ -484,16 +492,27 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
 
     function _pullExact(IERC20 token, address from, uint256 amount) private {
         uint256 beforeBalance = token.balanceOf(address(this));
-        token.safeTransferFrom(from, address(this), amount);
+        if (_restrictedAsset(address(token))) {
+            IStaticsBasketArbitrage(staticsDiamond).settleBasketArbitrageInput(address(token), from, amount);
+        } else {
+            token.safeTransferFrom(from, address(this), amount);
+        }
         uint256 afterBalance = token.balanceOf(address(this));
         uint256 received = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (received != amount) revert UnexpectedTokenMovement(address(token), amount, amount, received);
     }
 
     function _pushExact(IERC20 token, address receiver, uint256 amount) private {
+        if (amount == 0) return;
         uint256 senderBefore = token.balanceOf(address(this));
         uint256 receiverBefore = token.balanceOf(receiver);
-        token.safeTransfer(receiver, amount);
+        if (_restrictedAsset(address(token))) {
+            token.forceApprove(staticsDiamond, amount);
+            IStaticsBasketArbitrage(staticsDiamond).settleBasketArbitrageOutput(address(token), receiver, amount);
+            token.forceApprove(staticsDiamond, 0);
+        } else {
+            token.safeTransfer(receiver, amount);
+        }
         uint256 senderAfter = token.balanceOf(address(this));
         uint256 receiverAfter = token.balanceOf(receiver);
         uint256 spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
@@ -501,5 +520,27 @@ contract StaticsFlashArbitrageReceiver is IStaticsFlashBorrower, IUnlockCallback
         if (spent != amount || received != amount) {
             revert UnexpectedTokenMovement(address(token), amount, spent, received);
         }
+    }
+
+    function _restrictedAsset(address token) private view returns (bool) {
+        return RESTRICTED_SETTLEMENT_SLOT.asUint256().tload() != 0
+            && IStaticsBasketSettlement(staticsDiamond).isRestrictedBasketToken(token);
+    }
+
+    function _beginRestrictedSettlement(uint256 basketId, uint256 shares) private {
+        address[] memory assets = IStaticsBasket(staticsDiamond).basket(basketId).assets;
+        for (uint256 i; i < assets.length; ++i) {
+            if (IStaticsBasketSettlement(staticsDiamond).isRestrictedBasketToken(assets[i])) {
+                IStaticsBasketArbitrage(staticsDiamond).beginBasketArbitrage(basketId, shares, msg.sender);
+                RESTRICTED_SETTLEMENT_SLOT.asUint256().tstore(1);
+                return;
+            }
+        }
+    }
+
+    function _endRestrictedSettlement() private {
+        if (RESTRICTED_SETTLEMENT_SLOT.asUint256().tload() == 0) return;
+        IStaticsBasketArbitrage(staticsDiamond).endBasketArbitrage();
+        RESTRICTED_SETTLEMENT_SLOT.asUint256().tstore(0);
     }
 }

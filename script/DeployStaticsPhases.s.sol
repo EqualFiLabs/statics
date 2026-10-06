@@ -33,6 +33,7 @@ import {BasketCollateralFacet} from "../src/facets/BasketCollateralFacet.sol";
 import {BasketCreationFacet} from "../src/facets/BasketCreationFacet.sol";
 import {BasketPreparationFacet} from "../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../src/facets/BasketSettlementFacet.sol";
+import {BasketArbitrageDeploymentFacet} from "../src/facets/BasketArbitrageDeploymentFacet.sol";
 import {BasketMarketCreationFacet} from "../src/facets/BasketMarketCreationFacet.sol";
 import {BasketLiquidityFacet} from "../src/facets/BasketLiquidityFacet.sol";
 import {BasketLiquidityLifecycleFacet} from "../src/facets/BasketLiquidityLifecycleFacet.sol";
@@ -705,6 +706,11 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
         );
         _validateFacetSet(
             diamond, StaticsSelectors.basketMarkets(), keccak256(type(BasketMarketCreationFacet).runtimeCode)
+        );
+        _validateFacetSet(
+            diamond,
+            StaticsSelectors.basketArbitrageDeployment(),
+            keccak256(type(BasketArbitrageDeploymentFacet).runtimeCode)
         );
         _validateFacetSet(diamond, StaticsSelectors.basketMint(), keccak256(type(BasketMintFacet).runtimeCode));
         _validateFacetSet(

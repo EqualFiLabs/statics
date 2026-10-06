@@ -11,6 +11,7 @@ import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
+import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
@@ -57,12 +58,21 @@ library StaticsSelectors {
     }
 
     function basketSettlement() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsBasketSettlement.validateBasketPool.selector;
         selectors[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
         selectors[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
         selectors[3] = IStaticsBasketSettlement.isRestrictedBasketToken.selector;
         selectors[4] = IStaticsBasketSettlement.settleBasketManagerDelivery.selector;
+        selectors[5] = IStaticsBasketArbitrage.beginBasketArbitrage.selector;
+        selectors[6] = IStaticsBasketArbitrage.settleBasketArbitrageInput.selector;
+        selectors[7] = IStaticsBasketArbitrage.settleBasketArbitrageOutput.selector;
+        selectors[8] = IStaticsBasketArbitrage.endBasketArbitrage.selector;
+    }
+
+    function basketArbitrageDeployment() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = IStaticsBasketArbitrage.deployBasketArbitrageReceiver.selector;
     }
 
     function basketMarkets() internal pure returns (bytes4[] memory selectors) {

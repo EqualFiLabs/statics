@@ -83,6 +83,11 @@ internally netted unregistered-pool operation. Exit-only baskets retain liquidit
 removal, collection, historical claims, redemption, and POL recovery.
 Use `unwindBasketMarket(poolId)` for terminal recovery from an independent pool
 after either restricted currency exits and all managed POL positions are closed.
+For NAV routes containing restricted constituents, use the immutable receiver
+returned by `deployBasketArbitrageReceiver`. Approve the Diamond for restricted
+mint top-ups and the receiver for ordinary ERC-20 top-ups. Settlement is scoped
+to that receiver's current route, executor, quote and starting balances; it is
+not a permanent transfer exemption.
 
 ---
 

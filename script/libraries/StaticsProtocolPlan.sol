@@ -20,6 +20,7 @@ struct StaticsProtocolParts {
     address basketPreparation;
     address basketSettlement;
     address basketMarkets;
+    address basketArbitrageDeployment;
     address basketMint;
     address basketRedemption;
     address basketView;
@@ -112,7 +113,7 @@ library StaticsProtocolPlan {
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](22);
+        cut = new IDiamondCut.FacetCut[](23);
         cut[0] = _add(parts.governance, StaticsSelectors.phaseTwoGovernance());
         cut[1] = _add(parts.custody, StaticsSelectors.phaseTwoCustody());
         cut[2] = _add(parts.basketAdmin, StaticsSelectors.phaseTwoBasketAdmin());
@@ -135,6 +136,7 @@ library StaticsProtocolPlan {
         cut[19] = _add(parts.basketPreparation, StaticsSelectors.basketPreparation());
         cut[20] = _add(parts.basketSettlement, StaticsSelectors.basketSettlement());
         cut[21] = _add(parts.basketMarkets, StaticsSelectors.basketMarkets());
+        cut[22] = _add(parts.basketArbitrageDeployment, StaticsSelectors.basketArbitrageDeployment());
     }
 
     function phaseThree(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
