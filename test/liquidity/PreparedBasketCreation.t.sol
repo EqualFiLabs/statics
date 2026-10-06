@@ -353,6 +353,46 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         BasketSettlementFacet(address(diamond)).settleBasketManagerDelivery(token, bob, 1);
     }
 
+    function testRestrictedPolAtomicRebalanceRetainsCustodyAndRollsBackFailedOpening() public {
+        _queueFirst();
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        _swapAssetIntoBasket(basketId, bob);
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        IStaticsBasketLiquidity.CanonicalPoolView memory market =
+            basketLiquidity.canonicalPool(basketId, address(assetA));
+        uint256 oldId = pools.protocolPolPositionIds(market.poolId)[0];
+        IStaticsProtocolPools.ProtocolPolRebalanceParams memory params;
+        params.poolId = market.poolId;
+        params.deadline = block.timestamp;
+        params.maximumCustodyDebit0 = 0.5 ether;
+        params.maximumCustodyDebit1 = 0.5 ether;
+        params.closes = new IStaticsProtocolPools.ProtocolPolCloseLeg[](1);
+        params.closes[0] = IStaticsProtocolPools.ProtocolPolCloseLeg(oldId, 0, 0);
+        params.opens = new IStaticsProtocolPools.ProtocolPolOpenLeg[](1);
+        params.opens[0] = IStaticsProtocolPools.ProtocolPolOpenLeg(-600, 600, 1e16, 0.5 ether, 0.5 ether);
+        pools.setProtocolPolOperator(alice);
+        vm.prank(alice);
+        uint256[] memory opened = pools.rebalanceProtocolPolPositions(params);
+        assertEq(opened.length, 1);
+        assertFalse(pools.protocolPolPosition(oldId).active);
+        IStaticsProtocolPools.ProtocolPolPositionView memory position = pools.protocolPolPosition(opened[0]);
+        assertTrue(position.active);
+        assertEq(pools.protocolPool(market.poolId).activePolPositions, 1);
+        address posm = IStaticsLiquidityManager(position.manager).positionManager();
+        assertEq(IERC721(posm).ownerOf(position.posmTokenId), position.manager);
+        assertEq(IERC20(token).balanceOf(position.manager), 0);
+        assertEq(assetA.balanceOf(position.manager), 0);
+        assertGe(IERC20(token).balanceOf(address(diamond)), custody.globalReservedByToken(token));
+        params.closes[0].positionId = opened[0];
+        params.opens[0].tickUpper = params.opens[0].tickLower;
+        vm.prank(alice);
+        vm.expectRevert();
+        pools.rebalanceProtocolPolPositions(params);
+        assertTrue(pools.protocolPolPosition(opened[0]).active);
+        assertEq(IERC721(posm).ownerOf(position.posmTokenId), position.manager);
+        assertEq(pools.protocolPool(market.poolId).activePolPositions, 1);
+    }
+
     function _createAdditional(IStaticsBasketMarkets.MarketParams memory params, bytes32 salt)
         private
         returns (PoolId id, bytes32 prepared)
