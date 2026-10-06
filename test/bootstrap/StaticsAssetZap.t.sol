@@ -5,6 +5,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {WETH} from "solmate/src/tokens/WETH.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
@@ -40,6 +43,8 @@ contract ZapRefundAttacker {
 }
 
 contract StaticsAssetZapTest is CampaignTestBase {
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
     WETH private wrapped;
     MockERC20 private inputToken;
     MockERC20 private bridge;
@@ -348,6 +353,54 @@ contract StaticsAssetZapTest is CampaignTestBase {
         assertEq(assetB.allowance(address(zap), address(campaign)), 0);
         (,, uint256 funded,) = campaign.inventory(0);
         assertEq(funded, 1 ether);
+    }
+
+    function testNativeCampaignPurchasePaysUserAndPreservesStoredWeth() public {
+        BasketBootstrapCampaign campaign = _campaign(_terms(false), keccak256("native purchase"));
+        _fundPayment(campaign, 100 ether);
+        campaign.activateAuction(0);
+        campaign.activateAuction(1);
+        wrapped.transfer(address(zap), 4 ether);
+        vm.deal(alice, 30 ether);
+        uint256 beforeNative = alice.balance;
+        uint256 beforeProject = project.balanceOf(alice);
+        vm.prank(alice);
+        (uint256 spent, uint256 paid) = zap.purchaseCampaign{value: 25 ether}(
+            _input(true, 25 ether), address(campaign), _purchases(), 2 ether, _routes(true)
+        );
+        assertEq(beforeNative - alice.balance, spent);
+        assertEq(project.balanceOf(alice) - beforeProject, paid);
+        assertEq(paid, 2 ether);
+        assertEq(wrapped.balanceOf(address(zap)), 4 ether);
+        assertEq(project.balanceOf(address(zap)), 0);
+        assertEq(address(zap).balance, 0);
+    }
+
+    function testLaterConversionFailureRollsBackEarlierSwapAndDestination() public {
+        BasketBootstrapCampaign campaign = _campaign(_terms(false), keccak256("conversion failure"));
+        _fundPayment(campaign, 100 ether);
+        campaign.activateAuction(0);
+        campaign.activateAuction(1);
+        StaticsAssetZap.Route[] memory routes = _routes(false);
+        PoolKey memory empty = inputB;
+        empty.fee = 500;
+        poolManager.initialize(empty, uint160(1 << 96));
+        routes[1].pools[0] = empty;
+        (uint160 beforePrice,,,) = poolManager.getSlot0(bridgeA.toId());
+        uint256 beforeInput = inputToken.balanceOf(alice);
+        uint256 beforeProject = project.balanceOf(alice);
+        vm.prank(alice);
+        vm.expectRevert(StaticsAssetZap.InvalidRoute.selector);
+        zap.purchaseCampaign(_input(false, 25 ether), address(campaign), _purchases(), 2 ether, routes);
+        (uint160 afterPrice,,,) = poolManager.getSlot0(bridgeA.toId());
+        assertEq(afterPrice, beforePrice);
+        assertEq(inputToken.balanceOf(alice), beforeInput);
+        assertEq(project.balanceOf(alice), beforeProject);
+        (,, uint256 held,) = campaign.inventory(0);
+        assertEq(held, 0);
+        assertEq(assetA.allowance(address(zap), address(campaign)), 0);
+        assertEq(assetA.balanceOf(address(zap)), 0);
+        assertEq(inputToken.balanceOf(address(zap)), 0);
     }
 
     function testMintInputLimitAndChangedQuoteRevertEveryConversion() public {
