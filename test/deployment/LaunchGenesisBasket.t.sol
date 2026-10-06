@@ -17,6 +17,10 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "../helpers/BasketFactoryTestTools.sol";
+import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
 
 contract LaunchGenesisBasketBatchTest is Test {
     function testBatchApprovesEveryAssetBeforeTypedBasketCreation() public {
@@ -147,7 +151,7 @@ contract LaunchGenesisBasketBatchTest is Test {
     }
 }
 
-contract LaunchGenesisBasketIntegrationTest is Test {
+contract LaunchGenesisBasketIntegrationTest is BasketFactoryTestTools {
     LaunchGenesisBasket private ceremony;
     StaticsTimelock private timelock;
     StaticsDollarStackDeployment private deployment;
@@ -168,6 +172,21 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         DeployStatics.V4Config memory v4 = _v4Config();
         (deployment, timelock) = deployer.deployWithLiquidity(config, v4);
         _installLiquidity(v4);
+        StaticsBasketFactory factory = _deployTestBasketFactory(
+            deployment.diamond, IPoolManager(v4.poolManager), IStaticsSwapFeeHook(deployment.swapFeeHook)
+        );
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory payloads = new bytes[](1);
+        targets[0] = deployment.diamond;
+        payloads[0] = abi.encodeCall(BasketPreparationFacet.installBasketFactory, (address(factory)));
+        bytes32 salt = keccak256("install restricted basket factory before genesis");
+        uint256 delay = timelock.getMinDelay();
+        vm.prank(address(ceremony));
+        timelock.scheduleBatch(targets, values, payloads, bytes32(0), salt, delay);
+        vm.warp(block.timestamp + delay);
+        timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
+        _ensureTestBasketSalts(factory, 2);
     }
 
     function testTimelockFundsAndLaunchesAllGenesisPoolsInOneBatch() public {
@@ -281,10 +300,10 @@ contract LaunchGenesisBasketIntegrationTest is Test {
     function _assertLaunchedPool(address basketToken, address asset) private view {
         IStaticsBasketLiquidity liquidity = IStaticsBasketLiquidity(deployment.diamond);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = liquidity.canonicalPool(0, asset);
-        (, address hook,) = liquidity.liquidityIntegration();
         assertEq(pool.basketToken, basketToken);
         assertEq(pool.asset, asset);
-        assertEq(pool.hook, hook);
+        assertNotEq(pool.hook, deployment.swapFeeHook);
+        assertEq(address(IStaticsProtocolPools(deployment.diamond).protocolPool(pool.poolId).key.hooks), pool.hook);
         IStaticsProtocolPools.ProtocolPoolView memory protocolPool =
             IStaticsProtocolPools(deployment.diamond).protocolPool(pool.poolId);
         assertEq(uint256(protocolPool.kind), uint256(IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical));
