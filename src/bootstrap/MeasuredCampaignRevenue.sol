@@ -62,6 +62,12 @@ contract MeasuredCampaignRevenue is ReentrancyGuard {
             payoutAsset.balanceOf(address(this)) != floor + amount
                 || payoutAsset.balanceOf(msg.sender) + amount != senderBefore
         ) revert InexactRevenue();
+        _deliverReceived(msg.sender, destination, amount, floor);
+    }
+
+    /// @dev Derived source integrations must first attribute an exact receipt, excluding existing balances.
+    function _deliverReceived(address source, address destination, uint256 amount, uint256 floor) internal {
+        if (amount == 0 || payoutAsset.balanceOf(address(this)) != floor + amount) revert InexactRevenue();
         if (destination == address(campaign)) {
             payoutAsset.forceApprove(destination, amount);
             campaign.deliverRevenue(assetIndex, amount);
@@ -73,6 +79,6 @@ contract MeasuredCampaignRevenue is ReentrancyGuard {
         }
         if (payoutAsset.balanceOf(address(this)) != floor) revert InexactRevenue();
         totalDelivered += amount;
-        emit RealizedRevenueDelivered(msg.sender, destination, amount);
+        emit RealizedRevenueDelivered(source, destination, amount);
     }
 }

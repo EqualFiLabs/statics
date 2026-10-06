@@ -58,6 +58,15 @@ constituent. Explicit realized ERC-20 receipts fund the live campaign, then
 route to its fixed beneficiary after success or expiry. It does not count
 future fees, transfer share principal, or harvest an external protocol.
 
+`NativeCampaignRevenue` uses the same one-time binding and fixed routing. Its
+`deliverNative()` wraps exactly `msg.value` using a runtime-pinned WETH, verifies
+the exact receipt, forwards it, and clears campaign approval. It cannot sweep
+preexisting WETH or force-sent ETH; ordinary unsolicited ETH sends revert.
+Payout-wrapper proxy implementations and authorities still need deployment
+review: a proxy runtime hash alone does not pin its implementation. The SDK's
+`buildDeliverNativeRevenueCall(amount)` returns explicit calldata and transaction
+value. Neither generic delivery contract independently harvests PONS or Mosh.
+
 PONS and Mosh-specific harvesting/share adapters are not enabled yet. The
 closed-source Mosh integration uses its published documentation/ABIs and
 runtime-pinned fork evidence, not a source-audit claim. Public Solidity source

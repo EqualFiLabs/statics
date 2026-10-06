@@ -10,6 +10,7 @@ import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.so
 import {StaticsAssetZap} from "../../src/periphery/StaticsAssetZap.sol";
 import {BasketBootstrapCampaign} from "../../src/bootstrap/BasketBootstrapCampaign.sol";
 import {BasketBootstrapFactory} from "../../src/bootstrap/BasketBootstrapFactory.sol";
+import {NativeCampaignRevenue} from "../../src/bootstrap/NativeCampaignRevenue.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
 import {IStaticsBasketDelegation} from "../../src/interfaces/IStaticsBasketDelegation.sol";
@@ -71,6 +72,45 @@ contract RobinhoodAssetZapForkTest is RobinhoodStaticsLiquidityForkTest {
 
     function _input() private view returns (StaticsAssetZap.Input memory) {
         return StaticsAssetZap.Input(address(input), 25 ether, alice, block.timestamp + 1 hours);
+    }
+
+    function testPinnedRobinhoodNativeRevenueUsesDeployedWethAndFixedRouting() public {
+        string memory manifest = vm.readFile("deployments/robinhood-chain-4663.json");
+        address weth = vm.parseJsonAddress(manifest, ".contracts.weth.address");
+        NativeCampaignRevenue delivery = new NativeCampaignRevenue(
+            vm.addr(CREATOR_KEY), weth, vm.parseJsonBytes32(manifest, ".contracts.weth.runtimeCodeHash"), campaigns
+        );
+        BasketBootstrapCampaign.Terms memory terms;
+        terms.creator = vm.addr(CREATOR_KEY);
+        terms.beneficiary = bob;
+        terms.projectToken = address(project);
+        terms.deadline = block.timestamp + 7 days;
+        terms.basket = _defaultParams(0, 0);
+        (terms.pools, terms.maximums) = _fundDefaultLaunch(terms.basket.assets, alice);
+        terms.basket.assets[0] = weth;
+        terms.auctions = new BasketBootstrapCampaign.AuctionTerms[](2);
+        for (uint256 i; i < 2; ++i) {
+            terms.auctions[i] =
+                BasketBootstrapCampaign.AuctionTerms(100 ether, 1e18, 2e18, block.timestamp, terms.deadline, 1 ether);
+        }
+        terms.adapters = new address[](1);
+        terms.adapters[0] = address(delivery);
+        BasketBootstrapCampaign campaign = BasketBootstrapCampaign(campaigns.create(terms, keccak256("native revenue")));
+        _prepare(campaign, terms);
+        vm.prank(vm.addr(CREATOR_KEY));
+        delivery.bindCampaign(campaign, 0);
+        uint256 campaignBefore = IERC20(weth).balanceOf(address(campaign));
+        delivery.deliverNative{value: 1 ether}();
+        (,, uint256 held,) = campaign.inventory(0);
+        assertEq(held, 1 ether);
+        assertEq(IERC20(weth).balanceOf(address(campaign)) - campaignBefore, held);
+        assertEq(IERC20(weth).allowance(address(delivery), address(campaign)), 0);
+        vm.warp(campaign.deadline());
+        uint256 beneficiaryBefore = IERC20(weth).balanceOf(bob);
+        delivery.deliverNative{value: 0.5 ether}();
+        assertEq(IERC20(weth).balanceOf(bob) - beneficiaryBefore, 0.5 ether);
+        assertEq(delivery.totalDelivered(), 1.5 ether);
+        assertEq(IERC20(weth).balanceOf(address(delivery)), 0);
     }
 
     function testPinnedRobinhoodV4ZapMintsDirectlyAndIsolatesBalances() public {

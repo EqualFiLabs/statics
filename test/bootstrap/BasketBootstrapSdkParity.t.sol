@@ -11,6 +11,7 @@ import {IStaticsBasketLaunchPreview} from "../../src/interfaces/IStaticsBasketLa
 import {LibBasketDelegation} from "../../src/libraries/LibBasketDelegation.sol";
 import {LibBasketLaunchMath} from "../../src/libraries/LibBasketLaunchMath.sol";
 import {StaticsAssetZap} from "../../src/periphery/StaticsAssetZap.sol";
+import {NativeCampaignRevenue} from "../../src/bootstrap/NativeCampaignRevenue.sol";
 
 contract BootstrapParityHarness {
     function digest(IStaticsBasketDelegation.Authorization calldata authorization) external view returns (bytes32) {
@@ -31,6 +32,13 @@ contract BasketBootstrapSdkParityTest is Test {
     address private constant PAYER = 0x3333333333333333333333333333333333333333;
     address private constant CREATOR = 0x4444444444444444444444444444444444444444;
     address private constant DIAMOND = 0x2222222222222222222222222222222222222222;
+
+    function testSharedNativeRevenueEncodingFixture() public view {
+        string memory json = vm.readFile("test/fixtures/basket-bootstrap.json");
+        assertEq(
+            abi.encodeCall(NativeCampaignRevenue.deliverNative, ()), vm.parseJsonBytes(json, ".nativeRevenueCalldata")
+        );
+    }
 
     function _auth() private pure returns (IStaticsBasketDelegation.Authorization memory) {
         return IStaticsBasketDelegation.Authorization(
