@@ -30,6 +30,18 @@ interface IMoshRegistry {
 
 /// @dev Market signatures are established by deployed-contract fork execution, not a published Solidity source.
 interface IMoshClaimMarket {
+    function offers(uint256 offerId)
+        external
+        view
+        returns (
+            address swarm,
+            address seller,
+            address buyer,
+            uint256 amount,
+            uint256 price,
+            uint64 deadline,
+            uint16 feeBps
+        );
     function list(address swarm, uint256 amount, uint256 price, address buyer, uint64 deadline)
         external
         returns (uint256 offerId);

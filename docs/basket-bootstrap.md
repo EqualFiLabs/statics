@@ -67,6 +67,18 @@ review: a proxy runtime hash alone does not pin its implementation. The SDK's
 `buildDeliverNativeRevenueCall(amount)` returns explicit calldata and transaction
 value. Neither generic delivery contract independently harvests PONS or Mosh.
 
+`LibMoshValidation` checks the configured chain, factory/registry/implementation
+runtime pins, exact immutable Swarm clone target, recognized Swarm, project
+token, and native counter asset. It checks a registered runtime-pinned market
+and its current fee, then binds custody offers to exact seller, buyer, amount,
+one-wei price, snapshotted fee, and strictly unexpired deadline. These are entry
+checks, not authority to move claims; changing factory configuration must not
+be used to lock existing users' exits. Callers must still measure actual claim
+debits/receipts and automatic fee callbacks. Fork tests establish offer getter
+layout, clearing on fill/cancel, and the exact-deadline rejection. SDK custody
+encoders expose these market operations; they do not implement pooled adapter
+accounting or enable deposits.
+
 PONS and Mosh-specific harvesting/share adapters are not enabled yet. The
 closed-source Mosh integration uses its published documentation/ABIs and
 runtime-pinned fork evidence, not a source-audit claim. Public Solidity source

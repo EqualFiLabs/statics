@@ -4,6 +4,8 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IMoshSwarm, IMoshFactory, IMoshRegistry, IMoshClaimMarket} from "../../src/interfaces/IMoshSwarm.sol";
+import {LibMoshValidation} from "../../src/bootstrap/LibMoshValidation.sol";
+import {MoshValidationHarness} from "./MoshValidation.t.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
@@ -48,7 +50,16 @@ contract MoshClaimCustodyProbe is ReentrancyGuard {
 
     function enter(uint256 offerId) external payable nonReentrant {
         require(msg.sender == depositor, "only depositor");
+        LibMoshValidation.Offer memory offer = LibMoshValidation.readOffer(market, offerId);
+        LibMoshValidation.validateCustodyOffer(
+            market, offerId, address(swarm), depositor, address(this), offer.amount, market.feeBps()
+        );
+        require(msg.value == 1, "only custody price");
+        uint256 beforeSeller = swarm.claim(depositor);
+        uint256 beforeBuyer = swarm.claim(address(this));
         market.fill{value: msg.value}(offerId);
+        require(swarm.claim(depositor) + offer.amount == beforeSeller, "inexact debit");
+        require(swarm.claim(address(this)) == beforeBuyer + offer.amount, "inexact receipt");
     }
 
     function listReturn(uint256 amount, uint256 deadline) external nonReentrant returns (uint256) {
@@ -276,5 +287,138 @@ contract RobinhoodMoshClaimForkTest is Test, IUnlockCallback {
         custody.enter{value: 1}(offer);
         assertEq(SWARM.claim(address(custody)), 0.01 ether);
         assertEq(custody.received(), 0);
+    }
+
+    function testMarketOfferMetadataBindsAndClearsExactMovement() public {
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        vm.prank(HOLDER);
+        uint256 offer = MARKET.list(address(SWARM), 0.01 ether, 1, address(custody), deadline);
+        _assertOffer(offer, HOLDER, address(custody), 0.01 ether, deadline);
+        vm.prank(HOLDER);
+        custody.enter{value: 1}(offer);
+        _assertCleared(offer);
+        vm.prank(HOLDER);
+        uint256 returning = custody.listReturn(0.01 ether, deadline);
+        _assertOffer(returning, address(custody), HOLDER, 0.01 ether, deadline);
+        vm.prank(HOLDER);
+        custody.cancelReturn(returning);
+        _assertCleared(returning);
+    }
+
+    function _sourcePins() private pure returns (LibMoshValidation.SourcePins memory) {
+        return LibMoshValidation.SourcePins(
+            4663,
+            FACTORY,
+            0x82edd64be0bedd5f9462e948447c6416adad6c77c71945e1cba585387f553423,
+            REGISTRY,
+            0x93f0f1391a76bb2aa72c310f33636f9049002ef16584a9b0370e199edb26702e,
+            IMPLEMENTATION,
+            0x210393a615dd4a801aaa9449b8e65d6b0ba7b98d6ef5ed9f2400833643fd44ac
+        );
+    }
+
+    function testPinnedSourceAndMarketPassProductionValidation() public {
+        MoshValidationHarness gate = new MoshValidationHarness();
+        gate.validateSource(address(SWARM), TOKEN, _sourcePins());
+        gate.validateMarket(
+            REGISTRY,
+            LibMoshValidation.MarketPins(
+                address(MARKET), 0x2d345a9fa04e9284e3dc108ed4455c4c73c0747dde5875861aa960f5ed0c483e, 1000
+            )
+        );
+    }
+
+    function testMismatchedChainTokenAndRuntimePinsAreRejected() public {
+        MoshValidationHarness gate = new MoshValidationHarness();
+        LibMoshValidation.SourcePins memory pins = _sourcePins();
+        pins.chainId = 1;
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(SWARM), TOKEN, pins);
+        pins = _sourcePins();
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(SWARM), address(MARKET), pins);
+        pins.implementationRuntimeHash = bytes32(uint256(1));
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(SWARM), TOKEN, pins);
+        pins = _sourcePins();
+        pins.factoryRuntimeHash = bytes32(0);
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(SWARM), TOKEN, pins);
+        pins = _sourcePins();
+        pins.registryRuntimeHash = bytes32(uint256(1));
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(SWARM), TOKEN, pins);
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(custody), TOKEN, _sourcePins());
+    }
+
+    function testMismatchedMarketPinAndFeeAreRejected() public {
+        MoshValidationHarness gate = new MoshValidationHarness();
+        LibMoshValidation.MarketPins memory pins = LibMoshValidation.MarketPins(
+            address(MARKET), 0x2d345a9fa04e9284e3dc108ed4455c4c73c0747dde5875861aa960f5ed0c483e, 999
+        );
+        vm.expectRevert(LibMoshValidation.InvalidMoshMarket.selector);
+        gate.validateMarket(REGISTRY, pins);
+        pins.feeBps = 1000;
+        pins.runtimeHash = bytes32(uint256(1));
+        vm.expectRevert(LibMoshValidation.InvalidMoshMarket.selector);
+        gate.validateMarket(REGISTRY, pins);
+    }
+
+    function testUnsupportedCounterAndRevokedMarketFailValidation() public {
+        MoshValidationHarness gate = new MoshValidationHarness();
+        // Narrow guard-branch checks; mocked metadata is not claimed as external behavior evidence.
+        vm.mockCall(address(SWARM), abi.encodeCall(IMoshSwarm.counterIsNative, ()), abi.encode(false));
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        gate.validateSource(address(SWARM), TOKEN, _sourcePins());
+        vm.clearMockedCalls();
+        vm.mockCall(REGISTRY, abi.encodeCall(IMoshRegistry.isClaimMarket, (address(MARKET))), abi.encode(false));
+        vm.expectRevert(LibMoshValidation.InvalidMoshMarket.selector);
+        gate.validateMarket(
+            REGISTRY,
+            LibMoshValidation.MarketPins(
+                address(MARKET), 0x2d345a9fa04e9284e3dc108ed4455c4c73c0747dde5875861aa960f5ed0c483e, 1000
+            )
+        );
+    }
+
+    function testCustodyOfferAtExactDeadlineMatchesMarket() public {
+        uint64 end = uint64(block.timestamp + 1 hours);
+        vm.prank(HOLDER);
+        uint256 offer = MARKET.list(address(SWARM), 0.01 ether, 1, address(custody), end);
+        vm.warp(end);
+        vm.expectRevert(LibMoshValidation.InvalidMoshOffer.selector);
+        vm.prank(HOLDER);
+        custody.enter{value: 1}(offer);
+        // Negative raw-market boundary probe only; no successful custody-address impersonation.
+        vm.deal(address(custody), 1);
+        vm.expectRevert(bytes4(0x9cb13087));
+        vm.prank(address(custody));
+        MARKET.fill{value: 1}(offer);
+        assertEq(SWARM.claim(address(custody)), 0);
+    }
+
+    function _assertOffer(uint256 id, address seller, address buyer, uint256 amount, uint64 deadline) private view {
+        (address source, address owner, address receiver, uint256 size, uint256 price, uint64 end, uint16 fee) =
+            MARKET.offers(id);
+        assertEq(source, address(SWARM));
+        assertEq(owner, seller);
+        assertEq(receiver, buyer);
+        assertEq(size, amount);
+        assertEq(price, 1);
+        assertEq(end, deadline);
+        assertEq(fee, 1000);
+    }
+
+    function _assertCleared(uint256 id) private view {
+        (address source, address seller, address buyer, uint256 amount, uint256 price, uint64 end, uint16 fee) =
+            MARKET.offers(id);
+        assertEq(source, address(0));
+        assertEq(seller, address(0));
+        assertEq(buyer, address(0));
+        assertEq(amount, 0);
+        assertEq(price, 0);
+        assertEq(end, 0);
+        assertEq(fee, 0);
     }
 }
