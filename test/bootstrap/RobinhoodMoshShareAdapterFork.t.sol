@@ -3,7 +3,8 @@ pragma solidity 0.8.33;
 
 import {WETH} from "solmate/src/tokens/WETH.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IMoshSwarm, IMoshClaimMarket} from "../../src/interfaces/IMoshSwarm.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IMoshSwarm, IMoshClaimMarket, IMoshFactory} from "../../src/interfaces/IMoshSwarm.sol";
 import {LibMoshValidation} from "../../src/bootstrap/LibMoshValidation.sol";
 import {MoshShareRevenueAdapter} from "../../src/bootstrap/MoshShareRevenueAdapter.sol";
 import {BasketBootstrapCampaign} from "../../src/bootstrap/BasketBootstrapCampaign.sol";
@@ -18,6 +19,38 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {RejectingRevenueWeth} from "./NativeCampaignRevenue.t.sol";
+
+contract ReenteringMoshSeller {
+    IMoshSwarm private immutable swarm;
+    IMoshClaimMarket private immutable market;
+    MoshShareRevenueAdapter private immutable adapter;
+    bool private armed;
+    bool public reentered;
+    bytes public rejection;
+    uint256 public received;
+
+    constructor(IMoshSwarm source, IMoshClaimMarket claimMarket, MoshShareRevenueAdapter custody) {
+        swarm = source;
+        market = claimMarket;
+        adapter = custody;
+    }
+
+    function acquire(uint256 offerId) external payable {
+        market.fill{value: 1}(offerId);
+    }
+
+    function deposit(uint256 amount) external payable {
+        uint256 id = market.list(address(swarm), amount, 1, address(adapter), uint64(block.timestamp + 1 hours));
+        armed = true;
+        adapter.deposit{value: 1}(id, amount);
+        armed = false;
+    }
+
+    receive() external payable {
+        received += msg.value;
+        if (armed) (reentered, rejection) = address(adapter).call(abi.encodeCall(MoshShareRevenueAdapter.sync, ()));
+    }
+}
 
 /// @dev Local real Statics launch fixtures plus runtime-pinned deployed Mosh/market/hook/v4 execution.
 /// The local CreateX fixture affects Statics setup only; no Mosh contract/manager is etched or replaced.
@@ -252,6 +285,89 @@ contract RobinhoodMoshShareAdapterForkTest is CampaignTestBase, IUnlockCallback 
         (address source,,, uint256 amount,,,) = MARKET.offers(id);
         assertEq(source, address(SWARM));
         assertEq(amount, 0.01 ether);
+    }
+
+    function testFactoryPolicyDriftRejectsEntryWithoutLockingExistingReturns() public {
+        _deposit(HOLDER, 0.01 ether);
+        vm.prank(HOLDER);
+        adapter.withdraw(0.004 ether, block.timestamp + 1 hours);
+        // Synthetic policy drift covers the guard, not an impersonated upstream governance change.
+        vm.mockCall(_pins().factory, abi.encodeCall(IMoshFactory.swarmImplementation, ()), abi.encode(address(0xdead)));
+        vm.prank(HOLDER);
+        uint256 entry = MARKET.list(address(SWARM), 0.001 ether, 1, address(adapter), uint64(block.timestamp + 1 hours));
+        vm.expectRevert(LibMoshValidation.InvalidMoshSource.selector);
+        vm.prank(HOLDER);
+        adapter.deposit{value: 1}(entry, 0.001 ether);
+        vm.prank(HOLDER);
+        adapter.cancelWithdrawal();
+        _return(HOLDER, 0.01 ether);
+        assertEq(adapter.totalShares(), 0);
+        assertEq(adapter.unreconciledShares(), 0);
+    }
+
+    function testRealSellerFeeCallbackCannotReenterClaimDeposit() public {
+        ReenteringMoshSeller seller = new ReenteringMoshSeller(SWARM, MARKET, adapter);
+        vm.prank(HOLDER);
+        uint256 id = MARKET.list(address(SWARM), 0.005 ether, 1, address(seller), uint64(block.timestamp + 1 hours));
+        seller.acquire{value: 1}(id);
+        _swap();
+        _realize();
+        uint256 sellerFees = SWARM.claimable(address(seller));
+        assertGt(sellerFees, 0);
+        seller.deposit{value: 1}(0.005 ether);
+        assertFalse(seller.reentered());
+        assertEq(seller.rejection(), abi.encodeWithSelector(ReentrancyGuard.ReentrancyGuardReentrantCall.selector));
+        assertEq(seller.received(), sellerFees + 1);
+        assertEq(adapter.shares(address(seller)), 0.005 ether);
+        assertEq(SWARM.claim(address(seller)), 0);
+        assertEq(adapter.unreconciledShares(), 0);
+        assertEq(SWARM.claim(address(adapter)), adapter.totalShares());
+    }
+
+    function testFuzzTinyReceiptCarrySurvivesClaimsReturnAndRedeposit(uint256 seed) public {
+        _giveSecondClaims(0.007 ether);
+        _deposit(HOLDER, 0.003 ether);
+        _deposit(second, 0.007 ether);
+        vm.warp(destination.deadline());
+        uint256 received;
+        uint256 paid;
+        for (uint256 i; i < 16; ++i) {
+            uint256 amount = uint256(keccak256(abi.encode(seed, i))) % 17 + 1;
+            // Narrow synthetic receipt input isolates otherwise impractical sub-wei index rounding.
+            // Custody entry/return remains the actual market; real source swap/payout flows are tested separately.
+            uint256 measuredBefore = adapter.totalMeasured();
+            vm.prank(address(SWARM));
+            (bool accepted,) = address(adapter).call{value: amount}("");
+            assertTrue(accepted);
+            assertEq(adapter.totalMeasured(), measuredBefore + amount);
+            received += amount;
+            if (i == 7) {
+                _return(HOLDER, 0.001 ether);
+                _deposit(HOLDER, 0.001 ether);
+            }
+            if (i % 3 == 0) {
+                vm.prank(HOLDER);
+                paid += adapter.claimRewards();
+                vm.prank(second);
+                paid += adapter.claimRewards();
+            }
+            assertLe(
+                paid + adapter.rewards(HOLDER) + adapter.rewards(second), adapter.totalMeasured() + (i >= 7 ? 1 : 0)
+            );
+            assertEq(address(adapter).balance, adapter.userNativeReserved(), "native reserve backing");
+        }
+        _return(HOLDER, 0.003 ether);
+        _return(second, 0.007 ether);
+        vm.prank(HOLDER);
+        paid += adapter.claimRewards();
+        vm.prank(second);
+        paid += adapter.claimRewards();
+        // Real market movements may also collect an upstream rounding residue; include its measured receipt.
+        assertGe(adapter.totalMeasured(), received, "source receipts");
+        assertLe(paid, adapter.totalMeasured() + 3);
+        assertEq(paid + adapter.userNativeReserved(), adapter.totalMeasured() + 3, "payout conservation");
+        assertLe(adapter.userNativeReserved(), 2);
+        assertEq(adapter.totalShares(), 0);
     }
 
     function testExpiredListingCancelsAndRecoversWithoutConversionOrForwarding() public {
