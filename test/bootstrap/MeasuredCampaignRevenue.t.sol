@@ -55,4 +55,14 @@ contract MeasuredCampaignRevenueTest is CampaignTestBase {
         vm.expectRevert(MeasuredCampaignRevenue.InvalidRevenueIntegration.selector);
         other.bindCampaign(destination,0);
     }
+    function testAdapterCannotBecomeItsOwnTerminalBeneficiary() public {
+        MeasuredCampaignRevenue other = new MeasuredCampaignRevenue(vm.addr(CREATOR_KEY),address(assetA),campaignFactory);
+        BasketBootstrapCampaign.Terms memory terms = _terms(false);
+        terms.beneficiary = address(other);
+        terms.adapters = new address[](1); terms.adapters[0] = address(other);
+        BasketBootstrapCampaign invalid = _campaign(terms,keccak256("self beneficiary"));
+        vm.prank(vm.addr(CREATOR_KEY));
+        vm.expectRevert(MeasuredCampaignRevenue.InvalidRevenueIntegration.selector);
+        other.bindCampaign(invalid,0);
+    }
 }

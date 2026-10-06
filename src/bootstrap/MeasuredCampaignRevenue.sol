@@ -33,7 +33,8 @@ contract MeasuredCampaignRevenue is ReentrancyGuard {
 
     function bindCampaign(BasketBootstrapCampaign destination, uint256 index) external nonReentrant {
         if (msg.sender != creator || address(campaign) != address(0) || !factory.isCampaign(address(destination))
-            || destination.creator() != creator || !destination.revenueAdapters(address(this))) {
+            || destination.creator() != creator || destination.beneficiary() == address(this)
+            || !destination.revenueAdapters(address(this))) {
             revert InvalidRevenueIntegration();
         }
         (address asset,,,) = destination.inventory(index);
