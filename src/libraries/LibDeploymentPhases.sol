@@ -18,6 +18,8 @@ import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketLaunchPreview} from "../interfaces/IStaticsBasketLaunchPreview.sol";
+import {IStaticsBasketDelegation} from "../interfaces/IStaticsBasketDelegation.sol";
 import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
@@ -98,6 +100,8 @@ library LibDeploymentPhases {
         // The prepared-creation selector is additive; retain discovery for existing integrations.
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId ^ IStaticsBasket.createBasketPrepared.selector] = true;
         ds.supportedInterfaces[type(IStaticsBasketPreparation).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketLaunchPreview).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketDelegation).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketMarkets).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketArbitrage).interfaceId] = true;
         ds.supportedInterfaces[

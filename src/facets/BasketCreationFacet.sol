@@ -6,6 +6,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
+import {IStaticsBasketDelegation} from "../interfaces/IStaticsBasketDelegation.sol";
+import {LibBasketDelegation} from "../libraries/LibBasketDelegation.sol";
 import {LibBasketDeployment} from "../libraries/LibBasketDeployment.sol";
 import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
@@ -17,6 +19,12 @@ import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLending} from "../libraries/LibLending.sol";
 
 contract BasketCreationFacet is ReentrancyGuard {
+    struct DeploymentContext {
+        uint256 deadline;
+        bytes32 preparationId;
+        uint256 basketId;
+        address creator;
+    }
     error InvalidBasketDefinition();
     error FeeExceedsCap(uint16 feeBps);
     error LtvExceedsMaximum(uint16 ltvBps);
@@ -36,7 +44,7 @@ contract BasketCreationFacet is ReentrancyGuard {
         uint256[] calldata maxAmountsIn,
         uint256 launchDeadline
     ) external payable nonReentrant returns (uint256 basketId, address token) {
-        return _createBasket(params, pools, maxAmountsIn, launchDeadline, bytes32(0));
+        return _createBasket(params, pools, maxAmountsIn, launchDeadline, bytes32(0), msg.sender);
     }
 
     function createBasketPrepared(
@@ -47,7 +55,25 @@ contract BasketCreationFacet is ReentrancyGuard {
         bytes32 preparationId
     ) external payable nonReentrant returns (uint256 basketId, address token) {
         if (preparationId == bytes32(0)) revert LibBasketDeployment.PreparationIntentMismatch();
-        return _createBasket(params, pools, maxAmountsIn, launchDeadline, preparationId);
+        return _createBasket(params, pools, maxAmountsIn, launchDeadline, preparationId, msg.sender);
+    }
+
+    function createBasketFor(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maximums,
+        IStaticsBasketDelegation.Authorization calldata authorization,
+        bytes calldata signature
+    ) external payable nonReentrant returns (uint256 basketId, address token) {
+        LibBasketDelegation.validate(
+            authorization,
+            signature,
+            LibBasketDeployment.configurationHash(params, pools, maximums, authorization.deadline),
+            true
+        );
+        return _createBasket(
+            params, pools, maximums, authorization.deadline, authorization.preparationId, authorization.creator
+        );
     }
 
     function _createBasket(
@@ -55,7 +81,8 @@ contract BasketCreationFacet is ReentrancyGuard {
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn,
         uint256 launchDeadline,
-        bytes32 preparationId
+        bytes32 preparationId,
+        address creator
     ) private returns (uint256 basketId, address token) {
         if (block.timestamp > launchDeadline) {
             revert LaunchDeadlineExpired(launchDeadline, block.timestamp);
@@ -76,12 +103,14 @@ contract BasketCreationFacet is ReentrancyGuard {
 
         basketId = bs.basketCount;
         bs.basketCount = basketId + 1;
-        token = _deployBasket(params, pools, maxAmountsIn, launchDeadline, preparationId, basketId);
+        token = _deployBasket(
+            params, pools, maxAmountsIn, DeploymentContext(launchDeadline, preparationId, basketId, creator)
+        );
 
         {
             LibBasket.Basket storage created = bs.baskets[basketId];
             created.token = token;
-            created.creator = msg.sender;
+            created.creator = creator;
             created.assets = params.assets;
             created.bundleAmounts = params.bundleAmounts;
             _copyFeeTiers(created.mintFeeTiers, params.mintFeeTiers);
@@ -95,37 +124,38 @@ contract BasketCreationFacet is ReentrancyGuard {
         }
         bs.basketIds[token] = basketId + 1;
 
-        _emitBasketCreated(basketId, token, params);
+        _emitBasketCreated(basketId, token, params, creator);
 
         uint256 basketShares =
             IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
         delete LibBasketDeployment.deploymentStorage().launching[basketId];
-        emit IStaticsBasket.BasketLaunched(basketId, token, msg.sender, basketShares, assetCount);
+        emit IStaticsBasket.BasketLaunched(basketId, token, creator, basketShares, assetCount);
     }
 
     function _deployBasket(
         IStaticsBasket.CreateBasketParams calldata params,
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn,
-        uint256 deadline,
-        bytes32 preparationId,
-        uint256 basketId
+        DeploymentContext memory context
     ) private returns (address token) {
-        bytes32 configuration = LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, deadline);
+        bytes32 configuration = LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, context.deadline);
         bytes32 prepared = LibBasketDeployment.begin(
-            preparationId, configuration, deadline, params.assets.length, msg.sender, msg.sender
+            context.preparationId, configuration, context.deadline, params.assets.length, msg.sender, context.creator
         );
-        token = LibBasketDeployment.factory().deployBasketToken(prepared, params.name, params.symbol, basketId);
-        LibRestrictedBasket.register(token, basketId);
-        LibBasketDeployment.deploymentStorage().launching[basketId] = prepared;
+        token = LibBasketDeployment.factory().deployBasketToken(prepared, params.name, params.symbol, context.basketId);
+        LibRestrictedBasket.register(token, context.basketId);
+        LibBasketDeployment.deploymentStorage().launching[context.basketId] = prepared;
         address morpho = LibMorpho.morphoStorage().morpho;
         if (morpho != address(0)) IStaticsRestrictedBasketToken(token).configureMorpho(morpho);
     }
 
-    function _emitBasketCreated(uint256 basketId, address token, IStaticsBasket.CreateBasketParams calldata params)
-        private
-    {
-        emit IStaticsBasket.BasketCreated(basketId, token, msg.sender, params.name, params.symbol);
+    function _emitBasketCreated(
+        uint256 basketId,
+        address token,
+        IStaticsBasket.CreateBasketParams calldata params,
+        address creator
+    ) private {
+        emit IStaticsBasket.BasketCreated(basketId, token, creator, params.name, params.symbol);
         emit IStaticsBasket.BasketConfigured(
             basketId,
             params.assets,

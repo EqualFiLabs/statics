@@ -2,7 +2,6 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -19,7 +18,7 @@ import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsPermissionedSwapFeeHook} from "../interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
-import {LibBasketLiquidityMath} from "../libraries/LibBasketLiquidityMath.sol";
+import {LibBasketLaunchMath} from "../libraries/LibBasketLaunchMath.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
@@ -187,11 +186,10 @@ contract BasketLiquidityFacet {
         private
         returns (IStaticsProtocolPools.ProtocolPolOpenParams memory position, uint256 basketAmount, uint256 assetAmount)
     {
-        (PoolKey memory key, uint160 sqrtPriceX96) = _initializeCanonicalPool(ls, basketToken, basketId, asset, launch);
+        (PoolKey memory key,) = _initializeCanonicalPool(ls, basketToken, basketId, asset, launch);
         bool assetIsCurrency0 = Currency.unwrap(key.currency0) == asset;
         uint128 liquidity;
-        (liquidity, basketAmount, assetAmount) =
-            LibBasketLiquidityMath.fullRangeAmounts(sqrtPriceX96, assetIsCurrency0, launch.pairedAssetAmount);
+        (, liquidity, basketAmount, assetAmount) = LibBasketLaunchMath.seed(basketToken, asset, launch);
         if (liquidity == 0 || basketAmount == 0 || assetAmount == 0) {
             revert InvalidPoolLaunchLiquidity(asset, launch.pairedAssetAmount);
         }
@@ -319,7 +317,8 @@ contract BasketLiquidityFacet {
         if (!LibProtocolPoolFee.isValidTickSpacing(launch.tickSpacing)) {
             revert InvalidPoolLaunchTickSpacing(asset, launch.tickSpacing);
         }
-        sqrtPriceX96 = _canonicalSqrtPrice(basketToken, asset, launch.tickSpacing, launch.sqrtPriceAssetPerBasketX96);
+        sqrtPriceX96 =
+            LibBasketLaunchMath.sqrtPrice(basketToken, asset, launch.tickSpacing, launch.sqrtPriceAssetPerBasketX96);
         (Currency currency0, Currency currency1) = basketToken < asset
             ? (Currency.wrap(basketToken), Currency.wrap(asset))
             : (Currency.wrap(asset), Currency.wrap(basketToken));
@@ -376,34 +375,6 @@ contract BasketLiquidityFacet {
         emit CanonicalPoolInitialized(
             basketId, asset, poolId, Currency.unwrap(currency0), Currency.unwrap(currency1), sqrtPriceX96, tick
         );
-    }
-
-    function _canonicalSqrtPrice(
-        address basketToken,
-        address asset,
-        int24 tickSpacing,
-        uint160 sqrtPriceAssetPerBasketX96
-    ) private pure returns (uint160 sqrtPriceX96) {
-        if (
-            sqrtPriceAssetPerBasketX96 < TickMath.MIN_SQRT_PRICE
-                || sqrtPriceAssetPerBasketX96 >= TickMath.MAX_SQRT_PRICE
-        ) {
-            revert InvalidPoolLaunchPrice(asset, sqrtPriceAssetPerBasketX96);
-        }
-        if (basketToken < asset) {
-            sqrtPriceX96 = sqrtPriceAssetPerBasketX96;
-        } else {
-            uint256 inverse = Math.mulDiv(1 << 96, 1 << 96, sqrtPriceAssetPerBasketX96);
-            if (inverse < TickMath.MIN_SQRT_PRICE || inverse >= TickMath.MAX_SQRT_PRICE) {
-                revert InvalidPoolLaunchPrice(asset, sqrtPriceAssetPerBasketX96);
-            }
-            sqrtPriceX96 = uint160(inverse);
-        }
-        uint160 sqrtLower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(tickSpacing));
-        uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(tickSpacing));
-        if (sqrtPriceX96 <= sqrtLower || sqrtPriceX96 >= sqrtUpper) {
-            revert InvalidPoolLaunchPrice(asset, sqrtPriceAssetPerBasketX96);
-        }
     }
 
     function _basket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {
