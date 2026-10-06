@@ -137,7 +137,7 @@ contract MorphoSettlementFacet is ReentrancyGuard {
             LibRestrictedBasket.authorizeProtocolTransfer(token, account, address(this), amount);
             StaticsMorphoAccount(account).sweepToken(token, address(this), amount);
             if (IERC20(token).balanceOf(address(this)) - beforeBalance != amount) revert InvalidAmount();
-            LibCustody.pushUnreserved(token, receiver, amount, minReceived);
+            LibCustody.pushUnreserved(token, receiver, amount, amount);
         } else {
             StaticsMorphoAccount(account).sweepToken(token, receiver, amount);
         }

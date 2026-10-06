@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IMorphoBlue, MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
+import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol";
 import {StaticsRestrictedBasketToken} from "../../src/tokens/StaticsRestrictedBasketToken.sol";
 import {PreparedBasketTestBase} from "../liquidity/PreparedBasketCreation.t.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -128,5 +129,34 @@ contract RestrictedMorphoCollateralTest is PreparedBasketTestBase {
         );
         assertEq(IERC20(collateralToken).balanceOf(account), 0);
         assertEq(IERC20(collateralToken).balanceOf(bob), 1 ether);
+    }
+
+    function testAccountRecoveryMinimumIsIndependentOfExactDebitLimit() public {
+        (address account,) = morphoApi.morphoAccount(collateralPosition);
+        uint256[] memory quote = baskets.quoteMint(collateralBasket, 3 ether);
+        _fundAndApprove(alice, quote[0], quote[1]);
+        vm.prank(alice);
+        baskets.mint(collateralBasket, 3 ether, account, quote);
+        uint256 diamondBefore = IERC20(collateralToken).balanceOf(address(diamond));
+
+        vm.prank(alice);
+        assertEq(morphoApi.recoverMorphoAccountToken(collateralPosition, collateralToken, 1 ether, bob, 0), 1 ether);
+        vm.prank(alice);
+        assertEq(
+            morphoApi.recoverMorphoAccountToken(collateralPosition, collateralToken, 1 ether, bob, 0.5 ether), 1 ether
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MorphoSettlementFacet.MinimumRecoveryNotMet.selector, collateralToken, 2 ether, 1 ether
+            )
+        );
+        vm.prank(alice);
+        morphoApi.recoverMorphoAccountToken(collateralPosition, collateralToken, 1 ether, bob, 2 ether);
+        assertEq(IERC20(collateralToken).balanceOf(account), 1 ether);
+        assertEq(IERC20(collateralToken).balanceOf(bob), 2 ether);
+        assertEq(IERC20(collateralToken).balanceOf(address(diamond)), diamondBefore);
+        vm.prank(alice);
+        assertEq(morphoApi.recoverMorphoAccountToken(collateralPosition, collateralToken, 1 ether, bob, 0), 1 ether);
+        assertEq(IERC20(collateralToken).balanceOf(account), 0);
     }
 }
