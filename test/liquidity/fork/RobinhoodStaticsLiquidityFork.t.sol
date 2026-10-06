@@ -30,6 +30,11 @@ import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityMa
 import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol";
 import {CanonicalV4Router} from "../../helpers/CanonicalPoolTestBase.sol";
 import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
+import {BasketPreparationFacet} from "../../../src/facets/BasketPreparationFacet.sol";
+import {BasketSettlementFacet} from "../../../src/facets/BasketSettlementFacet.sol";
+import {StaticsBasketFactory} from "../../../src/liquidity/StaticsBasketFactory.sol";
+import {IStaticsSwapFeeHook} from "../../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {MockERC20} from "../../mocks/MockERC20.sol";
 
 interface IRobinhoodUniversalRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
@@ -86,6 +91,9 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         );
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
+        _localBasketFactory = StaticsBasketFactory(deployCode("out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
+            abi.encode(address(diamond), poolManager, IStaticsSwapFeeHook(address(hook)))));
+        BasketPreparationFacet(address(diamond)).installBasketFactory(address(_localBasketFactory));
         IStaticsProtocolPools(address(diamond))
             .setProtocolPoolMaintenanceConfig(IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: 500}));
     }
@@ -159,34 +167,45 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         assertGt(IStaticsProtocolPools(address(diamond)).protocolPool(poolId).activePolPositions, 0);
     }
 
-    function testGasCompareStaticsHookWithVanillaRobinhoodV4() public {
+    function testGasCompareRestrictedHookWithOrdinaryTokenVanillaRobinhoodV4() public {
         (uint256 basketId, address basketToken, uint256 positionId) = _createFundedBasket();
         _provideCanonicalLiquidity(positionId, basketId);
 
         IStaticsBasketLiquidity.CanonicalPoolView memory configured =
             basketLiquidity.canonicalPool(basketId, address(assetA));
         PoolKey memory staticsKey = _poolKey(configured);
-        PoolKey memory vanillaKey = PoolKey({
-            currency0: staticsKey.currency0,
-            currency1: staticsKey.currency1,
-            fee: staticsKey.fee,
-            tickSpacing: staticsKey.tickSpacing,
-            hooks: IHooks(address(0))
-        });
-        poolManager.initialize(vanillaKey, SQRT_PRICE_1_1);
-
+        (PoolKey memory vanillaKey, CanonicalV4Router vanillaRouter, bool vanillaDirection) =
+            _seedOrdinaryVanillaBaseline(staticsKey.fee, staticsKey.tickSpacing);
+        CanonicalV4Router staticsRouter = new CanonicalV4Router(poolManager);
         uint256[] memory quote = baskets.quoteMint(basketId, 20 ether);
         assetA.mint(alice, quote[0] + 20 ether);
-        vm.prank(alice);
-        baskets.mint(basketId, 20 ether, alice, quote);
-
-        CanonicalV4Router vanillaRouter = new CanonicalV4Router(poolManager);
-        CanonicalV4Router staticsRouter = new CanonicalV4Router(poolManager);
         vm.startPrank(alice);
-        IERC20(basketToken).approve(address(vanillaRouter), type(uint256).max);
-        IERC20(address(assetA)).approve(address(vanillaRouter), type(uint256).max);
+        baskets.mint(basketId, 20 ether, alice, quote);
         IERC20(basketToken).approve(address(staticsRouter), type(uint256).max);
-        IERC20(address(assetA)).approve(address(staticsRouter), type(uint256).max);
+        assetA.approve(address(staticsRouter), type(uint256).max);
+        vm.stopPrank();
+        _compareSwapGas(staticsRouter, staticsKey, vanillaRouter, vanillaKey, vanillaDirection, basketToken);
+    }
+
+    function _seedOrdinaryVanillaBaseline(uint24 fee, int24 spacing)
+        private returns (PoolKey memory vanillaKey, CanonicalV4Router vanillaRouter, bool vanillaDirection)
+    {
+        // Restricted tokens cannot seed an unregistered boundary. Use an ordinary-token baseline.
+        MockERC20 vanillaToken = new MockERC20("Vanilla gas baseline", "VAN", 18);
+        vanillaToken.mint(alice, 50 ether);
+        assetA.mint(alice, 50 ether);
+        vanillaDirection = address(vanillaToken) < address(assetA);
+        vanillaKey = PoolKey(
+            Currency.wrap(vanillaDirection ? address(vanillaToken) : address(assetA)),
+            Currency.wrap(vanillaDirection ? address(assetA) : address(vanillaToken)),
+            fee, spacing, IHooks(address(0))
+        );
+        poolManager.initialize(vanillaKey, SQRT_PRICE_1_1);
+
+        vanillaRouter = new CanonicalV4Router(poolManager);
+        vm.startPrank(alice);
+        vanillaToken.approve(address(vanillaRouter), type(uint256).max);
+        IERC20(address(assetA)).approve(address(vanillaRouter), type(uint256).max);
         vanillaRouter.modifyLiquidity(
             vanillaKey,
             ModifyLiquidityParams({
@@ -197,17 +216,23 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             })
         );
         vm.stopPrank();
+    }
 
-        bool zeroForOne = configured.currency0 == basketToken;
+    function _compareSwapGas(CanonicalV4Router staticsRouter, PoolKey memory staticsKey,
+        CanonicalV4Router vanillaRouter, PoolKey memory vanillaKey, bool vanillaDirection, address basketToken) private
+    {
+        bool zeroForOne = Currency.unwrap(staticsKey.currency0) == basketToken;
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,
             amountSpecified: -int256(0.01 ether),
             sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        emit SwapGasMeasured("vanilla-v4-first", _measureSwap(vanillaRouter, vanillaKey, params));
+        SwapParams memory vanillaParams = SwapParams(vanillaDirection, -int256(0.01 ether),
+            vanillaDirection ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1);
+        emit SwapGasMeasured("vanilla-v4-first", _measureSwap(vanillaRouter, vanillaKey, vanillaParams));
         emit SwapGasMeasured("statics-phase-one-first", _measureSwap(staticsRouter, staticsKey, params));
-        emit SwapGasMeasured("vanilla-v4-mature", _measureSwap(vanillaRouter, vanillaKey, params));
+        emit SwapGasMeasured("vanilla-v4-mature", _measureSwap(vanillaRouter, vanillaKey, vanillaParams));
         emit SwapGasMeasured("statics-phase-one-mature", _measureSwap(staticsRouter, staticsKey, params));
 
         vm.warp(block.timestamp + 31 minutes);
@@ -353,8 +378,17 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
 
         address swapper = vm.addr(swapperKey);
         assertEq(swapper.code.length, 0, "fork swapper must be an EOA");
-        vm.prank(alice);
-        IERC20(input).transfer(swapper, amountIn);
+        if (BasketSettlementFacet(address(diamond)).isRestrictedBasketToken(input)) {
+            (uint256 basketId, bool exists) = baskets.basketIdOf(input);
+            assertTrue(exists);
+            uint256[] memory mintBacking = baskets.quoteMint(basketId, amountIn);
+            assetA.mint(alice, mintBacking[0]);
+            vm.prank(alice);
+            baskets.mint(basketId, amountIn, swapper, mintBacking);
+        } else {
+            vm.prank(alice);
+            IERC20(input).transfer(swapper, amountIn);
+        }
         vm.prank(swapper);
         IERC20(input).approve(address(permit2Contract), amountIn);
 

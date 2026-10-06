@@ -21,6 +21,9 @@ import {StaticsSwapFeeHook} from "../../../src/liquidity/StaticsSwapFeeHook.sol"
 import {StaticsLiquidityManager} from "../../../src/liquidity/StaticsLiquidityManager.sol";
 import {CanonicalV4Router} from "../../helpers/CanonicalPoolTestBase.sol";
 import {StaticsTestBase} from "../../helpers/StaticsTestBase.sol";
+import {BasketPreparationFacet} from "../../../src/facets/BasketPreparationFacet.sol";
+import {StaticsBasketFactory} from "../../../src/liquidity/StaticsBasketFactory.sol";
+import {IStaticsSwapFeeHook} from "../../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {FlashArbitrageReceiver, ICanonicalV4SwapRouter} from "../../mocks/FlashArbitrageReceiver.sol";
 import {MockERC20} from "../../mocks/MockERC20.sol";
 
@@ -73,6 +76,9 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             )
         );
         router = new CanonicalV4Router(poolManager);
+        _localBasketFactory = StaticsBasketFactory(deployCode("out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
+            abi.encode(address(diamond), poolManager, IStaticsSwapFeeHook(address(hook)))));
+        BasketPreparationFacet(address(diamond)).installBasketFactory(address(_localBasketFactory));
     }
 
     function testMintAndSellUsesPinnedRobinhoodPoolManager() public {
