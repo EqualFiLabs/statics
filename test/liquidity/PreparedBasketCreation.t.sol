@@ -320,6 +320,20 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         IStaticsBasketLiquidity markets = IStaticsBasketLiquidity(address(diamond));
         vm.expectRevert(abi.encodeWithSignature("BasketMarketNotExitOnly(bytes32)", PoolId.unwrap(id)));
         markets.unwindBasketMarket(id);
+        pools.settleProtocolPoolPol(id, Currency.unwrap(key.currency0), 0);
+        pools.settleProtocolPoolPol(id, Currency.unwrap(key.currency1), 0);
+        bytes32 account = LibCustody.protocolPolAccount(PoolId.unwrap(id));
+        pools.openProtocolPolPosition(
+            IStaticsProtocolPools.ProtocolPolOpenParams(
+                id,
+                -600,
+                600,
+                1e9,
+                custody.reservedByAccount(account, Currency.unwrap(key.currency0)),
+                custody.reservedByAccount(account, Currency.unwrap(key.currency1)),
+                block.timestamp
+            )
+        );
         governance.decommissionBasket(basketId);
         uint256[] memory positions = pools.protocolPolPositionIds(id);
         assertGt(positions.length, 0); // Real fee-funded POL is closed before recovery.
@@ -332,7 +346,6 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         }
         pools.settleProtocolPoolPol(id, Currency.unwrap(key.currency0), 0);
         pools.settleProtocolPoolPol(id, Currency.unwrap(key.currency1), 0);
-        bytes32 account = LibCustody.protocolPolAccount(PoolId.unwrap(id));
         assertGt(custody.reservedByAccount(account, Currency.unwrap(key.currency0)), 0);
         assertGt(custody.reservedByAccount(account, Currency.unwrap(key.currency1)), 0);
         markets.unwindBasketMarket(id);
