@@ -18,8 +18,16 @@ library LibBasketLiquidityMath {
         pure
         returns (uint128 liquidity, uint256 basketAmount, uint256 assetAmount)
     {
-        uint160 sqrtLower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(10));
-        uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(10));
+        return fullRangeAmounts(sqrtPriceX96, assetIsCurrency0, assetAvailable, 10);
+    }
+
+    function fullRangeAmounts(uint160 sqrtPriceX96, bool assetIsCurrency0, uint256 assetAvailable, int24 tickSpacing)
+        internal
+        pure
+        returns (uint128 liquidity, uint256 basketAmount, uint256 assetAmount)
+    {
+        uint160 sqrtLower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(tickSpacing));
+        uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(tickSpacing));
         if (assetIsCurrency0) {
             liquidity = LiquidityAmounts.getLiquidityForAmount0(sqrtPriceX96, sqrtUpper, assetAvailable);
             assetAmount = SqrtPriceMath.getAmount0Delta(sqrtPriceX96, sqrtUpper, liquidity, true);

@@ -75,7 +75,7 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
 
     event SwapGasMeasured(string venue, uint256 gasUsed);
 
-    function setUp() public override {
+    function setUp() public virtual override {
         string memory manifest = vm.readFile(MANIFEST_PATH);
         _selectFork(manifest);
         super.setUp();

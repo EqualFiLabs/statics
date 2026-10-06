@@ -1,16 +1,18 @@
 {
   "schema": 2,
   "counts": {
-    "High": 88,
-    "Medium": 431,
-    "Low": 257,
-    "Informational": 158
+    "High": 112,
+    "Medium": 460,
+    "Low": 320,
+    "Informational": 169,
+    "Optimization": 2
   },
   "raw_counts": {
-    "High": 88,
-    "Medium": 431,
-    "Low": 321,
-    "Informational": 158
+    "High": 112,
+    "Medium": 460,
+    "Low": 388,
+    "Informational": 169,
+    "Optimization": 2
   },
   "findings": [
     {
@@ -113,6 +115,22 @@
       "impact": "High",
       "confidence": "Medium",
       "check": "arbitrary-send-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "MoshTeamRevenueAdapter.flushTeamRevenue() (src/bootstrap/MoshTeamRevenueAdapter.sol#140-152) sends eth to arbitrary user",
+      "rationale": "Only the constructor-bound runtime-pinned WETH receives nativeReserved, which is attributed through authenticated collection. The guarded operation zeroes its reserve before wrapping, restores preexisting native/token floors and delivers only to the fixed campaign/beneficiary.",
+      "occurrences": 1,
+      "id": "4443758fca30837b2174ca9d"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "arbitrary-send-eth",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -124,6 +142,38 @@
       "rationale": "This is the requested native-asset payout to the action receiver after exact WETH accounting; the external entrypoint is guarded and a failed send reverts atomically.",
       "occurrences": 1,
       "id": "5856322f1363085feb323ae4"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "arbitrary-send-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter._wrap(uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#254-259) sends eth to arbitrary user",
+      "rationale": "Only the constructor-bound runtime-pinned WETH receives the measured campaign or user liability amount. Enclosing flush/reward operations are guarded, debit their reserve atomically and check exact native decrease/WETH receipt; no arbitrary target or principal sweep is exposed.",
+      "occurrences": 1,
+      "id": "96d0cf116dadaa3f6968ec08"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "arbitrary-send-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._refund(StaticsAssetZap.Input,address,uint256,uint256) (src/periphery/StaticsAssetZap.sol#337-356) sends eth to arbitrary user",
+      "rationale": "The guarded zap returns only maximum minus measured aggregate route cost to the authenticated payer msg.sender. Input balance floors exclude preexisting funds, and native input is wrapped/unwrapped exactly; the recipient cannot select another payer balance or sweep the contract.",
+      "occurrences": 1,
+      "id": "aa9a016f9ae00cda6c697f06"
     },
     {
       "impact": "High",
@@ -144,6 +194,38 @@
     {
       "impact": "High",
       "confidence": "Medium",
+      "check": "arbitrary-send-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "PonsRevenueAdapter.collect(uint256) (src/bootstrap/PonsRevenueAdapter.sol#85-112) sends eth to arbitrary user",
+      "rationale": "Only the constructor-bound runtime-pinned payout wrapper receives the exact newly collected escrow amount. Authenticated native callback receipts and ledger debit are measured; preexisting ETH/WETH are excluded and successful delivery restores their floors.",
+      "occurrences": 1,
+      "id": "c8e5659f2359d1e265b40acf"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "arbitrary-send-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.finalize() (src/bootstrap/BasketBootstrapCampaign.sol#377-409) sends eth to arbitrary user",
+      "rationale": "Only the fixed immutable Diamond receives the preview-committed nativeRequired fee. Finalization requires explicitly funded native inventory, the same requirements/configuration commitment and creator authorization, and actual POL custody; the payer cannot select an arbitrary native recipient.",
+      "occurrences": 1,
+      "id": "ca42c45247c154019a42926f"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
       "check": "reentrancy-balance",
       "classification": "FALSE POSITIVE",
       "passes": [
@@ -156,6 +238,22 @@
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
       "id": "05d583905e4eed622e3f0ea7"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in PonsRevenueAdapter.collect(uint256) (src/bootstrap/PonsRevenueAdapter.sol#85-112):",
+      "rationale": "collect holds the adapter guard throughout pinned escrow claims, authenticated receive and fixed wrapper/destination calls. Native receipt is accepted only while collecting from the bound escrow. Reported amount, exact actual receipt, exact ledger decrease and restored balance floors are atomic compatibility checks, not stale entitlement reads.",
+      "occurrences": 1,
+      "id": "0719c82ff206e70e9bca6c5e"
     },
     {
       "impact": "High",
@@ -360,12 +458,76 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in PonsRevenueAdapter.collect(uint256) (src/bootstrap/PonsRevenueAdapter.sol#85-112):",
+      "rationale": "collect holds the adapter guard throughout pinned escrow claims, authenticated receive and fixed wrapper/destination calls. Native receipt is accepted only while collecting from the bound escrow. Reported amount, exact actual receipt, exact ledger decrease and restored balance floors are atomic compatibility checks, not stale entitlement reads.",
+      "occurrences": 1,
+      "id": "223dbb646c976b2d8f51f55a"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBootstrapSettlement.sol"
+      ],
+      "summary": "Reentrancy in LibBootstrapSettlement.settle(address,address,address,uint256) (src/libraries/LibBootstrapSettlement.sol#69-87):",
+      "rationale": "The enclosing Diamond selector is non-reentrant and authenticates a governance-pinned actual campaign runtime and immutable asset list. At least one endpoint must be that campaign; neither endpoint may spend Diamond inventory. Explicitly registered restricted tokens receive exact single-use tickets, and measured sender debit/receiver receipt and the original Diamond balance are independently enforced atomically.",
+      "occurrences": 1,
+      "id": "22e2af5da6e4fc70ff05cd7d"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager._executeMint(IStaticsLiquidityManager.PositionRequest,address) (src/liquidity/StaticsLiquidityManager.sol#307-339):",
       "rationale": "Every external value-moving entrypoint is Diamond-only and non-reentrant. Permit2, token, and PositionManager calls execute inside that guard, and exact balance, ownership, pool, range, liquidity, cleared-approval, and residual checks revert the complete operation on drift.",
       "occurrences": 1,
       "id": "23ca08363b778eea1aab8b1c"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBootstrapSettlement.sol"
+      ],
+      "summary": "Reentrancy in LibBootstrapSettlement.settle(address,address,address,uint256) (src/libraries/LibBootstrapSettlement.sol#69-87):",
+      "rationale": "The enclosing Diamond selector is non-reentrant and authenticates a governance-pinned actual campaign runtime and immutable asset list. At least one endpoint must be that campaign; neither endpoint may spend Diamond inventory. Explicitly registered restricted tokens receive exact single-use tickets, and measured sender debit/receiver receipt and the original Diamond balance are independently enforced atomically.",
+      "occurrences": 1,
+      "id": "2425747094f60a1e6d47bba1"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492):",
+      "rationale": "Every reachable campaign funding/fill/terminal transition holds its reentrancy guard. Inbound sender is the authenticated caller and outbound receiver is the checked supplier recipient or fixed beneficiary. Restricted movement uses the separately guarded exact Diamond custody bridge. The before/after snapshots deliberately verify exact debit and receipt; mismatch reverts all accounting and token movement.",
+      "occurrences": 1,
+      "id": "26329f4841979850f18f6fdf"
     },
     {
       "impact": "High",
@@ -414,6 +576,22 @@
       "rationale": "Only guarded Diamond-authorized manager operations reach this private refund. Restricted delivery is routed through the exact transient manager/token/receiver context, approvals are scoped and cleared, and the manager independently observes its exact debit and receiver receipt.",
       "occurrences": 1,
       "id": "34391003d0dfb475e93fab79"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492):",
+      "rationale": "Every reachable campaign funding/fill/terminal transition holds its reentrancy guard. Inbound sender is the authenticated caller and outbound receiver is the checked supplier recipient or fixed beneficiary. Restricted movement uses the separately guarded exact Diamond custody bridge. The before/after snapshots deliberately verify exact debit and receipt; mismatch reverts all accounting and token movement.",
+      "occurrences": 1,
+      "id": "380f05a29f607f05180374f3"
     },
     {
       "impact": "High",
@@ -526,6 +704,22 @@
       "rationale": "Both public NAV routes hold the receiver guard across fixed Diamond flash and PoolManager unlock callbacks. Restricted top-ups/profits use the exact registered receiver/executor/token transient context; ordinary movements and swaps validate before/after balances and restore transaction-attributable balances before route completion.",
       "occurrences": 1,
       "id": "50e972ac4632bf79c1fb3cf9"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.claimRewards() (src/bootstrap/MoshShareRevenueAdapter.sol#206-221):",
+      "rationale": "claimRewards holds the guard, syncs authenticated old-distribution receipts, settles the caller index, clears unpaid and debits userNativeReserved before wrapping/payout. The fixed wrapper is runtime-pinned; actual caller receipt and preserved prior token balance are checked after movement. No public state-changing reentry can claim twice.",
+      "occurrences": 1,
+      "id": "557e9d9be9c25ab989cdaf51"
     },
     {
       "impact": "High",
@@ -744,6 +938,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "Reentrancy in StaticsAssetZap._settle(address,uint256) (src/periphery/StaticsAssetZap.sol#283-291):",
+      "rationale": "These private helpers are reached only inside guarded public zap operations and a commitment-authenticated fixed PoolManager unlock callback. The callback commitment is consumed before swaps; typed routes and aggregate limits bound movement. Exact sender debit/PoolManager settlement/output receipt snapshots intentionally reject inexact tokens and protect preexisting balance floors.",
+      "occurrences": 1,
+      "id": "8a7c9a412c5e4c5e1d72c07c"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/MorphoSettlementFacet.sol"
       ],
       "summary": "Reentrancy in MorphoSettlementFacet.recoverMorphoAccountToken(uint256,address,uint256,address,uint256) (src/facets/MorphoSettlementFacet.sol#121-148):",
@@ -920,6 +1130,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "Reentrancy in StaticsAssetZap._take(address,uint256) (src/periphery/StaticsAssetZap.sol#293-297):",
+      "rationale": "These private helpers are reached only inside guarded public zap operations and a commitment-authenticated fixed PoolManager unlock callback. The callback commitment is consumed before swaps; typed routes and aggregate limits bound movement. Exact sender debit/PoolManager settlement/output receipt snapshots intentionally reject inexact tokens and protect preexisting balance floors.",
+      "occurrences": 1,
+      "id": "ad68ea3ed36b29e0936f0688"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsLiquidityManager.sol"
       ],
       "summary": "Reentrancy in StaticsLiquidityManager.increaseManagedPosition(IStaticsLiquidityManager.ManagedLiquidityRequest) (src/liquidity/StaticsLiquidityManager.sol#153-206):",
@@ -1038,6 +1264,54 @@
       "rationale": "The enclosing Diamond entrypoint is non-reentrant, authorization and accounting are checkpointed, and post-call balance deltas validate the immutable Morpho integration result.",
       "occurrences": 1,
       "id": "befa57262254238593bdb560"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign._receiveExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#463-475):",
+      "rationale": "Every reachable campaign funding/fill/terminal transition holds its reentrancy guard. Inbound sender is the authenticated caller and outbound receiver is the checked supplier recipient or fixed beneficiary. Restricted movement uses the separately guarded exact Diamond custody bridge. The before/after snapshots deliberately verify exact debit and receipt; mismatch reverts all accounting and token movement.",
+      "occurrences": 1,
+      "id": "befd67ef08131b2f3c9b98d2"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "Reentrancy in StaticsAssetZap._settle(address,uint256) (src/periphery/StaticsAssetZap.sol#283-291):",
+      "rationale": "These private helpers are reached only inside guarded public zap operations and a commitment-authenticated fixed PoolManager unlock callback. The callback commitment is consumed before swaps; typed routes and aggregate limits bound movement. Exact sender debit/PoolManager settlement/output receipt snapshots intentionally reject inexact tokens and protect preexisting balance floors.",
+      "occurrences": 1,
+      "id": "bf5cb5bbfbcef5fd3f39d989"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "Reentrancy in StaticsAssetZap._fundInput(StaticsAssetZap.Input,address) (src/periphery/StaticsAssetZap.sol#191-203):",
+      "rationale": "These private helpers are reached only inside guarded public zap operations and a commitment-authenticated fixed PoolManager unlock callback. The callback commitment is consumed before swaps; typed routes and aggregate limits bound movement. Exact sender debit/PoolManager settlement/output receipt snapshots intentionally reject inexact tokens and protect preexisting balance floors.",
+      "occurrences": 1,
+      "id": "bfd010ae2afcd4dd5015aaa7"
     },
     {
       "impact": "High",
@@ -1176,12 +1450,76 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in PonsRevenueAdapter.collect(uint256) (src/bootstrap/PonsRevenueAdapter.sol#85-112):",
+      "rationale": "collect holds the adapter guard throughout pinned escrow claims, authenticated receive and fixed wrapper/destination calls. Native receipt is accepted only while collecting from the bound escrow. Reported amount, exact actual receipt, exact ledger decrease and restored balance floors are atomic compatibility checks, not stale entitlement reads.",
+      "occurrences": 1,
+      "id": "e2fcc7045e995434545366c3"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/liquidity/StaticsPermissionedSwapFeeHook.sol"
       ],
       "summary": "Reentrancy in StaticsPermissionedSwapFeeHook._settleExact(Currency,uint256) (src/liquidity/StaticsPermissionedSwapFeeHook.sol#411-424):",
       "rationale": "PoolManager invokes the hook inside its unlock lock; hook mutators are Diamond-only, internal normalization is sender-bound, and every token or manager delta is checked before the callback can complete. A nested PoolManager lifecycle cannot enter this value-bearing transition and any mismatch reverts atomically.",
       "occurrences": 1,
       "id": "e37fe07be0b89aef2646da24"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.claimRewards() (src/bootstrap/MoshShareRevenueAdapter.sol#206-221):",
+      "rationale": "claimRewards holds the guard, syncs authenticated old-distribution receipts, settles the caller index, clears unpaid and debits userNativeReserved before wrapping/payout. The fixed wrapper is runtime-pinned; actual caller receipt and preserved prior token balance are checked after movement. No public state-changing reentry can claim twice.",
+      "occurrences": 1,
+      "id": "e6d1345554f349ecb0218f88"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign._receiveExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#463-475):",
+      "rationale": "Every reachable campaign funding/fill/terminal transition holds its reentrancy guard. Inbound sender is the authenticated caller and outbound receiver is the checked supplier recipient or fixed beneficiary. Restricted movement uses the separately guarded exact Diamond custody bridge. The before/after snapshots deliberately verify exact debit and receipt; mismatch reverts all accounting and token movement.",
+      "occurrences": 1,
+      "id": "e6d6d545066a42c1da7db113"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-balance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBootstrapSettlement.sol"
+      ],
+      "summary": "Reentrancy in LibBootstrapSettlement.settle(address,address,address,uint256) (src/libraries/LibBootstrapSettlement.sol#69-87):",
+      "rationale": "The enclosing Diamond selector is non-reentrant and authenticates a governance-pinned actual campaign runtime and immutable asset list. At least one endpoint must be that campaign; neither endpoint may spend Diamond inventory. Explicitly registered restricted tokens receive exact single-use tickets, and measured sender debit/receiver receipt and the original Diamond balance are independently enforced atomically.",
+      "occurrences": 1,
+      "id": "e79c31d7043f47fb66e3af8f"
     },
     {
       "impact": "High",
@@ -1326,6 +1664,54 @@
       "rationale": "StaticsFeeReceiver gates the transition by owner/distributor authority and non-reentrant harvest flow; state changes and native reserve funding revert together on callback failure.",
       "occurrences": 1,
       "id": "5d503db4005f32d6165f5a54"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.deposit(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#121-141):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "a6650f7714c44c6ec418945d"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshTeamRevenueAdapter.acceptTeamHandoff(uint256,uint256) (src/bootstrap/MoshTeamRevenueAdapter.sol#88-109):",
+      "rationale": "Source binding, team handoff, sync and flush hold the guard. Existing historical recipient authority and the exact buyer-bound one-wei offer are required; claim deltas are measured before rightsBound is set. Native receive additionally requires collecting, the pinned Swarm and fixed team claim balance, preventing unsolicited or redirected receipt from authorizing a second handoff. Sync receipt/reported native amount and flush balance floors are atomic.",
+      "occurrences": 1,
+      "id": "d2f8faeda161953cc6454dc7"
+    },
+    {
+      "impact": "High",
+      "confidence": "Medium",
+      "check": "reentrancy-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.finalize() (src/bootstrap/BasketBootstrapCampaign.sol#377-409):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "d8e8bafae1b33196a3ad104e"
     },
     {
       "impact": "High",
@@ -1829,6 +2215,22 @@
       "check": "incorrect-equality",
       "classification": "FALSE POSITIVE",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "PonsRevenueAdapter.collect(uint256) (src/bootstrap/PonsRevenueAdapter.sol#85-112) uses a dangerous strict equality:",
+      "rationale": "The reported equality is an explicit zero-amount no-op/rejection or exact measured receipt compatibility check. It does not compare an approximate price or manipulable external balance to determine entitlement; unsolicited preexisting balances are excluded by the recorded floor.",
+      "occurrences": 1,
+      "id": "680ddffdd4549c8ed310699f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -1854,6 +2256,22 @@
       "rationale": "Strict equality is required here to fail closed on a deployment artifact, code, hash, fixed share, or ceremony invariant; it is not used as a price trigger.",
       "occurrences": 1,
       "id": "72dc4526e103988b97fc7148"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MeasuredCampaignRevenue.sol"
+      ],
+      "summary": "MeasuredCampaignRevenue._deliverReceived(address,address,uint256,uint256) (src/bootstrap/MeasuredCampaignRevenue.sol#72-86) uses a dangerous strict equality:",
+      "rationale": "The reported equality is an explicit zero-amount no-op/rejection or exact measured receipt compatibility check. It does not compare an approximate price or manipulable external balance to determine entitlement; unsolicited preexisting balances are excluded by the recorded floor.",
+      "occurrences": 1,
+      "id": "7b322555c671dc6b00e7ce89"
     },
     {
       "impact": "Medium",
@@ -1966,6 +2384,22 @@
       "rationale": "The equality checks an exact zero-state sentinel, fixed accounting boundary, inventory condition, or balance invariant; approximate comparison would weaken the intended transition.",
       "occurrences": 1,
       "id": "abb7b56efe688e27db904ae5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "High",
+      "check": "incorrect-equality",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) uses a dangerous strict equality:",
+      "rationale": "The reported equality is an explicit zero-amount no-op/rejection or exact measured receipt compatibility check. It does not compare an approximate price or manipulable external balance to determine entitlement; unsolicited preexisting balances are excluded by the recorded floor.",
+      "occurrences": 1,
+      "id": "b63f1686a0336d66eeee2c71"
     },
     {
       "impact": "Medium",
@@ -2323,6 +2757,22 @@
       "impact": "Medium",
       "confidence": "Medium",
       "check": "reentrancy-no-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.fill(uint256,uint256,uint256,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#333-355):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "600982ac6e6257a6596273d3"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -2366,6 +2816,38 @@
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "7d19a325b9b6462f6bf5fe37"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.withdraw(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#144-161):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "884ee59bbe1c2cc676d44ece"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.prepare(uint256,uint256[],IStaticsBasketDelegation.Authorization,bytes) (src/bootstrap/BasketBootstrapCampaign.sol#229-252):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "a846232398c15cc063213dee"
     },
     {
       "impact": "Medium",
@@ -2435,6 +2917,22 @@
       "impact": "Medium",
       "confidence": "Medium",
       "check": "reentrancy-no-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in PonsRevenueAdapter.handoff() (src/bootstrap/PonsRevenueAdapter.sol#116-129):",
+      "rationale": "Collection and terminal handoff hold the same guard across only pinned escrow/factory/wrapper calls. Receive is narrowly authenticated while collecting. handoff requires a prepared terminal campaign and the adapter current fee-recipient authority, verifies the actual beneficiary afterward, and sets handedOff atomically. Previously credited collection remains separate and retryable; no callback can execute another mutator.",
+      "occurrences": 1,
+      "id": "d1d936589da4999e449943f5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -2446,6 +2944,22 @@
       "rationale": "The Genesis transition is non-reentrant or restricted to its immutable authenticated callback source; liabilities are cleared/checkpointed before transfer and failure reverts atomically.",
       "occurrences": 1,
       "id": "e49bb1ac9d1e7fe86dbbbc06"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "reentrancy-no-eth",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.cancelWithdrawal() (src/bootstrap/MoshShareRevenueAdapter.sol#186-193):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "fba2ed851972838cc6c4b917"
     },
     {
       "impact": "Medium",
@@ -2558,6 +3072,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "18075122510948af0b8d242c"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.mintBasket(StaticsAssetZap.Input,uint256,uint256,uint256[],StaticsAssetZap.Route[]).settlement (src/periphery/StaticsAssetZap.sol#100) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes the reported memory/local value. Preview feeShares/threshold/found intentionally start at zero before selection; zap Settlement fields/arrays are explicitly assigned before use and spent accumulates from zero; terminal projectIncluded is set by the finite asset scan. Invalid branches revert. This local-default decision does not approve the separate missing definition-validation preflight. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "2057d19a37f8e3711b5f6296"
     },
     {
       "impact": "Medium",
@@ -2792,12 +3322,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketSettlementFacet.sol"
+      ],
+      "summary": "BasketSettlementFacet.authorizeBasketPoolClaim(PoolId,Currency,address,uint256).restricted (src/facets/BasketSettlementFacet.sol#82) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes this local. Factory preview token stays zero only for existing-currency markets; manager/claim restricted flags and manager return floors are assigned on the validated currency branches or revert. Reward priorCredit intentionally starts at zero before the conditional prior-pending maturity-credit calculation.",
+      "occurrences": 1,
+      "id": "60640a59110ee5d0e2216fa0"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/PairingVaultFacet.sol"
       ],
       "summary": "PairingVaultFacet._redeem(PairingVaultFacet.RedemptionRequest).distribution (src/dollar/periphery/facets/PairingVaultFacet.sol#183) is a local variable never initialized",
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "616cbcf0e258c1d4fabf51e6"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBasketLaunchMath.sol"
+      ],
+      "summary": "LibBasketLaunchMath.preview(address,IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256).threshold (src/libraries/LibBasketLaunchMath.sol#89) is a local variable never initialized",
+      "rationale": "The exact remediated preview first executes LibBasketDefinition.validate, matching direct creation shape/name/symbol/duration/nonzero denomination/fee/LTV/recovery/uniqueness checks. Solidity zero-initializes threshold; fee selection intentionally begins at zero, chooses the applicable largest threshold and uses the assigned or valid no-tier zero fee. Shared seed geometry and rounded backing are unchanged. Failed validation atomically prevents campaign preparation and funding, rather than silently approximating invalid economics.",
+      "occurrences": 1,
+      "id": "61d79dd3f8775ae6f1e0cbfb"
     },
     {
       "impact": "Medium",
@@ -3016,12 +3578,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketSettlementFacet.sol"
+        "src/bootstrap/BasketBootstrapCampaign.sol"
       ],
-      "summary": "BasketSettlementFacet.authorizeBasketPoolClaim(PoolId,Currency,address,uint256).restricted (src/facets/BasketSettlementFacet.sol#62) is a local variable never initialized",
-      "rationale": "Solidity zero-initializes this local. Factory preview token stays zero only for existing-currency markets; manager/claim restricted flags and manager return floors are assigned on the validated currency branches or revert. Reward priorCredit intentionally starts at zero before the conditional prior-pending maturity-credit calculation.",
+      "summary": "BasketBootstrapCampaign.claimTerminalInventory().projectIncluded (src/bootstrap/BasketBootstrapCampaign.sol#443) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes the reported memory/local value. Preview feeShares/threshold/found intentionally start at zero before selection; zap Settlement fields/arrays are explicitly assigned before use and spent accumulates from zero; terminal projectIncluded is set by the finite asset scan. Invalid branches revert. This local-default decision does not approve the separate missing definition-validation preflight. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
       "occurrences": 1,
-      "id": "9b5fd87844f5357849805dcc"
+      "id": "9867176193d670318116cbb1"
     },
     {
       "impact": "Medium",
@@ -3038,6 +3600,38 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "9ba00fd369d970a12ca71186"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.purchaseCampaign(StaticsAssetZap.Input,address,StaticsAssetZap.Purchase[],uint256,StaticsAssetZap.Route[]).settlement (src/periphery/StaticsAssetZap.sol#143) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes the reported memory/local value. Preview feeShares/threshold/found intentionally start at zero before selection; zap Settlement fields/arrays are explicitly assigned before use and spent accumulates from zero; terminal projectIncluded is set by the finite asset scan. Invalid branches revert. This local-default decision does not approve the separate missing definition-validation preflight. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "9c00f045e69ddd87ac63fdc3"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBasketLaunchMath.sol"
+      ],
+      "summary": "LibBasketLaunchMath.preview(address,IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256).found (src/libraries/LibBasketLaunchMath.sol#90) is a local variable never initialized",
+      "rationale": "The exact remediated preview first executes LibBasketDefinition.validate, matching direct creation shape/name/symbol/duration/nonzero denomination/fee/LTV/recovery/uniqueness checks. Solidity zero-initializes found; fee selection intentionally begins at zero, chooses the applicable largest threshold and uses the assigned or valid no-tier zero fee. Shared seed geometry and rounded backing are unchanged. Failed validation atomically prevents campaign preparation and funding, rather than silently approximating invalid economics.",
+      "occurrences": 1,
+      "id": "9c09978bec3de9c91de921b3"
     },
     {
       "impact": "Medium",
@@ -3070,6 +3664,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "a98cd8ee12df37f70acfb9ba"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.unlockCallback(bytes).spent (src/periphery/StaticsAssetZap.sol#247) is a local variable never initialized",
+      "rationale": "Solidity zero-initializes the reported memory/local value. Preview feeShares/threshold/found intentionally start at zero before selection; zap Settlement fields/arrays are explicitly assigned before use and spent accumulates from zero; terminal projectIncluded is set by the finite asset scan. Invalid branches revert. This local-default decision does not approve the separate missing definition-validation preflight. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "ab5ad430f3ad166422534ddd"
     },
     {
       "impact": "Medium",
@@ -3278,6 +3888,22 @@
       "rationale": "These deployment-validation locals are intentional zero accumulators, cursors, or empty selector arrays populated or consumed deterministically before comparison.",
       "occurrences": 1,
       "id": "d541b756f83b718b26829c50"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBasketLaunchMath.sol"
+      ],
+      "summary": "LibBasketLaunchMath.preview(address,IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256).feeShares (src/libraries/LibBasketLaunchMath.sol#88) is a local variable never initialized",
+      "rationale": "The exact remediated preview first executes LibBasketDefinition.validate, matching direct creation shape/name/symbol/duration/nonzero denomination/fee/LTV/recovery/uniqueness checks. Solidity zero-initializes feeShares; fee selection intentionally begins at zero, chooses the applicable largest threshold and uses the assigned or valid no-tier zero fee. Shared seed geometry and rounded backing are unchanged. Failed validation atomically prevents campaign preparation and funding, rather than silently approximating invalid economics.",
+      "occurrences": 1,
+      "id": "d83adf71980130df01fb3ace"
     },
     {
       "impact": "Medium",
@@ -3541,6 +4167,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378) ignores return value by IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#365-370)",
+      "rationale": "Pool registration is the required state transition and reverts on failure; the returned PoolId is already deterministically derived from the validated PoolKey.",
+      "occurrences": 1,
+      "id": "0110940a861c0ccc6e08f58e"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -3566,6 +4208,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "022a658a9c1499ba944454d2"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "MoshTeamRevenueAdapter.acceptTeamHandoff(uint256,uint256) (src/bootstrap/MoshTeamRevenueAdapter.sol#88-109) ignores return value by LibMoshValidation.validateCustodyOffer(market,offerId,address(swarm),msg.sender,address(this),amount,marketPins.feeBps) (src/bootstrap/MoshTeamRevenueAdapter.sol#96-98)",
+      "rationale": "The validator checks the exact market source/seller/buyer/amount/one-wei price/fee/deadline and reverts on mismatch; callers do not need its redundant offer struct. They independently measure actual claim debit/receipt or listing state.",
+      "occurrences": 1,
+      "id": "046e568a0d54a0f293697e2f"
     },
     {
       "impact": "Medium",
@@ -3630,6 +4288,22 @@
       "rationale": "The tuple is intentionally destructured to consume only the fields required by this transition; the callee still performs its validation and state change atomically.",
       "occurrences": 1,
       "id": "086867e0d004a4037a00012d"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MeasuredCampaignRevenue.sol"
+      ],
+      "summary": "MeasuredCampaignRevenue.bindCampaign(BasketBootstrapCampaign,uint256) (src/bootstrap/MeasuredCampaignRevenue.sol#34-48) ignores return value by (asset,None,None,None) = destination.inventory(index) (src/bootstrap/MeasuredCampaignRevenue.sol#43)",
+      "rationale": "This caller consumes the selected asset identity from the inventory view. Revenue binding independently fixes payout/index and preparation; zap purchasing separately calls quoteFill for amount, active auction, deficit, time and minimum-payment validation. The other diagnostic inventory fields are unnecessary.",
+      "occurrences": 1,
+      "id": "099c4a062f583bb721aef82d"
     },
     {
       "impact": "Medium",
@@ -4053,6 +4727,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378) ignores return value by (None,tick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#373)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "23d1bf8f1eb5a140ae2f6e70"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4078,6 +4768,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "244f9b6270b3cfa8f59e0da4"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "MoshTeamRevenueAdapter.sync() (src/bootstrap/MoshTeamRevenueAdapter.sol#121-137) ignores return value by swarm.syncFees() (src/bootstrap/MoshTeamRevenueAdapter.sol#127)",
+      "rationale": "Only the runtime-pinned source is called. syncFees establishes current distributable accounting; adapter receive callbacks attribute actual native receipts with custody checks, not a reported projected amount. Team sync additionally validates the collect return against measured receipt; share sync credits only received msg.value under its old-distribution callback rules.",
+      "occurrences": 1,
+      "id": "256fe49302fe60b2eb20d02b"
     },
     {
       "impact": "Medium",
@@ -4222,6 +4928,22 @@
       "rationale": "The received amount is consumed as the transfer result; the omitted tuple member is not needed because reserved accounting and the exact requested amount gate the withdrawal.",
       "occurrences": 1,
       "id": "2a6debf8d7ae626c169035a5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-scripts"
+      ],
+      "paths": [
+        "script/PrepareStaticsBootstrap.s.sol"
+      ],
+      "summary": "PrepareStaticsBootstrap.deployPeriphery(address,address,bytes32) (script/PrepareStaticsBootstrap.s.sol#27-48) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(diamond).liquidityIntegration() (script/PrepareStaticsBootstrap.s.sol#39)",
+      "rationale": "The configured PoolManager and installed flag are validated, together with real factory/Diamond bindings and code existence. This periphery/helper does not use the shared legacy hook tuple member to authorize restricted pools; actual route hooks are explicit typed PoolKeys.",
+      "occurrences": 1,
+      "id": "2acc559cc636c2ba5bcdb66d"
     },
     {
       "impact": "Medium",
@@ -4421,6 +5143,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378) ignores return value by IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#372)",
+      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "occurrences": 1,
+      "id": "35deb46d5bef387373b2f965"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -4446,6 +5184,22 @@
       "rationale": "The caller consumes the required state transition or tuple fields; omitted diagnostic values do not alter authority, custody, or accounting and failures still revert atomically.",
       "occurrences": 1,
       "id": "3855daa3bff094bf9cb75806"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._prepareCanonicalPoolSeed(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#179-205) ignores return value by (None,liquidity,basketAmount,assetAmount) = LibBasketLaunchMath.seed(basketToken,asset,launch) (src/facets/BasketLiquidityFacet.sol#192)",
+      "rationale": "The price is validated and consumed by canonical initialization through the same shared seed geometry. This caller needs returned liquidity, basket demand and paired amount; it constructs POL ticks using the actual PoolKey spacing. The unused price tuple member is not a missing economic bound.",
+      "occurrences": 1,
+      "id": "38912420a060ed0b9a48845f"
     },
     {
       "impact": "Medium",
@@ -4760,6 +5514,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter.withdraw(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#144-161) ignores return value by LibMoshValidation.validateCustodyOffer(market,offerId,address(swarm),address(this),msg.sender,amount,exitPins.feeBps) (src/bootstrap/MoshShareRevenueAdapter.sol#156-158)",
+      "rationale": "The validator checks the exact market source/seller/buyer/amount/one-wei price/fee/deadline and reverts on mismatch; callers do not need its redundant offer struct. They independently measure actual claim debit/receipt or listing state.",
+      "occurrences": 1,
+      "id": "45a603e1424bad13f5091ac5"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibProtocolPol.sol"
       ],
       "summary": "LibProtocolPol.harvest(uint256,uint256) (src/libraries/LibProtocolPol.sol#116-134) ignores return value by (None,key,None,None) = LibProtocolPools.enforceRegistered(position.poolId) (src/libraries/LibProtocolPol.sol#125)",
@@ -4792,6 +5562,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.constructor(address,address,BasketBootstrapFactory) (src/periphery/StaticsAssetZap.sol#77-87) ignores return value by (manager,None,installed) = IStaticsBasketLiquidity(protocol).liquidityIntegration() (src/periphery/StaticsAssetZap.sol#78)",
+      "rationale": "The configured PoolManager and installed flag are validated, together with real factory/Diamond bindings and code existence. This periphery/helper does not use the shared legacy hook tuple member to authorize restricted pools; actual route hooks are explicit typed PoolKeys.",
+      "occurrences": 1,
+      "id": "478ba87a1dbbccd9610e524a"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/RangeGaugePositionManagementFacet.sol"
       ],
       "summary": "RangeGaugePositionManagementFacet._executeRebalance(uint256,PoolId,PoolKey,LibRangeGauge.LpLeg,IStaticsRangeGauge.RebalanceLiquidityParams) (src/facets/RangeGaugePositionManagementFacet.sol#132-173) ignores return value by LibRangeGauge.bindPosm(result.minted.tokenId,positionId,poolId) (src/facets/RangeGaugePositionManagementFacet.sol#172)",
@@ -4814,6 +5600,22 @@
       "rationale": "The reviewed call consumes only the address/vector or validated state effect needed here: prediction proxy and flash fee diagnostics are unused, market/checkpoint routines revert on invalid state, and launch minting validates its backing and movement internally. Manager return delivery independently measures balances; the custody helper enforces the exact maximum debit and this caller consumes its received amount.",
       "occurrences": 1,
       "id": "4801b05ba3fad9d05dd3ba9b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketPreparationFacet.sol"
+      ],
+      "summary": "BasketPreparationFacet.previewBasketLaunch(bytes32,IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256) (src/facets/BasketPreparationFacet.sol#62-83) ignores return value by (token,None) = configured.predict(prepared.tokenSalt) (src/facets/BasketPreparationFacet.sol#77)",
+      "rationale": "The caller consumes the predicted token address and the actual reserved preparation; the unused CREATE3 proxy diagnostic does not authorize deployment. Constructor bindings and salt reservation remain enforced by the fixed factory.",
+      "occurrences": 1,
+      "id": "494b55acbbb42dab46a9b9e1"
     },
     {
       "impact": "Medium",
@@ -5496,6 +6298,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet.canonicalPool(uint256,address) (src/facets/BasketLiquidityFacet.sol#277-298) ignores return value by (None,spotTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#286)",
+      "rationale": "The tuple read intentionally consumes only the initialized-price or spot-tick field needed by this path; the remaining PoolManager state is irrelevant here.",
+      "occurrences": 1,
+      "id": "6a7950a476f4ae86e71161fb"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol"
       ],
       "summary": "StaticsDollarGatewayFacet._preparePeggedRedemption(LibPeriphery.PS,uint256,uint256,uint256,address) (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#781-804) ignores return value by (status,unhealthyBitmap,None,None) = IStaticsDollarCore(ps.pool).checkpointPeggedRedemption() (src/dollar/periphery/facets/StaticsDollarGatewayFacet.sol#798)",
@@ -5630,6 +6448,22 @@
       "rationale": "The call enforces registration and returns a composite record; this path intentionally consumes only the fields needed for its validation or view result.",
       "occurrences": 1,
       "id": "6faaf40ec271b709c1bc2ee8"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.purchaseCampaign(StaticsAssetZap.Input,address,StaticsAssetZap.Purchase[],uint256,StaticsAssetZap.Route[]) (src/periphery/StaticsAssetZap.sol#132-162) ignores return value by (settlement.assets[i],None,None,None) = campaign.inventory(purchases[i].auctionIndex) (src/periphery/StaticsAssetZap.sol#150)",
+      "rationale": "This caller consumes the selected asset identity from the inventory view. Revenue binding independently fixes payout/index and preparation; zap purchasing separately calls quoteFill for amount, active auction, deficit, time and minimum-payment validation. The other diagnostic inventory fields are unnecessary.",
+      "occurrences": 1,
+      "id": "6ff753fb6d70c05840028ee4"
     },
     {
       "impact": "Medium",
@@ -6664,6 +7498,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter._sync() (src/bootstrap/MoshShareRevenueAdapter.sol#112-119) ignores return value by swarm.syncFees() (src/bootstrap/MoshShareRevenueAdapter.sol#117)",
+      "rationale": "Only the runtime-pinned source is called. syncFees establishes current distributable accounting; adapter receive callbacks attribute actual native receipts with custody checks, not a reported projected amount. Team sync additionally validates the collect return against measured receipt; share sync credits only received msg.value under its old-distribution callback rules.",
+      "occurrences": 1,
+      "id": "a959cc3ed05bdaa2e1c53074"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/RewardPolicyFacet.sol"
       ],
       "summary": "RewardPolicyFacet.rewardRestrictionTimestamp(address,uint64) (src/facets/RewardPolicyFacet.sol#53-55) ignores return value by (None,None,timestamp,None) = LibRewardPolicy.firstRestrictionAfter(asset,sequence) (src/facets/RewardPolicyFacet.sol#54)",
@@ -6686,22 +7536,6 @@
       "rationale": "Activation requires registration validation and the returned pool kind. Key and basket metadata are deliberately ignored; creator authorization and activation state are checked independently.",
       "occurrences": 1,
       "id": "aa23d83db75ab017b66eb198"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379) ignores return value by IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#366-371)",
-      "rationale": "Pool registration is the required state transition and reverts on failure; the returned PoolId is already deterministically derived from the validated PoolKey.",
-      "occurrences": 1,
-      "id": "ad995996eea2d99db465a25c"
     },
     {
       "impact": "Medium",
@@ -6869,6 +7703,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._fundAndOpenBasketPools(LibBasket.Basket,address,BasketLiquidityFacet.BasketPolPlan) (src/facets/BasketLiquidityFacet.sol#207-221) ignores return value by LibProtocolPol.open(plan.positions[i]) (src/facets/BasketLiquidityFacet.sol#219)",
+      "rationale": "Basket launch needs the atomic success of each POL open operation; position state, custody, and binding are stored inside that operation, so its returned view values are not consumed by the loop.",
+      "occurrences": 1,
+      "id": "b6b999c2a74a464e1a64702b"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -6981,22 +7831,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379) ignores return value by IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#373)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
-      "occurrences": 1,
-      "id": "bc6d803b8258670d424ab2f0"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7070,6 +7904,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "c0d6befd311ff527d2750f3f"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter._sync() (src/bootstrap/MoshShareRevenueAdapter.sol#112-119) ignores return value by swarm.collectFees() (src/bootstrap/MoshShareRevenueAdapter.sol#118)",
+      "rationale": "Only the runtime-pinned source is called. syncFees establishes current distributable accounting; adapter receive callbacks attribute actual native receipts with custody checks, not a reported projected amount. Team sync additionally validates the collect return against measured receipt; share sync credits only received msg.value under its old-distribution callback rules.",
+      "occurrences": 1,
+      "id": "c14ec0b6fff741c7e74acdf2"
     },
     {
       "impact": "Medium",
@@ -7320,28 +8170,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379) ignores return value by (None,tick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#374)",
-      "rationale": "Only the selected tuple field or validated storage side effect is required here. The ignored value is not an authority or unchecked asset-transfer result, and the called routine reverts on invalid state while downstream accounting checks the resulting state.",
+      "summary": "MoshTeamRevenueAdapter.acceptTeamHandoff(uint256,uint256) (src/bootstrap/MoshTeamRevenueAdapter.sol#88-109) ignores return value by swarm.syncFees() (src/bootstrap/MoshTeamRevenueAdapter.sol#100)",
+      "rationale": "Only the runtime-pinned source is called. syncFees establishes current distributable accounting; adapter receive callbacks attribute actual native receipts with custody checks, not a reported projected amount. Team sync additionally validates the collect return against measured receipt; share sync credits only received msg.value under its old-distribution callback rules.",
       "occurrences": 1,
-      "id": "ca0ede90830a17c07c624a97"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._fundAndOpenBasketPools(LibBasket.Basket,address,BasketLiquidityFacet.BasketPolPlan) (src/facets/BasketLiquidityFacet.sol#209-223) ignores return value by LibProtocolPol.open(plan.positions[i]) (src/facets/BasketLiquidityFacet.sol#221)",
-      "rationale": "Basket launch needs the atomic success of each POL open operation; position state, custody, and binding are stored inside that operation, so its returned view values are not consumed by the loop.",
-      "occurrences": 1,
-      "id": "ca8a8ac6b5c3373149262f19"
+      "id": "ca65782ef6b9ae7fc02b5d4b"
     },
     {
       "impact": "Medium",
@@ -7733,6 +8567,22 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketPreparationFacet.sol"
+      ],
+      "summary": "BasketPreparationFacet.prepareBasketCreationFor(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,uint256[],IStaticsBasketDelegation.Authorization,bytes) (src/facets/BasketPreparationFacet.sol#39-60) ignores return value by (token,None) = configured.predict(configured.preparedSaltFor(intent,tokenNonce)) (src/facets/BasketPreparationFacet.sol#59)",
+      "rationale": "The caller consumes the predicted token address and the actual reserved preparation; the unused CREATE3 proxy diagnostic does not authorize deployment. Constructor bindings and salt reservation remain enforced by the fixed factory.",
+      "occurrences": 1,
+      "id": "d80ffa77a629b412206a7524"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -7806,6 +8656,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "dba311ef6d0d16bf976f4367"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketPreparationFacet.sol"
+      ],
+      "summary": "BasketPreparationFacet.prepareBasketCreation(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,uint256,uint256[]) (src/facets/BasketPreparationFacet.sol#113-135) ignores return value by (token,None) = configured.predict(configured.preparedSaltFor(intent,tokenNonce)) (src/facets/BasketPreparationFacet.sol#134)",
+      "rationale": "The reviewed call consumes only the address/vector or validated state effect needed here: prediction proxy and flash fee diagnostics are unused, market/checkpoint routines revert on invalid state, and launch minting validates its backing and movement internally. Manager return delivery independently measures balances; the custody helper enforces the exact maximum debit and this caller consumes its received amount.",
+      "occurrences": 1,
+      "id": "dbbbe97dca26ffb08e5a3b3e"
     },
     {
       "impact": "Medium",
@@ -7950,6 +8816,22 @@
       "rationale": "Forge serialization mutates the in-memory JSON object through each call; intermediate strings are intentionally discarded and only the final serialized value is written.",
       "occurrences": 1,
       "id": "dee224101e6fbcf13c623d00"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter.deposit(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#121-141) ignores return value by LibMoshValidation.validateCustodyOffer(market,offerId,address(swarm),msg.sender,address(this),amount,marketPins.feeBps) (src/bootstrap/MoshShareRevenueAdapter.sol#125-127)",
+      "rationale": "The validator checks the exact market source/seller/buyer/amount/one-wei price/fee/deadline and reverts on mismatch; callers do not need its redundant offer struct. They independently measure actual claim debit/receipt or listing state.",
+      "occurrences": 1,
+      "id": "df7b87cdd2eed1bc0ec5ee22"
     },
     {
       "impact": "Medium",
@@ -8120,22 +9002,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet.canonicalPool(uint256,address) (src/facets/BasketLiquidityFacet.sol#279-300) ignores return value by (None,spotTick,None,None) = IPoolManager(ls.poolManager).getSlot0(poolId) (src/facets/BasketLiquidityFacet.sol#288)",
-      "rationale": "The tuple read intentionally consumes only the initialized-price or spot-tick field needed by this path; the remaining PoolManager state is irrelevant here.",
-      "occurrences": 1,
-      "id": "eff0591f068235a78715dfc5"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibProtocolPol.sol"
       ],
       "summary": "LibProtocolPol.open(IStaticsProtocolPools.ProtocolPolOpenParams) (src/libraries/LibProtocolPol.sol#35-84) ignores return value by LibRangeGauge.bindProtocolPol(movement.tokenId,positionId) (src/libraries/LibProtocolPol.sol#83)",
@@ -8261,22 +9127,6 @@
       "check": "unused-return",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketPreparationFacet.sol"
-      ],
-      "summary": "BasketPreparationFacet.prepareBasketCreation(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,uint256,uint256[]) (src/facets/BasketPreparationFacet.sol#46-68) ignores return value by (token,None) = configured.predict(configured.preparedSaltFor(intent,tokenNonce)) (src/facets/BasketPreparationFacet.sol#67)",
-      "rationale": "The reviewed call consumes only the address/vector or validated state effect needed here: prediction proxy and flash fee diagnostics are unused, market/checkpoint routines revert on invalid state, and launch minting validates its backing and movement internally. Manager return delivery independently measures balances; the custody helper enforces the exact maximum debit and this caller consumes its received amount.",
-      "occurrences": 1,
-      "id": "fb8da7ce4bf54c323332d615"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -8318,6 +9168,22 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "ffebabe12ff9176f0862a77d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._verifyPol(uint256,address) (src/bootstrap/BasketBootstrapCampaign.sol#411-425) has external calls inside a loop: ids.length != 1 || protocol.protocolPool(pool.poolId).activePolPositions != 1 (src/bootstrap/BasketBootstrapCampaign.sol#416)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "00a33d1f13eb60e0dad68b86"
     },
     {
       "impact": "Low",
@@ -8376,6 +9242,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.finalize() (src/bootstrap/BasketBootstrapCampaign.sol#377-409) has external calls inside a loop: balances[i] = asset.balanceOf(address(this)) (src/bootstrap/BasketBootstrapCampaign.sol#388)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "0984d93d4061bd1cb8a2142f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._beginRestrictedSettlement(uint256,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#530-539) has external calls inside a loop: IStaticsBasketArbitrage(staticsDiamond).beginBasketArbitrage(basketId,shares,msg.sender) (src/periphery/StaticsFlashArbitrageReceiver.sol#534)",
@@ -8424,12 +9306,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._verifyPol(uint256,address) (src/bootstrap/BasketBootstrapCampaign.sol#411-425) has external calls inside a loop: (manager,installed) = IStaticsBasketLiquidity(diamond).liquidityManager() (src/bootstrap/BasketBootstrapCampaign.sol#418)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "1038e278a8f052c7a0013052"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/periphery/StaticsFlashArbitrageReceiver.sol"
       ],
       "summary": "StaticsFlashArbitrageReceiver._pushExact(IERC20,address,uint256) (src/periphery/StaticsFlashArbitrageReceiver.sol#505-523) has external calls inside a loop: receiverBefore = token.balanceOf(receiver) (src/periphery/StaticsFlashArbitrageReceiver.sol#508)",
       "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 2,
       "id": "11983407d6c4d6e423f0e43c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) has external calls inside a loop: IStaticsBasketSettlement(diamond).isRestrictedBasketToken(token) (src/bootstrap/BasketBootstrapCampaign.sol#482)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "1682a65e16ee7336744b4464"
     },
     {
       "impact": "Low",
@@ -8446,6 +9360,22 @@
       "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 1,
       "id": "19e9cf1172f8f1a1e346afb9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._verifyPol(uint256,address) (src/bootstrap/BasketBootstrapCampaign.sol#411-425) has external calls inside a loop: position = protocol.protocolPolPosition(ids[0]) (src/bootstrap/BasketBootstrapCampaign.sol#417)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "1acd47e8a17acfccebff2d54"
     },
     {
       "impact": "Low",
@@ -8485,6 +9415,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._verifyPol(uint256,address) (src/bootstrap/BasketBootstrapCampaign.sol#411-425) has external calls inside a loop: pool = IStaticsBasketLiquidity(diamond).canonicalPool(createdId,asset) (src/bootstrap/BasketBootstrapCampaign.sol#412-413)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "2294dc560919579007ed63f7"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -8494,6 +9440,38 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 5,
       "id": "235512fa5c9b7c3b4a5b10f3"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._swapRoute(StaticsAssetZap.Route,uint256) (src/periphery/StaticsAssetZap.sol#263-281) has external calls inside a loop: delta = poolManager.swap(route.pools[i],SwapParams(zeroForOne,int256(amountIn),TickMath.MIN_SQRT_PRICE + 1),) (src/periphery/StaticsAssetZap.sol#269-275)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "252a0cd75ab70d81fce95216"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._approveDestination(address[],uint256[],address) (src/periphery/StaticsAssetZap.sol#306-315) has external calls inside a loop: balances[i] = IERC20(assets[i]).balanceOf(address(this)) (src/periphery/StaticsAssetZap.sol#312)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 2,
+      "id": "2702140ab8e81447374ef8b4"
     },
     {
       "impact": "Low",
@@ -8542,22 +9520,6 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 6,
       "id": "2bf01c18067fefec0336ddd7"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._payerBalances(LibBasket.Basket,address) (src/facets/BasketLiquidityFacet.sol#225-235) has external calls inside a loop: balances[i] = IERC20(configured.assets[i]).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#233)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 1,
-      "id": "2cc2eacae36d3f20f8c6b6bf"
     },
     {
       "impact": "Low",
@@ -8645,6 +9607,54 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) has external calls inside a loop: asset.balanceOf(address(this)) + amount != held || asset.balanceOf(recipient) != balance + amount (src/bootstrap/BasketBootstrapCampaign.sol#489)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "487aab57d0d72c6f1f24a86f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378) has external calls inside a loop: IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#365-370)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "49735757ee55721826f10190"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) has external calls inside a loop: held = asset.balanceOf(address(this)) (src/bootstrap/BasketBootstrapCampaign.sol#480)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "50c153b901893a1d9e4189e7"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -8654,6 +9664,70 @@
       "rationale": "The deployment logging loop is bounded by the canonical phase manifest and performs read-only evidence calls.",
       "occurrences": 1,
       "id": "54d440641d291e863e6fb898"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._settle(address,uint256) (src/periphery/StaticsAssetZap.sol#283-291) has external calls inside a loop: beforeBalance = asset.balanceOf(address(this)) (src/periphery/StaticsAssetZap.sol#285)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "557697340be755c237710192"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) has external calls inside a loop: IStaticsBootstrapSettlement(diamond).settleBootstrapToken(token,address(this),recipient,amount) (src/bootstrap/BasketBootstrapCampaign.sol#484)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "55ae84ff199c5b19b5ca9bcd"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.purchaseCampaign(StaticsAssetZap.Input,address,StaticsAssetZap.Purchase[],uint256,StaticsAssetZap.Route[]) (src/periphery/StaticsAssetZap.sol#132-162) has external calls inside a loop: (settlement.assets[i],None,None,None) = campaign.inventory(purchases[i].auctionIndex) (src/periphery/StaticsAssetZap.sol#150)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "595d5c50f801fb73f93c6f83"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap.purchaseCampaign(StaticsAssetZap.Input,address,StaticsAssetZap.Purchase[],uint256,StaticsAssetZap.Route[]) (src/periphery/StaticsAssetZap.sol#132-162) has external calls inside a loop: campaign.quoteFill(purchases[i].auctionIndex,settlement.amounts[i]) < purchases[i].minimumPayment (src/periphery/StaticsAssetZap.sol#152)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "5b1197b9e83841da443f6ce1"
     },
     {
       "impact": "Low",
@@ -8686,6 +9760,22 @@
       "rationale": "The inherited action stream is caller-supplied and gas-bounded. Each exposure-increasing action deliberately performs current hook and controller checks; a failed or reverting controller blocks only the increase, while decrease, collection, burn, and claim exits remain ungated.",
       "occurrences": 2,
       "id": "61d97e736545b0d5f3fc3908"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378) has external calls inside a loop: key.hooks = IHooks(LibBasketDeployment.factory().deployBasketHook(preparation,StaticsBasketHook.Binding(currency0,currency1,launch.lpFee,launch.tickSpacing,LibBasket.basketStorage().baskets[basketId].creator,1))) (src/facets/BasketLiquidityFacet.sol#334-347)",
+      "rationale": "The reviewed loop is bounded by the validated 16-constituent NAV/basket vector, MAX_SETTLEMENT_SOURCES for recorded reward hooks, or the finite deployment/replenishment manifest (queue submissions cap at 128). Fixed protocol queries, exact movement checks and typed hook deployment are required atomic operations; failure reverts the whole transition.",
+      "occurrences": 1,
+      "id": "62d52afa2c6685005860a8a7"
     },
     {
       "impact": "Low",
@@ -8744,12 +9834,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._verifyPol(uint256,address) (src/bootstrap/BasketBootstrapCampaign.sol#411-425) has external calls inside a loop: ids = protocol.protocolPolPositionIds(pool.poolId) (src/bootstrap/BasketBootstrapCampaign.sol#415)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "73114042339c1d3fc9fdc282"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/GenesisLaunchDistributor.sol"
       ],
       "summary": "GenesisLaunchDistributor.claimAllGenesisRewards(uint256[],address) (src/genesis/GenesisLaunchDistributor.sol#337-361) has external calls inside a loop: tokenOwner = genesis.ownerOf(genesisId) (src/genesis/GenesisLaunchDistributor.sol#347)",
       "rationale": "The caller chooses a finite batch size and every iteration is independently authorized; an oversized batch only reverts that optional transaction.",
       "occurrences": 1,
       "id": "7d298d5b886c676bb3944499"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._swapRoute(StaticsAssetZap.Route,uint256) (src/periphery/StaticsAssetZap.sol#263-281) has external calls inside a loop: delta = poolManager.swap(route.pools[i],SwapParams(zeroForOne,int256(amountIn),TickMath.MAX_SQRT_PRICE - 1),) (src/periphery/StaticsAssetZap.sol#269-275)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "7f2a57a5dc3aaa3ee59b26c8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.claimTerminalInventory() (src/bootstrap/BasketBootstrapCampaign.sol#437-457) has external calls inside a loop: _sendExact(asset,beneficiary,IERC20(asset).balanceOf(address(this))) (src/bootstrap/BasketBootstrapCampaign.sol#448)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "807c74c31b710c86fb5c4373"
     },
     {
       "impact": "Low",
@@ -8798,6 +9936,22 @@
       "rationale": "The loop is bounded by the validated basket constituent vector, and the external calls are required for atomic canonical-pool swaps, per-asset transfers, and exact-delta checks.",
       "occurrences": 2,
       "id": "82f069b9c5bd269ca50e53e9"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378) has external calls inside a loop: IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#372)",
+      "rationale": "Canonical pool creation is bounded by the 16-asset basket limit. Each PoolManager initialization is intentionally atomic with the basket launch, so any failed iteration reverts the complete transition.",
+      "occurrences": 1,
+      "id": "892f3434922dd7ed9e48ffd6"
     },
     {
       "impact": "Low",
@@ -8888,12 +10042,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/bootstrap/BasketBootstrapCampaign.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379) has external calls inside a loop: IStaticsSwapFeeHook(ls.hook).registerPool(key,IStaticsSwapFeeHook.PoolKind.BasketCanonical,LibBasket.basketStorage().baskets[basketId].creator) (src/facets/BasketLiquidityFacet.sol#366-371)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "summary": "BasketBootstrapCampaign._verifyPol(uint256,address) (src/bootstrap/BasketBootstrapCampaign.sol#411-425) has external calls inside a loop: ! installed || ! position.active || position.manager != manager || position.liquidity == 0 || IERC721(IStaticsLiquidityManager(manager).positionManager()).ownerOf(position.posmTokenId) != manager (src/bootstrap/BasketBootstrapCampaign.sol#420-421)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
       "occurrences": 1,
-      "id": "a0a676e34176f9ebbd508168"
+      "id": "9afe57282ad9df9751c04458"
     },
     {
       "impact": "Low",
@@ -8904,12 +10058,44 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
+        "src/periphery/StaticsAssetZap.sol"
       ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379) has external calls inside a loop: IPoolManager(ls.poolManager).initialize(key,sqrtPriceX96) (src/facets/BasketLiquidityFacet.sol#373)",
-      "rationale": "Canonical pool creation is bounded by the 16-asset basket limit. Each PoolManager initialization is intentionally atomic with the basket launch, so any failed iteration reverts the complete transition.",
+      "summary": "StaticsAssetZap._take(address,uint256) (src/periphery/StaticsAssetZap.sol#293-297) has external calls inside a loop: poolManager.take(Currency.wrap(token),address(this),amount) (src/periphery/StaticsAssetZap.sol#295)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
       "occurrences": 1,
-      "id": "a35eab2ebdb544e94b1b205b"
+      "id": "a242919e6952db5fb4f2dce8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) has external calls inside a loop: balance = asset.balanceOf(recipient) (src/bootstrap/BasketBootstrapCampaign.sol#481)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "a79ca3e8a4427e81d2df1c81"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._floors(address[]) (src/periphery/StaticsAssetZap.sol#299-304) has external calls inside a loop: floors[i] = IERC20(assets[i]).balanceOf(address(this)) (src/periphery/StaticsAssetZap.sol#302)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 2,
+      "id": "aab5f5aa4008a7c40a9c5c0d"
     },
     {
       "impact": "Low",
@@ -8926,6 +10112,22 @@
       "rationale": "The reviewed loop is bounded by the validated 16-constituent NAV/basket vector, MAX_SETTLEMENT_SOURCES for recorded reward hooks, or the finite deployment/replenishment manifest (queue submissions cap at 128). Fixed protocol queries, exact movement checks and typed hook deployment are required atomic operations; failure reverts the whole transition.",
       "occurrences": 2,
       "id": "ab10ba7bc851714ed1193c0b"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._enforcePayerDebits(LibBasket.Basket,address,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#235-250) has external calls inside a loop: balanceAfter = IERC20(asset).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#244)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "abd53b19a1adf5753a2cc64e"
     },
     {
       "impact": "Low",
@@ -8981,6 +10183,38 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.constructor(address,BasketBootstrapCampaign.Terms) (src/bootstrap/BasketBootstrapCampaign.sol#111-160) has external calls inside a loop: asset.code.length == 0 || (! approved && IStaticsBasketSettlement(protocol).isRestrictedBasketToken(asset)) (src/bootstrap/BasketBootstrapCampaign.sol#135-136)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "b8a268a88f4024e60345c97a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._take(address,uint256) (src/periphery/StaticsAssetZap.sol#293-297) has external calls inside a loop: IERC20(token).balanceOf(address(this)) != beforeBalance + amount (src/periphery/StaticsAssetZap.sol#296)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "ba732bfa2f20af5ca2fdc657"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9022,6 +10256,22 @@
       "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
       "occurrences": 7,
       "id": "bfa374c719c91031b9919422"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.finalize() (src/bootstrap/BasketBootstrapCampaign.sol#377-409) has external calls inside a loop: balances[i_scope_0] - asset_scope_1.balanceOf(address(this)) != required[i_scope_0] (src/bootstrap/BasketBootstrapCampaign.sol#399)",
+      "rationale": "Constructor validates at most 16 unique assets/adapters; all finalization, terminal and POL-verification scans follow that fixed finite vector. Calls are typed exact-token/custody/protocol queries. New pool POL arrays must contain exactly one live manager-owned NFT; no iteration over unrelated global campaigns or pools is introduced.",
+      "occurrences": 1,
+      "id": "c4eb6ef5ed458852fa3c675e"
     },
     {
       "impact": "Low",
@@ -9157,22 +10407,6 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._enforcePayerDebits(LibBasket.Basket,address,uint256[],uint256[]) (src/facets/BasketLiquidityFacet.sol#237-252) has external calls inside a loop: balanceAfter = IERC20(asset).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#246)",
-      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
-      "occurrences": 1,
-      "id": "dbe12a7d55952eb356611242"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9182,6 +10416,22 @@
       "rationale": "The reviewed loop is bounded by the validated 16-constituent NAV/basket vector, MAX_SETTLEMENT_SOURCES for recorded reward hooks, or the finite deployment/replenishment manifest (queue submissions cap at 128). Fixed protocol queries, exact movement checks and typed hook deployment are required atomic operations; failure reverts the whole transition.",
       "occurrences": 1,
       "id": "dec8fa09b82e6619b212eb8a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._settle(address,uint256) (src/periphery/StaticsAssetZap.sol#283-291) has external calls inside a loop: poolManager.sync(Currency.wrap(token)) (src/periphery/StaticsAssetZap.sol#286)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "e4311cf6de9514b8ac986af6"
     },
     {
       "impact": "Low",
@@ -9221,6 +10471,22 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._take(address,uint256) (src/periphery/StaticsAssetZap.sol#293-297) has external calls inside a loop: beforeBalance = IERC20(token).balanceOf(address(this)) (src/periphery/StaticsAssetZap.sol#294)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "e68c056aa2d7b4ee44627be6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9230,6 +10496,70 @@
       "rationale": "This is an offchain deployment or retirement ceremony loop over an operator-supplied finite manifest; out-of-gas reverts the transaction and cannot block protocol users.",
       "occurrences": 2,
       "id": "e79996bd99de63004f21cdc8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._settle(address,uint256) (src/periphery/StaticsAssetZap.sol#283-291) has external calls inside a loop: poolManager.settle() != amount || asset.balanceOf(address(this)) + amount != beforeBalance (src/periphery/StaticsAssetZap.sol#288)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "e7ac5e2d8f3f7f20ef7d4323"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketLiquidityFacet.sol"
+      ],
+      "summary": "BasketLiquidityFacet._payerBalances(LibBasket.Basket,address) (src/facets/BasketLiquidityFacet.sol#223-233) has external calls inside a loop: balances[i] = IERC20(configured.assets[i]).balanceOf(payer) (src/facets/BasketLiquidityFacet.sol#231)",
+      "rationale": "The loop is bounded by the phase manifest, the basket asset cap, or the caller's gas-bounded v4 path and preserves atomic validation, settlement, or deployment evidence.",
+      "occurrences": 1,
+      "id": "ec4c8f644af68641c6dd52eb"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._clearDestination(address[],uint256[],uint256[],uint256[],address) (src/periphery/StaticsAssetZap.sol#317-330) has external calls inside a loop: balance = asset.balanceOf(address(this)) (src/periphery/StaticsAssetZap.sol#326)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 2,
+      "id": "ef9a435dc85750ecb0382b38"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._destinationSpender(address,address) (src/periphery/StaticsAssetZap.sol#332-335) has external calls inside a loop: IStaticsBasketSettlement(diamond).isRestrictedBasketToken(token) (src/periphery/StaticsAssetZap.sol#334)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 2,
+      "id": "f388d368b1cb6b979fe4c67c"
     },
     {
       "impact": "Low",
@@ -9253,22 +10583,6 @@
       "check": "calls-loop",
       "classification": "INTENTIONAL",
       "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379) has external calls inside a loop: key.hooks = IHooks(LibBasketDeployment.factory().deployBasketHook(preparation,StaticsBasketHook.Binding(currency0,currency1,launch.lpFee,launch.tickSpacing,LibBasket.basketStorage().baskets[basketId].creator,1))) (src/facets/BasketLiquidityFacet.sol#335-348)",
-      "rationale": "The reviewed loop is bounded by the validated 16-constituent NAV/basket vector, MAX_SETTLEMENT_SOURCES for recorded reward hooks, or the finite deployment/replenishment manifest (queue submissions cap at 128). Fixed protocol queries, exact movement checks and typed hook deployment are required atomic operations; failure reverts the whole transition.",
-      "occurrences": 1,
-      "id": "f912e5f5e3e253d07edf5dc1"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "calls-loop",
-      "classification": "INTENTIONAL",
-      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -9278,6 +10592,38 @@
       "rationale": "The reviewed loop is bounded by the validated 16-constituent NAV/basket vector, MAX_SETTLEMENT_SOURCES for recorded reward hooks, or the finite deployment/replenishment manifest (queue submissions cap at 128). Fixed protocol queries, exact movement checks and typed hook deployment are required atomic operations; failure reverts the whole transition.",
       "occurrences": 1,
       "id": "fbe3367444c70d08fdb8edfe"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "calls-loop",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._purchaseDestination(StaticsAssetZap.Input,BasketBootstrapCampaign,StaticsAssetZap.Purchase[],StaticsAssetZap.Settlement) (src/periphery/StaticsAssetZap.sol#164-178) has external calls inside a loop: payment += campaign.fill(purchase.auctionIndex,purchase.amount,purchase.minimumPayment,input.receiver,input.deadline) (src/periphery/StaticsAssetZap.sol#173-175)",
+      "rationale": "The exact loop is bounded by at most 16 campaign purchases or the protocol basket maximum, and each typed route has at most eight hops. Calls target configured PoolManager, validated currencies or the factory-recognized campaign. Exact movement, quote bounds, scoped approvals and balance floors are necessary atomic checks; failure rolls back conversion and settlement.",
+      "occurrences": 1,
+      "id": "ff8e6e8242c6b2af10d15e70"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "events-maths",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "PonsRevenueAdapter.receive() (src/bootstrap/PonsRevenueAdapter.sol#78-81) should emit an event for:",
+      "rationale": "nativeReceived is an authenticated transient collection accumulator, not a configurable economic parameter: receive is accepted only from the bound escrow while collecting. collect validates its exact total, clears it, and emits the measured outer RealizedRevenueDelivered event through successful delivery. A failed collection removes all logs and state.",
+      "occurrences": 1,
+      "id": "2f08c63f9cff217da7ca56e8"
     },
     {
       "impact": "Low",
@@ -9384,6 +10730,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter.constructor(address,address,bytes32,BasketBootstrapFactory,IMoshSwarm,LibMoshValidation.SourcePins,LibMoshValidation.MarketPins).token (src/bootstrap/MoshShareRevenueAdapter.sol#72) lacks a zero-check on :",
+      "rationale": "The constructor immediately passes source.memecoin() to LibMoshValidation.validateNativeSource, which requires projectToken.code.length != 0 plus source/factory/registry/implementation identity. address(0) necessarily fails that explicit validation before sourceToken is stored.",
+      "occurrences": 1,
+      "id": "dcd01ae4a08e01613771e25c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "missing-zero-check",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/morpho/StaticsMorphoAccount.sol"
       ],
       "summary": "StaticsMorphoAccount.constructor(address,address).diamond_ (src/morpho/StaticsMorphoAccount.sol#16) lacks a zero-check on :",
@@ -9475,6 +10837,22 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.finalize() (src/bootstrap/BasketBootstrapCampaign.sol#377-409):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "1c90633e752b6e937a2c31d6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -9486,6 +10864,38 @@
       "rationale": "Internal normalization runs under the PoolManager unlock lock and a PoolId-local sentinel that only the hook sender can use; settlement and routing either complete together or revert atomically.",
       "occurrences": 1,
       "id": "262919f89a7e7dd335743c6f"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.withdraw(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#144-161):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "2710b953f6c123c8a34996fa"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign._fund(uint256,uint256,bool) (src/bootstrap/BasketBootstrapCampaign.sol#263-270):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "38e7587685aab38451fd7e67"
     },
     {
       "impact": "Low",
@@ -9507,6 +10917,38 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.deposit(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#121-141):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "4568cff1a20bce2bf95f848c"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.claimRewards() (src/bootstrap/MoshShareRevenueAdapter.sol#206-221):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "456ffbe48b3a4b5e3bebc90e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -9518,6 +10960,38 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "46988041983a125b236bd7b0"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MeasuredCampaignRevenue.sol"
+      ],
+      "summary": "Reentrancy in MeasuredCampaignRevenue._deliverReceived(address,address,uint256,uint256) (src/bootstrap/MeasuredCampaignRevenue.sol#72-86):",
+      "rationale": "Derived/base public delivery entrypoints hold the shared adapter guard. The campaign is creator-bound once with an exact approved payout asset. Only the newly measured floor-plus-amount receipt is approved and delivered; approvals are cleared, preexisting balances restored and totalDelivered updated only after exact successful movement. Terminal delivery fixes the campaign beneficiary.",
+      "occurrences": 1,
+      "id": "4e73181d8438cdea1ecdee82"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshTeamRevenueAdapter.sync() (src/bootstrap/MoshTeamRevenueAdapter.sol#121-137):",
+      "rationale": "Source binding, team handoff, sync and flush hold the guard. Existing historical recipient authority and the exact buyer-bound one-wei offer are required; claim deltas are measured before rightsBound is set. Native receive additionally requires collecting, the pinned Swarm and fixed team claim balance, preventing unsolicited or redirected receipt from authorizing a second handoff. Sync receipt/reported native amount and flush balance floors are atomic.",
+      "occurrences": 1,
+      "id": "581b63052eda194bacf58960"
     },
     {
       "impact": "Low",
@@ -9576,12 +11050,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshTeamRevenueAdapter.acceptTeamHandoff(uint256,uint256) (src/bootstrap/MoshTeamRevenueAdapter.sol#88-109):",
+      "rationale": "Source binding, team handoff, sync and flush hold the guard. Existing historical recipient authority and the exact buyer-bound one-wei offer are required; claim deltas are measured before rightsBound is set. Native receive additionally requires collecting, the pinned Swarm and fixed team claim balance, preventing unsolicited or redirected receipt from authorizing a second handoff. Sync receipt/reported native amount and flush balance floors are atomic.",
+      "occurrences": 1,
+      "id": "806a1b40fde2d70ec050bc25"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/diamond/StaticsProtocolInit.sol"
       ],
       "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#60-80):",
       "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
       "occurrences": 1,
       "id": "8929eb7fd1a26b440d1dbf3d"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshShareRevenueAdapter.deposit(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#121-141):",
+      "rationale": "Public deposit/withdraw/cancel/reward/checkpoint/flush operations hold the adapter guard. The intentionally unguarded receive hook accepts only runtime-pinned Swarm/market callbacks and validates actual old custody against totalShares. Automatic fee payouts are allocated before entering/leaving claims; one-wei return proceeds are separate, block another movement until permissionless exact-owner reconciliation, and cannot masquerade as fees. Buyer-bound offers and actual claim deltas establish custody; any mismatch reverts the operation.",
+      "occurrences": 1,
+      "id": "8ef021772e18de970be2c0b4"
     },
     {
       "impact": "Low",
@@ -9608,12 +11114,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/MoshTeamRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in MoshTeamRevenueAdapter.sync() (src/bootstrap/MoshTeamRevenueAdapter.sol#121-137):",
+      "rationale": "Source binding, team handoff, sync and flush hold the guard. Existing historical recipient authority and the exact buyer-bound one-wei offer are required; claim deltas are measured before rightsBound is set. Native receive additionally requires collecting, the pinned Swarm and fixed team claim balance, preventing unsolicited or redirected receipt from authorizing a second handoff. Sync receipt/reported native amount and flush balance floors are atomic.",
+      "occurrences": 1,
+      "id": "9a147db68880737489ccdbe6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/diamond/StaticsPhaseOneInit.sol"
       ],
       "summary": "Reentrancy in StaticsPhaseOneInit.genesis(IDiamondCut.FacetCut[],StaticsPhaseOneInit.InitArgs) (src/diamond/StaticsPhaseOneInit.sol#32-50):",
       "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; no reentrant edge is reachable.",
       "occurrences": 1,
       "id": "9d52846da2221b5d6cc4b989"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.fundPayment(uint256) (src/bootstrap/BasketBootstrapCampaign.sol#272-278):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "9f51f3671806991df452c691"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.fill(uint256,uint256,uint256,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#333-355):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "a54076d525c97f680e630bb2"
     },
     {
       "impact": "Low",
@@ -9630,6 +11184,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a57b27956b2543ccea0ea604"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/PonsRevenueAdapter.sol"
+      ],
+      "summary": "Reentrancy in PonsRevenueAdapter.collect(uint256) (src/bootstrap/PonsRevenueAdapter.sol#85-112):",
+      "rationale": "Collection and terminal handoff hold the same guard across only pinned escrow/factory/wrapper calls. Receive is narrowly authenticated while collecting. handoff requires a prepared terminal campaign and the adapter current fee-recipient authority, verifies the actual beneficiary afterward, and sets handedOff atomically. Previously credited collection remains separate and retryable; no callback can execute another mutator.",
+      "occurrences": 1,
+      "id": "aa54f7a2f48a74cb07b02817"
     },
     {
       "impact": "Low",
@@ -9683,6 +11253,22 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.claimTerminalInventory() (src/bootstrap/BasketBootstrapCampaign.sol#437-457):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "d66f1591605253a67bd79ac8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -9694,6 +11280,22 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "e71a57b14324628628a844c2"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-benign",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapCampaign.prepare(uint256,uint256[],IStaticsBasketDelegation.Authorization,bytes) (src/bootstrap/BasketBootstrapCampaign.sol#229-252):",
+      "rationale": "The exact campaign entrypoint and every reachable economic mutator hold the same reentrancy guard. Fixed Diamond preparation/finalization, exact incoming/outgoing tokens, scoped approvals and terminal fixed-beneficiary calls are validated before committing completion. Mutations after calls depend on measured successful results; callback failure reverts the whole transition. Read-only inventory/state access does not authorize another transfer. This decision addresses the reported reentry only, not the separately confirmed invalid-definition preflight defect. The separately confirmed preflight defect is now remediated by a51b978: shared definition validation runs before preview/prepare funding state.",
+      "occurrences": 1,
+      "id": "e8d8a8004f8926a937a1e642"
     },
     {
       "impact": "Low",
@@ -9809,24 +11411,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "0bfca0ab85ae4ec8857fd882"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol",
-        "src/libraries/LibDeploymentPhases.sol",
-        "src/libraries/LibPositionRoyalty.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#84-87):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; royalty initialization only writes namespaced storage and emits an event.",
-      "occurrences": 1,
-      "id": "0bfff86fc2536596f502fe01"
     },
     {
       "impact": "Low",
@@ -10024,6 +11608,22 @@
       "rationale": "Owner-only registration validates canonical Morpho market parameters and writes its tracked relationship before configuring only the explicitly registered restricted token's immutable Morpho binding. The token's authority is Diamond-only and has no arbitrary callback; failure rolls back the registration and event.",
       "occurrences": 1,
       "id": "2d3ba46d58428f9f2400d077"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapFactory.sol"
+      ],
+      "summary": "Reentrancy in BasketBootstrapFactory.create(BasketBootstrapCampaign.Terms,bytes32) (src/bootstrap/BasketBootstrapFactory.sol#39-48):",
+      "rationale": "CREATE2 uses only factory-compiled stored campaign creation code and complete immutable terms. The factory sets isCampaign before calling the fixed Diamond registration selector, whose guard and authority checks authenticate the factory/runtime/assets. The completion event follows actual registration; failure atomically removes deployment, mapping and event. Nested independent campaign creation cannot replace the current CREATE2 identity.",
+      "occurrences": 1,
+      "id": "2eb9c5c3248d593f5209f1c5"
     },
     {
       "impact": "Low",
@@ -10233,15 +11833,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol",
-        "src/libraries/LibCustody.sol",
-        "src/libraries/LibProtocolPol.sol",
-        "src/libraries/LibRestrictedBasket.sol"
+        "src/libraries/LibGenesisRewards.sol"
       ],
-      "summary": "Reentrancy in BasketLiquidityFacet.launchBasketPools(uint256,address,IStaticsBasket.PoolLaunchParams[],uint256[]) (src/facets/BasketLiquidityFacet.sol#133-154):",
-      "rationale": "Basket launch is non-reentrant and opens each explicitly configured, asset-cap-bounded POL position atomically. A failed transfer or manager operation reverts every emitted event and state change.",
+      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
+      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
-      "id": "514afa4511bbf98512e0f32c"
+      "id": "53954c452fca9f3267559f2d"
     },
     {
       "impact": "Low",
@@ -10252,12 +11849,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGenesisRewards.sol"
+        "src/facets/BasketLiquidityFacet.sol"
       ],
-      "summary": "Reentrancy in LibGenesisRewards.claimAllGenesis(uint256[],address) (src/libraries/LibGenesisRewards.sol#223-246):",
-      "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
+      "summary": "Reentrancy in BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#307-378):",
+      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
       "occurrences": 1,
-      "id": "53954c452fca9f3267559f2d"
+      "id": "56ee0a0d6265c0857f0e6bcd"
     },
     {
       "impact": "Low",
@@ -10366,22 +11963,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketLiquidityFacet.sol"
-      ],
-      "summary": "Reentrancy in BasketLiquidityFacet._initializeCanonicalPool(LibBasketLiquidity.LiquidityStorage,address,uint256,address,IStaticsBasket.PoolLaunchParams) (src/facets/BasketLiquidityFacet.sol#309-379):",
-      "rationale": "Events are emitted after the relevant external settlement or governed state transition so logs describe committed results; any callback failure reverts the transaction and its logs.",
-      "occurrences": 1,
-      "id": "753795e47c2caaa3a743b65b"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibGenesisRewards.sol"
       ],
       "summary": "Reentrancy in LibGenesisRewards.setRewardShare(uint16) (src/libraries/LibGenesisRewards.sol#263-272):",
@@ -10461,6 +12042,24 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol",
+        "src/libraries/LibPositionRoyalty.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#60-80):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; royalty initialization only writes namespaced storage and emits an event.",
+      "occurrences": 1,
+      "id": "830d8791a824dae6fe9a7eac"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -10532,6 +12131,25 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketLiquidityFacet.sol",
+        "src/libraries/LibCustody.sol",
+        "src/libraries/LibProtocolPol.sol",
+        "src/libraries/LibRestrictedBasket.sol"
+      ],
+      "summary": "Reentrancy in BasketLiquidityFacet.launchBasketPools(uint256,address,IStaticsBasket.PoolLaunchParams[],uint256[]) (src/facets/BasketLiquidityFacet.sol#132-153):",
+      "rationale": "Basket launch is non-reentrant and opens each explicitly configured, asset-cap-bounded POL position atomically. A failed transfer or manager operation reverts every emitted event and state change.",
+      "occurrences": 1,
+      "id": "9464497cbcfca3a649974c43"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibCustody.sol",
         "src/libraries/LibGenesisRewards.sol",
         "src/libraries/LibRestrictedBasket.sol"
@@ -10572,24 +12190,6 @@
       "rationale": "The enclosing transition is guarded or callback-authenticated; the event is emitted after the checked external effect so it records the committed result, and any failure reverts all state and logs.",
       "occurrences": 1,
       "id": "a0de3fe2d881c62d9f20bc59"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "reentrancy-events",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/diamond/StaticsProtocolInit.sol",
-        "src/libraries/LibDeploymentPhases.sol",
-        "src/libraries/LibPositionRoyalty.sol"
-      ],
-      "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#60-80):",
-      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; royalty initialization only writes namespaced storage and emits an event.",
-      "occurrences": 1,
-      "id": "a387f19bea7399f34edf98e4"
     },
     {
       "impact": "Low",
@@ -10961,6 +12561,24 @@
       "impact": "Low",
       "confidence": "Medium",
       "check": "reentrancy-events",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/diamond/StaticsProtocolInit.sol",
+        "src/libraries/LibDeploymentPhases.sol",
+        "src/libraries/LibPositionRoyalty.sol"
+      ],
+      "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#84-87):",
+      "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; royalty initialization only writes namespaced storage and emits an event.",
+      "occurrences": 1,
+      "id": "f4b36fc6b31792744ed601bf"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "reentrancy-events",
       "classification": "INTENTIONAL",
       "passes": [
         "production-contracts"
@@ -11086,6 +12704,22 @@
       "rationale": "The names are deliberately scoped loop, tuple, or branch temporaries and do not shadow storage or alter which accounting value is read.",
       "occurrences": 1,
       "id": "67d37c499ff2d6deb81c5ded"
+    },
+    {
+      "impact": "Low",
+      "confidence": "High",
+      "check": "shadowing-local",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/interfaces/IMoshSwarm.sol"
+      ],
+      "summary": "IMoshClaimMarket.offers(uint256).feeBps (src/interfaces/IMoshSwarm.sol#44) shadows:",
+      "rationale": "The offers ABI names its returned snapshotted feeBps while the market exposes a separate feeBps() getter. The descriptive tuple output does not replace a storage variable or bypass the explicit current/snapshot market fee validation.",
+      "occurrences": 1,
+      "id": "6eac40a86bf3a3d76e3a84a5"
     },
     {
       "impact": "Low",
@@ -11352,12 +12986,60 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketPreparationFacet.sol"
+      ],
+      "summary": "BasketPreparationFacet.previewBasketLaunch(bytes32,IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256) (src/facets/BasketPreparationFacet.sol#62-83) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "11319a059bfd1648ed0a63b8"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._sendExact(address,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#477-492) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "11565d968c2ebf94923c392a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibGlobalRewards.sol"
       ],
       "summary": "LibGlobalRewards.selectionView(uint256,address) (src/libraries/LibGlobalRewards.sol#559-583) uses timestamp for comparisons",
       "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
       "id": "11af7777a24f3f965056c669"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.constructor(address,BasketBootstrapCampaign.Terms) (src/bootstrap/BasketBootstrapCampaign.sol#111-160) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "144e2e081bbc709d10ded26a"
     },
     {
       "impact": "Low",
@@ -11480,12 +13162,28 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/BasketCreationFacet.sol"
+        "src/bootstrap/BasketBootstrapCampaign.sol"
       ],
-      "summary": "BasketCreationFacet._createBasket(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,bytes32) (src/facets/BasketCreationFacet.sol#53-104) uses timestamp for comparisons",
-      "rationale": "Block timestamp is the explicitly specified clock for user creation or preparation expiry and hourly reward-eligibility maturation/checkpointing. Comparisons preserve the defined boundary semantics and do not derive randomness, external prices or signature authority from time.",
+      "summary": "BasketBootstrapCampaign.prepare(uint256,uint256[],IStaticsBasketDelegation.Authorization,bytes) (src/bootstrap/BasketBootstrapCampaign.sol#229-252) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
       "occurrences": 1,
-      "id": "28224206aa3b437aff57698f"
+      "id": "2c839065dbd7909babc7b69a"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.fill(uint256,uint256,uint256,address,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#333-355) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "2ccd9389b31ef155ddcf5885"
     },
     {
       "impact": "Low",
@@ -11502,6 +13200,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "2d3fea80d0fc3cef97d409e1"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.state() (src/bootstrap/BasketBootstrapCampaign.sol#181-185) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "2e172ac5efd19c0b188cbaa9"
     },
     {
       "impact": "Low",
@@ -11534,6 +13248,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "34b18766e8924d28523ea8de"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "StaticsAssetZap._inputToken(StaticsAssetZap.Input) (src/periphery/StaticsAssetZap.sol#180-189) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "366477db95487246196e1e09"
     },
     {
       "impact": "Low",
@@ -11582,6 +13312,22 @@
       "rationale": "The bounded binary search compares immutable observation timestamps with the requested historical target; timestamp is the intended ordering key and cannot alter recorded counters.",
       "occurrences": 1,
       "id": "460c3c5158f129d9832206b5"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign._releaseReserves() (src/bootstrap/BasketBootstrapCampaign.sol#427-434) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "49acc1476caf16b30fdf4a43"
     },
     {
       "impact": "Low",
@@ -11662,6 +13408,22 @@
       "rationale": "Block time is the specified clock for user deadlines and range-reward periods; each comparison has explicit inclusive or exclusive boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "5242c030022a9ad0d4ff91f1"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.activateAuction(uint256) (src/bootstrap/BasketBootstrapCampaign.sol#305-320) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "5300a1354f80fa17865c4717"
     },
     {
       "impact": "Low",
@@ -11790,6 +13552,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "6b2526042233d4556b4acd46"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.quoteFill(uint256,uint256) (src/bootstrap/BasketBootstrapCampaign.sol#322-331) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "6e7d707c39bac5f5079e6f87"
     },
     {
       "impact": "Low",
@@ -11966,6 +13744,22 @@
       "rationale": "Block time is the specified clock for deadlines, maturity, staleness, vesting, and reward buckets; the comparison has explicit boundary semantics and tolerates normal validator timestamp drift.",
       "occurrences": 1,
       "id": "8fc5568a2f14851b813f2dd6"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/LibMoshValidation.sol"
+      ],
+      "summary": "LibMoshValidation.validateCustodyOffer(IMoshClaimMarket,uint256,address,address,address,uint256,uint256) (src/bootstrap/LibMoshValidation.sol#78-94) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "92d61449c11750e4a3b50059"
     },
     {
       "impact": "Low",
@@ -12181,6 +13975,22 @@
       "check": "timestamp",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/MoshShareRevenueAdapter.sol"
+      ],
+      "summary": "MoshShareRevenueAdapter.withdraw(uint256,uint256) (src/bootstrap/MoshShareRevenueAdapter.sol#144-161) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "c02aa4446cd6598d4dbdcc0b"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -12222,6 +14032,22 @@
       "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
       "id": "c509fbb8a000fa8005f1c199"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketCreationFacet.sol"
+      ],
+      "summary": "BasketCreationFacet._createBasket(IStaticsBasket.CreateBasketParams,IStaticsBasket.PoolLaunchParams[],uint256[],uint256,bytes32,address) (src/facets/BasketCreationFacet.sol#78-132) uses timestamp for comparisons",
+      "rationale": "The unchanged comparison enforces the direct creation caller explicit launchDeadline. Delegated creation separately requires strictly before its signed deadline and campaign state requires strictly before its immutable expiry. The shared definition extraction preserves direct creation validation/error semantics; timestamp is an explicit execution bound, not randomness, an oracle price or signature authority.",
+      "occurrences": 1,
+      "id": "ccd25b3ee8fe76a463d62a1e"
     },
     {
       "impact": "Low",
@@ -12376,6 +14202,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "BasketBootstrapCampaign.rate(uint256) (src/bootstrap/BasketBootstrapCampaign.sol#286-294) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "e33a12e3fa4fa43a666fe123"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/GaugeIncentiveFacet.sol"
       ],
       "summary": "GaugeIncentiveFacet.checkpointGaugePool(PoolId) (src/facets/GaugeIncentiveFacet.sol#80-91) uses timestamp for comparisons",
@@ -12414,6 +14256,22 @@
       "rationale": "Timestamp comparisons enforce explicit user deadlines, signed-authorization expiry, or reward maturity buckets and are not used as randomness or price input.",
       "occurrences": 1,
       "id": "ec535896767a6315521fdf06"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibBasketDelegation.sol"
+      ],
+      "summary": "LibBasketDelegation.validate(IStaticsBasketDelegation.Authorization,bytes,bytes32,bool) (src/libraries/LibBasketDelegation.sol#41-63) uses timestamp for comparisons",
+      "rationale": "Timestamp is the approved clock for fixed campaign expiry, immutable Dutch rate interpolation, user execution bounds, signed preparation deadlines and supported external offer expiration. Funding/finalization require strictly-before campaign deadline; external offers reject exact deadline. No randomness, price oracle or signature identity is derived from the clock.",
+      "occurrences": 1,
+      "id": "eff9a1013865d0356b27c2bd"
     },
     {
       "impact": "Low",
@@ -12616,6 +14474,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibBasketDelegation.sol"
+      ],
+      "summary": "LibBasketDelegation.delegationStorage() (src/libraries/LibBasketDelegation.sol#23-26) uses assembly",
+      "rationale": "Reviewed memory-safe assembly binds a fixed namespaced storage slot, returns STOP-prefixed approved compiled creation code, copies exact code-store byte ranges or executes typed CREATE2 with the complete campaign constructor. Callers cannot supply arbitrary executable bytecode or unchecked offsets; code stores and authority are immutable.",
+      "occurrences": 1,
+      "id": "15f6272e2d86d105c3d088a0"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibProtocolPools.sol"
       ],
       "summary": "LibProtocolPools.protocolPoolStorage() (src/libraries/LibProtocolPools.sol#63-68) uses assembly",
@@ -12680,6 +14554,38 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/BasketBootstrapFactory.sol"
+      ],
+      "summary": "BasketBootstrapFactory._slice(bytes,uint256,uint256) (src/bootstrap/BasketBootstrapFactory.sol#61-64) uses assembly",
+      "rationale": "Reviewed memory-safe assembly binds a fixed namespaced storage slot, returns STOP-prefixed approved compiled creation code, copies exact code-store byte ranges or executes typed CREATE2 with the complete campaign constructor. Callers cannot supply arbitrary executable bytecode or unchecked offsets; code stores and authority are immutable.",
+      "occurrences": 1,
+      "id": "25aa5e3294cf22c9ad7ca469"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapFactory.sol"
+      ],
+      "summary": "BasketBootstrapFactory._code() (src/bootstrap/BasketBootstrapFactory.sol#50-59) uses assembly",
+      "rationale": "Reviewed memory-safe assembly binds a fixed namespaced storage slot, returns STOP-prefixed approved compiled creation code, copies exact code-store byte ranges or executes typed CREATE2 with the complete campaign constructor. Callers cannot supply arbitrary executable bytecode or unchecked offsets; code stores and authority are immutable.",
+      "occurrences": 1,
+      "id": "284950e23560622dca0bcf0d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibMorpho.sol"
       ],
       "summary": "LibMorpho.morphoStorage() (src/libraries/LibMorpho.sol#71-76) uses assembly",
@@ -12712,12 +14618,44 @@
         "production-contracts"
       ],
       "paths": [
+        "src/bootstrap/BasketBootstrapFactory.sol"
+      ],
+      "summary": "CampaignCreationCodeStore.constructor(bytes) (src/bootstrap/BasketBootstrapFactory.sol#8-11) uses assembly",
+      "rationale": "Reviewed memory-safe assembly binds a fixed namespaced storage slot, returns STOP-prefixed approved compiled creation code, copies exact code-store byte ranges or executes typed CREATE2 with the complete campaign constructor. Callers cannot supply arbitrary executable bytecode or unchecked offsets; code stores and authority are immutable.",
+      "occurrences": 1,
+      "id": "42667d15c6e9508161579df0"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibBasketManagerSettlement.sol"
       ],
       "summary": "LibBasketManagerSettlement._load(bytes32) (src/libraries/LibBasketManagerSettlement.sol#66-68) uses assembly",
       "rationale": "Reviewed memory-safe assembly binds fixed namespaced/transient storage slots or installs/loads immutable STOP-prefixed compiled creation code. The CREATE3 factory uses fixed approved code stores and exact code lengths; no user-supplied executable bytecode, arbitrary call target or unchecked source offset is accepted.",
       "occurrences": 1,
       "id": "46cce052a2975a2c39a5e0e7"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapFactory.sol"
+      ],
+      "summary": "BasketBootstrapFactory.create(BasketBootstrapCampaign.Terms,bytes32) (src/bootstrap/BasketBootstrapFactory.sol#39-48) uses assembly",
+      "rationale": "Reviewed memory-safe assembly binds a fixed namespaced storage slot, returns STOP-prefixed approved compiled creation code, copies exact code-store byte ranges or executes typed CREATE2 with the complete campaign constructor. Callers cannot supply arbitrary executable bytecode or unchecked offsets; code stores and authority are immutable.",
+      "occurrences": 1,
+      "id": "49248e0659cc4d16be0d402a"
     },
     {
       "impact": "Informational",
@@ -12776,12 +14714,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibDeploymentPhases.sol"
+        "src/libraries/LibBasketCollateral.sol"
       ],
-      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#61-66) uses assembly",
-      "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
+      "summary": "LibBasketCollateral.collateralStorage() (src/libraries/LibBasketCollateral.sol#25-30) uses assembly",
+      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
       "occurrences": 1,
-      "id": "56b949bc52aaf43cc5260dd3"
+      "id": "5a8dab6ad9d5dc3950655fe5"
     },
     {
       "impact": "Informational",
@@ -12792,12 +14730,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibBasketCollateral.sol"
+        "src/libraries/LibBootstrapSettlement.sol"
       ],
-      "summary": "LibBasketCollateral.collateralStorage() (src/libraries/LibBasketCollateral.sol#25-30) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "summary": "LibBootstrapSettlement.state() (src/libraries/LibBootstrapSettlement.sol#29-32) uses assembly",
+      "rationale": "Reviewed memory-safe assembly binds a fixed namespaced storage slot, returns STOP-prefixed approved compiled creation code, copies exact code-store byte ranges or executes typed CREATE2 with the complete campaign constructor. Callers cannot supply arbitrary executable bytecode or unchecked offsets; code stores and authority are immutable.",
       "occurrences": 1,
-      "id": "5a8dab6ad9d5dc3950655fe5"
+      "id": "71e9a8734c4ecaf26dfe3f85"
     },
     {
       "impact": "Informational",
@@ -13144,6 +15082,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibDeploymentPhases.sol"
+      ],
+      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#64-69) uses assembly",
+      "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
+      "occurrences": 1,
+      "id": "ddd8f513ff09f001ebe058b2"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibProtocolRevenue.sol"
       ],
       "summary": "LibProtocolRevenue.protocolRevenueStorage() (src/libraries/LibProtocolRevenue.sol#73-78) uses assembly",
@@ -13448,6 +15402,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/periphery/StaticsAssetZap.sol"
+      ],
+      "summary": "Low level call in StaticsAssetZap._refund(StaticsAssetZap.Input,address,uint256,uint256) (src/periphery/StaticsAssetZap.sol#337-356):",
+      "rationale": "The guarded operation sends only attributable input refund to msg.sender or terminal inventory to the immutable beneficiary. Empty calldata is intentional; success is checked and failure reverts atomic accounting. No arbitrary executable target/spender or default protocol inventory sweep is exposed.",
+      "occurrences": 1,
+      "id": "349ae1b96d0d29df55731125"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/facets/BasketMarketCreationFacet.sol"
       ],
       "summary": "Low level call in BasketMarketCreationFacet._collectFee(uint256) (src/facets/BasketMarketCreationFacet.sol#131-139):",
@@ -13514,10 +15484,26 @@
       "paths": [
         "src/facets/BasketCreationFacet.sol"
       ],
-      "summary": "Low level call in BasketCreationFacet._collectCreationFee(LibBasket.BasketStorage) (src/facets/BasketCreationFacet.sol#176-188):",
-      "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
+      "summary": "Low level call in BasketCreationFacet._collectCreationFee(LibBasket.BasketStorage) (src/facets/BasketCreationFacet.sol#177-189):",
+      "rationale": "The guarded creation flow forwards only the exact configured creationFeeAmount to the configured Treasury with empty calldata and checks call success. Zero fee still permits only actual contractOwner and zero msg.value; positive fee requires exact msg.value. The shared definition extraction only moved source spans and does not change this target or authority; failure reverts complete creation and payment effects.",
       "occurrences": 1,
-      "id": "8e7cb23eac72e618c6925ae0"
+      "id": "810cebb800851472798b30d7"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Low level call in BasketBootstrapCampaign.claimTerminalInventory() (src/bootstrap/BasketBootstrapCampaign.sol#437-457):",
+      "rationale": "The guarded operation sends only attributable input refund to msg.sender or terminal inventory to the immutable beneficiary. Empty calldata is intentional; success is checked and failure reverts atomic accounting. No arbitrary executable target/spender or default protocol inventory sweep is exposed.",
+      "occurrences": 1,
+      "id": "8bf0c5a43be49ca9ae589778"
     },
     {
       "impact": "Informational",
@@ -13689,6 +15675,23 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/BasketPreparationFacet.sol",
+        "src/interfaces/IStaticsBasketPreparation.sol"
+      ],
+      "summary": "BasketPreparationFacet (src/facets/BasketPreparationFacet.sol#15-136) should inherit from IStaticsBasketPreparation (src/interfaces/IStaticsBasketPreparation.sol#6-23)",
+      "rationale": "BasketPreparationFacet supplies the preparation selectors through Diamond composition and structural ABI compatibility. Solidity inheritance from the narrow interface is not required for correct selector dispatch.",
+      "occurrences": 1,
+      "id": "4b068e8500050bc215671c8d"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/permissioned/PermissionedPositionClaims.sol",
         "src/permissioned/StaticsPermissionedPositionManager.sol"
       ],
@@ -13775,12 +15778,29 @@
       ],
       "paths": [
         "src/facets/BasketPreparationFacet.sol",
-        "src/interfaces/IStaticsBasketPreparation.sol"
+        "src/interfaces/IStaticsBasketLaunchPreview.sol"
       ],
-      "summary": "BasketPreparationFacet (src/facets/BasketPreparationFacet.sol#11-69) should inherit from IStaticsBasketPreparation (src/interfaces/IStaticsBasketPreparation.sol#6-23)",
-      "rationale": "BasketPreparationFacet supplies the preparation selectors through Diamond composition and structural ABI compatibility. Solidity inheritance from the narrow interface is not required for correct selector dispatch.",
+      "summary": "BasketPreparationFacet (src/facets/BasketPreparationFacet.sol#15-136) should inherit from IStaticsBasketLaunchPreview (src/interfaces/IStaticsBasketLaunchPreview.sol#7-15)",
+      "rationale": "This structurally compatible facet exposes the exact interface selectors through Diamond composition and canonical deployment manifests; explicit Solidity interface inheritance is unnecessary for the validated ABI dispatch.",
       "occurrences": 1,
-      "id": "b61b7de393a1c1546812e6fc"
+      "id": "c3a66162a5bdb106a8c96370"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "missing-inheritance",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/BasketSettlementFacet.sol",
+        "src/interfaces/IStaticsBootstrapSettlement.sol"
+      ],
+      "summary": "BasketSettlementFacet (src/facets/BasketSettlementFacet.sol#17-95) should inherit from IStaticsBootstrapSettlement (src/interfaces/IStaticsBootstrapSettlement.sol#4-9)",
+      "rationale": "This structurally compatible facet exposes the exact interface selectors through Diamond composition and canonical deployment manifests; explicit Solidity interface inheritance is unnecessary for the validated ABI dispatch.",
+      "occurrences": 1,
+      "id": "dda3dbbfeb0d5c8b33c80b24"
     },
     {
       "impact": "Informational",
@@ -14594,6 +16614,22 @@
       "check": "too-many-digits",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapFactory.sol"
+      ],
+      "summary": "BasketBootstrapFactory.constructor(address) (src/bootstrap/BasketBootstrapFactory.sol#24-32) uses literals with too many digits:",
+      "rationale": "The literal is the exact compiler-emitted BasketBootstrapCampaign creationCode used by the fixed-code factory. It is not a hand-entered decimal amount or rounding parameter; changing its bytes would change prediction/deployment identity.",
+      "occurrences": 1,
+      "id": "a68b959a0cc3e94018afb9fd"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "Medium",
+      "check": "too-many-digits",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -15020,6 +17056,38 @@
       "rationale": "The event signature is an established Diamond or creator-token compatibility ABI and preserves its topic layout; full address data remains available in the event payload.",
       "occurrences": 1,
       "id": "c98696bce276f1c76da359ee"
+    },
+    {
+      "impact": "Optimization",
+      "confidence": "High",
+      "check": "cache-array-length",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Loop condition i < auctions.length (src/bootstrap/BasketBootstrapCampaign.sol#430) should use cached array length instead of referencing `length` member of the storage array.",
+      "rationale": "The storage array is an immutable-length constructor/preparation vector bounded to 16 entries, and no callback occurs in the flagged loop. Re-reading its length is a small optimization opportunity, not unbounded gas growth or an accounting/authority defect.",
+      "occurrences": 1,
+      "id": "335d31937b07c35e12f1aa1b"
+    },
+    {
+      "impact": "Optimization",
+      "confidence": "High",
+      "check": "cache-array-length",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/bootstrap/BasketBootstrapCampaign.sol"
+      ],
+      "summary": "Loop condition i < required.length (src/bootstrap/BasketBootstrapCampaign.sol#371) should use cached array length instead of referencing `length` member of the storage array.",
+      "rationale": "The storage array is an immutable-length constructor/preparation vector bounded to 16 entries, and no callback occurs in the flagged loop. Re-reading its length is a small optimization opportunity, not unbounded gas growth or an accounting/authority defect.",
+      "occurrences": 1,
+      "id": "ee5f6f2fbb7ae49414a57242"
     }
   ]
 }

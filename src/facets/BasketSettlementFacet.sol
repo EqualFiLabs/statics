@@ -10,10 +10,30 @@ import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 import {LibBasketArbitrageSettlement} from "../libraries/LibBasketArbitrageSettlement.sol";
+import {LibBootstrapSettlement} from "../libraries/LibBootstrapSettlement.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @notice Hook-authenticated capabilities. Deliberately callable during guarded protocol actions.
 contract BasketSettlementFacet is IStaticsBasketSettlement, ReentrancyGuard {
+    function installBootstrapFactory(address factory, bytes32 runtimeHash, bytes32 creationCodeHash) external {
+        LibBootstrapSettlement.install(factory, runtimeHash, creationCodeHash);
+    }
+
+    function bootstrapFactoryApproved(address factory) external view returns (bool) {
+        return LibBootstrapSettlement.approved(factory);
+    }
+
+    function registerBootstrapCampaign(address campaign) external nonReentrant {
+        LibBootstrapSettlement.register(campaign);
+    }
+
+    function settleBootstrapToken(address token, address sender, address receiver, uint256 amount)
+        external
+        nonReentrant
+    {
+        LibBootstrapSettlement.settle(token, sender, receiver, amount);
+    }
+
     function beginBasketArbitrage(uint256 basketId, uint256 shares, address executor) external nonReentrant {
         LibBasketArbitrageSettlement.begin(basketId, shares, executor);
     }

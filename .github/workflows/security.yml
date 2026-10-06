@@ -138,3 +138,15 @@ jobs:
       - name: Run managed-POL fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv
+      - name: Run bootstrap exact-output zap fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/bootstrap/RobinhoodAssetZapFork.t.sol --match-test 'testPinnedRobinhood(V4Zap|NativeRevenue)' -vv
+      - name: Run Mosh contract-custody fork regressions
+        if: ${{ !cancelled() }}
+        run: forge test --match-path 'test/bootstrap/RobinhoodMosh*Fork.t.sol' -vv
+      - name: Run PONS recipient and escrow fork regressions
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/bootstrap/RobinhoodPonsRevenueFork.t.sol -vv
+      - name: Run combined campaign funding fork regressions
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/bootstrap/RobinhoodHybridCampaignFork.t.sol -vv

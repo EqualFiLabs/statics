@@ -9,6 +9,9 @@ import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketLaunchPreview} from "../interfaces/IStaticsBasketLaunchPreview.sol";
+import {IStaticsBasketDelegation} from "../interfaces/IStaticsBasketDelegation.sol";
+import {IStaticsBootstrapSettlement} from "../interfaces/IStaticsBootstrapSettlement.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
@@ -50,15 +53,20 @@ import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDolla
 
 library StaticsSelectors {
     function basketPreparation() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsBasketPreparation.installBasketFactory.selector;
         selectors[1] = IStaticsBasketPreparation.basketFactory.selector;
         selectors[2] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
         selectors[3] = IStaticsBasketPreparation.prepareBasketCreation.selector;
+        selectors[4] = IStaticsBasketLaunchPreview.previewBasketLaunch.selector;
+        selectors[5] = IStaticsBasketDelegation.prepareBasketCreationFor.selector;
+        selectors[6] = IStaticsBasketDelegation.creationAuthorizationDigest.selector;
+        selectors[7] = IStaticsBasketDelegation.creationNonceUsed.selector;
+        selectors[8] = IStaticsBasketDelegation.invalidateCreationNonces.selector;
     }
 
     function basketSettlement() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](13);
         selectors[0] = IStaticsBasketSettlement.validateBasketPool.selector;
         selectors[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
         selectors[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
@@ -68,6 +76,10 @@ library StaticsSelectors {
         selectors[6] = IStaticsBasketArbitrage.settleBasketArbitrageInput.selector;
         selectors[7] = IStaticsBasketArbitrage.settleBasketArbitrageOutput.selector;
         selectors[8] = IStaticsBasketArbitrage.endBasketArbitrage.selector;
+        selectors[9] = IStaticsBootstrapSettlement.installBootstrapFactory.selector;
+        selectors[10] = IStaticsBootstrapSettlement.bootstrapFactoryApproved.selector;
+        selectors[11] = IStaticsBootstrapSettlement.registerBootstrapCampaign.selector;
+        selectors[12] = IStaticsBootstrapSettlement.settleBootstrapToken.selector;
     }
 
     function basketArbitrageDeployment() internal pure returns (bytes4[] memory selectors) {
@@ -413,9 +425,10 @@ library StaticsSelectors {
     }
 
     function basketCreation() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](3);
         selectors[0] = IStaticsBasket.createBasket.selector;
         selectors[1] = IStaticsBasket.createBasketPrepared.selector;
+        selectors[2] = IStaticsBasketDelegation.createBasketFor.selector;
     }
 
     function basketMint() internal pure returns (bytes4[] memory selectors) {

@@ -6,7 +6,10 @@ import {Test} from "forge-std/Test.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketLaunchPreview} from "../../src/interfaces/IStaticsBasketLaunchPreview.sol";
+import {IStaticsBasketDelegation} from "../../src/interfaces/IStaticsBasketDelegation.sol";
 import {IStaticsBasketSettlement} from "../../src/interfaces/IStaticsBasketSettlement.sol";
+import {IStaticsBootstrapSettlement} from "../../src/interfaces/IStaticsBootstrapSettlement.sol";
 import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketArbitrage} from "../../src/interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
@@ -279,17 +282,23 @@ contract SelectorManifestTest is Test {
     }
 
     function testRestrictedBasketSelectorManifestsAreExact() public pure {
-        bytes4[] memory expected = new bytes4[](2);
+        bytes4[] memory expected = new bytes4[](3);
         expected[0] = IStaticsBasket.createBasket.selector;
         expected[1] = IStaticsBasket.createBasketPrepared.selector;
+        expected[2] = IStaticsBasketDelegation.createBasketFor.selector;
         _assertExact(StaticsSelectors.basketCreation(), expected);
-        expected = new bytes4[](4);
+        expected = new bytes4[](9);
         expected[0] = IStaticsBasketPreparation.installBasketFactory.selector;
         expected[1] = IStaticsBasketPreparation.basketFactory.selector;
         expected[2] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
         expected[3] = IStaticsBasketPreparation.prepareBasketCreation.selector;
+        expected[4] = IStaticsBasketLaunchPreview.previewBasketLaunch.selector;
+        expected[5] = IStaticsBasketDelegation.prepareBasketCreationFor.selector;
+        expected[6] = IStaticsBasketDelegation.creationAuthorizationDigest.selector;
+        expected[7] = IStaticsBasketDelegation.creationNonceUsed.selector;
+        expected[8] = IStaticsBasketDelegation.invalidateCreationNonces.selector;
         _assertExact(StaticsSelectors.basketPreparation(), expected);
-        expected = new bytes4[](9);
+        expected = new bytes4[](13);
         expected[0] = IStaticsBasketSettlement.validateBasketPool.selector;
         expected[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
         expected[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
@@ -299,6 +308,10 @@ contract SelectorManifestTest is Test {
         expected[6] = IStaticsBasketArbitrage.settleBasketArbitrageInput.selector;
         expected[7] = IStaticsBasketArbitrage.settleBasketArbitrageOutput.selector;
         expected[8] = IStaticsBasketArbitrage.endBasketArbitrage.selector;
+        expected[9] = IStaticsBootstrapSettlement.installBootstrapFactory.selector;
+        expected[10] = IStaticsBootstrapSettlement.bootstrapFactoryApproved.selector;
+        expected[11] = IStaticsBootstrapSettlement.registerBootstrapCampaign.selector;
+        expected[12] = IStaticsBootstrapSettlement.settleBootstrapToken.selector;
         _assertExact(StaticsSelectors.basketSettlement(), expected);
         expected = new bytes4[](1);
         expected[0] = IStaticsBasketArbitrage.deployBasketArbitrageReceiver.selector;
