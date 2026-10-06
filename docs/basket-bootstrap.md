@@ -167,3 +167,10 @@ Statics gains no operator role and does not release buyback vesting or principal
 Native and approved quote-token collection, handoff/retry and independent real
 POL finalization execute in pinned forks. Payout proxy implementations and the
 upstream owner's delayed recipient override remain deployment-review concerns.
+
+Combined-source fork regressions fund one campaign through direct contributions,
+firm procurement, measured PONS receipts and both Mosh adapters, then prove real
+POL custody or expiry, settled supplier payments and independent share recovery.
+An independent PONS source uses authorized escrow collection, exact WETH wrapping
+and generic measured delivery. It is not cross-project `PonsRevenueAdapter`
+binding: moving the Mosh source's PONS rights would disrupt Swarm collection.

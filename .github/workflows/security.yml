@@ -147,3 +147,6 @@ jobs:
       - name: Run PONS recipient and escrow fork regressions
         if: ${{ !cancelled() }}
         run: forge test --match-path test/bootstrap/RobinhoodPonsRevenueFork.t.sol -vv
+      - name: Run combined campaign funding fork regressions
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/bootstrap/RobinhoodHybridCampaignFork.t.sol -vv
