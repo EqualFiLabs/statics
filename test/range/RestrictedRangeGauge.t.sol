@@ -30,14 +30,21 @@ contract RestrictedRangeGaugeTest is RangeGaugeFeatureTestBase {
         IStaticsRangeGauge.LiquidityMovement memory provided = rangeGauge.provideLiquidity(
             positionId,
             IStaticsRangeGauge.ProvideLiquidityParams(
-                market.poolId, TickMath.minUsableTick(10), TickMath.maxUsableTick(10), 0.1 ether,
-                1 ether, 1 ether, block.timestamp
+                market.poolId,
+                TickMath.minUsableTick(10),
+                TickMath.maxUsableTick(10),
+                0.1 ether,
+                1 ether,
+                1 ether,
+                block.timestamp
             )
         );
         assertEq(IERC721(address(rangePositionManager)).ownerOf(provided.posmTokenId), address(rangeLiquidityManager));
         assertEq(rangeGauge.lpLeg(positionId, market.poolId).liquidity, 0.1 ether);
         rangeGauge.increaseLiquidity(
-            positionId, market.poolId, IStaticsRangeGauge.IncreaseLiquidityParams(0.1 ether, 1 ether, 1 ether, block.timestamp)
+            positionId,
+            market.poolId,
+            IStaticsRangeGauge.IncreaseLiquidityParams(0.1 ether, 1 ether, 1 ether, block.timestamp)
         );
         assertEq(rangeGauge.lpLeg(positionId, market.poolId).liquidity, 0.2 ether);
         vm.stopPrank();
@@ -46,8 +53,12 @@ contract RestrictedRangeGaugeTest is RangeGaugeFeatureTestBase {
         bool direction = Currency.unwrap(key.currency0) == address(assetA);
         vm.startPrank(bob);
         assetA.approve(address(v4Router), 1 ether);
-        v4Router.swap(key, SwapParams(direction, -int256(0.1 ether),
-            direction ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1));
+        v4Router.swap(
+            key,
+            SwapParams(
+                direction, -int256(0.1 ether), direction ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            )
+        );
         vm.stopPrank();
         vm.startPrank(alice);
         IStaticsRangeGauge.LiquidityMovement memory collected =
@@ -58,7 +69,8 @@ contract RestrictedRangeGaugeTest is RangeGaugeFeatureTestBase {
         );
         assertEq(rangeGauge.lpLeg(positionId, market.poolId).liquidity, 0.15 ether);
         IStaticsRangeGauge.LiquidityMovement memory rebalanced = rangeGauge.rebalanceLiquidity(
-            positionId, market.poolId,
+            positionId,
+            market.poolId,
             IStaticsRangeGauge.RebalanceLiquidityParams(-600, 600, 0.15 ether, 1 ether, 1 ether, 0, 0, block.timestamp)
         );
         assertNotEq(rebalanced.posmTokenId, provided.posmTokenId);

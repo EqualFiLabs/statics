@@ -76,8 +76,12 @@ contract RobinhoodFlashArbitrageForkTest is StaticsTestBase {
             )
         );
         router = new CanonicalV4Router(poolManager);
-        _localBasketFactory = StaticsBasketFactory(deployCode("out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
-            abi.encode(address(diamond), poolManager, IStaticsSwapFeeHook(address(hook)))));
+        _localBasketFactory = StaticsBasketFactory(
+            deployCode(
+                "out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
+                abi.encode(address(diamond), poolManager, IStaticsSwapFeeHook(address(hook)))
+            )
+        );
         BasketPreparationFacet(address(diamond)).installBasketFactory(address(_localBasketFactory));
     }
 

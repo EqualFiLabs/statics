@@ -8,7 +8,9 @@ import {StaticsRestrictedBasketToken} from "../../src/tokens/StaticsRestrictedBa
 
 /// @dev Minimal unlocked-manager boundary model, not a proof of v4 accounting or hook authentication.
 contract RestrictedFormalPoolManager {
-    function exttload(bytes32) external pure returns (bytes32) { return bytes32(uint256(1)); }
+    function exttload(bytes32) external pure returns (bytes32) {
+        return bytes32(uint256(1));
+    }
 }
 
 contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
@@ -24,10 +26,21 @@ contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
         token.mint(manager, 1 ether);
     }
 
-    function testRepresentativeExactTicket() public { this.check_exactTicketIsSingleUse(17); }
-    function testRepresentativeDirection() public { this.check_poolBudgetsAreDirectionalAndConsumable(19, 23); }
-    function testRepresentativeClaim() public { this.check_claimTicketBindsReceiverAndAmount(29); }
-    function testRepresentativeAuthority() public { this.check_onlyProtocolCanGrant(ALICE); }
+    function testRepresentativeExactTicket() public {
+        this.check_exactTicketIsSingleUse(17);
+    }
+
+    function testRepresentativeDirection() public {
+        this.check_poolBudgetsAreDirectionalAndConsumable(19, 23);
+    }
+
+    function testRepresentativeClaim() public {
+        this.check_claimTicketBindsReceiverAndAmount(29);
+    }
+
+    function testRepresentativeAuthority() public {
+        this.check_onlyProtocolCanGrant(ALICE);
+    }
 
     function check_exactTicketIsSingleUse(uint96 amount) public {
         vm.assume(amount > 0 && amount <= 0.5 ether);
@@ -84,7 +97,8 @@ contract RestrictedBasketSettlementHalmosTest is SymTest, Test {
     function check_onlyProtocolCanGrant(address caller) public {
         vm.assume(caller != address(this));
         vm.prank(caller);
-        (bool grant,) = address(token).call(abi.encodeCall(token.authorizeProtocolTransfer, (ALICE, address(this), uint256(1))));
+        (bool grant,) =
+            address(token).call(abi.encodeCall(token.authorizeProtocolTransfer, (ALICE, address(this), uint256(1))));
         assertFalse(grant);
         vm.prank(caller);
         (bool poolGrant,) = address(token).call(abi.encodeCall(token.authorizePoolSettlement, (uint256(1), uint256(1))));
