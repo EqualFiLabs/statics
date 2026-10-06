@@ -172,7 +172,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
         else if (asset == Currency.unwrap(key.currency1)) currency = key.currency1;
         else revert InvalidProtocolPolAsset(poolId, asset);
 
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibBasketLiquidity.liquidityStorage().hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibProtocolPools.publicHook(poolId));
         uint256 pending = hook.pendingProtocolPol(poolId, currency);
         uint256 requested = maximumAmount == 0 || maximumAmount > pending ? pending : maximumAmount;
         uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
@@ -266,7 +266,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
 
     function _setPolShare(PoolId poolId, uint16 shareBps, bool overridden) private {
         (IStaticsProtocolPools.ProtocolPoolKind kind,,,) = _enforcePublicPool(poolId);
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibBasketLiquidity.liquidityStorage().hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibProtocolPools.publicHook(poolId));
         uint16 maximum;
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
             IStaticsSwapFeeHook.BasketFeeAllocation memory allocation = hook.basketFeeAllocation();

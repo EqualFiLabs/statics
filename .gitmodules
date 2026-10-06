@@ -25,3 +25,6 @@
 [submodule "verification/morpho/vendor/morpho-blue-irm"]
 	path = verification/morpho/vendor/morpho-blue-irm
 	url = https://github.com/morpho-org/morpho-blue-irm
+[submodule "lib/createx"]
+	path = lib/createx
+	url = https://github.com/pcaversaccio/createx.git

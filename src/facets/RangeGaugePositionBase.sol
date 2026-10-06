@@ -134,12 +134,12 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
             kind != IStaticsProtocolPools.ProtocolPoolKind.General
                 && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
         ) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (address(registeredKey.hooks) != ls.hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        address hook = LibProtocolPools.publicHook(poolId);
+        if (address(registeredKey.hooks) != hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
         if (!gauge.initialized) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         if (active && gauge.stopped) revert IStaticsRangeGauge.GaugeStopped(poolId);
-        if (active && IStaticsSwapFeeHook(ls.hook).poolDecommissioned(poolId)) {
+        if (active && IStaticsSwapFeeHook(hook).poolDecommissioned(poolId)) {
             revert IStaticsRangeGauge.PublicPoolDecommissioned(poolId);
         }
         key = registeredKey;

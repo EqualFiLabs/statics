@@ -51,7 +51,7 @@ contract ProtocolPoolMaintenanceFacet is ReentrancyGuard {
 
         uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
         IStaticsSwapFeeHook.FeeDistribution memory distribution =
-            IStaticsSwapFeeHook(_liquidityStorage().hook).settleFeeDistribution(key, currency, address(this));
+            IStaticsSwapFeeHook(address(key.hooks)).settleFeeDistribution(key, currency, address(this));
         grossAmount = _distributionTotal(distribution);
         _enforceReceived(asset, beforeBalance, grossAmount);
         callerTip = Math.mulDiv(distribution.treasury, LibProtocolPools.protocolPoolStorage().revenueTipBps, 10_000);

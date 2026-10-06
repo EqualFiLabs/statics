@@ -20,6 +20,8 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
+import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 
 contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
@@ -34,6 +36,8 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     error ReleasedAmountMismatch(address token, uint256 reported, uint256 observed);
     error InsufficientVaultBalance(address asset, uint256 required, uint256 available);
     error ActiveProtocolPolPositions(PoolId poolId, uint256 count);
+    error IndependentMarketRequired(PoolId poolId);
+    error BasketMarketNotExitOnly(PoolId poolId);
 
     event ProtocolPolTreasuryAccrued(
         uint256 indexed basketId, address indexed sourcePoolAsset, address indexed rewardAsset, uint256 amount
@@ -45,6 +49,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         uint256 constituentReleased,
         uint256 basketTokensBurned
     );
+    event BasketMarketUnwound(PoolId indexed poolId);
 
     struct TreasuryAccrual {
         uint256 basketId;
@@ -64,13 +69,16 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         address basketToken = configured.token;
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(stored.key.hooks));
         PoolId poolId = stored.key.toId();
         if (hook.poolDecommissioned(poolId)) revert BasketLiquidityAlreadyUnwound(basketId, asset);
         uint256 activePositions = LibProtocolPools.protocolPoolStorage().activePolPositionCount[poolId];
         if (activePositions != 0) revert ActiveProtocolPolPositions(poolId, activePositions);
         _stopRangeGauge(ls, stored.key);
         hook.decommissionPool(stored.key);
+        if (LibBasketMarkets.marketStorage().markets[poolId].lifecycle != LibBasketMarkets.Lifecycle.None) {
+            LibBasketMarkets.transition(poolId, LibBasketMarkets.Lifecycle.Decommissioned);
+        }
         _settleHookAsset(hook, stored.key, poolId, stored.key.currency0);
         _settleHookAsset(hook, stored.key, poolId, stored.key.currency1);
 
@@ -88,7 +96,56 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         emit BasketLiquidityUnwound(basketId, asset, poolId, constituent, basketTokens);
     }
 
-    function _settleHookAsset(IStaticsSwapFeeHook hook, PoolKey storage key, PoolId poolId, Currency currency) private {
+    /// @notice Retire one independent market after either restricted currency becomes exit-only.
+    /// User positions and historical claims are not relocated or deleted.
+    function unwindBasketMarket(PoolId poolId) external nonReentrant {
+        LibBasketMarkets.Market storage market = LibBasketMarkets.requireMarket(poolId);
+        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
+        PoolKey memory key = market.key;
+        if (PoolId.unwrap(ls.canonicalPools[market.basketId][market.basketAsset].key.toId()) == PoolId.unwrap(poolId)) {
+            revert IndependentMarketRequired(poolId);
+        }
+        address token0 = Currency.unwrap(key.currency0);
+        address token1 = Currency.unwrap(key.currency1);
+        if (!_currencyExitOnly(token0) && !_currencyExitOnly(token1)) revert BasketMarketNotExitOnly(poolId);
+        if (market.lifecycle == LibBasketMarkets.Lifecycle.Decommissioned) {
+            revert LibBasketMarkets.BasketMarketNotActive(poolId);
+        }
+        uint256 count = LibProtocolPools.protocolPoolStorage().activePolPositionCount[poolId];
+        if (count != 0) revert ActiveProtocolPolPositions(poolId, count);
+        _stopRangeGauge(ls, key);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(key.hooks));
+        hook.decommissionPool(key);
+        LibBasketMarkets.transition(poolId, LibBasketMarkets.Lifecycle.Decommissioned);
+        _settleHookAsset(hook, key, poolId, key.currency0);
+        _settleHookAsset(hook, key, poolId, key.currency1);
+        _recoverMarketCurrency(poolId, token0, token1);
+        _recoverMarketCurrency(poolId, token1, token0);
+        LibProtocolPools.protocolPoolStorage().polDecommissionFinalized[poolId] = true;
+        emit BasketMarketUnwound(poolId);
+    }
+
+    function _currencyExitOnly(address token) private view returns (bool) {
+        uint256 idPlusOne = LibRestrictedBasket.restrictedStorage().basketIds[token];
+        return idPlusOne != 0
+            && LibBasket.basketStorage().baskets[idPlusOne - 1].status == IStaticsBasket.BasketStatus.ExitOnly;
+    }
+
+    function _recoverMarketCurrency(PoolId poolId, address token, address paired) private {
+        bytes32 account = LibCustody.protocolPolAccount(PoolId.unwrap(poolId));
+        uint256 amount = LibCustody.accountReserved(account, token);
+        if (amount == 0) return;
+        uint256 idPlusOne = LibRestrictedBasket.restrictedStorage().basketIds[token];
+        if (idPlusOne != 0) {
+            LibCustody.release(account, token, amount);
+            _burnPolBasketTokens(_basket(idPlusOne - 1), idPlusOne - 1, paired, amount);
+        } else {
+            LibCustody.moveReservation(account, LibCustody.feeAccount(), token, amount);
+            LibGlobalRewards.accrueReservedTreasuryFee(token, amount);
+        }
+    }
+
+    function _settleHookAsset(IStaticsSwapFeeHook hook, PoolKey memory key, PoolId poolId, Currency currency) private {
         address token = Currency.unwrap(currency);
         // Distribution settlement can reclassify an ineligible basket-staker share into POL.
         // Normalize and accrue revenue first so the following POL drain includes that final amount.
@@ -161,7 +218,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         if (address(stored.key.hooks) == address(0)) revert CanonicalPoolNotConfigured(basketId, asset);
     }
 
-    function _stopRangeGauge(LibBasketLiquidity.LiquidityStorage storage ls, PoolKey storage key) private {
+    function _stopRangeGauge(LibBasketLiquidity.LiquidityStorage storage ls, PoolKey memory key) private {
         PoolId poolId = key.toId();
         (, int24 liveTick,,) = IPoolManager(ls.poolManager).getSlot0(poolId);
         uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);

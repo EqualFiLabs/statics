@@ -195,12 +195,12 @@ contract RangeGaugeFacet is ReentrancyGuard {
                 && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
         ) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
 
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (address(key.hooks) != ls.hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        address hook = LibProtocolPools.publicHook(poolId);
+        if (address(key.hooks) != hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
         if (!gauge.initialized) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         if (gauge.stopped) revert IStaticsRangeGauge.GaugeStopped(poolId);
-        if (IStaticsSwapFeeHook(ls.hook).poolDecommissioned(poolId)) {
+        if (IStaticsSwapFeeHook(hook).poolDecommissioned(poolId)) {
             revert IStaticsRangeGauge.PublicPoolDecommissioned(poolId);
         }
     }

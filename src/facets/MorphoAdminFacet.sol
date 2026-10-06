@@ -9,6 +9,8 @@ import {LibGenesisIntegration} from "../libraries/LibGenesisIntegration.sol";
 import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
+import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBasketToken.sol";
 
 contract MorphoAdminFacet {
     error InvalidCollateralKind();
@@ -62,6 +64,12 @@ contract MorphoAdminFacet {
                 || IMorphoBlue(ms.morpho).market(MorphoMarketId.wrap(id)).lastUpdate == 0
         ) revert InvalidMarketParameters(id);
         ms.markets[id] = LibMorpho.MarketConfig(params, kind, mode, basketId, true);
+        if (LibRestrictedBasket.isRestricted(params.collateralToken)) {
+            IStaticsRestrictedBasketToken token = IStaticsRestrictedBasketToken(params.collateralToken);
+            address configured = token.morpho();
+            if (configured == address(0)) token.configureMorpho(ms.morpho);
+            else if (configured != ms.morpho) revert LibMorpho.InvalidMorphoContract(configured);
+        }
         emit IStaticsMorpho.MorphoMarketRegistered(id, params.collateralToken, kind, basketId, mode);
     }
 

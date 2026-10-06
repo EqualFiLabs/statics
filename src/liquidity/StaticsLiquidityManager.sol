@@ -14,6 +14,7 @@ import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionMa
 import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
+import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 
 interface IRangeGaugeBindingView {
     function posmBinding(uint256 posmTokenId) external view returns (bytes32 binding);
@@ -441,7 +442,18 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         if (amount == 0) return (0, 0);
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
-        IERC20(token).safeTransfer(receiver, amount);
+        bool restricted;
+        // Older Diamonds have no identification selector; V1 transfers retain their existing path.
+        try IStaticsBasketSettlement(staticsDiamond).isRestrictedBasketToken(token) returns (bool identified) {
+            restricted = identified;
+        } catch {}
+        if (restricted) {
+            IERC20(token).forceApprove(staticsDiamond, amount);
+            IStaticsBasketSettlement(staticsDiamond).settleBasketManagerDelivery(token, receiver, amount);
+            IERC20(token).forceApprove(staticsDiamond, 0);
+        } else {
+            IERC20(token).safeTransfer(receiver, amount);
+        }
         uint256 balanceAfter = IERC20(token).balanceOf(address(this));
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
         spent = balanceBefore > balanceAfter ? balanceBefore - balanceAfter : 0;

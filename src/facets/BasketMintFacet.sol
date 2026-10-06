@@ -16,6 +16,26 @@ import {LibPosition} from "../position/LibPosition.sol";
 contract BasketMintFacet is ReentrancyGuard {
     error BasketNotFound(uint256 basketId);
     error InvalidReceiver();
+    error OnlyDiamondSelf(address caller);
+    error InvalidPoolLaunchParameters();
+
+    /// @dev Unchanged launch selector; share mint code here instead of duplicating it in the liquidity facet.
+    function mintBasketLaunch(
+        uint256 basketId,
+        address payer,
+        uint256 basketShares,
+        uint256[] calldata assetAmounts,
+        uint256[] calldata maxAmountsIn
+    ) external {
+        if (msg.sender != address(this)) revert OnlyDiamondSelf(msg.sender);
+        uint256 length = assetAmounts.length;
+        if (maxAmountsIn.length != length) revert InvalidPoolLaunchParameters();
+        uint256[] memory mintMaximums = new uint256[](length);
+        for (uint256 i; i < length; ++i) {
+            mintMaximums[i] = maxAmountsIn[i] - assetAmounts[i];
+        }
+        LibBasketMint.mintFromPayer(basketId, basketShares, payer, address(this), mintMaximums);
+    }
 
     function mint(uint256 basketId, uint256 shares, address receiver, uint256[] calldata maxAmountsIn)
         external

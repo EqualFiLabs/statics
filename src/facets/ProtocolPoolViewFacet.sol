@@ -18,7 +18,8 @@ contract ProtocolPoolViewFacet {
         (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset) =
             LibProtocolPools.resolve(poolId);
         bool registered = kind != IStaticsProtocolPools.ProtocolPoolKind.None;
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(_liquidityStorage().hook);
+        _liquidityStorage();
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(key.hooks));
         bool permissioned = kind == IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral;
         pool.poolId = poolId;
         pool.key = key;
@@ -112,7 +113,7 @@ contract ProtocolPoolViewFacet {
             revert PublicProtocolPoolRequired(poolId);
         }
         IStaticsSwapFeeHook.PoolFeeRate memory stored =
-            IStaticsSwapFeeHook(_liquidityStorage().hook).poolFeeRate(poolId);
+            IStaticsSwapFeeHook(LibProtocolPools.publicHook(poolId)).poolFeeRate(poolId);
         feeRate = IStaticsProtocolPools.PoolFeeRateView({
             inputFeeBps: stored.inputFeeBps, outputFeeBps: stored.outputFeeBps, overridden: stored.overridden
         });

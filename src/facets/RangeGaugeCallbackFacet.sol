@@ -13,11 +13,13 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsMarketObservations} from "../interfaces/IStaticsMarketObservations.sol";
 import {IStaticsSwapCallback} from "../interfaces/IStaticsSwapCallback.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 import {LibMarketTape} from "../libraries/LibMarketTape.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
+import {LibSwapRewardSources} from "../libraries/LibSwapRewardSources.sol";
 
 /// @notice Swap-critical dispatcher for canonical market accounting and public range topology.
 /// @dev Ordinary swaps avoid routing work. A managed-boundary crossing performs one bounded
@@ -74,8 +76,13 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
     function _crystallizeStakerFees(PoolKey memory key, uint256 packed) private {
         uint256 amount0 = uint128(packed);
         uint256 amount1 = uint128(packed >> 128);
-        if (amount0 != 0) LibGlobalRewards.crystallizeUnfundedSwapFee(Currency.unwrap(key.currency0), amount0);
-        if (amount1 != 0) LibGlobalRewards.crystallizeUnfundedSwapFee(Currency.unwrap(key.currency1), amount1);
+        if (amount0 != 0) _crystallize(Currency.unwrap(key.currency0), amount0);
+        if (amount1 != 0) _crystallize(Currency.unwrap(key.currency1), amount1);
+    }
+
+    function _crystallize(address asset, uint256 amount) private {
+        LibSwapRewardSources.record(asset, msg.sender, amount);
+        LibGlobalRewards.crystallizeUnfundedSwapFee(asset, amount);
     }
 
     function _recordAuthenticatedSwap(PoolId poolId, BalanceDelta poolDelta, uint256 staticsFeesPacked, uint8 flags)
@@ -88,6 +95,10 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
         if (!installed) revert LiquidityIntegrationNotInstalled(state.permissioned);
 
         address expectedHook = state.permissioned ? ls.permissionedHook : ls.hook;
+        if (!state.permissioned) {
+            LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+            if (market.lifecycle != LibBasketMarkets.Lifecycle.None) expectedHook = address(market.key.hooks);
+        }
         if (msg.sender != expectedHook) revert OnlyInstalledSwapHook(msg.sender, expectedHook);
 
         IStaticsProtocolPools.ProtocolPoolKind kind;

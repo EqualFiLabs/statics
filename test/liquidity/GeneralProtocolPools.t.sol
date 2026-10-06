@@ -9,7 +9,6 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ProtocolPoolCreationFacet} from "../../src/facets/ProtocolPoolCreationFacet.sol";
 import {ProtocolPoolMaintenanceFacet} from "../../src/facets/ProtocolPoolMaintenanceFacet.sol";
-import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
@@ -491,17 +490,11 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         vm.stopPrank();
     }
 
-    function testCanonicalCollisionRejected() public {
-        (uint256 basketId, address basketToken) = _createDefaultBasket(0, 0);
-        IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
-            basketLiquidity.canonicalPool(basketId, address(assetA));
+    function testRestrictedBasketCannotUseGeneralHook() public {
+        (, address basketToken) = _createDefaultBasket(0, 0);
         IStaticsProtocolPools.CreatePoolParams memory params = _params(basketToken, address(assetA), alice);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                LibProtocolPools.ProtocolPoolAlreadyRegistered.selector,
-                canonical.poolId,
-                IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
-            )
+            abi.encodeWithSelector(ProtocolPoolCreationFacet.RestrictedBasketRequiresBasketHook.selector, basketToken)
         );
         pools.createPool(params, "");
     }

@@ -6,6 +6,9 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {MorphoMarketId, MorphoMarketParams} from "../../src/interfaces/IMorphoBlue.sol";
 import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
+import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
+import {StaticsBasketToken} from "../../src/tokens/StaticsBasketToken.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
@@ -25,6 +28,37 @@ import {MockERC20, MockFeeOnTransferERC20} from "../mocks/MockERC20.sol";
 import {MockMorphoBlue} from "../mocks/MockMorphoBlue.sol";
 
 contract MorphoGenesisHarnessFacet {
+    /// @dev Recreate a pre-upgrade V1 definition. Legacy surplus deposits remain possible; new tokens reject them.
+    /// Minting, launch POL, collateral deployment, withdrawal and recovery still execute their real protocol flows.
+    function launchLegacyBasketFixture(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maximums
+    ) external returns (uint256 id, address token) {
+        LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
+        id = bs.basketCount++;
+        token = address(new StaticsBasketToken(params.name, params.symbol, address(this), id));
+        LibBasket.Basket storage configured = bs.baskets[id];
+        configured.token = token;
+        configured.creator = msg.sender;
+        configured.assets = params.assets;
+        configured.bundleAmounts = params.bundleAmounts;
+        configured.flashFeeBps = params.flashFeeBps;
+        configured.originationFeeBps = params.originationFeeBps;
+        configured.extensionFeeBps = params.extensionFeeBps;
+        configured.ltvBps = params.ltvBps;
+        configured.recoveryPenaltyBps = params.recoveryPenaltyBps;
+        configured.loanDuration = params.loanDuration;
+        for (uint256 i; i < params.mintFeeTiers.length; ++i) {
+            configured.mintFeeTiers.push(params.mintFeeTiers[i]);
+        }
+        for (uint256 i; i < params.redemptionFeeTiers.length; ++i) {
+            configured.redemptionFeeTiers.push(params.redemptionFeeTiers[i]);
+        }
+        bs.basketIds[token] = id + 1;
+        IStaticsBasketLaunchModule(address(this)).launchBasketPools(id, msg.sender, pools, maximums);
+    }
+
     function seedGenesisIntegration(bool initialized, uint256 totalWeight) external {
         LibGenesisIntegration.GenesisStorage storage gs = LibGenesisIntegration.genesisStorage();
         gs.initialized = initialized;
@@ -119,12 +153,13 @@ contract MorphoCollateralTest is StaticsTestBase {
         morphoApi.initializeMorphoIntegration(address(morphoBlue), address(usdStx), 500);
         usdStx.mint(address(morphoBlue), 1_000_000 ether);
         MorphoGenesisHarnessFacet implementation = new MorphoGenesisHarnessFacet();
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](6);
         selectors[0] = MorphoGenesisHarnessFacet.seedGenesisIntegration.selector;
         selectors[1] = MorphoGenesisHarnessFacet.morphoGenesisBook.selector;
         selectors[2] = MorphoGenesisHarnessFacet.accrueGlobalFee.selector;
         selectors[3] = MorphoGenesisHarnessFacet.accrueBasketReward.selector;
         selectors[4] = MorphoGenesisHarnessFacet.rawMorphoTracking.selector;
+        selectors[5] = MorphoGenesisHarnessFacet.launchLegacyBasketFixture.selector;
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
         cut[0] = IDiamondCut.FacetCut({
             facetAddress: address(implementation), action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
@@ -261,7 +296,7 @@ contract MorphoCollateralTest is StaticsTestBase {
     }
 
     function testUntrackedSurplusCanOnlyBeWithdrawnAboveTrackedCollateral() public {
-        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        (uint256 basketId, address token) = _createLegacyMorphoBasket();
         uint256 positionId = _mintBasketPosition(basketId, 5 ether);
         bytes32 marketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
         vm.prank(alice);
@@ -308,7 +343,7 @@ contract MorphoCollateralTest is StaticsTestBase {
     }
 
     function testUntrackedSurplusPreventsPositionCloseUntilWithdrawn() public {
-        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        (uint256 basketId, address token) = _createLegacyMorphoBasket();
         uint256 positionId = _mintBasketPosition(basketId, 5 ether);
         bytes32 marketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
         vm.prank(alice);
@@ -331,7 +366,7 @@ contract MorphoCollateralTest is StaticsTestBase {
     }
 
     function testHistoricalMarketSurplusPreventsPositionCloseAfterLegDeactivation() public {
-        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        (uint256 basketId, address token) = _createLegacyMorphoBasket();
         uint256 positionId = _mintBasketPosition(basketId, 5 ether);
         bytes32 marketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
         vm.startPrank(alice);
@@ -404,7 +439,7 @@ contract MorphoCollateralTest is StaticsTestBase {
     }
 
     function testFinalOwnerCanWithdrawNeverTrackedRegisteredCollateralAfterClose() public {
-        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        (uint256 basketId, address token) = _createLegacyMorphoBasket();
         uint256 positionId = _mintBasketPosition(basketId, 1 ether);
         bytes32 trackedMarketId = _registerMarket(token, IStaticsMorpho.CollateralKind.Basket, basketId);
 
@@ -810,7 +845,7 @@ contract MorphoCollateralTest is StaticsTestBase {
         private
         returns (ClosedMorphoRecoveryScenario memory scenario)
     {
-        (uint256 basketId, address collateralToken) = _createDefaultBasket(0, 0);
+        (uint256 basketId, address collateralToken) = _createLegacyMorphoBasket();
         scenario.positionId = _mintBasketPosition(basketId, 1 ether);
         scenario.marketId = _registerMarket(collateralToken, IStaticsMorpho.CollateralKind.Basket, basketId);
         scenario.collateralToken = collateralToken;
@@ -833,6 +868,14 @@ contract MorphoCollateralTest is StaticsTestBase {
         vm.stopPrank();
 
         _assertClosedMorphoTrackingInactive(scenario, redeposited);
+    }
+
+    function _createLegacyMorphoBasket() private returns (uint256 id, address token) {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, alice);
+        vm.prank(alice);
+        return genesisHarness.launchLegacyBasketFixture(params, pools, maximums);
     }
 
     function _assertClosedMorphoTrackingInactive(

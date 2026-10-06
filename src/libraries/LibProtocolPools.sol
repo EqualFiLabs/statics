@@ -7,6 +7,7 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibBasketLiquidity} from "./LibBasketLiquidity.sol";
 import {LibPermissionedPools} from "./LibPermissionedPools.sol";
+import {LibBasketMarkets} from "./LibBasketMarkets.sol";
 
 /// @notice Normalized protocol-pool registry resolving both basket canonical and general pools.
 /// @dev Uses a fresh namespaced storage version so the layout cannot be confused with the replaced
@@ -71,6 +72,16 @@ library LibProtocolPools {
         view
         returns (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId, address basketAsset)
     {
+        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+        if (market.lifecycle != LibBasketMarkets.Lifecycle.None) {
+            return
+                (
+                    IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical,
+                    market.key,
+                    market.basketId,
+                    market.basketAsset
+                );
+        }
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         LibBasketLiquidity.PoolAssociation storage association = ls.poolAssociations[poolId];
         if (association.associated) {
@@ -101,6 +112,8 @@ library LibProtocolPools {
     /// stored general-pool creator. Downstream fee routing consumes this rather than duplicating
     /// pool-class-specific lookups.
     function creatorOf(PoolId poolId) internal view returns (address creator) {
+        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+        if (market.lifecycle != LibBasketMarkets.Lifecycle.None) return market.creator;
         (IStaticsProtocolPools.ProtocolPoolKind kind,, uint256 basketId,) = resolve(poolId);
         if (kind == IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical) {
             return LibBasket.basketStorage().baskets[basketId].creator;
@@ -133,5 +146,12 @@ library LibProtocolPools {
     function generalPool(PoolId poolId) internal view returns (GeneralPool storage pool) {
         pool = protocolPoolStorage().generalPools[poolId];
         if (!pool.registered) revert GeneralPoolNotRegistered(poolId);
+    }
+
+    function publicHook(PoolId poolId) internal view returns (address) {
+        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+        return market.lifecycle == LibBasketMarkets.Lifecycle.None
+            ? LibBasketLiquidity.liquidityStorage().hook
+            : address(market.key.hooks);
     }
 }

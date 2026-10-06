@@ -20,6 +20,7 @@ import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 
 /// @notice Exit, claim, forfeiture, recovery, and final reconciliation for public range gauges.
 contract RangeGaugeLivenessFacet is ReentrancyGuard {
@@ -48,6 +49,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         _synchronizeAndSettle(poolId, key, leg);
         uint256 posmTokenId = leg.posmTokenId;
         address receiver = IERC721(address(this)).ownerOf(positionId);
+        LibBasketManagerSettlement.begin(key, leg.manager, receiver);
         IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(leg.manager)
             .exitManagedPosition(
                 IStaticsLiquidityManager.ManagedLiquidityRequest({
@@ -60,6 +62,7 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
                 })
             );
 
+        LibBasketManagerSettlement.end();
         LibRangeGauge.unregisterPositionRange(poolId, leg.tickLower, leg.tickUpper, key.tickSpacing, leg.liquidity);
         LibRangeGauge.unbindPosm(posmTokenId, positionId, poolId);
         LibRangeGauge.GaugePool storage gauge = LibRangeGauge.rangeGaugeStorage().gauges[poolId];
@@ -281,8 +284,9 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
             kind != IStaticsProtocolPools.ProtocolPoolKind.General
                 && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
         ) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (address(registeredKey.hooks) != ls.hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        if (address(registeredKey.hooks) != LibProtocolPools.publicHook(poolId)) {
+            revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        }
         if (!LibRangeGauge.rangeGaugeStorage().gauges[poolId].initialized) {
             revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         }

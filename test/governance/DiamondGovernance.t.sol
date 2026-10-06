@@ -24,15 +24,18 @@ import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {StaticsDiamond} from "../../src/diamond/StaticsDiamond.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
+import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
 import {FeeRouterFacet} from "../../src/dollar/periphery/facets/FeeRouterFacet.sol";
 import {PairingVaultFacet} from "../../src/dollar/periphery/facets/PairingVaultFacet.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "../helpers/BasketFactoryTestTools.sol";
 
 contract VersionFacet {
     function version() external pure returns (uint256) {
@@ -40,7 +43,7 @@ contract VersionFacet {
     }
 }
 
-contract DiamondGovernanceTest is Test {
+contract DiamondGovernanceTest is BasketFactoryTestTools {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -59,6 +62,7 @@ contract DiamondGovernanceTest is Test {
 
     StaticsDiamond internal diamond;
     StaticsTimelock internal timelock;
+    StaticsBasketFactory internal basketFactory;
 
     function setUp() public {
         DeployStatics deployer = new DeployStatics();
@@ -81,7 +85,7 @@ contract DiamondGovernanceTest is Test {
 
     function testExposesStandardLoupeAndOwnership() public view {
         IDiamondLoupe loupe = IDiamondLoupe(address(diamond));
-        assertEq(loupe.facetAddresses().length, 53);
+        assertEq(loupe.facetAddresses().length, 57);
         assertEq(loupe.facetAddress(IDiamondCut.diamondCut.selector), loupe.facetAddresses()[0]);
         assertEq(IERC173(address(diamond)).owner(), address(timelock));
         assertTrue(IERC165(address(diamond)).supportsInterface(type(IDiamondCut).interfaceId));
@@ -433,6 +437,7 @@ contract DiamondGovernanceTest is Test {
     }
 
     function _createBasket() private returns (uint256 basketId) {
+        _ensureTestBasketSalts(basketFactory, 1);
         address[] memory assets = new address[](1);
         MockERC20 constituent = new MockERC20("Constituent", "C", 18);
         assets[0] = address(constituent);
@@ -499,6 +504,12 @@ contract DiamondGovernanceTest is Test {
             abi.encodeCall(IStaticsBasketLiquidity.installLiquidityManager, (address(manager))),
             "install basket liquidity manager"
         );
+        basketFactory = _deployTestBasketFactory(address(diamond), poolManager, hook);
+        _executeThroughTimelock(
+            abi.encodeCall(BasketPreparationFacet.installBasketFactory, (address(basketFactory))),
+            "install restricted basket factory"
+        );
+        _ensureTestBasketSalts(basketFactory, 1);
     }
 
     function _cut(address facet, bytes4[] memory selectors) internal pure returns (IDiamondCut.FacetCut memory) {

@@ -20,12 +20,16 @@ contract RangeGaugeGasHarness is RangeGaugeCallbackHarness, MarketTapeObservatio
 
 contract RangeGaugeGasTest is Test {
     uint256 private constant REVIEWED_HOOK_BASELINE = 17_081;
-    uint256 private constant MANAGED_POL_PUBLIC_HOOK_RUNTIME = 17_081;
+    // Reviewed foundation runtime: shared fee lookup factoring supports immutable per-pool hooks.
+    uint256 private constant MANAGED_POL_PUBLIC_HOOK_RUNTIME = 16_966;
     uint256 private constant MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME = 15_576;
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
     uint256 private constant MIN_HOOK_HEADROOM = 256;
     uint256 private constant MIN_POSITION_FACET_HEADROOM = 1_024;
-    uint256 private constant MAX_NO_BOUNDARY_CALLBACK_GAS = 100_000;
+    // Per-pool callback authentication now reads the permanent market lifecycle before resolving
+    // the legacy/general hook. Reviewed gas: 88,940 stationary / 101,462 moving without a boundary.
+    // Retain <3.5% headroom for this narrow path; traversal limits below remain unchanged.
+    uint256 private constant MAX_NO_BOUNDARY_CALLBACK_GAS = 105_000;
     uint256 private constant MAX_SPARSE_ONE_BOUNDARY_CALLBACK_GAS = 150_000;
     uint256 private constant MAX_128_BOUNDARY_CALLBACK_GAS = 8_000_000;
     uint256 private constant MAX_128_FIVE_STREAM_CALLBACK_GAS = 16_000_000;
@@ -51,7 +55,7 @@ contract RangeGaugeGasTest is Test {
         assertLe(runtimeSize, EIP170_RUNTIME_LIMIT - MIN_HOOK_HEADROOM);
     }
 
-    /// @dev The granular event is emitted by the Diamond and must not alter either immutable hook.
+    /// @dev Pins the reviewed default no-IR foundation artifacts, including the shared fee refactor.
     function test_ReviewedHookRuntimesRemainPinned() public {
         uint256 publicRuntime = vm.getDeployedCode("src/liquidity/StaticsSwapFeeHook.sol:StaticsSwapFeeHook").length;
         uint256 permissionedRuntime =

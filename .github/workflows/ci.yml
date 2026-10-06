@@ -32,7 +32,8 @@ jobs:
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -81,6 +82,7 @@ jobs:
           - protocol-pol
           - phase-one
           - range-gauges
+          - restricted-baskets
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,7 +98,8 @@ jobs:
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
             lib/v4-periphery \
-            verification/doppler/vendor/doppler
+            verification/doppler/vendor/doppler \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -200,7 +203,8 @@ jobs:
             lib/forge-std \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
@@ -256,7 +260,8 @@ jobs:
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
