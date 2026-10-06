@@ -40,7 +40,10 @@ import {IStaticsPosition} from "src/interfaces/IStaticsPosition.sol";
 import {LibPosition} from "src/position/LibPosition.sol";
 import {StaticsSwapFeeHook} from "src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "src/liquidity/StaticsLiquidityManager.sol";
+import {StaticsBasketFactory} from "src/liquidity/StaticsBasketFactory.sol";
+import {BasketPreparationFacet} from "src/facets/BasketPreparationFacet.sol";
 import {MockERC20, MockReentrantERC20, MockSenderExtraFeeERC20} from "test/mocks/MockERC20.sol";
+import {BasketFactoryTestTools} from "test/helpers/BasketFactoryTestTools.sol";
 
 struct UnifiedHandlerConfig {
     address diamond;
@@ -574,7 +577,7 @@ contract UnifiedProtocolHandler is Test, IERC721Receiver, IERC1155Receiver {
     }
 }
 
-contract UnifiedProtocolInvariantTest is StdInvariant, Test {
+contract UnifiedProtocolInvariantTest is StdInvariant, BasketFactoryTestTools {
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
         | Hooks.BEFORE_DONATE_FLAG;
@@ -600,6 +603,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     MockReentrantERC20 internal reentrant;
     MockETHUSDOracle internal peggedOracle;
     UnifiedProtocolHandler internal handler;
+    StaticsBasketFactory internal basketFactory;
 
     uint256 internal firstBasketId;
     uint256 internal secondBasketId;
@@ -880,6 +884,7 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         uint256 senderExtraBundle,
         uint256 reentrantBundle
     ) private returns (uint256 basketId, address basketToken) {
+        _ensureTestBasketSalts(basketFactory, 3);
         address[] memory assets = new address[](3);
         assets[0] = address(weth);
         assets[1] = address(senderExtra);
@@ -943,6 +948,8 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
         );
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
+        basketFactory = _deployTestBasketFactory(deployment.diamond, poolManager, hook);
+        BasketPreparationFacet(deployment.diamond).installBasketFactory(address(basketFactory));
     }
 
     receive() external payable {}
