@@ -376,8 +376,9 @@ library StaticsSelectors {
     }
 
     function basketCreation() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](1);
+        selectors = new bytes4[](2);
         selectors[0] = IStaticsBasket.createBasket.selector;
+        selectors[1] = IStaticsBasket.createBasketPrepared.selector;
     }
 
     function basketMint() internal pure returns (bytes4[] memory selectors) {

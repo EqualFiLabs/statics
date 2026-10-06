@@ -6,7 +6,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../interfaces/IStaticsBasketLaunchModule.sol";
-import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
+import {LibBasketDeployment} from "../libraries/LibBasketDeployment.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
+import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBasketToken.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
@@ -33,6 +36,27 @@ contract BasketCreationFacet is ReentrancyGuard {
         uint256[] calldata maxAmountsIn,
         uint256 launchDeadline
     ) external payable nonReentrant returns (uint256 basketId, address token) {
+        return _createBasket(params, pools, maxAmountsIn, launchDeadline, bytes32(0));
+    }
+
+    function createBasketPrepared(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline,
+        bytes32 preparationId
+    ) external payable nonReentrant returns (uint256 basketId, address token) {
+        if (preparationId == bytes32(0)) revert LibBasketDeployment.PreparationIntentMismatch();
+        return _createBasket(params, pools, maxAmountsIn, launchDeadline, preparationId);
+    }
+
+    function _createBasket(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 launchDeadline,
+        bytes32 preparationId
+    ) private returns (uint256 basketId, address token) {
         if (block.timestamp > launchDeadline) {
             revert LaunchDeadlineExpired(launchDeadline, block.timestamp);
         }
@@ -52,7 +76,7 @@ contract BasketCreationFacet is ReentrancyGuard {
 
         basketId = bs.basketCount;
         bs.basketCount = basketId + 1;
-        token = address(new StaticsBasketToken(params.name, params.symbol, address(this), basketId));
+        token = _deployBasket(params, pools, maxAmountsIn, launchDeadline, preparationId, basketId);
 
         {
             LibBasket.Basket storage created = bs.baskets[basketId];
@@ -75,7 +99,27 @@ contract BasketCreationFacet is ReentrancyGuard {
 
         uint256 basketShares =
             IStaticsBasketLaunchModule(address(this)).launchBasketPools(basketId, msg.sender, pools, maxAmountsIn);
+        delete LibBasketDeployment.deploymentStorage().launching[basketId];
         emit IStaticsBasket.BasketLaunched(basketId, token, msg.sender, basketShares, assetCount);
+    }
+
+    function _deployBasket(
+        IStaticsBasket.CreateBasketParams calldata params,
+        IStaticsBasket.PoolLaunchParams[] calldata pools,
+        uint256[] calldata maxAmountsIn,
+        uint256 deadline,
+        bytes32 preparationId,
+        uint256 basketId
+    ) private returns (address token) {
+        bytes32 configuration = LibBasketDeployment.configurationHash(params, pools, maxAmountsIn, deadline);
+        bytes32 prepared = LibBasketDeployment.begin(
+            preparationId, configuration, deadline, params.assets.length, msg.sender, msg.sender
+        );
+        token = LibBasketDeployment.factory().deployBasketToken(prepared, params.name, params.symbol, basketId);
+        LibRestrictedBasket.register(token, basketId);
+        LibBasketDeployment.deploymentStorage().launching[basketId] = prepared;
+        address morpho = LibMorpho.morphoStorage().morpho;
+        if (morpho != address(0)) IStaticsRestrictedBasketToken(token).configureMorpho(morpho);
     }
 
     function _emitBasketCreated(uint256 basketId, address token, IStaticsBasket.CreateBasketParams calldata params)
