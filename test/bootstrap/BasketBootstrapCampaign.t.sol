@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketDelegation} from "../../src/interfaces/IStaticsBasketDelegation.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
@@ -9,7 +10,7 @@ import {BasketBootstrapCampaign} from "../../src/bootstrap/BasketBootstrapCampai
 import {BasketBootstrapFactory} from "../../src/bootstrap/BasketBootstrapFactory.sol";
 import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
 import {PreparedBasketTestBase} from "../liquidity/PreparedBasketCreation.t.sol";
-import {MockERC20, MockFeeOnTransferERC20} from "../mocks/MockERC20.sol";
+import {MockERC20, MockFeeOnTransferERC20, MockReentrantERC20} from "../mocks/MockERC20.sol";
 
 abstract contract CampaignTestBase is PreparedBasketTestBase {
     uint256 internal constant CREATOR_KEY = 0xC0FFEE;
@@ -144,6 +145,25 @@ contract BasketBootstrapCampaignTest is CampaignTestBase {
         assertEq(project.balanceOf(bob), 100 ether);
     }
 
+    function testProjectTokenAuctionKeepsSupplyReceiptSeparateFromPaymentEscrow() public {
+        BasketBootstrapCampaign campaign = _campaign(_terms(true), keccak256("project auction"));
+        _fundPayment(campaign, 100 ether);
+        campaign.activateAuction(0);
+        project.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        project.approve(address(campaign), 1 ether);
+        uint256 beforeBalance = project.balanceOf(alice);
+        campaign.fill(0, 1 ether, 1 ether, alice, campaign.deadline());
+        vm.stopPrank();
+        (,, uint256 held,) = campaign.inventory(0);
+        assertEq(held, 1 ether);
+        assertEq(project.balanceOf(alice), beforeBalance);
+        assertEq(project.balanceOf(address(campaign)), held + campaign.freePayment() + campaign.reservedPayment());
+        vm.warp(campaign.deadline());
+        campaign.claimTerminalInventory();
+        assertEq(project.balanceOf(bob), 100 ether);
+    }
+
     function testFirmAuctionFragmentedFillsConserveFullCapEscrow() public {
         BasketBootstrapCampaign.Terms memory terms = _terms(false);
         terms.auctions[0] = BasketBootstrapCampaign.AuctionTerms(
@@ -258,9 +278,65 @@ contract BasketBootstrapCampaignTest is CampaignTestBase {
         assertEq(taxed.balanceOf(address(campaign)), 0);
     }
 
+    function testHostileConstituentCannotReenterFunding() public {
+        BasketBootstrapCampaign.Terms memory terms = _terms(false);
+        MockReentrantERC20 hostile = new MockReentrantERC20();
+        terms.basket.assets[0] = address(hostile);
+        BasketBootstrapCampaign campaign = _campaign(terms, keccak256("reentrant"));
+        hostile.setCallback(alice, address(campaign), abi.encodeCall(BasketBootstrapCampaign.fund, (0, 1)));
+        hostile.mint(alice, 1 ether);
+        vm.startPrank(alice);
+        hostile.approve(address(campaign), 1 ether);
+        campaign.fund(0, 1 ether);
+        vm.stopPrank();
+        assertFalse(hostile.reentrySucceeded());
+        assertEq(bytes4(hostile.reentryResult()), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        (,, uint256 held,) = campaign.inventory(0);
+        assertEq(held, 1 ether);
+    }
+
     function testCampaignAndTypedFactoryFitDeploymentLimits() public view {
         assertLt(address(campaignFactory).code.length, 24577);
         assertLt(campaignFactory.codeStore0().code.length, 24577);
         assertLt(campaignFactory.codeStore1().code.length, 24577);
+    }
+}
+
+contract CampaignFragmentationTest is CampaignTestBase {
+    BasketBootstrapCampaign private fragmented;
+    uint256 private initialEscrow;
+
+    function setUp() public override {
+        super.setUp();
+        BasketBootstrapCampaign.Terms memory terms = _terms(false);
+        terms.auctions[0] = BasketBootstrapCampaign.AuctionTerms(
+            257, uint256(1e18) / 3, uint256(1e18) * 7 / 3, block.timestamp, terms.deadline, 10
+        );
+        fragmented = _campaign(terms, keccak256("fragmentation fuzz"));
+        uint256 missing = fragmented.deficit(0);
+        vm.startPrank(alice);
+        assetA.approve(address(fragmented), missing);
+        fragmented.fund(0, missing - 257);
+        vm.stopPrank();
+        initialEscrow = fragmented.capLiability(0, 257);
+        _fundPayment(fragmented, initialEscrow);
+        fragmented.activateAuction(0);
+    }
+
+    function testFuzzFragmentedFillsAndDirectFundingRemainSolvent(uint256 entropy) public {
+        vm.startPrank(alice);
+        for (uint256 i; i < 32; ++i) {
+            (, BasketBootstrapCampaign.Auction memory book) = fragmented.auction(0);
+            if (book.remaining == 0) break;
+            entropy = uint256(keccak256(abi.encode(entropy, i)));
+            uint256 amount = book.remaining <= 10 ? book.remaining : bound(entropy, 10, book.remaining);
+            if (entropy & 1 == 0) fragmented.fund(0, amount);
+            else fragmented.fill(0, amount, 0, alice, fragmented.deadline());
+            (, book) = fragmented.auction(0);
+            assertEq(book.reservedPayment, fragmented.capLiability(0, book.remaining));
+            assertEq(project.balanceOf(address(fragmented)), fragmented.freePayment() + fragmented.reservedPayment());
+            assertLe(book.paid + fragmented.reservedPayment(), initialEscrow);
+        }
+        vm.stopPrank();
     }
 }

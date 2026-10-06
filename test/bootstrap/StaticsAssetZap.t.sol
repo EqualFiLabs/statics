@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {WETH} from "solmate/src/tokens/WETH.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -9,9 +10,34 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {StaticsAssetZap} from "../../src/periphery/StaticsAssetZap.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {BasketBootstrapCampaign} from "../../src/bootstrap/BasketBootstrapCampaign.sol";
 import {CampaignTestBase} from "./BasketBootstrapCampaign.t.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
+import {MockERC20, MockReentrantERC20} from "../mocks/MockERC20.sol";
+
+contract ZapRefundAttacker {
+    address private target;
+    bytes private nestedCall;
+    bool public reentered;
+    bytes public reentryResult;
+    uint256 public refunds;
+
+    function mint(StaticsAssetZap zap, uint256 id, uint256[] calldata maximums, StaticsAssetZap.Route[] calldata routes)
+        external
+        payable
+    {
+        StaticsAssetZap.Input memory input =
+            StaticsAssetZap.Input(address(0), msg.value, address(this), block.timestamp + 1);
+        target = address(zap);
+        nestedCall = abi.encodeCall(StaticsAssetZap.mintBasket, (input, id, 1 ether, maximums, routes));
+        zap.mintBasket{value: msg.value}(input, id, 1 ether, maximums, routes);
+    }
+
+    receive() external payable {
+        refunds += msg.value;
+        (reentered, reentryResult) = target.call(nestedCall);
+    }
+}
 
 contract StaticsAssetZapTest is CampaignTestBase {
     WETH private wrapped;
@@ -131,6 +157,48 @@ contract StaticsAssetZapTest is CampaignTestBase {
         assertEq(IERC20(token).balanceOf(alice), 1 ether);
     }
 
+    function testHostileTokenCannotReenterDuringPoolSettlementOrRefund() public {
+        (uint256 id, address token) = _createDefaultBasket(0, 0);
+        MockReentrantERC20 hostile = new MockReentrantERC20();
+        StaticsAssetZap.Route[] memory routes = new StaticsAssetZap.Route[](2);
+        for (uint256 i; i < 2; ++i) {
+            address asset = i == 0 ? address(assetA) : address(assetB);
+            routes[i].currencies = new address[](2);
+            routes[i].currencies[0] = address(hostile);
+            routes[i].currencies[1] = asset;
+            routes[i].pools = new PoolKey[](1);
+            routes[i].pools[0] = _seed(address(hostile), asset);
+            routes[i].maximumInput = 25 ether;
+        }
+        uint256[] memory quote = baskets.quoteMint(id, 1 ether);
+        StaticsAssetZap.Input memory input = StaticsAssetZap.Input(
+            address(hostile), 25 ether, alice, block.timestamp + 1
+        );
+        hostile.setCallback(
+            address(zap), address(zap), abi.encodeCall(StaticsAssetZap.mintBasket, (input, id, 1 ether, quote, routes))
+        );
+        hostile.mint(alice, 25 ether);
+        vm.prank(alice);
+        hostile.approve(address(zap), 25 ether);
+        vm.prank(alice);
+        zap.mintBasket(input, id, 1 ether, quote, routes);
+        assertFalse(hostile.reentrySucceeded());
+        assertEq(bytes4(hostile.reentryResult()), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        assertEq(IERC20(token).balanceOf(alice), 1 ether);
+        assertEq(hostile.balanceOf(address(zap)), 0);
+    }
+
+    function testHostileNativeRefundReceiverCannotReenterCompletedMint() public {
+        (uint256 id, address token) = _createDefaultBasket(0, 0);
+        ZapRefundAttacker attacker = new ZapRefundAttacker();
+        attacker.mint{value: 25 ether}(zap, id, baskets.quoteMint(id, 1 ether), _routes(true));
+        assertGt(attacker.refunds(), 0);
+        assertFalse(attacker.reentered());
+        assertEq(bytes4(attacker.reentryResult()), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        assertEq(IERC20(token).balanceOf(address(attacker)), 1 ether);
+        assertEq(address(zap).balance, 0);
+    }
+
     function testRoundedZeroRequirementMintsThroughActualProtocol() public {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         params.bundleAmounts[0] = 1;
@@ -147,6 +215,112 @@ contract StaticsAssetZapTest is CampaignTestBase {
         zap.mintBasket(_input(false, 25 ether), id, 1, quote, _routes(false));
         assertEq(IERC20(token).balanceOf(alice), held + 1);
         assertEq(assetA.balanceOf(address(zap)), 0);
+    }
+
+    function _canonicalKey(uint256 id, address asset) private view returns (PoolKey memory) {
+        IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(id, asset);
+        return PoolKey(
+            Currency.wrap(pool.currency0),
+            Currency.wrap(pool.currency1),
+            pool.lpFee,
+            pool.tickSpacing,
+            IHooks(pool.hook)
+        );
+    }
+
+    function testRestrictedConstituentAndIntermediateUseActualBilateralHookDeltas() public {
+        (uint256 inner, address innerToken) = _createDefaultBasket(0, 0);
+        uint256[] memory innerQuote = baskets.quoteMint(inner, 20 ether);
+        _fundAndApprove(alice, innerQuote[0], innerQuote[1]);
+        vm.prank(alice);
+        baskets.mint(inner, 20 ether, alice, innerQuote);
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.assets[0] = innerToken;
+        bytes32[] memory tokens = new bytes32[](1);
+        tokens[0] = factory.saltFor(7);
+        factory.enqueueSalts(tokens, false);
+        bytes32[] memory hooks = new bytes32[](2);
+        uint88 next;
+        (hooks[0], next) = _mineTestHook(factory, uint88(uint256(hookSalts[1])) + 1);
+        (hooks[1],) = _mineTestHook(factory, next);
+        factory.enqueueSalts(hooks, true);
+        uint256[] memory maximums = new uint256[](2);
+        maximums[0] = 100 ether;
+        maximums[1] = 100 ether;
+        assetB.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        IERC20(innerToken).approve(address(diamond), 100 ether);
+        assetB.approve(address(diamond), 100 ether);
+        (uint256 outer, address outerToken) =
+            baskets.createBasket{value: 1 ether}(params, _defaultPoolLaunchParams(2), maximums, type(uint256).max);
+        vm.stopPrank();
+        StaticsAssetZap.Route[] memory routes = new StaticsAssetZap.Route[](2);
+        for (uint256 i; i < 2; ++i) {
+            routes[i].currencies = new address[](i + 2);
+            routes[i].pools = new PoolKey[](i + 1);
+            routes[i].currencies[0] = address(assetA);
+            routes[i].currencies[1] = innerToken;
+            routes[i].pools[0] = _canonicalKey(inner, address(assetA));
+            routes[i].maximumInput = 1 ether;
+        }
+        routes[1].currencies[2] = address(assetB);
+        routes[1].pools[1] = _canonicalKey(inner, address(assetB));
+        uint256[] memory quote = baskets.quoteMint(outer, 0.001 ether);
+        assetA.mint(alice, 1 ether);
+        vm.prank(alice);
+        assetA.approve(address(zap), 1 ether);
+        StaticsAssetZap.Input memory input = StaticsAssetZap.Input(address(assetA), 1 ether, alice, block.timestamp + 1);
+        vm.prank(alice);
+        uint256 spent = zap.mintBasket(input, outer, 0.001 ether, quote, routes);
+        assertGt(spent, 0);
+        assertEq(IERC20(outerToken).balanceOf(alice), 0.001 ether);
+        assertEq(IERC20(innerToken).balanceOf(address(zap)), 0);
+        assertEq(IERC20(innerToken).allowance(address(zap), address(diamond)), 0);
+    }
+
+    function testInputAsConstituentUsesZeroHopWithoutSpendingStoredBalances() public {
+        (uint256 id, address token) = _createDefaultBasket(0, 0);
+        uint256[] memory quote = baskets.quoteMint(id, 0.01 ether);
+        StaticsAssetZap.Route[] memory routes = new StaticsAssetZap.Route[](2);
+        routes[0].currencies = new address[](1);
+        routes[0].currencies[0] = address(assetA);
+        routes[0].pools = new PoolKey[](0);
+        routes[0].maximumInput = 1 ether;
+        routes[1].currencies = new address[](3);
+        routes[1].currencies[0] = address(assetA);
+        routes[1].currencies[1] = token;
+        routes[1].currencies[2] = address(assetB);
+        routes[1].pools = new PoolKey[](2);
+        routes[1].pools[0] = _canonicalKey(id, address(assetA));
+        routes[1].pools[1] = _canonicalKey(id, address(assetB));
+        routes[1].maximumInput = 1 ether;
+        assetA.mint(alice, 1 ether);
+        assetA.mint(address(zap), 5 ether);
+        vm.prank(alice);
+        assetA.approve(address(zap), 1 ether);
+        StaticsAssetZap.Input memory input = StaticsAssetZap.Input(address(assetA), 1 ether, alice, block.timestamp + 1);
+        vm.prank(alice);
+        uint256 spent = zap.mintBasket(input, id, 0.01 ether, quote, routes);
+        assertGt(spent, quote[0]);
+        assertEq(assetA.balanceOf(address(zap)), 5 ether);
+        assertEq(IERC20(token).balanceOf(alice), 0.01 ether);
+    }
+
+    event ZapGasMeasured(uint256 deploymentGas, uint256 runtimeBytes);
+
+    function testZapRetainsDeployableRuntimeAndMeasuresConstructorGas() public {
+        bytes memory initCode = bytes.concat(
+            vm.getCode("StaticsAssetZap.sol:StaticsAssetZap"),
+            abi.encode(address(diamond), address(wrapped), campaignFactory)
+        );
+        uint256 start = gasleft();
+        address deployed;
+        // Assembly CREATE avoids Foundry's dynamic-test-linking deployCode rewrite.
+        assembly ("memory-safe") { deployed := create(0, add(initCode, 32), mload(initCode)) }
+        uint256 used = start - gasleft();
+        assertTrue(deployed != address(0));
+        assertLt(deployed.code.length, 24577);
+        emit ZapGasMeasured(used, deployed.code.length);
     }
 
     function _purchases() private pure returns (StaticsAssetZap.Purchase[] memory orders) {

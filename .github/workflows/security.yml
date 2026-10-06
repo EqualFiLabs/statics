@@ -138,3 +138,6 @@ jobs:
       - name: Run managed-POL fork proof
         if: ${{ !cancelled() }}
         run: forge test --match-path test/liquidity/fork/RobinhoodStaticsLiquidityFork.t.sol -vv
+      - name: Run bootstrap exact-output zap fork proof
+        if: ${{ !cancelled() }}
+        run: forge test --match-path test/bootstrap/RobinhoodAssetZapFork.t.sol --match-test testPinnedRobinhoodV4Zap -vv
