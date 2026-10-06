@@ -9,6 +9,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {CurrencySettler} from "@uniswap/v4-core/test/utils/CurrencySettler.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
@@ -135,6 +136,7 @@ contract BasketMarketPolicy {
 
 contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
     using PoolIdLibrary for PoolKey;
+    using CurrencySettler for Currency;
     uint160 private constant MASK = 0x1fec;
     IPoolManager private manager;
     RestrictedMarketProtocol private protocol;
@@ -256,10 +258,108 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         manager.initialize(unregistered, uint160(1 << 96));
     }
 
-    function unlockCallback(bytes calldata) external returns (bytes memory) {
+    function testUnregisteredBoundaryTransfersFailButInternalNettingIsNotPoolGated() public {
+        PoolKey memory unregistered = _unregisteredPool();
+        vm.expectRevert();
+        router.modifyLiquidity(unregistered, _params(1 ether));
+        // This caller owns a real registered position, separate from the setup router's position.
+        manager.unlock(abi.encode(uint256(1), key));
+        manager.unlock(abi.encode(uint256(2), unregistered));
+        // A registered withdrawal can fund an internally netted unregistered addition.
+        // That is deliberately outside the ERC-20 boundary invariant, not a forbidden operation.
+        vm.expectRevert();
+        router.swap(
+            unregistered,
+            SwapParams(address(token) == Currency.unwrap(key.currency0), -int256(0.01 ether),
+                address(token) == Currency.unwrap(key.currency0)
+                    ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1)
+        );
+    }
+
+    function testRawPoolManagerClaimsCannotRedeemWithoutExactBoundaryAuthority() public {
+        manager.unlock(abi.encode(uint256(1), key));
+        manager.unlock(abi.encode(uint256(3), key));
+        uint256 claims = manager.balanceOf(address(this), uint256(uint160(address(token))));
+        assertGt(claims, 0);
+        uint256 beforeBalance = token.balanceOf(address(this));
+        vm.expectRevert();
+        manager.unlock(abi.encode(uint256(4), key));
+        assertEq(manager.balanceOf(address(this), uint256(uint160(address(token)))), claims);
+        assertEq(token.balanceOf(address(this)), beforeBalance);
+    }
+
+    function testMultipleUnlocksConsumeBudgetsWithoutAuthorizingUnrelatedIngress() public {
+        PoolKey memory unregistered = _unregisteredPool();
+        this.exerciseMultipleUnlocks(unregistered);
+    }
+
+    /// @dev One outer transaction tests transient consumption across separate unlocks.
+    function exerciseMultipleUnlocks(PoolKey calldata unregistered) external {
+        require(msg.sender == address(this));
+        manager.unlock(abi.encode(uint256(1), key));
+        (uint256 inbound, uint256 outbound) = token.settlementBudgets();
+        assertEq(inbound, 0);
+        assertEq(outbound, 0);
+        (bool success,) = address(manager).call(abi.encodeCall(IPoolManager.unlock, (abi.encode(uint256(1), unregistered))));
+        assertFalse(success);
+        manager.unlock(abi.encode(uint256(1), key));
+        (inbound, outbound) = token.settlementBudgets();
+        assertEq(inbound, 0);
+        assertEq(outbound, 0);
+    }
+
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager));
-        manager.donate(key, 1, 1, "");
+        if (data.length == 0) {
+            manager.donate(key, 1, 1, "");
+            return "";
+        }
+        (uint256 action, PoolKey memory target) = abi.decode(data, (uint256, PoolKey));
+        BalanceDelta delta;
+        if (action == 1) {
+            (delta,) = manager.modifyLiquidity(target, _params(1 ether), "");
+        } else if (action == 2) {
+            (delta,) = manager.modifyLiquidity(key, _params(-int256(1 ether)), "");
+            (BalanceDelta added,) = manager.modifyLiquidity(target, _params(0.5 ether), "");
+            delta = delta + added;
+        } else if (action == 3) {
+            (delta,) = manager.modifyLiquidity(key, _params(-int256(1 ether)), "");
+            key.currency0.take(manager, address(this), uint256(uint128(delta.amount0())), true);
+            key.currency1.take(manager, address(this), uint256(uint128(delta.amount1())), true);
+            return "";
+        } else if (action == 4) {
+            Currency currency = Currency.wrap(address(token));
+            uint256 claims = manager.balanceOf(address(this), currency.toId());
+            manager.burn(address(this), currency.toId(), claims);
+            manager.take(currency, address(this), claims);
+            return "";
+        } else {
+            revert();
+        }
+        _settleBoundary(key.currency0, delta.amount0());
+        _settleBoundary(key.currency1, delta.amount1());
+        if (action == 2) {
+            (, uint256 outbound) = token.settlementBudgets();
+            assertGt(outbound, 0); // Netted liquidity does not consume an ERC-20 boundary budget.
+            (bool success,) = address(manager).call(
+                abi.encodeCall(IPoolManager.take, (Currency.wrap(address(token)), address(this), outbound + 1))
+            );
+            assertFalse(success);
+            (, uint256 afterAttempt) = token.settlementBudgets();
+            assertEq(afterAttempt, outbound);
+        }
         return "";
+    }
+
+    function _unregisteredPool() private returns (PoolKey memory target) {
+        target = key;
+        target.hooks = IHooks(address(0));
+        manager.initialize(target, uint160(1 << 96));
+    }
+
+    function _settleBoundary(Currency currency, int128 delta) private {
+        if (delta < 0) currency.settle(manager, address(this), uint256(-int256(delta)), false);
+        if (delta > 0) currency.take(manager, address(this), uint256(uint128(delta)), false);
     }
 
     function testLiveDefaultPolicyAndPoolOverrideWithoutHookIteration() public {
