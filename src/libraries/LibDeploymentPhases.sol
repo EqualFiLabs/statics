@@ -20,6 +20,7 @@ import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
 import {IStaticsBasketLaunchPreview} from "../interfaces/IStaticsBasketLaunchPreview.sol";
 import {IStaticsBasketDelegation} from "../interfaces/IStaticsBasketDelegation.sol";
+import {IStaticsBootstrapSettlement} from "../interfaces/IStaticsBootstrapSettlement.sol";
 import {IStaticsBasketArbitrage} from "../interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
@@ -102,6 +103,7 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IStaticsBasketPreparation).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketLaunchPreview).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketDelegation).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBootstrapSettlement).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketMarkets).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketArbitrage).interfaceId] = true;
         ds.supportedInterfaces[

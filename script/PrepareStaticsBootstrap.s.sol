@@ -9,10 +9,20 @@ import {StaticsBasketFactory} from "../src/liquidity/StaticsBasketFactory.sol";
 import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketDelegation} from "../src/interfaces/IStaticsBasketDelegation.sol";
 import {IDiamondLoupe} from "../src/interfaces/IDiamondLoupe.sol";
+import {IStaticsBootstrapSettlement} from "../src/interfaces/IStaticsBootstrapSettlement.sol";
 
 /// @notice Explicit deployment helper; this script neither broadcasts nor changes Diamond configuration.
 contract PrepareStaticsBootstrap is Script {
     error InvalidBootstrapConfiguration();
+
+    /// @notice Construct the explicit governance call for the reviewed factory deployment; never execute it.
+    function factoryInstallationCall(BasketBootstrapFactory factory) external view returns (bytes memory) {
+        if (address(factory).code.length == 0) revert InvalidBootstrapConfiguration();
+        return abi.encodeCall(
+            IStaticsBootstrapSettlement.installBootstrapFactory,
+            (address(factory), address(factory).codehash, factory.creationCodeHash())
+        );
+    }
 
     function deployPeriphery(address diamond, address wrappedNative, bytes32 expectedWrappedRuntimeHash)
         public

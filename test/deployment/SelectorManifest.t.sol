@@ -9,6 +9,7 @@ import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPrep
 import {IStaticsBasketLaunchPreview} from "../../src/interfaces/IStaticsBasketLaunchPreview.sol";
 import {IStaticsBasketDelegation} from "../../src/interfaces/IStaticsBasketDelegation.sol";
 import {IStaticsBasketSettlement} from "../../src/interfaces/IStaticsBasketSettlement.sol";
+import {IStaticsBootstrapSettlement} from "../../src/interfaces/IStaticsBootstrapSettlement.sol";
 import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketArbitrage} from "../../src/interfaces/IStaticsBasketArbitrage.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
@@ -297,7 +298,7 @@ contract SelectorManifestTest is Test {
         expected[7] = IStaticsBasketDelegation.creationNonceUsed.selector;
         expected[8] = IStaticsBasketDelegation.invalidateCreationNonces.selector;
         _assertExact(StaticsSelectors.basketPreparation(), expected);
-        expected = new bytes4[](9);
+        expected = new bytes4[](13);
         expected[0] = IStaticsBasketSettlement.validateBasketPool.selector;
         expected[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
         expected[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
@@ -307,6 +308,10 @@ contract SelectorManifestTest is Test {
         expected[6] = IStaticsBasketArbitrage.settleBasketArbitrageInput.selector;
         expected[7] = IStaticsBasketArbitrage.settleBasketArbitrageOutput.selector;
         expected[8] = IStaticsBasketArbitrage.endBasketArbitrage.selector;
+        expected[9] = IStaticsBootstrapSettlement.installBootstrapFactory.selector;
+        expected[10] = IStaticsBootstrapSettlement.bootstrapFactoryApproved.selector;
+        expected[11] = IStaticsBootstrapSettlement.registerBootstrapCampaign.selector;
+        expected[12] = IStaticsBootstrapSettlement.settleBootstrapToken.selector;
         _assertExact(StaticsSelectors.basketSettlement(), expected);
         expected = new bytes4[](1);
         expected[0] = IStaticsBasketArbitrage.deployBasketArbitrageReceiver.selector;

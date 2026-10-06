@@ -310,7 +310,7 @@ contract StaticsAssetZap is IUnlockCallback, ReentrancyGuard {
         balances = new uint256[](assets.length);
         for (uint256 i; i < assets.length; ++i) {
             balances[i] = IERC20(assets[i]).balanceOf(address(this));
-            IERC20(assets[i]).forceApprove(destination, amounts[i]);
+            IERC20(assets[i]).forceApprove(_destinationSpender(assets[i], destination), amounts[i]);
         }
     }
 
@@ -325,8 +325,13 @@ contract StaticsAssetZap is IUnlockCallback, ReentrancyGuard {
             IERC20 asset = IERC20(assets[i]);
             uint256 balance = asset.balanceOf(address(this));
             if (balance + amounts[i] != beforeBalances[i] || balance < floors[i]) revert InexactMovement(assets[i]);
-            asset.forceApprove(destination, 0);
+            asset.forceApprove(_destinationSpender(assets[i], destination), 0);
         }
+    }
+
+    function _destinationSpender(address token, address destination) private view returns (address) {
+        // Restricted campaign receipts travel through the Diamond's exact, registered custody bridge.
+        return IStaticsBasketSettlement(diamond).isRestrictedBasketToken(token) ? diamond : destination;
     }
 
     function _refund(Input calldata input, address token, uint256 spent, uint256 floor) private {

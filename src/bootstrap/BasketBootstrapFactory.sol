@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {BasketBootstrapCampaign} from "./BasketBootstrapCampaign.sol";
+import {IStaticsBootstrapSettlement} from "../interfaces/IStaticsBootstrapSettlement.sol";
 
 contract CampaignCreationCodeStore {
     constructor(bytes memory approvedCode) {
@@ -40,6 +41,9 @@ contract BasketBootstrapFactory {
         assembly ("memory-safe") { campaign := create2(0, add(initCode, 32), mload(initCode), salt) }
         if (campaign == address(0)) revert CampaignDeploymentFailed();
         isCampaign[campaign] = true;
+        if (IStaticsBootstrapSettlement(diamond).bootstrapFactoryApproved(address(this))) {
+            IStaticsBootstrapSettlement(diamond).registerBootstrapCampaign(campaign);
+        }
         emit CampaignCreated(campaign, terms.creator, BasketBootstrapCampaign(campaign).termsHash());
     }
 

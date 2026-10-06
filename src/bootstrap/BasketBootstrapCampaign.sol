@@ -11,6 +11,7 @@ import {IStaticsBasketDelegation} from "../interfaces/IStaticsBasketDelegation.s
 import {IStaticsBasketLaunchPreview} from "../interfaces/IStaticsBasketLaunchPreview.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
+import {IStaticsBootstrapSettlement} from "../interfaces/IStaticsBootstrapSettlement.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {LibBasketLaunchMath} from "../libraries/LibBasketLaunchMath.sol";
@@ -55,6 +56,7 @@ contract BasketBootstrapCampaign is ReentrancyGuard {
         uint256 paid;
     }
     address public immutable diamond;
+    address public immutable factory;
     address public immutable creator;
     address public immutable beneficiary;
     address public immutable projectToken;
@@ -115,6 +117,7 @@ contract BasketBootstrapCampaign is ReentrancyGuard {
                 || terms.auctions.length != length || terms.adapters.length > 16
         ) revert InvalidCampaign();
         diamond = protocol;
+        factory = msg.sender;
         creator = terms.creator;
         beneficiary = terms.beneficiary;
         projectToken = terms.projectToken;
@@ -122,11 +125,16 @@ contract BasketBootstrapCampaign is ReentrancyGuard {
         termsHash = keccak256(abi.encode(protocol, terms));
         _storeDefinition(terms.basket);
         maximums = terms.maximums;
-        // V1 procurement receives ordinary constituents, not arbitrary restricted-token exemptions.
-        if (IStaticsBasketSettlement(protocol).isRestrictedBasketToken(terms.projectToken)) revert InvalidCampaign();
+        bool approved = IStaticsBootstrapSettlement(protocol).bootstrapFactoryApproved(msg.sender);
+        if (!approved && IStaticsBasketSettlement(protocol).isRestrictedBasketToken(terms.projectToken)) {
+            revert InvalidCampaign();
+        }
         for (uint256 i; i < length; ++i) {
             address asset = terms.basket.assets[i];
-            if (asset.code.length == 0 || IStaticsBasketSettlement(protocol).isRestrictedBasketToken(asset)) {
+            if (
+                asset.code.length == 0
+                    || (!approved && IStaticsBasketSettlement(protocol).isRestrictedBasketToken(asset))
+            ) {
                 revert InvalidCampaign();
             }
             for (uint256 j; j < i; ++j) {
@@ -198,6 +206,10 @@ contract BasketBootstrapCampaign is ReentrancyGuard {
 
     function assetCount() external view returns (uint256) {
         return definition.assets.length;
+    }
+
+    function custodyAsset(uint256 index) external view returns (address) {
+        return definition.assets[index];
     }
 
     function auction(uint256 index) external view returns (AuctionTerms memory, Auction memory) {
@@ -452,7 +464,11 @@ contract BasketBootstrapCampaign is ReentrancyGuard {
         IERC20 asset = IERC20(token);
         uint256 held = asset.balanceOf(address(this));
         uint256 balance = asset.balanceOf(sender);
-        asset.safeTransferFrom(sender, address(this), amount);
+        if (IStaticsBasketSettlement(diamond).isRestrictedBasketToken(token)) {
+            IStaticsBootstrapSettlement(diamond).settleBootstrapToken(token, sender, address(this), amount);
+        } else {
+            asset.safeTransferFrom(sender, address(this), amount);
+        }
         if (asset.balanceOf(address(this)) != held + amount || asset.balanceOf(sender) + amount != balance) {
             revert InexactTransfer(token);
         }
@@ -463,7 +479,13 @@ contract BasketBootstrapCampaign is ReentrancyGuard {
         IERC20 asset = IERC20(token);
         uint256 held = asset.balanceOf(address(this));
         uint256 balance = asset.balanceOf(recipient);
-        asset.safeTransfer(recipient, amount);
+        if (IStaticsBasketSettlement(diamond).isRestrictedBasketToken(token)) {
+            asset.forceApprove(diamond, amount);
+            IStaticsBootstrapSettlement(diamond).settleBootstrapToken(token, address(this), recipient, amount);
+            asset.forceApprove(diamond, 0);
+        } else {
+            asset.safeTransfer(recipient, amount);
+        }
         if (asset.balanceOf(address(this)) + amount != held || asset.balanceOf(recipient) != balance + amount) {
             revert InexactTransfer(token);
         }
