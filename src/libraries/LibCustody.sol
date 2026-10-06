@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
+import {LibRestrictedBasket} from "./LibRestrictedBasket.sol";
 
 library LibCustody {
     using SafeERC20 for IERC20;
@@ -120,6 +121,7 @@ library LibCustody {
 
     function pull(address token, address from, uint256 amount) internal returns (uint256 received) {
         uint256 beforeBalance = IERC20(token).balanceOf(address(this));
+        LibRestrictedBasket.authorizeProtocolTransfer(token, from, address(this), amount);
         IERC20(token).safeTransferFrom(from, address(this), amount);
         uint256 afterBalance = IERC20(token).balanceOf(address(this));
         if (afterBalance < beforeBalance) revert BalanceDecreasedDuringPull(token, beforeBalance, afterBalance);
@@ -131,6 +133,7 @@ library LibCustody {
     function pullFlash(address token, address from, uint256 amount) internal returns (uint256 spent, uint256 received) {
         uint256 senderBefore = IERC20(token).balanceOf(from);
         uint256 receiverBefore = IERC20(token).balanceOf(address(this));
+        LibRestrictedBasket.authorizeProtocolTransfer(token, from, address(this), amount);
         IERC20(token).safeTransferFrom(from, address(this), amount);
         uint256 senderAfter = IERC20(token).balanceOf(from);
         uint256 receiverAfter = IERC20(token).balanceOf(address(this));
@@ -233,6 +236,7 @@ library LibCustody {
         if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
         uint256 senderBefore = IERC20(token).balanceOf(address(this));
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
+        LibRestrictedBasket.authorizeProtocolTransfer(token, address(this), receiver, amount);
         IERC20(token).safeTransfer(receiver, amount);
         uint256 senderAfter = IERC20(token).balanceOf(address(this));
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
