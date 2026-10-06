@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {WETH} from "solmate/src/tokens/WETH.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {NativeCampaignRevenue} from "../../src/bootstrap/NativeCampaignRevenue.sol";
 import {MeasuredCampaignRevenue} from "../../src/bootstrap/MeasuredCampaignRevenue.sol";
 import {BasketBootstrapCampaign} from "../../src/bootstrap/BasketBootstrapCampaign.sol";
@@ -18,8 +19,14 @@ contract ReentrantRevenueWeth is WETH {
     bool public blocked;
 
     function deposit() public payable override {
-        (bool entered,) = msg.sender.call(abi.encodeCall(NativeCampaignRevenue.deliverNative, ()));
+        (bool entered, bytes memory reason) =
+            msg.sender.call{value: 1}(abi.encodeCall(NativeCampaignRevenue.deliverNative, ()));
         require(!entered, "nested delivery must revert");
+        require(
+            keccak256(reason)
+                == keccak256(abi.encodeWithSelector(ReentrancyGuard.ReentrancyGuardReentrantCall.selector)),
+            "must fail at reentrancy guard"
+        );
         blocked = true;
         super.deposit();
     }
