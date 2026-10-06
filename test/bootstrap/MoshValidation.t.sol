@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 import {LibMoshValidation} from "../../src/bootstrap/LibMoshValidation.sol";
 import {IMoshSwarm, IMoshClaimMarket} from "../../src/interfaces/IMoshSwarm.sol";
+import {MoshShareRevenueAdapter} from "../../src/bootstrap/MoshShareRevenueAdapter.sol";
 
 /// @dev View-only harness: these tests cover validation branches, not external custody confidence.
 contract MoshValidationHarness {
@@ -86,6 +87,31 @@ contract MoshValidationTest is Test {
         assertEq(abi.encodeCall(IMoshClaimMarket.fill, (id)), vm.parseJsonBytes(json, ".fill"));
         assertEq(abi.encodeCall(IMoshClaimMarket.cancel, (id)), vm.parseJsonBytes(json, ".cancel"));
         assertEq(abi.encodeCall(IMoshSwarm.syncFees, ()), vm.parseJsonBytes(json, ".sync"));
+    }
+
+    function testSharedShareAdapterEncodingFixture() public view {
+        string memory json = vm.readFile("test/fixtures/mosh-native-custody.json");
+        address owner = vm.parseJsonAddress(json, ".buyer");
+        uint256 amount = vm.parseUint(vm.parseJsonString(json, ".amount"));
+        uint256 id = vm.parseUint(vm.parseJsonString(json, ".offerId"));
+        uint256 deadline = vm.parseUint(vm.parseJsonString(json, ".deadline"));
+        assertEq(
+            abi.encodeCall(MoshShareRevenueAdapter.deposit, (id, amount)), vm.parseJsonBytes(json, ".shareDeposit")
+        );
+        assertEq(
+            abi.encodeCall(MoshShareRevenueAdapter.withdraw, (amount, deadline)),
+            vm.parseJsonBytes(json, ".shareWithdraw")
+        );
+        assertEq(
+            abi.encodeCall(MoshShareRevenueAdapter.checkpointWithdrawal, (owner)),
+            vm.parseJsonBytes(json, ".shareCheckpoint")
+        );
+        assertEq(abi.encodeCall(MoshShareRevenueAdapter.cancelWithdrawal, ()), vm.parseJsonBytes(json, ".shareCancel"));
+        assertEq(abi.encodeCall(MoshShareRevenueAdapter.sync, ()), vm.parseJsonBytes(json, ".shareSync"));
+        assertEq(
+            abi.encodeCall(MoshShareRevenueAdapter.flushCampaignRevenue, ()), vm.parseJsonBytes(json, ".shareFlush")
+        );
+        assertEq(abi.encodeCall(MoshShareRevenueAdapter.claimRewards, ()), vm.parseJsonBytes(json, ".shareClaim"));
     }
 
     function testSourceSellerAndBuyerMismatchAreRejected() public {
