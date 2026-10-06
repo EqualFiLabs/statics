@@ -32,9 +32,11 @@ contract MeasuredCampaignRevenue is ReentrancyGuard {
     }
 
     function bindCampaign(BasketBootstrapCampaign destination, uint256 index) external nonReentrant {
-        if (msg.sender != creator || address(campaign) != address(0) || !factory.isCampaign(address(destination))
-            || destination.creator() != creator || destination.beneficiary() == address(this)
-            || !destination.revenueAdapters(address(this))) {
+        if (
+            msg.sender != creator || address(campaign) != address(0) || !factory.isCampaign(address(destination))
+                || destination.creator() != creator || destination.beneficiary() == address(this)
+                || !destination.revenueAdapters(address(this))
+        ) {
             revert InvalidRevenueIntegration();
         }
         (address asset,,,) = destination.inventory(index);
@@ -56,8 +58,10 @@ contract MeasuredCampaignRevenue is ReentrancyGuard {
         uint256 floor = payoutAsset.balanceOf(address(this));
         uint256 senderBefore = payoutAsset.balanceOf(msg.sender);
         payoutAsset.safeTransferFrom(msg.sender, address(this), amount);
-        if (payoutAsset.balanceOf(address(this)) != floor + amount
-            || payoutAsset.balanceOf(msg.sender) + amount != senderBefore) revert InexactRevenue();
+        if (
+            payoutAsset.balanceOf(address(this)) != floor + amount
+                || payoutAsset.balanceOf(msg.sender) + amount != senderBefore
+        ) revert InexactRevenue();
         if (destination == address(campaign)) {
             payoutAsset.forceApprove(destination, amount);
             campaign.deliverRevenue(assetIndex, amount);
