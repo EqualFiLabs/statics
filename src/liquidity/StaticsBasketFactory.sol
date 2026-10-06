@@ -137,6 +137,13 @@ contract StaticsBasketFactory {
         return (tokenQueue.length - tokenHead, hookQueue.length - hookHead);
     }
 
+    function queuedSalt(bool hook, uint256 offset) external view returns (bytes32) {
+        bytes32[] storage queue = hook ? hookQueue : tokenQueue;
+        uint256 head = hook ? hookHead : tokenHead;
+        if (offset >= queue.length - head) revert SaltQueueDepleted(hook);
+        return queue[head + offset];
+    }
+
     /// @notice Anyone can replenish; validation never searches or mines onchain.
     function enqueueSalts(bytes32[] calldata salts, bool hook) external {
         if (salts.length == 0 || salts.length > 128) revert InvalidPreparation();

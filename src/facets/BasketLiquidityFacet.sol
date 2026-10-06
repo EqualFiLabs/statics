@@ -20,7 +20,6 @@ import {IStaticsPermissionedSwapFeeHook} from "../interfaces/IStaticsPermissione
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibBasketLiquidityMath} from "../libraries/LibBasketLiquidityMath.sol";
-import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
@@ -32,7 +31,7 @@ import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {StaticsBasketHook} from "../liquidity/StaticsBasketHook.sol";
 
-contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
+contract BasketLiquidityFacet {
     using PoolIdLibrary for PoolKey;
     using StateLibrary for IPoolManager;
 
@@ -152,23 +151,6 @@ contract BasketLiquidityFacet is IStaticsBasketLaunchModule {
             .mintBasketLaunch(basketId, payer, basketShares, plan.assetAmounts, maxAmountsIn);
         _fundAndOpenBasketPools(configured, payer, plan);
         _enforcePayerDebits(configured, payer, payerBalancesBefore, maxAmountsIn);
-    }
-
-    function mintBasketLaunch(
-        uint256 basketId,
-        address payer,
-        uint256 basketShares,
-        uint256[] calldata assetAmounts,
-        uint256[] calldata maxAmountsIn
-    ) external {
-        if (msg.sender != address(this)) revert OnlyDiamondSelf(msg.sender);
-        uint256 length = assetAmounts.length;
-        if (maxAmountsIn.length != length) revert InvalidPoolLaunchParameters();
-        uint256[] memory mintMaximums = new uint256[](length);
-        for (uint256 i; i < length; ++i) {
-            mintMaximums[i] = maxAmountsIn[i] - assetAmounts[i];
-        }
-        LibBasketMint.mintFromPayer(basketId, basketShares, payer, address(this), mintMaximums);
     }
 
     function _prepareBasketPools(

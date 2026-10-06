@@ -4,6 +4,10 @@ pragma solidity 0.8.33;
 import {Test} from "forge-std/Test.sol";
 
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
+import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
+import {IStaticsBasketPreparation} from "../../src/interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketSettlement} from "../../src/interfaces/IStaticsBasketSettlement.sol";
+import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
@@ -262,16 +266,39 @@ contract SelectorManifestTest is Test {
     }
 
     function testPhaseTwoLiquidityDeltaExcludesPhaseOneManagerSelectors() public pure {
-        bytes4[] memory liquidity = new bytes4[](4);
+        bytes4[] memory liquidity = new bytes4[](3);
         liquidity[0] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        liquidity[1] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        liquidity[2] = IStaticsBasketLiquidity.canonicalPool.selector;
-        liquidity[3] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        liquidity[1] = IStaticsBasketLiquidity.canonicalPool.selector;
+        liquidity[2] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
         _assertExact(StaticsSelectors.phaseTwoBasketLiquidity(), liquidity);
 
         bytes4[] memory admin = new bytes4[](1);
         admin[0] = IStaticsProtocolPools.setBasketFeeAllocation.selector;
         _assertExact(StaticsSelectors.phaseTwoProtocolPoolAdmin(), admin);
+    }
+
+    function testRestrictedBasketSelectorManifestsAreExact() public pure {
+        bytes4[] memory expected = new bytes4[](2);
+        expected[0] = IStaticsBasket.createBasket.selector;
+        expected[1] = IStaticsBasket.createBasketPrepared.selector;
+        _assertExact(StaticsSelectors.basketCreation(), expected);
+        expected = new bytes4[](4);
+        expected[0] = IStaticsBasketPreparation.installBasketFactory.selector;
+        expected[1] = IStaticsBasketPreparation.basketFactory.selector;
+        expected[2] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
+        expected[3] = IStaticsBasketPreparation.prepareBasketCreation.selector;
+        _assertExact(StaticsSelectors.basketPreparation(), expected);
+        expected = new bytes4[](5);
+        expected[0] = IStaticsBasketSettlement.validateBasketPool.selector;
+        expected[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
+        expected[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
+        expected[3] = IStaticsBasketSettlement.isRestrictedBasketToken.selector;
+        expected[4] = IStaticsBasketSettlement.settleBasketManagerDelivery.selector;
+        _assertExact(StaticsSelectors.basketSettlement(), expected);
+        expected = new bytes4[](2);
+        expected[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
+        expected[1] = IStaticsBasketMarkets.createBasketMarket.selector;
+        _assertExact(StaticsSelectors.basketMarkets(), expected);
     }
 
     function testGovernanceSelectorManifestIsExactAndCollisionFree() public pure {
@@ -380,17 +407,16 @@ contract SelectorManifestTest is Test {
 
     function testLiquiditySelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.basketLiquidity();
-        bytes4[] memory expected = new bytes4[](10);
+        bytes4[] memory expected = new bytes4[](9);
         expected[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         expected[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         expected[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        expected[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        expected[4] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        expected[5] = IStaticsBasketLiquidity.liquidityManager.selector;
-        expected[6] = IStaticsBasketLiquidity.canonicalPool.selector;
-        expected[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        expected[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
-        expected[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+        expected[3] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        expected[4] = IStaticsBasketLiquidity.liquidityManager.selector;
+        expected[5] = IStaticsBasketLiquidity.canonicalPool.selector;
+        expected[6] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        expected[7] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        expected[8] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
 
         assertEq(actual.length, expected.length);
         for (uint256 i; i < actual.length; ++i) {
@@ -548,8 +574,8 @@ contract SelectorManifestTest is Test {
         bytes4[] memory recovery = StaticsSelectors.morphoRecovery();
         bytes4[] memory views = StaticsSelectors.morphoView();
         assertEq(admin.length, 5);
-        assertEq(actions.length, 5);
-        assertEq(settlement.length, 5);
+        assertEq(actions.length, 4);
+        assertEq(settlement.length, 6);
         assertEq(recovery.length, 1);
         assertEq(views.length, 10);
         bytes4[] memory all = new bytes4[](26);
@@ -578,6 +604,7 @@ contract SelectorManifestTest is Test {
         assertEq(settlement[2], IStaticsMorpho.recoverMorphoAccountToken.selector);
         assertEq(settlement[3], IStaticsMorpho.syncMorpho.selector);
         assertEq(settlement[4], IStaticsMorpho.syncMorphoForModule.selector);
+        assertEq(settlement[5], IStaticsMorpho.liquidateMorphoAndSync.selector);
         assertEq(recovery[0], IStaticsMorpho.withdrawUntrackedMorphoCollateral.selector);
         assertEq(views[0], IStaticsMorpho.morpho.selector);
         assertEq(views[9], IStaticsMorpho.enforceMorphoAccountEmpty.selector);

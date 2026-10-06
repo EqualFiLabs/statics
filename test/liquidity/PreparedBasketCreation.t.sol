@@ -34,41 +34,15 @@ abstract contract PreparedBasketTestBase is CanonicalPoolTestBase {
 
     function setUp() public virtual override {
         super.setUp();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
-        bytes4[] memory selectors = new bytes4[](4);
-        selectors[0] = BasketPreparationFacet.installBasketFactory.selector;
-        selectors[1] = BasketPreparationFacet.basketFactory.selector;
-        selectors[2] = BasketPreparationFacet.basketCreationConfigurationHash.selector;
-        selectors[3] = BasketPreparationFacet.prepareBasketCreation.selector;
-        cut[0] = IDiamondCut.FacetCut(address(new BasketPreparationFacet()), IDiamondCut.FacetCutAction.Add, selectors);
-        selectors = new bytes4[](5);
-        selectors[0] = BasketSettlementFacet.validateBasketPool.selector;
-        selectors[1] = BasketSettlementFacet.authorizeBasketPoolSettlement.selector;
-        selectors[2] = BasketSettlementFacet.authorizeBasketPoolClaim.selector;
-        selectors[3] = BasketSettlementFacet.isRestrictedBasketToken.selector;
-        selectors[4] = BasketSettlementFacet.settleBasketManagerDelivery.selector;
-        cut[1] = IDiamondCut.FacetCut(address(new BasketSettlementFacet()), IDiamondCut.FacetCutAction.Add, selectors);
-        selectors = new bytes4[](2);
-        selectors[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
-        selectors[1] = IStaticsBasketMarkets.createBasketMarket.selector;
-        cut[2] =
-            IDiamondCut.FacetCut(address(new BasketMarketCreationFacet()), IDiamondCut.FacetCutAction.Add, selectors);
-        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         preparation = BasketPreparationFacet(address(diamond));
-        vm.etch(
-            0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed,
-            vm.parseJsonBytes(vm.readFile("test/fixtures/createx-v1.json"), ".runtime")
-        );
-        factory = StaticsBasketFactory(
-            deployCode(
-                "out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
-                abi.encode(address(diamond), poolManager, swapFeeHook)
-            )
-        );
-        preparation.installBasketFactory(address(factory));
+        factory = _localBasketFactory;
         tokenSalt = factory.saltFor(0);
         hookSalts.push(_mine(1));
         hookSalts.push(_mine(uint88(uint256(hookSalts[0])) + 1));
+    }
+
+    function _automaticallyQueueBasketSalts() internal pure override returns (bool) {
+        return false;
     }
 
     function _queueFirst() internal {
@@ -80,18 +54,7 @@ abstract contract PreparedBasketTestBase is CanonicalPoolTestBase {
 
     /// @dev Test-only equivalent of offchain mining over the effective guarded CreateX salt.
     function _mine(uint88 start) internal view returns (bytes32 salt) {
-        uint256 prefix = uint256(factory.saltFor(0));
-        address createX = factory.CREATE_X();
-        bytes32 proxyHash = factory.CREATE3_PROXY_HASH();
-        for (uint256 i = start; i < uint256(start) + 1_000_000; ++i) {
-            salt = bytes32(prefix | i);
-            bytes32 effective = keccak256(abi.encode(address(factory), block.chainid, salt));
-            address proxy =
-                address(uint160(uint256(keccak256(abi.encodePacked(hex"ff", createX, effective, proxyHash)))));
-            address predicted = address(uint160(uint256(keccak256(abi.encodePacked(hex"d694", proxy, hex"01")))));
-            if (uint160(predicted) & ((1 << 14) - 1) == 0x1fec) return salt;
-        }
-        revert("test salt search exhausted");
+        (salt,) = _mineTestHook(factory, start);
     }
 }
 

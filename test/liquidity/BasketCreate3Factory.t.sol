@@ -92,6 +92,10 @@ contract BasketCreate3FactoryTest is Test {
         (uint256 tokenCount, uint256 hookCount) = factory.queueAvailability();
         assertEq(tokenCount, 1);
         assertEq(hookCount, 1);
+        assertEq(factory.queuedSalt(false, 0), tokenSalt);
+        assertEq(factory.queuedSalt(true, 0), hookSalts[0]);
+        vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.SaltQueueDepleted.selector, true));
+        factory.queuedSalt(true, 1);
         vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.SaltQueueDepleted.selector, true));
         factory.reserveQueued(_intent(), 2);
         (tokenCount, hookCount) = factory.queueAvailability();
@@ -101,6 +105,8 @@ contract BasketCreate3FactoryTest is Test {
         assertEq(id, factory.preparationId(_intent(), tokenSalt, hookSalts));
         (tokenCount, hookCount) = factory.queueAvailability();
         assertEq(tokenCount + hookCount, 0);
+        vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.SaltQueueDepleted.selector, false));
+        factory.queuedSalt(false, 0);
         address token = factory.deployBasketToken(id, "Queued", "Q", 8);
         factory.deployBasketHook(id, _binding(token));
         vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.SaltQueueDepleted.selector, false));

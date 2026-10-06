@@ -47,12 +47,13 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         }
     }
 
-    function testCreatorSuppliesPoolConfigurationWhileHookRemainsCanonical() public {
+    function testCreatorSuppliesPoolConfigurationWithAnIndependentBasketHook() public {
         (uint256 basketId, address[] memory assets) = _createBasketWithAssets(1);
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, assets[0]);
         assertEq(pool.lpFee, 3_000);
         assertEq(pool.tickSpacing, 10);
-        assertEq(pool.hook, address(swapFeeHook));
+        assertTrue(pool.hook != address(swapFeeHook));
+        assertTrue(pool.hook.code.length > 0);
         assertTrue(
             (pool.currency0 == pool.basketToken && pool.currency1 == assets[0])
                 || (pool.currency1 == pool.basketToken && pool.currency0 == assets[0])
@@ -81,7 +82,7 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         assertEq(effective.inputFeeBps, 40);
         assertEq(effective.outputFeeBps, 60);
         assertTrue(effective.overridden);
-        IStaticsSwapFeeHook.PoolFeeRate memory hookRate = swapFeeHook.poolFeeRate(pool.poolId);
+        IStaticsSwapFeeHook.PoolFeeRate memory hookRate = IStaticsSwapFeeHook(pool.hook).poolFeeRate(pool.poolId);
         assertEq(hookRate.inputFeeBps, effective.inputFeeBps);
         assertEq(hookRate.outputFeeBps, effective.outputFeeBps);
         assertTrue(hookRate.overridden);
@@ -123,7 +124,8 @@ contract CanonicalPoolLifecycleTest is CanonicalPoolTestBase {
         IStaticsBasketLiquidity.CanonicalPoolView memory pool = basketLiquidity.canonicalPool(basketId, asset);
         assertEq(pool.asset, asset);
         assertEq(pool.spotTick, 0);
-        IStaticsSwapFeeHook.PoolRegistration memory registered = swapFeeHook.poolRegistration(pool.poolId);
+        IStaticsSwapFeeHook.PoolRegistration memory registered =
+            IStaticsSwapFeeHook(pool.hook).poolRegistration(pool.poolId);
         assertTrue(registered.registered);
         assertEq(Currency.unwrap(registered.currency0), pool.currency0);
         assertEq(Currency.unwrap(registered.currency1), pool.currency1);

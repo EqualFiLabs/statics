@@ -6,6 +6,9 @@ import {DiamondLoupeFacet} from "../../src/facets/DiamondLoupeFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
+import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
+import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {BasketMintFacet} from "../../src/facets/BasketMintFacet.sol";
 import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
 import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
@@ -159,6 +162,9 @@ abstract contract DeployStaticsProtocol {
     {
         parts.positionPortfolio = address(new PositionPortfolioFacet());
         parts.basketCreation = address(new BasketCreationFacet());
+        parts.basketPreparation = address(new BasketPreparationFacet());
+        parts.basketSettlement = address(new BasketSettlementFacet());
+        parts.basketMarkets = address(new BasketMarketCreationFacet());
         parts.basketMint = address(new BasketMintFacet());
         parts.basketRedemption = address(new BasketRedemptionFacet());
         parts.basketView = address(new BasketViewFacet());

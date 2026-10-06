@@ -17,6 +17,8 @@ import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
@@ -92,6 +94,10 @@ library LibDeploymentPhases {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IStaticsGovernance).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasket).interfaceId] = true;
+        // The prepared-creation selector is additive; retain discovery for existing integrations.
+        ds.supportedInterfaces[type(IStaticsBasket).interfaceId ^ IStaticsBasket.createBasketPrepared.selector] = true;
+        ds.supportedInterfaces[type(IStaticsBasketPreparation).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsBasketMarkets).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketAdmin).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketCollateral).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBasketRewards).interfaceId] = true;

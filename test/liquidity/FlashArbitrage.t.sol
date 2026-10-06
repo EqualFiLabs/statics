@@ -252,8 +252,10 @@ contract FlashArbitrageTest is CanonicalPoolTestBase {
         uint256 donatedBasket = 0.25 ether;
         assetA.mint(address(receiver), donatedA);
         assetB.mint(address(receiver), donatedB);
+        uint256[] memory mintMaximums = baskets.quoteMint(fixture.basketId, donatedBasket);
+        _fundAndApprove(alice, mintMaximums[0], mintMaximums[1]);
         vm.prank(alice);
-        IERC20(fixture.basketToken).transfer(address(receiver), donatedBasket);
+        baskets.mint(fixture.basketId, donatedBasket, address(receiver), mintMaximums);
 
         vm.prank(alice);
         (, uint256[] memory profits) = receiver.executeBuyAndRedeem(

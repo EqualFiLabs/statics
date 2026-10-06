@@ -8,6 +8,9 @@ import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsBasketPreparation} from "../interfaces/IStaticsBasketPreparation.sol";
+import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
+import {IStaticsBasketMarkets} from "../interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
@@ -45,6 +48,29 @@ import {StakingFacet} from "../dollar/periphery/facets/StakingFacet.sol";
 import {StaticsDollarGatewayFacet} from "../dollar/periphery/facets/StaticsDollarGatewayFacet.sol";
 
 library StaticsSelectors {
+    function basketPreparation() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](4);
+        selectors[0] = IStaticsBasketPreparation.installBasketFactory.selector;
+        selectors[1] = IStaticsBasketPreparation.basketFactory.selector;
+        selectors[2] = IStaticsBasketPreparation.basketCreationConfigurationHash.selector;
+        selectors[3] = IStaticsBasketPreparation.prepareBasketCreation.selector;
+    }
+
+    function basketSettlement() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](5);
+        selectors[0] = IStaticsBasketSettlement.validateBasketPool.selector;
+        selectors[1] = IStaticsBasketSettlement.authorizeBasketPoolSettlement.selector;
+        selectors[2] = IStaticsBasketSettlement.authorizeBasketPoolClaim.selector;
+        selectors[3] = IStaticsBasketSettlement.isRestrictedBasketToken.selector;
+        selectors[4] = IStaticsBasketSettlement.settleBasketManagerDelivery.selector;
+    }
+
+    function basketMarkets() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
+        selectors[1] = IStaticsBasketMarkets.createBasketMarket.selector;
+    }
+
     function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {
         selectors = new bytes4[](5);
         selectors[0] = IStaticsRangeGauge.setGaugeRewardAssetAllowed.selector;
@@ -303,21 +329,21 @@ library StaticsSelectors {
     }
 
     function morphoActions() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](4);
         selectors[0] = IStaticsMorpho.deployMorphoCollateral.selector;
         selectors[1] = IStaticsMorpho.recallMorphoCollateral.selector;
         selectors[2] = IStaticsMorpho.borrowMorphoUsd.selector;
         selectors[3] = IStaticsMorpho.repayMorphoUsd.selector;
-        selectors[4] = IStaticsMorpho.liquidateMorphoAndSync.selector;
     }
 
     function morphoSettlement() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](5);
+        selectors = new bytes4[](6);
         selectors[0] = IStaticsMorpho.claimMorphoSyncBounties.selector;
         selectors[1] = IStaticsMorpho.routeMorphoPerformanceFee.selector;
         selectors[2] = IStaticsMorpho.recoverMorphoAccountToken.selector;
         selectors[3] = IStaticsMorpho.syncMorpho.selector;
         selectors[4] = IStaticsMorpho.syncMorphoForModule.selector;
+        selectors[5] = IStaticsMorpho.liquidateMorphoAndSync.selector;
     }
 
     function morphoRecovery() internal pure returns (bytes4[] memory selectors) {
@@ -382,11 +408,12 @@ library StaticsSelectors {
     }
 
     function basketMint() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](5);
         selectors[0] = IStaticsBasket.mint.selector;
         selectors[1] = IStaticsBasket.quoteMint.selector;
         selectors[2] = IStaticsBasketCollateral.createAndMintBasketCollateral.selector;
         selectors[3] = IStaticsBasketCollateral.mintBasketCollateral.selector;
+        selectors[4] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
     }
 
     function basketRedemption() internal pure returns (bytes4[] memory selectors) {
@@ -508,17 +535,16 @@ library StaticsSelectors {
     }
 
     function basketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](10);
+        selectors = new bytes4[](9);
         selectors[0] = IStaticsBasketLiquidity.installCanonicalPoolIntegration.selector;
         selectors[1] = IStaticsBasketLiquidity.installLiquidityManager.selector;
         selectors[2] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        selectors[3] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[4] = IStaticsBasketLiquidity.liquidityIntegration.selector;
-        selectors[5] = IStaticsBasketLiquidity.liquidityManager.selector;
-        selectors[6] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[7] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
-        selectors[8] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
-        selectors[9] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
+        selectors[3] = IStaticsBasketLiquidity.liquidityIntegration.selector;
+        selectors[4] = IStaticsBasketLiquidity.liquidityManager.selector;
+        selectors[5] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[6] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[7] = IStaticsBasketLiquidity.installPermissionedPoolIntegration.selector;
+        selectors[8] = IStaticsBasketLiquidity.permissionedLiquidityIntegration.selector;
     }
 
     function phaseOneLiquidityIntegration() internal pure returns (bytes4[] memory selectors) {
@@ -532,11 +558,10 @@ library StaticsSelectors {
     }
 
     function phaseTwoBasketLiquidity() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](4);
+        selectors = new bytes4[](3);
         selectors[0] = IStaticsBasketLaunchModule.launchBasketPools.selector;
-        selectors[1] = IStaticsBasketLaunchModule.mintBasketLaunch.selector;
-        selectors[2] = IStaticsBasketLiquidity.canonicalPool.selector;
-        selectors[3] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
+        selectors[1] = IStaticsBasketLiquidity.canonicalPool.selector;
+        selectors[2] = IStaticsBasketLiquidity.basketLiquidityUnwound.selector;
     }
 
     function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {

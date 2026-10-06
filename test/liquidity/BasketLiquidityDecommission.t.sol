@@ -73,7 +73,7 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
         basketLiquidity.unwindBasketLiquidity(basketId, constituent);
 
         assertTrue(basketLiquidity.basketLiquidityUnwound(basketId, constituent));
-        assertTrue(swapFeeHook.poolDecommissioned(canonicalKey.toId()));
+        assertTrue(IStaticsSwapFeeHook(address(canonicalKey.hooks)).poolDecommissioned(canonicalKey.toId()));
         assertTrue(IStaticsRangeGauge(address(diamond)).gaugePool(canonicalKey.toId()).stopped);
         assertEq(IStaticsProtocolPools(address(diamond)).protocolPool(canonicalKey.toId()).activePolPositions, 0);
         _assertHookSettlementCleared(canonicalKey.currency0);
@@ -112,8 +112,9 @@ contract BasketLiquidityDecommissionTest is CanonicalPoolTestBase {
 
     function _assertHookSettlementCleared(Currency currency) private view {
         PoolId poolId = canonicalKey.toId();
-        assertEq(swapFeeHook.pendingProtocolPol(poolId, currency), 0);
-        IStaticsSwapFeeHook.FeeDistribution memory pending = swapFeeHook.pendingFeeDistribution(poolId, currency);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(canonicalKey.hooks));
+        assertEq(hook.pendingProtocolPol(poolId, currency), 0);
+        IStaticsSwapFeeHook.FeeDistribution memory pending = hook.pendingFeeDistribution(poolId, currency);
         assertEq(pending.basketStaker, 0);
         assertEq(pending.staticsStaker, 0);
         assertEq(pending.creator, 0);

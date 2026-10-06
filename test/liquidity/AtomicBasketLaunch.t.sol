@@ -33,9 +33,13 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
             _fundDefaultLaunch(params.assets, alice);
         uint256 creationFeeAmount = basketAdmin.creationFee();
 
+        uint256 gasBefore = gasleft();
         vm.prank(alice);
         (uint256 basketId, address basketToken) =
             baskets.createBasket{value: creationFeeAmount}(params, pools, maximums, type(uint256).max);
+        emit log_named_uint(
+            "sixteen-asset CREATE3 launch gas (excluding offchain-equivalent mining)", gasBefore - gasleft()
+        );
 
         assertGt(IERC20(basketToken).totalSupply(), 0);
         assertEq(IERC20(basketToken).balanceOf(address(diamond)), 0);
@@ -133,7 +137,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         vm.stopPrank();
 
         uint256 diamondNonce = vm.getNonce(address(diamond));
-        address predictedBasketToken = vm.computeCreateAddress(address(diamond), diamondNonce);
+        (address predictedBasketToken,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(false, 0));
         uint256 treasuryBefore = treasury.balance;
         uint256 creationFeeAmount = basketAdmin.creationFee();
         vm.prank(alice);
@@ -145,12 +149,12 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         assertEq(predictedBasketToken.code.length, 0);
         assertEq(vm.getNonce(address(diamond)), diamondNonce);
         for (uint256 i; i < assets.length; ++i) {
-            PoolKey memory key = _derivedKey(predictedBasketToken, address(assets[i]));
+            (address predictedHook,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(true, i));
+            PoolKey memory key = _derivedKey(predictedBasketToken, address(assets[i]), predictedHook);
             PoolId poolId = key.toId();
             (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
-            IStaticsSwapFeeHook.PoolRegistration memory registration = swapFeeHook.poolRegistration(poolId);
             assertEq(sqrtPriceX96, 0);
-            assertFalse(registration.registered);
+            assertEq(predictedHook.code.length, 0);
             assertEq(assets[i].balanceOf(alice), maximums[i]);
             assertEq(assets[i].balanceOf(address(diamond)), 0);
             assertEq(custody.globalReservedByToken(address(assets[i])), 0);
@@ -235,7 +239,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         view
         returns (LaunchExpectation memory expected)
     {
-        address predictedBasketToken = vm.computeCreateAddress(address(diamond), vm.getNonce(address(diamond)));
+        (address predictedBasketToken,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(false, 0));
         bool assetIsCurrency0 = taxed < predictedBasketToken;
         (, expected.basketAmount, expected.pairedAssetAmount) =
             LibBasketLiquidityMath.fullRangeAmounts(DEFAULT_LAUNCH_SQRT_PRICE, assetIsCurrency0, 1 ether);
@@ -256,7 +260,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         vm.prank(alice);
         assets[0].approve(address(diamond), maximums[0]);
 
-        address predictedBasketToken = vm.computeCreateAddress(address(diamond), vm.getNonce(address(diamond)));
+        (address predictedBasketToken,) = _localBasketFactory.predict(_localBasketFactory.queuedSalt(false, 0));
         uint160 lower = TickMath.getSqrtPriceAtTick(TickMath.minUsableTick(10));
         uint160 upper = TickMath.getSqrtPriceAtTick(TickMath.maxUsableTick(10));
         uint160[2] memory invalidCanonicalPrices = [lower - 1, upper + 1];
@@ -313,6 +317,7 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         private
         returns (IStaticsBasket.CreateBasketParams memory params, MockERC20[] memory deployedAssets)
     {
+        _ensureTestBasketSalts(_localBasketFactory, count);
         address[] memory assets = new address[](count);
         uint256[] memory bundleAmounts = new uint256[](count);
         deployedAssets = new MockERC20[](count);
@@ -351,12 +356,10 @@ contract AtomicBasketLaunchTest is CanonicalPoolTestBase {
         });
     }
 
-    function _derivedKey(address basketToken, address asset) private view returns (PoolKey memory key) {
+    function _derivedKey(address basketToken, address asset, address hook) private pure returns (PoolKey memory key) {
         (Currency currency0, Currency currency1) = basketToken < asset
             ? (Currency.wrap(basketToken), Currency.wrap(asset))
             : (Currency.wrap(asset), Currency.wrap(basketToken));
-        key = PoolKey({
-            currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 10, hooks: IHooks(address(swapFeeHook))
-        });
+        key = PoolKey({currency0: currency0, currency1: currency1, fee: 3_000, tickSpacing: 10, hooks: IHooks(hook)});
     }
 }

@@ -28,6 +28,11 @@ import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
 import {PositionNFTFacet} from "../../src/position/PositionNFTFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {BasketCreationFacet} from "../../src/facets/BasketCreationFacet.sol";
+import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
+import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
+import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
+import {BasketFactoryTestTools} from "./BasketFactoryTestTools.sol";
 import {BasketMintFacet} from "../../src/facets/BasketMintFacet.sol";
 import {BasketRedemptionFacet} from "../../src/facets/BasketRedemptionFacet.sol";
 import {BasketViewFacet} from "../../src/facets/BasketViewFacet.sol";
@@ -72,7 +77,7 @@ contract StaticsTestDeployer {
         external
         returns (StaticsDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](40);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](43);
         cut[0] = _cut(address(new DiamondCutFacet()), StaticsSelectors.diamondCut());
         cut[1] = _cut(address(new DiamondLoupeFacet()), StaticsSelectors.diamondLoupe());
         cut[2] = _cut(address(new OwnershipFacet()), StaticsSelectors.ownership());
@@ -116,6 +121,9 @@ contract StaticsTestDeployer {
         cut[37] = _cut(address(new ProtocolPoolMaintenanceFacet()), StaticsSelectors.protocolPoolMaintenance());
         cut[38] = _cut(address(new ProtocolPolFacet()), StaticsSelectors.protocolPol());
         cut[39] = _cut(address(new PositionMarketFacet()), StaticsSelectors.positionMarket());
+        cut[40] = _cut(address(new BasketPreparationFacet()), StaticsSelectors.basketPreparation());
+        cut[41] = _cut(address(new BasketSettlementFacet()), StaticsSelectors.basketSettlement());
+        cut[42] = _cut(address(new BasketMarketCreationFacet()), StaticsSelectors.basketMarkets());
         StaticsProtocolInit init = new StaticsProtocolInit();
         diamond = new StaticsDiamond(
             owner,
@@ -134,7 +142,7 @@ contract StaticsTestDeployer {
     }
 }
 
-abstract contract StaticsTestBase is Test {
+abstract contract StaticsTestBase is BasketFactoryTestTools {
     uint160 internal constant DEFAULT_LAUNCH_SQRT_PRICE = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
@@ -162,6 +170,7 @@ abstract contract StaticsTestBase is Test {
     MockERC20 internal stakingAsset;
     IPoolManager private _localPoolManager;
     StaticsSwapFeeHook private _localSwapFeeHook;
+    StaticsBasketFactory internal _localBasketFactory;
 
     function setUp() public virtual {
         assetA = new MockERC20("Asset A", "A", 18);
@@ -188,6 +197,9 @@ abstract contract StaticsTestBase is Test {
                 IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
             _localSwapFeeHook = _deployLocalHook(_localPoolManager);
             basketLiquidity.installCanonicalPoolIntegration(address(_localPoolManager), address(_localSwapFeeHook));
+            _localBasketFactory = _deployTestBasketFactory(address(diamond), _localPoolManager, _localSwapFeeHook);
+            BasketPreparationFacet(address(diamond)).installBasketFactory(address(_localBasketFactory));
+            if (_automaticallyQueueBasketSalts()) _ensureTestBasketSalts(_localBasketFactory, 2);
             if (_installDefaultLiquidityManager()) {
                 IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
                 IPositionManager positionManager = IPositionManager(
@@ -271,6 +283,9 @@ abstract contract StaticsTestBase is Test {
         returns (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums)
     {
         uint256 length = assets.length;
+        if (_automaticallyQueueBasketSalts() && address(_localBasketFactory) != address(0)) {
+            _ensureTestBasketSalts(_localBasketFactory, length);
+        }
         pools = new IStaticsBasket.PoolLaunchParams[](length);
         maximums = new uint256[](length);
         vm.startPrank(creator);
@@ -340,6 +355,10 @@ abstract contract StaticsTestBase is Test {
     }
 
     function _installLocalLiquidityIntegration() internal pure virtual returns (bool) {
+        return true;
+    }
+
+    function _automaticallyQueueBasketSalts() internal pure virtual returns (bool) {
         return true;
     }
 
