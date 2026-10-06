@@ -259,7 +259,8 @@ jobs:
             lib/halmos-cheatcodes \
             lib/openzeppelin-contracts \
             lib/openzeppelin-contracts-upgradeable \
-            lib/v4-periphery
+            lib/v4-periphery \
+            verification/morpho/vendor/morpho-blue
           git -C lib/v4-periphery submodule sync
           git -C lib/v4-periphery submodule update --init --depth=1 \
             lib/v4-core \
