@@ -2,6 +2,7 @@
 pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -15,6 +16,8 @@ import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
+import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
+import {IStaticsLiquidityManager} from "../../src/interfaces/IStaticsLiquidityManager.sol";
 import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
@@ -38,10 +41,12 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         selectors[2] = BasketPreparationFacet.basketCreationConfigurationHash.selector;
         selectors[3] = BasketPreparationFacet.prepareBasketCreation.selector;
         cut[0] = IDiamondCut.FacetCut(address(new BasketPreparationFacet()), IDiamondCut.FacetCutAction.Add, selectors);
-        selectors = new bytes4[](3);
+        selectors = new bytes4[](5);
         selectors[0] = BasketSettlementFacet.validateBasketPool.selector;
         selectors[1] = BasketSettlementFacet.authorizeBasketPoolSettlement.selector;
         selectors[2] = BasketSettlementFacet.authorizeBasketPoolClaim.selector;
+        selectors[3] = BasketSettlementFacet.isRestrictedBasketToken.selector;
+        selectors[4] = BasketSettlementFacet.settleBasketManagerDelivery.selector;
         cut[1] = IDiamondCut.FacetCut(address(new BasketSettlementFacet()), IDiamondCut.FacetCutAction.Add, selectors);
         selectors = new bytes4[](2);
         selectors[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
@@ -287,6 +292,77 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         uint256[] memory quote = baskets.quoteMint(basketId, 1 ether);
         vm.prank(user);
         baskets.mint(basketId, 1 ether, user, quote);
+    }
+
+    function testExitOnlyClosesActualPolAndUnwindsWithoutHelperTransferExemptions() public {
+        _queueFirst();
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        _mintFor(bob, basketId);
+        _swapAssetIntoBasket(basketId, bob);
+        governance.decommissionBasket(basketId);
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        address[] memory assets = baskets.basket(basketId).assets;
+        for (uint256 i; i < assets.length; ++i) {
+            IStaticsBasketLiquidity.CanonicalPoolView memory market = basketLiquidity.canonicalPool(basketId, assets[i]);
+            uint256[] memory positions = pools.protocolPolPositionIds(market.poolId);
+            for (uint256 j; j < positions.length; ++j) {
+                pools.closeProtocolPolPosition(positions[j], 0, 0, block.timestamp);
+            }
+            basketLiquidity.unwindBasketLiquidity(basketId, assets[i]);
+            assertTrue(basketLiquidity.basketLiquidityUnwound(basketId, assets[i]));
+            assertTrue(pools.protocolPool(market.poolId).decommissioned);
+        }
+        assertGt(IERC20(token).balanceOf(bob), 0);
+        vm.prank(bob);
+        IERC20(token).approve(address(v4Router), type(uint256).max);
+        vm.prank(bob);
+        vm.expectRevert();
+        IERC20(token).transfer(alice, 1);
+        uint256 shares = IERC20(token).balanceOf(bob);
+        vm.prank(bob);
+        baskets.redeem(basketId, shares, bob, new uint256[](2));
+        assertEq(IERC20(token).balanceOf(bob), 0);
+    }
+
+    function testBorrowAndProvideLiquidityPreservesUserLpOwnership() public {
+        _queueFirst();
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        uint256[] memory quote = baskets.quoteMint(basketId, 100 ether);
+        _fundAndApprove(alice, quote[0], quote[1]);
+        vm.prank(alice);
+        (uint256 positionId,) = basketCollateral.createAndMintBasketCollateral(basketId, 100 ether, alice, quote);
+        IStaticsBorrowLiquidity.LiquidityParams[] memory params = new IStaticsBorrowLiquidity.LiquidityParams[](2);
+        params[0] = IStaticsBorrowLiquidity.LiquidityParams(
+            address(assetA),
+            TickMath.minUsableTick(10),
+            TickMath.maxUsableTick(10),
+            5 ether,
+            100 ether,
+            100 ether,
+            block.timestamp + 1 hours
+        );
+        params[1] = IStaticsBorrowLiquidity.LiquidityParams(
+            address(assetB),
+            TickMath.minUsableTick(10),
+            TickMath.maxUsableTick(10),
+            5 ether,
+            100 ether,
+            100 ether,
+            block.timestamp + 1 hours
+        );
+        vm.prank(alice);
+        (uint256 loanId, uint256[] memory tokenIds) = IStaticsBorrowLiquidity(address(diamond))
+            .borrowAndProvideLiquidity(positionId, basketId, 20 ether, params, bob);
+        assertEq(lending.loan(loanId).basketId, basketId);
+        assertEq(tokenIds.length, 2);
+        (address helper,) = basketLiquidity.liquidityManager();
+        address posm = IStaticsLiquidityManager(helper).positionManager();
+        assertEq(IERC721(posm).ownerOf(tokenIds[0]), bob);
+        assertEq(IERC721(posm).ownerOf(tokenIds[1]), bob);
+        assertEq(IERC20(token).balanceOf(helper), 0);
+        vm.prank(helper);
+        vm.expectRevert();
+        BasketSettlementFacet(address(diamond)).settleBasketManagerDelivery(token, bob, 1);
     }
 
     function _createAdditional(IStaticsBasketMarkets.MarketParams memory params, bytes32 salt)

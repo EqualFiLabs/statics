@@ -8,6 +8,7 @@ import {RangeGaugePositionBase} from "./RangeGaugePositionBase.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 
 /// @notice PNFT-authorized ingress for managed public Uniswap v4 positions.
 contract RangeGaugePositionFacet is RangeGaugePositionBase {
@@ -22,6 +23,7 @@ contract RangeGaugePositionFacet is RangeGaugePositionBase {
         _enforceNoLeg(positionId, params.poolId);
         address manager = _activeManager();
         InputBalances memory balances = _inputBalances(key, msg.sender);
+        LibBasketManagerSettlement.begin(key, manager, msg.sender);
         (uint256 amount0, uint256 amount1) =
             _fundManager(key, msg.sender, manager, params.amount0Maximum, params.amount1Maximum);
         IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(manager)
@@ -40,6 +42,7 @@ contract RangeGaugePositionFacet is RangeGaugePositionBase {
         IStaticsLiquidityManager.ManagedPositionState memory state = _verifiedState(
             manager, managed.tokenId, params.poolId, params.tickLower, params.tickUpper, params.liquidity
         );
+        LibBasketManagerSettlement.end();
         _synchronize(params.poolId, key);
         _storeNewLeg(positionId, params.poolId, manager, managed.tokenId, state);
         _enforceInputDebits(balances, msg.sender, params.amount0Maximum, params.amount1Maximum);

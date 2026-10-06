@@ -7,9 +7,21 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBasketToken.sol";
 import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
+import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 
 /// @notice Hook-authenticated capabilities. Deliberately callable during guarded protocol actions.
 contract BasketSettlementFacet is IStaticsBasketSettlement {
+    function isRestrictedBasketToken(address token) external view returns (bool) {
+        return LibRestrictedBasket.isRestricted(token);
+    }
+
+    function settleBasketManagerDelivery(address token, address receiver, uint256 amount)
+        external
+        returns (uint256 spent, uint256 received)
+    {
+        return LibBasketManagerSettlement.settle(token, receiver, amount);
+    }
     error InvalidClaimCurrency(address token);
 
     function validateBasketPool(PoolId poolId, uint8 action) external view {

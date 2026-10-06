@@ -20,6 +20,7 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
+import {LibBasketMarkets} from "../libraries/LibBasketMarkets.sol";
 import {StaticsBasketToken} from "../tokens/StaticsBasketToken.sol";
 
 contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
@@ -64,13 +65,16 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         (LibBasketLiquidity.LiquidityStorage storage ls, LibBasketLiquidity.CanonicalPool storage stored) =
             _configuredPool(basketId, asset);
         address basketToken = configured.token;
-        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(ls.hook);
+        IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(address(stored.key.hooks));
         PoolId poolId = stored.key.toId();
         if (hook.poolDecommissioned(poolId)) revert BasketLiquidityAlreadyUnwound(basketId, asset);
         uint256 activePositions = LibProtocolPools.protocolPoolStorage().activePolPositionCount[poolId];
         if (activePositions != 0) revert ActiveProtocolPolPositions(poolId, activePositions);
         _stopRangeGauge(ls, stored.key);
         hook.decommissionPool(stored.key);
+        if (LibBasketMarkets.marketStorage().markets[poolId].lifecycle != LibBasketMarkets.Lifecycle.None) {
+            LibBasketMarkets.transition(poolId, LibBasketMarkets.Lifecycle.Decommissioned);
+        }
         _settleHookAsset(hook, stored.key, poolId, stored.key.currency0);
         _settleHookAsset(hook, stored.key, poolId, stored.key.currency1);
 

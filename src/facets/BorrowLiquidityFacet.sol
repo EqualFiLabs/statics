@@ -18,6 +18,7 @@ import {LibBasketMint} from "../libraries/LibBasketMint.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibLoanOrigination} from "../libraries/LibLoanOrigination.sol";
+import {LibBasketManagerSettlement} from "../libraries/LibBasketManagerSettlement.sol";
 
 contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
@@ -244,9 +245,9 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         ProvisionContext memory ctx,
         PreparedPool memory plan
     ) private returns (uint256 tokenId) {
-        (, uint256 basketReceived) = LibCustody.pushUnreserved(
-            ctx.basketToken, ctx.manager, plan.basketAmount, plan.basketAmount
-        );
+        LibBasketManagerSettlement.begin(plan.key, ctx.manager, ctx.refundRecipient);
+        (, uint256 basketReceived) =
+            LibCustody.pushUnreserved(ctx.basketToken, ctx.manager, plan.basketAmount, plan.basketAmount);
         (, uint256 assetReceived) =
             LibCustody.pushReserved(ctx.custodyAccount, plan.asset, ctx.manager, plan.assetAmount, plan.assetAmount);
         bool basketIsCurrency0 = Currency.unwrap(plan.key.currency0) == ctx.basketToken;
@@ -261,6 +262,7 @@ contract BorrowLiquidityFacet is IStaticsBorrowLiquidity, ReentrancyGuard {
         });
         (IStaticsLiquidityManager.PositionMovement memory movement, uint256 refund0, uint256 refund1) =
             manager.mintUserPosition(request, ctx.nftRecipient, ctx.refundRecipient);
+        LibBasketManagerSettlement.end();
         tokenId = movement.tokenId;
         emit BorrowedLiquidityPositionMinted(
             ctx.loanId,
