@@ -35,10 +35,10 @@ library LibBasketDeployment {
         uint256[] calldata maxAmountsIn,
         uint256 deadline
     ) internal view returns (bytes32) {
-        return keccak256(abi.encode(params, pools, maxAmountsIn, deadline, _environmentHash()));
+        return keccak256(abi.encode(params, pools, maxAmountsIn, deadline, environmentHash()));
     }
 
-    function _environmentHash() private view returns (bytes32) {
+    function environmentHash() internal view returns (bytes32) {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         LibBasket.BasketStorage storage bs = LibBasket.basketStorage();
         return keccak256(

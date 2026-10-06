@@ -6,6 +6,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
@@ -13,6 +14,8 @@ import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquid
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
 import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
+import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
+import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
 import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
@@ -28,7 +31,7 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
 
     function setUp() public override {
         super.setUp();
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](2);
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
         bytes4[] memory selectors = new bytes4[](4);
         selectors[0] = BasketPreparationFacet.installBasketFactory.selector;
         selectors[1] = BasketPreparationFacet.basketFactory.selector;
@@ -40,6 +43,11 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         selectors[1] = BasketSettlementFacet.authorizeBasketPoolSettlement.selector;
         selectors[2] = BasketSettlementFacet.authorizeBasketPoolClaim.selector;
         cut[1] = IDiamondCut.FacetCut(address(new BasketSettlementFacet()), IDiamondCut.FacetCutAction.Add, selectors);
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
+        selectors[1] = IStaticsBasketMarkets.createBasketMarket.selector;
+        cut[2] =
+            IDiamondCut.FacetCut(address(new BasketMarketCreationFacet()), IDiamondCut.FacetCutAction.Add, selectors);
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         preparation = BasketPreparationFacet(address(diamond));
         vm.etch(
@@ -210,6 +218,105 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         );
         vm.expectRevert(abi.encodeWithSignature("RestrictedBasketRequiresBasketHook(address)", token));
         IStaticsProtocolPools(address(diamond)).quotePool(params);
+    }
+
+    function testAdditionalIdenticalMarketsHaveDistinctIdsAndKeepTheCanonicalPointer() public {
+        _queueFirst();
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        pools.setPoolCreationFee(1 ether);
+        PoolId canonicalId = basketLiquidity.canonicalPool(basketId, address(assetA)).poolId;
+        IStaticsBasketMarkets.MarketParams memory params = IStaticsBasketMarkets.MarketParams(
+            token, address(assetA), 3000, 10, uint160(1 << 96), 1 ether, type(uint256).max
+        );
+        bytes32 firstSalt = _mine(uint88(uint256(hookSalts[1])) + 1);
+        (PoolId firstId, bytes32 first) = _createAdditional(params, firstSalt);
+        (PoolId secondId,) = _createAdditional(params, _mine(uint88(uint256(firstSalt)) + 1));
+        assertNotEq(PoolId.unwrap(firstId), PoolId.unwrap(secondId));
+        assertEq(
+            PoolId.unwrap(basketLiquidity.canonicalPool(basketId, address(assetA)).poolId), PoolId.unwrap(canonicalId)
+        );
+        assertEq(pools.protocolPoolCreator(firstId), alice);
+        PoolKey memory key = pools.protocolPool(firstId).key;
+        _provideBasketLiquidity(basketId, token, key);
+        vm.prank(bob);
+        v4Router.swap(key, SwapParams(true, -int256(0.01 ether), TickMath.MIN_SQRT_PRICE + 1));
+        vm.prank(alice);
+        vm.expectRevert();
+        IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether}(params, first);
+    }
+
+    function testTwoBasketCurrenciesUseTheRestrictedMarketCreationPath() public {
+        _queueFirst();
+        (uint256 firstBasket, address firstToken) = _createDefaultBasket(0, 0);
+        bytes32[] memory tokens = new bytes32[](1);
+        tokens[0] = factory.saltFor(type(uint88).max);
+        bytes32[] memory nextHooks = new bytes32[](2);
+        nextHooks[0] = _mine(uint88(uint256(hookSalts[1])) + 1);
+        nextHooks[1] = _mine(uint88(uint256(nextHooks[0])) + 1);
+        factory.enqueueSalts(tokens, false);
+        factory.enqueueSalts(nextHooks, true);
+        (uint256 secondBasket, address secondToken) = _createDefaultBasket(0, 0);
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        pools.setPoolCreationFee(1 ether);
+        IStaticsBasketMarkets.MarketParams memory params = IStaticsBasketMarkets.MarketParams(
+            firstToken, secondToken, 3000, 10, uint160(1 << 96), 1 ether, type(uint256).max
+        );
+        (PoolId id,) = _createAdditional(params, _mine(uint88(uint256(nextHooks[1])) + 1));
+        PoolKey memory key = pools.protocolPool(id).key;
+        _mintFor(bob, firstBasket);
+        _mintFor(bob, secondBasket);
+        _approveV4Router(bob, firstToken);
+        _approveV4Router(bob, secondToken);
+        vm.prank(bob);
+        v4Router.modifyLiquidity(
+            key,
+            ModifyLiquidityParams(
+                TickMath.minUsableTick(key.tickSpacing),
+                TickMath.maxUsableTick(key.tickSpacing),
+                int256(0.2 ether),
+                bytes32(0)
+            )
+        );
+        vm.prank(bob);
+        v4Router.swap(key, SwapParams(true, -int256(0.01 ether), TickMath.MIN_SQRT_PRICE + 1));
+    }
+
+    function _mintFor(address user, uint256 basketId) private {
+        _fundAndApprove(user, 10 ether, 30 ether);
+        uint256[] memory quote = baskets.quoteMint(basketId, 1 ether);
+        vm.prank(user);
+        baskets.mint(basketId, 1 ether, user, quote);
+    }
+
+    function _createAdditional(IStaticsBasketMarkets.MarketParams memory params, bytes32 salt)
+        private
+        returns (PoolId id, bytes32 prepared)
+    {
+        IStaticsBasketMarkets markets = IStaticsBasketMarkets(address(diamond));
+        vm.prank(alice);
+        (prepared,) = markets.prepareBasketMarket(params, salt);
+        vm.prank(alice);
+        id = markets.createBasketMarket{value: 1 ether}(params, prepared);
+    }
+
+    function _provideBasketLiquidity(uint256 basketId, address token, PoolKey memory key) private {
+        _fundAndApprove(bob, 10 ether, 30 ether);
+        uint256[] memory quote = baskets.quoteMint(basketId, 1 ether);
+        vm.prank(bob);
+        baskets.mint(basketId, 1 ether, bob, quote);
+        _approveV4Router(bob, token);
+        _approveV4Router(bob, address(assetA));
+        vm.prank(bob);
+        v4Router.modifyLiquidity(
+            key,
+            ModifyLiquidityParams(
+                TickMath.minUsableTick(key.tickSpacing),
+                TickMath.maxUsableTick(key.tickSpacing),
+                int256(0.2 ether),
+                bytes32(0)
+            )
+        );
     }
 
     function _queueFirst() private {

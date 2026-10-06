@@ -201,6 +201,25 @@ contract StaticsBasketFactory {
         emit BasketTokenDeployed(id, basketId, token);
     }
 
+    function reserveMarket(Intent calldata intent, bytes32 hookSalt) external onlyDiamond returns (bytes32 id) {
+        _validateIntent(intent, 1);
+        _requireAvailable(hookSalt, true);
+        saltState[hookSalt] = SaltState.Reserved;
+        return _recordMarket(intent, hookSalt);
+    }
+
+    function reserveQueuedMarket(Intent calldata intent) external onlyDiamond returns (bytes32 id) {
+        _validateIntent(intent, 1);
+        return _recordMarket(intent, _takeQueue(true));
+    }
+
+    function _recordMarket(Intent memory intent, bytes32 hookSalt) private returns (bytes32 id) {
+        bytes32[] memory salts = new bytes32[](1);
+        salts[0] = hookSalt;
+        id = _record(intent, bytes32(0), salts);
+        preparations[id].tokenDeployed = true; // Existing currencies; token deployment is permanently disabled.
+    }
+
     function deployBasketHook(bytes32 id, StaticsBasketHook.Binding calldata binding)
         external
         onlyDiamond
@@ -222,7 +241,8 @@ contract StaticsBasketFactory {
         prepared.intent = intent;
         prepared.tokenSalt = tokenSalt;
         prepared.hookSalts = hookSalts;
-        (address token,) = predict(tokenSalt);
+        address token;
+        if (tokenSalt != bytes32(0)) (token,) = predict(tokenSalt);
         emit CreationPrepared(id, intent.payer, intent.creator, token);
     }
 
