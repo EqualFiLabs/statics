@@ -10,6 +10,7 @@ interface IMoshSwarm {
     function counterAsset() external view returns (address);
     function counterIsNative() external view returns (bool);
     function teamRecipient() external view returns (address);
+    function teamShareBps() external view returns (uint256);
     function claim(address owner) external view returns (uint256);
     function claimable(address owner) external view returns (uint256);
     function collectFees() external returns (uint256);
