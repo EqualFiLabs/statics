@@ -54,9 +54,11 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
         assertEq(minted.spent1 + minted.refund1, 6 ether + minted.received1);
         _assertNoManagerResidue();
 
-        _transferUserInventory(3 ether, 3 ether);
-        IStaticsLiquidityManager.ManagedPositionMovement memory increased =
-            liquidityManager.increaseManagedPosition(_managedRequest(minted.tokenId, 2 ether, 3 ether, 3 ether, alice));
+        _mintManagerInventory(3 ether, 3 ether);
+        IStaticsLiquidityManager.ManagedPositionMovement memory increased = _managedCall(
+            _managedRequest(minted.tokenId, 2 ether, 3 ether, 3 ether, alice),
+            IStaticsLiquidityManager.increaseManagedPosition.selector
+        );
 
         assertEq(increased.liquidityBefore, 5 ether);
         assertEq(increased.liquidityAfter, 7 ether);
@@ -78,12 +80,12 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
         vm.expectRevert(
             abi.encodeWithSelector(StaticsLiquidityManager.PositionOwnershipMismatch.selector, tokenId, bob, alice)
         );
-        liquidityManager.attachManagedPosition(bob, canonicalKey.toId(), tokenId);
+        _attachManagedPosition(bob, canonicalKey.toId(), tokenId);
 
         vm.prank(alice);
         IERC721(address(positionManagerContract)).approve(address(liquidityManager), tokenId);
         IStaticsLiquidityManager.ManagedPositionState memory state =
-            liquidityManager.attachManagedPosition(alice, canonicalKey.toId(), tokenId);
+            _attachManagedPosition(alice, canonicalKey.toId(), tokenId);
 
         assertEq(state.owner, address(liquidityManager));
         assertEq(state.subscriber, address(0));
@@ -106,7 +108,7 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
                 PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.attachManagedPosition(alice, wrongPoolId, tokenId);
+        _attachManagedPosition(alice, wrongPoolId, tokenId);
 
         IStaticsProtocolPools.ProtocolPoolView memory registered = _registeredPool();
         registered.kind = IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral;
@@ -116,19 +118,22 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
                 StaticsLiquidityManager.PublicProtocolPoolRequired.selector, PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.attachManagedPosition(alice, canonicalKey.toId(), tokenId);
+        _attachManagedPosition(alice, canonicalKey.toId(), tokenId);
         vm.expectRevert(
             abi.encodeWithSelector(
                 StaticsLiquidityManager.PublicProtocolPoolRequired.selector, PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.mintManagedPosition(_request(1 ether, 2 ether, 2 ether), alice);
+        _mintManagedPosition(_request(1 ether, 2 ether, 2 ether), alice);
         vm.expectRevert(
             abi.encodeWithSelector(
                 StaticsLiquidityManager.PublicProtocolPoolRequired.selector, PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.collectManagedPositionFees(_managedRequest(managed.tokenId, 0, 0, 0, alice));
+        _managedCall(
+            _managedRequest(managed.tokenId, 0, 0, 0, alice),
+            IStaticsLiquidityManager.collectManagedPositionFees.selector
+        );
         assertEq(IERC721(address(positionManagerContract)).ownerOf(tokenId), alice);
     }
 
@@ -144,7 +149,7 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
         uint256 unbound = _mintUserPosition(alice);
         vm.prank(alice);
         IERC721(address(positionManagerContract)).transferFrom(alice, address(liquidityManager), unbound);
-        liquidityManager.recoverUnboundPosition(unbound, bob);
+        _recoverUnboundPosition(unbound, bob);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(unbound), bob);
 
         uint256 bound = _mintUserPosition(alice);
@@ -153,7 +158,7 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
         bytes32 binding = keccak256("bound position");
         _setManagerPosmBinding(bound, binding);
         vm.expectRevert(abi.encodeWithSelector(StaticsLiquidityManager.BoundPositionRecovery.selector, bound, binding));
-        liquidityManager.recoverUnboundPosition(bound, bob);
+        _recoverUnboundPosition(bound, bob);
         assertEq(IERC721(address(positionManagerContract)).ownerOf(bound), address(liquidityManager));
     }
 
@@ -179,29 +184,36 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
                 StaticsLiquidityManager.ProtocolPoolDecommissioned.selector, PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.mintManagedPosition(_request(1 ether, 2 ether, 2 ether), alice);
+        _mintManagedPosition(_request(1 ether, 2 ether, 2 ether), alice);
         vm.expectRevert(
             abi.encodeWithSelector(
                 StaticsLiquidityManager.ProtocolPoolDecommissioned.selector, PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.attachManagedPosition(alice, canonicalKey.toId(), attachTokenId);
+        _attachManagedPosition(alice, canonicalKey.toId(), attachTokenId);
         vm.expectRevert(
             abi.encodeWithSelector(
                 StaticsLiquidityManager.ProtocolPoolDecommissioned.selector, PoolId.unwrap(canonicalKey.toId())
             )
         );
-        liquidityManager.increaseManagedPosition(_managedRequest(minted.tokenId, 1 ether, 2 ether, 2 ether, alice));
+        _managedCall(
+            _managedRequest(minted.tokenId, 1 ether, 2 ether, 2 ether, alice),
+            IStaticsLiquidityManager.increaseManagedPosition.selector
+        );
 
         uint256 alice0Before = IERC20(Currency.unwrap(canonicalKey.currency0)).balanceOf(alice);
         uint256 alice1Before = IERC20(Currency.unwrap(canonicalKey.currency1)).balanceOf(alice);
-        IStaticsLiquidityManager.ManagedPositionMovement memory collected =
-            liquidityManager.collectManagedPositionFees(_managedRequest(minted.tokenId, 0, 0, 0, alice));
+        IStaticsLiquidityManager.ManagedPositionMovement memory collected = _managedCall(
+            _managedRequest(minted.tokenId, 0, 0, 0, alice),
+            IStaticsLiquidityManager.collectManagedPositionFees.selector
+        );
         assertGt(collected.received0 + collected.received1, 0);
         assertEq(collected.liquidityAfter, 5 ether);
 
-        IStaticsLiquidityManager.ManagedPositionMovement memory decreased =
-            liquidityManager.decreaseManagedPosition(_managedRequest(minted.tokenId, 2 ether, 0, 0, alice));
+        IStaticsLiquidityManager.ManagedPositionMovement memory decreased = _managedCall(
+            _managedRequest(minted.tokenId, 2 ether, 0, 0, alice),
+            IStaticsLiquidityManager.decreaseManagedPosition.selector
+        );
         assertEq(decreased.liquidityAfter, 3 ether);
         assertEq(positionManagerContract.getPositionLiquidity(minted.tokenId), 3 ether);
         assertEq(
@@ -217,14 +229,20 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
 
     function testBurnAndExitUseOnlyTypedPositionOperations() public {
         IStaticsLiquidityManager.ManagedPositionMovement memory first = _mintManaged(5 ether, 6 ether);
-        liquidityManager.decreaseManagedPosition(_managedRequest(first.tokenId, 5 ether, 0, 0, alice));
-        liquidityManager.burnManagedPosition(_managedRequest(first.tokenId, 0, 0, 0, alice));
+        _managedCall(
+            _managedRequest(first.tokenId, 5 ether, 0, 0, alice),
+            IStaticsLiquidityManager.decreaseManagedPosition.selector
+        );
+        _managedCall(
+            _managedRequest(first.tokenId, 0, 0, 0, alice), IStaticsLiquidityManager.burnManagedPosition.selector
+        );
         vm.expectRevert();
         IERC721(address(positionManagerContract)).ownerOf(first.tokenId);
 
         IStaticsLiquidityManager.ManagedPositionMovement memory second = _mintManaged(5 ether, 6 ether);
-        IStaticsLiquidityManager.ManagedPositionMovement memory exited =
-            liquidityManager.exitManagedPosition(_managedRequest(second.tokenId, 0, 0, 0, alice));
+        IStaticsLiquidityManager.ManagedPositionMovement memory exited = _managedCall(
+            _managedRequest(second.tokenId, 0, 0, 0, alice), IStaticsLiquidityManager.exitManagedPosition.selector
+        );
         assertEq(exited.liquidityBefore, 5 ether);
         assertEq(exited.liquidityAfter, 0);
         vm.expectRevert();
@@ -234,12 +252,17 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
 
     function testEmptyManagedPositionFeeCollectionIsValidatedNoOp() public {
         IStaticsLiquidityManager.ManagedPositionMovement memory minted = _mintManaged(5 ether, 6 ether);
-        liquidityManager.decreaseManagedPosition(_managedRequest(minted.tokenId, 5 ether, 0, 0, alice));
+        _managedCall(
+            _managedRequest(minted.tokenId, 5 ether, 0, 0, alice),
+            IStaticsLiquidityManager.decreaseManagedPosition.selector
+        );
 
         uint256 alice0Before = IERC20(Currency.unwrap(canonicalKey.currency0)).balanceOf(alice);
         uint256 alice1Before = IERC20(Currency.unwrap(canonicalKey.currency1)).balanceOf(alice);
-        IStaticsLiquidityManager.ManagedPositionMovement memory collected =
-            liquidityManager.collectManagedPositionFees(_managedRequest(minted.tokenId, 0, 0, 0, alice));
+        IStaticsLiquidityManager.ManagedPositionMovement memory collected = _managedCall(
+            _managedRequest(minted.tokenId, 0, 0, 0, alice),
+            IStaticsLiquidityManager.collectManagedPositionFees.selector
+        );
 
         assertEq(collected.tokenId, minted.tokenId);
         assertEq(collected.liquidityBefore, 0);
@@ -255,7 +278,7 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
             _managedRequest(minted.tokenId, 0, 0, 0, alice);
         expired.deadline = block.timestamp - 1;
         vm.expectRevert(StaticsLiquidityManager.InvalidPositionParameters.selector);
-        liquidityManager.collectManagedPositionFees(expired);
+        _managedCall(expired, IStaticsLiquidityManager.collectManagedPositionFees.selector);
     }
 
     function testManagedMethodsRemainDiamondOnly() public {
@@ -268,14 +291,14 @@ contract StaticsLiquidityManagerRangeGaugeTest is LiquidityManagerTestBase {
         private
         returns (IStaticsLiquidityManager.ManagedPositionMovement memory movement)
     {
-        _transferUserInventory(maximum, maximum);
-        movement = liquidityManager.mintManagedPosition(_request(liquidity, maximum, maximum), alice);
+        _mintManagerInventory(maximum, maximum);
+        movement = _mintManagedPosition(_request(liquidity, maximum, maximum), alice);
     }
 
     function _mintUserPosition(address owner) private returns (uint256 tokenId) {
-        _transferUserInventory(6 ether, 6 ether);
+        _mintManagerInventory(6 ether, 6 ether);
         (IStaticsLiquidityManager.PositionMovement memory movement,,) =
-            liquidityManager.mintUserPosition(_request(5 ether, 6 ether, 6 ether), owner, alice);
+            _mintUserPosition(_request(5 ether, 6 ether, 6 ether), owner, alice);
         tokenId = movement.tokenId;
     }
 
