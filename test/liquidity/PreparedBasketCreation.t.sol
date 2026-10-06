@@ -18,9 +18,12 @@ import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolReve
 import {IStaticsBasketMarkets} from "../../src/interfaces/IStaticsBasketMarkets.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsLiquidityManager} from "../../src/interfaces/IStaticsLiquidityManager.sol";
+import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
+import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {BasketMarketCreationFacet} from "../../src/facets/BasketMarketCreationFacet.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
+import {RangeGaugeViewFacet} from "../../src/facets/RangeGaugeViewFacet.sol";
 import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
 import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 import {StaticsRestrictedBasketToken} from "../../src/tokens/StaticsRestrictedBasketToken.sol";
@@ -36,6 +39,11 @@ abstract contract PreparedBasketTestBase is CanonicalPoolTestBase {
         super.setUp();
         preparation = BasketPreparationFacet(address(diamond));
         factory = _localBasketFactory;
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        bytes4[] memory views = new bytes4[](1);
+        views[0] = IStaticsRangeGauge.gaugePool.selector;
+        cut[0] = IDiamondCut.FacetCut(address(new RangeGaugeViewFacet()), IDiamondCut.FacetCutAction.Add, views);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         tokenSalt = factory.saltFor(0);
         hookSalts.push(_mine(1));
         hookSalts.push(_mine(uint88(uint256(hookSalts[0])) + 1));
@@ -237,6 +245,7 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         vm.prank(alice);
         vm.expectRevert();
         IStaticsBasketMarkets(address(diamond)).createBasketMarket{value: 1 ether}(params, first);
+        _retireIndependent(basketId, firstId);
     }
 
     function testTwoBasketCurrenciesUseTheRestrictedMarketCreationPath() public {
@@ -290,6 +299,49 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         (uint256 creatorPaid,) =
             IStaticsProtocolRevenue(address(diamond)).claimCreatorRevenue(id, secondToken, alice, 0);
         assertGt(creatorPaid, 0);
+        uint256 supplyBefore0 = IERC20(firstToken).totalSupply();
+        uint256 supplyBefore1 = IERC20(secondToken).totalSupply();
+        _retireIndependent(firstBasket, id);
+        assertLt(IERC20(firstToken).totalSupply(), supplyBefore0);
+        assertLt(IERC20(secondToken).totalSupply(), supplyBefore1);
+        // Historical user LP remains removable even after terminal POL recovery.
+        vm.prank(bob);
+        v4Router.modifyLiquidity(
+            key,
+            ModifyLiquidityParams(
+                TickMath.minUsableTick(10), TickMath.maxUsableTick(10), -int256(0.2 ether), bytes32(0)
+            )
+        );
+    }
+
+    function _retireIndependent(uint256 basketId, PoolId id) private {
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        PoolKey memory key = pools.protocolPool(id).key;
+        IStaticsBasketLiquidity markets = IStaticsBasketLiquidity(address(diamond));
+        vm.expectRevert(abi.encodeWithSignature("BasketMarketNotExitOnly(bytes32)", PoolId.unwrap(id)));
+        markets.unwindBasketMarket(id);
+        governance.decommissionBasket(basketId);
+        uint256[] memory positions = pools.protocolPolPositionIds(id);
+        assertGt(positions.length, 0); // Real fee-funded POL is closed before recovery.
+        if (positions.length != 0) {
+            vm.expectRevert();
+            markets.unwindBasketMarket(id);
+        }
+        for (uint256 i; i < positions.length; ++i) {
+            pools.closeProtocolPolPosition(positions[i], 0, 0, block.timestamp);
+        }
+        pools.settleProtocolPoolPol(id, Currency.unwrap(key.currency0), 0);
+        pools.settleProtocolPoolPol(id, Currency.unwrap(key.currency1), 0);
+        bytes32 account = LibCustody.protocolPolAccount(PoolId.unwrap(id));
+        assertGt(custody.reservedByAccount(account, Currency.unwrap(key.currency0)), 0);
+        assertGt(custody.reservedByAccount(account, Currency.unwrap(key.currency1)), 0);
+        markets.unwindBasketMarket(id);
+        assertTrue(pools.protocolPool(id).decommissioned);
+        assertTrue(IStaticsRangeGauge(address(diamond)).gaugePool(id).stopped);
+        assertEq(custody.reservedByAccount(account, Currency.unwrap(key.currency0)), 0);
+        assertEq(custody.reservedByAccount(account, Currency.unwrap(key.currency1)), 0);
+        vm.expectRevert();
+        markets.unwindBasketMarket(id);
     }
 
     function _mintFor(address user, uint256 basketId) private {

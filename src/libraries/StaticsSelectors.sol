@@ -565,8 +565,9 @@ library StaticsSelectors {
     }
 
     function basketLiquidityLifecycle() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](1);
+        selectors = new bytes4[](2);
         selectors[0] = IStaticsBasketLiquidity.unwindBasketLiquidity.selector;
+        selectors[1] = IStaticsBasketLiquidity.unwindBasketMarket.selector;
     }
 
     function protocolPoolCreation() internal pure returns (bytes4[] memory selectors) {

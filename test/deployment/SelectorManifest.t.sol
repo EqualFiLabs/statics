@@ -429,8 +429,9 @@ contract SelectorManifestTest is Test {
 
     function testLiquidityLifecycleSelectorManifestIsExact() public pure {
         bytes4[] memory selectors = StaticsSelectors.basketLiquidityLifecycle();
-        assertEq(selectors.length, 1);
+        assertEq(selectors.length, 2);
         assertEq(selectors[0], IStaticsBasketLiquidity.unwindBasketLiquidity.selector);
+        assertEq(selectors[1], IStaticsBasketLiquidity.unwindBasketMarket.selector);
     }
 
     function testProtocolPoolCreationSelectorManifestIsExactAndCollisionFree() public pure {

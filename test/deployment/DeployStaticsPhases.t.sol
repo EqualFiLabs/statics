@@ -92,9 +92,9 @@ contract StagedQuoterMock {
 
 contract DeployStaticsPhasesTest is Test {
     uint256 private constant PHASE_ONE_SELECTORS = 220;
-    uint256 private constant PHASE_TWO_SELECTORS = 324;
-    uint256 private constant PHASE_THREE_SELECTORS = 382;
-    uint256 private constant PHASE_FOUR_SELECTORS = 409;
+    uint256 private constant PHASE_TWO_SELECTORS = 325;
+    uint256 private constant PHASE_THREE_SELECTORS = 383;
+    uint256 private constant PHASE_FOUR_SELECTORS = 410;
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
 
     struct Fixture {
