@@ -12,6 +12,8 @@ import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibMorphoSync} from "../libraries/LibMorphoSync.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
+import {IStaticsRestrictedBasketToken} from "../interfaces/IStaticsRestrictedBasketToken.sol";
 
 contract MorphoFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -56,6 +58,14 @@ contract MorphoFacet is ReentrancyGuard {
         LibMorpho.trackMarket(positionId, marketId_);
         ms.positions[positionId].positions[marketId_].trackedCollateral += assets;
         LibCustody.release(custodyAccount, config.params.collateralToken, assets);
+        if (LibRestrictedBasket.isRestricted(config.params.collateralToken)) {
+            if (
+                config.kind != IStaticsMorpho.CollateralKind.Basket
+                    || LibRestrictedBasket.restrictedStorage().basketIds[config.params.collateralToken]
+                        != config.basketId + 1 || ms.accounts[positionId] != account
+            ) revert InvalidAmount();
+            IStaticsRestrictedBasketToken(config.params.collateralToken).authorizeMorphoIngress(assets);
+        }
         IERC20(config.params.collateralToken).forceApprove(ms.morpho, assets);
         IMorphoBlue(ms.morpho).supplyCollateral(config.params, assets, account, "");
         IERC20(config.params.collateralToken).forceApprove(ms.morpho, 0);

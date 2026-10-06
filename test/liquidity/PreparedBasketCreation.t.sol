@@ -26,13 +26,13 @@ import {StaticsBasketHook} from "../../src/liquidity/StaticsBasketHook.sol";
 import {StaticsRestrictedBasketToken} from "../../src/tokens/StaticsRestrictedBasketToken.sol";
 import {CanonicalPoolTestBase} from "../helpers/CanonicalPoolTestBase.sol";
 
-contract PreparedBasketCreationTest is CanonicalPoolTestBase {
-    BasketPreparationFacet private preparation;
-    StaticsBasketFactory private factory;
-    bytes32 private tokenSalt;
-    bytes32[] private hookSalts;
+abstract contract PreparedBasketTestBase is CanonicalPoolTestBase {
+    BasketPreparationFacet internal preparation;
+    StaticsBasketFactory internal factory;
+    bytes32 internal tokenSalt;
+    bytes32[] internal hookSalts;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](3);
         bytes4[] memory selectors = new bytes4[](4);
@@ -71,6 +71,31 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         hookSalts.push(_mine(uint88(uint256(hookSalts[0])) + 1));
     }
 
+    function _queueFirst() internal {
+        bytes32[] memory tokens = new bytes32[](1);
+        tokens[0] = tokenSalt;
+        factory.enqueueSalts(tokens, false);
+        factory.enqueueSalts(hookSalts, true);
+    }
+
+    /// @dev Test-only equivalent of offchain mining over the effective guarded CreateX salt.
+    function _mine(uint88 start) internal view returns (bytes32 salt) {
+        uint256 prefix = uint256(factory.saltFor(0));
+        address createX = factory.CREATE_X();
+        bytes32 proxyHash = factory.CREATE3_PROXY_HASH();
+        for (uint256 i = start; i < uint256(start) + 1_000_000; ++i) {
+            salt = bytes32(prefix | i);
+            bytes32 effective = keccak256(abi.encode(address(factory), block.chainid, salt));
+            address proxy =
+                address(uint160(uint256(keccak256(abi.encodePacked(hex"ff", createX, effective, proxyHash)))));
+            address predicted = address(uint160(uint256(keccak256(abi.encodePacked(hex"d694", proxy, hex"01")))));
+            if (uint160(predicted) & ((1 << 14) - 1) == 0x1fec) return salt;
+        }
+        revert("test salt search exhausted");
+    }
+}
+
+contract PreparedBasketCreationTest is PreparedBasketTestBase {
     function testPreparedCreationUsesReservedIdentitiesAndCreatesActualProtocolPol() public {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
@@ -395,13 +420,6 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         );
     }
 
-    function _queueFirst() private {
-        bytes32[] memory tokens = new bytes32[](1);
-        tokens[0] = tokenSalt;
-        factory.enqueueSalts(tokens, false);
-        factory.enqueueSalts(hookSalts, true);
-    }
-
     function _swapAssetIntoBasket(uint256 basketId, address user) private {
         IStaticsBasketLiquidity.CanonicalPoolView memory market =
             basketLiquidity.canonicalPool(basketId, address(assetA));
@@ -416,21 +434,5 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
                 zeroForOne, -int256(0.1 ether), zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             )
         );
-    }
-
-    /// @dev Test-only equivalent of offchain mining over the effective guarded CreateX salt.
-    function _mine(uint88 start) private view returns (bytes32 salt) {
-        uint256 prefix = uint256(factory.saltFor(0));
-        address createX = factory.CREATE_X();
-        bytes32 proxyHash = factory.CREATE3_PROXY_HASH();
-        for (uint256 i = start; i < uint256(start) + 1_000_000; ++i) {
-            salt = bytes32(prefix | i);
-            bytes32 effective = keccak256(abi.encode(address(factory), block.chainid, salt));
-            address proxy =
-                address(uint160(uint256(keccak256(abi.encodePacked(hex"ff", createX, effective, proxyHash)))));
-            address predicted = address(uint160(uint256(keccak256(abi.encodePacked(hex"d694", proxy, hex"01")))));
-            if (uint160(predicted) & ((1 << 14) - 1) == 0x1fec) return salt;
-        }
-        revert("test salt search exhausted");
     }
 }

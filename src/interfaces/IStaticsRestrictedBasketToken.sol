@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 /// @notice Protocol-only, transaction-local settlement capabilities; allowances are independent.
 interface IStaticsRestrictedBasketToken {
+    function morpho() external view returns (address);
     function authorizeProtocolTransfer(address from, address to, uint256 amount) external;
     function authorizePoolSettlement(uint256 inbound, uint256 outbound) external;
     function authorizePoolClaim(address receiver, uint256 amount) external;

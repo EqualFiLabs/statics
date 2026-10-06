@@ -11,6 +11,7 @@ import {LibGenesisRewards} from "../libraries/LibGenesisRewards.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
 import {LibMorphoSync} from "../libraries/LibMorphoSync.sol";
 import {StaticsMorphoAccount} from "../morpho/StaticsMorphoAccount.sol";
+import {LibRestrictedBasket} from "../libraries/LibRestrictedBasket.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 
 contract MorphoSettlementFacet is ReentrancyGuard {
@@ -64,7 +65,15 @@ contract MorphoSettlementFacet is ReentrancyGuard {
         address account = ms.accounts[positionId];
         if (account == address(0)) revert MorphoAccountNotDeployed(positionId);
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
-        StaticsMorphoAccount(account).sweepToken(token, receiver, amount);
+        if (LibRestrictedBasket.isRestricted(token)) {
+            uint256 beforeBalance = IERC20(token).balanceOf(address(this));
+            LibRestrictedBasket.authorizeProtocolTransfer(token, account, address(this), amount);
+            StaticsMorphoAccount(account).sweepToken(token, address(this), amount);
+            if (IERC20(token).balanceOf(address(this)) - beforeBalance != amount) revert InvalidAmount();
+            LibCustody.pushUnreserved(token, receiver, amount, minReceived);
+        } else {
+            StaticsMorphoAccount(account).sweepToken(token, receiver, amount);
+        }
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
         received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
         if (received < minReceived) revert MinimumRecoveryNotMet(token, minReceived, received);
