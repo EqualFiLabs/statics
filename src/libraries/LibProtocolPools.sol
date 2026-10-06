@@ -147,4 +147,11 @@ library LibProtocolPools {
         pool = protocolPoolStorage().generalPools[poolId];
         if (!pool.registered) revert GeneralPoolNotRegistered(poolId);
     }
+
+    function publicHook(PoolId poolId) internal view returns (address) {
+        LibBasketMarkets.Market storage market = LibBasketMarkets.marketStorage().markets[poolId];
+        return market.lifecycle == LibBasketMarkets.Lifecycle.None
+            ? LibBasketLiquidity.liquidityStorage().hook
+            : address(market.key.hooks);
+    }
 }

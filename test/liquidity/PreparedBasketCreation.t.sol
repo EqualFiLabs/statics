@@ -4,10 +4,15 @@ pragma solidity 0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
+import {IStaticsSwapFeeHook} from "../../src/interfaces/IStaticsSwapFeeHook.sol";
+import {IStaticsProtocolRevenue} from "../../src/interfaces/IStaticsProtocolRevenue.sol";
 import {BasketPreparationFacet} from "../../src/facets/BasketPreparationFacet.sol";
 import {BasketSettlementFacet} from "../../src/facets/BasketSettlementFacet.sol";
 import {StaticsBasketFactory} from "../../src/liquidity/StaticsBasketFactory.sol";
@@ -120,6 +125,114 @@ contract PreparedBasketCreationTest is CanonicalPoolTestBase {
         vm.expectRevert();
         baskets.createBasketPrepared{value: 2 ether}(params, pools, maximums, type(uint256).max, id);
         assertFalse(factory.preparation(id).tokenDeployed);
+    }
+
+    function testPoolLocalFeesRevenueAndPolResolveTheImmutableHook() public {
+        _queueFirst();
+        (uint256 basketId, address token) = _createDefaultBasket(0, 0);
+        IStaticsProtocolPools pools = IStaticsProtocolPools(address(diamond));
+        IStaticsBasketLiquidity.CanonicalPoolView memory market =
+            basketLiquidity.canonicalPool(basketId, address(assetA));
+        pools.setProtocolPoolFeeRate(market.poolId, IStaticsProtocolPools.PoolSwapFeeRate(90, 10));
+        assertEq(StaticsBasketHook(market.hook).poolFeeRate(market.poolId).inputFeeBps, 90);
+        assertEq(pools.protocolPoolFeeRate(market.poolId).inputFeeBps, 90);
+        (uint16 defaultInput,) = swapFeeHook.defaultFeeRate();
+        assertEq(defaultInput, 25);
+        _swapAssetIntoBasket(basketId, bob);
+        uint256 pending =
+            StaticsBasketHook(market.hook).pendingProtocolPol(market.poolId, Currency.wrap(address(assetA)));
+        assertGt(pending, 0);
+        assertEq(pools.settleProtocolPoolPol(market.poolId, address(assetA), 0), pending);
+        assertEq(StaticsBasketHook(market.hook).pendingProtocolPol(market.poolId, Currency.wrap(address(assetA))), 0);
+        pools.settleProtocolPoolRevenue(market.poolId, token);
+        vm.prank(alice);
+        IStaticsProtocolRevenue(address(diamond)).claimCreatorRevenue(market.poolId, token, alice, 0);
+        assertGt(IERC20(token).balanceOf(alice), 0);
+    }
+
+    function testDelayedStakerFundingSpansHooksWithoutChangingGenerationOwnership() public {
+        _queueFirst();
+        (uint256 firstBasket,) = _createDefaultBasket(0, 0);
+        bytes32[] memory tokens = new bytes32[](1);
+        tokens[0] = factory.saltFor(type(uint88).max);
+        bytes32[] memory nextHooks = new bytes32[](2);
+        nextHooks[0] = _mine(uint88(uint256(hookSalts[1])) + 1);
+        nextHooks[1] = _mine(uint88(uint256(nextHooks[0])) + 1);
+        factory.enqueueSalts(tokens, false);
+        factory.enqueueSalts(nextHooks, true);
+        (uint256 secondBasket,) = _createDefaultBasket(0, 0);
+        address[] memory assets = new address[](1);
+        assets[0] = address(assetA);
+        stakingAsset.mint(alice, 10 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 10 ether);
+        uint256 positionId = globalRewards.createAndStake(10 ether, alice, assets);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 25 hours);
+        _swapAssetIntoBasket(firstBasket, bob);
+        _swapAssetIntoBasket(secondBasket, bob);
+        uint256 unfunded = globalRewards.unfundedSwapRewards(address(assetA));
+        assertGt(unfunded, 0);
+        assertEq(swapFeeHook.pendingStakerRewards(Currency.wrap(address(assetA))), 0);
+        vm.prank(alice);
+        uint256[] memory entitlement = globalRewards.pendingRewards(positionId, assets);
+        vm.prank(alice);
+        globalRewards.unstake(positionId, 10 ether, alice);
+        stakingAsset.mint(bob, 10 ether);
+        vm.startPrank(bob);
+        stakingAsset.approve(address(diamond), 10 ether);
+        uint256 laterPosition = globalRewards.createAndStake(10 ether, bob, assets);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 25 hours);
+        assertEq(globalRewards.settlePublicSwapRewards(address(assetA), unfunded), unfunded);
+        assertEq(globalRewards.unfundedSwapRewards(address(assetA)), 0);
+        vm.prank(bob);
+        assertEq(globalRewards.pendingRewards(laterPosition, assets)[0], 0);
+        vm.prank(alice);
+        uint256[] memory paid = globalRewards.claimRewards(positionId, assets, alice, new uint256[](1));
+        assertEq(paid[0], entitlement[0]);
+    }
+
+    function testRestrictedCurrencyCannotEnterGeneralHookCreation() public {
+        _queueFirst();
+        (, address token) = _createDefaultBasket(0, 0);
+        IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams(
+            token,
+            address(assetA),
+            3000,
+            10,
+            uint160(1 << 96),
+            IStaticsProtocolPools.PoolSwapFeeRate(25, 25),
+            alice,
+            false,
+            0,
+            type(uint256).max
+        );
+        vm.expectRevert(abi.encodeWithSignature("RestrictedBasketRequiresBasketHook(address)", token));
+        IStaticsProtocolPools(address(diamond)).quotePool(params);
+    }
+
+    function _queueFirst() private {
+        bytes32[] memory tokens = new bytes32[](1);
+        tokens[0] = tokenSalt;
+        factory.enqueueSalts(tokens, false);
+        factory.enqueueSalts(hookSalts, true);
+    }
+
+    function _swapAssetIntoBasket(uint256 basketId, address user) private {
+        IStaticsBasketLiquidity.CanonicalPoolView memory market =
+            basketLiquidity.canonicalPool(basketId, address(assetA));
+        PoolKey memory key = IStaticsProtocolPools(address(diamond)).protocolPool(market.poolId).key;
+        assetA.mint(user, 1 ether);
+        _approveV4Router(user, address(assetA));
+        bool zeroForOne = Currency.unwrap(key.currency0) == address(assetA);
+        vm.prank(user);
+        v4Router.swap(
+            key,
+            SwapParams(
+                zeroForOne, -int256(0.1 ether), zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            )
+        );
     }
 
     /// @dev Test-only equivalent of offchain mining over the effective guarded CreateX salt.

@@ -13,6 +13,7 @@ import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
+import {LibSwapRewardSources} from "../libraries/LibSwapRewardSources.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
@@ -222,7 +223,7 @@ contract GlobalRewardsFacet is ReentrancyGuard {
     {
         uint256 unfunded = LibGlobalRewards.unfundedSwapRewards(asset);
         amount = maximumAmount < unfunded ? maximumAmount : unfunded;
-        if (amount != 0) _settlePublicSwapRewards(asset, amount);
+        if (amount != 0) amount = _settlePublicSwapRewards(asset, amount);
     }
 
     function canAccrueStakerRewards(address asset) external view returns (bool) {
@@ -274,11 +275,35 @@ contract GlobalRewardsFacet is ReentrancyGuard {
         LibGlobalRewards.enforceFunded(asset, requested);
     }
 
-    function _settlePublicSwapRewards(address asset, uint256 amount) private {
+    function _settlePublicSwapRewards(address asset, uint256 amount) private returns (uint256 funded) {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
+        LibSwapRewardSources.SourceQueue storage queue = LibSwapRewardSources.sourceStorage().sources[asset];
+        // Prior deployed hooks may already hold crystallized claims at the upgrade boundary.
+        uint256 legacy = LibGlobalRewards.unfundedSwapRewards(asset) - queue.total;
+        if (legacy != 0) {
+            uint256 requested = legacy < amount ? legacy : amount;
+            _settleSwapRewardSource(ls.hook, asset, requested);
+            funded = requested;
+        }
+        for (
+            uint256 i;
+            funded < amount && queue.head < queue.hooks.length && i < LibSwapRewardSources.MAX_SETTLEMENT_SOURCES;
+            ++i
+        ) {
+            address hook = queue.hooks[queue.head];
+            uint256 remaining = amount - funded;
+            uint256 pending = queue.pending[hook];
+            uint256 requested = pending < remaining ? pending : remaining;
+            LibSwapRewardSources.consume(queue, hook, requested);
+            _settleSwapRewardSource(hook, asset, requested);
+            funded += requested;
+        }
+    }
+
+    function _settleSwapRewardSource(address hook, address asset, uint256 amount) private {
         uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
-        uint256 settled = IStaticsSwapFeeHook(ls.hook).settleStakerRewards(Currency.wrap(asset), address(this), amount);
+        uint256 settled = IStaticsSwapFeeHook(hook).settleStakerRewards(Currency.wrap(asset), address(this), amount);
         uint256 afterBalance = IERC20(asset).balanceOf(address(this));
         uint256 received = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (settled != amount || received != amount) revert IncompatibleRewardFunding(asset, amount, received);

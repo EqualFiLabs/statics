@@ -281,8 +281,9 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
             kind != IStaticsProtocolPools.ProtocolPoolKind.General
                 && kind != IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
         ) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
-        LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
-        if (address(registeredKey.hooks) != ls.hook) revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        if (address(registeredKey.hooks) != LibProtocolPools.publicHook(poolId)) {
+            revert IStaticsRangeGauge.InvalidPublicPool(poolId);
+        }
         if (!LibRangeGauge.rangeGaugeStorage().gauges[poolId].initialized) {
             revert IStaticsRangeGauge.InvalidPublicPool(poolId);
         }
