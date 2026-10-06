@@ -257,6 +257,13 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         );
         (PoolId id,) = _createAdditional(params, _mine(uint88(uint256(nextHooks[1])) + 1));
         PoolKey memory key = pools.protocolPool(id).key;
+        _mintFor(alice, firstBasket);
+        vm.startPrank(alice);
+        IERC20(firstToken).approve(address(diamond), 0.5 ether);
+        basketCollateral.createAndDepositBasketCollateral(firstBasket, 0.5 ether, alice);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 25 hours);
+        assertTrue(IStaticsProtocolRevenue(address(diamond)).canAccrueBasketRewards(id));
         _mintFor(bob, firstBasket);
         _mintFor(bob, secondBasket);
         _approveV4Router(bob, firstToken);
@@ -273,6 +280,16 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         );
         vm.prank(bob);
         v4Router.swap(key, SwapParams(true, -int256(0.01 ether), TickMath.MIN_SQRT_PRICE + 1));
+        IStaticsSwapFeeHook marketHook = IStaticsSwapFeeHook(address(key.hooks));
+        assertGt(marketHook.pendingFeeDistribution(id, Currency.wrap(firstToken)).basketStaker, 0);
+        assertEq(marketHook.pendingFeeDistribution(id, Currency.wrap(secondToken)).basketStaker, 0);
+        assertGt(marketHook.pendingProtocolPol(id, Currency.wrap(secondToken)), 0);
+        pools.settleProtocolPoolRevenue(id, firstToken);
+        pools.settleProtocolPoolRevenue(id, secondToken);
+        vm.prank(alice);
+        (uint256 creatorPaid,) =
+            IStaticsProtocolRevenue(address(diamond)).claimCreatorRevenue(id, secondToken, alice, 0);
+        assertGt(creatorPaid, 0);
     }
 
     function _mintFor(address user, uint256 basketId) private {

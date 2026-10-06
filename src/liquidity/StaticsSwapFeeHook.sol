@@ -519,7 +519,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
         }
         shares.treasury = charged - shares.pol - shares.basketStaker - shares.staticsStaker - shares.creator;
 
-        if (shares.basketStaker != 0 && !IStaticsProtocolRevenue(staticsDiamond).canAccrueBasketRewards(poolId)) {
+        if (shares.basketStaker != 0 && !_canAccrueBasketRewards(poolId, currency)) {
             if (_effectivePolShare(kind, polActivated, polOverridden, polOverrideBps) != 0) {
                 shares.pol += shares.basketStaker;
             } else {
@@ -593,11 +593,15 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     /// routing boundary. Apply the same documented fallback again without changing the aggregate
     /// claim liability. Basket rewards become POL only while POL funding remains active, otherwise
     /// they become treasury revenue.
+    function _canAccrueBasketRewards(PoolId poolId, Currency) internal view virtual returns (bool) {
+        return IStaticsProtocolRevenue(staticsDiamond).canAccrueBasketRewards(poolId);
+    }
+
     function _normalizePendingDistribution(PoolId poolId, Currency currency) private {
         FeeDistribution storage pending = distributions[poolId][currency];
         uint256 basketStakerToPol;
         uint256 basketStakerToTreasury;
-        if (pending.basketStaker != 0 && !IStaticsProtocolRevenue(staticsDiamond).canAccrueBasketRewards(poolId)) {
+        if (pending.basketStaker != 0 && !_canAccrueBasketRewards(poolId, currency)) {
             (bool activated, bool overridden, uint16 overrideBps) =
                 IStaticsProtocolRevenue(staticsDiamond).protocolPolFundingConfig(poolId);
             uint16 polShareBps = _effectivePolShare(registrations[poolId].kind, activated, overridden, overrideBps);

@@ -13,6 +13,8 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IStaticsBasketSettlement} from "../interfaces/IStaticsBasketSettlement.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
+import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {LibProtocolPoolFee} from "../libraries/LibProtocolPoolFee.sol";
 import {StaticsSwapFeeHook} from "./StaticsSwapFeeHook.sol";
 
@@ -152,6 +154,20 @@ contract StaticsBasketHook is StaticsSwapFeeHook {
     }
 
     // Every pool reads live bounded policy; governance never iterates deployed hooks.
+    function _canAccrueBasketRewards(PoolId id, Currency currency) internal view override returns (bool) {
+        if (!super._canAccrueBasketRewards(id, currency)) return false;
+        uint256 basketId = IStaticsProtocolPools(staticsDiamond).protocolPool(id).basketId;
+        IStaticsBasket.BasketView memory basket = IStaticsBasket(staticsDiamond).basket(basketId);
+        address asset = Currency.unwrap(currency);
+        if (asset == basket.token) return true;
+        for (uint256 i; i < basket.assets.length; ++i) {
+            if (asset == basket.assets[i]) return true;
+        }
+        // Independent pairs need not be reward assets of their primary basket.
+        // Keep the established POL/Treasury fallback instead of creating an unclaimable book.
+        return false;
+    }
+
     function _defaultFeeRate() internal view override returns (uint16 inputFeeBps, uint16 outputFeeBps) {
         return feePolicy.defaultFeeRate();
     }
