@@ -58,7 +58,32 @@ constituent. Explicit realized ERC-20 receipts fund the live campaign, then
 route to its fixed beneficiary after success or expiry. It does not count
 future fees, transfer share principal, or harvest an external protocol.
 
-PONS and Mosh-specific harvesting/share adapters are not enabled. Supporting
-them requires verified source and pinned execution evidence for each supported
-generation, including share-transfer boundaries and terminal fee checkpoints.
-Harvest time is not an acceptable proxy for accrual ownership.
+PONS and Mosh-specific harvesting/share adapters are not enabled yet. The
+closed-source Mosh integration uses its published documentation/ABIs and
+runtime-pinned fork evidence, not a source-audit claim. Public Solidity source
+is not a prerequisite. Each enabled generation still requires actual adapter
+entry, recovery, collection and terminal-accounting tests.
+
+`RobinhoodMoshClaimFork.t.sol` checks the current ETH-pair generation at
+Robinhood L2 block 80,155,273. It pins the Swarm implementation, factory,
+registry, market and PONS hook, and checks the Swarm's minimal-proxy binding.
+Its contract-controlled probe fills buyer-bound listings and returns partial
+or complete claims through new listings. Return is two-step: listing does not
+escrow the claim; the designated depositor must fill it. Zero-price listings
+are rejected, so the probe uses a one-wei price (the pinned 10% market fee
+rounds to zero). Those sale proceeds are distinct from fee rewards.
+An expired listing still occupies the market's listed-amount accounting; the
+custody contract must cancel it before relisting that amount for recovery.
+
+Permissionless collection works after rewards are realized. Returning claims
+automatically pays the old custodian's available fees before removing its
+claims. Unconverted PONS fees follow the owner when realized, and return does
+not need to wait for conversion. The fork models the existing privileged PONS
+operator only to produce upstream conversion; Statics does not gain that role.
+These tests prove the probe's movement paths, not completed campaign reward
+accounting or compatibility with other generations/payout assets.
+
+The planned share adapter accounts actual receipts lazily: funding-period
+receipts contribute to the campaign, and newly accounted terminal receipts
+belong to depositors. Previously reserved campaign rewards stay campaign-owned.
+It does not reconstruct trade-time entitlement from harvest timestamps.
