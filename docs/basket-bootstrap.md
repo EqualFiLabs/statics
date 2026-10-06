@@ -148,8 +148,12 @@ source; alternatively the historical team recipient explicitly hands off selecte
 claims through an exact buyer-bound market offer. Campaign-creator authority
 cannot substitute for that seller's authority. Collection and retryable wrapping/
 delivery are separate; all terminal revenue belongs to the fixed beneficiary.
-Existing-team handoff and later real swap fees are fork-tested. A full new-Swarm
-launch naming the adapter as team recipient is not yet fork-proven.
+Existing-team handoff and later real swap fees are fork-tested. The new-source
+regression also purchases actual gate tokens, creates and funds the real launcher,
+completes PONS launch/graduation and Swarm vault finalization, then binds the
+adapter's actually minted team claims. A subsequent real swap produces additional
+measured campaign revenue without accessing agent principal. This evidence is
+specific to the pinned factory, launcher, planner and supported native generation.
 
 `PonsRevenueAdapter` binds one pinned V2 factory, launched token, curve and fee
 escrow. The current fee recipient must first transfer its rights to the adapter
