@@ -242,6 +242,18 @@ contract RobinhoodMoshShareAdapterForkTest is CampaignTestBase, IUnlockCallback 
         assertEq(adapter.totalMeasured(), 0);
     }
 
+    function testBuyerCannotClearReturnOfferOutsideCustodyContract() public {
+        _deposit(HOLDER, 0.01 ether);
+        vm.prank(HOLDER);
+        uint256 id = adapter.withdraw(0.01 ether, block.timestamp + 1 hours);
+        vm.expectRevert();
+        vm.prank(HOLDER);
+        MARKET.cancel(id);
+        (address source,,, uint256 amount,,,) = MARKET.offers(id);
+        assertEq(source, address(SWARM));
+        assertEq(amount, 0.01 ether);
+    }
+
     function testExpiredListingCancelsAndRecoversWithoutConversionOrForwarding() public {
         _deposit(HOLDER, 0.01 ether);
         uint256 end = block.timestamp + 1 hours;
