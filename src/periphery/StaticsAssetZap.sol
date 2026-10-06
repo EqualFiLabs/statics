@@ -246,6 +246,8 @@ contract StaticsAssetZap is IUnlockCallback, ReentrancyGuard {
         Conversion memory conversion = abi.decode(data, (Conversion));
         uint256 spent;
         for (uint256 i; i < conversion.routes.length; ++i) {
+            // Supply-sensitive backing rounding may make one valid mint requirement zero.
+            if (conversion.amounts[i] == 0) continue;
             uint256 cost = _swapRoute(conversion.routes[i], conversion.amounts[i]);
             if (cost > conversion.routes[i].maximumInput) revert MaximumInputExceeded();
             spent += cost;

@@ -8,6 +8,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {ModifyLiquidityParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {StaticsAssetZap} from "../../src/periphery/StaticsAssetZap.sol";
+import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {BasketBootstrapCampaign} from "../../src/bootstrap/BasketBootstrapCampaign.sol";
 import {CampaignTestBase} from "./BasketBootstrapCampaign.t.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -128,6 +129,24 @@ contract StaticsAssetZapTest is CampaignTestBase {
         assertEq(wrapped.balanceOf(address(zap)), 4 ether);
         assertEq(address(zap).balance, 0);
         assertEq(IERC20(token).balanceOf(alice), 1 ether);
+    }
+
+    function testRoundedZeroRequirementMintsThroughActualProtocol() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        params.bundleAmounts[0] = 1;
+        (uint256 id, address token) = _launchBasket(params, alice, 1 ether);
+        uint256[] memory quote = baskets.quoteMint(id, 1);
+        // Move off an exact backing boundary through a real mint, never synthetic storage.
+        vm.prank(alice);
+        baskets.mint(id, 1, alice, quote);
+        quote = baskets.quoteMint(id, 1);
+        assertEq(quote[0], 0);
+        assertGt(quote[1], 0);
+        uint256 held = IERC20(token).balanceOf(alice);
+        vm.prank(alice);
+        zap.mintBasket(_input(false, 25 ether), id, 1, quote, _routes(false));
+        assertEq(IERC20(token).balanceOf(alice), held + 1);
+        assertEq(assetA.balanceOf(address(zap)), 0);
     }
 
     function _purchases() private pure returns (StaticsAssetZap.Purchase[] memory orders) {
