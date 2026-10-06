@@ -11,6 +11,7 @@ import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
+import {IStaticsBatchRewards} from "../interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
@@ -419,6 +420,12 @@ library StaticsSelectors {
         selectors[1] = IStaticsBasketRewards.getBasketRewards.selector;
         selectors[2] = IStaticsBasketRewards.claimBasketRewards.selector;
         selectors[3] = IStaticsBasketRewards.basketRewardState.selector;
+    }
+
+    function batchRewards() internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](2);
+        selectors[0] = IStaticsBatchRewards.batchClaimRewards.selector;
+        selectors[1] = IStaticsBatchRewards.batchClaimLimits.selector;
     }
 
     function globalRewards() internal pure returns (bytes4[] memory selectors) {

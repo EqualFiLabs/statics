@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-09-16
-- Updated: 2026-09-24
+- Updated: 2026-10-06
 - Scope: production Diamond composition, audit boundaries, and release sequencing
 
 ## Decision
@@ -20,7 +20,7 @@ phase-specific one-time initialization.
 - the fresh full-stack launcher concatenates those same four cuts instead of maintaining a second
   handwritten full manifest.
 
-The complete plan contains 397 selectors. CI deploys Phase 1, advances the same Diamond through all
+The complete plan contains 399 selectors. CI deploys Phase 1, advances the same Diamond through all
 four timelocked batches, and compares every final selector and implementation runtime hash with a
 fresh full deployment. A selector addition or reassignment must therefore update the canonical
 phase plan; the staged and fresh paths cannot silently diverge.
@@ -36,7 +36,7 @@ Robinhood manifest, so it cannot create a Diamond that the later handoff cannot 
 
 ## Phase 1: arbitrary hooked pairs and STATICS staking
 
-Phase 1 installs 31 facets and 220 selectors for:
+Phase 1 installs 32 facets and 222 selectors for:
 
 - the Diamond cut, loupe, ownership, and timelocked governance kernel;
 - general Uniswap v4 pools between arbitrary compatible ERC-20s using the reusable
@@ -64,6 +64,8 @@ Phase 1 installs 31 facets and 220 selectors for:
   [market tape ADR](./statics-market-tape.md);
 - a Diamond-bound `StaticsLiquidityManager` that holds managed Uniswap v4 position NFTs and whose
   Diamond, PoolManager, PositionManager, and Permit2 bindings are immutable;
+- atomic typed reward batches across global staking, LP gauge/LP bribes, and allocator bribes,
+  bounded to 16 claim groups and 64 asset/slot entries;
 - the custody views and treasury configuration needed by those installed paths; and
 - global and PoolId-local swap stops plus staking and liquidity ingress pauses;
 - a separate permissioned v4 hook, creator-selected venue controllers, trusted swap and liquidity
@@ -105,7 +107,7 @@ always owner/timelock executed and requires exact creator EIP-712 or ERC-1271 au
 
 ## Phase 2: baskets, credit, flash composition, and Genesis integration
 
-Phase 2 adds 92 selectors for a cumulative 312 selectors across 43 facets. It installs:
+Phase 2 adds 92 selectors for a cumulative 314 selectors across 44 facets. It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
@@ -130,7 +132,7 @@ runtimes and bindings.
 
 ## Phase 3: Statics Dollar
 
-Phase 3 adds 58 selectors for a cumulative 370 selectors across 48 facets. It adds Dollar custody,
+Phase 3 adds 58 selectors for a cumulative 372 selectors across 49 facets. It adds Dollar custody,
 Risk Share staking and incentives, fee routing, the pairing vault, the Dollar gateway, and series
 migration.
 
@@ -147,7 +149,7 @@ atomically install and initialize the periphery before finalizing the core-to-Di
 
 ## Phase 4: Morpho
 
-Phase 4 adds 27 selectors for the final 397 selectors across 53 facets. It installs the remaining
+Phase 4 adds 27 selectors for the final 399 selectors across 54 facets. It installs the remaining
 Position portfolio view plus Morpho administration, actions, settlement, recovery, and views.
 
 The phase deploys five Morpho facet implementations and `StaticsPhaseFourInit`: six contracts.
@@ -186,7 +188,7 @@ replacement cut; later activation scripts fail closed on an unexpected earlier r
 
 ## Audit boundary
 
-Phase 1's deployed review surface remains its 220 reachable selectors, facet paths and shared
+Phase 1's deployed review surface remains its 222 reachable selectors, facet paths and shared
 libraries, Diamond kernel and initializer, timelock, both hooks, permissioned periphery and claims,
 venue controller, public range-gauge accounting and custody, the liquidity manager,
 managed-POL custody and lifecycle, and deployment ceremonies. Each later audit covers its
@@ -216,3 +218,18 @@ ingress pause. The governance Safe and guardian may be the same address, but sep
 provide stronger veto independence.
 
 No transaction or production deployment is authorized by this ADR or its implementation.
+
+## Adding batch claims to an existing Phase 1 Diamond
+
+Deploy `BatchRewardsFacet` with the release compiler settings, then use
+`PrepareStaticsBatchRewardsUpgrade.buildTimelockCalldata(diamond, facet, salt)`.
+Preparation checks the compiled facet runtime, the three existing claim routes,
+`diamondCut` and `setInterfaces`, and rejects collisions for either new selector.
+The generated timelock batch adds both selectors and registers
+`IStaticsBatchRewards` via `setInterfaces`. It performs no broadcast. Schedule
+and execute the prepared operation using the existing governance ceremony and
+current delay. No reward-state migration or initialization is required.
+
+The batch implementation delegates only typed calls to existing claim routes.
+It preserves the caller and shared claim guards; all claims revert together on
+any failure. Existing bounded catch-up remains a prerequisite when needed.
