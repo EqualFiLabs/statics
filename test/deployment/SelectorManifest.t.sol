@@ -295,9 +295,10 @@ contract SelectorManifestTest is Test {
         expected[3] = IStaticsBasketSettlement.isRestrictedBasketToken.selector;
         expected[4] = IStaticsBasketSettlement.settleBasketManagerDelivery.selector;
         _assertExact(StaticsSelectors.basketSettlement(), expected);
-        expected = new bytes4[](2);
+        expected = new bytes4[](3);
         expected[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
         expected[1] = IStaticsBasketMarkets.createBasketMarket.selector;
+        expected[2] = IStaticsBasketMarkets.basketMarketConfigurationHash.selector;
         _assertExact(StaticsSelectors.basketMarkets(), expected);
     }
 

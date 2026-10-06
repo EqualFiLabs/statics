@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {Test} from "forge-std/Test.sol";
+import {BasketFactoryTestTools} from "../helpers/BasketFactoryTestTools.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -20,12 +20,13 @@ contract Create3FeePolicy {
     }
 }
 
-contract BasketCreate3FactoryTest is Test {
+contract BasketCreate3FactoryTest is BasketFactoryTestTools {
     using PoolIdLibrary for PoolKey;
     StaticsBasketFactory private factory;
     IPoolManager private manager;
     bytes32 private tokenSalt;
     bytes32[] private hookSalts;
+    uint256[] private hookNonces;
     address private constant CREATOR = address(0xCAFE);
 
     function setUp() public {
@@ -37,13 +38,15 @@ contract BasketCreate3FactoryTest is Test {
             address(this), manager, IStaticsSwapFeeHook(address(new Create3FeePolicy(address(this))))
         );
         assertEq(factory.CREATE_X().codehash, factory.CREATE_X_CODE_HASH());
-        tokenSalt = factory.saltFor(0);
-        hookSalts.push(_mine(1));
+        tokenSalt = factory.preparedSaltFor(_intent(), 0);
+        (uint256 nonce, bytes32 salt) = _minePreparedTestHook(factory, _intent(), 1);
+        hookSalts.push(salt);
+        hookNonces.push(nonce);
     }
 
     function testCreate3IdentityIgnoresBasketIdAndBindsActualConstructorAuthority() public {
         (address predicted,) = factory.predict(tokenSalt);
-        bytes32 id = factory.reserve(_intent(), tokenSalt, hookSalts);
+        bytes32 id = factory.reserve(_intent(), 0, hookNonces);
         uint256 beforeGas = gasleft();
         address token = factory.deployBasketToken(id, "Static Basket", "B", 987);
         emit log_named_uint("CREATE3 restricted token deployment gas", beforeGas - gasleft());
@@ -61,7 +64,7 @@ contract BasketCreate3FactoryTest is Test {
     }
 
     function testCreate3HookUsesPreminedPermissionBitsAndImmutableConstructorBinding() public {
-        bytes32 id = factory.reserve(_intent(), tokenSalt, hookSalts);
+        bytes32 id = factory.reserve(_intent(), 0, hookNonces);
         address token = factory.deployBasketToken(id, "Basket", "B", 0);
         StaticsBasketHook.Binding memory binding = _binding(token);
         (address predicted,) = factory.predict(hookSalts[0]);
@@ -84,6 +87,8 @@ contract BasketCreate3FactoryTest is Test {
     }
 
     function testQueuedCreationConsumesAtomicallyAndFailsClearlyWhenDepleted() public {
+        tokenSalt = factory.saltFor(0);
+        hookSalts[0] = _mine(1);
         bytes32[] memory tokens = new bytes32[](1);
         tokens[0] = tokenSalt;
         vm.prank(CREATOR);
@@ -114,6 +119,8 @@ contract BasketCreate3FactoryTest is Test {
     }
 
     function testSaltValidationDeduplicationAndOccupiedProxy() public {
+        bytes32 preparedTokenSalt = tokenSalt;
+        tokenSalt = factory.saltFor(0);
         bytes32[] memory salts = new bytes32[](2);
         salts[0] = tokenSalt;
         salts[1] = tokenSalt;
@@ -131,8 +138,11 @@ contract BasketCreate3FactoryTest is Test {
         factory.enqueueSalts(salts, true);
         vm.etch(proxy, hex"00"); // Occupied helper rejects reuse even with no child code.
         assertFalse(factory.saltAvailable(tokenSalt));
-        vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.SaltUnavailable.selector, tokenSalt));
-        factory.reserve(_intent(), tokenSalt, hookSalts);
+        (address preparedAddress, address preparedProxy) = factory.predict(preparedTokenSalt);
+        vm.etch(preparedProxy, hex"00");
+        assertEq(preparedAddress.code.length, 0);
+        vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.SaltUnavailable.selector, preparedTokenSalt));
+        factory.reserve(_intent(), 0, hookNonces);
     }
 
     function testReservationBindsFullIntentAndChainAndRequiresDiamond() public {
@@ -156,7 +166,7 @@ contract BasketCreate3FactoryTest is Test {
         assertNotEq(original, factory.preparationId(_intent(), tokenSalt, hookSalts));
         vm.prank(CREATOR);
         vm.expectRevert(StaticsBasketFactory.OnlyDiamond.selector);
-        factory.reserve(_intent(), tokenSalt, hookSalts);
+        factory.reserve(_intent(), 0, hookNonces);
     }
 
     function testCallerProtectedCreateXSaltCannotBeSquattedByAnotherCaller() public {
@@ -166,12 +176,12 @@ contract BasketCreate3FactoryTest is Test {
         address outsider = PinnedCreateX(factory.CREATE_X()).deployCreate3(tokenSalt, hex"6001600c60003960016000f300");
         assertNotEq(outsider, predicted);
         assertEq(proxy.code.length, 0);
-        bytes32 id = factory.reserve(_intent(), tokenSalt, hookSalts);
+        bytes32 id = factory.reserve(_intent(), 0, hookNonces);
         assertEq(factory.deployBasketToken(id, "B", "B", 10), predicted);
     }
 
     function testDeploymentOrderExpiryAndHookIntentMismatch() public {
-        bytes32 id = factory.reserve(_intent(), tokenSalt, hookSalts);
+        bytes32 id = factory.reserve(_intent(), 0, hookNonces);
         vm.expectRevert(StaticsBasketFactory.InvalidDeploymentOrder.selector);
         factory.deployBasketHook(id, _binding(address(3)));
         address token = factory.deployBasketToken(id, "B", "B", 10);
@@ -201,7 +211,7 @@ contract BasketCreate3FactoryTest is Test {
     }
 
     function testReservedIdentityCannotChangeChainsAtDeployment() public {
-        bytes32 id = factory.reserve(_intent(), tokenSalt, hookSalts);
+        bytes32 id = factory.reserve(_intent(), 0, hookNonces);
         vm.chainId(block.chainid + 1);
         vm.expectRevert(StaticsBasketFactory.InvalidPreparation.selector);
         factory.deployBasketToken(id, "B", "B", 1);

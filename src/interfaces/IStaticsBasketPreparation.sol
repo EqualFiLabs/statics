@@ -17,7 +17,7 @@ interface IStaticsBasketPreparation {
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn,
         uint256 deadline,
-        bytes32 tokenSalt,
-        bytes32[] calldata hookSalts
+        uint256 tokenNonce,
+        uint256[] calldata hookNonces
     ) external returns (bytes32 id, address token);
 }

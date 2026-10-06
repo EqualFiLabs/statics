@@ -31,6 +31,7 @@ contract StaticsBasketFactory {
     uint160 private constant ALL_HOOK_BITS = (1 << 14) - 1;
     uint256 public constant VERSION = 1;
     uint256 public constant MAX_HOOKS = 16;
+    uint88 public constant PREPARED_SALT_BIT = uint88(1) << 87;
 
     enum SaltState {
         Unused,
@@ -116,6 +117,14 @@ contract StaticsBasketFactory {
         return bytes32((uint256(uint160(address(this))) << 96) | (uint256(1) << 88) | uint256(entropy));
     }
 
+    /// @notice Intent-owned identities occupy a disjoint namespace from public queue salts.
+    /// Changing payer, creator, economics, expiry or version cannot acquire the same identity.
+    function preparedSaltFor(Intent memory intent, uint256 nonce) public view returns (bytes32) {
+        uint88 entropy =
+            uint88(uint256(keccak256(abi.encode(block.chainid, address(this), staticsDiamond, intent, nonce))));
+        return saltFor(entropy | PREPARED_SALT_BIT);
+    }
+
     function effectiveSalt(bytes32 rawSalt) public view returns (bytes32) {
         _validateSalt(rawSalt);
         return keccak256(abi.encode(address(this), block.chainid, rawSalt));
@@ -149,6 +158,7 @@ contract StaticsBasketFactory {
         if (salts.length == 0 || salts.length > 128) revert InvalidPreparation();
         for (uint256 i; i < salts.length; ++i) {
             bytes32 salt = salts[i];
+            if (uint88(uint256(salt)) & PREPARED_SALT_BIT != 0) revert InvalidSalt(salt);
             _requireAvailable(salt, hook);
             saltState[salt] = hook ? SaltState.QueuedHook : SaltState.QueuedToken;
             if (hook) hookQueue.push(salt);
@@ -170,15 +180,18 @@ contract StaticsBasketFactory {
         return preparations[id];
     }
 
-    function reserve(Intent calldata intent, bytes32 tokenSalt, bytes32[] calldata hookSalts)
+    function reserve(Intent calldata intent, uint256 tokenNonce, uint256[] calldata hookNonces)
         external
         onlyDiamond
         returns (bytes32 id)
     {
-        _validateIntent(intent, hookSalts.length);
+        _validateIntent(intent, hookNonces.length);
+        bytes32 tokenSalt = preparedSaltFor(intent, tokenNonce);
+        bytes32[] memory hookSalts = new bytes32[](hookNonces.length);
         _requireAvailable(tokenSalt, false);
         saltState[tokenSalt] = SaltState.Reserved;
         for (uint256 i; i < hookSalts.length; ++i) {
+            hookSalts[i] = preparedSaltFor(intent, hookNonces[i]);
             _requireAvailable(hookSalts[i], true);
             saltState[hookSalts[i]] = SaltState.Reserved;
         }
@@ -208,8 +221,9 @@ contract StaticsBasketFactory {
         emit BasketTokenDeployed(id, basketId, token);
     }
 
-    function reserveMarket(Intent calldata intent, bytes32 hookSalt) external onlyDiamond returns (bytes32 id) {
+    function reserveMarket(Intent calldata intent, uint256 hookNonce) external onlyDiamond returns (bytes32 id) {
         _validateIntent(intent, 1);
+        bytes32 hookSalt = preparedSaltFor(intent, hookNonce);
         _requireAvailable(hookSalt, true);
         saltState[hookSalt] = SaltState.Reserved;
         return _recordMarket(intent, hookSalt);

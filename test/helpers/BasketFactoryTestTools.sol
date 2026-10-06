@@ -29,7 +29,7 @@ abstract contract BasketFactoryTestTools is Test {
         (uint256 tokens, uint256 hooks) = factory.queueAvailability();
         if (tokens == 0) {
             bytes32[] memory tokenSalts = new bytes32[](1);
-            tokenSalts[0] = factory.saltFor(type(uint88).max - _nextTestTokenNonce[address(factory)]++);
+            tokenSalts[0] = factory.saltFor(((uint88(1) << 87) - 1) - _nextTestTokenNonce[address(factory)]++);
             factory.enqueueSalts(tokenSalts, false);
         }
         if (hooks >= hookCount) return;
@@ -60,8 +60,27 @@ abstract contract BasketFactoryTestTools is Test {
     }
 
     /// @dev Reuse scratch memory so test-only mining does not accumulate hundreds of thousands of ABI buffers.
+    function _minePreparedTestHook(
+        StaticsBasketFactory factory,
+        StaticsBasketFactory.Intent memory intent,
+        uint256 start
+    ) internal view returns (uint256 nonce, bytes32 salt) {
+        bytes memory seed = abi.encode(block.chainid, address(factory), factory.staticsDiamond(), intent, uint256(0));
+        uint256 prefix = uint256(factory.saltFor(0));
+        address createX = factory.CREATE_X();
+        bytes32 proxyHash = factory.CREATE3_PROXY_HASH();
+        for (nonce = start; nonce < start + 1_000_000; ++nonce) {
+            assembly ("memory-safe") { mstore(add(seed, 288), nonce) }
+            salt = bytes32(prefix | uint256(uint88(uint256(keccak256(seed))) | (uint88(1) << 87)));
+            if (uint160(_testCreate3Address(address(factory), salt, createX, proxyHash)) & ((1 << 14) - 1) == 0x1fec) {
+                return (nonce, salt);
+            }
+        }
+        revert("prepared test salt search exhausted");
+    }
+
     function _testCreate3Address(address factory, bytes32 salt, address createX, bytes32 proxyHash)
-        private
+        internal
         view
         returns (address predicted)
     {

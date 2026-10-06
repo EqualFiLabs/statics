@@ -24,7 +24,7 @@ contract PrepareStaticsBasketFactoryTest is StaticsTestBase {
     function testPermissionlessQueuePayloadRejectsDuplicatesAndOccupiedEntries() public {
         PrepareStaticsBasketFactory script = new PrepareStaticsBasketFactory();
         bytes32[] memory salts = new bytes32[](1);
-        salts[0] = _localBasketFactory.saltFor(type(uint88).max - 1);
+        salts[0] = _localBasketFactory.saltFor(((uint88(1) << 87) - 1) - 1);
         bytes memory payload = script.replenishmentPayload(_localBasketFactory, salts, false);
         assertEq(payload, abi.encodeCall(StaticsBasketFactory.enqueueSalts, (salts, false)));
         vm.prank(bob);
@@ -33,7 +33,7 @@ contract PrepareStaticsBasketFactoryTest is StaticsTestBase {
         vm.expectPartialRevert(PrepareStaticsBasketFactory.InvalidSalt.selector);
         script.replenishmentPayload(_localBasketFactory, salts, false);
         salts = new bytes32[](2);
-        salts[0] = _localBasketFactory.saltFor(type(uint88).max - 2);
+        salts[0] = _localBasketFactory.saltFor(((uint88(1) << 87) - 1) - 2);
         salts[1] = salts[0];
         vm.expectPartialRevert(PrepareStaticsBasketFactory.InvalidSalt.selector);
         script.replenishmentPayload(_localBasketFactory, salts, false);

@@ -34,15 +34,16 @@ contract BasketMarketCreationFacet is IStaticsBasketMarkets, ReentrancyGuard {
     error IncorrectMarketCreationFee(uint256 required, uint256 provided);
     error MarketCreationFeeTransferFailed();
 
-    function prepareBasketMarket(MarketParams calldata params, bytes32 hookSalt)
+    function prepareBasketMarket(MarketParams calldata params, uint256 hookNonce)
         external
         nonReentrant
         returns (bytes32 id, address hook)
     {
         _validate(params);
         StaticsBasketFactory factory = LibBasketDeployment.factory();
-        id = factory.reserveMarket(_intent(params), hookSalt);
-        (hook,) = factory.predict(hookSalt);
+        StaticsBasketFactory.Intent memory intent = _intent(params);
+        id = factory.reserveMarket(intent, hookNonce);
+        (hook,) = factory.predict(factory.preparedSaltFor(intent, hookNonce));
     }
 
     function createBasketMarket(MarketParams calldata params, bytes32 preparationId)
@@ -98,14 +99,20 @@ contract BasketMarketCreationFacet is IStaticsBasketMarkets, ReentrancyGuard {
     }
 
     function _intent(MarketParams calldata params) private view returns (StaticsBasketFactory.Intent memory) {
-        bytes32 configuration = keccak256(
+        return
+            StaticsBasketFactory.Intent(
+                msg.sender, msg.sender, basketMarketConfigurationHash(params), params.deadline, 1
+            );
+    }
+
+    function basketMarketConfigurationHash(MarketParams calldata params) public view returns (bytes32) {
+        return keccak256(
             abi.encode(
                 params,
                 LibBasketDeployment.environmentHash(),
                 LibProtocolPools.protocolPoolStorage().poolCreationFeeAmount
             )
         );
-        return StaticsBasketFactory.Intent(msg.sender, msg.sender, configuration, params.deadline, 1);
     }
 
     function _validate(MarketParams calldata params) private view {

@@ -67,13 +67,40 @@ abstract contract PreparedBasketTestBase is CanonicalPoolTestBase {
 }
 
 contract PreparedBasketCreationTest is PreparedBasketTestBase {
+    uint256 private additionalNonce;
+
+    function _ownedNonces(
+        IStaticsBasket.CreateBasketParams memory params,
+        IStaticsBasket.PoolLaunchParams[] memory pools,
+        uint256[] memory maximums
+    ) private returns (uint256[] memory nonces) {
+        StaticsBasketFactory.Intent memory intent = StaticsBasketFactory.Intent(
+            alice,
+            alice,
+            preparation.basketCreationConfigurationHash(params, pools, maximums, type(uint256).max),
+            type(uint256).max,
+            1
+        );
+        tokenSalt = factory.preparedSaltFor(intent, 0);
+        nonces = new uint256[](pools.length);
+        delete hookSalts;
+        uint256 start = 1;
+        for (uint256 i; i < pools.length; ++i) {
+            bytes32 salt;
+            (nonces[i], salt) = _minePreparedTestHook(factory, intent, start);
+            hookSalts.push(salt);
+            start = nonces[i] + 1;
+        }
+    }
+
     function testPreparedCreationUsesReservedIdentitiesAndCreatesActualProtocolPol() public {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
             _fundDefaultLaunch(params.assets, alice);
+        uint256[] memory nonces = _ownedNonces(params, pools, maximums);
         vm.prank(alice);
         (bytes32 id, address predicted) =
-            preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, tokenSalt, hookSalts);
+            preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, 0, nonces);
         vm.prank(alice);
         (uint256 basketId, address token) =
             baskets.createBasketPrepared{value: 1 ether}(params, pools, maximums, type(uint256).max, id);
@@ -119,9 +146,9 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
         (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
             _fundDefaultLaunch(params.assets, alice);
+        uint256[] memory nonces = _ownedNonces(params, pools, maximums);
         vm.prank(alice);
-        (bytes32 id,) =
-            preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, tokenSalt, hookSalts);
+        (bytes32 id,) = preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, 0, nonces);
         params.name = "Changed";
         vm.prank(alice);
         vm.expectRevert();
@@ -134,6 +161,44 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         vm.expectRevert();
         baskets.createBasketPrepared{value: 2 ether}(params, pools, maximums, type(uint256).max, id);
         assertFalse(factory.preparation(id).tokenDeployed);
+    }
+
+    function testPublicPreparationAndQueueCannotSquatAnotherPayersIdentities() public {
+        IStaticsBasket.CreateBasketParams memory params = _defaultParams(0, 0);
+        (IStaticsBasket.PoolLaunchParams[] memory pools, uint256[] memory maximums) =
+            _fundDefaultLaunch(params.assets, alice);
+        uint256[] memory nonces = _ownedNonces(params, pools, maximums);
+        bytes32[] memory stolen = new bytes32[](1);
+        stolen[0] = tokenSalt;
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.InvalidSalt.selector, tokenSalt));
+        factory.enqueueSalts(stolen, false);
+        stolen[0] = hookSalts[0];
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(StaticsBasketFactory.InvalidSalt.selector, hookSalts[0]));
+        factory.enqueueSalts(stolen, true);
+        // Replaying the visible nonce proofs under Bob's intent cannot reserve Alice's addresses.
+        vm.prank(bob);
+        (bool attacked,) = address(diamond)
+            .call(
+                abi.encodeCall(
+                    preparation.prepareBasketCreation, (params, pools, maximums, type(uint256).max, 0, nonces)
+                )
+            );
+        attacked; // Whether Bob's different addresses have valid hook bits is irrelevant to ownership.
+        assertTrue(factory.saltAvailable(tokenSalt));
+        assertTrue(factory.saltAvailable(hookSalts[0]));
+        assertTrue(factory.saltAvailable(hookSalts[1]));
+        vm.prank(alice);
+        (bytes32 id, address token) =
+            preparation.prepareBasketCreation(params, pools, maximums, type(uint256).max, 0, nonces);
+        (address predicted,) = factory.predict(tokenSalt);
+        assertEq(token, predicted);
+        vm.prank(alice);
+        (uint256 basketId, address created) =
+            baskets.createBasketPrepared{value: 1 ether}(params, pools, maximums, type(uint256).max, id);
+        assertEq(created, predicted);
+        assertEq(baskets.basket(basketId).creator, alice);
     }
 
     function testPoolLocalFeesRevenueAndPolResolveTheImmutableHook() public {
@@ -163,7 +228,7 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         _queueFirst();
         (uint256 firstBasket,) = _createDefaultBasket(0, 0);
         bytes32[] memory tokens = new bytes32[](1);
-        tokens[0] = factory.saltFor(type(uint88).max);
+        tokens[0] = factory.saltFor((uint88(1) << 87) - 1);
         bytes32[] memory nextHooks = new bytes32[](2);
         nextHooks[0] = _mine(uint88(uint256(hookSalts[1])) + 1);
         nextHooks[1] = _mine(uint88(uint256(nextHooks[0])) + 1);
@@ -230,9 +295,8 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         IStaticsBasketMarkets.MarketParams memory params = IStaticsBasketMarkets.MarketParams(
             token, address(assetA), 3000, 10, uint160(1 << 96), 1 ether, type(uint256).max
         );
-        bytes32 firstSalt = _mine(uint88(uint256(hookSalts[1])) + 1);
-        (PoolId firstId, bytes32 first) = _createAdditional(params, firstSalt);
-        (PoolId secondId,) = _createAdditional(params, _mine(uint88(uint256(firstSalt)) + 1));
+        (PoolId firstId, bytes32 first) = _createAdditional(params);
+        (PoolId secondId,) = _createAdditional(params);
         assertNotEq(PoolId.unwrap(firstId), PoolId.unwrap(secondId));
         assertEq(
             PoolId.unwrap(basketLiquidity.canonicalPool(basketId, address(assetA)).poolId), PoolId.unwrap(canonicalId)
@@ -252,7 +316,7 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         _queueFirst();
         (uint256 firstBasket, address firstToken) = _createDefaultBasket(0, 0);
         bytes32[] memory tokens = new bytes32[](1);
-        tokens[0] = factory.saltFor(type(uint88).max);
+        tokens[0] = factory.saltFor((uint88(1) << 87) - 1);
         bytes32[] memory nextHooks = new bytes32[](2);
         nextHooks[0] = _mine(uint88(uint256(hookSalts[1])) + 1);
         nextHooks[1] = _mine(uint88(uint256(nextHooks[0])) + 1);
@@ -264,7 +328,7 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         IStaticsBasketMarkets.MarketParams memory params = IStaticsBasketMarkets.MarketParams(
             firstToken, secondToken, 3000, 10, uint160(1 << 96), 1 ether, type(uint256).max
         );
-        (PoolId id,) = _createAdditional(params, _mine(uint88(uint256(nextHooks[1])) + 1));
+        (PoolId id,) = _createAdditional(params);
         PoolKey memory key = pools.protocolPool(id).key;
         _mintFor(alice, firstBasket);
         vm.startPrank(alice);
@@ -475,13 +539,18 @@ contract PreparedBasketCreationTest is PreparedBasketTestBase {
         assertEq(pools.protocolPool(market.poolId).activePolPositions, 1);
     }
 
-    function _createAdditional(IStaticsBasketMarkets.MarketParams memory params, bytes32 salt)
+    function _createAdditional(IStaticsBasketMarkets.MarketParams memory params)
         private
         returns (PoolId id, bytes32 prepared)
     {
         IStaticsBasketMarkets markets = IStaticsBasketMarkets(address(diamond));
+        bytes32 configuration = markets.basketMarketConfigurationHash(params);
+        StaticsBasketFactory.Intent memory intent =
+            StaticsBasketFactory.Intent(alice, alice, configuration, params.deadline, 1);
+        (uint256 nonce,) = _minePreparedTestHook(factory, intent, additionalNonce);
+        additionalNonce = nonce + 1;
         vm.prank(alice);
-        (prepared,) = markets.prepareBasketMarket(params, salt);
+        (prepared,) = markets.prepareBasketMarket(params, nonce);
         vm.prank(alice);
         id = markets.createBasketMarket{value: 1 ether}(params, prepared);
     }

@@ -48,11 +48,11 @@ contract BasketPreparationFacet is ReentrancyGuard {
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256[] calldata maxAmountsIn,
         uint256 deadline,
-        bytes32 tokenSalt,
-        bytes32[] calldata hookSalts
+        uint256 tokenNonce,
+        uint256[] calldata hookNonces
     ) external nonReentrant returns (bytes32 id, address token) {
         if (
-            params.assets.length != pools.length || pools.length != hookSalts.length
+            params.assets.length != pools.length || pools.length != hookNonces.length
                 || maxAmountsIn.length != pools.length
         ) revert InvalidPreparationShape();
         StaticsBasketFactory configured = LibBasketDeployment.factory();
@@ -63,7 +63,7 @@ contract BasketPreparationFacet is ReentrancyGuard {
             deadline,
             configured.VERSION()
         );
-        id = configured.reserve(intent, tokenSalt, hookSalts);
-        (token,) = configured.predict(tokenSalt);
+        id = configured.reserve(intent, tokenNonce, hookNonces);
+        (token,) = configured.predict(configured.preparedSaltFor(intent, tokenNonce));
     }
 }

@@ -64,13 +64,15 @@ Independent pools may have identical currency/fee/spacing configurations because
 their hook addresses distinguish their PoolIds.
 
 For prepared creation, read `basketCreationConfigurationHash`, mine valid hook
-salts offchain over the factory's **effective** CreateX salt, check
+nonces using `preparedSaltFor(intent, nonce)` and the factory's **effective** CreateX salt, check
 `saltAvailable`, then call `prepareBasketCreation` and `createBasketPrepared`
 with the same configuration and preparation ID. A reserved token identity does
 not depend on the next basket ID. Configuration or implementation changes
 invalidate the prepared intent. The unchanged `createBasket` selector consumes
 permissionlessly replenished token/hook queues; queue exhaustion reverts without
 partial creation. No production contract searches for salts onchain.
+Prepared salts bind the full intent and occupy the high-bit namespace; public
+queue salts must use entropy below `2**87`. The queue cannot preempt prepared identities.
 
 `prepareBasketMarket` / `createBasketMarket` create additional restricted markets,
 including BasketToken/BasketToken markets, without changing canonical pointers.
@@ -79,6 +81,8 @@ Approvals and permit still set allowance, but never authorize a wallet transfer.
 The restriction covers actual PoolManager ERC-20 boundary movement, not every
 internally netted unregistered-pool operation. Exit-only baskets retain liquidity
 removal, collection, historical claims, redemption, and POL recovery.
+Use `unwindBasketMarket(poolId)` for terminal recovery from an independent pool
+after either restricted currency exits and all managed POL positions are closed.
 
 ---
 

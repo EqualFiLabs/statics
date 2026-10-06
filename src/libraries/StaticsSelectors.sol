@@ -66,9 +66,10 @@ library StaticsSelectors {
     }
 
     function basketMarkets() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](2);
+        selectors = new bytes4[](3);
         selectors[0] = IStaticsBasketMarkets.prepareBasketMarket.selector;
         selectors[1] = IStaticsBasketMarkets.createBasketMarket.selector;
+        selectors[2] = IStaticsBasketMarkets.basketMarketConfigurationHash.selector;
     }
 
     function rangeGaugeActions() internal pure returns (bytes4[] memory selectors) {

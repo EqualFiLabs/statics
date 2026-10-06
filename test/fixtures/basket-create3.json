@@ -17,7 +17,12 @@
   "preparationId": "0x220ed04f9e474c0f1cddbf64b003e8654ae35d79687e4be1eeaf944a62675ab1",
   "environmentHash": "0x6666666666666666666666666666666666666666666666666666666666666666",
   "creationConfigurationHash": "0x59c16dd91a6fb8c8a67b4500b588fcc8d6990ac4fd001e1ead8923dbc4e6a366",
-  "prepareCalldataHash": "0x33f6674b6004b37cfb361c32dbdb0f35bb61d16512ec7e01bbe5baa2d5ae1aa2",
+  "preparedTokenSalt": "0x123456789012345678901234567890123456789001d71526179dff93674e3cbd",
+  "preparedTokenAddress": "0x602c27827A6ec6f4186f6b6E2F86AD593b5fFA8B",
+  "preparedHookNonce": "19625",
+  "preparedHookSalt": "0x123456789012345678901234567890123456789001a00ee38a52324f08f676a2",
+  "preparedHookAddress": "0xC5354138986Faf03B3ef6d1DEE3ec9567fFd5fEc",
+  "prepareCalldataHash": "0x01b8b901b2b46333dbdba6c9193258a377ae9e97c9f384cf6b1165589fdd7e9c",
   "createCalldataHash": "0x773a1b2759440e23b7c0e99256827fe8d8c65fd9afcf13f4244a79aa593c6cbe",
   "marketCalldataHash": "0xf1e8c674cbf10cce6740bb9c14bbf9d2eb19e45d339c2cc3bd8e00bf9eaf1e68"
 }
