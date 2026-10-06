@@ -270,9 +270,13 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         vm.expectRevert();
         router.swap(
             unregistered,
-            SwapParams(address(token) == Currency.unwrap(key.currency0), -int256(0.01 ether),
+            SwapParams(
+                address(token) == Currency.unwrap(key.currency0),
+                -int256(0.01 ether),
                 address(token) == Currency.unwrap(key.currency0)
-                    ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1)
+                    ? TickMath.MIN_SQRT_PRICE + 1
+                    : TickMath.MAX_SQRT_PRICE - 1
+            )
         );
     }
 
@@ -300,7 +304,8 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         (uint256 inbound, uint256 outbound) = token.settlementBudgets();
         assertEq(inbound, 0);
         assertEq(outbound, 0);
-        (bool success,) = address(manager).call(abi.encodeCall(IPoolManager.unlock, (abi.encode(uint256(1), unregistered))));
+        (bool success,) =
+            address(manager).call(abi.encodeCall(IPoolManager.unlock, (abi.encode(uint256(1), unregistered))));
         assertFalse(success);
         manager.unlock(abi.encode(uint256(1), key));
         (inbound, outbound) = token.settlementBudgets();
@@ -341,9 +346,8 @@ contract RestrictedBasketMarketsTest is Test, IUnlockCallback {
         if (action == 2) {
             (, uint256 outbound) = token.settlementBudgets();
             assertGt(outbound, 0); // Netted liquidity does not consume an ERC-20 boundary budget.
-            (bool success,) = address(manager).call(
-                abi.encodeCall(IPoolManager.take, (Currency.wrap(address(token)), address(this), outbound + 1))
-            );
+            (bool success,) = address(manager)
+                .call(abi.encodeCall(IPoolManager.take, (Currency.wrap(address(token)), address(this), outbound + 1)));
             assertFalse(success);
             (, uint256 afterAttempt) = token.settlementBudgets();
             assertEq(afterAttempt, outbound);

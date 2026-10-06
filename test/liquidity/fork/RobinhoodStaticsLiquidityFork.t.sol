@@ -91,8 +91,12 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         );
         basketLiquidity.installCanonicalPoolIntegration(address(poolManager), address(hook));
         basketLiquidity.installLiquidityManager(address(manager));
-        _localBasketFactory = StaticsBasketFactory(deployCode("out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
-            abi.encode(address(diamond), poolManager, IStaticsSwapFeeHook(address(hook)))));
+        _localBasketFactory = StaticsBasketFactory(
+            deployCode(
+                "out/StaticsBasketFactory.sol/StaticsBasketFactory.json",
+                abi.encode(address(diamond), poolManager, IStaticsSwapFeeHook(address(hook)))
+            )
+        );
         BasketPreparationFacet(address(diamond)).installBasketFactory(address(_localBasketFactory));
         IStaticsProtocolPools(address(diamond))
             .setProtocolPoolMaintenanceConfig(IStaticsProtocolPools.ProtocolPoolMaintenanceConfig({revenueTipBps: 500}));
@@ -188,7 +192,8 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
     }
 
     function _seedOrdinaryVanillaBaseline(uint24 fee, int24 spacing)
-        private returns (PoolKey memory vanillaKey, CanonicalV4Router vanillaRouter, bool vanillaDirection)
+        private
+        returns (PoolKey memory vanillaKey, CanonicalV4Router vanillaRouter, bool vanillaDirection)
     {
         // Restricted tokens cannot seed an unregistered boundary. Use an ordinary-token baseline.
         MockERC20 vanillaToken = new MockERC20("Vanilla gas baseline", "VAN", 18);
@@ -198,7 +203,9 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         vanillaKey = PoolKey(
             Currency.wrap(vanillaDirection ? address(vanillaToken) : address(assetA)),
             Currency.wrap(vanillaDirection ? address(assetA) : address(vanillaToken)),
-            fee, spacing, IHooks(address(0))
+            fee,
+            spacing,
+            IHooks(address(0))
         );
         poolManager.initialize(vanillaKey, SQRT_PRICE_1_1);
 
@@ -218,9 +225,14 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
         vm.stopPrank();
     }
 
-    function _compareSwapGas(CanonicalV4Router staticsRouter, PoolKey memory staticsKey,
-        CanonicalV4Router vanillaRouter, PoolKey memory vanillaKey, bool vanillaDirection, address basketToken) private
-    {
+    function _compareSwapGas(
+        CanonicalV4Router staticsRouter,
+        PoolKey memory staticsKey,
+        CanonicalV4Router vanillaRouter,
+        PoolKey memory vanillaKey,
+        bool vanillaDirection,
+        address basketToken
+    ) private {
         bool zeroForOne = Currency.unwrap(staticsKey.currency0) == basketToken;
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,
@@ -228,8 +240,11 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        SwapParams memory vanillaParams = SwapParams(vanillaDirection, -int256(0.01 ether),
-            vanillaDirection ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1);
+        SwapParams memory vanillaParams = SwapParams(
+            vanillaDirection,
+            -int256(0.01 ether),
+            vanillaDirection ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+        );
         emit SwapGasMeasured("vanilla-v4-first", _measureSwap(vanillaRouter, vanillaKey, vanillaParams));
         emit SwapGasMeasured("statics-phase-one-first", _measureSwap(staticsRouter, staticsKey, params));
         emit SwapGasMeasured("vanilla-v4-mature", _measureSwap(vanillaRouter, vanillaKey, vanillaParams));
