@@ -43,7 +43,7 @@ for the canonical machine-readable integration-beta state.
 | **Standalone Genesis** | All 5,555 marketplace-compatible Genesis NFTs start in vault inventory and are mechanically paired with 180,000 STATICS each plus, after the immutable Genesis Epoch, a 1/5,555 share of a permanent native ETH reserve; STATICS backing stays exact and Diamond-independent while the reserve grows from protocol revenue and donations and can never be withdrawn. |
 | **Permanent STATICS/WETH market** | Doppler Multicurve distributes the 800-million public allocation; fees earned by its launch positions route 5% to the Doppler/Airlock owner and 95% to permanent Statics fee ingress. |
 | **Unified integration address** | `StaticsDiamond` is the ordinary user action surface, PositionNFT ERC-721, and custody address for basket and Dollar periphery assets. |
-| **Static baskets** | Each permit-enabled `StaticsBasketToken` represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. |
+| **Static baskets** | Each permit-enabled BasketToken represents a creator-defined vector of up to 16 assets with fixed bundle amounts and action-size fee tiers. Newly created tokens restrict transfers to exact protocol actions and budgeted v4 settlement; existing deployed tokens retain their behavior. |
 | **Statics Dollar** | `StaticsDollarCoreDiamond` manages volatile and pegged collateral profiles, senior issuance, Risk Shares, solvency, transitions, insurance, and recovery. |
 | **Shared PositionNFT** | One transferable ERC-721 position can own Dollar legs, basket collateral, loans, and selected global rewards. |
 | **Global rewards** | Positions stake the configured Statics token and select up to 64 reward assets; new selections cannot capture historical fees. |
@@ -53,6 +53,32 @@ for the canonical machine-readable integration-beta state.
 | **Permissionless general pools** | Anyone can create a Statics-hook pool between two compatible ERC-20s, gated by an independent creation fee and EIP-712 creator authorization, selecting the native LP fee, tick spacing, and initial price, with a fixed 500-bps perpetual creator share and no mandatory liquidity seed. |
 | **Managed protocol liquidity** | Settled POL inventory funds PoolId-bound PositionManager NFT portfolios; strategy can manage explicit ranges but cannot redirect protocol principal, refunds, or NFTs. |
 | **Governed lifecycle** | A shared timelock owns both Diamonds; guardians can restrict exposure while repayment, recovery, and exit paths remain available. |
+
+### Restricted basket creation
+
+New baskets use a Diamond-controlled `StaticsBasketFactory` wrapping pinned
+CreateX v1.0.0 CREATE3. Install its governance payload separately using
+`PrepareStaticsBasketFactory`; this does not alter existing tokens or pools.
+Each new pool receives a constructor-bound, non-upgradeable `StaticsBasketHook`.
+Independent pools may have identical currency/fee/spacing configurations because
+their hook addresses distinguish their PoolIds.
+
+For prepared creation, read `basketCreationConfigurationHash`, mine valid hook
+salts offchain over the factory's **effective** CreateX salt, check
+`saltAvailable`, then call `prepareBasketCreation` and `createBasketPrepared`
+with the same configuration and preparation ID. A reserved token identity does
+not depend on the next basket ID. Configuration or implementation changes
+invalidate the prepared intent. The unchanged `createBasket` selector consumes
+permissionlessly replenished token/hook queues; queue exhaustion reverts without
+partial creation. No production contract searches for salts onchain.
+
+`prepareBasketMarket` / `createBasketMarket` create additional restricted markets,
+including BasketToken/BasketToken markets, without changing canonical pointers.
+General and incompatible permissioned paths reject registered restricted tokens.
+Approvals and permit still set allowance, but never authorize a wallet transfer.
+The restriction covers actual PoolManager ERC-20 boundary movement, not every
+internally netted unregistered-pool operation. Exit-only baskets retain liquidity
+removal, collection, historical claims, redemption, and POL recovery.
 
 ---
 
