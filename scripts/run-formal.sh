@@ -239,6 +239,7 @@ case "$TARGET" in
     "$0" protocol-pol
     "$0" phase-one
     "$0" range-gauges
+    "$0" restricted-baskets
     ;;
   *)
     printf 'unknown formal target: %s\n' "$TARGET" >&2
