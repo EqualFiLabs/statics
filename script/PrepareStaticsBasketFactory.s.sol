@@ -44,7 +44,9 @@ contract PrepareStaticsBasketFactory is Script {
     {
         if (salts.length == 0 || salts.length > 128) revert InvalidFactory();
         for (uint256 i; i < salts.length; ++i) {
-            if (!factory.saltAvailable(salts[i])) revert InvalidSalt(salts[i]);
+            if (uint88(uint256(salts[i])) & factory.PREPARED_SALT_BIT() != 0 || !factory.saltAvailable(salts[i])) {
+                revert InvalidSalt(salts[i]);
+            }
             if (hooks) {
                 (address predicted,) = factory.predict(salts[i]);
                 if (uint160(predicted) & ((1 << 14) - 1) != factory.HOOK_PERMISSION_MASK()) {
