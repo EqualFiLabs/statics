@@ -171,9 +171,8 @@ contract StaticsAssetZapTest is CampaignTestBase {
             routes[i].maximumInput = 25 ether;
         }
         uint256[] memory quote = baskets.quoteMint(id, 1 ether);
-        StaticsAssetZap.Input memory input = StaticsAssetZap.Input(
-            address(hostile), 25 ether, alice, block.timestamp + 1
-        );
+        StaticsAssetZap.Input memory input =
+            StaticsAssetZap.Input(address(hostile), 25 ether, alice, block.timestamp + 1);
         hostile.setCallback(
             address(zap), address(zap), abi.encodeCall(StaticsAssetZap.mintBasket, (input, id, 1 ether, quote, routes))
         );
