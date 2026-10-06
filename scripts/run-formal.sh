@@ -32,6 +32,10 @@ run_halmos() {
 }
 
 case "$TARGET" in
+  restricted-baskets)
+    run_halmos "$ROOT" RestrictedBasketSettlementHalmosTest restricted-basket-settlement 8 \
+      out-formal-genesis '^check_'
+    ;;
   geometry)
     run_halmos "$ROOT/verification/doppler" DopplerLaunchGeometryHalmosTest geometry 8 out-formal
     forge test \
