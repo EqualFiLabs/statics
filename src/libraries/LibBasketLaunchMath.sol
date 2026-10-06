@@ -5,6 +5,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {LibBasket} from "./LibBasket.sol";
+import {LibBasketDefinition} from "./LibBasketDefinition.sol";
 import {LibBasketLiquidityMath} from "./LibBasketLiquidityMath.sol";
 import {LibProtocolPoolFee} from "./LibProtocolPoolFee.sol";
 
@@ -69,6 +70,7 @@ library LibBasketLaunchMath {
         IStaticsBasket.PoolLaunchParams[] calldata pools,
         uint256 nativeFee
     ) internal pure returns (Requirements memory result) {
+        LibBasketDefinition.validate(params);
         uint256 length = params.assets.length;
         if (length == 0 || length > 16 || pools.length != length || params.bundleAmounts.length != length) {
             revert InvalidPoolLaunchParameters();
