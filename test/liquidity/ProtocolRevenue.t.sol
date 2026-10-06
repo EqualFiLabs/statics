@@ -131,11 +131,13 @@ contract ProtocolRevenueTest is CanonicalPoolTestBase {
         IStaticsBasketLiquidity.CanonicalPoolView memory canonical = basketLiquidity.canonicalPool(basketId, tokenA);
         uint256 basketStakerAmount = 100;
         uint256 treasuryBefore = globalRewards.treasuryAccrued(tokenA);
-        _fundHook(tokenA, basketStakerAmount);
+        MockERC20(tokenA).mint(canonical.hook, basketStakerAmount);
+        vm.prank(canonical.hook);
+        IERC20(tokenA).approve(address(diamond), basketStakerAmount);
 
         // Synthetic hook input is required to reach the post-pull callback-race guard: under an
         // ordinary call the hook converts the same zero-denominator share to POL before redemption.
-        vm.prank(address(swapFeeHook));
+        vm.prank(canonical.hook);
         revenue.routeProtocolSwapFees(canonical.poolId, tokenA, _distribution(basketStakerAmount, 0, 0, 0));
 
         assertEq(globalRewards.treasuryAccrued(tokenA) - treasuryBefore, basketStakerAmount);
