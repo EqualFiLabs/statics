@@ -491,17 +491,11 @@ contract GeneralProtocolPoolsTest is CanonicalPoolTestBase {
         vm.stopPrank();
     }
 
-    function testCanonicalCollisionRejected() public {
-        (uint256 basketId, address basketToken) = _createDefaultBasket(0, 0);
-        IStaticsBasketLiquidity.CanonicalPoolView memory canonical =
-            basketLiquidity.canonicalPool(basketId, address(assetA));
+    function testRestrictedBasketCannotUseGeneralHook() public {
+        (, address basketToken) = _createDefaultBasket(0, 0);
         IStaticsProtocolPools.CreatePoolParams memory params = _params(basketToken, address(assetA), alice);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                LibProtocolPools.ProtocolPoolAlreadyRegistered.selector,
-                canonical.poolId,
-                IStaticsProtocolPools.ProtocolPoolKind.BasketCanonical
-            )
+            abi.encodeWithSelector(ProtocolPoolCreationFacet.RestrictedBasketRequiresBasketHook.selector, basketToken)
         );
         pools.createPool(params, "");
     }
