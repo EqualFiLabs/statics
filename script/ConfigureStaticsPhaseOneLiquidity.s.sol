@@ -21,6 +21,7 @@ import {IStaticsBasketLiquidity} from "../src/interfaces/IStaticsBasketLiquidity
 import {IStaticsGaugeIncentives} from "../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsMarketTape} from "../src/interfaces/IStaticsMarketTape.sol";
 import {IStaticsMarketObservations} from "../src/interfaces/IStaticsMarketObservations.sol";
+import {IStaticsBatchRewards} from "../src/interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGovernance} from "../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsLiquidityManager} from "../src/interfaces/IStaticsLiquidityManager.sol";
@@ -317,6 +318,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _supportedInterface(diamond, type(IERC721Metadata).interfaceId);
         _supportedInterface(diamond, type(IERC2981).interfaceId);
         _supportedInterface(diamond, type(IStaticsGlobalRewards).interfaceId);
+        _supportedInterface(diamond, type(IStaticsBatchRewards).interfaceId);
         _supportedInterface(diamond, type(IStaticsPosition).interfaceId);
         _supportedInterface(diamond, type(IStaticsPositionFees).interfaceId);
         _supportedInterface(diamond, type(IStaticsPositionRoyalty).interfaceId);

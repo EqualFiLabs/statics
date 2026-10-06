@@ -116,6 +116,24 @@ assert_le "$(printf '%s - %s\n' "$LP_CLAIMED" "$LP_PENDING" | bc)" 1000000000000
 DIFFERENCE=$(printf '%s - %s\n' "$ALLOCATOR_CLAIMED" "$LP_CLAIMED" | bc | sed 's/^-//')
 assert_le "$DIFFERENCE" 100000000000000 "allocator and LP half-stream timing"
 
+# Exercise the additive atomic route with newly accrued LP and allocator halves.
+rpc_warp_by 86400
+BATCH_BEFORE=$(cast call "$WETH_ADDRESS" 'balanceOf(address)(uint256)' "$CREATOR" --rpc-url "$RPC_URL" | awk '{print $1}')
+cast send "$STATICS_DIAMOND_ADDRESS" \
+    'batchClaimRewards((uint256,address[],uint256[])[],(uint256,bytes32,uint8[],uint256[])[],(uint256,bytes32,uint8[],uint256[])[],address)(uint256[][],uint256[][],uint256[][])' \
+    '[]' "[($POSITION_ID,$POOL_ID,[1],[0])]" "[($POSITION_ID,$POOL_ID,[1],[0])]" "$CREATOR" \
+    --private-key "$CREATOR_KEY" --rpc-url "$RPC_URL" --gas-limit 5000000 --legacy --json \
+    >"$RUN_DIR/allocator-batch-claim.json"
+assert_eq "$(jq -r '.status' "$RUN_DIR/allocator-batch-claim.json")" 0x1 "atomic batch receipt"
+BATCH_AFTER=$(cast call "$WETH_ADDRESS" 'balanceOf(address)(uint256)' "$CREATOR" --rpc-url "$RPC_URL" | awk '{print $1}')
+assert_gt "$BATCH_AFTER" "$BATCH_BEFORE" "atomic LP and allocator payout"
+expect_call_revert "empty batch is rejected" \
+    cast call "$STATICS_DIAMOND_ADDRESS" \
+    'batchClaimRewards((uint256,address[],uint256[])[],(uint256,bytes32,uint8[],uint256[])[],(uint256,bytes32,uint8[],uint256[])[],address)(uint256[][],uint256[][],uint256[][])' \
+    '[]' '[]' '[]' "$CREATOR" --from "$CREATOR" --rpc-url "$RPC_URL" \
+    >"$RUN_DIR/allocator-empty-batch-revert.txt"
+record_result range-gauge atomic-lp-allocator-batch pass "$POSITION_ID / $POOL_ID"
+
 expect_call_revert "protocol slot cannot be an allocator stream" \
     cast call "$STATICS_DIAMOND_ADDRESS" \
     'gaugeAllocatorReward(bytes32,uint8)((address,bytes32,uint64,uint40,uint40,uint40,uint256,uint256,uint256,uint256,uint256,bool))' \

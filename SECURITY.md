@@ -343,3 +343,28 @@ independently maintained release manifest remains necessary for exact
 expected-set review.
 Recorded runtime hashes remain offchain release metadata rather than live
 dispatch controls.
+
+## Batch reward claim boundary
+
+`BatchRewardsFacet` accepts only typed global, LP and allocator claim groups.
+It constructs the three existing claim selectors itself, resolves registered
+facet implementations and delegatecalls them with the original sender. It
+accepts no target, selector or arbitrary calldata from the caller. Existing NFT
+owner/approval checks, funding, custody reservations, measured payouts,
+minimum checks, event emission and claim-stub cleanup stay in those facets.
+Any delegated failure bubbles unchanged and rolls back the entire batch.
+
+The dispatcher has a dedicated namespaced persistent lock and rejects entry
+while the shared custody/claim guard is entered. It does not acquire, clear or
+bypass that shared guard: each delegated claim acquires its original guard.
+During token callbacks both batch reentry and individual guarded custody actions
+remain blocked. Locks reset after success and revert with transaction state on
+failure. Owner-controlled selector cuts remain the implementation trust boundary.
+
+Limits of 16 claim groups and 64 entries bound request size and duplicate-check
+work. They do not bound arbitrary token execution costs or settlement topology.
+Required bounded catch-up remains explicit, and a failing token or empty global
+claim can prevent an entire batch. Clients should simulate the complete batch,
+estimate gas and split further if needed. Separate transactions do not provide
+sequence-wide atomicity. Existing reward and token-compatibility assumptions
+continue to apply.

@@ -50,6 +50,7 @@ assert_eq "$quoted_royalty_receiver" "$TREASURY" "ERC-2981 royalty receiver"
 assert_eq "$quoted_royalty_amount" "50000000000000000" "ERC-2981 royalty amount"
 
 declare -A required_interfaces=(
+    [IStaticsBatchRewards]=0xb2eabe68
     [ERC2981]=0x2a55205a
     [IStaticsPositionRoyalty]=0x4847d81b
     [IStaticsPositionMarket]=0x079c0632
@@ -328,6 +329,10 @@ jq -n \
             selectors: $selectors
         }
     }' >"$RUN_DIR/deployment.json"
+
+BATCH_LIMITS=$(cast call "$STATICS_DIAMOND_ADDRESS" 'batchClaimLimits()(uint256,uint256)' --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0]' <<<"$BATCH_LIMITS")" 16 "batch group limit"
+assert_eq "$(jq -r '.[1]' <<<"$BATCH_LIMITS")" 64 "batch entry limit"
 
 record_result verification immutable-bindings pass "canonical Robinhood dependencies"
 record_result verification selector-routes pass "$EXPECTED_SELECTORS selectors across $EXPECTED_FACETS facets"

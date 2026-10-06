@@ -905,3 +905,39 @@ Index these event families, then reconcile with current views:
 
 Events are discovery and history records, not substitutes for onchain state.
 Reconcile after reorgs and immediately before value-moving actions.
+
+## Atomic Phase 1 reward claims
+
+`IStaticsBatchRewards.batchClaimRewards(globalClaims, lpClaims, allocatorClaims,
+receiver)` delegates typed requests through the Diamond's installed
+`claimRewards`, `claimLpRewards`, and `claimGaugeAllocatorRewards` routes. NFT
+owners and approved operators retain the same authorization and payout behavior.
+It executes global groups, LP groups, then allocator groups in submitted order
+and returns three nested uint256 arrays in matching asset/slot order. Existing
+claim events remain unchanged; identify individual claims by receipt log index.
+
+`GlobalClaim` contains `positionId`, `assets`, and `minimumAmounts`. `PoolClaim`
+contains `positionId`, bytes32 `poolId`, `slots`, and `minimumAmounts`. LP slots
+are 0–4 (protocol gauge STATICS plus four direct-funded bribe assets); allocator
+slots are 1–4. LP and allocator groups for the same NFT/pool may coexist. Groups
+must be nonempty with matching minimum arrays and no duplicate assets/slots;
+groups may not repeat an NFT (global) or NFT/pool (within either pool category).
+The receiver must be nonzero and different from the Diamond.
+
+`batchClaimLimits()` returns 16 groups and 64 requested assets/slots. These are
+input bounds, not a gas guarantee. Simulate each complete batch using the
+connected account, reviewed minimums and receiver before signing. A missing
+claim route, stale minimum, failed token transfer, unauthorized NFT or required
+bounded checkpoint reverts the whole transaction. Existing global `NoRewards`
+still reverts if that group pays nothing; pool claims retain their zero-payout
+behavior. Filter empty global groups during discovery and submit required
+bounded reward/gauge checkpoints explicitly. The batch performs no discovery,
+conversion, forfeiture or automatic additional catch-up.
+
+The SDK package root exposes the typed builder/decoder, limit helpers and
+`splitBatchRewardClaims`. Splitting preserves receiver, execution order and
+asset/minimum pairs; each resulting transaction is independently atomic. Native
+LP fee collection, Operator and basket rewards use their existing interfaces.
+Installation on an existing Phase 1 Diamond uses the two-call timelock
+preparation described in the staged deployment ADR; no reward-state migration
+is required.
