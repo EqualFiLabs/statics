@@ -21,6 +21,7 @@ run_halmos() {
     --solver-timeout-branching "${HALMOS_BRANCH_TIMEOUT:-0}" \
     --solver-timeout-assertion 0 \
     --solver-threads "${HALMOS_THREADS:-4}" \
+    --storage-layout "${HALMOS_STORAGE_LAYOUT:-solidity}" \
     --loop "$loop_bound" \
     --forge-build-out "$build_out" \
     --json-output "$HALMOS_JSON_DIR/$output.json"
@@ -33,6 +34,9 @@ run_halmos() {
 
 case "$TARGET" in
   restricted-baskets)
+    # Exact transient tickets hash symbolic values into custom Yul slots.
+    # Halmos's Solidity layout heuristic cannot model these; use generic storage.
+    HALMOS_STORAGE_LAYOUT=generic
     run_halmos "$ROOT" RestrictedBasketSettlementHalmosTest restricted-basket-settlement 8 \
       out-formal-genesis '^check_'
     ;;
