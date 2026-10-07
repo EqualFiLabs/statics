@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
+import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
@@ -208,32 +209,19 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
             context.currentTime,
             context.poolWeight
         );
-        if (amount == 0) {
-            if (minimumAmount != 0) {
-                revert IStaticsGaugeIncentives.GaugeAllocatorAmountBelowMinimum(asset, 0, minimumAmount);
-            }
-            emit IStaticsGaugeIncentives.GaugeAllocatorRewardClaimed(
-                context.positionId, context.poolId, slot, asset, context.receiver, 0, 0
-            );
-            return 0;
-        }
-        (uint256 debited, uint256 actualReceived) = LibCustody.pushReserved(
-            LibGaugeBribes.account(context.poolId, slot), asset, context.receiver, amount, amount
-        );
-        if (actualReceived < minimumAmount) {
-            revert IStaticsGaugeIncentives.GaugeAllocatorAmountBelowMinimum(asset, actualReceived, minimumAmount);
+        received = LibRewardPayout.pay(LibGaugeBribes.account(context.poolId, slot), asset, context.receiver, amount);
+        if (received < minimumAmount) {
+            revert IStaticsGaugeIncentives.GaugeAllocatorAmountBelowMinimum(asset, received, minimumAmount);
         }
         emit IStaticsGaugeIncentives.GaugeAllocatorRewardClaimed(
-            context.positionId, context.poolId, slot, asset, context.receiver, debited, actualReceived
+            context.positionId, context.poolId, slot, asset, context.receiver, amount, received
         );
-        received = actualReceived;
     }
 
     function _validateAllocatorSlot(PoolId poolId, uint8 slot) private view {
-        if (slot == LibRangeGauge.STATICS_SLOT) {
+        (, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
+        if (slot == LibRangeGauge.STATICS_SLOT || !assigned) {
             revert IStaticsGaugeIncentives.InvalidGaugeAllocatorSlot(poolId, slot);
         }
-        (, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
-        if (!assigned) revert IStaticsGaugeIncentives.InvalidGaugeAllocatorSlot(poolId, slot);
     }
 }

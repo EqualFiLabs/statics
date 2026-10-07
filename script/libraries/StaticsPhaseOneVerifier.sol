@@ -9,6 +9,7 @@ import {DiamondCutFacet} from "../../src/facets/DiamondCutFacet.sol";
 import {DiamondLoupeFacet} from "../../src/facets/DiamondLoupeFacet.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GaugeIncentiveViewFacet} from "../../src/facets/GaugeIncentiveViewFacet.sol";
+import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
 import {OwnershipFacet} from "../../src/facets/OwnershipFacet.sol";
@@ -55,6 +56,7 @@ library StaticsPhaseOneVerifier {
             diamond, StaticsSelectors.phaseOneLiquidityIntegration(), keccak256(type(BasketLiquidityFacet).runtimeCode)
         );
         _validateFacetSet(diamond, StaticsSelectors.globalRewards(), keccak256(type(GlobalRewardsFacet).runtimeCode));
+        _validateFacetSet(diamond, StaticsSelectors.batchRewards(), keccak256(type(BatchRewardsFacet).runtimeCode));
         _validateFacetSet(diamond, StaticsSelectors.interfaceInit(), keccak256(type(StaticsInterfaceInit).runtimeCode));
         _validateFacetSet(
             diamond, StaticsSelectors.protocolPoolCreation(), keccak256(type(ProtocolPoolCreationFacet).runtimeCode)

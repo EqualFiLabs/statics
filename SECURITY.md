@@ -86,6 +86,30 @@ for runoff and successor rollover. A series retired directly with its profile
 remains transferable and ordinary-recombinable via Core (and the gateway for
 profile 1) during runoff.
 
+## Aggregated reward claims
+
+The additive aggregated API settles the same authorized staking, LP and allocator
+claims before paying one combined amount per positive token. Only those three
+reward payout paths can defer custody. Every entry, including a zero amount,
+acknowledges its bound caller, receiver and active typed dispatch. Missing or
+incorrect acknowledgements/return values revert the complete transaction.
+
+Positive source reservations are moved into a dedicated transient batch account;
+the token's global reservation remains unchanged until payout. During aggregation,
+the custody sum includes that transient account as well as persistent source
+accounts. Final exact transfers consume its reservations under the shared guard,
+while the dedicated batch lock remains active. Context, acknowledgements and
+reservations are cleared on success, and EVM rollback restores them on failure.
+There is no pending state to migrate or resume across transactions.
+
+Aggregated payouts require exact Diamond debit and exact recipient increase.
+Taxed receipts, excess sender debit, failed transfers or independent minimum
+failures roll back the batch, without automatic legacy retries. Existing
+individual and legacy batch APIs preserve their measured taxed-token payouts.
+Neither interface makes malicious `balanceOf`, rebases or arbitrary token burns
+safe. Fixed input limits bound processing but do not promise a gas ceiling for
+arbitrary tokens or settlement histories.
+
 ## Authority
 
 - Phase 1 deploys one `StaticsTimelock` as owner of `StaticsDiamond`. Later
@@ -148,7 +172,7 @@ ceremony calls them, transfers their ownership, or changes their bindings.
 
 ## Staged production surface
 
-The Phase 1 launcher installs 31 facets and 220 selectors for the Diamond
+The Phase 1 launcher installs 32 facets and 223 selectors for the Diamond
 kernel, public general Statics-hook pools, a separate permissioned venue path,
 protocol revenue and managed public POL, PositionNFT, reward restrictions, and global
 STATICS staking/reward opt-ins. It also installs public-pool PositionNFT range
@@ -343,3 +367,28 @@ independently maintained release manifest remains necessary for exact
 expected-set review.
 Recorded runtime hashes remain offchain release metadata rather than live
 dispatch controls.
+
+## Batch reward claim boundary
+
+`BatchRewardsFacet` accepts only typed global, LP and allocator claim groups.
+It constructs the three existing claim selectors itself, resolves registered
+facet implementations and delegatecalls them with the original sender. It
+accepts no target, selector or arbitrary calldata from the caller. Existing NFT
+owner/approval checks, funding, custody reservations, measured payouts,
+minimum checks, event emission and claim-stub cleanup stay in those facets.
+Any delegated failure bubbles unchanged and rolls back the entire batch.
+
+The dispatcher has a dedicated namespaced persistent lock and rejects entry
+while the shared custody/claim guard is entered. It does not acquire, clear or
+bypass that shared guard: each delegated claim acquires its original guard.
+During token callbacks both batch reentry and individual guarded custody actions
+remain blocked. Locks reset after success and revert with transaction state on
+failure. Owner-controlled selector cuts remain the implementation trust boundary.
+
+Limits of 16 claim groups and 64 entries bound request size and duplicate-check
+work. They do not bound arbitrary token execution costs or settlement topology.
+Required bounded catch-up remains explicit, and a failing token or empty global
+claim can prevent an entire batch. Clients should simulate the complete batch,
+estimate gas and split further if needed. Separate transactions do not provide
+sequence-wide atomicity. Existing reward and token-compatibility assumptions
+continue to apply.

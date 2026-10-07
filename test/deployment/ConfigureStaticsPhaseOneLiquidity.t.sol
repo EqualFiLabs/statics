@@ -14,6 +14,7 @@ import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
+import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsPermissionedPools} from "../../src/interfaces/IStaticsPermissionedPools.sol";
@@ -23,6 +24,7 @@ import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoya
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRewardPolicy} from "../../src/interfaces/IStaticsRewardPolicy.sol";
 import {RewardPolicyFacet} from "../../src/facets/RewardPolicyFacet.sol";
+import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsPhaseOneVerifier} from "../../script/libraries/StaticsPhaseOneVerifier.sol";
@@ -270,6 +272,21 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         ceremony.prepare(deployment.diamond, config, keccak256("reject split facet routes"));
     }
 
+    function testCeremonyRejectsMissingBatchRewardsInterface() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployPhaseOne(address(ceremony), address(poolManager));
+        bytes4[] memory ids = new bytes4[](1);
+        ids[0] = type(IStaticsBatchRewards).interfaceId;
+        vm.prank(address(timelock));
+        StaticsInterfaceInit(deployment.diamond).setInterfaces(ids, new bool[](1));
+        StaticsPhaseOneLiquidityConfig memory config =
+            _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
+        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnsupportedInterface.selector, ids[0]));
+        ceremony.prepare(deployment.diamond, config, keccak256("missing batch interface"));
+    }
+
     function testCeremonyRejectsUnexpectedInitializedState() public {
         ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
         PhaseOneCeremonyPoolManagerMock poolManager = new PhaseOneCeremonyPoolManagerMock();
@@ -342,7 +359,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         StaticsPhaseOneLiquidityConfig memory config =
             _config(deployment, address(poolManager), makeAddr("harvester"), address(ceremony));
 
-        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 31, 32));
+        vm.expectRevert(abi.encodeWithSelector(ConfigureStaticsPhaseOneLiquidity.UnexpectedFacetCount.selector, 32, 33));
         ceremony.prepare(deployment.diamond, config, keccak256("reject expanded manifest"));
     }
 

@@ -10,6 +10,7 @@ import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -131,9 +132,10 @@ contract GlobalRewardsFacet is ReentrancyGuard {
                 if (position.optedInIndexPlusOne[asset] == 0) {
                     LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
                 }
-                (, amountsOut[i]) = LibCustody.pushReserved(LibCustody.feeAccount(), asset, receiver, amount, amount);
+                amountsOut[i] = LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, amount);
                 emit IStaticsGlobalRewards.RewardClaimed(positionId, receiver, asset, amount);
             }
+            if (amount == 0) LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, 0);
             if (amountsOut[i] < minAmountsOut[i]) {
                 revert MinimumOutputNotMet(asset, amountsOut[i], minAmountsOut[i]);
             }

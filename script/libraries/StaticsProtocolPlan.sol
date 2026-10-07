@@ -23,6 +23,7 @@ struct StaticsProtocolParts {
     address basketCollateral;
     address basketRewards;
     address globalRewards;
+    address batchRewards;
     address basketAdmin;
     address basketLiquidity;
     address basketLiquidityLifecycle;
@@ -74,7 +75,7 @@ library StaticsProtocolPlan {
     error InvalidPhase(uint256 phase);
 
     function phaseOne(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
-        cut = new IDiamondCut.FacetCut[](31);
+        cut = new IDiamondCut.FacetCut[](32);
         cut[0] = _add(parts.cut, StaticsSelectors.diamondCut());
         cut[1] = _add(parts.loupe, StaticsSelectors.diamondLoupe());
         cut[2] = _add(parts.ownership, StaticsSelectors.ownership());
@@ -106,6 +107,7 @@ library StaticsProtocolPlan {
         cut[28] = _add(parts.gaugeIncentiveViews, StaticsSelectors.gaugeIncentiveViews());
         cut[29] = _add(parts.marketTapeViews, StaticsSelectors.marketTapeViews());
         cut[30] = _add(parts.marketTapeObservations, StaticsSelectors.marketTapeObservations());
+        cut[31] = _add(parts.batchRewards, StaticsSelectors.batchRewards());
     }
 
     function phaseTwo(StaticsProtocolParts memory parts) internal pure returns (IDiamondCut.FacetCut[] memory cut) {
