@@ -5,6 +5,9 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {BatchRewardsFlowTestBase} from "../helpers/BatchRewardsFlowTestBase.sol";
 import {PrepareStaticsBatchRewardsUpgrade} from "../../script/PrepareStaticsBatchRewardsUpgrade.s.sol";
+import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
+import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
 import {StaticsInterfaceInit} from "../../src/diamond/StaticsInterfaceInit.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
@@ -16,11 +19,26 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
 contract BatchRewardsUpgradeTest is BatchRewardsFlowTestBase {
-    PrepareStaticsBatchRewardsUpgrade private preparation;
-    address private facet;
+    PrepareStaticsBatchRewardsUpgrade internal preparation;
+    address internal facet;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
+        IDiamondCut.FacetCut[] memory compatible = new IDiamondCut.FacetCut[](3);
+        compatible[0] = IDiamondCut.FacetCut(
+            address(new GlobalRewardsFacet()), IDiamondCut.FacetCutAction.Replace, StaticsSelectors.globalRewards()
+        );
+        compatible[1] = IDiamondCut.FacetCut(
+            address(new RangeGaugeLivenessFacet()),
+            IDiamondCut.FacetCutAction.Replace,
+            StaticsSelectors.rangeGaugeLiveness()
+        );
+        compatible[2] = IDiamondCut.FacetCut(
+            address(new GaugeIncentiveFacet()),
+            IDiamondCut.FacetCutAction.Replace,
+            StaticsSelectors.gaugeIncentiveActions()
+        );
+        IDiamondCut(address(diamond)).diamondCut(compatible, address(0), "");
         preparation = new PrepareStaticsBatchRewardsUpgrade();
         facet = address(new BatchRewardsFacet());
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);

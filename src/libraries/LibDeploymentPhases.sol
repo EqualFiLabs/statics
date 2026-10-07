@@ -25,6 +25,7 @@ import {IStaticsBorrowLiquidity} from "../interfaces/IStaticsBorrowLiquidity.sol
 import {IStaticsCustody} from "../interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGenesisIntegration} from "../interfaces/IStaticsGenesisIntegration.sol";
+import {IStaticsAggregatedBatchRewards} from "../interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsBatchRewards} from "../interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
@@ -68,6 +69,7 @@ library LibDeploymentPhases {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IStaticsGlobalRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsBatchRewards).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsAggregatedBatchRewards).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPosition).interfaceId] = true;

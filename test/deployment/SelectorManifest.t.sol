@@ -8,6 +8,7 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketLaunchModule} from "../../src/interfaces/IStaticsBasketLaunchModule.sol";
 import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
+import {IStaticsAggregatedBatchRewards} from "../../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
@@ -40,9 +41,10 @@ import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
 contract SelectorManifestTest is Test {
     function testBatchRewardsSelectors() public pure {
         bytes4[] memory actual = StaticsSelectors.batchRewards();
-        assertEq(actual.length, 2);
+        assertEq(actual.length, 3);
         assertEq(actual[0], IStaticsBatchRewards.batchClaimRewards.selector);
         assertEq(actual[1], IStaticsBatchRewards.batchClaimLimits.selector);
+        assertEq(actual[2], IStaticsAggregatedBatchRewards.batchClaimRewardsAggregated.selector);
     }
 
     function testPhaseOneSelectorSubsetsAreExactAndCollisionFree() public pure {
