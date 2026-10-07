@@ -11,7 +11,7 @@ require_local_chain
 cd_repo
 
 EXPECTED_FACETS=32
-EXPECTED_SELECTORS=222
+EXPECTED_SELECTORS=223
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)
@@ -51,6 +51,7 @@ assert_eq "$quoted_royalty_amount" "50000000000000000" "ERC-2981 royalty amount"
 
 declare -A required_interfaces=(
     [IStaticsBatchRewards]=0xb2eabe68
+    [IStaticsAggregatedBatchRewards]=0x23dbb931
     [ERC2981]=0x2a55205a
     [IStaticsPositionRoyalty]=0x4847d81b
     [IStaticsPositionMarket]=0x079c0632

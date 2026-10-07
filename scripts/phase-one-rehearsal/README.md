@@ -40,7 +40,7 @@ verification cannot accidentally accept stale shared build output.
 ## Evidence layers
 
 - `verify-deployment.sh` validates canonical Robinhood dependencies, immutable
-  bindings, exact source runtime bytecode, all 32 installed facets, all 222
+  bindings, exact source runtime bytecode, all 32 installed facets, all 223
   Diamond selector routes, and the PositionNFT market and royalty defaults.
 - `public-pool-creation.sh` exercises exact native creation fees, invalid
   payment and configuration paths, distinct PoolKeys, direct and relayed
