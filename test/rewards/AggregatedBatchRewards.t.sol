@@ -10,14 +10,17 @@ import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.so
 import {IStaticsAggregatedBatchRewards} from "../../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
-import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {LibGaugeRouting} from "../../src/libraries/LibGaugeRouting.sol";
+import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
+import {LibRangeGauge} from "../../src/libraries/LibRangeGauge.sol";
+import {LibCustody} from "../../src/libraries/LibCustody.sol";
 import {LibRewardPayout} from "../../src/libraries/LibRewardPayout.sol";
 import {
     MockERC20,
@@ -52,6 +55,17 @@ contract IncorrectAcknowledgedRewardRoute {
     }
 }
 
+contract ExcessAcknowledgedRewardRoute {
+    function claimLpRewards(uint256, PoolId, uint8[] calldata, uint256[] calldata, address receiver)
+        external
+        returns (uint256[] memory)
+    {
+        LibRewardPayout.pay(bytes32(0), address(1), receiver, 0);
+        LibRewardPayout.pay(bytes32(0), address(1), receiver, 0);
+        return new uint256[](2);
+    }
+}
+
 contract WrongReceiverRewardRoute {
     function claimLpRewards(uint256, PoolId, uint8[] calldata slots, uint256[] calldata, address)
         external
@@ -62,6 +76,29 @@ contract WrongReceiverRewardRoute {
     }
 }
 
+// Narrow storage observation, used to inspect transient reservations during and after real claims.
+contract AggregationStateProbe {
+    function batchReserved(address asset) external view returns (uint256) {
+        return LibCustody.aggregatedRewardReservation(asset);
+    }
+}
+
+contract AggregationBackingObserver {
+    bool public observed;
+
+    function observe(address diamond, bytes32 source, address asset, uint256 priorGlobal) external {
+        uint256 pending = AggregationStateProbe(diamond).batchReserved(asset);
+        require(pending > 0, "missing pending reservation");
+        require(IStaticsCustody(diamond).globalReservedByToken(asset) == priorGlobal, "global backing changed early");
+        require(
+            IStaticsCustody(diamond).reservedByAccount(source, asset) + pending == priorGlobal,
+            "reservation sum changed"
+        );
+        require(MockERC20(asset).balanceOf(diamond) >= priorGlobal, "unbacked pending payout");
+        observed = true;
+    }
+}
+
 contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
     IStaticsAggregatedBatchRewards internal aggregated;
     bytes32 private constant TRANSFER = keccak256("Transfer(address,address,uint256)");
@@ -69,15 +106,21 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
     function setUp() public override {
         super.setUp();
         aggregated = IStaticsAggregatedBatchRewards(address(diamond));
-        // Keep the core fixture usable before the deployment selector inventory is updated.
         if (IDiamondLoupe(address(diamond)).facetAddress(aggregated.batchClaimRewardsAggregated.selector) == address(0))
         {
-            bytes4[] memory selectors = new bytes4[](1);
-            selectors[0] = aggregated.batchClaimRewardsAggregated.selector;
-            IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-            cut[0] = IDiamondCut.FacetCut(address(new BatchRewardsFacet()), IDiamondCut.FacetCutAction.Add, selectors);
-            IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+            bytes4[] memory aggregateSelector = new bytes4[](1);
+            aggregateSelector[0] = aggregated.batchClaimRewardsAggregated.selector;
+            IDiamondCut.FacetCut[] memory install = new IDiamondCut.FacetCut[](1);
+            install[0] = IDiamondCut.FacetCut(
+                address(new BatchRewardsFacet()), IDiamondCut.FacetCutAction.Add, aggregateSelector
+            );
+            IDiamondCut(address(diamond)).diamondCut(install, address(0), "");
         }
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = AggregationStateProbe.batchReserved.selector;
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut(address(new AggregationStateProbe()), IDiamondCut.FacetCutAction.Add, selectors);
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
     }
 
     function _aggregatedLp(IStaticsBatchRewards.PoolClaim[] memory claims) internal returns (uint256[][] memory out) {
@@ -113,7 +156,7 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         assertEq(_aggregatedMixed(), expected);
         assertEq(_accountingHash(), state);
         assertEq(_payoutTransfers(vm.getRecordedLogs()), 4);
-        assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(reward)), 0);
+        assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(reward)), 0);
     }
 
     function testAggregatedLateMinimumRollsBackStagingAndRecovers() public {
@@ -125,8 +168,22 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         vm.expectPartialRevert(bytes4(keccak256("GaugeAllocatorAmountBelowMinimum(address,uint256,uint256)")));
         aggregated.batchClaimRewardsAggregated(_globals(), _pools(false), a, bob);
         assertEq(_accountingHash(), beforeState);
-        assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(reward)), 0);
+        assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(reward)), 0);
         assertGt(_aggregatedMixed().length, 0);
+    }
+
+    function testAggregatedGlobalNoRewardsStillRevertsAndContextRecovers() public {
+        PoolId pool = _createRangeGaugePool(alice);
+        uint256 id = _stake(alice, _assets());
+        _provide(id, pool, alice);
+        IStaticsBatchRewards.GlobalClaim[] memory claims = new IStaticsBatchRewards.GlobalClaim[](1);
+        claims[0] = IStaticsBatchRewards.GlobalClaim(id, _assets(), new uint256[](2));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(GlobalRewardsFacet.NoRewards.selector, id));
+        aggregated.batchClaimRewardsAggregated(
+            claims, new IStaticsBatchRewards.PoolClaim[](0), new IStaticsBatchRewards.PoolClaim[](0), alice
+        );
+        assertEq(_aggregatedLp(_poolClaims(id, pool, _slots(0, false)))[0][0], 0);
     }
 
     function testAggregatedTaxedReceiptRevertsAndLegacyClaimStillWorks() public {
@@ -142,7 +199,7 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         _aggregatedLp(claims);
         assertEq(taxed.balanceOf(alice), 0);
         assertEq(custody.globalReservedByToken(address(taxed)), reserved);
-        assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(taxed)), 0);
+        assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(taxed)), 0);
         assertGt(_lpBatch(claims)[0][0], 0);
     }
 
@@ -248,7 +305,7 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         assertEq(_payoutTransfers(vm.getRecordedLogs()), 13);
         for (uint256 i; i < 13; ++i) {
             assertEq(tokens[i].balanceOf(alice), balances[i]);
-            assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(tokens[i])), 0);
+            assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(tokens[i])), 0);
             assertGe(tokens[i].balanceOf(address(diamond)), custody.globalReservedByToken(address(tokens[i])));
         }
         emit log_named_uint("64 entries / 13 tokens legacy gas", legacyGas);
@@ -342,6 +399,52 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         emit log_named_uint("mixed aggregated execution gas", start - gasleft());
     }
 
+    function testPendingBatchReservationRemainsGloballyBackedDuringFlush() public {
+        PoolId pool = _createRangeGaugePool(alice);
+        uint256 id = _createPosition(alice);
+        _provide(id, pool, alice);
+        MockReentrantERC20 first = new MockReentrantERC20();
+        MockERC20 second = new MockERC20("Second", "SECOND", 18);
+        uint8[] memory slots = new uint8[](2);
+        slots[0] = _bribe(pool, first, 0);
+        slots[1] = _bribe(pool, second, 0);
+        vm.warp(block.timestamp + 1 days);
+        AggregationBackingObserver observer = new AggregationBackingObserver();
+        first.setCallback(
+            address(diamond),
+            address(observer),
+            abi.encodeCall(
+                observer.observe,
+                (
+                    address(diamond),
+                    LibRangeGauge.rewardAccount(pool, slots[1]),
+                    address(second),
+                    custody.globalReservedByToken(address(second))
+                )
+            )
+        );
+        _aggregatedLp(_poolClaims(id, pool, slots));
+        assertTrue(first.reentrySucceeded());
+        assertTrue(observer.observed());
+        assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(second)), 0);
+    }
+
+    function testIndividualClaimCallbackCannotEnterAggregatedBatch() public {
+        _reentry(
+            abi.encodeCall(
+                IStaticsAggregatedBatchRewards.batchClaimRewardsAggregated,
+                (
+                    new IStaticsBatchRewards.GlobalClaim[](0),
+                    new IStaticsBatchRewards.PoolClaim[](0),
+                    new IStaticsBatchRewards.PoolClaim[](0),
+                    alice
+                )
+            ),
+            IStaticsBatchRewards.BatchClaimReentrantCall.selector,
+            true
+        );
+    }
+
     function testAggregatedWrongAcknowledgementAndReceiverRevert() public {
         PoolId pool = _createRangeGaugePool(alice);
         uint256 id = _createPosition(alice);
@@ -352,6 +455,10 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         cut[0] = IDiamondCut.FacetCut(
             address(new IncorrectAcknowledgedRewardRoute()), IDiamondCut.FacetCutAction.Replace, selectors
         );
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+        vm.expectPartialRevert(IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible.selector);
+        _aggregatedLp(_poolClaims(id, pool, _slots(0, false)));
+        cut[0].facetAddress = address(new ExcessAcknowledgedRewardRoute());
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         vm.expectPartialRevert(IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible.selector);
         _aggregatedLp(_poolClaims(id, pool, _slots(0, false)));
@@ -373,7 +480,7 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         vm.expectPartialRevert(LibGaugeRouting.GaugeScheduleCatchupRequired.selector);
         _aggregatedLp(claims);
         assertEq(custody.globalReservedByToken(address(stakingAsset)), reserved);
-        assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(stakingAsset)), 0);
+        assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(stakingAsset)), 0);
         incentives.checkpointGaugeSchedule(52);
         incentives.checkpointGaugeSchedule(52);
         assertGt(_aggregatedLp(claims)[0][0], 0);
@@ -496,7 +603,7 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         _aggregatedLp(claims);
         assertEq(first.balanceOf(alice), 0);
         assertEq(custody.globalReservedByToken(address(first)), reserved);
-        assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(first)), 0);
+        assertEq(AggregationStateProbe(address(diamond)).batchReserved(address(first)), 0);
         last.setTransfersRevert(false);
         assertGt(_aggregatedLp(claims)[0][1], 0);
     }

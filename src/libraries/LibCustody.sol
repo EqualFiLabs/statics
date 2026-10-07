@@ -79,8 +79,11 @@ library LibCustody {
     }
 
     function accountReserved(bytes32 account, address token) internal view returns (uint256) {
-        if (account == AGGREGATED_REWARD_ACCOUNT) return _aggregatedReservation(token);
         return custodyStorage().reservedByAccount[account][token];
+    }
+
+    function aggregatedRewardReservation(address token) internal view returns (uint256) {
+        return _aggregatedReservation(token);
     }
 
     function _aggregatedSlot(address token) private pure returns (bytes32 slot) {
@@ -284,7 +287,14 @@ library LibCustody {
         private
         returns (uint256 spent, uint256 received)
     {
-        (spent, received) = _measurePush(token, receiver, amount);
+        if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
+        uint256 senderBefore = IERC20(token).balanceOf(address(this));
+        uint256 receiverBefore = IERC20(token).balanceOf(receiver);
+        IERC20(token).safeTransfer(receiver, amount);
+        uint256 senderAfter = IERC20(token).balanceOf(address(this));
+        uint256 receiverAfter = IERC20(token).balanceOf(receiver);
+        spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
+        received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
         if (spent < amount) revert DebitBelowRequested(token, spent, amount);
     }
 

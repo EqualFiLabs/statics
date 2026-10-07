@@ -98,7 +98,8 @@ contract BatchRewardsFacet is IStaticsBatchRewards, IStaticsAggregatedBatchRewar
                 IStaticsGlobalRewards.claimRewards.selector,
                 abi.encodeCall(
                     IStaticsGlobalRewards.claimRewards, (item.positionId, item.assets, receiver, item.minimumAmounts)
-                )
+                ),
+                item.assets.length
             );
         }
         lpReceived = _claimPools(lpClaims, receiver, false);
@@ -162,12 +163,16 @@ contract BatchRewardsFacet is IStaticsBatchRewards, IStaticsAggregatedBatchRewar
                 selector,
                 abi.encodeWithSelector(
                     selector, item.positionId, PoolId.wrap(item.poolId), item.slots, item.minimumAmounts, receiver
-                )
+                ),
+                item.slots.length
             );
         }
     }
 
-    function _dispatch(bytes4 selector, bytes memory data) private returns (uint256[] memory received) {
+    function _dispatch(bytes4 selector, bytes memory data, uint256 expectedEntries)
+        private
+        returns (uint256[] memory received)
+    {
         address facet = LibDiamond.diamondStorage().selectorToFacetAndPosition[selector].facetAddress;
         if (facet.code.length == 0) revert BatchClaimRouteUnavailable(selector);
         LibRewardPayout.startRoute(selector);
@@ -176,6 +181,6 @@ contract BatchRewardsFacet is IStaticsBatchRewards, IStaticsAggregatedBatchRewar
             assembly ("memory-safe") { revert(add(result, 32), mload(result)) }
         }
         received = abi.decode(result, (uint256[]));
-        LibRewardPayout.finishRoute(selector, received);
+        LibRewardPayout.finishRoute(selector, received, expectedEntries);
     }
 }

@@ -45,10 +45,12 @@ library LibRewardPayout {
         }
     }
 
-    function finishRoute(bytes4 selector, uint256[] memory received) internal {
+    function finishRoute(bytes4 selector, uint256[] memory received, uint256 expectedEntries) internal {
         if (_get(CALLER, 0) == 0) return;
         uint256 count = _get(RECORDS, 0);
-        if (count != received.length) revert IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible(selector);
+        if (count != expectedEntries || received.length != expectedEntries) {
+            revert IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible(selector);
+        }
         for (uint256 i; i < count; ++i) {
             if (_get(6, i) != received[i]) {
                 revert IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible(selector);
@@ -108,7 +110,7 @@ library LibRewardPayout {
         uint256 count = _get(TOKENS, 0);
         for (uint256 i; i < count; ++i) {
             address asset = address(uint160(_get(7, i)));
-            uint256 total = LibCustody.accountReserved(ACCOUNT, asset);
+            uint256 total = LibCustody.aggregatedRewardReservation(asset);
             LibCustody.pushReservedExact(ACCOUNT, asset, receiver, total);
             emit IStaticsAggregatedBatchRewards.AggregatedRewardPaid(receiver, asset, total);
             _set(7, i, 0);
