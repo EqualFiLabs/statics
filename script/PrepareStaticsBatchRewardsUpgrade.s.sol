@@ -122,7 +122,7 @@ contract PrepareStaticsBatchRewardsUpgrade is Script {
             }
         }
         cut = new IDiamondCut.FacetCut[](5);
-        uint256 count;
+        uint256 count = 0;
         count = _replacement(loupe, cut, count, global, StaticsSelectors.globalRewards());
         count = _replacement(loupe, cut, count, lp, StaticsSelectors.rangeGaugeLiveness());
         count = _replacement(loupe, cut, count, allocator, StaticsSelectors.gaugeIncentiveActions());
