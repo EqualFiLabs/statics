@@ -331,7 +331,8 @@ check support before selecting this ABI on older deployments.
 `stakePosition` reports the current `rewardMultiplierBps`; `totalStaked()`
 remains raw principal. Fee accrual or the next position action
 rolls due maturity buckets; no separate activation transaction is required.
-Position-specific views and actions require ERC-721 ownership or approval.
+Position-specific views are public and require an existing NFT. Actions require
+ERC-721 ownership or approval.
 Anyone may call `distributeTreasuryFees(asset)`, but funds always go to the
 configured treasury.
 
