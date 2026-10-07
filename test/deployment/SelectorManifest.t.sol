@@ -28,6 +28,7 @@ import {IERC5192} from "../../src/interfaces/IERC5192.sol";
 import {IStaticsPositionPortfolio} from "../../src/interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
+import {IStaticsRewardSelectionTiming} from "../../src/interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
@@ -258,7 +259,7 @@ contract SelectorManifestTest is Test {
     }
 
     function testPositionMarketSelectorManifestIsExact() public pure {
-        bytes4[] memory expected = new bytes4[](9);
+        bytes4[] memory expected = new bytes4[](10);
         expected[0] = IStaticsPositionRoyalty.royaltyInfo.selector;
         expected[1] = IStaticsPositionRoyalty.positionRoyalty.selector;
         expected[2] = IStaticsPositionRoyalty.setPositionRoyalty.selector;
@@ -268,7 +269,16 @@ contract SelectorManifestTest is Test {
         expected[6] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
         expected[7] = IStaticsGlobalRewards.rewardSelection.selector;
         expected[8] = IStaticsPositionMarket.globalRewardAssetsOfPosition.selector;
+        expected[9] = IStaticsRewardSelectionTiming.rewardSelectionWithTiming.selector;
         _assertExact(StaticsSelectors.positionMarket(), expected);
+    }
+
+    function testRewardSelectionTimingPreservesLegacyInterface() public pure {
+        assertEq(type(IStaticsPositionMarket).interfaceId, bytes4(0x079c0632));
+        assertEq(
+            type(IStaticsRewardSelectionTiming).interfaceId,
+            IStaticsRewardSelectionTiming.rewardSelectionWithTiming.selector
+        );
     }
 
     function testPhaseTwoLiquidityDeltaExcludesPhaseOneManagerSelectors() public pure {

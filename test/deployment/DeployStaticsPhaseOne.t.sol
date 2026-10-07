@@ -29,6 +29,7 @@ import {IModularPositionNFT} from "../../src/interfaces/IModularPositionNFT.sol"
 import {IPositionOwnerIndex} from "../../src/interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionRoyalty} from "../../src/interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
+import {IStaticsRewardSelectionTiming} from "../../src/interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
@@ -85,7 +86,7 @@ contract PhaseOnePermissionedBindingMock {
 
 contract DeployStaticsPhaseOneTest is Test {
     uint256 private constant EXPECTED_PHASE_ONE_FACETS = 32;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 223;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 224;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -520,6 +521,11 @@ contract DeployStaticsPhaseOneTest is Test {
         assertTrue(IERC165(diamond).supportsInterface(type(IERC2981).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionRoyalty).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPositionMarket).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsRewardSelectionTiming).interfaceId));
+        assertEq(
+            loupe.facetAddress(IStaticsRewardSelectionTiming.rewardSelectionWithTiming.selector),
+            loupe.facetAddress(IStaticsGlobalRewards.rewardSelection.selector)
+        );
     }
 
     function _assertDeferredSelectorsAbsent(address diamond) private view {

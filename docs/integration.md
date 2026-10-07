@@ -107,7 +107,7 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 223, 315, 373, and 400. Integrators
+Morpho. The cumulative selector counts are 224, 316, 374, and 401. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
@@ -310,6 +310,24 @@ Read `stakePosition`, `positionRewardAssets`, `rewardSelection`, `rewardAsset`,
 and `pendingRewards`, then call `claimRewards` with aligned assets and
 per-asset minimum outputs. `rewardSelection` reports the exact `eligibleAt`,
 raw pending/eligible stake, and pending/eligible effective weight.
+`IStaticsRewardSelectionTiming.rewardSelectionWithTiming(positionId, asset)`
+returns that same effective selection plus `pendingStartTime` in one read.
+The start is the stored weighted effective start after pending top-ups, not
+necessarily the first deposit timestamp. It is zero when no stake is effectively
+pending, including maturity before a state-changing bucket roll. For a top-up,
+cap elapsed credit at `rewardEligibilityDelay()`, weight that credit by existing
+pending stake over total pending stake, then round the new start plus the delay
+up to `rewardEligibilityBucketSize()`. Use a single block for the read and its
+chain timestamp. The preview remains conditional on state at execution.
+
+The timing selector has its own ERC-165 interface; existing `rewardSelection`
+calldata, return data and interface IDs are unchanged. Fresh Phase 1 and
+cumulative deployments install it. Existing diamonds require replacing the
+PositionMarketFacet's existing selector set, adding `rewardSelectionWithTiming`,
+and registering `IStaticsRewardSelectionTiming` using `StaticsInterfaceInit` in
+the governed diamond cut. No reward-state migration is needed. Clients should
+check support before selecting this ABI on older deployments.
+
 `stakePosition` reports the current `rewardMultiplierBps`; `totalStaked()`
 remains raw principal. Fee accrual or the next position action
 rolls due maturity buckets; no separate activation transaction is required.
