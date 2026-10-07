@@ -10,7 +10,12 @@ import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.so
 import {IStaticsAggregatedBatchRewards} from "../../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsRangeGauge} from "../../src/interfaces/IStaticsRangeGauge.sol";
+import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
+import {LibGaugeRouting} from "../../src/libraries/LibGaugeRouting.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {GaugeIncentiveFacet} from "../../src/facets/GaugeIncentiveFacet.sol";
+import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
+import {RangeGaugeLivenessFacet} from "../../src/facets/RangeGaugeLivenessFacet.sol";
 import {BatchRewardsFacet} from "../../src/facets/BatchRewardsFacet.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {LibRewardPayout} from "../../src/libraries/LibRewardPayout.sol";
@@ -34,18 +39,45 @@ contract UnacknowledgedRewardRoute {
     }
 }
 
+contract IncorrectAcknowledgedRewardRoute {
+    function claimLpRewards(uint256, PoolId, uint8[] calldata slots, uint256[] calldata, address receiver)
+        external
+        returns (uint256[] memory amounts)
+    {
+        amounts = new uint256[](slots.length);
+        for (uint256 i; i < slots.length; ++i) {
+            LibRewardPayout.pay(bytes32(0), address(1), receiver, 0);
+            amounts[i] = 1;
+        }
+    }
+}
+
+contract WrongReceiverRewardRoute {
+    function claimLpRewards(uint256, PoolId, uint8[] calldata slots, uint256[] calldata, address)
+        external
+        returns (uint256[] memory amounts)
+    {
+        LibRewardPayout.pay(bytes32(0), address(1), address(0xBAD), 0);
+        return new uint256[](slots.length);
+    }
+}
+
 contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
     IStaticsAggregatedBatchRewards internal aggregated;
     bytes32 private constant TRANSFER = keccak256("Transfer(address,address,uint256)");
 
     function setUp() public override {
         super.setUp();
-        bytes4[] memory selectors = new bytes4[](1);
-        selectors[0] = IStaticsAggregatedBatchRewards.batchClaimRewardsAggregated.selector;
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] = IDiamondCut.FacetCut(address(new BatchRewardsFacet()), IDiamondCut.FacetCutAction.Add, selectors);
-        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         aggregated = IStaticsAggregatedBatchRewards(address(diamond));
+        // Keep the core fixture usable before the deployment selector inventory is updated.
+        if (IDiamondLoupe(address(diamond)).facetAddress(aggregated.batchClaimRewardsAggregated.selector) == address(0))
+        {
+            bytes4[] memory selectors = new bytes4[](1);
+            selectors[0] = aggregated.batchClaimRewardsAggregated.selector;
+            IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+            cut[0] = IDiamondCut.FacetCut(address(new BatchRewardsFacet()), IDiamondCut.FacetCutAction.Add, selectors);
+            IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+        }
     }
 
     function _aggregatedLp(IStaticsBatchRewards.PoolClaim[] memory claims) internal returns (uint256[][] memory out) {
@@ -224,6 +256,162 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         assertLt(aggregateGas, legacyGas);
     }
 
+    function test_AggregatedRewardFacetsRetainEip170Headroom() public {
+        assertLe(type(GaugeIncentiveFacet).runtimeCode.length, 24_576);
+        assertLe(type(GlobalRewardsFacet).runtimeCode.length, 24_576);
+        assertLe(type(RangeGaugeLivenessFacet).runtimeCode.length, 24_576);
+        assertLe(type(BatchRewardsFacet).runtimeCode.length, 24_576);
+        emit log_named_uint("GaugeIncentiveFacet runtime bytes", type(GaugeIncentiveFacet).runtimeCode.length);
+        emit log_named_uint("GlobalRewardsFacet runtime bytes", type(GlobalRewardsFacet).runtimeCode.length);
+        emit log_named_uint("RangeGaugeLivenessFacet runtime bytes", type(RangeGaugeLivenessFacet).runtimeCode.length);
+        emit log_named_uint("BatchRewardsFacet runtime bytes", type(BatchRewardsFacet).runtimeCode.length);
+    }
+
+    function _benchmarkPayouts(uint256 groups, uint256 entries, bool distinct) private {
+        MockERC20[] memory tokens = new MockERC20[](distinct ? groups * entries : entries);
+        for (uint256 i; i < tokens.length; ++i) {
+            tokens[i] = new MockERC20("Reward", "RWD", 18);
+        }
+        IStaticsBatchRewards.PoolClaim[] memory claims = new IStaticsBatchRewards.PoolClaim[](groups);
+        for (uint256 i; i < groups; ++i) {
+            MockERC20 pair = new MockERC20("Pair", "PAIR", 18);
+            PoolId pool = _createRangeGaugePool(alice, address(assetA), address(pair));
+            uint256 id = _createPosition(alice);
+            _provide(id, pool, alice);
+            uint8[] memory slots = new uint8[](entries);
+            for (uint256 j; j < entries; ++j) {
+                slots[j] = _bribe(pool, tokens[distinct ? i * entries + j : j], 0);
+            }
+            claims[i] = IStaticsBatchRewards.PoolClaim(id, PoolId.unwrap(pool), slots, new uint256[](entries));
+        }
+        vm.warp(block.timestamp + 7 days);
+        uint256 snapshot = vm.snapshotState();
+        vm.recordLogs();
+        uint256 start = gasleft();
+        uint256[][] memory expected = _lpBatch(claims);
+        uint256 legacyGas = start - gasleft();
+        assertEq(_payoutTransfers(vm.getRecordedLogs()), groups * entries);
+        uint256[] memory balances = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length; ++i) {
+            balances[i] = tokens[i].balanceOf(alice);
+        }
+        vm.revertToState(snapshot);
+        vm.recordLogs();
+        start = gasleft();
+        uint256[][] memory actual = _aggregatedLp(claims);
+        uint256 aggregateGas = start - gasleft();
+        assertEq(abi.encode(actual), abi.encode(expected));
+        assertEq(_payoutTransfers(vm.getRecordedLogs()), tokens.length);
+        for (uint256 i; i < tokens.length; ++i) {
+            assertEq(tokens[i].balanceOf(alice), balances[i]);
+        }
+        emit log_named_uint("legacy execution gas", legacyGas);
+        emit log_named_uint("aggregated execution gas", aggregateGas);
+        if (groups > 1 && !distinct) assertLt(aggregateGas, legacyGas);
+    }
+
+    function testBenchmarkOneEntry() public {
+        _benchmarkPayouts(1, 1, false);
+    }
+
+    function testBenchmarkTypicalRepeatedTokens() public {
+        _benchmarkPayouts(4, 4, false);
+    }
+
+    function testBenchmarkMaximumRepeatedTokens() public {
+        _benchmarkPayouts(16, 4, false);
+    }
+
+    function testBenchmarkMaximumDistinctTokens() public {
+        _benchmarkPayouts(16, 4, true);
+    }
+
+    function testBenchmarkMixedSettlement() public {
+        _mixedState();
+        uint256 snapshot = vm.snapshotState();
+        vm.prank(alice);
+        uint256 start = gasleft();
+        (uint256[][] memory g, uint256[][] memory l, uint256[][] memory a) =
+            batch.batchClaimRewards(_globals(), _pools(false), _pools(true), bob);
+        uint256 legacyGas = start - gasleft();
+        bytes memory expected = abi.encode(g, l, a);
+        vm.revertToState(snapshot);
+        start = gasleft();
+        assertEq(_aggregatedMixed(), expected);
+        emit log_named_uint("mixed legacy execution gas", legacyGas);
+        emit log_named_uint("mixed aggregated execution gas", start - gasleft());
+    }
+
+    function testAggregatedWrongAcknowledgementAndReceiverRevert() public {
+        PoolId pool = _createRangeGaugePool(alice);
+        uint256 id = _createPosition(alice);
+        _provide(id, pool, alice);
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = IStaticsRangeGauge.claimLpRewards.selector;
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        cut[0] = IDiamondCut.FacetCut(
+            address(new IncorrectAcknowledgedRewardRoute()), IDiamondCut.FacetCutAction.Replace, selectors
+        );
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+        vm.expectPartialRevert(IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible.selector);
+        _aggregatedLp(_poolClaims(id, pool, _slots(0, false)));
+        cut[0].facetAddress = address(new WrongReceiverRewardRoute());
+        IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
+        vm.expectRevert(IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext.selector);
+        _aggregatedLp(_poolClaims(id, pool, _slots(0, false)));
+    }
+
+    function testAggregatedCatchupRevertsAndRecoversAfterBoundedCheckpoint() public {
+        PoolId pool = _createRangeGaugePool(alice);
+        uint256 id = _stake(alice, new address[](0));
+        _provide(id, pool, alice);
+        _allocate(id, pool);
+        _activateReserve();
+        vm.warp(block.timestamp + 60 weeks);
+        IStaticsBatchRewards.PoolClaim[] memory claims = _poolClaims(id, pool, _slots(0, false));
+        uint256 reserved = custody.globalReservedByToken(address(stakingAsset));
+        vm.expectPartialRevert(LibGaugeRouting.GaugeScheduleCatchupRequired.selector);
+        _aggregatedLp(claims);
+        assertEq(custody.globalReservedByToken(address(stakingAsset)), reserved);
+        assertEq(custody.reservedByAccount(LibRewardPayout.ACCOUNT, address(stakingAsset)), 0);
+        incentives.checkpointGaugeSchedule(52);
+        incentives.checkpointGaugeSchedule(52);
+        assertGt(_aggregatedLp(claims)[0][0], 0);
+    }
+
+    function testBenchmarkMaximumLazySettlement() public {
+        PoolId pool = _createRangeGaugePool(alice);
+        IStaticsBatchRewards.PoolClaim[] memory claims = new IStaticsBatchRewards.PoolClaim[](16);
+        for (uint256 i; i < 16; ++i) {
+            uint256 id = _stake(alice, new address[](0));
+            _provide(id, pool, alice);
+            _allocate(id, pool);
+            uint8[] memory slots = new uint8[](4);
+            for (uint256 j; j < 4; ++j) {
+                slots[j] = uint8(j);
+            }
+            claims[i] = IStaticsBatchRewards.PoolClaim(id, PoolId.unwrap(pool), slots, new uint256[](4));
+        }
+        for (uint256 i; i < 3; ++i) {
+            _bribe(pool, new MockERC20("Reward", "RWD", 18), 0);
+        }
+        _activateReserve();
+        vm.warp(block.timestamp + 50 weeks);
+        uint256 snapshot = vm.snapshotState();
+        uint256 start = gasleft();
+        uint256[][] memory expected = _lpBatch(claims);
+        uint256 legacyGas = start - gasleft();
+        vm.revertToState(snapshot);
+        start = gasleft();
+        uint256[][] memory actual = _aggregatedLp(claims);
+        uint256 aggregatedGas = start - gasleft();
+        assertEq(abi.encode(actual), abi.encode(expected));
+        assertGe(stakingAsset.balanceOf(address(diamond)), custody.globalReservedByToken(address(stakingAsset)));
+        emit log_named_uint("maximum lazy legacy execution gas", legacyGas);
+        emit log_named_uint("maximum lazy aggregated execution gas", aggregatedGas);
+        assertLt(aggregatedGas, legacyGas);
+    }
+
     function testAggregatedRejectsUnacknowledgedZeroRoute() public {
         PoolId pool = _createRangeGaugePool(alice);
         uint256 id = _createPosition(alice);
@@ -231,8 +419,7 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = IStaticsRangeGauge.claimLpRewards.selector;
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] =
-            IDiamondCut.FacetCut(
+        cut[0] = IDiamondCut.FacetCut(
             address(new UnacknowledgedRewardRoute()), IDiamondCut.FacetCutAction.Replace, selectors
         );
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");

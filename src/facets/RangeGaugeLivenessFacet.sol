@@ -217,16 +217,16 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
 
         leg.claimable[slot] = 0;
         _decreaseClaimLiability(context.poolId, slot, amount);
-        (uint256 debited, uint256 actualReceived) =
+        uint256 actualReceived =
             LibRewardPayout.pay(LibRangeGauge.rewardAccount(context.poolId, slot), asset, context.receiver, amount);
         if (slot == LibRangeGauge.STATICS_SLOT) {
-            LibGaugeReserve.consumeCommitted(debited);
+            LibGaugeReserve.consumeCommitted(amount);
         }
         if (actualReceived < minimumAmount) {
             revert IStaticsRangeGauge.RewardAmountBelowMinimum(asset, actualReceived, minimumAmount);
         }
         emit IStaticsRangeGauge.LpRewardsClaimed(
-            context.positionId, context.poolId, asset, slot, context.receiver, debited, actualReceived
+            context.positionId, context.poolId, asset, slot, context.receiver, amount, actualReceived
         );
         received = actualReceived;
     }

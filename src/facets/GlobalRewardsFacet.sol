@@ -132,7 +132,7 @@ contract GlobalRewardsFacet is ReentrancyGuard {
                 if (position.optedInIndexPlusOne[asset] == 0) {
                     LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
                 }
-                (, amountsOut[i]) = LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, amount);
+                amountsOut[i] = LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, amount);
                 emit IStaticsGlobalRewards.RewardClaimed(positionId, receiver, asset, amount);
             }
             if (amount == 0) LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, 0);

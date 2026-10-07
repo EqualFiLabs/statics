@@ -103,12 +103,17 @@ library LibCustody {
     }
 
     /// @dev Temporary reservation remains globally backed until the guarded exact payout.
-    function stageRewardReservation(bytes32 source, address token, uint256 amount) internal {
+    function stageRewardReservation(bytes32 source, address token, uint256 amount) internal returns (uint256 prior) {
         CustodyStorage storage cs = custodyStorage();
         uint256 available = cs.reservedByAccount[source][token];
         if (amount > available) revert InsufficientAccountReservation(source, token, amount, available);
-        cs.reservedByAccount[source][token] = available - amount;
-        _setAggregatedReservation(token, _aggregatedReservation(token) + amount);
+        unchecked {
+            cs.reservedByAccount[source][token] = available - amount;
+        }
+        bytes32 slot = _aggregatedSlot(token);
+        assembly ("memory-safe") { prior := tload(slot) }
+        uint256 combined = prior + amount;
+        assembly ("memory-safe") { tstore(slot, combined) }
         emit CustodyReleased(source, token, amount);
     }
 
@@ -293,8 +298,11 @@ library LibCustody {
         IERC20(token).safeTransfer(receiver, amount);
         uint256 senderAfter = IERC20(token).balanceOf(address(this));
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
-        spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
-        received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
+        // Comparisons prove these measured differences cannot underflow.
+        unchecked {
+            spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
+            received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
+        }
     }
 
     function _enforceGlobalBacking(address token) private view {

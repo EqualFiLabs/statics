@@ -8,22 +8,16 @@ import {IStaticsAggregatedBatchRewards} from "../interfaces/IStaticsAggregatedBa
 library LibRewardPayout {
     bytes32 private constant DOMAIN = keccak256("statics.transient.aggregated.rewards.v1");
     bytes32 internal constant ACCOUNT = LibCustody.AGGREGATED_REWARD_ACCOUNT;
-    uint256 private constant ACTIVE = 0;
     uint256 private constant CALLER = 1;
     uint256 private constant RECEIVER = 2;
-    uint256 private constant ROUTE = 3;
     uint256 private constant RECORDS = 4;
     uint256 private constant TOKENS = 5;
-    uint256 private constant MAX_ENTRIES = 64;
 
     function _slot(uint256 field, uint256 index) private pure returns (bytes32) {
-        bytes32 domain = bytes32(uint256(DOMAIN) + field);
+        // Eight disjoint 256-slot ranges; indices are bounded below 64.
+        bytes32 domain = DOMAIN;
         bytes32 slot;
-        assembly ("memory-safe") {
-            mstore(0, domain)
-            mstore(32, index)
-            slot := keccak256(0, 64)
-        }
+        assembly ("memory-safe") { slot := add(domain, add(shl(8, field), index)) }
         return slot;
     }
 
@@ -38,21 +32,21 @@ library LibRewardPayout {
     }
 
     function begin(address receiver) internal {
-        if (_get(ACTIVE, 0) != 0) revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
-        _set(ACTIVE, 0, 1);
+        if (_get(CALLER, 0) != 0) revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
         _set(CALLER, 0, uint160(msg.sender));
         _set(RECEIVER, 0, uint160(receiver));
     }
 
     function startRoute(bytes4 selector) internal {
-        if (_get(ACTIVE, 0) != 0) {
-            if (_get(ROUTE, 0) != 0) revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
-            _set(ROUTE, 0, uint32(selector));
+        uint256 caller = _get(CALLER, 0);
+        if (caller != 0) {
+            if (caller >> 160 != 0) revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
+            _set(CALLER, 0, caller | (uint256(uint32(selector)) << 160));
         }
     }
 
     function finishRoute(bytes4 selector, uint256[] memory received) internal {
-        if (_get(ACTIVE, 0) == 0) return;
+        if (_get(CALLER, 0) == 0) return;
         uint256 count = _get(RECORDS, 0);
         if (count != received.length) revert IStaticsAggregatedBatchRewards.AggregatedClaimRouteIncompatible(selector);
         for (uint256 i; i < count; ++i) {
@@ -62,40 +56,52 @@ library LibRewardPayout {
             _set(6, i, 0);
         }
         _set(RECORDS, 0, 0);
-        _set(ROUTE, 0, 0);
+        _set(CALLER, 0, uint160(msg.sender));
     }
 
-    function pay(bytes32 source, address asset, address receiver, uint256 amount)
-        internal
-        returns (uint256 debited, uint256 received)
-    {
-        if (_get(ACTIVE, 0) == 0) {
-            if (amount == 0) return (0, 0);
-            return LibCustody.pushReserved(source, asset, receiver, amount, amount);
+    function pay(bytes32 source, address asset, address receiver, uint256 amount) internal returns (uint256 received) {
+        bytes32 domain = DOMAIN;
+        uint256 boundCaller;
+        assembly ("memory-safe") { boundCaller := tload(add(domain, 256)) }
+        if (boundCaller == 0) {
+            if (amount == 0) return 0;
+            (, received) = LibCustody.pushReserved(source, asset, receiver, amount, amount);
+            return received;
         }
-        if (_get(ROUTE, 0) == 0 || _get(CALLER, 0) != uint160(msg.sender) || _get(RECEIVER, 0) != uint160(receiver)) {
-            revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
-        }
-        uint256 records = _get(RECORDS, 0);
-        if (records >= MAX_ENTRIES) revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
-        _set(6, records, amount);
-        _set(RECORDS, 0, records + 1);
-        if (amount != 0) {
-            uint256 total = LibCustody.accountReserved(ACCOUNT, asset);
-            if (total == 0) {
-                uint256 count = _get(TOKENS, 0);
-                if (count >= MAX_ENTRIES) revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
-                _set(7, count, uint160(asset));
-                _set(TOKENS, 0, count + 1);
+        // Bind acknowledgement to this typed dispatch and its original sender/receiver.
+        // Scalar and record slots occupy disjoint ranges within the namespace.
+        bytes4 invalidContext = IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext.selector;
+        assembly ("memory-safe") {
+            let expected := or(caller(), shl(160, shr(224, calldataload(0))))
+            if or(
+                iszero(eq(boundCaller, expected)),
+                iszero(eq(tload(add(domain, 512)), and(receiver, 0xffffffffffffffffffffffffffffffffffffffff)))
+            ) {
+                mstore(0, invalidContext)
+                revert(0, 4)
             }
-            LibCustody.stageRewardReservation(source, asset, amount);
+            let records := tload(add(domain, 1024))
+            if iszero(lt(records, 64)) {
+                mstore(0, invalidContext)
+                revert(0, 4)
+            }
+            tstore(add(add(domain, 1536), records), amount)
+            tstore(add(domain, 1024), add(records, 1))
         }
-        return (amount, amount);
+        if (amount != 0 && LibCustody.stageRewardReservation(source, asset, amount) == 0) {
+            // At most 64 positive entries can reach this branch after batch validation.
+            assembly ("memory-safe") {
+                let count := tload(add(domain, 1280))
+                tstore(add(add(domain, 1792), count), asset)
+                tstore(add(domain, 1280), add(count, 1))
+            }
+        }
+        return amount;
     }
 
     /// @dev Caller must hold the shared custody guard throughout final token callbacks.
     function flush() internal {
-        if (_get(ACTIVE, 0) == 0 || _get(ROUTE, 0) != 0 || _get(CALLER, 0) != uint160(msg.sender)) {
+        if (_get(CALLER, 0) != uint160(msg.sender)) {
             revert IStaticsAggregatedBatchRewards.InvalidAggregatedClaimContext();
         }
         address receiver = address(uint160(_get(RECEIVER, 0)));
@@ -110,6 +116,5 @@ library LibRewardPayout {
         _set(TOKENS, 0, 0);
         _set(RECEIVER, 0, 0);
         _set(CALLER, 0, 0);
-        _set(ACTIVE, 0, 0);
     }
 }
