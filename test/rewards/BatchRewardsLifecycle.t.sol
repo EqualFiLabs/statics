@@ -21,19 +21,19 @@ import {LibGaugeRouting} from "../../src/libraries/LibGaugeRouting.sol";
 import {MockERC20, MockFeeOnTransferERC20, MockRevertingERC20, MockReentrantERC20} from "../mocks/MockERC20.sol";
 
 contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
-    PoolId private firstPool;
-    PoolId private secondPool;
-    uint256 private firstId;
-    uint256 private secondId;
-    MockERC20 private reward;
-    MockERC20 private third;
+    PoolId internal firstPool;
+    PoolId internal secondPool;
+    uint256 internal firstId;
+    uint256 internal secondId;
+    MockERC20 internal reward;
+    MockERC20 internal third;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         _installBatch();
     }
 
-    function _mixedState() private {
+    function _mixedState() internal {
         firstPool = _createRangeGaugePool(alice);
         third = new MockERC20("Third", "THIRD", 18);
         secondPool = _createRangeGaugePool(alice, address(assetA), address(third));
@@ -52,13 +52,13 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         _swaps(secondPool);
     }
 
-    function _assets() private view returns (address[] memory assets) {
+    function _assets() internal view returns (address[] memory assets) {
         assets = new address[](2);
         assets[0] = address(assetA);
         assets[1] = address(assetB);
     }
 
-    function _swaps(PoolId pool) private {
+    function _swaps(PoolId pool) internal {
         PoolKey memory key = _poolKey(pool);
         _fundAndApprovePoolAssets(key, bob, 1 ether);
         _approveV4Router(bob, Currency.unwrap(key.currency0));
@@ -69,13 +69,13 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         vm.stopPrank();
     }
 
-    function _globals() private view returns (IStaticsBatchRewards.GlobalClaim[] memory claims) {
+    function _globals() internal view returns (IStaticsBatchRewards.GlobalClaim[] memory claims) {
         claims = new IStaticsBatchRewards.GlobalClaim[](2);
         claims[0] = IStaticsBatchRewards.GlobalClaim(firstId, _assets(), new uint256[](2));
         claims[1] = IStaticsBatchRewards.GlobalClaim(secondId, _assets(), new uint256[](2));
     }
 
-    function _pools(bool allocator) private view returns (IStaticsBatchRewards.PoolClaim[] memory claims) {
+    function _pools(bool allocator) internal view returns (IStaticsBatchRewards.PoolClaim[] memory claims) {
         claims = new IStaticsBatchRewards.PoolClaim[](2);
         uint8[] memory slots = _slots(1, !allocator);
         claims[0] =
@@ -84,7 +84,7 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
             IStaticsBatchRewards.PoolClaim(secondId, PoolId.unwrap(secondPool), slots, new uint256[](slots.length));
     }
 
-    function _individual() private returns (bytes memory result) {
+    function _individual() internal returns (bytes memory result) {
         IStaticsBatchRewards.GlobalClaim[] memory g = _globals();
         IStaticsBatchRewards.PoolClaim[] memory l = _pools(false);
         IStaticsBatchRewards.PoolClaim[] memory a = _pools(true);
@@ -109,7 +109,7 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         result = abi.encode(gr, lr, ar);
     }
 
-    function _mixedBatch() private returns (bytes memory result) {
+    function _mixedBatch() internal returns (bytes memory result) {
         IStaticsBatchRewards.GlobalClaim[] memory g = _globals();
         IStaticsBatchRewards.PoolClaim[] memory l = _pools(false);
         IStaticsBatchRewards.PoolClaim[] memory a = _pools(true);
@@ -125,7 +125,7 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         result = abi.encode(gr, lr, ar);
     }
 
-    function _accountingHash() private view returns (bytes32) {
+    function _accountingHash() internal view returns (bytes32) {
         bytes32 reserve = keccak256(abi.encode(incentives.gaugeReserve()));
         bytes32 streams = keccak256(
             abi.encode(
@@ -159,7 +159,7 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         );
     }
 
-    function _tokenState(MockERC20 token) private view returns (bytes32) {
+    function _tokenState(MockERC20 token) internal view returns (bytes32) {
         uint256 physical = token.balanceOf(address(diamond));
         uint256 reserved = custody.globalReservedByToken(address(token));
         assertGe(physical, reserved, "custody backing");
@@ -356,7 +356,7 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         assertGt(_lpBatch(claims)[0][1], 0);
     }
 
-    function _reentry(bytes memory callback, bytes4 errorSelector, bool individual) private {
+    function _reentry(bytes memory callback, bytes4 errorSelector, bool individual) internal {
         PoolId pool = _createRangeGaugePool(alice);
         uint256 id = _stake(alice, new address[](0));
         _provide(id, pool, alice);
@@ -374,7 +374,7 @@ contract BatchRewardsLifecycleTest is BatchRewardsFlowTestBase {
         assertGt(_lpBatch(claims)[0][0], 0, "both guards recovered");
     }
 
-    function _nestedBatch() private view returns (bytes memory) {
+    function _nestedBatch() internal view returns (bytes memory) {
         return abi.encodeCall(
             IStaticsBatchRewards.batchClaimRewards,
             (

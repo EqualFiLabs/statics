@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
+import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGaugeBribes} from "../libraries/LibGaugeBribes.sol";
@@ -209,6 +210,7 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
             context.poolWeight
         );
         if (amount == 0) {
+            LibRewardPayout.pay(LibGaugeBribes.account(context.poolId, slot), asset, context.receiver, 0);
             if (minimumAmount != 0) {
                 revert IStaticsGaugeIncentives.GaugeAllocatorAmountBelowMinimum(asset, 0, minimumAmount);
             }
@@ -217,9 +219,8 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
             );
             return 0;
         }
-        (uint256 debited, uint256 actualReceived) = LibCustody.pushReserved(
-            LibGaugeBribes.account(context.poolId, slot), asset, context.receiver, amount, amount
-        );
+        (uint256 debited, uint256 actualReceived) =
+            LibRewardPayout.pay(LibGaugeBribes.account(context.poolId, slot), asset, context.receiver, amount);
         if (actualReceived < minimumAmount) {
             revert IStaticsGaugeIncentives.GaugeAllocatorAmountBelowMinimum(asset, actualReceived, minimumAmount);
         }

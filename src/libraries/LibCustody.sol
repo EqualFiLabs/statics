@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {IStaticsAggregatedBatchRewards} from "../interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
@@ -13,6 +14,8 @@ library LibCustody {
     bytes32 internal constant FLASH_RESERVATION_DEFICIT_DOMAIN =
         keccak256("statics.custody.flash.reservation.deficit.v1");
     bytes32 internal constant DOLLAR_ACCOUNT = keccak256("statics.custody.account.dollar");
+    bytes32 internal constant AGGREGATED_REWARD_ACCOUNT = keccak256("statics.custody.account.aggregated.rewards.v1");
+    bytes32 private constant AGGREGATED_RESERVATION_DOMAIN = keccak256("statics.transient.custody.aggregated.v1");
     bytes32 internal constant FEE_ACCOUNT = keccak256("statics.custody.account.fees");
     bytes32 internal constant STAKING_ACCOUNT = keccak256("statics.custody.account.staking");
     bytes32 internal constant GENESIS_REWARD_ACCOUNT = keccak256("statics.custody.account.genesis.rewards");
@@ -76,7 +79,37 @@ library LibCustody {
     }
 
     function accountReserved(bytes32 account, address token) internal view returns (uint256) {
+        if (account == AGGREGATED_REWARD_ACCOUNT) return _aggregatedReservation(token);
         return custodyStorage().reservedByAccount[account][token];
+    }
+
+    function _aggregatedSlot(address token) private pure returns (bytes32 slot) {
+        bytes32 domain = AGGREGATED_RESERVATION_DOMAIN;
+        assembly ("memory-safe") {
+            mstore(0, domain)
+            mstore(32, token)
+            slot := keccak256(0, 64)
+        }
+    }
+
+    function _aggregatedReservation(address token) private view returns (uint256 amount) {
+        bytes32 slot = _aggregatedSlot(token);
+        assembly ("memory-safe") { amount := tload(slot) }
+    }
+
+    function _setAggregatedReservation(address token, uint256 amount) private {
+        bytes32 slot = _aggregatedSlot(token);
+        assembly ("memory-safe") { tstore(slot, amount) }
+    }
+
+    /// @dev Temporary reservation remains globally backed until the guarded exact payout.
+    function stageRewardReservation(bytes32 source, address token, uint256 amount) internal {
+        CustodyStorage storage cs = custodyStorage();
+        uint256 available = cs.reservedByAccount[source][token];
+        if (amount > available) revert InsufficientAccountReservation(source, token, amount, available);
+        cs.reservedByAccount[source][token] = available - amount;
+        _setAggregatedReservation(token, _aggregatedReservation(token) + amount);
+        emit CustodyReleased(source, token, amount);
     }
 
     function unreservedBalance(address token) internal view returns (uint256 available) {
@@ -171,6 +204,22 @@ library LibCustody {
         _enforceGlobalBacking(token);
     }
 
+    /// @dev Reserved aggregated payouts must be exact on both sides of the transfer.
+    function pushReservedExact(bytes32 account, address token, address receiver, uint256 amount) internal {
+        if (account != AGGREGATED_REWARD_ACCOUNT) revert InvalidTransferReceiver(receiver);
+        uint256 reserved = _aggregatedReservation(token);
+        if (reserved != amount) revert InsufficientAccountReservation(account, token, amount, reserved);
+        emit CustodyReserved(account, token, amount);
+        _setAggregatedReservation(token, 0);
+        custodyStorage().globalReservedByToken[token] -= amount;
+        emit CustodyReleased(account, token, amount);
+        (uint256 spent, uint256 received) = _measurePush(token, receiver, amount);
+        if (spent != amount || received != amount) {
+            revert IStaticsAggregatedBatchRewards.IncompatibleAggregatedRewardTransfer(token, amount, spent, received);
+        }
+        _enforceGlobalBacking(token);
+    }
+
     function pushUnreserved(address token, address receiver, uint256 amount, uint256 maximumDebit)
         internal
         returns (uint256 spent, uint256 received)
@@ -230,6 +279,14 @@ library LibCustody {
         private
         returns (uint256 spent, uint256 received)
     {
+        (spent, received) = _measurePush(token, receiver, amount);
+        if (spent < amount) revert DebitBelowRequested(token, spent, amount);
+    }
+
+    function _measurePush(address token, address receiver, uint256 amount)
+        private
+        returns (uint256 spent, uint256 received)
+    {
         if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
         uint256 senderBefore = IERC20(token).balanceOf(address(this));
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
@@ -238,7 +295,6 @@ library LibCustody {
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
         spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
         received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
-        if (spent < amount) revert DebitBelowRequested(token, spent, amount);
     }
 
     function _enforceGlobalBacking(address token) private view {

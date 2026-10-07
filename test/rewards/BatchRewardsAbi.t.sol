@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
+import {IStaticsAggregatedBatchRewards} from "../../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {Test} from "forge-std/Test.sol";
 import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
 
@@ -44,6 +45,15 @@ contract BatchRewardsAbiTest is Test {
             vm.serializeBytes("batch", "limitsCalldata", abi.encodeCall(IStaticsBatchRewards.batchClaimLimits, ()));
             string memory json = vm.serializeBytes("batch", "limitsResult", abi.encode(uint256(16), uint256(64)));
             vm.writeJson(json, "artifacts/diamond-manifests/batch-rewards-solidity.json");
+        }
+        if (vm.envOr("WRITE_AGGREGATED_REWARDS_FIXTURE", false)) {
+            vm.serializeBytes(
+                "aggregated",
+                "calldata",
+                abi.encodeCall(IStaticsAggregatedBatchRewards.batchClaimRewardsAggregated, (g, l, a, address(0x333)))
+            );
+            string memory json = vm.serializeBytes("aggregated", "result", result);
+            vm.writeJson(json, "artifacts/diamond-manifests/aggregated-rewards-solidity.json");
         }
     }
 }

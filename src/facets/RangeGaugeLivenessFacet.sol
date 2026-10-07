@@ -12,6 +12,7 @@ import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -209,15 +210,15 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
         if (!assigned) revert IStaticsRangeGauge.GaugeRewardSlotNotAssigned(context.poolId, slot);
         uint256 amount = leg.claimable[slot];
         if (amount == 0) {
+            LibRewardPayout.pay(LibRangeGauge.rewardAccount(context.poolId, slot), asset, context.receiver, 0);
             if (minimumAmount != 0) revert IStaticsRangeGauge.RewardAmountBelowMinimum(asset, 0, minimumAmount);
             return 0;
         }
 
         leg.claimable[slot] = 0;
         _decreaseClaimLiability(context.poolId, slot, amount);
-        (uint256 debited, uint256 actualReceived) = LibCustody.pushReserved(
-            LibRangeGauge.rewardAccount(context.poolId, slot), asset, context.receiver, amount, amount
-        );
+        (uint256 debited, uint256 actualReceived) =
+            LibRewardPayout.pay(LibRangeGauge.rewardAccount(context.poolId, slot), asset, context.receiver, amount);
         if (slot == LibRangeGauge.STATICS_SLOT) {
             LibGaugeReserve.consumeCommitted(debited);
         }

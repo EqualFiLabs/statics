@@ -7,10 +7,12 @@ import {IStaticsBatchRewards} from "../interfaces/IStaticsBatchRewards.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
+import {IStaticsAggregatedBatchRewards} from "../interfaces/IStaticsAggregatedBatchRewards.sol";
+import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 
 /// @notice Dispatches only typed reward claims; accounting remains in the installed claim facets.
-contract BatchRewardsFacet is IStaticsBatchRewards, ReentrancyGuard {
+contract BatchRewardsFacet is IStaticsBatchRewards, IStaticsAggregatedBatchRewards, ReentrancyGuard {
     uint256 private constant MAX_CLAIMS = 16;
     uint256 private constant MAX_ENTRIES = 64;
     bytes32 private constant BATCH_STORAGE = keccak256("statics.storage.batch.rewards.v1");
@@ -46,6 +48,38 @@ contract BatchRewardsFacet is IStaticsBatchRewards, ReentrancyGuard {
     )
         external
         batchGuard
+        returns (uint256[][] memory globalReceived, uint256[][] memory lpReceived, uint256[][] memory allocatorReceived)
+    {
+        return _claimRewards(globalClaims, lpClaims, allocatorClaims, receiver);
+    }
+
+    function batchClaimRewardsAggregated(
+        GlobalClaim[] calldata globalClaims,
+        PoolClaim[] calldata lpClaims,
+        PoolClaim[] calldata allocatorClaims,
+        address receiver
+    )
+        external
+        batchGuard
+        returns (uint256[][] memory globalReceived, uint256[][] memory lpReceived, uint256[][] memory allocatorReceived)
+    {
+        LibRewardPayout.begin(receiver);
+        (globalReceived, lpReceived, allocatorReceived) =
+            _claimRewards(globalClaims, lpClaims, allocatorClaims, receiver);
+        _flushAggregated();
+    }
+
+    function _flushAggregated() private nonReentrant {
+        LibRewardPayout.flush();
+    }
+
+    function _claimRewards(
+        GlobalClaim[] calldata globalClaims,
+        PoolClaim[] calldata lpClaims,
+        PoolClaim[] calldata allocatorClaims,
+        address receiver
+    )
+        private
         returns (uint256[][] memory globalReceived, uint256[][] memory lpReceived, uint256[][] memory allocatorReceived)
     {
         if (receiver == address(0) || receiver == address(this)) revert InvalidBatchReceiver(receiver);
@@ -136,10 +170,12 @@ contract BatchRewardsFacet is IStaticsBatchRewards, ReentrancyGuard {
     function _dispatch(bytes4 selector, bytes memory data) private returns (uint256[] memory received) {
         address facet = LibDiamond.diamondStorage().selectorToFacetAndPosition[selector].facetAddress;
         if (facet.code.length == 0) revert BatchClaimRouteUnavailable(selector);
+        LibRewardPayout.startRoute(selector);
         (bool success, bytes memory result) = facet.delegatecall(data);
         if (!success) {
             assembly ("memory-safe") { revert(add(result, 32), mload(result)) }
         }
         received = abi.decode(result, (uint256[]));
+        LibRewardPayout.finishRoute(selector, received);
     }
 }
