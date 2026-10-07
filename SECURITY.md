@@ -86,6 +86,30 @@ for runoff and successor rollover. A series retired directly with its profile
 remains transferable and ordinary-recombinable via Core (and the gateway for
 profile 1) during runoff.
 
+## Aggregated reward claims
+
+The additive aggregated API settles the same authorized staking, LP and allocator
+claims before paying one combined amount per positive token. Only those three
+reward payout paths can defer custody. Every entry, including a zero amount,
+acknowledges its bound caller, receiver and active typed dispatch. Missing or
+incorrect acknowledgements/return values revert the complete transaction.
+
+Positive source reservations are moved into a dedicated transient batch account;
+the token's global reservation remains unchanged until payout. During aggregation,
+the custody sum includes that transient account as well as persistent source
+accounts. Final exact transfers consume its reservations under the shared guard,
+while the dedicated batch lock remains active. Context, acknowledgements and
+reservations are cleared on success, and EVM rollback restores them on failure.
+There is no pending state to migrate or resume across transactions.
+
+Aggregated payouts require exact Diamond debit and exact recipient increase.
+Taxed receipts, excess sender debit, failed transfers or independent minimum
+failures roll back the batch, without automatic legacy retries. Existing
+individual and legacy batch APIs preserve their measured taxed-token payouts.
+Neither interface makes malicious `balanceOf`, rebases or arbitrary token burns
+safe. Fixed input limits bound processing but do not promise a gas ceiling for
+arbitrary tokens or settlement histories.
+
 ## Authority
 
 - Phase 1 deploys one `StaticsTimelock` as owner of `StaticsDiamond`. Later

@@ -20,7 +20,7 @@ phase-specific one-time initialization.
 - the fresh full-stack launcher concatenates those same four cuts instead of maintaining a second
   handwritten full manifest.
 
-The complete plan contains 399 selectors. CI deploys Phase 1, advances the same Diamond through all
+The complete plan contains 400 selectors. CI deploys Phase 1, advances the same Diamond through all
 four timelocked batches, and compares every final selector and implementation runtime hash with a
 fresh full deployment. A selector addition or reassignment must therefore update the canonical
 phase plan; the staged and fresh paths cannot silently diverge.
@@ -36,7 +36,7 @@ Robinhood manifest, so it cannot create a Diamond that the later handoff cannot 
 
 ## Phase 1: arbitrary hooked pairs and STATICS staking
 
-Phase 1 installs 32 facets and 222 selectors for:
+Phase 1 installs 32 facets and 223 selectors for:
 
 - the Diamond cut, loupe, ownership, and timelocked governance kernel;
 - general Uniswap v4 pools between arbitrary compatible ERC-20s using the reusable
@@ -107,7 +107,7 @@ always owner/timelock executed and requires exact creator EIP-712 or ERC-1271 au
 
 ## Phase 2: baskets, credit, flash composition, and Genesis integration
 
-Phase 2 adds 92 selectors for a cumulative 314 selectors across 44 facets. It installs:
+Phase 2 adds 92 selectors for a cumulative 315 selectors across 44 facets. It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
@@ -132,7 +132,7 @@ runtimes and bindings.
 
 ## Phase 3: Statics Dollar
 
-Phase 3 adds 58 selectors for a cumulative 372 selectors across 49 facets. It adds Dollar custody,
+Phase 3 adds 58 selectors for a cumulative 373 selectors across 49 facets. It adds Dollar custody,
 Risk Share staking and incentives, fee routing, the pairing vault, the Dollar gateway, and series
 migration.
 
@@ -149,7 +149,7 @@ atomically install and initialize the periphery before finalizing the core-to-Di
 
 ## Phase 4: Morpho
 
-Phase 4 adds 27 selectors for the final 399 selectors across 54 facets. It installs the remaining
+Phase 4 adds 27 selectors for the final 400 selectors across 54 facets. It installs the remaining
 Position portfolio view plus Morpho administration, actions, settlement, recovery, and views.
 
 The phase deploys five Morpho facet implementations and `StaticsPhaseFourInit`: six contracts.
@@ -188,7 +188,7 @@ replacement cut; later activation scripts fail closed on an unexpected earlier r
 
 ## Audit boundary
 
-Phase 1's deployed review surface remains its 222 reachable selectors, facet paths and shared
+Phase 1's deployed review surface remains its 223 reachable selectors, facet paths and shared
 libraries, Diamond kernel and initializer, timelock, both hooks, permissioned periphery and claims,
 venue controller, public range-gauge accounting and custody, the liquidity manager,
 managed-POL custody and lifecycle, and deployment ceremonies. Each later audit covers its
@@ -221,15 +221,36 @@ No transaction or production deployment is authorized by this ADR or its impleme
 
 ## Adding batch claims to an existing Phase 1 Diamond
 
-Deploy `BatchRewardsFacet` with the release compiler settings, then use
-`PrepareStaticsBatchRewardsUpgrade.buildTimelockCalldata(diamond, facet, salt)`.
-Preparation checks the compiled facet runtime, the three existing claim routes,
-`diamondCut` and `setInterfaces`, and rejects collisions for either new selector.
-The generated timelock batch adds both selectors and registers
-`IStaticsBatchRewards` via `setInterfaces`. It performs no broadcast. Schedule
-and execute the prepared operation using the existing governance ceremony and
-current delay. No reward-state migration or initialization is required.
+Deploy the release `BatchRewardsFacet`, `GlobalRewardsFacet`,
+`RangeGaugeLivenessFacet` and `GaugeIncentiveFacet`, then use
+`PrepareStaticsBatchRewardsUpgrade.buildTimelockCalldata(diamond, batch, global,
+lp, allocator, salt)` for a Diamond without either batch interface. The original
+two-address preparation overload remains usable when the currently installed
+claim facets already match this release's runtimes.
 
-The batch implementation delegates only typed calls to existing claim routes.
+For a Diamond with the existing batch selectors installed, use
+`PrepareStaticsAggregatedRewardsUpgrade.buildAggregatedTimelockCalldata(diamond,
+batch, global, lp, allocator, salt)`. It replaces the complete selector sets of
+the three claim facets and the existing batch facet, adds the aggregated selector,
+and registers both interface IDs in one atomic `diamondCut` initializer. The
+aggregate interface is separate; the original interface and selectors remain
+unchanged. Compatible claim facets already at their target addresses need no
+replacement. No reward-state migration is required.
+
+Both preparation scripts are read-only. They validate compiled replacement
+runtime hashes, complete current selector ownership, required claim/cut/interface
+routes, selector collisions, and the exact `StaticsTimelock` owner. Incomplete
+or mixed-owner configurations fail before producing a payload. `run()` reads
+`STATICS_DIAMOND`, `STATICS_BATCH_REWARDS_FACET`, `STATICS_GLOBAL_REWARDS_FACET`,
+`STATICS_RANGE_GAUGE_LIVENESS_FACET` and `STATICS_GAUGE_INCENTIVE_FACET`.
+Schedule and execute the prepared operation using the existing governance
+ceremony and current delay.
+
+The batch implementation delegates only typed calls to registered claim routes.
 It preserves the caller and shared claim guards; all claims revert together on
 any failure. Existing bounded catch-up remains a prerequisite when needed.
+Aggregated mode additionally requires every claim entry to acknowledge the
+active caller, receiver and dispatch, then flushes exact payouts under the shared
+guard. An old claim implementation cannot silently bypass aggregation. Fresh
+Phase 1 and cumulative deployments install the compatible facets, all three
+batch selectors and both interfaces together.

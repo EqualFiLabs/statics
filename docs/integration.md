@@ -107,7 +107,7 @@ Permissioned pools use a separate hook address, exact-input trusted router,
 non-transferable LP positions, creator-selected controller and native v4 fee,
 and one PoolId-local output venue fee with no POL. Phase 2 adds baskets, credit,
 flash composition, and basket liquidity; Phase 3 adds Dollar; Phase 4 adds
-Morpho. The cumulative selector counts are 222, 314, 372, and 399. Integrators
+Morpho. The cumulative selector counts are 223, 315, 373, and 400. Integrators
 must feature-detect complete ERC-165 interfaces and individual selector routes
 instead of assuming that a live Diamond exposes a later phase.
 
@@ -938,6 +938,46 @@ The SDK package root exposes the typed builder/decoder, limit helpers and
 `splitBatchRewardClaims`. Splitting preserves receiver, execution order and
 asset/minimum pairs; each resulting transaction is independently atomic. Native
 LP fee collection, Operator and basket rewards use their existing interfaces.
-Installation on an existing Phase 1 Diamond uses the two-call timelock
+Installation on an existing Phase 1 Diamond uses the atomic timelock
 preparation described in the staged deployment ADR; no reward-state migration
 is required.
+
+
+### Aggregated batch payouts
+
+`IStaticsAggregatedBatchRewards.batchClaimRewardsAggregated` uses the same claim
+structs, result arrays, limits and execution order, with a separately registered
+interface ID. The original selectors and `IStaticsBatchRewards` ID are unchanged.
+Select the new call explicitly to combine positive entitlements by token address
+and transfer each token once, in first-positive-occurrence order.
+
+Each entry retains its own reviewed minimum and settled entitlement. The exact
+combined transfer must both debit the Diamond and increase the receiver balance
+by the requested token total, or the complete batch reverts with
+`IncompatibleAggregatedRewardTransfer(asset, expected, debited, received)`.
+Taxed tokens continue to use the existing measured individual/batch calls. No
+compatibility detection or fallback is performed. Simulate the complete batch
+with the connected account and estimate gas before signing.
+
+Existing global, LP and allocator claim events precede the final transfers.
+Their position/pool attribution remains distinguishable by log index;
+`AggregatedRewardPaid(receiver, asset, amount)` describes each combined payout.
+Zero entries acknowledge the aggregation dispatch but generate no transfer.
+Empty global rewards retain the existing `NoRewards` failure.
+
+During settlement, positive reservations move from their source into a
+namespaced transient batch account. Global reservations continue backing those
+pending transfers. The shared claim guard remains in each delegated claim; the
+batch lock spans the whole operation and the shared guard also protects the
+final transfers. Route acknowledgements and returned amounts must match for
+every entry, including zeros. Incompatible installed claim routes cause an
+atomic revert rather than immediate/duplicate payouts. Successful batches clear
+all transient records and reservations, so a second batch in the same transaction
+has a fresh context.
+
+The companion SDK exports `staticsAggregatedBatchRewardsAbi`,
+`buildBatchClaimRewardsAggregatedCall` and
+`decodeBatchClaimRewardsAggregatedResult` through the existing package root.
+Reuse `splitBatchRewardClaims`; simulation, further gas-based splitting and
+submission remain caller responsibilities. See the [validation evidence](aggregated-batch-claims-validation.md)
+for transfer counts, gas comparisons and execution boundaries.
