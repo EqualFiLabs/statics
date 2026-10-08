@@ -38,9 +38,13 @@ promise an exit order; discovery systems and user interfaces should surface
 constituent behavior and basket reputation.
 
 The Diamond accepts native currency for payable basket creation and the typed
-Statics Dollar ETH gateway. Its receive hook accepts ETH only from the
-configured WETH contract during an unwrap. Native currency can still be
-force-sent at the EVM level and is not used as an internal accounting source.
+Statics Dollar ETH gateway. Public pools additionally support native ETH principal and POL reservations
+under address(0), backed by the physical ETH balance. Its receive hook accepts
+configured WETH and a transiently authorized PoolManager or originating liquidity
+manager only during native settlement. Native revenue becomes WETH at the reward
+boundary; native LP and POL principal remain ETH. Forced ETH stays unallocated.
+Native transfers use exact value accounting and failure-reverting calls inside
+shared reentrancy guards. See [native ETH Phase 1](docs/adr/native-eth-phase-one.md).
 
 ## Custody and execution
 
@@ -276,8 +280,12 @@ through standard pool accounting. A user may instead opt a position into the
 public range gauge, which transfers that NFT to the immutable liquidity manager
 until managed exit while the associated PositionNFT controls it. Native fees
 earned by managed POL positions route only to Treasury and never become POL
-principal. Basket
-creation initializes and seeds its canonical pools atomically. General-pool
+principal. Operator POL position actions use a transaction-local PoolId swap
+block so token callbacks cannot accrue fees after harvest and before principal
+accounting. Other pools remain available for swaps, and the block clears when
+the action ends.
+
+Basket creation initializes and seeds its canonical pools atomically. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
 exact payment while the fee is nonzero. The bilateral default initializes to

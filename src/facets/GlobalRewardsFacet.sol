@@ -2,12 +2,9 @@
 pragma solidity 0.8.33;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
-import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibRewardPayout} from "../libraries/LibRewardPayout.sol";
@@ -19,6 +16,7 @@ import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibPosition} from "../position/LibPosition.sol";
 import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 import {LibMorpho} from "../libraries/LibMorpho.sol";
+import {LibPoolRewards} from "../libraries/LibPoolRewards.sol";
 import {LibRewardPolicy} from "../libraries/LibRewardPolicy.sol";
 
 contract GlobalRewardsFacet is ReentrancyGuard {
@@ -32,7 +30,6 @@ contract GlobalRewardsFacet is ReentrancyGuard {
     error NoRewards(uint256 positionId);
     error ActionPaused(uint256 action);
     error LiquidityIntegrationNotInstalled();
-    error IncompatibleRewardFunding(address asset, uint256 expected, uint256 received);
 
     function createAndStake(uint256 amount, address receiver, address[] calldata rewardAssets)
         external
@@ -279,11 +276,7 @@ contract GlobalRewardsFacet is ReentrancyGuard {
     function _settlePublicSwapRewards(address asset, uint256 amount) private {
         LibBasketLiquidity.LiquidityStorage storage ls = LibBasketLiquidity.liquidityStorage();
         if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
-        uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
-        uint256 settled = IStaticsSwapFeeHook(ls.hook).settleStakerRewards(Currency.wrap(asset), address(this), amount);
-        uint256 afterBalance = IERC20(asset).balanceOf(address(this));
-        uint256 received = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
-        if (settled != amount || received != amount) revert IncompatibleRewardFunding(asset, amount, received);
+        LibPoolRewards.settleStaker(asset, amount);
         LibCustody.reserve(LibCustody.feeAccount(), asset, amount);
         LibGlobalRewards.fundCrystallizedSwapFee(asset, amount);
     }

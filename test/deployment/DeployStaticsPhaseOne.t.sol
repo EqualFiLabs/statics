@@ -67,10 +67,12 @@ contract PhaseOneDependencyMock {}
 contract PhaseOnePositionManagerMock {
     address public immutable poolManager;
     address public immutable permit2;
+    address public immutable WETH9;
 
-    constructor(address poolManager_, address permit2_) {
+    constructor(address poolManager_, address permit2_, address weth_) {
         poolManager = poolManager_;
         permit2 = permit2_;
+        WETH9 = weth_;
     }
 }
 
@@ -239,7 +241,7 @@ contract DeployStaticsPhaseOneTest is Test {
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
         PhaseOnePoolManagerMock poolManager = new PhaseOnePoolManagerMock();
 
-        DeployStaticsPhaseOne.V4Config memory v4 = _v4Config(address(poolManager));
+        DeployStaticsPhaseOne.V4Config memory v4 = _v4Config(address(poolManager), address(weth));
         (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) = deployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: makeAddr("multisig"),
@@ -265,7 +267,7 @@ contract DeployStaticsPhaseOneTest is Test {
         assertGt(deployment.permissionedSwapFeeHook.code.length, 0);
         assertEq(permissionedHook.staticsDiamond(), deployment.diamond);
         assertEq(address(permissionedHook.poolManager()), address(poolManager));
-        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(deployment.liquidityManager);
+        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(payable(deployment.liquidityManager));
         assertEq(liquidityManager.staticsDiamond(), deployment.diamond);
         assertEq(liquidityManager.poolManager(), address(poolManager));
         assertEq(liquidityManager.positionManager(), v4.positionManager);
@@ -300,7 +302,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 positionCreationFeeAmount: 0,
                 weeklyGaugeReleaseBps: 400
             }),
-            _v4Config(address(poolManager))
+            _v4Config(address(poolManager), address(weth))
         );
         PhaseOnePermissionedBindingMock wrongPeriphery =
             new PhaseOnePermissionedBindingMock(address(poolManager), makeAddr("wrong-permissioned-hook"));
@@ -397,7 +399,7 @@ contract DeployStaticsPhaseOneTest is Test {
         PhaseOnePoolManagerMock poolManager = new PhaseOnePoolManagerMock();
         PhaseOneDependencyMock permit2 = new PhaseOneDependencyMock();
         PhaseOnePositionManagerMock wrongPoolManager =
-            new PhaseOnePositionManagerMock(makeAddr("wrongPoolManager"), address(permit2));
+            new PhaseOnePositionManagerMock(makeAddr("wrongPoolManager"), address(permit2), address(weth));
         DeployStaticsPhaseOne.Config memory config = DeployStaticsPhaseOne.Config({
             multisig: makeAddr("multisig"),
             guardian: makeAddr("guardian"),
@@ -430,7 +432,7 @@ contract DeployStaticsPhaseOneTest is Test {
 
         PhaseOneDependencyMock wrongPermit2 = new PhaseOneDependencyMock();
         PhaseOnePositionManagerMock wrongPermitManager =
-            new PhaseOnePositionManagerMock(address(poolManager), address(wrongPermit2));
+            new PhaseOnePositionManagerMock(address(poolManager), address(wrongPermit2), address(weth));
         v4.positionManager = address(wrongPermitManager);
         v4.positionManagerCodeHash = address(wrongPermitManager).codehash;
         vm.expectRevert(
@@ -576,7 +578,7 @@ contract DeployStaticsPhaseOneTest is Test {
                 positionCreationFeeAmount: 0,
                 weeklyGaugeReleaseBps: 400
             }),
-            _v4Config(address(fixture.poolManager))
+            _v4Config(address(fixture.poolManager), address(weth))
         );
         fixture.diamond = deployment.diamond;
         fixture.timelock = address(timelock);
@@ -586,9 +588,13 @@ contract DeployStaticsPhaseOneTest is Test {
         fixture.revenue = IStaticsProtocolRevenue(deployment.diamond);
     }
 
-    function _v4Config(address poolManager) private returns (DeployStaticsPhaseOne.V4Config memory config) {
+    function _v4Config(address poolManager, address weth)
+        private
+        returns (DeployStaticsPhaseOne.V4Config memory config)
+    {
         PhaseOneDependencyMock permit2 = new PhaseOneDependencyMock();
-        PhaseOnePositionManagerMock positionManager = new PhaseOnePositionManagerMock(poolManager, address(permit2));
+        PhaseOnePositionManagerMock positionManager =
+            new PhaseOnePositionManagerMock(poolManager, address(permit2), address(weth));
         config = DeployStaticsPhaseOne.V4Config({
             poolManager: poolManager,
             positionManager: address(positionManager),

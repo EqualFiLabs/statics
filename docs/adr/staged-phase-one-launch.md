@@ -39,7 +39,7 @@ Robinhood manifest, so it cannot create a Diamond that the later handoff cannot 
 Phase 1 installs 32 facets and 224 selectors for:
 
 - the Diamond cut, loupe, ownership, and timelocked governance kernel;
-- general Uniswap v4 pools between arbitrary compatible ERC-20s using the reusable
+- general Uniswap v4 pools between compatible ERC-20s or native ETH and an ERC-20 using the reusable
   `StaticsSwapFeeHook`;
 - governed bilateral hook fees, creator revenue, treasury accounting, global STATICS-staker
   rewards, swap-time staker entitlement, claim-backed POL inventory, permissionless tipped revenue

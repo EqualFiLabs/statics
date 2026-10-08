@@ -53,6 +53,13 @@ verification cannot accidentally accept stale shared build output.
   crosses a managed boundary, and grows and wraps the observation ring.
 - `managed-lp-lifecycle.sh` proves native-fee collection, increase, partial
   decrease, rebalance, exit, and PositionNFT closure through the managed LP path.
+- `native-eth-lifecycle.sh` creates ETH/STATICS pools at zero and positive LP
+  fees, swaps in both directions with exact input and output, measures native
+  principal/refunds after transaction gas, and exercises managed and attached
+  NFT liquidity. It proves one WETH staking selection receives both ETH and WETH
+  fees, lazy reward wrapping preserves native POL reserves, creator/Treasury
+  payouts use WETH, native POL completes its full position lifecycle, and native
+  LPs earn both STATICS allocations and direct WETH gauge rewards.
 - `external-posm-attachment.sh` mints a real external Uniswap v4 position,
   rejects unauthorized, wrong-pool, permissioned-pool, and duplicate attachment,
   then exercises rewards, mutations, fees, rebalance, and exit after attachment.

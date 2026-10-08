@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LibCurrency} from "../libraries/LibCurrency.sol";
+import {LibNativeReceipt} from "../libraries/LibNativeReceipt.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -73,6 +74,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
                 revert LibProtocolPol.ProtocolPolPositionPoolMismatch(id, params.poolId, position.poolId);
             }
         }
+        LibGovernance.blockProtocolPolSwaps(params.poolId);
         for (uint256 i; i < params.closes.length; ++i) {
             _rebalanceClose(params.closes[i], params.deadline);
         }
@@ -80,6 +82,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
         for (uint256 i; i < params.opens.length; ++i) {
             newPositionIds[i] = _rebalanceOpen(params.poolId, params.opens[i], params.deadline);
         }
+        LibGovernance.unblockProtocolPolSwaps(params.poolId);
     }
 
     function _rebalanceClose(IStaticsProtocolPools.ProtocolPolCloseLeg calldata leg, uint256 deadline) private {
@@ -175,9 +178,11 @@ contract ProtocolPolFacet is ReentrancyGuard {
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibBasketLiquidity.liquidityStorage().hook);
         uint256 pending = hook.pendingProtocolPol(poolId, currency);
         uint256 requested = maximumAmount == 0 || maximumAmount > pending ? pending : maximumAmount;
-        uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
+        uint256 beforeBalance = LibCurrency.balance(asset, address(this));
+        if (asset == address(0)) LibNativeReceipt.expect(LibBasketLiquidity.liquidityStorage().poolManager);
         amount = hook.settleProtocolPol(key, currency, address(this), requested);
-        uint256 afterBalance = IERC20(asset).balanceOf(address(this));
+        LibNativeReceipt.clear();
+        uint256 afterBalance = LibCurrency.balance(asset, address(this));
         uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (observed != amount) revert ProtocolPolSettlementMismatch(asset, amount, observed);
         LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, amount);
@@ -191,8 +196,10 @@ contract ProtocolPolFacet is ReentrancyGuard {
     {
         _enforcePolOperator();
         _enforceLiquidityActive();
+        LibGovernance.blockProtocolPolSwaps(params.poolId);
         IStaticsLiquidityManager.ManagedPositionMovement memory movement;
         (positionId, movement) = LibProtocolPol.open(params);
+        LibGovernance.unblockProtocolPolSwaps(params.poolId);
         LibProtocolPools.ProtocolPolPosition storage position =
             LibProtocolPools.protocolPoolStorage().polPositions[positionId];
         emit IStaticsProtocolPools.ProtocolPolPositionOpened(
@@ -214,10 +221,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
     {
         _enforcePolOperator();
         _enforceLiquidityActive();
+        PoolId poolId = LibProtocolPol.enforcePosition(params.positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.increase(params);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolPositionIncreased(
             position.poolId, params.positionId, params.liquidity, movement.spent0, movement.spent1
         );
@@ -228,10 +238,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
         nonReentrant
     {
         _enforcePolOperator();
+        PoolId poolId = LibProtocolPol.enforcePosition(params.positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.decrease(params);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolPositionDecreased(
             position.poolId, params.positionId, params.liquidity, movement.received0, movement.received1
         );
@@ -239,10 +252,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
 
     function collectProtocolPolFees(uint256 positionId, uint256 deadline) external nonReentrant {
         _enforcePolOperator();
+        PoolId poolId = LibProtocolPol.enforcePosition(positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.harvest(positionId, deadline);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolFeesCollected(
             position.poolId, positionId, movement.received0, movement.received1
         );
@@ -255,10 +271,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
         uint256 deadline
     ) external nonReentrant {
         _enforcePolOperator();
+        PoolId poolId = LibProtocolPol.enforcePosition(positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.close(positionId, amount0Minimum, amount1Minimum, deadline);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolPositionClosed(
             position.poolId, positionId, movement.received0, movement.received1
         );

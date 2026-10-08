@@ -13,6 +13,7 @@ import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsMarketObservations} from "../interfaces/IStaticsMarketObservations.sol";
 import {IStaticsSwapCallback} from "../interfaces/IStaticsSwapCallback.sol";
 import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
+import {LibPoolRewards} from "../libraries/LibPoolRewards.sol";
 import {LibMarketTape} from "../libraries/LibMarketTape.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
@@ -74,8 +75,16 @@ contract RangeGaugeCallbackFacet is IStaticsSwapCallback {
     function _crystallizeStakerFees(PoolKey memory key, uint256 packed) private {
         uint256 amount0 = uint128(packed);
         uint256 amount1 = uint128(packed >> 128);
-        if (amount0 != 0) LibGlobalRewards.crystallizeUnfundedSwapFee(Currency.unwrap(key.currency0), amount0);
-        if (amount1 != 0) LibGlobalRewards.crystallizeUnfundedSwapFee(Currency.unwrap(key.currency1), amount1);
+        if (amount0 != 0) {
+            LibGlobalRewards.crystallizeUnfundedSwapFee(
+                LibPoolRewards.rewardAsset(Currency.unwrap(key.currency0)), amount0
+            );
+        }
+        if (amount1 != 0) {
+            LibGlobalRewards.crystallizeUnfundedSwapFee(
+                LibPoolRewards.rewardAsset(Currency.unwrap(key.currency1)), amount1
+            );
+        }
     }
 
     function _recordAuthenticatedSwap(PoolId poolId, BalanceDelta poolDelta, uint256 staticsFeesPacked, uint8 flags)

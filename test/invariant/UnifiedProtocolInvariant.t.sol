@@ -926,10 +926,12 @@ contract UnifiedProtocolInvariantTest is StdInvariant, Test {
     function _installBasketLaunchLiquidity() private {
         IPoolManager poolManager =
             IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        bytes memory constructorArgs = abi.encode(poolManager, deployment.diamond, uint16(25), uint16(25));
+        bytes memory constructorArgs =
+            abi.encode(poolManager, deployment.diamond, uint16(25), uint16(25), deployment.weth);
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 25, 25);
+        StaticsSwapFeeHook hook =
+            new StaticsSwapFeeHook{salt: salt}(poolManager, deployment.diamond, 25, 25, deployment.weth);
         assertEq(address(hook), expected);
         IAllowanceTransfer permit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
         IPositionManager positionManager = IPositionManager(

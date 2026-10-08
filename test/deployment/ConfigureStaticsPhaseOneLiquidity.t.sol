@@ -37,10 +37,12 @@ contract PhaseOneCeremonyDependencyMock {}
 contract PhaseOneCeremonyCanonicalPositionManagerMock {
     address public immutable poolManager;
     address public immutable permit2;
+    address public immutable WETH9;
 
-    constructor(address poolManager_, address permit2_) {
+    constructor(address poolManager_, address permit2_, address weth_) {
         poolManager = poolManager_;
         permit2 = permit2_;
+        WETH9 = weth_;
     }
 }
 
@@ -376,7 +378,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 ConfigureStaticsPhaseOneLiquidity.InvalidBinding.selector,
-                config.permissionedPositionManager,
+                config.positionManager,
                 address(wrongWeth),
                 deployment.weth
             )
@@ -473,7 +475,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
         PhaseOneCeremonyDependencyMock permit2 = new PhaseOneCeremonyDependencyMock();
         PhaseOneCeremonyCanonicalPositionManagerMock positionManager =
-            new PhaseOneCeremonyCanonicalPositionManagerMock(poolManager, address(permit2));
+            new PhaseOneCeremonyCanonicalPositionManagerMock(poolManager, address(permit2), address(weth));
         return deployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: multisig,
@@ -503,7 +505,7 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         address protocolPolOperator,
         address governanceSafe
     ) private returns (StaticsPhaseOneLiquidityConfig memory config) {
-        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(deployment.liquidityManager);
+        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(payable(deployment.liquidityManager));
         address permit2 = liquidityManager.permit2();
         address positionManagerAddress = liquidityManager.positionManager();
         PhaseOneCeremonyClaimsMock claims =

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {LibNativeReceipt} from "../libraries/LibNativeReceipt.sol";
 import {DiamondKernel} from "./DiamondKernel.sol";
 
 contract StaticsDiamond is DiamondKernel {
@@ -15,6 +16,8 @@ contract StaticsDiamond is DiamondKernel {
     }
 
     receive() external payable {
-        if (msg.sender != NATIVE_SENDER) revert NativeSenderNotAllowed(msg.sender);
+        if (msg.sender != NATIVE_SENDER && msg.sender != LibNativeReceipt.sender()) {
+            revert NativeSenderNotAllowed(msg.sender);
+        }
     }
 }

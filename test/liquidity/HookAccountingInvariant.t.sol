@@ -242,10 +242,11 @@ contract HookAccountingInvariantTest is StdInvariant, Test, Deployers {
     }
 
     function _deployHook() private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        bytes memory constructorArgs = abi.encode(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS, address(1));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS);
+        deployed =
+            new StaticsSwapFeeHook{salt: salt}(manager, address(receiver), INPUT_FEE_BPS, OUTPUT_FEE_BPS, address(1));
         assertEq(address(deployed), expected);
     }
 }

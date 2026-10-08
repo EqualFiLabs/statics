@@ -122,7 +122,8 @@ contract GovernanceFacet is IStaticsGovernance {
 
     function protocolPoolSwapsBlocked(PoolId poolId) external view returns (bool blocked) {
         LibGovernance.GovernanceStorage storage gs = LibGovernance.governanceStorage();
-        return gs.swapQuarantined[PoolId.wrap(bytes32(0))] || gs.swapQuarantined[poolId];
+        return gs.swapQuarantined[PoolId.wrap(bytes32(0))] || gs.swapQuarantined[poolId]
+            || LibGovernance.protocolPolSwapsBlocked(poolId);
     }
 
     function _getBasket(uint256 basketId) private view returns (LibBasket.Basket storage configured) {

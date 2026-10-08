@@ -10,6 +10,7 @@ import {LibBasket} from "./LibBasket.sol";
 import {LibBasketRewards} from "./LibBasketRewards.sol";
 import {LibCustody} from "./LibCustody.sol";
 import {LibGlobalRewards} from "./LibGlobalRewards.sol";
+import {LibPoolRewards} from "./LibPoolRewards.sol";
 import {LibProtocolPools} from "./LibProtocolPools.sol";
 
 /// @notice Namespaced pull-based creator revenue accounting. Records credits per PoolId and
@@ -34,7 +35,13 @@ library LibProtocolRevenue {
     ) internal {
         (IStaticsProtocolPools.ProtocolPoolKind kind, PoolKey memory key, uint256 basketId,) =
             LibProtocolPools.enforceRegistered(poolId);
-        if (asset != Currency.unwrap(key.currency0) && asset != Currency.unwrap(key.currency1)) {
+        address asset0 = Currency.unwrap(key.currency0);
+        address asset1 = Currency.unwrap(key.currency1);
+        if (kind != IStaticsProtocolPools.ProtocolPoolKind.PermissionedGeneral) {
+            asset0 = LibPoolRewards.rewardAsset(asset0);
+            asset1 = LibPoolRewards.rewardAsset(asset1);
+        }
+        if (asset != asset0 && asset != asset1) {
             revert InvalidRewardAsset(poolId, asset);
         }
         if (

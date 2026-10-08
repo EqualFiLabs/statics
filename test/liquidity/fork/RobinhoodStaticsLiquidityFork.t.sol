@@ -453,9 +453,17 @@ contract RobinhoodStaticsLiquidityForkTest is StaticsTestBase, Permit2SignatureH
             address(this),
             REQUIRED_HOOK_FLAGS,
             type(StaticsSwapFeeHook).creationCode,
-            abi.encode(poolManager, address(diamond), uint16(25), uint16(25))
+            abi.encode(
+                poolManager,
+                address(diamond),
+                uint16(25),
+                uint16(25),
+                address(0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73)
+            )
         );
-        deployed = new StaticsSwapFeeHook{salt: salt}(poolManager, address(diamond), 25, 25);
+        deployed = new StaticsSwapFeeHook{salt: salt}(
+            poolManager, address(diamond), 25, 25, address(0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73)
+        );
         assertEq(address(deployed), expected);
     }
 

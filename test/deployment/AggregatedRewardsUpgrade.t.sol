@@ -56,11 +56,11 @@ contract AggregatedRewardsUpgradeTest is BatchRewardsUpgradeTest {
         );
         address oldBatch = address(new BatchRewardsFacet());
         vm.etch(oldBatch, vm.parseJsonBytes(fixture, ".BatchRewardsFacet"));
-        // Aggregation needs no replacement of the ordinary custody/view facet.
-        assertEq(
-            IDiamondLoupe(address(diamond)).facetAddress(IStaticsCustody.globalReservedByToken.selector).codehash,
-            keccak256(vm.parseJsonBytes(fixture, ".CustodyFacet"))
-        );
+        // Model the exact #115 custody/view facet. Aggregation does not replace it.
+        address custodyFacet =
+            IDiamondLoupe(address(diamond)).facetAddress(IStaticsCustody.globalReservedByToken.selector);
+        vm.etch(custodyFacet, vm.parseJsonBytes(fixture, ".CustodyFacet"));
+        assertEq(custodyFacet.codehash, keccak256(vm.parseJsonBytes(fixture, ".CustodyFacet")));
         assertEq(oldBatch.codehash, 0x22a64a82b3504f7618d770ad1f46b1b8b2e40fdc9799f5a6b5c109e88f697757);
         bytes4[] memory selectors = new bytes4[](2);
         selectors[0] = IStaticsBatchRewards.batchClaimRewards.selector;

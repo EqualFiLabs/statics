@@ -97,6 +97,7 @@ import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 interface IPhasePositionManagerBindings {
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
+    function WETH9() external view returns (address);
 }
 
 interface IPhasePermissionedBindings is IPhasePositionManagerBindings {
@@ -378,7 +379,7 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
     }
 
     function _validateManagerAndCanonicalBindings(PhaseTwoConfig memory config) private view {
-        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(config.liquidityManager);
+        StaticsLiquidityManager liquidityManager = StaticsLiquidityManager(payable(config.liquidityManager));
         if (liquidityManager.staticsDiamond() != config.diamond) {
             revert InvalidBinding(config.liquidityManager, config.diamond, liquidityManager.staticsDiamond());
         }
@@ -392,6 +393,10 @@ contract DeployStaticsPhases is DeployCoreBootstrap, RobinhoodDeploymentConfig {
             revert InvalidBinding(config.liquidityManager, config.permit2, liquidityManager.permit2());
         }
         IPhasePositionManagerBindings positionManager = IPhasePositionManagerBindings(config.positionManager);
+        address expectedWeth = StaticsSwapFeeHook(payable(config.swapFeeHook)).weth();
+        if (positionManager.WETH9() != expectedWeth) {
+            revert InvalidBinding(config.positionManager, expectedWeth, positionManager.WETH9());
+        }
         if (positionManager.poolManager() != config.poolManager) {
             revert InvalidBinding(config.positionManager, config.poolManager, positionManager.poolManager());
         }

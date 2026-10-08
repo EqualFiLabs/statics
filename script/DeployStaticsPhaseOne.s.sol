@@ -31,6 +31,7 @@ struct StaticsPhaseOneDeployment {
 interface IPhaseOnePositionManagerBindings {
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
+    function WETH9() external view returns (address);
 }
 
 /// @notice Deploys only the independently launchable Statics Phase 1 surface.
@@ -150,12 +151,23 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         address create2Deployer
     ) private {
         _validateV4(config);
-        bytes memory constructorArgs =
-            abi.encode(IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps);
+        address boundWeth = IPhaseOnePositionManagerBindings(config.positionManager).WETH9();
+        if (boundWeth != deployment.weth) revert InvalidV4Binding(config.positionManager, deployment.weth, boundWeth);
+        bytes memory constructorArgs = abi.encode(
+            IPoolManager(config.poolManager),
+            deployment.diamond,
+            config.inputFeeBps,
+            config.outputFeeBps,
+            deployment.weth
+        );
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
-            IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps
+            IPoolManager(config.poolManager),
+            deployment.diamond,
+            config.inputFeeBps,
+            config.outputFeeBps,
+            deployment.weth
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
 

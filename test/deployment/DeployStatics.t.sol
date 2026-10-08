@@ -43,6 +43,7 @@ import {LibFlashLoan} from "../../src/libraries/LibFlashLoan.sol";
 import {DeployStatics} from "../../script/DeployStatics.s.sol";
 import {ConfigureStaticsLiquidity, StaticsLiquidityConfig} from "../../script/ConfigureStaticsLiquidity.s.sol";
 import {StaticsDollarStackDeployment} from "../../script/dollar/DeployStaticsDollar.s.sol";
+import {CanonicalWETH9} from "../../src/dollar/mocks/CanonicalWETH9.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 
@@ -212,10 +213,10 @@ contract DeployStaticsTest is Test {
             Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
                 | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_DONATE_FLAG
         );
-        assertEq(StaticsLiquidityManager(manager).staticsDiamond(), diamond);
-        assertEq(StaticsLiquidityManager(manager).poolManager(), deployment.poolManager);
-        assertEq(StaticsLiquidityManager(manager).positionManager(), deployment.positionManager);
-        assertEq(StaticsLiquidityManager(manager).permit2(), deployment.permit2);
+        assertEq(StaticsLiquidityManager(payable(manager)).staticsDiamond(), diamond);
+        assertEq(StaticsLiquidityManager(payable(manager)).poolManager(), deployment.poolManager);
+        assertEq(StaticsLiquidityManager(payable(manager)).positionManager(), deployment.positionManager);
+        assertEq(StaticsLiquidityManager(payable(manager)).permit2(), deployment.permit2);
     }
 
     function _assertLiquidityConfigRejectsUntrustedDependencies(
@@ -326,7 +327,13 @@ contract DeployStaticsTest is Test {
         IPositionManager positionManager = IPositionManager(
             deployCode(
                 "out/PositionManager.sol/PositionManager.json",
-                abi.encode(address(poolManager), address(permit2Contract), uint256(100_000), address(0), address(0))
+                abi.encode(
+                    address(poolManager),
+                    address(permit2Contract),
+                    uint256(100_000),
+                    address(0),
+                    address(new CanonicalWETH9())
+                )
             )
         );
         config = DeployStatics.V4Config({

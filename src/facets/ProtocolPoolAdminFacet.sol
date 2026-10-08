@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LibCurrency} from "../libraries/LibCurrency.sol";
+import {LibNativeReceipt} from "../libraries/LibNativeReceipt.sol";
+import {LibPoolRewards} from "../libraries/LibPoolRewards.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -156,33 +158,33 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         emit IStaticsProtocolPools.LiquidityManagerReplaced(oldManager, newManager);
     }
 
-    function _reserveTreasury(address token, uint256 amount) private {
-        if (amount == 0) return;
-        LibCustody.reserve(LibCustody.feeAccount(), token, amount);
-        LibGlobalRewards.accrueReservedTreasuryFee(token, amount);
-    }
-
     function _settleDecommissionAsset(IStaticsSwapFeeHook hook, PoolKey storage key, PoolId poolId, Currency currency)
         private
     {
         address asset = Currency.unwrap(currency);
+        (IStaticsSwapFeeHook.FeeDistribution memory distribution, address rewardAsset) =
+            LibPoolRewards.settleDistribution(key, currency);
+        _accrueDistribution(poolId, rewardAsset, distribution);
         uint256 pending = hook.pendingProtocolPol(poolId, currency);
         if (pending != 0) {
-            uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
+            uint256 beforeBalance = LibCurrency.balance(asset, address(this));
+            if (asset == address(0)) LibNativeReceipt.expect(LibBasketLiquidity.liquidityStorage().poolManager);
             uint256 settled = hook.settleProtocolPol(key, currency, address(this), pending);
+            LibNativeReceipt.clear();
             _enforceReceived(asset, beforeBalance, settled);
             LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, settled);
         }
-        uint256 revenueBefore = IERC20(asset).balanceOf(address(this));
-        IStaticsSwapFeeHook.FeeDistribution memory distribution =
-            hook.settleFeeDistribution(key, currency, address(this));
-        _enforceReceived(asset, revenueBefore, _distributionTotal(distribution));
-        _accrueDistribution(poolId, asset, distribution);
     }
 
     function _movePolToTreasury(bytes32 polAccount, address asset, uint256 amount) private {
         if (amount == 0) return;
-        LibCustody.moveReservation(polAccount, LibCustody.feeAccount(), asset, amount);
+        if (asset == address(0)) {
+            LibCustody.release(polAccount, asset, amount);
+            asset = LibPoolRewards.materialize(asset, amount);
+            LibCustody.reserve(LibCustody.feeAccount(), asset, amount);
+        } else {
+            LibCustody.moveReservation(polAccount, LibCustody.feeAccount(), asset, amount);
+        }
         LibGlobalRewards.accrueReservedTreasuryFee(asset, amount);
     }
 
@@ -201,16 +203,8 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         );
     }
 
-    function _distributionTotal(IStaticsSwapFeeHook.FeeDistribution memory distribution)
-        private
-        pure
-        returns (uint256)
-    {
-        return distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
-    }
-
     function _enforceReceived(address token, uint256 beforeBalance, uint256 reported) private view {
-        uint256 afterBalance = IERC20(token).balanceOf(address(this));
+        uint256 afterBalance = LibCurrency.balance(token, address(this));
         uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (observed != reported) revert IncompatibleTokenTransfer(token, reported, observed);
     }

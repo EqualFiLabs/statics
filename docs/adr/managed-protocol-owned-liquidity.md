@@ -116,3 +116,7 @@ contains fee classification and claim settlement rather than a position strategy
 Active management introduces strategy risk. Solidity constrains custody, pool identity, recipient
 selection, exact accounting, and lifecycle safety. Range selection and portfolio quality remain an
 offchain strategy responsibility.
+
+Native ETH POL uses address(0) reservations and real ETH principal throughout
+the managed lifecycle. ETH LP fees classified as Treasury revenue become WETH
+only after both source receipts are verified. See [native ETH Phase 1](native-eth-phase-one.md).

@@ -45,10 +45,12 @@ contract StagedDependencyMock {}
 contract StagedPositionManagerMock {
     address public immutable poolManager;
     address public immutable permit2;
+    address public immutable WETH9;
 
-    constructor(address poolManager_, address permit2_) {
+    constructor(address poolManager_, address permit2_, address weth_) {
         poolManager = poolManager_;
         permit2 = permit2_;
+        WETH9 = weth_;
     }
 }
 
@@ -134,7 +136,11 @@ contract DeployStaticsPhasesTest is Test {
     }
 
     function testStagedDeploymentReachesFreshDeploymentParity() public {
+        // CREATE2 salt mining is setup work with variable iteration cost. The dedicated
+        // Phase 1 deployment suite checks the launcher; this test checks selector parity.
+        vm.pauseGasMetering();
         Fixture memory fixture = _phaseOneFixture();
+        vm.resumeGasMetering();
         address diamond = fixture.phaseOne.diamond;
         _assertManifest(diamond, 32, PHASE_ONE_SELECTORS);
         assertEq(_activePhase(diamond), 1);
@@ -271,7 +277,9 @@ contract DeployStaticsPhasesTest is Test {
         fixture.weth = new MockERC20("Wrapped Ether", "WETH", 18);
         fixture.poolManager = new StagedDependencyMock();
         fixture.permit2 = new StagedDependencyMock();
-        fixture.positionManager = new StagedPositionManagerMock(address(fixture.poolManager), address(fixture.permit2));
+        fixture.positionManager = new StagedPositionManagerMock(
+            address(fixture.poolManager), address(fixture.permit2), address(fixture.weth)
+        );
         DeployStaticsPhaseOne phaseOneDeployer = new DeployStaticsPhaseOne();
         (fixture.phaseOne, fixture.timelock) = phaseOneDeployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LibCurrency} from "./LibCurrency.sol";
+import {LibNativeReceipt} from "./LibNativeReceipt.sol";
+import {LibPoolRewards} from "./LibPoolRewards.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -41,21 +43,22 @@ library LibProtocolPol {
 
         address manager = _currentManager();
         _fundManager(params.poolId, key, manager, params.amount0Maximum, params.amount1Maximum);
-        uint256 before0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        uint256 before1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
+        if (key.currency0.isAddressZero()) before0 -= params.amount0Maximum;
+        uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
         movement = IStaticsLiquidityManager(manager)
-            .mintManagedPosition(
-                IStaticsLiquidityManager.PositionRequest({
-                    poolKey: key,
-                    tickLower: params.tickLower,
-                    tickUpper: params.tickUpper,
-                    liquidity: params.liquidity,
-                    amount0Limit: params.amount0Maximum,
-                    amount1Limit: params.amount1Maximum,
-                    deadline: params.deadline
-                }),
-                address(this)
-            );
+        .mintManagedPosition{value: key.currency0.isAddressZero() ? params.amount0Maximum : 0}(
+            IStaticsLiquidityManager.PositionRequest({
+                poolKey: key,
+                tickLower: params.tickLower,
+                tickUpper: params.tickUpper,
+                liquidity: params.liquidity,
+                amount0Limit: params.amount0Maximum,
+                amount1Limit: params.amount1Maximum,
+                deadline: params.deadline
+            }),
+            address(this)
+        );
         _reserveManagerReturns(params.poolId, key, before0, before1, movement.refund0, movement.refund1);
         _enforceInputAccounting(
             key.currency0, params.amount0Maximum, movement.spent0, movement.received0, movement.refund0
@@ -90,14 +93,14 @@ library LibProtocolPol {
         (position,) = harvest(params.positionId, params.deadline);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
         _fundManager(position.poolId, key, position.manager, params.amount0Limit, params.amount1Limit);
-        uint256 before0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        uint256 before1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
+        if (key.currency0.isAddressZero()) before0 -= params.amount0Limit;
+        uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
+        if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
         movement = IStaticsLiquidityManager(position.manager)
-            .increaseManagedPosition(
-                _request(
-                    position.posmTokenId, params.liquidity, params.amount0Limit, params.amount1Limit, params.deadline
-                )
-            );
+        .increaseManagedPosition{value: key.currency0.isAddressZero() ? params.amount0Limit : 0}(
+            _request(position.posmTokenId, params.liquidity, params.amount0Limit, params.amount1Limit, params.deadline)
+        );
         _reserveManagerReturns(position.poolId, key, before0, before1, movement.refund0, movement.refund1);
         _enforceInputAccounting(
             key.currency0, params.amount0Limit, movement.spent0, movement.received0, movement.refund0
@@ -118,12 +121,17 @@ library LibProtocolPol {
         position = enforcePosition(positionId);
         LibRangeGauge.enforceProtocolPolBinding(position.posmTokenId, positionId);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
-        uint256 before0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        uint256 before1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
+        uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
+        if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
         movement = IStaticsLiquidityManager(position.manager)
             .collectManagedPositionFees(_request(position.posmTokenId, 0, 0, 0, deadline));
-        _accrueTreasuryReturn(key.currency0, before0, movement.received0);
-        _accrueTreasuryReturn(key.currency1, before1, movement.received1);
+        // Verify both source receipts before wrapping: currency1 may itself be WETH.
+        LibPoolRewards.enforceReceipt(Currency.unwrap(key.currency0), before0, movement.received0);
+        LibPoolRewards.enforceReceipt(Currency.unwrap(key.currency1), before1, movement.received1);
+        _accrueTreasuryReturn(key.currency0, movement.received0);
+        _accrueTreasuryReturn(key.currency1, movement.received1);
+        LibNativeReceipt.clear();
     }
 
     function decrease(IStaticsProtocolPools.ProtocolPolLiquidityParams memory params)
@@ -135,8 +143,9 @@ library LibProtocolPol {
     {
         (position,) = harvest(params.positionId, params.deadline);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
-        uint256 before0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        uint256 before1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
+        uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
+        if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
         movement = IStaticsLiquidityManager(position.manager)
             .decreaseManagedPosition(
                 _request(
@@ -145,6 +154,7 @@ library LibProtocolPol {
             );
         _reservePrincipalReturn(position.poolId, key.currency0, before0, movement.received0);
         _reservePrincipalReturn(position.poolId, key.currency1, before1, movement.received1);
+        LibNativeReceipt.clear();
         position.liquidity = movement.liquidityAfter;
     }
 
@@ -157,12 +167,14 @@ library LibProtocolPol {
     {
         (position,) = harvest(positionId, deadline);
         (, PoolKey memory key,,) = LibProtocolPools.enforceRegistered(position.poolId);
-        uint256 before0 = IERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
-        uint256 before1 = IERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        uint256 before0 = LibCurrency.balance(Currency.unwrap(key.currency0), address(this));
+        uint256 before1 = LibCurrency.balance(Currency.unwrap(key.currency1), address(this));
+        if (key.currency0.isAddressZero()) LibNativeReceipt.expect(position.manager);
         movement = IStaticsLiquidityManager(position.manager)
             .exitManagedPosition(_request(position.posmTokenId, 0, amount0Minimum, amount1Minimum, deadline));
         _reservePrincipalReturn(position.poolId, key.currency0, before0, movement.received0);
         _reservePrincipalReturn(position.poolId, key.currency1, before1, movement.received1);
+        LibNativeReceipt.clear();
         LibRangeGauge.unbindProtocolPol(position.posmTokenId, positionId);
         position.liquidity = 0;
         position.active = false;
@@ -181,12 +193,18 @@ library LibProtocolPol {
     function _fundManager(PoolId poolId, PoolKey memory key, address manager, uint256 amount0, uint256 amount1)
         private
     {
+        if (key.currency0.isAddressZero()) LibNativeReceipt.expect(manager);
         _fundManagerToken(poolId, Currency.unwrap(key.currency0), manager, amount0);
         _fundManagerToken(poolId, Currency.unwrap(key.currency1), manager, amount1);
     }
 
     function _fundManagerToken(PoolId poolId, address asset, address manager, uint256 amount) private {
         if (amount == 0) return;
+        if (asset == address(0)) {
+            LibCustody.release(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, amount);
+            LibCustody.beginUnreservedDebit(asset, amount);
+            return;
+        }
         (uint256 spent, uint256 received) = LibCustody.pushReserved(
             LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, manager, amount, amount
         );
@@ -205,26 +223,24 @@ library LibProtocolPol {
     ) private {
         _reservePrincipalReturn(poolId, key.currency0, before0, reported0);
         _reservePrincipalReturn(poolId, key.currency1, before1, reported1);
+        LibNativeReceipt.clear();
     }
 
     function _reservePrincipalReturn(PoolId poolId, Currency currency, uint256 beforeBalance, uint256 reported)
         private
     {
         address asset = Currency.unwrap(currency);
-        uint256 afterBalance = IERC20(asset).balanceOf(address(this));
+        uint256 afterBalance = LibCurrency.balance(asset, address(this));
         uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (observed != reported) revert ProtocolPolManagerReturnMismatch(asset, reported, observed);
         LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, observed);
     }
 
-    function _accrueTreasuryReturn(Currency currency, uint256 beforeBalance, uint256 reported) private {
-        address asset = Currency.unwrap(currency);
-        uint256 afterBalance = IERC20(asset).balanceOf(address(this));
-        uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
-        if (observed != reported) revert ProtocolPolManagerReturnMismatch(asset, reported, observed);
-        if (observed == 0) return;
-        LibCustody.reserve(LibCustody.feeAccount(), asset, observed);
-        LibGlobalRewards.accrueReservedTreasuryFee(asset, observed);
+    function _accrueTreasuryReturn(Currency currency, uint256 amount) private {
+        if (amount == 0) return;
+        address asset = LibPoolRewards.materialize(Currency.unwrap(currency), amount);
+        LibCustody.reserve(LibCustody.feeAccount(), asset, amount);
+        LibGlobalRewards.accrueReservedTreasuryFee(asset, amount);
     }
 
     function _enforceInputAccounting(

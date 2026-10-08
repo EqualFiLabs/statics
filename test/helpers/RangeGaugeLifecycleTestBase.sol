@@ -28,8 +28,9 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
         returns (IStaticsRangeGauge.LiquidityMovement memory movement)
     {
         _fundAndApprovePoolAssets(_poolKey(poolId), payer, TOKEN_MAXIMUM);
+        uint256 nativeAmount = _poolKey(poolId).currency0.isAddressZero() ? TOKEN_MAXIMUM : 0;
         vm.prank(payer);
-        movement = rangeGauge.provideLiquidity(
+        movement = rangeGauge.provideLiquidity{value: nativeAmount}(
             positionId,
             IStaticsRangeGauge.ProvideLiquidityParams({
                 poolId: poolId,
@@ -85,10 +86,12 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
     }
 
     function _fundAndApprovePoolAssets(PoolKey memory key, address user, uint256 amount) internal {
-        MockERC20(Currency.unwrap(key.currency0)).mint(user, amount);
+        if (!key.currency0.isAddressZero()) MockERC20(Currency.unwrap(key.currency0)).mint(user, amount);
         MockERC20(Currency.unwrap(key.currency1)).mint(user, amount);
         vm.startPrank(user);
-        IERC20(Currency.unwrap(key.currency0)).approve(address(diamond), type(uint256).max);
+        if (!key.currency0.isAddressZero()) {
+            IERC20(Currency.unwrap(key.currency0)).approve(address(diamond), type(uint256).max);
+        }
         IERC20(Currency.unwrap(key.currency1)).approve(address(diamond), type(uint256).max);
         vm.stopPrank();
     }
@@ -127,7 +130,8 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
             bytes1(uint8(Actions.CLOSE_CURRENCY)),
             bytes1(uint8(Actions.CLOSE_CURRENCY))
         );
-        bytes[] memory params = new bytes[](3);
+        if (key.currency0.isAddressZero()) actions = abi.encodePacked(actions, bytes1(uint8(Actions.SWEEP)));
+        bytes[] memory params = new bytes[](key.currency0.isAddressZero() ? 4 : 3);
         params[0] = abi.encode(
             key,
             TickMath.minUsableTick(key.tickSpacing),
@@ -140,16 +144,23 @@ abstract contract RangeGaugeLifecycleTestBase is RangeGaugeFeatureTestBase {
         );
         params[1] = abi.encode(key.currency0);
         params[2] = abi.encode(key.currency1);
+        if (key.currency0.isAddressZero()) params[3] = abi.encode(key.currency0, owner);
         vm.startPrank(owner);
-        IERC20(Currency.unwrap(key.currency0)).approve(address(rangePermit2), TOKEN_MAXIMUM);
+        if (!key.currency0.isAddressZero()) {
+            IERC20(Currency.unwrap(key.currency0)).approve(address(rangePermit2), TOKEN_MAXIMUM);
+        }
         IERC20(Currency.unwrap(key.currency1)).approve(address(rangePermit2), TOKEN_MAXIMUM);
-        rangePermit2.approve(
-            Currency.unwrap(key.currency0), address(rangePositionManager), uint160(TOKEN_MAXIMUM), deadline
-        );
+        if (!key.currency0.isAddressZero()) {
+            rangePermit2.approve(
+                Currency.unwrap(key.currency0), address(rangePositionManager), uint160(TOKEN_MAXIMUM), deadline
+            );
+        }
         rangePermit2.approve(
             Currency.unwrap(key.currency1), address(rangePositionManager), uint160(TOKEN_MAXIMUM), deadline
         );
-        rangePositionManager.modifyLiquidities(abi.encode(actions, params), deadline);
+        rangePositionManager.modifyLiquidities{value: key.currency0.isAddressZero() ? TOKEN_MAXIMUM : 0}(
+            abi.encode(actions, params), deadline
+        );
         vm.stopPrank();
     }
 }

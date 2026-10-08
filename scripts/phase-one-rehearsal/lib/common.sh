@@ -287,6 +287,7 @@ approve_permit2_spender() {
     local spender=$3
     local label=$4
     local account_key permit2
+    [[ "${token,,}" == "0x0000000000000000000000000000000000000000" ]] && return 0
     account_key=$(anvil_private_key "$account_index")
     permit2=$(jq -er '.contracts.permit2.address' "$REPO_ROOT/deployments/robinhood-chain-4663.json")
     cast send "$token" 'approve(address,uint256)' "$permit2" "$(cast max-uint)" \
@@ -338,8 +339,15 @@ v4_swap_exact_in() {
         take_param=$(cast abi-encode 'f(address,uint256)' "$currency0" 0)
     fi
     plan=$(cast abi-encode 'f(bytes,bytes[])' 0x060c0f "[$exact_param,$settle_param,$take_param]")
+    local value=0 commands=0x10 inputs="[$plan]" sweep
+    if [[ "${input_token,,}" == "0x0000000000000000000000000000000000000000" ]]; then
+        value=$amount_in
+        sweep=$(cast abi-encode 'f(address,address,uint256)' "$input_token" "$(anvil_address "$account_index")" 0)
+        commands=0x1004
+        inputs="[$plan,$sweep]"
+    fi
     deadline=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 3600 ))
-    cast send "$universal_router" 'execute(bytes,bytes[],uint256)' 0x10 "[$plan]" "$deadline" \
+    cast send "$universal_router" 'execute(bytes,bytes[],uint256)' "$commands" "$inputs" "$deadline" --value "$value" \
         --private-key "$account_key" \
         --rpc-url "$RPC_URL" \
         --gas-limit 3000000 \
@@ -363,8 +371,12 @@ v4_swap_exact_in_simulate() {
     input_token=$currency1
     [[ "$zero_for_one" == "true" ]] && input_token=$currency0
     # The caller prepares token and Permit2 approvals before invoking this read-only execution.
-    cast call "$input_token" 'allowance(address,address)(uint256)' "$account" "$permit2" \
-        --rpc-url "$RPC_URL" >/dev/null
+    local value=0
+    if [[ "${input_token,,}" == "0x0000000000000000000000000000000000000000" ]]; then
+        value=$amount_in
+    else
+        cast call "$input_token" 'allowance(address,address)(uint256)' "$account" "$permit2" --rpc-url "$RPC_URL" >/dev/null
+    fi
     exact_param=$(cast abi-encode \
         'f(((address,address,uint24,int24,address),bool,uint128,uint128,uint256,bytes))' \
         "(($currency0,$currency1,$fee,$tick_spacing,$hook),$zero_for_one,$amount_in,0,0,0x)")
@@ -377,7 +389,7 @@ v4_swap_exact_in_simulate() {
     plan=$(cast abi-encode 'f(bytes,bytes[])' 0x060c0f "[$exact_param,$settle_param,$take_param]")
     deadline=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 3600 ))
     cast call "$universal_router" 'execute(bytes,bytes[],uint256)' 0x10 "[$plan]" "$deadline" \
-        --from "$account" --rpc-url "$RPC_URL"
+        --from "$account" --value "$value" --rpc-url "$RPC_URL"
 }
 
 v4_swap_exact_out() {
@@ -409,8 +421,15 @@ v4_swap_exact_out() {
     settle_param=$(cast abi-encode 'f(address,uint256)' "$input_token" "$amount_in_maximum")
     take_param=$(cast abi-encode 'f(address,uint256)' "$output_token" "$amount_out")
     plan=$(cast abi-encode 'f(bytes,bytes[])' 0x080c0f "[$exact_param,$settle_param,$take_param]")
+    local value=0 commands=0x10 inputs="[$plan]" sweep
+    if [[ "${input_token,,}" == "0x0000000000000000000000000000000000000000" ]]; then
+        value=$amount_in_maximum
+        sweep=$(cast abi-encode 'f(address,address,uint256)' "$input_token" "$(anvil_address "$account_index")" 0)
+        commands=0x1004
+        inputs="[$plan,$sweep]"
+    fi
     deadline=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 3600 ))
-    cast send "$universal_router" 'execute(bytes,bytes[],uint256)' 0x10 "[$plan]" "$deadline" \
+    cast send "$universal_router" 'execute(bytes,bytes[],uint256)' "$commands" "$inputs" "$deadline" --value "$value" \
         --private-key "$account_key" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
         >"$RUN_DIR/$label-swap.json"
 }
@@ -479,8 +498,7 @@ assert_token_solvency() {
     local reserved balance
     reserved=$(cast call "$STATICS_DIAMOND_ADDRESS" 'globalReservedByToken(address)(uint256)' \
         "$token" --rpc-url "$RPC_URL" | awk '{print $1}')
-    balance=$(cast call "$token" 'balanceOf(address)(uint256)' \
-        "$STATICS_DIAMOND_ADDRESS" --rpc-url "$RPC_URL" | awk '{print $1}')
+    balance=$(asset_balance "$token" "$STATICS_DIAMOND_ADDRESS")
     assert_le "$reserved" "$balance" "$context custody solvency"
 }
 
@@ -597,4 +615,26 @@ record_result() {
 
 cd_repo() {
     cd "$REPO_ROOT"
+}
+
+# Pool principal uses address(0), while reward assets remain ERC-20 addresses.
+asset_balance() {
+    local asset=$1 owner=$2
+    if [[ "${asset,,}" == "0x0000000000000000000000000000000000000000" ]]; then
+        cast balance "$owner" --rpc-url "$RPC_URL"
+    else
+        cast call "$asset" 'balanceOf(address)(uint256)' "$owner" --rpc-url "$RPC_URL" | awk '{print $1}'
+    fi
+}
+
+# Remove transaction gas from an EOA balance delta to measure actual native principal.
+receipt_native_delta() {
+    python3 - "$1" "$2" "$3" <<'PYTHON'
+import json, sys
+receipt = json.load(open(sys.argv[1]))
+def number(value):
+    return int(value, 16) if str(value).startswith("0x") else int(value)
+gas = number(receipt["gasUsed"]) * number(receipt["effectiveGasPrice"])
+print(int(sys.argv[3]) - int(sys.argv[2]) + gas)
+PYTHON
 }

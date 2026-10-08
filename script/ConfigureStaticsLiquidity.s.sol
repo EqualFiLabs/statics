@@ -16,6 +16,7 @@ import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 interface IConfiguredPositionManager {
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
+    function WETH9() external view returns (address);
 }
 
 struct StaticsLiquidityConfig {
@@ -150,6 +151,7 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
 
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
+        _binding(config.positionManager, hook.weth(), IConfiguredPositionManager(config.positionManager).WETH9());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
@@ -158,7 +160,7 @@ contract ConfigureStaticsLiquidity is Script, RobinhoodDeploymentConfig {
         uint160 actualFlags = uint160(config.hook) & Hooks.ALL_HOOK_MASK;
         if (actualFlags != REQUIRED_HOOK_FLAGS) revert InvalidHookFlags(REQUIRED_HOOK_FLAGS, actualFlags);
 
-        StaticsLiquidityManager manager = StaticsLiquidityManager(config.manager);
+        StaticsLiquidityManager manager = StaticsLiquidityManager(payable(config.manager));
         _binding(config.manager, diamond, manager.staticsDiamond());
         _binding(config.manager, config.poolManager, manager.poolManager());
         _binding(config.manager, config.positionManager, manager.positionManager());
