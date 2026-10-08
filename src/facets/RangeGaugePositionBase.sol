@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {LibCurrency} from "../libraries/LibCurrency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -148,8 +149,8 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
     function _inputBalances(PoolKey memory key, address payer) internal view returns (InputBalances memory balances) {
         balances.token0 = Currency.unwrap(key.currency0);
         balances.token1 = Currency.unwrap(key.currency1);
-        balances.payer0Before = IERC20(balances.token0).balanceOf(payer);
-        balances.payer1Before = IERC20(balances.token1).balanceOf(payer);
+        balances.payer0Before = LibCurrency.balance(balances.token0, payer);
+        balances.payer1Before = LibCurrency.balance(balances.token1, payer);
     }
 
     function _fundManager(
@@ -159,6 +160,7 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         uint256 amount0Maximum,
         uint256 amount1Maximum
     ) internal returns (uint256 received0, uint256 received1) {
+        LibCurrency.enforceValue(Currency.unwrap(key.currency0), amount0Maximum);
         received0 = _fundManagerToken(Currency.unwrap(key.currency0), payer, manager, amount0Maximum, 0);
         received1 = _fundManagerToken(Currency.unwrap(key.currency1), payer, manager, amount1Maximum, 0);
     }
@@ -172,6 +174,7 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         uint256 amount0Maximum,
         uint256 amount1Maximum
     ) internal returns (uint256 received0, uint256 received1) {
+        LibCurrency.enforceValue(Currency.unwrap(key.currency0), amount0Maximum);
         received0 = _fundManagerToken(Currency.unwrap(key.currency0), payer, manager, amount0Maximum, principal0);
         received1 = _fundManagerToken(Currency.unwrap(key.currency1), payer, manager, amount1Maximum, principal1);
     }
@@ -180,6 +183,11 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         internal
         returns (uint256 received)
     {
+        if (asset == address(0)) {
+            received = existing + maximum;
+            LibCustody.beginUnreservedDebit(asset, received);
+            return received;
+        }
         uint256 payerBefore = IERC20(asset).balanceOf(payer);
         uint256 pulled = maximum == 0 ? 0 : LibCustody.pull(asset, payer, maximum);
         _enforceInputDebit(asset, payerBefore, payer, maximum);
@@ -201,6 +209,7 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
     }
 
     function _enforceInputDebit(address asset, uint256 beforeBalance, address payer, uint256 maximum) internal view {
+        if (asset == address(0)) return; // Native input is the reconciled msg.value, not the payer's gas balance.
         uint256 afterBalance = IERC20(asset).balanceOf(payer);
         uint256 debit = beforeBalance > afterBalance ? beforeBalance - afterBalance : 0;
         if (debit > maximum) revert IStaticsRangeGauge.InputDebitExceedsMaximum(asset, debit, maximum);

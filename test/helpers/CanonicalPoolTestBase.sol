@@ -26,15 +26,28 @@ contract CanonicalV4Router is IUnlockCallback {
 
     function modifyLiquidity(PoolKey calldata key, ModifyLiquidityParams calldata params)
         external
+        payable
         returns (BalanceDelta delta)
     {
-        return abi.decode(
+        uint256 baseline = address(this).balance - msg.value;
+        delta = abi.decode(
             manager.unlock(abi.encode(MODIFY_LIQUIDITY, msg.sender, key, abi.encode(params))), (BalanceDelta)
         );
+        _refund(baseline);
     }
 
-    function swap(PoolKey calldata key, SwapParams calldata params) external returns (BalanceDelta delta) {
-        return abi.decode(manager.unlock(abi.encode(SWAP, msg.sender, key, abi.encode(params))), (BalanceDelta));
+    function swap(PoolKey calldata key, SwapParams calldata params) external payable returns (BalanceDelta delta) {
+        uint256 baseline = address(this).balance - msg.value;
+        delta = abi.decode(manager.unlock(abi.encode(SWAP, msg.sender, key, abi.encode(params))), (BalanceDelta));
+        _refund(baseline);
+    }
+
+    function _refund(uint256 baseline) private {
+        uint256 amount = address(this).balance - baseline;
+        if (amount != 0) {
+            (bool success,) = msg.sender.call{value: amount}("");
+            require(success);
+        }
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {

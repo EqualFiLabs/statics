@@ -20,7 +20,7 @@ contract RangeGaugeGasHarness is RangeGaugeCallbackHarness, MarketTapeObservatio
 
 contract RangeGaugeGasTest is Test {
     uint256 private constant REVIEWED_HOOK_BASELINE = 17_081;
-    uint256 private constant MANAGED_POL_PUBLIC_HOOK_RUNTIME = 17_081;
+    uint256 private constant NATIVE_ETH_PUBLIC_HOOK_RUNTIME = 17_110;
     uint256 private constant MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME = 15_576;
     uint256 private constant EIP170_RUNTIME_LIMIT = 24_576;
     uint256 private constant MIN_HOOK_HEADROOM = 256;
@@ -51,12 +51,12 @@ contract RangeGaugeGasTest is Test {
         assertLe(runtimeSize, EIP170_RUNTIME_LIMIT - MIN_HOOK_HEADROOM);
     }
 
-    /// @dev The granular event is emitted by the Diamond and must not alter either immutable hook.
-    function test_ReviewedHookRuntimesRemainPinned() public {
+    /// @dev Pin the native-enabled public hook and unchanged permissioned hook runtimes.
+    function test_HookRuntimesRemainPinned() public {
         uint256 publicRuntime = vm.getDeployedCode("src/liquidity/StaticsSwapFeeHook.sol:StaticsSwapFeeHook").length;
         uint256 permissionedRuntime =
             vm.getDeployedCode("src/liquidity/StaticsPermissionedSwapFeeHook.sol:StaticsPermissionedSwapFeeHook").length;
-        assertEq(publicRuntime, MANAGED_POL_PUBLIC_HOOK_RUNTIME);
+        assertEq(publicRuntime, NATIVE_ETH_PUBLIC_HOOK_RUNTIME);
         assertEq(permissionedRuntime, MARKET_TAPE_PERMISSIONED_HOOK_RUNTIME);
     }
 

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {LibCurrency} from "../libraries/LibCurrency.sol";
+import {LibNativeReceipt} from "../libraries/LibNativeReceipt.sol";
+import {LibPoolRewards} from "../libraries/LibPoolRewards.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -92,16 +95,16 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
         address token = Currency.unwrap(currency);
         // Distribution settlement can reclassify an ineligible basket-staker share into POL.
         // Normalize and accrue revenue first so the following POL drain includes that final amount.
-        uint256 revenueBefore = IERC20(token).balanceOf(address(this));
-        IStaticsSwapFeeHook.FeeDistribution memory distribution =
-            hook.settleFeeDistribution(key, currency, address(this));
-        _enforceReleased(token, revenueBefore, _distributionTotal(distribution));
-        _accrueDistribution(poolId, token, distribution);
+        (IStaticsSwapFeeHook.FeeDistribution memory distribution, address rewardAsset) =
+            LibPoolRewards.settleDistribution(key, currency);
+        _accrueDistribution(poolId, rewardAsset, distribution);
 
         uint256 pending = hook.pendingProtocolPol(poolId, currency);
         if (pending != 0) {
-            uint256 beforeBalance = IERC20(token).balanceOf(address(this));
+            uint256 beforeBalance = LibCurrency.balance(token, address(this));
+            if (token == address(0)) LibNativeReceipt.expect(LibBasketLiquidity.liquidityStorage().poolManager);
             uint256 settled = hook.settleProtocolPol(key, currency, address(this), pending);
+            LibNativeReceipt.clear();
             _enforceReleased(token, beforeBalance, settled);
             LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), token, settled);
         }
@@ -185,7 +188,7 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
     }
 
     function _enforceReleased(address token, uint256 beforeBalance, uint256 reported) private view {
-        uint256 afterBalance = IERC20(token).balanceOf(address(this));
+        uint256 afterBalance = LibCurrency.balance(token, address(this));
         uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (observed != reported) revert ReleasedAmountMismatch(token, reported, observed);
     }

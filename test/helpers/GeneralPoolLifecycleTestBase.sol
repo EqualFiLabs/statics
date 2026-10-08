@@ -41,7 +41,9 @@ abstract contract GeneralPoolLifecycleTestBase is CanonicalPoolTestBase {
         positionManagerContract = IPositionManager(
             deployCode(
                 "out/PositionManager.sol/PositionManager.json",
-                abi.encode(address(poolManager), address(permit2Contract), uint256(100_000), address(0), address(0))
+                abi.encode(
+                    address(poolManager), address(permit2Contract), uint256(100_000), address(0), address(wrappedNative)
+                )
             )
         );
         liquidityManager = new StaticsLiquidityManager(

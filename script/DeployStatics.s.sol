@@ -19,6 +19,7 @@ import {RobinhoodDeploymentConfig} from "./RobinhoodDeploymentConfig.sol";
 interface IPositionManagerBindings {
     function poolManager() external view returns (address);
     function permit2() external view returns (address);
+    function WETH9() external view returns (address);
 }
 
 contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
@@ -104,6 +105,13 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         public
         returns (StaticsDollarStackDeployment memory deployment, StaticsTimelock timelock)
     {
+        return _deployLocalReference(config, address(0));
+    }
+
+    function _deployLocalReference(Config memory config, address weth)
+        private
+        returns (StaticsDollarStackDeployment memory deployment, StaticsTimelock timelock)
+    {
         timelock = _deployTimelock(config);
         StaticsDollarLocalConfig memory local;
         local.owner = address(timelock);
@@ -114,6 +122,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         local.positionCreationFeeAmount = config.positionCreationFeeAmount;
         local.poolCreationFeeAmount = config.poolCreationFeeAmount;
         local.singleAssetFlashFeeBps = config.singleAssetFlashFeeBps;
+        local.weth = weth;
         local.deployMockWeth = true;
         local.deployMockOracle = true;
         local.mockOraclePriceWad = 2_500e18;
@@ -130,7 +139,7 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         public
         returns (StaticsDollarStackDeployment memory deployment, StaticsTimelock timelock)
     {
-        (deployment, timelock) = deploy(config);
+        (deployment, timelock) = _deployLocalReference(config, IPositionManagerBindings(v4.positionManager).WETH9());
         _deployLiquidityContracts(deployment, v4, address(this));
     }
 
@@ -174,12 +183,23 @@ contract DeployStatics is DeployStaticsDollarBase, RobinhoodDeploymentConfig {
         address create2Deployer
     ) private {
         _validateV4(config);
-        bytes memory constructorArgs =
-            abi.encode(IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps);
+        address boundWeth = IPositionManagerBindings(config.positionManager).WETH9();
+        if (boundWeth != deployment.weth) revert InvalidV4Binding(config.positionManager, deployment.weth, boundWeth);
+        bytes memory constructorArgs = abi.encode(
+            IPoolManager(config.poolManager),
+            deployment.diamond,
+            config.inputFeeBps,
+            config.outputFeeBps,
+            deployment.weth
+        );
         (address expectedHook, bytes32 salt) =
             HookMiner.find(create2Deployer, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
         StaticsSwapFeeHook hook = new StaticsSwapFeeHook{salt: salt}(
-            IPoolManager(config.poolManager), deployment.diamond, config.inputFeeBps, config.outputFeeBps
+            IPoolManager(config.poolManager),
+            deployment.diamond,
+            config.inputFeeBps,
+            config.outputFeeBps,
+            deployment.weth
         );
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager manager =

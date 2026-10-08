@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {LibCurrency} from "../libraries/LibCurrency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -28,6 +29,19 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     address public immutable positionManager;
     address public immutable poolManager;
     address public immutable permit2;
+    bool private transient receivingNative;
+
+    event PositionManagerNativeSurplusRetained(uint256 amount);
+    error UnauthorizedETHSender(address sender);
+
+    receive() external payable {
+        if (
+            !receivingNative || !_reentrancyGuardEntered()
+                || (msg.sender != poolManager && msg.sender != positionManager)
+        ) {
+            revert UnauthorizedETHSender(msg.sender);
+        }
+    }
 
     error OnlyStaticsDiamond(address caller);
     error InvalidBinding(address target);
@@ -64,6 +78,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
 
     function mintUserPosition(PositionRequest calldata request, address recipient, address refundRecipient)
         external
+        payable
         nonReentrant
         returns (PositionMovement memory movement, uint256 refund0, uint256 refund1)
     {
@@ -90,6 +105,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
 
     function mintManagedPosition(PositionRequest calldata request, address refundRecipient)
         external
+        payable
         nonReentrant
         returns (ManagedPositionMovement memory movement)
     {
@@ -151,6 +167,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
 
     function increaseManagedPosition(ManagedLiquidityRequest calldata request)
         external
+        payable
         nonReentrant
         returns (ManagedPositionMovement memory movement)
     {
@@ -159,25 +176,27 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         ManagedPositionState memory beforeState = _managedState(request.tokenId, true);
         address token0 = Currency.unwrap(beforeState.poolKey.currency0);
         address token1 = Currency.unwrap(beforeState.poolKey.currency1);
-        uint256 balance0Before = IERC20(token0).balanceOf(address(this));
-        uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+        uint256 balance0Before = _inputBalance(token0);
+        uint256 balance1Before = _inputBalance(token1);
+        LibCurrency.enforceValue(token0, request.amount0Limit);
         _approve(token0, request.amount0Limit, request.deadline);
         _approve(token1, request.amount1Limit, request.deadline);
-        IPositionManager(positionManager)
-            .modifyLiquidities(
-                _closePlan(
-                    Actions.INCREASE_LIQUIDITY,
-                    abi.encode(
-                        request.tokenId,
-                        uint256(request.liquidity),
-                        uint128(request.amount0Limit),
-                        uint128(request.amount1Limit),
-                        bytes("")
-                    ),
-                    beforeState.poolKey
+        receivingNative = token0 == address(0);
+        IPositionManager(positionManager).modifyLiquidities{value: msg.value}(
+            _closePlan(
+                Actions.INCREASE_LIQUIDITY,
+                abi.encode(
+                    request.tokenId,
+                    uint256(request.liquidity),
+                    uint128(request.amount0Limit),
+                    uint128(request.amount1Limit),
+                    bytes("")
                 ),
-                request.deadline
-            );
+                beforeState.poolKey
+            ),
+            request.deadline
+        );
+        receivingNative = false;
         _clearApproval(token0);
         _clearApproval(token1);
 
@@ -309,8 +328,9 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     {
         address token0 = Currency.unwrap(request.poolKey.currency0);
         address token1 = Currency.unwrap(request.poolKey.currency1);
-        uint256 balance0Before = IERC20(token0).balanceOf(address(this));
-        uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+        uint256 balance0Before = _inputBalance(token0);
+        uint256 balance1Before = _inputBalance(token1);
+        LibCurrency.enforceValue(token0, request.amount0Limit);
         _approve(token0, request.amount0Limit, request.deadline);
         _approve(token1, request.amount1Limit, request.deadline);
 
@@ -325,8 +345,11 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
             recipient,
             bytes("")
         );
-        IPositionManager(positionManager)
-            .modifyLiquidities(_closePlan(Actions.MINT_POSITION, actionParams, request.poolKey), request.deadline);
+        receivingNative = token0 == address(0);
+        IPositionManager(positionManager).modifyLiquidities{value: msg.value}(
+            _closePlan(Actions.MINT_POSITION, actionParams, request.poolKey), request.deadline
+        );
+        receivingNative = false;
         _clearApproval(token0);
         _clearApproval(token1);
         (movement.spent0, movement.received0) = _movement(token0, balance0Before);
@@ -375,10 +398,12 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     ) private returns (ManagedPositionMovement memory movement) {
         address token0 = Currency.unwrap(beforeState.poolKey.currency0);
         address token1 = Currency.unwrap(beforeState.poolKey.currency1);
-        uint256 balance0Before = IERC20(token0).balanceOf(address(this));
-        uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+        uint256 balance0Before = LibCurrency.balance(token0, address(this));
+        uint256 balance1Before = LibCurrency.balance(token1, address(this));
+        receivingNative = token0 == address(0);
         IPositionManager(positionManager)
             .modifyLiquidities(_closePlan(action, actionParams, beforeState.poolKey), request.deadline);
+        receivingNative = false;
         uint256 gross0 = _positiveMovement(token0, balance0Before);
         uint256 gross1 = _positiveMovement(token1, balance1Before);
         movement.received0 = _deliverOutput(token0, request.receiver, gross0, request.amount0Limit);
@@ -391,22 +416,27 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
 
     function _closePlan(uint256 action, bytes memory actionParams, PoolKey memory key)
         private
-        pure
+        view
         returns (bytes memory)
     {
+        bool sweep = key.currency0.isAddressZero()
+            && (action == Actions.MINT_POSITION || action == Actions.INCREASE_LIQUIDITY);
         bytes memory actions = abi.encodePacked(
             bytes1(uint8(action)), bytes1(uint8(Actions.CLOSE_CURRENCY)), bytes1(uint8(Actions.CLOSE_CURRENCY))
         );
-        bytes[] memory params = new bytes[](3);
+        if (sweep) actions = abi.encodePacked(actions, bytes1(uint8(Actions.SWEEP)));
+        bytes[] memory params = new bytes[](sweep ? 4 : 3);
         params[0] = actionParams;
         params[1] = abi.encode(key.currency0);
         params[2] = abi.encode(key.currency1);
+        if (sweep) params[3] = abi.encode(key.currency0, address(this));
         return abi.encode(actions, params);
     }
 
     function _approve(address token, uint256 amount, uint256 deadline) private {
         if (amount > type(uint160).max || amount > type(uint128).max) revert AmountExceedsPermit2(amount);
         if (deadline > type(uint48).max) revert DeadlineExceedsPermit2(deadline);
+        if (token == address(0)) return;
         // Some canonical tokens expose an immutable infinite Permit2 allowance. Preserve that
         // token-level policy while keeping the PositionManager's scoped Permit2 allowance bounded.
         if (IERC20(token).allowance(address(this), permit2) != type(uint256).max) {
@@ -416,20 +446,30 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     }
 
     function _clearApproval(address token) private {
+        if (token == address(0)) return;
         IAllowanceTransfer(permit2).approve(token, positionManager, 0, 0);
         if (IERC20(token).allowance(address(this), permit2) != type(uint256).max) {
             IERC20(token).forceApprove(permit2, 0);
         }
     }
 
+    function _inputBalance(address token) private returns (uint256 baseline) {
+        baseline = LibCurrency.balance(token, address(this));
+        if (token == address(0)) {
+            uint256 surplus = positionManager.balance;
+            baseline += surplus;
+            if (surplus != 0) emit PositionManagerNativeSurplusRetained(surplus);
+        }
+    }
+
     function _movement(address token, uint256 balanceBefore) private view returns (uint256 spent, uint256 received) {
-        uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 balanceAfter = LibCurrency.balance(token, address(this));
         if (balanceBefore > balanceAfter) spent = balanceBefore - balanceAfter;
         else received = balanceAfter - balanceBefore;
     }
 
     function _positiveMovement(address token, uint256 balanceBefore) private view returns (uint256 received) {
-        uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 balanceAfter = LibCurrency.balance(token, address(this));
         if (balanceAfter < balanceBefore) revert UnexpectedTokenDebit(token, balanceBefore, balanceAfter);
         received = balanceAfter - balanceBefore;
     }
@@ -439,10 +479,14 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         returns (uint256 spent, uint256 received)
     {
         if (amount == 0) return (0, 0);
-        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        uint256 balanceBefore = LibCurrency.balance(token, address(this));
+        if (token == address(0)) {
+            LibCurrency.sendNative(receiver, amount);
+            return (amount, amount);
+        }
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
         IERC20(token).safeTransfer(receiver, amount);
-        uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 balanceAfter = LibCurrency.balance(token, address(this));
         uint256 receiverAfter = IERC20(token).balanceOf(receiver);
         spent = balanceBefore > balanceAfter ? balanceBefore - balanceAfter : 0;
         received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
@@ -458,7 +502,7 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     }
 
     function _enforceBaseline(address token, uint256 expected) private view {
-        uint256 actual = IERC20(token).balanceOf(address(this));
+        uint256 actual = LibCurrency.balance(token, address(this));
         if (actual != expected) revert InexactTokenDebit(token, expected, actual);
     }
 

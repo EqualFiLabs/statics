@@ -104,13 +104,7 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
     function setUp() public virtual override {
         super.setUp();
 
-        rangePermit2 = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
-        rangePositionManager = IPositionManager(
-            deployCode(
-                "out/PositionManager.sol/PositionManager.json",
-                abi.encode(address(poolManager), address(rangePermit2), uint256(100_000), address(0), address(0))
-            )
-        );
+        (rangePermit2, rangePositionManager) = _deployRangePeriphery();
         rangeLiquidityManager = new StaticsLiquidityManager(
             address(diamond), address(rangePositionManager), address(poolManager), address(rangePermit2)
         );
@@ -156,6 +150,17 @@ abstract contract RangeGaugeFeatureTestBase is CanonicalPoolTestBase {
         IDiamondCut(address(diamond)).diamondCut(cut, address(0), "");
         rangeGauge = IStaticsRangeGauge(address(diamond));
         rangeGaugeState = RangeGaugeTestStateFacet(address(diamond));
+    }
+
+    function _deployRangePeriphery() internal virtual returns (IAllowanceTransfer permit, IPositionManager posm) {
+        permit = IAllowanceTransfer(deployCode("out/Permit2.sol/Permit2.json"));
+        posm = IPositionManager(
+            deployCode(
+                "out/PositionManager.sol/PositionManager.json",
+                abi.encode(address(poolManager), address(permit), uint256(100_000), address(0), address(wrappedNative))
+            )
+        );
+        return (permit, posm);
     }
 
     function _installDefaultLiquidityManager() internal pure override returns (bool) {

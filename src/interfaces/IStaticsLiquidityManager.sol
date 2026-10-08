@@ -86,9 +86,11 @@ interface IStaticsLiquidityManager {
     function permit2() external view returns (address);
     function mintUserPosition(PositionRequest calldata request, address recipient, address refundRecipient)
         external
+        payable
         returns (PositionMovement memory movement, uint256 refund0, uint256 refund1);
     function mintManagedPosition(PositionRequest calldata request, address refundRecipient)
         external
+        payable
         returns (ManagedPositionMovement memory movement);
     function attachManagedPosition(address owner, PoolId expectedPoolId, uint256 tokenId)
         external
@@ -96,6 +98,7 @@ interface IStaticsLiquidityManager {
     function inspectManagedPosition(uint256 tokenId) external view returns (ManagedPositionState memory state);
     function increaseManagedPosition(ManagedLiquidityRequest calldata request)
         external
+        payable
         returns (ManagedPositionMovement memory movement);
     function decreaseManagedPosition(ManagedLiquidityRequest calldata request)
         external

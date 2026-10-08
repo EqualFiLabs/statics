@@ -14,8 +14,17 @@ library LibCurrency {
 
     function sendNative(address receiver, uint256 amount) internal {
         if (amount == 0) return;
-        (bool success,) = receiver.call{value: amount}("");
-        if (!success) revert NativeTransferFailed(receiver, amount);
+        bytes4 failure = NativeTransferFailed.selector;
+        // Do not copy arbitrary recipient returndata into memory.
+        assembly ("memory-safe") {
+            if iszero(call(gas(), receiver, amount, 0, 0, 0, 0)) {
+                let pointer := mload(0x40)
+                mstore(pointer, failure)
+                mstore(add(pointer, 4), receiver)
+                mstore(add(pointer, 36), amount)
+                revert(pointer, 68)
+            }
+        }
     }
 
     function enforceValue(address currency0, uint256 maximum0) internal view {

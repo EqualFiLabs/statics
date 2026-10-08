@@ -79,6 +79,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     }
 
     address public immutable staticsDiamond;
+    address public immutable weth;
 
     uint16 private defaultInputFeeBps;
     uint16 private defaultOutputFeeBps;
@@ -101,7 +102,7 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error InvalidPoolKind();
     error InvalidCreator();
     error PoolIsDecommissioned();
-    error NativeCurrencyUnsupported();
+    error InvalidWeth();
     error IncompatiblePoolCurrency();
     error UnexpectedTokenDebit(Currency currency, uint256 expected, uint256 actual);
     error ClaimLiabilityInsolvent(Currency currency, uint256 required, uint256 available);
@@ -114,7 +115,11 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
     error SwapsQuarantined(PoolId poolId);
     error InvalidSettlementCurrency(Currency currency);
 
-    constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps) BaseHook(manager) {
+    constructor(IPoolManager manager, address diamond, uint16 inputFeeBps, uint16 outputFeeBps, address weth_)
+        BaseHook(manager)
+    {
+        if (weth_ == address(0)) revert InvalidWeth();
+        weth = weth_;
         staticsDiamond = diamond;
         _setDefaultFeeRate(inputFeeBps, outputFeeBps);
         _setBasketFeeAllocation(
@@ -208,7 +213,6 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
 
     function registerPool(PoolKey calldata key, PoolKind kind, address creator) external returns (PoolId poolId) {
         _enforceDiamond();
-        if (key.currency0.isAddressZero() || key.currency1.isAddressZero()) revert NativeCurrencyUnsupported();
         if (!LibProtocolPoolFee.isValidStaticLpFee(key.fee)) revert InvalidNativeLpFee();
         if (kind != PoolKind.BasketCanonical && kind != PoolKind.General) revert InvalidPoolKind();
         if (creator == address(0)) revert InvalidCreator();
@@ -510,7 +514,8 @@ contract StaticsSwapFeeHook is BaseHook, IStaticsSwapFeeHook, IUnlockCallback {
             }
             shares.basketStaker = 0;
         }
-        if (!IStaticsGlobalRewards(staticsDiamond).canAccrueStakerRewards(Currency.unwrap(currency))) {
+        if (!IStaticsGlobalRewards(staticsDiamond)
+                .canAccrueStakerRewards(currency.isAddressZero() ? weth : Currency.unwrap(currency))) {
             shares.treasury += shares.staticsStaker;
             shares.staticsStaker = 0;
         }

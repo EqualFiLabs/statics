@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LibCurrency} from "../libraries/LibCurrency.sol";
+import {LibNativeReceipt} from "../libraries/LibNativeReceipt.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -175,9 +176,11 @@ contract ProtocolPolFacet is ReentrancyGuard {
         IStaticsSwapFeeHook hook = IStaticsSwapFeeHook(LibBasketLiquidity.liquidityStorage().hook);
         uint256 pending = hook.pendingProtocolPol(poolId, currency);
         uint256 requested = maximumAmount == 0 || maximumAmount > pending ? pending : maximumAmount;
-        uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
+        uint256 beforeBalance = LibCurrency.balance(asset, address(this));
+        if (asset == address(0)) LibNativeReceipt.expect(LibBasketLiquidity.liquidityStorage().poolManager);
         amount = hook.settleProtocolPol(key, currency, address(this), requested);
-        uint256 afterBalance = IERC20(asset).balanceOf(address(this));
+        LibNativeReceipt.clear();
+        uint256 afterBalance = LibCurrency.balance(asset, address(this));
         uint256 observed = afterBalance > beforeBalance ? afterBalance - beforeBalance : 0;
         if (observed != amount) revert ProtocolPolSettlementMismatch(asset, amount, observed);
         LibCustody.reserve(LibCustody.protocolPolAccount(PoolId.unwrap(poolId)), asset, amount);

@@ -46,16 +46,17 @@ contract DeployLocalStaticsWithLiquidity is DeployStaticsDollar {
         address permit2 = _deployCode("out/Permit2.sol/Permit2.json", bytes(""), "PERMIT2");
         address positionManager = _deployCode(
             "out/PositionManager.sol/PositionManager.json",
-            abi.encode(poolManager, permit2, uint256(100_000), address(0), address(0)),
+            abi.encode(poolManager, permit2, uint256(100_000), address(0), deployment.weth),
             "POSITION_MANAGER"
         );
         address stateView = _deployCode("out/StateView.sol/StateView.json", abi.encode(poolManager), "STATE_VIEW");
-        bytes memory constructorArgs = abi.encode(IPoolManager(poolManager), deployment.diamond, uint16(25), uint16(25));
+        bytes memory constructorArgs =
+            abi.encode(IPoolManager(poolManager), deployment.diamond, uint16(25), uint16(25), deployment.weth);
         (address expectedHook, bytes32 salt) = HookMiner.find(
             FOUNDRY_CREATE2_DEPLOYER, REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs
         );
         StaticsSwapFeeHook hook =
-            new StaticsSwapFeeHook{salt: salt}(IPoolManager(poolManager), deployment.diamond, 25, 25);
+            new StaticsSwapFeeHook{salt: salt}(IPoolManager(poolManager), deployment.diamond, 25, 25, deployment.weth);
         if (address(hook) != expectedHook) revert HookAddressMismatch(expectedHook, address(hook));
         StaticsLiquidityManager liquidityManager =
             new StaticsLiquidityManager(deployment.diamond, positionManager, poolManager, permit2);

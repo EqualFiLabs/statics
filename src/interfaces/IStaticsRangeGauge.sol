@@ -222,12 +222,14 @@ interface IStaticsRangeGauge {
     function replaceLiquidityManager(address newManager) external;
     function provideLiquidity(uint256 positionId, ProvideLiquidityParams calldata params)
         external
+        payable
         returns (LiquidityMovement memory movement);
     function attachLiquidity(uint256 positionId, PoolId poolId, uint256 posmTokenId)
         external
         returns (LiquidityMovement memory movement);
     function increaseLiquidity(uint256 positionId, PoolId poolId, IncreaseLiquidityParams calldata params)
         external
+        payable
         returns (LiquidityMovement memory movement);
     function decreaseLiquidity(uint256 positionId, PoolId poolId, DecreaseLiquidityParams calldata params)
         external
@@ -241,6 +243,7 @@ interface IStaticsRangeGauge {
     ) external returns (LiquidityMovement memory movement);
     function rebalanceLiquidity(uint256 positionId, PoolId poolId, RebalanceLiquidityParams calldata params)
         external
+        payable
         returns (LiquidityMovement memory movement);
     function exitLiquidity(
         uint256 positionId,

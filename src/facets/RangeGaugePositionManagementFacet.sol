@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.33;
 
+import {LibCurrency} from "../libraries/LibCurrency.sol";
+import {LibNativeReceipt} from "../libraries/LibNativeReceipt.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -23,26 +26,40 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         uint256 positionId,
         PoolId poolId,
         IStaticsRangeGauge.IncreaseLiquidityParams calldata params
-    ) external nonReentrant returns (IStaticsRangeGauge.LiquidityMovement memory movement) {
+    ) external payable nonReentrant returns (IStaticsRangeGauge.LiquidityMovement memory movement) {
         _enforceLiquidityAvailable();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         PoolKey memory key = _enforcePublicGauge(poolId, true);
         LibRangeGauge.LpLeg storage leg = _leg(positionId, poolId);
         _synchronizeAndSettle(poolId, key, leg);
         InputBalances memory balances = _inputBalances(key, msg.sender);
-        (uint256 amount0, uint256 amount1) =
-            _fundManager(key, msg.sender, leg.manager, params.amount0Maximum, params.amount1Maximum);
-        address receiver = IERC721(address(this)).ownerOf(positionId);
-        IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(leg.manager)
-            .increaseManagedPosition(
-                _managerRequest(leg.posmTokenId, params.liquidity, amount0, amount1, params.deadline, receiver)
-            );
+        IStaticsLiquidityManager.ManagedPositionMovement memory managed =
+            _increasePosition(positionId, leg, key, params);
         uint128 expectedLiquidity = leg.liquidity + params.liquidity;
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _replaceRange(poolId, key.tickSpacing, leg, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _enforceInputDebits(balances, msg.sender, params.amount0Maximum, params.amount1Maximum);
         movement = _inputMovement(managed);
         emit IStaticsRangeGauge.ManagedLiquidityChanged(positionId, poolId, leg.posmTokenId, leg.liquidity);
+    }
+
+    function _increasePosition(
+        uint256 positionId,
+        LibRangeGauge.LpLeg storage leg,
+        PoolKey memory key,
+        IStaticsRangeGauge.IncreaseLiquidityParams calldata params
+    ) private returns (IStaticsLiquidityManager.ManagedPositionMovement memory managed) {
+        (uint256 amount0, uint256 amount1) =
+            _fundManager(key, msg.sender, leg.manager, params.amount0Maximum, params.amount1Maximum);
+        IStaticsLiquidityManager.ManagedLiquidityRequest memory request = _managerRequest(
+            leg.posmTokenId,
+            params.liquidity,
+            amount0,
+            amount1,
+            params.deadline,
+            IERC721(address(this)).ownerOf(positionId)
+        );
+        managed = IStaticsLiquidityManager(leg.manager).increaseManagedPosition{value: msg.value}(request);
     }
 
     function decreaseLiquidity(
@@ -99,7 +116,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         uint256 positionId,
         PoolId poolId,
         IStaticsRangeGauge.RebalanceLiquidityParams calldata params
-    ) external nonReentrant returns (IStaticsRangeGauge.LiquidityMovement memory movement) {
+    ) external payable nonReentrant returns (IStaticsRangeGauge.LiquidityMovement memory movement) {
         _enforceLiquidityAvailable();
         LibPosition.enforceAuthorized(positionId, msg.sender);
         PoolKey memory key = _enforcePublicGauge(poolId, true);
@@ -129,7 +146,9 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         LibRangeGauge.LpLeg storage leg,
         IStaticsRangeGauge.RebalanceLiquidityParams calldata params
     ) private returns (RebalanceResult memory result) {
+        LibCurrency.enforceValue(Currency.unwrap(key.currency0), params.amount0Maximum);
         result.oldPosmTokenId = leg.posmTokenId;
+        if (key.currency0.isAddressZero()) LibNativeReceipt.expect(leg.manager);
         IStaticsLiquidityManager.ManagedPositionMovement memory exited = IStaticsLiquidityManager(leg.manager)
             .exitManagedPosition(
                 _managerRequest(
@@ -141,6 +160,7 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
                     address(this)
                 )
             );
+        LibNativeReceipt.clear();
         LibRangeGauge.unbindPosm(result.oldPosmTokenId, positionId, poolId);
 
         (result.newManager, result.minted, result.state) = _mintReplacement(positionId, poolId, key, params, exited);
@@ -188,18 +208,18 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
             params.amount1Maximum
         );
         minted = IStaticsLiquidityManager(newManager)
-            .mintManagedPosition(
-                IStaticsLiquidityManager.PositionRequest({
-                    poolKey: key,
-                    tickLower: params.tickLower,
-                    tickUpper: params.tickUpper,
-                    liquidity: params.liquidity,
-                    amount0Limit: amount0,
-                    amount1Limit: amount1,
-                    deadline: params.deadline
-                }),
-                IERC721(address(this)).ownerOf(positionId)
-            );
+        .mintManagedPosition{value: Currency.unwrap(key.currency0) == address(0) ? amount0 : 0}(
+            IStaticsLiquidityManager.PositionRequest({
+                poolKey: key,
+                tickLower: params.tickLower,
+                tickUpper: params.tickUpper,
+                liquidity: params.liquidity,
+                amount0Limit: amount0,
+                amount1Limit: amount1,
+                deadline: params.deadline
+            }),
+            IERC721(address(this)).ownerOf(positionId)
+        );
         state = _verifiedState(newManager, minted.tokenId, poolId, params.tickLower, params.tickUpper, params.liquidity);
     }
 }

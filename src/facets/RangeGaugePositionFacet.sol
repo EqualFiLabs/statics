@@ -13,6 +13,7 @@ import {LibPosition} from "../position/LibPosition.sol";
 contract RangeGaugePositionFacet is RangeGaugePositionBase {
     function provideLiquidity(uint256 positionId, IStaticsRangeGauge.ProvideLiquidityParams calldata params)
         external
+        payable
         nonReentrant
         returns (IStaticsRangeGauge.LiquidityMovement memory movement)
     {
@@ -25,18 +26,18 @@ contract RangeGaugePositionFacet is RangeGaugePositionBase {
         (uint256 amount0, uint256 amount1) =
             _fundManager(key, msg.sender, manager, params.amount0Maximum, params.amount1Maximum);
         IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(manager)
-            .mintManagedPosition(
-                IStaticsLiquidityManager.PositionRequest({
-                    poolKey: key,
-                    tickLower: params.tickLower,
-                    tickUpper: params.tickUpper,
-                    liquidity: params.liquidity,
-                    amount0Limit: amount0,
-                    amount1Limit: amount1,
-                    deadline: params.deadline
-                }),
-                msg.sender
-            );
+        .mintManagedPosition{value: msg.value}(
+            IStaticsLiquidityManager.PositionRequest({
+                poolKey: key,
+                tickLower: params.tickLower,
+                tickUpper: params.tickUpper,
+                liquidity: params.liquidity,
+                amount0Limit: amount0,
+                amount1Limit: amount1,
+                deadline: params.deadline
+            }),
+            msg.sender
+        );
         IStaticsLiquidityManager.ManagedPositionState memory state = _verifiedState(
             manager, managed.tokenId, params.poolId, params.tickLower, params.tickUpper, params.liquidity
         );

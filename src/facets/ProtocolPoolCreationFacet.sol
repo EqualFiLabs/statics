@@ -243,7 +243,7 @@ contract ProtocolPoolCreationFacet is ReentrancyGuard {
     }
 
     function _validateToken(address token) private view {
-        if (token == address(0) || token.code.length == 0) revert InvalidToken(token);
+        if (token != address(0) && token.code.length == 0) revert InvalidToken(token);
     }
 
     function _validateInitialFeeRate(

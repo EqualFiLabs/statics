@@ -25,7 +25,7 @@ Statics recognizes two registered pool classes:
 
 1. A basket canonical pool associates one BasketToken with one constituent and
    is created and permanently seeded atomically during basket creation.
-2. A general pool associates any two compatible ERC-20 contracts and is
+2. A general pool associates two compatible ERC-20 contracts or native ETH and an ERC-20 and is
    initialized without requiring a liquidity seed.
 
 Every registered pool uses the installed `StaticsSwapFeeHook`. The creator
@@ -63,7 +63,7 @@ No governance recovery or forced creator reassignment is provided: guardian cont
 and timelocked decommissioning address compromise, preserving recorded liabilities.
 
 Valid creator-selected native fees are `0…999_999` pips. Tick spacing is
-`1…32_767`. Native ETH, dynamic LP fees, a 100% LP fee, alternative hooks,
+`1…32_767`. Dynamic LP fees, a 100% LP fee, alternative hooks,
 already initialized PoolIds, and duplicate registered PoolIds are rejected.
 
 The Diamond normalizes token order and reciprocal price before quoting. General
@@ -157,7 +157,9 @@ Creation reverts if that key is already registered or initialized.
 - Dynamic native LP fees.
 - Creator control of bilateral hook fees after creation or of fee-allocation
   profiles.
-- Arbitrary hooks or native ETH pools.
+- Arbitrary hooks.
+
+Native ETH public pools follow [native ETH Phase 1](native-eth-phase-one.md).
 - Token endorsement, oracle admission, or automatic Dollar/basket risk roles.
 - Retrofitting creator-selected parameters into an existing immutable PoolKey.
 - Changing the standalone Doppler Genesis launch architecture.

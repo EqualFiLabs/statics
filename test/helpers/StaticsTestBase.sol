@@ -63,6 +63,7 @@ import {MorphoSettlementFacet} from "../../src/facets/MorphoSettlementFacet.sol"
 import {MorphoAdminFacet} from "../../src/facets/MorphoAdminFacet.sol";
 import {MorphoViewFacet} from "../../src/facets/MorphoViewFacet.sol";
 import {StaticsSelectors} from "../../src/libraries/StaticsSelectors.sol";
+import {MockWrappedNative} from "../mocks/MockWrappedNative.sol";
 import {StaticsSwapFeeHook} from "../../src/liquidity/StaticsSwapFeeHook.sol";
 import {StaticsLiquidityManager} from "../../src/liquidity/StaticsLiquidityManager.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -135,6 +136,7 @@ contract StaticsTestDeployer {
 }
 
 abstract contract StaticsTestBase is Test {
+    MockWrappedNative internal wrappedNative;
     uint160 internal constant DEFAULT_LAUNCH_SQRT_PRICE = 1 << 96;
     uint160 private constant REQUIRED_HOOK_FLAGS = Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG
         | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
@@ -168,6 +170,7 @@ abstract contract StaticsTestBase is Test {
         assetB = new MockERC20("Asset B", "B", 18);
         stakingAsset = new MockERC20("Statics", "STAT", 18);
 
+        wrappedNative = _deployWrappedNative();
         diamond = new StaticsTestDeployer().deploy(address(this), guardian, treasury, address(stakingAsset));
 
         baskets = IStaticsBasket(address(diamond));
@@ -184,8 +187,7 @@ abstract contract StaticsTestBase is Test {
         vm.deal(alice, 100 ether);
 
         if (_installLocalLiquidityIntegration()) {
-            _localPoolManager =
-                IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+            _localPoolManager = _deployPoolManager();
             _localSwapFeeHook = _deployLocalHook(_localPoolManager);
             basketLiquidity.installCanonicalPoolIntegration(address(_localPoolManager), address(_localSwapFeeHook));
             if (_installDefaultLiquidityManager()) {
@@ -347,11 +349,20 @@ abstract contract StaticsTestBase is Test {
         return true;
     }
 
+    function _deployWrappedNative() internal virtual returns (MockWrappedNative) {
+        return new MockWrappedNative();
+    }
+
+    function _deployPoolManager() internal virtual returns (IPoolManager) {
+        return IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+    }
+
     function _deployLocalHook(IPoolManager manager) private returns (StaticsSwapFeeHook deployed) {
-        bytes memory constructorArgs = abi.encode(manager, address(diamond), uint16(25), uint16(25));
+        bytes memory constructorArgs =
+            abi.encode(manager, address(diamond), uint16(25), uint16(25), address(wrappedNative));
         (address expected, bytes32 salt) =
             HookMiner.find(address(this), REQUIRED_HOOK_FLAGS, type(StaticsSwapFeeHook).creationCode, constructorArgs);
-        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25);
+        deployed = new StaticsSwapFeeHook{salt: salt}(manager, address(diamond), 25, 25, address(wrappedNative));
         assertEq(address(deployed), expected);
     }
 }

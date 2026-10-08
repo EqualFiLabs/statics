@@ -288,18 +288,7 @@ library LibCustody {
         private
         returns (uint256 spent, uint256 received)
     {
-        if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
-        if (token == address(0)) {
-            LibCurrency.sendNative(receiver, amount);
-            return (amount, amount);
-        }
-        uint256 senderBefore = IERC20(token).balanceOf(address(this));
-        uint256 receiverBefore = IERC20(token).balanceOf(receiver);
-        IERC20(token).safeTransfer(receiver, amount);
-        uint256 senderAfter = IERC20(token).balanceOf(address(this));
-        uint256 receiverAfter = IERC20(token).balanceOf(receiver);
-        spent = senderBefore > senderAfter ? senderBefore - senderAfter : 0;
-        received = receiverAfter > receiverBefore ? receiverAfter - receiverBefore : 0;
+        (spent, received) = _measurePush(token, receiver, amount);
         if (spent < amount) revert DebitBelowRequested(token, spent, amount);
     }
 
@@ -335,7 +324,12 @@ library LibCustody {
         return IERC20(token).balanceOf(address(this)) + _flashReservationDeficitSlot(token).asUint256().tload();
     }
 
-    function _flashReservationDeficitSlot(address token) private pure returns (bytes32) {
-        return keccak256(abi.encode(FLASH_RESERVATION_DEFICIT_DOMAIN, token));
+    function _flashReservationDeficitSlot(address token) private pure returns (bytes32 slot) {
+        bytes32 domain = FLASH_RESERVATION_DEFICIT_DOMAIN;
+        assembly ("memory-safe") {
+            mstore(0, domain)
+            mstore(32, and(token, 0xffffffffffffffffffffffffffffffffffffffff))
+            slot := keccak256(0, 64)
+        }
     }
 }

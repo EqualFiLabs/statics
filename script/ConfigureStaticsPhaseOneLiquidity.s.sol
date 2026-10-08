@@ -264,6 +264,9 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         IPermissionedRouterBindings canonicalPositionManager = IPermissionedRouterBindings(config.positionManager);
         _binding(config.positionManager, config.poolManager, canonicalPositionManager.poolManager());
         _binding(config.positionManager, config.permit2, canonicalPositionManager.permit2());
+        _binding(
+            config.positionManager, config.weth, IPermissionedPositionManagerBindings(config.positionManager).WETH9()
+        );
         IStaticsLiquidityManager liquidityManager = IStaticsLiquidityManager(config.liquidityManager);
         _binding(config.liquidityManager, diamond, liquidityManager.staticsDiamond());
         _binding(config.liquidityManager, config.poolManager, liquidityManager.poolManager());
@@ -272,6 +275,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
 
         StaticsSwapFeeHook hook = StaticsSwapFeeHook(payable(config.hook));
         _binding(config.hook, diamond, hook.staticsDiamond());
+        _binding(config.hook, config.weth, hook.weth());
         _binding(config.hook, config.poolManager, address(hook.poolManager()));
         (uint16 inputFeeBps, uint16 outputFeeBps) = hook.defaultFeeRate();
         if (inputFeeBps != config.inputFeeBps || outputFeeBps != config.outputFeeBps) {
