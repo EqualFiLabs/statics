@@ -16,6 +16,7 @@ import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsProtocolPools} from "../../src/interfaces/IStaticsProtocolPools.sol";
 import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
+import {CanonicalWETH9} from "../../src/dollar/mocks/CanonicalWETH9.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
 contract LaunchGenesisBasketBatchTest is Test {
@@ -301,7 +302,13 @@ contract LaunchGenesisBasketIntegrationTest is Test {
         IPositionManager positionManager = IPositionManager(
             deployCode(
                 "out/PositionManager.sol/PositionManager.json",
-                abi.encode(address(poolManager), address(permit2Contract), uint256(100_000), address(0), address(0))
+                abi.encode(
+                    address(poolManager),
+                    address(permit2Contract),
+                    uint256(100_000),
+                    address(0),
+                    address(new CanonicalWETH9())
+                )
             )
         );
         config = DeployStatics.V4Config({
