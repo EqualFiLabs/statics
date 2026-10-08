@@ -22,6 +22,7 @@ SCENARIOS=(
     vanilla-v4-gas.sh
     public-market-tape.sh
     managed-lp-lifecycle.sh
+    native-eth-lifecycle.sh
     external-posm-attachment.sh
     liquidity-manager-replacement.sh
     position-market-transfer.sh

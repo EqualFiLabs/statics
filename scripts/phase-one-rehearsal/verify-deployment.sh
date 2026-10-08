@@ -133,6 +133,14 @@ assert_eq \
     "$(cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" 'poolManager()(address)' --rpc-url "$RPC_URL")" \
     "$POOL_MANAGER" \
     "public hook PoolManager binding"
+assert_eq \
+    "$(cast call "$STATICS_SWAP_FEE_HOOK_ADDRESS" 'weth()(address)' --rpc-url "$RPC_URL")" \
+    "$WETH_ADDRESS" \
+    "public hook reward WETH binding"
+assert_eq \
+    "$(cast call "$POSITION_MANAGER" 'WETH9()(address)' --rpc-url "$RPC_URL")" \
+    "$WETH_ADDRESS" \
+    "public PositionManager WETH binding"
 assert_runtime_matches_artifact \
     "$STATICS_SWAP_FEE_HOOK_ADDRESS" \
     "$PHASE_ONE_OUT/StaticsSwapFeeHook.sol/StaticsSwapFeeHook.json" \
