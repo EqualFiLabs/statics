@@ -229,7 +229,7 @@ reserve1=$(pol_reserve "$STAKING_TOKEN")
 cast send "$STATICS_DIAMOND_ADDRESS" 'openProtocolPolPosition((bytes32,int24,int24,uint128,uint256,uint256,uint256))(uint256)' \
     "($POOL_ID,-600,600,100000000000000,$reserve0,$reserve1,$DEADLINE)" --private-key "$OPERATOR_KEY" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-pol-open.json"
-POL_POSITION=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolPositionIds(bytes32)(uint256[])' "$POOL_ID" --rpc-url "$RPC_URL" --json | jq -r '.[0][0]')
+POL_POSITION=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolPositionIds(bytes32)(uint256[])' "$POOL_ID" --rpc-url "$RPC_URL" --json | jq -r '.[0][-1]')
 cast send "$STATICS_DIAMOND_ADDRESS" 'increaseProtocolPolPosition((uint256,uint128,uint256,uint256,uint256))' \
     "($POL_POSITION,100000000000000,$(pol_reserve "$NATIVE"),$(pol_reserve "$STAKING_TOKEN"),$DEADLINE)" \
     --private-key "$OPERATOR_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-pol-increase.json"
@@ -249,7 +249,7 @@ assert_gt "$(pol_reserve "$NATIVE")" "$pol_before" "native POL decrease returns 
 cast send "$STATICS_DIAMOND_ADDRESS" 'rebalanceProtocolPolPositions((bytes32,(uint256,uint256,uint256)[],(int24,int24,uint128,uint256,uint256)[],uint256,uint256,uint256))(uint256[])' \
     "($POOL_ID,[($POL_POSITION,0,0)],[(-1200,1200,100000000000000,$(pol_reserve "$NATIVE"),$(pol_reserve "$STAKING_TOKEN"))],$(pol_reserve "$NATIVE"),$(pol_reserve "$STAKING_TOKEN"),$DEADLINE)" \
     --private-key "$OPERATOR_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-pol-rebalance.json"
-POL_POSITION=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolPositionIds(bytes32)(uint256[])' "$POOL_ID" --rpc-url "$RPC_URL" --json | jq -r '.[0][0]')
+POL_POSITION=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPolPositionIds(bytes32)(uint256[])' "$POOL_ID" --rpc-url "$RPC_URL" --json | jq -r '.[0][-1]')
 cast send "$STATICS_DIAMOND_ADDRESS" 'closeProtocolPolPosition(uint256,uint256,uint256,uint256)' "$POL_POSITION" 0 0 "$DEADLINE" \
     --private-key "$OPERATOR_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-pol-close.json"
 assert_gt "$(pol_reserve "$NATIVE")" 0 "closed native POL retains ETH inventory"
@@ -267,6 +267,10 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'fundPoolReward(bytes32,uint8,uint256,uint4
 cast send "$STATICS_DIAMOND_ADDRESS" 'fundGaugeReserve(uint256)(uint256)' 1000000000000000000000 \
     --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-statics-fund.json"
 timelock_call "$STATICS_DIAMOND_ADDRESS" 0 "$(cast calldata 'activateGaugeSchedule()')" native-eth-activate-gauge
+rpc_warp_by 86400
+cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointGaugePool(bytes32)(uint256,uint256)' "$POOL_ID" \
+    --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --gas-limit 3000000 --legacy --json \
+    >"$RUN_DIR/native-eth-gauge-checkpoint.json"
 rpc_warp_by 86400
 preview=$(cast call "$STATICS_DIAMOND_ADDRESS" 'previewLpRewards(uint256,bytes32)((uint8,address[5],uint256[5]))' "$POSITION" "$POOL_ID" --rpc-url "$RPC_URL" --json)
 assert_gt "$(jq -r '.[0][2][0]' <<<"$preview")" 0 "native LP STATICS gauge accrual"

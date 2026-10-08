@@ -33,7 +33,9 @@ append_state TREASURY "$TREASURY"
 append_state POL_OPERATOR "$POL_OPERATOR"
 append_state WETH_ADDRESS "$WETH"
 assert_nonzero_address "$STATICS_TOKEN" "Genesis STATICS token"
-assert_eq "$(cast codehash "$STATICS_TOKEN" --rpc-url "$RPC_URL")" \
+# cast codehash uses eth_getProof, which this provider prunes independently of
+# historical bytecode. Hash the actual runtime and retain the exact manifest pin.
+assert_eq "$(cast keccak "$(cast code "$STATICS_TOKEN" --rpc-url "$RPC_URL")")" \
     "$(jq -er '.contracts.staticsToken.runtimeCodeHash' "$GENESIS_MANIFEST")" \
     "live Genesis STATICS runtime"
 append_state STAKING_TOKEN "$STATICS_TOKEN"
