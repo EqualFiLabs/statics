@@ -3,6 +3,8 @@ pragma solidity 0.8.33;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -25,6 +27,32 @@ import {RangeGaugeLifecycleTestBase} from "../helpers/RangeGaugeLifecycleTestBas
 contract RejectNativeLiquidityReceiver {
     receive() external payable {
         revert();
+    }
+}
+
+contract ApprovalSweepToken is MockERC20 {
+    address private manager;
+    IPositionManager private posm;
+    bool private armed;
+
+    constructor() MockERC20("Approval Sweep", "SWEEP", 18) {}
+
+    receive() external payable {}
+
+    function arm(address manager_, IPositionManager posm_) external {
+        manager = manager_;
+        posm = posm_;
+        armed = true;
+    }
+
+    function approve(address spender, uint256 amount) public override returns (bool) {
+        if (armed && msg.sender == manager) {
+            armed = false;
+            bytes[] memory params = new bytes[](1);
+            params[0] = abi.encode(Currency.wrap(address(0)), address(this));
+            posm.modifyLiquidities(abi.encode(abi.encodePacked(bytes1(uint8(Actions.SWEEP))), params), block.timestamp);
+        }
+        return super.approve(spender, amount);
     }
 }
 
@@ -263,6 +291,46 @@ contract NativeEthLifecycleTest is RangeGaugeLifecycleTestBase {
         assertEq(beforeNative - alice.balance, minted.spent0);
         assertEq(minted.received0 + minted.spent0, TOKEN_MAXIMUM);
         assertEq(address(rangeLiquidityManager).balance, 1 ether);
+        assertEq(address(rangePositionManager).balance, 0);
+    }
+
+    function testApprovalCallbackCannotChargePeripherySurplusToNativeMint() public {
+        ApprovalSweepToken token = new ApprovalSweepToken();
+        PoolId pool = _createRangeGaugePool(alice, address(0), address(token));
+        uint256 pnft = _createPosition(alice);
+        // Forced periphery ETH exercises a public SWEEP callback without synthetic LP accounting.
+        vm.deal(address(rangePositionManager), 1 ether);
+        token.arm(address(rangeLiquidityManager), rangePositionManager);
+        uint256 beforeNative = alice.balance;
+        IStaticsRangeGauge.LiquidityMovement memory movement = _provide(pnft, pool, alice);
+        assertEq(address(token).balance, 1 ether);
+        assertEq(beforeNative - alice.balance, movement.spent0);
+        assertEq(movement.spent0 + movement.received0, TOKEN_MAXIMUM);
+        assertEq(address(rangeLiquidityManager).balance, 0);
+        assertEq(address(rangePositionManager).balance, 0);
+    }
+
+    function testApprovalCallbackCannotChargePeripherySurplusToNativeIncrease() public {
+        ApprovalSweepToken token = new ApprovalSweepToken();
+        PoolId pool = _createRangeGaugePool(alice, address(0), address(token));
+        uint256 pnft = _createPosition(alice);
+        _provide(pnft, pool, alice);
+        PoolKey memory key = _poolKey(pool);
+        _fundAndApprovePoolAssets(key, alice, TOKEN_MAXIMUM);
+        // The callback changes only old periphery surplus; ERC-20 transfers remain exact.
+        vm.deal(address(rangePositionManager), 1 ether);
+        token.arm(address(rangeLiquidityManager), rangePositionManager);
+        uint256 beforeNative = alice.balance;
+        vm.prank(alice);
+        IStaticsRangeGauge.LiquidityMovement memory movement = rangeGauge.increaseLiquidity{value: TOKEN_MAXIMUM}(
+            pnft,
+            pool,
+            IStaticsRangeGauge.IncreaseLiquidityParams(1 ether, TOKEN_MAXIMUM, TOKEN_MAXIMUM, block.timestamp + 1 hours)
+        );
+        assertEq(address(token).balance, 1 ether);
+        assertEq(beforeNative - alice.balance, movement.spent0);
+        assertEq(movement.spent0 + movement.received0, TOKEN_MAXIMUM);
+        assertEq(address(rangeLiquidityManager).balance, 0);
         assertEq(address(rangePositionManager).balance, 0);
     }
 

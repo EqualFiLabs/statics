@@ -176,11 +176,13 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
         ManagedPositionState memory beforeState = _managedState(request.tokenId, true);
         address token0 = Currency.unwrap(beforeState.poolKey.currency0);
         address token1 = Currency.unwrap(beforeState.poolKey.currency1);
-        uint256 balance0Before = _inputBalance(token0);
-        uint256 balance1Before = _inputBalance(token1);
+        uint256 balance0Before = LibCurrency.balance(token0, address(this));
+        uint256 balance1Before = LibCurrency.balance(token1, address(this));
         LibCurrency.enforceValue(token0, request.amount0Limit);
         _approve(token0, request.amount0Limit, request.deadline);
         _approve(token1, request.amount1Limit, request.deadline);
+        // Approval callbacks can sweep old periphery ETH; snapshot only after they finish.
+        if (token0 == address(0)) balance0Before = _inputBalance(token0);
         receivingNative = token0 == address(0);
         IPositionManager(positionManager).modifyLiquidities{value: msg.value}(
             _closePlan(
@@ -328,8 +330,8 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
     {
         address token0 = Currency.unwrap(request.poolKey.currency0);
         address token1 = Currency.unwrap(request.poolKey.currency1);
-        uint256 balance0Before = _inputBalance(token0);
-        uint256 balance1Before = _inputBalance(token1);
+        uint256 balance0Before = LibCurrency.balance(token0, address(this));
+        uint256 balance1Before = LibCurrency.balance(token1, address(this));
         LibCurrency.enforceValue(token0, request.amount0Limit);
         _approve(token0, request.amount0Limit, request.deadline);
         _approve(token1, request.amount1Limit, request.deadline);
@@ -345,6 +347,8 @@ contract StaticsLiquidityManager is IStaticsLiquidityManager, ReentrancyGuard {
             recipient,
             bytes("")
         );
+        // Approval callbacks can sweep old periphery ETH; snapshot only after they finish.
+        if (token0 == address(0)) balance0Before = _inputBalance(token0);
         receivingNative = token0 == address(0);
         IPositionManager(positionManager).modifyLiquidities{value: msg.value}(
             _closePlan(Actions.MINT_POSITION, actionParams, request.poolKey), request.deadline
