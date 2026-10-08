@@ -207,12 +207,4 @@ contract BasketLiquidityLifecycleFacet is ReentrancyGuard {
             })
         );
     }
-
-    function _distributionTotal(IStaticsSwapFeeHook.FeeDistribution memory distribution)
-        private
-        pure
-        returns (uint256)
-    {
-        return distribution.basketStaker + distribution.staticsStaker + distribution.creator + distribution.treasury;
-    }
 }

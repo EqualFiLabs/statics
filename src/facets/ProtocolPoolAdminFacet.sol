@@ -158,12 +158,6 @@ contract ProtocolPoolAdminFacet is ReentrancyGuard {
         emit IStaticsProtocolPools.LiquidityManagerReplaced(oldManager, newManager);
     }
 
-    function _reserveTreasury(address token, uint256 amount) private {
-        if (amount == 0) return;
-        LibCustody.reserve(LibCustody.feeAccount(), token, amount);
-        LibGlobalRewards.accrueReservedTreasuryFee(token, amount);
-    }
-
     function _settleDecommissionAsset(IStaticsSwapFeeHook hook, PoolKey storage key, PoolId poolId, Currency currency)
         private
     {

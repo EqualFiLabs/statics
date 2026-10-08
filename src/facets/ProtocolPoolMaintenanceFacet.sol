@@ -9,7 +9,6 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {IStaticsProtocolPools} from "../interfaces/IStaticsProtocolPools.sol";
 import {IStaticsProtocolRevenue} from "../interfaces/IStaticsProtocolRevenue.sol";
 import {IStaticsSwapFeeHook} from "../interfaces/IStaticsSwapFeeHook.sol";
-import {LibBasketLiquidity} from "../libraries/LibBasketLiquidity.sol";
 import {LibCustody} from "../libraries/LibCustody.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
@@ -20,7 +19,6 @@ import {LibProtocolRevenue} from "../libraries/LibProtocolRevenue.sol";
 
 /// @notice Permissionless, treasury-tipped revenue settlement for public protocol pools.
 contract ProtocolPoolMaintenanceFacet is ReentrancyGuard {
-    error LiquidityIntegrationNotInstalled();
     error IncompatibleTokenTransfer(address token, uint256 expected, uint256 observed);
     error InvalidMaintenanceConfig();
     error ActionPaused(uint256 action);
@@ -88,11 +86,6 @@ contract ProtocolPoolMaintenanceFacet is ReentrancyGuard {
         if (amount == 0) return;
         (uint256 spent, uint256 received) = LibCustody.pushUnreserved(token, receiver, amount, amount);
         if (spent != amount || received != amount) revert IncompatibleTokenTransfer(token, amount, received);
-    }
-
-    function _liquidityStorage() private view returns (LibBasketLiquidity.LiquidityStorage storage ls) {
-        ls = LibBasketLiquidity.liquidityStorage();
-        if (!ls.integrationInstalled) revert LiquidityIntegrationNotInstalled();
     }
 
     function _enforcePublicProtocolPool(PoolId poolId)
