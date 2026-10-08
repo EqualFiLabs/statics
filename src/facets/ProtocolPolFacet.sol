@@ -74,6 +74,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
                 revert LibProtocolPol.ProtocolPolPositionPoolMismatch(id, params.poolId, position.poolId);
             }
         }
+        LibGovernance.blockProtocolPolSwaps(params.poolId);
         for (uint256 i; i < params.closes.length; ++i) {
             _rebalanceClose(params.closes[i], params.deadline);
         }
@@ -81,6 +82,7 @@ contract ProtocolPolFacet is ReentrancyGuard {
         for (uint256 i; i < params.opens.length; ++i) {
             newPositionIds[i] = _rebalanceOpen(params.poolId, params.opens[i], params.deadline);
         }
+        LibGovernance.unblockProtocolPolSwaps(params.poolId);
     }
 
     function _rebalanceClose(IStaticsProtocolPools.ProtocolPolCloseLeg calldata leg, uint256 deadline) private {
@@ -194,8 +196,10 @@ contract ProtocolPolFacet is ReentrancyGuard {
     {
         _enforcePolOperator();
         _enforceLiquidityActive();
+        LibGovernance.blockProtocolPolSwaps(params.poolId);
         IStaticsLiquidityManager.ManagedPositionMovement memory movement;
         (positionId, movement) = LibProtocolPol.open(params);
+        LibGovernance.unblockProtocolPolSwaps(params.poolId);
         LibProtocolPools.ProtocolPolPosition storage position =
             LibProtocolPools.protocolPoolStorage().polPositions[positionId];
         emit IStaticsProtocolPools.ProtocolPolPositionOpened(
@@ -217,10 +221,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
     {
         _enforcePolOperator();
         _enforceLiquidityActive();
+        PoolId poolId = LibProtocolPol.enforcePosition(params.positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.increase(params);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolPositionIncreased(
             position.poolId, params.positionId, params.liquidity, movement.spent0, movement.spent1
         );
@@ -231,10 +238,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
         nonReentrant
     {
         _enforcePolOperator();
+        PoolId poolId = LibProtocolPol.enforcePosition(params.positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.decrease(params);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolPositionDecreased(
             position.poolId, params.positionId, params.liquidity, movement.received0, movement.received1
         );
@@ -242,10 +252,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
 
     function collectProtocolPolFees(uint256 positionId, uint256 deadline) external nonReentrant {
         _enforcePolOperator();
+        PoolId poolId = LibProtocolPol.enforcePosition(positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.harvest(positionId, deadline);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolFeesCollected(
             position.poolId, positionId, movement.received0, movement.received1
         );
@@ -258,10 +271,13 @@ contract ProtocolPolFacet is ReentrancyGuard {
         uint256 deadline
     ) external nonReentrant {
         _enforcePolOperator();
+        PoolId poolId = LibProtocolPol.enforcePosition(positionId).poolId;
+        LibGovernance.blockProtocolPolSwaps(poolId);
         (
             LibProtocolPools.ProtocolPolPosition storage position,
             IStaticsLiquidityManager.ManagedPositionMovement memory movement
         ) = LibProtocolPol.close(positionId, amount0Minimum, amount1Minimum, deadline);
+        LibGovernance.unblockProtocolPolSwaps(poolId);
         emit IStaticsProtocolPools.ProtocolPolPositionClosed(
             position.poolId, positionId, movement.received0, movement.received1
         );

@@ -280,8 +280,12 @@ through standard pool accounting. A user may instead opt a position into the
 public range gauge, which transfers that NFT to the immutable liquidity manager
 until managed exit while the associated PositionNFT controls it. Native fees
 earned by managed POL positions route only to Treasury and never become POL
-principal. Basket
-creation initializes and seeds its canonical pools atomically. General-pool
+principal. Operator POL position actions use a transaction-local PoolId swap
+block so token callbacks cannot accrue fees after harvest and before principal
+accounting. Other pools remain available for swaps, and the block clears when
+the action ends.
+
+Basket creation initializes and seeds its canonical pools atomically. General-pool
 creation registers and initializes the pool but does not require a liquidity
 seed: it is owner-only while the creation fee is zero and permissionless with
 exact payment while the fee is nonzero. The bilateral default initializes to

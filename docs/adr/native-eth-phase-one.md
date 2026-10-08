@@ -27,6 +27,10 @@ maintenance-tip proceeds follow the same boundary.
 POL hook allocations stay native claims and settle into native POL reservations.
 POL LP fees retain the existing Treasury classification: verify both currency
 receipts, then wrap the native fee receipt. Harvest precedes principal mutation.
+Operator POL position actions temporarily block swaps in that PoolId during token
+callbacks, so new LP fees cannot accrue between harvest and principal accounting.
+The transaction-local block does not affect other pools or ordinary swaps after
+the action finishes.
 Final general-pool decommission explicitly classifies the remaining POL inventory
 as Treasury revenue, wrapping only that released native reservation. This does
 not authorize wrapping principal while it remains POL inventory.
