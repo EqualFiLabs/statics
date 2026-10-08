@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {IStaticsAggregatedBatchRewards} from "../interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {LibCurrency} from "./LibCurrency.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 
 library LibCustody {
@@ -269,7 +270,7 @@ library LibCustody {
     function beginUnreservedDebit(address token, uint256 maximumDebit) internal view returns (uint256 beforeBalance) {
         uint256 available = unreservedBalance(token);
         if (maximumDebit > available) revert InsufficientUnreserved(token, maximumDebit, available);
-        return IERC20(token).balanceOf(address(this));
+        return LibCurrency.balance(token, address(this));
     }
 
     function finishUnreservedDebit(address token, uint256 beforeBalance, uint256 maximumDebit)
@@ -277,7 +278,7 @@ library LibCustody {
         view
         returns (uint256 spent)
     {
-        uint256 afterBalance = IERC20(token).balanceOf(address(this));
+        uint256 afterBalance = LibCurrency.balance(token, address(this));
         spent = beforeBalance > afterBalance ? beforeBalance - afterBalance : 0;
         if (spent > maximumDebit) revert DebitExceedsAuthorization(token, spent, maximumDebit);
         _enforceGlobalBacking(token);
@@ -288,6 +289,10 @@ library LibCustody {
         returns (uint256 spent, uint256 received)
     {
         if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
+        if (token == address(0)) {
+            LibCurrency.sendNative(receiver, amount);
+            return (amount, amount);
+        }
         uint256 senderBefore = IERC20(token).balanceOf(address(this));
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
         IERC20(token).safeTransfer(receiver, amount);
@@ -303,6 +308,10 @@ library LibCustody {
         returns (uint256 spent, uint256 received)
     {
         if (receiver == address(this)) revert InvalidTransferReceiver(receiver);
+        if (token == address(0)) {
+            LibCurrency.sendNative(receiver, amount);
+            return (amount, amount);
+        }
         uint256 senderBefore = IERC20(token).balanceOf(address(this));
         uint256 receiverBefore = IERC20(token).balanceOf(receiver);
         IERC20(token).safeTransfer(receiver, amount);
@@ -322,6 +331,7 @@ library LibCustody {
     }
 
     function _reservationBackingBalance(address token) private view returns (uint256) {
+        if (token == address(0)) return address(this).balance;
         return IERC20(token).balanceOf(address(this)) + _flashReservationDeficitSlot(token).asUint256().tload();
     }
 
