@@ -285,6 +285,17 @@ for position in "$POSITION" "$ZERO_POSITION" "$ATTACHED_POSITION"; do
     cast send "$STATICS_DIAMOND_ADDRESS" "$EXIT_SIG" "$position" "$pool" 0 0 "$DEADLINE" \
         --private-key "$OWNER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-exit-$position.json"
     assert_gt "$(receipt_native_delta "$RUN_DIR/native-eth-exit-$position.json" "$before" "$(asset_balance "$NATIVE" "$OWNER")")" 0 "native LP exit returns ETH"
+    # The exit transaction may checkpoint one final reward slice after the
+    # pre-exit claim. Resolve that claim-only stub before asserting retirement.
+    after_exit_legs=$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' "$position" --rpc-url "$RPC_URL" | awk '{print $1}')
+    if [[ "$after_exit_legs" == 1 ]]; then
+        residual=$(cast call "$STATICS_DIAMOND_ADDRESS" 'previewLpRewards(uint256,bytes32)((uint8,address[5],uint256[5]))' \
+            "$position" "$pool" --rpc-url "$RPC_URL" --json)
+        assert_gt "$(jq -r '.[0][2][0] + .[0][2][1]' <<<"$residual")" 0 "native exit retains final gauge reward"
+        cast send "$STATICS_DIAMOND_ADDRESS" 'claimLpRewards(uint256,bytes32,uint8[],uint256[],address)(uint256[])' \
+            "$position" "$pool" '[0,1]' '[0,0]' "$OWNER" --private-key "$OWNER_KEY" \
+            --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-exit-$position-residual-claim.json"
+    fi
     assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'activeLegCount(uint256)(uint256)' "$position" --rpc-url "$RPC_URL" | awk '{print $1}')" 0 "native exit clears leg"
 done
 assert_phase_one_solvency native-eth-final "$NATIVE" "$STAKING_TOKEN" "$WETH_ADDRESS"
