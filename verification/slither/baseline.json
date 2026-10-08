@@ -4,13 +4,13 @@
     "High": 51,
     "Medium": 420,
     "Low": 235,
-    "Informational": 157
+    "Informational": 160
   },
   "raw_counts": {
     "High": 51,
     "Medium": 420,
     "Low": 308,
-    "Informational": 157
+    "Informational": 160
   },
   "findings": [
     {
@@ -2582,22 +2582,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "ProtocolPolFacet.settleProtocolPoolPol(PoolId,address,uint256).currency (src/facets/ProtocolPolFacet.sol#171) is a local variable never initialized",
-      "rationale": "Both accepted asset branches assign currency from the registered PoolKey. Every other asset reverts before the first currency use.",
-      "occurrences": 1,
-      "id": "c923c122dd6e39564716eb2f"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "uninitialized-local",
-      "classification": "FALSE POSITIVE",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/metadata/LibAvatarSVG.sol"
       ],
       "summary": "LibAvatarSVG._activationOverlay(uint8,string).marks (src/metadata/LibAvatarSVG.sol#44) is a local variable never initialized",
@@ -2636,6 +2620,22 @@
       "rationale": "Solidity initializes this local to zero; it is deliberately used as an accumulator, branch sentinel, bitmap, or initially empty memory result before conditional assignment.",
       "occurrences": 1,
       "id": "d8925adc4ab1db51e9e0eeab"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "uninitialized-local",
+      "classification": "FALSE POSITIVE",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.settleProtocolPoolPol(PoolId,address,uint256).currency (src/facets/ProtocolPolFacet.sol#173) is a local variable never initialized",
+      "rationale": "Every non-reverting branch assigns currency from one of the registered PoolKey currencies before it is read; the unmatched-asset branch reverts.",
+      "occurrences": 1,
+      "id": "dea6185e8fcff328b95a1417"
     },
     {
       "impact": "Medium",
@@ -5254,6 +5254,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.activateProtocolPoolPol(PoolId) (src/facets/ProtocolPolFacet.sol#142-155) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPolFacet.sol#143)",
+      "rationale": "Only the registered pool kind is needed for activation. enforceRegistered reverts for unknown pools; the other tuple fields are intentionally unused.",
+      "occurrences": 1,
+      "id": "7b0012231fa683fbc89e31ef"
+    },
+    {
+      "impact": "Medium",
+      "confidence": "Medium",
+      "check": "unused-return",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibGaugeBribes.sol"
       ],
       "summary": "LibGaugeBribes.syncPositionLeg(uint256,PoolId,uint256) (src/libraries/LibGaugeBribes.sol#331-352) ignores return value by LibPosition.activateLeg(positionId,LibPosition.GAUGE_ALLOCATOR_MODULE,PoolId.unwrap(poolId)) (src/libraries/LibGaugeBribes.sol#346)",
@@ -7468,22 +7484,6 @@
       "rationale": "The exact-transfer custody primitive enforces the relevant debit and receipt bounds internally; this caller needs only the transition side effect or the separately captured amount.",
       "occurrences": 1,
       "id": "f752e84a24cc47e352e0def1"
-    },
-    {
-      "impact": "Medium",
-      "confidence": "Medium",
-      "check": "unused-return",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "ProtocolPolFacet.activateProtocolPoolPol(PoolId) (src/facets/ProtocolPolFacet.sol#140-153) ignores return value by (kind,None,None,None) = LibProtocolPools.enforceRegistered(poolId) (src/facets/ProtocolPolFacet.sol#141)",
-      "rationale": "Activation requires registration validation and the returned pool kind. Key and basket metadata are deliberately ignored; creator authorization and activation state are checked independently.",
-      "occurrences": 1,
-      "id": "f8f4387b0ccbc4a2093e9c96"
     },
     {
       "impact": "Medium",
@@ -10503,22 +10503,6 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams) (src/facets/ProtocolPolFacet.sol#43-84) uses timestamp for comparisons",
-      "rationale": "The timestamp comparison enforces the caller transaction deadline before mutation; it supplies neither randomness nor valuation.",
-      "occurrences": 1,
-      "id": "384768a8a0cf23d383d4cf27"
-    },
-    {
-      "impact": "Low",
-      "confidence": "Medium",
-      "check": "timestamp",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
         "src/libraries/LibGaugeRouting.sol"
       ],
       "summary": "LibGaugeRouting._accrueTo(LibGaugeRouting.RoutingStorage,uint40) (src/libraries/LibGaugeRouting.sol#286-305) uses timestamp for comparisons",
@@ -11271,6 +11255,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams) (src/facets/ProtocolPolFacet.sol#43-86) uses timestamp for comparisons",
+      "rationale": "Block time enforces the caller-supplied rebalance deadline; it is not used as randomness or a price input.",
+      "occurrences": 1,
+      "id": "e5950b668e82b092ba90658e"
+    },
+    {
+      "impact": "Low",
+      "confidence": "Medium",
+      "check": "timestamp",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/genesis/StaticsGenesisVault.sol"
       ],
       "summary": "StaticsGenesisVault._epochActive() (src/genesis/StaticsGenesisVault.sol#618-620) uses timestamp for comparisons",
@@ -11479,6 +11479,22 @@
         "production-contracts"
       ],
       "paths": [
+        "src/libraries/LibGovernance.sol"
+      ],
+      "summary": "LibGovernance.governanceStorage() (src/libraries/LibGovernance.sol#30-35) uses assembly",
+      "rationale": "Assembly binds the typed GovernanceStorage pointer to its fixed keccak-derived Diamond namespace without user-controlled offsets.",
+      "occurrences": 1,
+      "id": "17a7279b50612f168a506e64"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
         "src/libraries/LibPermissionedPools.sol"
       ],
       "summary": "LibPermissionedPools.permissionedPoolStorage() (src/libraries/LibPermissionedPools.sol#29-34) uses assembly",
@@ -11597,6 +11613,22 @@
       "rationale": "The Cancun tstore writes a namespaced bounded context slot; field/index pairs occupy disjoint 256-slot ranges. Successful batches explicitly clear caller, receiver, record and token slots; reverts roll context back.",
       "occurrences": 1,
       "id": "2940c03ff6e58382695948e4"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGovernance.sol"
+      ],
+      "summary": "LibGovernance.blockProtocolPolSwaps(PoolId) (src/libraries/LibGovernance.sol#37-43) uses assembly",
+      "rationale": "The assembly reads and sets a PoolId-scoped, keccak-derived transient lock. It rejects an already active lock and has no persistent storage effect.",
+      "occurrences": 1,
+      "id": "2bfe3981959e65c8253a8403"
     },
     {
       "impact": "Informational",
@@ -11753,10 +11785,10 @@
       "paths": [
         "src/libraries/LibGovernance.sol"
       ],
-      "summary": "LibGovernance.governanceStorage() (src/libraries/LibGovernance.sol#27-32) uses assembly",
-      "rationale": "The assembly is the standard fixed-slot Diamond storage accessor, selector dispatch, bounded staticcall, or revert bubbling path and does not accept unchecked user-controlled memory offsets.",
+      "summary": "LibGovernance.protocolPolSwapsBlocked(PoolId) (src/libraries/LibGovernance.sol#50-55) uses assembly",
+      "rationale": "The assembly reads only the PoolId-scoped, keccak-derived transient lock used by the swap hook during POL position mutation.",
       "occurrences": 1,
-      "id": "75a74578ed71ba82c777d21d"
+      "id": "79396a7be66709d410dccdc1"
     },
     {
       "impact": "Informational",
@@ -11949,6 +11981,22 @@
       "rationale": "Memory-safe assembly only binds the typed market-tape storage struct to its fixed keccak-derived namespace and does not access user-controlled memory or slots.",
       "occurrences": 1,
       "id": "ac52ea66e579eee62d454aea"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "assembly",
+      "classification": "INTENTIONAL",
+      "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/libraries/LibGovernance.sol"
+      ],
+      "summary": "LibGovernance.unblockProtocolPolSwaps(PoolId) (src/libraries/LibGovernance.sol#45-48) uses assembly",
+      "rationale": "The assembly clears only the PoolId-scoped, keccak-derived transient lock after the POL action; reverts roll it back automatically.",
+      "occurrences": 1,
+      "id": "aff170fc1f65afcd7b4fa1f8"
     },
     {
       "impact": "Informational",
@@ -12167,12 +12215,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/libraries/LibGaugeRouting.sol"
+        "src/facets/ProtocolPolFacet.sol"
       ],
-      "summary": "LibGaugeRouting.setAllocations(uint256,PoolId[],uint256[],uint256,uint40) (src/libraries/LibGaugeRouting.sol#155-198) has a high cyclomatic complexity (12).",
-      "rationale": "The bounded allocation update validates at most 16 destinations, checkpoints affected pools, and replaces weights atomically; splitting the state machine would weaken its accounting order.",
+      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams) (src/facets/ProtocolPolFacet.sol#43-86) has a high cyclomatic complexity (12).",
+      "rationale": "The bounded rebalance validates authority, deadline, duplicate and foreign positions, and gross debits before up to eight closes and eight opens. Its PoolId swap block spans every leg.",
       "occurrences": 1,
-      "id": "a32961eb2b062ca17e89d389"
+      "id": "65208be1e988db91caf2c6d4"
     },
     {
       "impact": "Informational",
@@ -12183,12 +12231,12 @@
         "production-contracts"
       ],
       "paths": [
-        "src/facets/ProtocolPolFacet.sol"
+        "src/libraries/LibGaugeRouting.sol"
       ],
-      "summary": "ProtocolPolFacet.rebalanceProtocolPolPositions(IStaticsProtocolPools.ProtocolPolRebalanceParams) (src/facets/ProtocolPolFacet.sol#43-84) has a high cyclomatic complexity (12).",
-      "rationale": "Complexity implements authority, pause, deadline, leg and gross-debit bounds plus duplicate and foreign-position validation. Both close and open counts are capped at eight; the custody library preserves atomic execution.",
+      "summary": "LibGaugeRouting.setAllocations(uint256,PoolId[],uint256[],uint256,uint40) (src/libraries/LibGaugeRouting.sol#155-198) has a high cyclomatic complexity (12).",
+      "rationale": "The bounded allocation update validates at most 16 destinations, checkpoints affected pools, and replaces weights atomically; splitting the state machine would weaken its accounting order.",
       "occurrences": 1,
-      "id": "ca3773d968af646e15986bfc"
+      "id": "a32961eb2b062ca17e89d389"
     },
     {
       "impact": "Informational",
@@ -12484,6 +12532,22 @@
       "check": "low-level-calls",
       "classification": "INTENTIONAL",
       "passes": [
+        "production-contracts"
+      ],
+      "paths": [
+        "src/facets/ProtocolPolFacet.sol"
+      ],
+      "summary": "Low level call in ProtocolPolFacet._sendActivationFee(uint256) (src/facets/ProtocolPolFacet.sol#327-332):",
+      "rationale": "The low-level call transfers the exact native POL activation fee to the configured Treasury; a failed receiver call reverts the entire activation.",
+      "occurrences": 1,
+      "id": "f41bfd814e6f7db2f2425834"
+    },
+    {
+      "impact": "Informational",
+      "confidence": "High",
+      "check": "low-level-calls",
+      "classification": "INTENTIONAL",
+      "passes": [
         "production-scripts"
       ],
       "paths": [
@@ -12493,22 +12557,6 @@
       "rationale": "The low-level call is required for native transfer, optional capability probing, oracle fallback, or Diamond initialization; success and returndata shape or the resulting balance are checked explicitly.",
       "occurrences": 1,
       "id": "f6a0ea7a202d68211ef1aa66"
-    },
-    {
-      "impact": "Informational",
-      "confidence": "High",
-      "check": "low-level-calls",
-      "classification": "INTENTIONAL",
-      "passes": [
-        "production-contracts"
-      ],
-      "paths": [
-        "src/facets/ProtocolPolFacet.sol"
-      ],
-      "summary": "Low level call in ProtocolPolFacet._sendActivationFee(uint256) (src/facets/ProtocolPolFacet.sol#311-316):",
-      "rationale": "Guarded creator-paid activation forwards the exact configured native fee to configured Treasury after checking msg.value and updating activation. The call checks success and failure rolls back activation and payment atomically.",
-      "occurrences": 1,
-      "id": "ff8c0221119a0e0cdcdd846d"
     },
     {
       "impact": "Informational",
