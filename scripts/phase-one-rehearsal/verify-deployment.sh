@@ -11,7 +11,7 @@ require_local_chain
 cd_repo
 
 EXPECTED_FACETS=32
-EXPECTED_SELECTORS=223
+EXPECTED_SELECTORS=224
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)
@@ -55,6 +55,7 @@ declare -A required_interfaces=(
     [ERC2981]=0x2a55205a
     [IStaticsPositionRoyalty]=0x4847d81b
     [IStaticsPositionMarket]=0x079c0632
+    [IStaticsRewardSelectionTiming]=0x13cfa782
 )
 for interface_name in "${!required_interfaces[@]}"; do
     assert_eq \

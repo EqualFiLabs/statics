@@ -16,6 +16,7 @@ import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
+import {IStaticsRewardSelectionTiming} from "../interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.sol";
@@ -86,6 +87,7 @@ library LibDeploymentPhases {
         ds.supportedInterfaces[type(IERC2981).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionRoyalty).interfaceId] = true;
         ds.supportedInterfaces[type(IStaticsPositionMarket).interfaceId] = true;
+        ds.supportedInterfaces[type(IStaticsRewardSelectionTiming).interfaceId] = true;
     }
 
     function initializePhaseTwo(uint256 creationFeeAmount, uint256 singleAssetFlashFeeBps) internal {

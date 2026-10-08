@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
+import {IStaticsRewardSelectionTiming} from "../interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
@@ -11,7 +12,7 @@ import {LibPositionPortfolio} from "../libraries/LibPositionPortfolio.sol";
 import {LibPositionRoyalty} from "../libraries/LibPositionRoyalty.sol";
 
 /// @notice Bounded PositionNFT valuation views and marketplace royalty signaling.
-contract PositionMarketFacet is IStaticsPositionRoyalty {
+contract PositionMarketFacet is IStaticsPositionRoyalty, IStaticsRewardSelectionTiming {
     uint256 private constant BPS_DENOMINATOR = 10_000;
     uint256 private constant MAX_REWARD_ASSET_PAGE_SIZE = 100;
 
@@ -78,6 +79,18 @@ contract PositionMarketFacet is IStaticsPositionRoyalty {
     {
         _requirePosition(positionId);
         return LibGlobalRewards.selectionView(positionId, asset);
+    }
+
+    function rewardSelectionWithTiming(uint256 positionId, address asset)
+        external
+        view
+        returns (IStaticsGlobalRewards.RewardSelectionView memory selection, uint40 pendingStartTime)
+    {
+        _requirePosition(positionId);
+        selection = LibGlobalRewards.selectionView(positionId, asset);
+        if (selection.pendingStake != 0) {
+            pendingStartTime = LibGlobalRewards.rewardStorage().positions[positionId].selections[asset].pendingStartTime;
+        }
     }
 
     function globalRewardAssetsOfPosition(uint256 positionId, uint256 cursor, uint256 limit)

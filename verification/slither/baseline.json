@@ -6168,10 +6168,10 @@
       "paths": [
         "src/facets/PositionMarketFacet.sol"
       ],
-      "summary": "PositionMarketFacet._requirePosition(uint256) (src/facets/PositionMarketFacet.sol#104-106) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/PositionMarketFacet.sol#105)",
+      "summary": "PositionMarketFacet._requirePosition(uint256) (src/facets/PositionMarketFacet.sol#117-119) ignores return value by IERC721(address(this)).ownerOf(positionId) (src/facets/PositionMarketFacet.sol#118)",
       "rationale": "The ownerOf call is an existence check: it must revert for an unknown PositionNFT, while its successful return value is deliberately unused.",
       "occurrences": 1,
-      "id": "a4f71e6e66afb40b2c283328"
+      "id": "e96327684a84a959abe536db"
     },
     {
       "impact": "Medium",
@@ -6552,10 +6552,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#247-290) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#261)",
+      "summary": "ConfigureStaticsPhaseOneLiquidity._validateDependencies(address,StaticsPhaseOneLiquidityConfig) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#248-291) ignores return value by RobinhoodWethVerifier.validateMainnet(vm,config.weth) (script/ConfigureStaticsPhaseOneLiquidity.s.sol#262)",
       "rationale": "These deployment call sites use validateMainnet for its revert-on-drift checks. The returned aggregate hash is optional evidence for callers that compose dependency hashes and is not needed after validation here.",
       "occurrences": 1,
-      "id": "bd6939152ee750ac836a4d2e"
+      "id": "be73e9f7fabcbbaf8b5cbc18"
     },
     {
       "impact": "Medium",
@@ -9409,7 +9409,7 @@
       "summary": "Reentrancy in StaticsProtocolInit.genesis(IDiamondCut.FacetCut[],StaticsProtocolInit.UnifiedInitArgs) (src/diamond/StaticsProtocolInit.sol#84-87):",
       "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; royalty initialization only writes namespaced storage and emits an event.",
       "occurrences": 1,
-      "id": "50655e519f23a51983d5739b"
+      "id": "72f0a38195889cab2c4492e5"
     },
     {
       "impact": "Low",
@@ -10049,7 +10049,7 @@
       "summary": "Reentrancy in StaticsProtocolInit.genesisInitialize(IDiamondCut.FacetCut[],address,address,address,uint256,uint256,uint256,uint256) (src/diamond/StaticsProtocolInit.sol#60-80):",
       "rationale": "The genesis path calls LibDiamond.diamondCut with an initialization address of zero and empty calldata, so initializeCut returns without an external callback; royalty initialization only writes namespaced storage and emits an event.",
       "occurrences": 1,
-      "id": "ed1f76eb1c31f435fcf17cbf"
+      "id": "a08f649668883bed5e7c0b06"
     },
     {
       "impact": "Low",
@@ -11985,10 +11985,10 @@
       "paths": [
         "src/libraries/LibDeploymentPhases.sol"
       ],
-      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#60-65) uses assembly",
+      "summary": "LibDeploymentPhases.phaseStorage() (src/libraries/LibDeploymentPhases.sol#61-66) uses assembly",
       "rationale": "Assembly only binds a typed namespaced storage pointer to a fixed keccak-derived slot; it does not manipulate arbitrary memory or user-controlled offsets.",
       "occurrences": 1,
-      "id": "ba0fa07b0fcfb6b0695eda99"
+      "id": "02d78e3bc04c9bea21ef9396"
     },
     {
       "impact": "Informational",
@@ -12711,10 +12711,10 @@
       "paths": [
         "script/ConfigureStaticsPhaseOneLiquidity.s.sol"
       ],
-      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#90) is not in mixedCase",
+      "summary": "Function IPermissionedPositionManagerBindings.WETH9() (script/ConfigureStaticsPhaseOneLiquidity.s.sol#91) is not in mixedCase",
       "rationale": "WETH9 is an externally defined upstream compatibility selector, so preserving its established ABI name is intentional.",
       "occurrences": 1,
-      "id": "7b845a1f191155e007cf1d47"
+      "id": "17ba2fee51f3641d20a0d778"
     },
     {
       "impact": "Informational",
@@ -12762,13 +12762,14 @@
         "src/interfaces/IStaticsGlobalRewards.sol",
         "src/interfaces/IStaticsPermissionedRouter.sol",
         "src/interfaces/IStaticsPermissionedSwapFeeHook.sol",
+        "src/interfaces/IStaticsRewardSelectionTiming.sol",
         "src/interfaces/IStaticsSwapCallback.sol",
         "src/interfaces/IVenueController.sol"
       ],
       "summary": "Version constraint >=0.8.26<0.9.0 is too complex.",
-      "rationale": "The shared callback interface must compile with the pinned 0.8.26 Uniswap hook compilation unit and the 0.8.33 Statics Diamond compilation unit; the bounded range is required for that cross-profile ABI contract.",
+      "rationale": "The shared callback interface must compile with the pinned 0.8.26 Uniswap hook compilation unit and the 0.8.33 Statics Diamond compilation unit; the bounded range is required for that cross-profile ABI contract. The additive reward selection timing interface preserves the same bounded range for compatibility with both compiler profiles.",
       "occurrences": 1,
-      "id": "92b7f8173e204dd59cb8f323"
+      "id": "add80be68aa1886ce161a601"
     },
     {
       "impact": "Informational",

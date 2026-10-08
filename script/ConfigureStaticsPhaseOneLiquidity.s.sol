@@ -30,6 +30,7 @@ import {IStaticsPermissionedPools} from "../src/interfaces/IStaticsPermissionedP
 import {IStaticsPermissionedSwapFeeHook} from "../src/interfaces/IStaticsPermissionedSwapFeeHook.sol";
 import {IStaticsPosition, IStaticsPositionFees} from "../src/interfaces/IStaticsPosition.sol";
 import {IStaticsPositionMarket} from "../src/interfaces/IStaticsPositionMarket.sol";
+import {IStaticsRewardSelectionTiming} from "../src/interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsPositionRoyalty} from "../src/interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsProtocolPools} from "../src/interfaces/IStaticsProtocolPools.sol";
 import {IStaticsRangeGauge} from "../src/interfaces/IStaticsRangeGauge.sol";
@@ -325,6 +326,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         _supportedInterface(diamond, type(IStaticsPositionFees).interfaceId);
         _supportedInterface(diamond, type(IStaticsPositionRoyalty).interfaceId);
         _supportedInterface(diamond, type(IStaticsPositionMarket).interfaceId);
+        _supportedInterface(diamond, type(IStaticsRewardSelectionTiming).interfaceId);
         _supportedInterface(diamond, type(IStaticsRangeGauge).interfaceId);
         _supportedInterface(diamond, type(IStaticsGaugeIncentives).interfaceId);
         _supportedInterface(diamond, type(IStaticsMarketTape).interfaceId);
@@ -445,7 +447,7 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         for (uint256 i; i < facets.length; ++i) {
             selectorCount += facets[i].functionSelectors.length;
         }
-        if (selectorCount != 223) revert UnexpectedSelectorCount(223, selectorCount);
+        if (selectorCount != 224) revert UnexpectedSelectorCount(224, selectorCount);
 
         bytes4[][] memory selectorSets = _phaseOneSelectorSets();
         for (uint256 i; i < selectorSets.length; ++i) {

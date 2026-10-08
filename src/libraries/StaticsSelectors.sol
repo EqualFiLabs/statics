@@ -34,6 +34,7 @@ import {IModularPositionNFT} from "../interfaces/IModularPositionNFT.sol";
 import {IPositionOwnerIndex} from "../interfaces/IPositionOwnerIndex.sol";
 import {IStaticsPositionRoyalty} from "../interfaces/IStaticsPositionRoyalty.sol";
 import {IStaticsPositionMarket} from "../interfaces/IStaticsPositionMarket.sol";
+import {IStaticsRewardSelectionTiming} from "../interfaces/IStaticsRewardSelectionTiming.sol";
 import {IStaticsPositionPortfolio} from "../interfaces/IStaticsPositionPortfolio.sol";
 import {IStaticsPosition, IStaticsPositionFees, IStaticsPositionModule} from "../interfaces/IStaticsPosition.sol";
 import {IERC5192} from "../interfaces/IERC5192.sol";
@@ -252,7 +253,7 @@ library StaticsSelectors {
     }
 
     function positionMarket() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](9);
+        selectors = new bytes4[](10);
         selectors[0] = IStaticsPositionRoyalty.royaltyInfo.selector;
         selectors[1] = IStaticsPositionRoyalty.positionRoyalty.selector;
         selectors[2] = IStaticsPositionRoyalty.setPositionRoyalty.selector;
@@ -262,6 +263,7 @@ library StaticsSelectors {
         selectors[6] = IStaticsGlobalRewards.isRewardAssetOptedIn.selector;
         selectors[7] = IStaticsGlobalRewards.rewardSelection.selector;
         selectors[8] = IStaticsPositionMarket.globalRewardAssetsOfPosition.selector;
+        selectors[9] = IStaticsRewardSelectionTiming.rewardSelectionWithTiming.selector;
     }
 
     function interfaceInit() internal pure returns (bytes4[] memory selectors) {
