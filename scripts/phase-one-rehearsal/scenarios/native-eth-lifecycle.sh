@@ -114,6 +114,10 @@ rpc_warp_by 604801
 cast send "$STATICS_DIAMOND_ADDRESS" 'checkpointRewardAssets(address[])' "[$WETH_ADDRESS]" \
     --private-key "$STAKER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-checkpoint-weth.json"
 assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'canAccrueStakerRewards(address)(bool)' "$WETH_ADDRESS" --rpc-url "$RPC_URL")" true "WETH staking eligibility"
+selection=$(cast call "$STATICS_DIAMOND_ADDRESS" 'rewardSelectionWithTiming(uint256,address)((bool,uint256,uint256,uint256,uint256,uint40),uint40)' \
+    "$STAKER_POSITION" "$WETH_ADDRESS" --rpc-url "$RPC_URL" --json)
+assert_eq "$(jq -r '.[0][0]' <<<"$selection")" true "WETH reward selection timing view"
+assert_gt "$(jq -r '.[0][1]' <<<"$selection")" 0 "WETH reward selection eligible stake"
 cast send "$STATICS_DIAMOND_ADDRESS" 'setGaugeAllocations(uint256,bytes32[],uint256[])' \
     "$STAKER_POSITION" "[$POOL_ID]" '[1000000000000000000000]' --private-key "$STAKER_KEY" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-allocation.json"
@@ -152,8 +156,8 @@ cast send "$STATICS_DIAMOND_ADDRESS" 'settlePublicSwapRewards(address,uint256)(u
     --private-key "$STAKER_KEY" --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-staker-materialize.json"
 assert_eq "$(pol_reserve "$NATIVE")" "$POL_NATIVE_BEFORE" "reward wrapping preserves native POL reservation"
 STAKER_BEFORE=$(asset_balance "$WETH_ADDRESS" "$STAKER")
-cast send "$STATICS_DIAMOND_ADDRESS" 'claimRewards(uint256,address[],address,uint256[])(uint256[])' \
-    "$STAKER_POSITION" "[$WETH_ADDRESS]" "$STAKER" '[0]' --private-key "$STAKER_KEY" \
+cast send "$STATICS_DIAMOND_ADDRESS" 'batchClaimRewardsAggregated((uint256,address[],uint256[])[],(uint256,bytes32,uint8[],uint256[])[],(uint256,bytes32,uint8[],uint256[])[],address)' \
+    "[($STAKER_POSITION,[$WETH_ADDRESS],[0])]" '[]' '[]' "$STAKER" --private-key "$STAKER_KEY" \
     --rpc-url "$RPC_URL" --legacy --json >"$RUN_DIR/native-eth-staker-claim.json"
 assert_gt "$(asset_balance "$WETH_ADDRESS" "$STAKER")" "$STAKER_BEFORE" "native fee staker paid WETH"
 
