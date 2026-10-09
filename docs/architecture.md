@@ -66,12 +66,12 @@ protocol entrypoint. The later Diamond reads the permanent activation registry
 and accepts future revenue from the same fee receiver; historical launch claims
 remain in the launch distributor.
 
-The staged Phase 1 launcher installs 32 facets and 224 selectors for arbitrary
+The staged Phase 1 launcher installs 32 facets and 226 selectors for arbitrary
 Statics-hooked pairs, permissioned venues, PositionNFT accounts, and global
 STATICS staking on `StaticsDiamond`. It also installs public-pool PositionNFT
 range gauges, weekly reserve-backed protocol incentives, and the Diamond-bound
 liquidity manager used to custody their Uniswap v4 position NFTs. The
-full-stack fresh-deployment launcher installs 54 facets and 401 selectors
+full-stack fresh-deployment launcher installs 54 facets and 403 selectors
 on `StaticsDiamond`, and 11 facets and 95 selectors on
 `StaticsDollarCoreDiamond`. The programmatic manifests live in
 `script/libraries/StaticsProtocolPlan.sol` and

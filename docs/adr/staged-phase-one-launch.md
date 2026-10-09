@@ -20,7 +20,7 @@ phase-specific one-time initialization.
 - the fresh full-stack launcher concatenates those same four cuts instead of maintaining a second
   handwritten full manifest.
 
-The complete plan contains 401 selectors. CI deploys Phase 1, advances the same Diamond through all
+The complete plan contains 403 selectors. CI deploys Phase 1, advances the same Diamond through all
 four timelocked batches, and compares every final selector and implementation runtime hash with a
 fresh full deployment. A selector addition or reassignment must therefore update the canonical
 phase plan; the staged and fresh paths cannot silently diverge.
@@ -36,13 +36,13 @@ Robinhood manifest, so it cannot create a Diamond that the later handoff cannot 
 
 ## Phase 1: arbitrary hooked pairs and STATICS staking
 
-Phase 1 installs 32 facets and 224 selectors for:
+Phase 1 installs 32 facets and 226 selectors for:
 
 - the Diamond cut, loupe, ownership, and timelocked governance kernel;
 - general Uniswap v4 pools between compatible ERC-20s or native ETH and an ERC-20 using the reusable
   `StaticsSwapFeeHook`;
 - governed bilateral hook fees, creator revenue, treasury accounting, global STATICS-staker
-  rewards, swap-time staker entitlement, claim-backed POL inventory, permissionless tipped revenue
+  rewards, a governed non-swap staker/treasury revenue share, swap-time staker entitlement, claim-backed POL inventory, permissionless tipped revenue
   settlement, and custody-constrained managed POL portfolios outside the swap path;
 - PositionNFT creation, ownership, transfer, closure, and the global STATICS staking and reward
   opt-in lifecycle;
@@ -107,7 +107,7 @@ always owner/timelock executed and requires exact creator EIP-712 or ERC-1271 au
 
 ## Phase 2: baskets, credit, flash composition, and Genesis integration
 
-Phase 2 adds 92 selectors for a cumulative 316 selectors across 44 facets. It installs:
+Phase 2 adds 92 selectors for a cumulative 318 selectors across 44 facets. It installs:
 
 - basket creation, mint, redemption, views, rewards, collateral, quarantine, and decommissioning;
 - self-secured borrowing, repayment, extension, recovery, and borrow-to-liquidity;
@@ -132,7 +132,7 @@ runtimes and bindings.
 
 ## Phase 3: Statics Dollar
 
-Phase 3 adds 58 selectors for a cumulative 374 selectors across 49 facets. It adds Dollar custody,
+Phase 3 adds 58 selectors for a cumulative 376 selectors across 49 facets. It adds Dollar custody,
 Risk Share staking and incentives, fee routing, the pairing vault, the Dollar gateway, and series
 migration.
 
@@ -149,7 +149,7 @@ atomically install and initialize the periphery before finalizing the core-to-Di
 
 ## Phase 4: Morpho
 
-Phase 4 adds 27 selectors for the final 401 selectors across 54 facets. It installs the remaining
+Phase 4 adds 27 selectors for the final 403 selectors across 54 facets. It installs the remaining
 Position portfolio view plus Morpho administration, actions, settlement, recovery, and views.
 
 The phase deploys five Morpho facet implementations and `StaticsPhaseFourInit`: six contracts.
@@ -188,7 +188,7 @@ replacement cut; later activation scripts fail closed on an unexpected earlier r
 
 ## Audit boundary
 
-Phase 1's deployed review surface remains its 224 reachable selectors, facet paths and shared
+Phase 1's deployed review surface remains its 226 reachable selectors, facet paths and shared
 libraries, Diamond kernel and initializer, timelock, both hooks, permissioned periphery and claims,
 venue controller, public range-gauge accounting and custody, the liquidity manager,
 managed-POL custody and lifecycle, and deployment ceremonies. Each later audit covers its

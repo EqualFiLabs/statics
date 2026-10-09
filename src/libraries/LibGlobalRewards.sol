@@ -3,6 +3,7 @@ pragma solidity 0.8.33;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {IStaticsNonSwapRevenue} from "../interfaces/IStaticsNonSwapRevenue.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {LibBasket} from "./LibBasket.sol";
 import {LibCustody} from "./LibCustody.sol";
@@ -23,7 +24,7 @@ library LibGlobalRewards {
     uint256 internal constant REWARD_ELIGIBILITY_DELAY = 24 hours;
     uint256 internal constant REWARD_BUCKET_SIZE = 1 hours;
     uint8 internal constant REWARD_BUCKET_COUNT = 25;
-    uint256 internal constant STAKER_SHARE_BPS = 9_000;
+    uint16 internal constant DEFAULT_NON_SWAP_STAKER_SHARE_BPS = 9_000;
     uint16 internal constant BASE_REWARD_MULTIPLIER_BPS = 10_000;
 
     struct RewardBook {
@@ -75,6 +76,8 @@ library LibGlobalRewards {
         mapping(address asset => uint256 amount) treasuryAccrued;
         mapping(address asset => uint256 amount) unfundedSwapRewards;
         uint8 activeMaxRewardAssetsPerPosition;
+        // Zero preserves the historical default on existing deployments; one encodes a 0% share.
+        uint16 nonSwapStakerShareBpsPlusOne;
     }
 
     struct MorphoLossContext {
@@ -98,6 +101,7 @@ library LibGlobalRewards {
     error RewardAssetRestricted(address asset);
     error InvalidSwapRewardCrystallization(address asset, uint256 amount);
     error InsufficientFundedRewards(address asset, uint256 requested, uint256 available);
+    error InvalidNonSwapStakerShareBps(uint256 shareBps);
 
     function rewardStorage() internal pure returns (RewardStorage storage rs) {
         bytes32 position = REWARD_STORAGE_POSITION;
@@ -134,6 +138,24 @@ library LibGlobalRewards {
         _accrueReservedNonSwapFee(asset, grossFee);
     }
 
+    function nonSwapStakerShareBps() internal view returns (uint16) {
+        uint16 encoded = rewardStorage().nonSwapStakerShareBpsPlusOne;
+        unchecked {
+            // The nonzero branch cannot underflow.
+            return encoded == 0 ? DEFAULT_NON_SWAP_STAKER_SHARE_BPS : encoded - 1;
+        }
+    }
+
+    function setNonSwapStakerShareBps(uint16 shareBps) internal {
+        if (shareBps > LibBasket.BPS) revert InvalidNonSwapStakerShareBps(shareBps);
+        uint16 previous = nonSwapStakerShareBps();
+        unchecked {
+            // The validated maximum is 10,000, below uint16 capacity after encoding.
+            rewardStorage().nonSwapStakerShareBpsPlusOne = shareBps + 1;
+        }
+        emit IStaticsNonSwapRevenue.NonSwapStakerShareBpsSet(previous, shareBps);
+    }
+
     function accrueUnreservedNonSwapFee(address asset, uint256 grossFee) internal {
         if (grossFee == 0) return;
         LibCustody.reserve(LibCustody.feeAccount(), asset, grossFee);
@@ -146,7 +168,7 @@ library LibGlobalRewards {
         _rollMatured(asset, book);
         uint256 stakerAmount;
         if (!LibRewardPolicy.isRestricted(asset) && book.eligibleWeight != 0) {
-            stakerAmount = Math.mulDiv(grossFee, STAKER_SHARE_BPS, LibBasket.BPS);
+            stakerAmount = Math.mulDiv(grossFee, nonSwapStakerShareBps(), LibBasket.BPS);
             _increaseIndex(book, stakerAmount, book.eligibleWeight);
         }
         uint256 treasuryAmount = grossFee - stakerAmount;

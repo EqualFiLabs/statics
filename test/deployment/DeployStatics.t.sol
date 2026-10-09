@@ -159,7 +159,7 @@ contract DeployStaticsTest is Test {
         assertEq(OwnershipFacet(deployment.core).owner(), address(timelock));
         assertEq(timelock.getMinDelay(), 2 minutes);
         _assertManifest(deployment.core, 11, 95);
-        _assertManifest(diamond, 54, 401);
+        _assertManifest(diamond, 54, 403);
         _assertBasketRoutes(diamond);
         _assertMorphoRoutes(diamond);
         _assertRetiredLiquiditySelectorsAbsent(diamond);

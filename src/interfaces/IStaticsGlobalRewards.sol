@@ -88,7 +88,9 @@ interface IStaticsGlobalRewards {
     );
     event SwapRewardFunded(address indexed asset, uint256 amount, uint256 unfundedAmount);
     event PositionRewardSettled(uint256 indexed positionId, address indexed asset, uint256 amount);
-    event RewardClaimed(uint256 indexed positionId, address indexed receiver, address indexed asset, uint256 amount);
+    event RewardClaimed(
+        uint256 indexed positionId, address indexed receiver, address indexed asset, uint256 debited, uint256 received
+    );
     event TreasuryFeesDistributed(address indexed asset, address indexed treasury, uint256 amount);
     event MaxRewardAssetsPerPositionIncreased(uint256 previousMax, uint256 newMax);
 

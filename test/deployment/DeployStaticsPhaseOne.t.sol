@@ -39,6 +39,7 @@ import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
 import {IStaticsGenesisIntegration} from "../../src/interfaces/IStaticsGenesisIntegration.sol";
 import {IStaticsAggregatedBatchRewards} from "../../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
+import {IStaticsNonSwapRevenue} from "../../src/interfaces/IStaticsNonSwapRevenue.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
@@ -88,7 +89,7 @@ contract PhaseOnePermissionedBindingMock {
 
 contract DeployStaticsPhaseOneTest is Test {
     uint256 private constant EXPECTED_PHASE_ONE_FACETS = 32;
-    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 224;
+    uint256 private constant EXPECTED_PHASE_ONE_SELECTORS = 226;
 
     struct PhaseOneDexFixture {
         address diamond;
@@ -150,6 +151,8 @@ contract DeployStaticsPhaseOneTest is Test {
         _assertManifest(diamond, EXPECTED_PHASE_ONE_FACETS, EXPECTED_PHASE_ONE_SELECTORS);
         assertTrue(IERC165(diamond).supportsInterface(type(IERC721).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsGlobalRewards).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsNonSwapRevenue).interfaceId));
+        assertEq(IStaticsNonSwapRevenue(diamond).nonSwapStakerShareBps(), 9_000);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsBatchRewards).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsAggregatedBatchRewards).interfaceId));
         (uint256 maxClaims, uint256 maxEntries) = IStaticsBatchRewards(diamond).batchClaimLimits();

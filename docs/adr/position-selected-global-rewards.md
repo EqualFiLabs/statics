@@ -78,8 +78,12 @@ Global slot, queue, generation, and retirement entrypoints are removed.
 ## Fee fallback
 
 For non-swap fees, an asset with no eligible selected stake routes the complete
-fee to treasury. Otherwise, 90% enters that asset's staker index and the
-remainder enters treasury.
+fee to treasury. Otherwise, the configured non-swap staker share enters that
+asset's staker index and the remainder enters treasury. The share defaults to
+9,000 basis points and the Diamond owner (governance timelock) may configure
+it from 0 through 10,000 with `setNonSwapStakerShareBps`. The change applies
+only to subsequent non-swap fee accrual; it does not reclassify existing rewards
+or alter pool swap-fee allocation. Integer rounding remains with treasury.
 
 For canonical swap fees, `canAccrueStakerRewards(asset)` is true only when the
 asset has eligible selected stake. The hook routes an unavailable staker share

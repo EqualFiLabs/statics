@@ -101,6 +101,21 @@ library LibRewardPayout {
         return amount;
     }
 
+    /// @dev Exposes the existing custody measurements for statement events.
+    /// Legacy callers continue to use pay unchanged. Aggregated settlement is
+    /// exact and pay retains its original context acknowledgement and staging.
+    function payMeasured(bytes32 source, address asset, address receiver, uint256 amount)
+        internal
+        returns (uint256 debited, uint256 received)
+    {
+        if (_get(CALLER, 0) == 0) {
+            if (amount == 0) return (0, 0);
+            return LibCustody.pushReserved(source, asset, receiver, amount, amount);
+        }
+        received = pay(source, asset, receiver, amount);
+        return (received, received);
+    }
+
     /// @dev Caller must hold the shared custody guard throughout final token callbacks.
     function flush() internal {
         if (_get(CALLER, 0) != uint160(msg.sender)) {

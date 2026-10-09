@@ -12,6 +12,7 @@ import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.s
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibLiquidityStatement} from "../libraries/LibLiquidityStatement.sol";
 
 /// @notice PNFT-authorized mutation of existing managed public Uniswap v4 positions.
 contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
@@ -20,6 +21,8 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         address newManager;
         IStaticsLiquidityManager.ManagedPositionMovement minted;
         IStaticsLiquidityManager.ManagedPositionState state;
+        IStaticsRangeGauge.LiquidityStatementMovement statement;
+        IStaticsRangeGauge.RebalanceSettlement settlement;
     }
 
     function increaseLiquidity(
@@ -33,14 +36,16 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         LibRangeGauge.LpLeg storage leg = _leg(positionId, poolId);
         _synchronizeAndSettle(poolId, key, leg);
         InputBalances memory balances = _inputBalances(key, msg.sender);
-        IStaticsLiquidityManager.ManagedPositionMovement memory managed =
-            _increasePosition(positionId, leg, key, params);
+        (
+            IStaticsLiquidityManager.ManagedPositionMovement memory managed,
+            IStaticsRangeGauge.LiquidityStatementMovement memory statement
+        ) = _increasePosition(positionId, leg, key, params);
         uint128 expectedLiquidity = leg.liquidity + params.liquidity;
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _replaceRange(poolId, key.tickSpacing, leg, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _enforceInputDebits(balances, msg.sender, params.amount0Maximum, params.amount1Maximum);
         movement = _inputMovement(managed);
-        emit IStaticsRangeGauge.ManagedLiquidityChanged(positionId, poolId, leg.posmTokenId, leg.liquidity);
+        emit IStaticsRangeGauge.ManagedLiquidityChanged(positionId, poolId, leg.posmTokenId, statement);
     }
 
     function _increasePosition(
@@ -48,18 +53,25 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         LibRangeGauge.LpLeg storage leg,
         PoolKey memory key,
         IStaticsRangeGauge.IncreaseLiquidityParams calldata params
-    ) private returns (IStaticsLiquidityManager.ManagedPositionMovement memory managed) {
-        (uint256 amount0, uint256 amount1) =
+    )
+        private
+        returns (
+            IStaticsLiquidityManager.ManagedPositionMovement memory managed,
+            IStaticsRangeGauge.LiquidityStatementMovement memory statement
+        )
+    {
+        FundingAmounts memory funding =
             _fundManager(key, msg.sender, leg.manager, params.amount0Maximum, params.amount1Maximum);
         IStaticsLiquidityManager.ManagedLiquidityRequest memory request = _managerRequest(
             leg.posmTokenId,
             params.liquidity,
-            amount0,
-            amount1,
+            funding.amount0,
+            funding.amount1,
             params.deadline,
             IERC721(address(this)).ownerOf(positionId)
         );
         managed = IStaticsLiquidityManager(leg.manager).increaseManagedPosition{value: msg.value}(request);
+        statement = LibLiquidityStatement.input(managed, msg.sender, request.receiver, funding.paid0, funding.paid1);
     }
 
     function decreaseLiquidity(
@@ -90,7 +102,9 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, expectedLiquidity);
         _replaceRange(poolId, key.tickSpacing, leg, leg.tickLower, leg.tickUpper, expectedLiquidity);
         movement = _outputMovement(managed);
-        emit IStaticsRangeGauge.ManagedLiquidityChanged(positionId, poolId, leg.posmTokenId, leg.liquidity);
+        emit IStaticsRangeGauge.ManagedLiquidityChanged(
+            positionId, poolId, leg.posmTokenId, LibLiquidityStatement.output(managed, receiver)
+        );
     }
 
     function collectNativeFees(
@@ -110,6 +124,9 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
             );
         _verifiedState(leg.manager, leg.posmTokenId, poolId, leg.tickLower, leg.tickUpper, leg.liquidity);
         movement = _outputMovement(managed);
+        emit IStaticsRangeGauge.ManagedLiquidityFeesCollected(
+            positionId, poolId, leg.posmTokenId, receiver, managed.received0, managed.received1
+        );
     }
 
     function rebalanceLiquidity(
@@ -135,7 +152,8 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
             result.newManager,
             result.state.tickLower,
             result.state.tickUpper,
-            result.state.liquidity
+            result.statement,
+            result.settlement
         );
     }
 
@@ -163,7 +181,20 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         LibNativeReceipt.clear();
         LibRangeGauge.unbindPosm(result.oldPosmTokenId, positionId, poolId);
 
-        (result.newManager, result.minted, result.state) = _mintReplacement(positionId, poolId, key, params, exited);
+        FundingAmounts memory funding;
+        funding = _mintReplacement(positionId, poolId, key, params, exited, result);
+        result.statement = LibLiquidityStatement.input(
+            result.minted, msg.sender, result.statement.receiver, funding.paid0, funding.paid1
+        );
+        result.statement.liquidityBefore = exited.liquidityBefore;
+        result.settlement = IStaticsRangeGauge.RebalanceSettlement({
+            withdrawn0: exited.received0,
+            withdrawn1: exited.received1,
+            mintSpent0: result.minted.spent0,
+            mintReceived0: result.minted.received0,
+            mintSpent1: result.minted.spent1,
+            mintReceived1: result.minted.received1
+        });
         LibRangeGauge.replacePositionRange(
             poolId,
             leg.tickLower,
@@ -188,38 +219,36 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         PoolId poolId,
         PoolKey memory key,
         IStaticsRangeGauge.RebalanceLiquidityParams calldata params,
-        IStaticsLiquidityManager.ManagedPositionMovement memory exited
-    )
-        private
-        returns (
-            address newManager,
-            IStaticsLiquidityManager.ManagedPositionMovement memory minted,
-            IStaticsLiquidityManager.ManagedPositionState memory state
-        )
-    {
-        newManager = _activeManager();
-        (uint256 amount0, uint256 amount1) = _fundRebalance(
+        IStaticsLiquidityManager.ManagedPositionMovement memory exited,
+        RebalanceResult memory result
+    ) private returns (FundingAmounts memory funding) {
+        result.newManager = _activeManager();
+        funding = _fundRebalance(
             key,
             msg.sender,
-            newManager,
+            result.newManager,
             exited.received0,
             exited.received1,
             params.amount0Maximum,
             params.amount1Maximum
         );
-        minted = IStaticsLiquidityManager(newManager)
-        .mintManagedPosition{value: Currency.unwrap(key.currency0) == address(0) ? amount0 : 0}(
+        // Capture the actual refund recipient before the manager can invoke callbacks.
+        result.statement.receiver = IERC721(address(this)).ownerOf(positionId);
+        result.minted = IStaticsLiquidityManager(result.newManager)
+        .mintManagedPosition{value: Currency.unwrap(key.currency0) == address(0) ? funding.amount0 : 0}(
             IStaticsLiquidityManager.PositionRequest({
                 poolKey: key,
                 tickLower: params.tickLower,
                 tickUpper: params.tickUpper,
                 liquidity: params.liquidity,
-                amount0Limit: amount0,
-                amount1Limit: amount1,
+                amount0Limit: funding.amount0,
+                amount1Limit: funding.amount1,
                 deadline: params.deadline
             }),
-            IERC721(address(this)).ownerOf(positionId)
+            result.statement.receiver
         );
-        state = _verifiedState(newManager, minted.tokenId, poolId, params.tickLower, params.tickUpper, params.liquidity);
+        result.state = _verifiedState(
+            result.newManager, result.minted.tokenId, poolId, params.tickLower, params.tickUpper, params.liquidity
+        );
     }
 }

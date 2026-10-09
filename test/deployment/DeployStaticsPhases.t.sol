@@ -28,6 +28,7 @@ import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol"
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
+import {IStaticsNonSwapRevenue} from "../../src/interfaces/IStaticsNonSwapRevenue.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGovernance} from "../../src/interfaces/IStaticsGovernance.sol";
 import {IStaticsMorpho} from "../../src/interfaces/IStaticsMorpho.sol";
@@ -93,10 +94,10 @@ contract StagedQuoterMock {
 }
 
 contract DeployStaticsPhasesTest is Test {
-    uint256 private constant PHASE_ONE_SELECTORS = 224;
-    uint256 private constant PHASE_TWO_SELECTORS = 316;
-    uint256 private constant PHASE_THREE_SELECTORS = 374;
-    uint256 private constant PHASE_FOUR_SELECTORS = 401;
+    uint256 private constant PHASE_ONE_SELECTORS = 226;
+    uint256 private constant PHASE_TWO_SELECTORS = 318;
+    uint256 private constant PHASE_THREE_SELECTORS = 376;
+    uint256 private constant PHASE_FOUR_SELECTORS = 403;
     bytes32 private constant PHASE_STORAGE_POSITION = keccak256("statics.storage.deployment.phases.v1");
 
     struct Fixture {
@@ -147,6 +148,8 @@ contract DeployStaticsPhasesTest is Test {
         (, bool managerInstalledAtPhaseOne) = IStaticsBasketLiquidity(diamond).liquidityManager();
         assertTrue(managerInstalledAtPhaseOne);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsRangeGauge).interfaceId));
+        assertTrue(IERC165(diamond).supportsInterface(type(IStaticsNonSwapRevenue).interfaceId));
+        assertEq(IStaticsNonSwapRevenue(diamond).nonSwapStakerShareBps(), 9_000);
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsRewardPolicy).interfaceId));
         assertTrue(IERC165(diamond).supportsInterface(type(IStaticsPermissionedPools).interfaceId));
 

@@ -129,16 +129,23 @@ contract GlobalRewardsFacet is ReentrancyGuard {
                 if (position.optedInIndexPlusOne[asset] == 0) {
                     LibPositionPortfolio.removeGlobalRewardAsset(positionId, asset);
                 }
-                amountsOut[i] = LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, amount);
-                emit IStaticsGlobalRewards.RewardClaimed(positionId, receiver, asset, amount);
             }
-            if (amount == 0) LibRewardPayout.pay(LibCustody.feeAccount(), asset, receiver, 0);
+            amountsOut[i] = _payClaim(positionId, asset, receiver, amount);
             if (amountsOut[i] < minAmountsOut[i]) {
                 revert MinimumOutputNotMet(asset, amountsOut[i], minAmountsOut[i]);
             }
         }
         if (!hasRewards) revert NoRewards(positionId);
         LibGlobalRewards.deactivateStakingLegIfEmpty(positionId);
+    }
+
+    function _payClaim(uint256 positionId, address asset, address receiver, uint256 amount)
+        private
+        returns (uint256 received)
+    {
+        uint256 debited;
+        (debited, received) = LibRewardPayout.payMeasured(LibCustody.feeAccount(), asset, receiver, amount);
+        if (amount != 0) emit IStaticsGlobalRewards.RewardClaimed(positionId, receiver, asset, debited, received);
     }
 
     function distributeTreasuryFees(address asset) external nonReentrant returns (uint256 amount) {

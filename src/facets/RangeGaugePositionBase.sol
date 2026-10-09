@@ -31,6 +31,13 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         uint256 payer1Before;
     }
 
+    struct FundingAmounts {
+        uint256 amount0;
+        uint256 amount1;
+        uint256 paid0;
+        uint256 paid1;
+    }
+
     function _storeNewLeg(
         uint256 positionId,
         PoolId poolId,
@@ -159,10 +166,12 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         address manager,
         uint256 amount0Maximum,
         uint256 amount1Maximum
-    ) internal returns (uint256 received0, uint256 received1) {
+    ) internal returns (FundingAmounts memory funding) {
         LibCurrency.enforceValue(Currency.unwrap(key.currency0), amount0Maximum);
-        received0 = _fundManagerToken(Currency.unwrap(key.currency0), payer, manager, amount0Maximum, 0);
-        received1 = _fundManagerToken(Currency.unwrap(key.currency1), payer, manager, amount1Maximum, 0);
+        (funding.amount0, funding.paid0) =
+            _fundManagerToken(Currency.unwrap(key.currency0), payer, manager, amount0Maximum, 0);
+        (funding.amount1, funding.paid1) =
+            _fundManagerToken(Currency.unwrap(key.currency1), payer, manager, amount1Maximum, 0);
     }
 
     function _fundRebalance(
@@ -173,26 +182,28 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         uint256 principal1,
         uint256 amount0Maximum,
         uint256 amount1Maximum
-    ) internal returns (uint256 received0, uint256 received1) {
+    ) internal returns (FundingAmounts memory funding) {
         LibCurrency.enforceValue(Currency.unwrap(key.currency0), amount0Maximum);
-        received0 = _fundManagerToken(Currency.unwrap(key.currency0), payer, manager, amount0Maximum, principal0);
-        received1 = _fundManagerToken(Currency.unwrap(key.currency1), payer, manager, amount1Maximum, principal1);
+        (funding.amount0, funding.paid0) =
+            _fundManagerToken(Currency.unwrap(key.currency0), payer, manager, amount0Maximum, principal0);
+        (funding.amount1, funding.paid1) =
+            _fundManagerToken(Currency.unwrap(key.currency1), payer, manager, amount1Maximum, principal1);
     }
 
     function _fundManagerToken(address asset, address payer, address manager, uint256 maximum, uint256 existing)
         internal
-        returns (uint256 received)
+        returns (uint256 received, uint256 paid)
     {
         if (asset == address(0)) {
             received = existing + maximum;
             LibCustody.beginUnreservedDebit(asset, received);
-            return received;
+            return (received, maximum);
         }
         uint256 payerBefore = IERC20(asset).balanceOf(payer);
         uint256 pulled = maximum == 0 ? 0 : LibCustody.pull(asset, payer, maximum);
-        _enforceInputDebit(asset, payerBefore, payer, maximum);
+        paid = _enforceInputDebit(asset, payerBefore, payer, maximum);
         uint256 amount = existing + pulled;
-        if (amount == 0) return 0;
+        if (amount == 0) return (0, paid);
         (uint256 spent, uint256 managerReceived) = LibCustody.pushUnreserved(asset, manager, amount, amount);
         if (spent != amount) revert IStaticsRangeGauge.ManagerAssetTransferMismatch(asset, amount, spent);
         received = managerReceived;
@@ -208,10 +219,14 @@ abstract contract RangeGaugePositionBase is ReentrancyGuard {
         _enforceInputDebit(balances.token1, balances.payer1Before, payer, amount1Maximum);
     }
 
-    function _enforceInputDebit(address asset, uint256 beforeBalance, address payer, uint256 maximum) internal view {
-        if (asset == address(0)) return; // Native input is the reconciled msg.value, not the payer's gas balance.
+    function _enforceInputDebit(address asset, uint256 beforeBalance, address payer, uint256 maximum)
+        internal
+        view
+        returns (uint256 debit)
+    {
+        if (asset == address(0)) return 0; // Native input is the reconciled msg.value, not the payer's gas balance.
         uint256 afterBalance = IERC20(asset).balanceOf(payer);
-        uint256 debit = beforeBalance > afterBalance ? beforeBalance - afterBalance : 0;
+        debit = beforeBalance > afterBalance ? beforeBalance - afterBalance : 0;
         if (debit > maximum) revert IStaticsRangeGauge.InputDebitExceedsMaximum(asset, debit, maximum);
     }
 

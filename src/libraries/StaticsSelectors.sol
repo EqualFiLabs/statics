@@ -13,6 +13,7 @@ import {IStaticsBasketCollateral} from "../interfaces/IStaticsBasketCollateral.s
 import {IStaticsBasketRewards} from "../interfaces/IStaticsBasketRewards.sol";
 import {IStaticsAggregatedBatchRewards} from "../interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsBatchRewards} from "../interfaces/IStaticsBatchRewards.sol";
+import {IStaticsNonSwapRevenue} from "../interfaces/IStaticsNonSwapRevenue.sol";
 import {IStaticsGlobalRewards} from "../interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGaugeIncentives} from "../interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsBasketLiquidity} from "../interfaces/IStaticsBasketLiquidity.sol";
@@ -178,7 +179,7 @@ library StaticsSelectors {
     }
 
     function governance() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](16);
+        selectors = new bytes4[](18);
         selectors[0] = IStaticsGovernance.guardian.selector;
         selectors[1] = IStaticsGovernance.pausedActions.selector;
         selectors[2] = IStaticsGovernance.isPaused.selector;
@@ -195,10 +196,12 @@ library StaticsSelectors {
         selectors[13] = IStaticsGovernance.protocolSwapsPaused.selector;
         selectors[14] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
         selectors[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        selectors[16] = IStaticsNonSwapRevenue.nonSwapStakerShareBps.selector;
+        selectors[17] = IStaticsNonSwapRevenue.setNonSwapStakerShareBps.selector;
     }
 
     function phaseOneGovernance() internal pure returns (bytes4[] memory selectors) {
-        selectors = new bytes4[](13);
+        selectors = new bytes4[](15);
         selectors[0] = IStaticsGovernance.guardian.selector;
         selectors[1] = IStaticsGovernance.pausedActions.selector;
         selectors[2] = IStaticsGovernance.isPaused.selector;
@@ -212,6 +215,8 @@ library StaticsSelectors {
         selectors[10] = IStaticsGovernance.protocolSwapsPaused.selector;
         selectors[11] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
         selectors[12] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        selectors[13] = IStaticsNonSwapRevenue.nonSwapStakerShareBps.selector;
+        selectors[14] = IStaticsNonSwapRevenue.setNonSwapStakerShareBps.selector;
     }
 
     function phaseTwoGovernance() internal pure returns (bytes4[] memory selectors) {
