@@ -65,7 +65,35 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
         (uint40 nextAllocationAt, uint256 totalAllocated) = LibGaugeRouting.setAllocations(
             positionId, poolIds, amounts, staked, LibRangeGauge.timestamp40(block.timestamp)
         );
-        emit IStaticsGaugeIncentives.PositionGaugeAllocationsSet(positionId, nextAllocationAt, totalAllocated);
+        _emitAllocations(positionId, nextAllocationAt, totalAllocated, poolIds, amounts);
+    }
+
+    /// @dev Standard ABI encoding of (totalAllocated, poolIds, amounts). The routing
+    /// library already checks equal lengths and the 16-pool bound. Encoding directly
+    /// avoids duplicating dynamic calldata encoders in this near-limit facet.
+    function _emitAllocations(
+        uint256 positionId,
+        uint40 nextAllocationAt,
+        uint256 totalAllocated,
+        PoolId[] calldata poolIds,
+        uint256[] calldata amounts
+    ) private {
+        bytes32 topic = IStaticsGaugeIncentives.PositionGaugeAllocationsSet.selector;
+        assembly ("memory-safe") {
+            let data := mload(0x40)
+            let arraySize := shl(5, poolIds.length)
+            let secondOffset := add(128, arraySize)
+            let size := add(160, shl(1, arraySize))
+            mstore(data, totalAllocated)
+            mstore(add(data, 32), 96)
+            mstore(add(data, 64), secondOffset)
+            mstore(add(data, 96), poolIds.length)
+            calldatacopy(add(data, 128), poolIds.offset, arraySize)
+            mstore(add(data, secondOffset), amounts.length)
+            calldatacopy(add(add(data, secondOffset), 32), amounts.offset, arraySize)
+            mstore(0x40, add(data, size))
+            log3(data, size, topic, positionId, and(nextAllocationAt, 0xffffffffff))
+        }
     }
 
     function checkpointGaugeSchedule(uint16 maxPeriods)
@@ -96,10 +124,9 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
         LibGaugeRouting.RoutingStorage storage routing = LibGaugeRouting.routingStorage();
         uint40 effectiveAt;
         if (routing.activated) {
-            LibGaugeRouting.checkpointSchedule(
-                LibRangeGauge.timestamp40(block.timestamp), LibGaugeRouting.MAX_CATCHUP_PERIODS
-            );
-            LibGaugeRouting.enforceScheduleCurrent(LibRangeGauge.timestamp40(block.timestamp));
+            uint40 currentTime = LibRangeGauge.timestamp40(block.timestamp);
+            LibGaugeRouting.checkpointSchedule(currentTime, LibGaugeRouting.MAX_CATCHUP_PERIODS);
+            LibGaugeRouting.enforceScheduleCurrent(currentTime);
             effectiveAt = routing.periodFinish;
             LibGaugeReserve.scheduleReleaseBps(releaseBps, effectiveAt);
         } else {
@@ -161,13 +188,16 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
     ) private returns (uint256[] memory received) {
         received = new uint256[](slots.length);
         uint256 seen;
-        for (uint256 i; i < slots.length; ++i) {
+        for (uint256 i; i < slots.length;) {
             uint8 slot = slots[i];
             _validateAllocatorSlot(context.poolId, slot);
             uint256 mask = 1 << slot;
             if (seen & mask != 0) revert IStaticsGaugeIncentives.DuplicateGaugeAllocatorSlot(slot);
             seen |= mask;
             received[i] = _claim(context, slot, minimumAmounts[i]);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -219,8 +249,9 @@ contract GaugeIncentiveFacet is ReentrancyGuard {
     }
 
     function _validateAllocatorSlot(PoolId poolId, uint8 slot) private view {
-        (, bool assigned) = LibRangeGauge.rewardAsset(poolId, slot);
-        if (slot == LibRangeGauge.STATICS_SLOT || !assigned) {
+        LibRangeGauge.PoolRewardConfig storage config = LibRangeGauge.rangeGaugeStorage().rewardConfig[poolId];
+        // Slot validation needs assignment, not an asset-array read.
+        if (slot == LibRangeGauge.STATICS_SLOT || !config.initialized || slot >= config.slotCount) {
             revert IStaticsGaugeIncentives.InvalidGaugeAllocatorSlot(poolId, slot);
         }
     }

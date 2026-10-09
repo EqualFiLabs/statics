@@ -18,7 +18,8 @@ import {LibDiamond} from "../../src/libraries/LibDiamond.sol";
 import {LibGlobalRewards} from "../../src/libraries/LibGlobalRewards.sol";
 import {LibPosition} from "../../src/position/LibPosition.sol";
 import {StaticsTestBase} from "../helpers/StaticsTestBase.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {MockERC20, MockOutboundFeeERC20} from "../mocks/MockERC20.sol";
 
 /// @dev Narrow test-only ingress for exercising the reward state machine. Production
 /// fee sources call the same internal routing function after exact-delta receipt.
@@ -57,6 +58,45 @@ contract FeeAccrualHarness {
 contract GlobalRewardsTest is StaticsTestBase {
     uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
     uint256 private constant PAUSE_STAKE = 1 << 7;
+
+    function testStatementGlobalClaimReportsActualLegacyTaxedReceipt() external {
+        FeeAccrualHarness harness = _installFeeAccrualHarness();
+        MockOutboundFeeERC20 token = new MockOutboundFeeERC20();
+        token.setTaxedSender(address(diamond));
+        address[] memory assets = _asset(address(token));
+        stakingAsset.mint(alice, 100 ether);
+        token.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        token.approve(address(diamond), 100 ether);
+        uint256 id = globalRewards.createAndStake(100 ether, alice, assets);
+        vm.stopPrank();
+        _warpEligible(id, address(token), alice);
+        vm.prank(alice);
+        harness.accrueNonSwapFee(address(token), 100 ether);
+        token.setTaxedSender(address(diamond));
+        vm.prank(alice);
+        IERC721(address(diamond)).approve(bob, id);
+        vm.recordLogs();
+        vm.prank(bob);
+        uint256[] memory result = globalRewards.claimRewards(id, assets, bob, new uint256[](1));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 count;
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter != address(diamond) || logs[i].topics[0] != IStaticsGlobalRewards.RewardClaimed.selector
+            ) continue;
+            ++count;
+            (uint256 debited, uint256 received) = abi.decode(logs[i].data, (uint256, uint256));
+            assertEq(uint256(logs[i].topics[1]), id);
+            assertEq(address(uint160(uint256(logs[i].topics[2]))), bob);
+            assertEq(debited, 90 ether);
+            assertEq(received, 89.1 ether);
+            assertEq(received, result[0]);
+            assertEq(received, token.balanceOf(bob));
+        }
+        assertEq(count, 1);
+    }
 
     function testNonSwapShareDefaultsAndRequiresOwner() external {
         assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), 9_000);

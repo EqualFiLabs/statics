@@ -21,6 +21,7 @@ import {LibGaugeRouting} from "../libraries/LibGaugeRouting.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 import {LibRangeGauge} from "../libraries/LibRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibLiquidityStatement} from "../libraries/LibLiquidityStatement.sol";
 
 /// @notice Exit, claim, forfeiture, recovery, and final reconciliation for public range gauges.
 contract RangeGaugeLivenessFacet is ReentrancyGuard {
@@ -82,7 +83,9 @@ contract RangeGaugeLivenessFacet is ReentrancyGuard {
             spent1: 0,
             received1: managed.received1
         });
-        emit IStaticsRangeGauge.ManagedLiquidityExited(positionId, poolId, posmTokenId);
+        emit IStaticsRangeGauge.ManagedLiquidityExited(
+            positionId, poolId, posmTokenId, LibLiquidityStatement.output(managed, receiver)
+        );
     }
 
     function claimLpRewards(

@@ -69,7 +69,11 @@ interface IStaticsGaugeIncentives {
     event GaugeReleaseBpsScheduled(uint16 releaseBps, uint40 indexed effectiveAt);
     event GaugeAllocationCooldownSet(uint40 cooldown);
     event PositionGaugeAllocationsSet(
-        uint256 indexed positionId, uint40 indexed nextAllocationAt, uint256 totalAllocated
+        uint256 indexed positionId,
+        uint40 indexed nextAllocationAt,
+        uint256 totalAllocated,
+        PoolId[] poolIds,
+        uint256[] amounts
     );
     event PositionGaugeAllocationCooldownExtended(uint256 indexed positionId, uint40 indexed nextAllocationAt);
     event PositionGaugeAllocationsClearedByStakeLoss(uint256 indexed positionId, uint256 remainingStake);

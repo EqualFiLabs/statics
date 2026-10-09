@@ -48,6 +48,29 @@ interface IStaticsRangeGauge {
         uint256 received1;
     }
 
+    /// @notice Actual funding debits and recipient credits, excluding internally recycled proceeds.
+    /// @dev Native payments use validated msg.value; output-only actions have a zero payer.
+    struct LiquidityStatementMovement {
+        uint128 liquidityBefore;
+        uint128 liquidityAfter;
+        address payer;
+        address receiver;
+        uint256 paid0;
+        uint256 received0;
+        uint256 paid1;
+        uint256 received1;
+    }
+
+    /// @notice Internal old-position withdrawal and replacement-mint settlement before refunds.
+    struct RebalanceSettlement {
+        uint256 withdrawn0;
+        uint256 withdrawn1;
+        uint256 mintSpent0;
+        uint256 mintReceived0;
+        uint256 mintSpent1;
+        uint256 mintReceived1;
+    }
+
     struct PoolRewardConfigView {
         bool initialized;
         uint8 slotCount;
@@ -133,7 +156,7 @@ interface IStaticsRangeGauge {
         address manager,
         int24 tickLower,
         int24 tickUpper,
-        uint128 liquidity
+        LiquidityStatementMovement movement
     );
     event ManagedLiquidityAttached(
         uint256 indexed positionId,
@@ -145,7 +168,10 @@ interface IStaticsRangeGauge {
         uint128 liquidity
     );
     event ManagedLiquidityChanged(
-        uint256 indexed positionId, PoolId indexed poolId, uint256 indexed posmTokenId, uint128 liquidity
+        uint256 indexed positionId,
+        PoolId indexed poolId,
+        uint256 indexed posmTokenId,
+        LiquidityStatementMovement movement
     );
     event ManagedLiquidityRebalanced(
         uint256 indexed positionId,
@@ -155,9 +181,23 @@ interface IStaticsRangeGauge {
         address manager,
         int24 tickLower,
         int24 tickUpper,
-        uint128 liquidity
+        LiquidityStatementMovement movement,
+        RebalanceSettlement settlement
     );
-    event ManagedLiquidityExited(uint256 indexed positionId, PoolId indexed poolId, uint256 indexed posmTokenId);
+    event ManagedLiquidityExited(
+        uint256 indexed positionId,
+        PoolId indexed poolId,
+        uint256 indexed posmTokenId,
+        LiquidityStatementMovement movement
+    );
+    event ManagedLiquidityFeesCollected(
+        uint256 indexed positionId,
+        PoolId indexed poolId,
+        uint256 indexed posmTokenId,
+        address receiver,
+        uint256 amount0,
+        uint256 amount1
+    );
     event LpRewardsClaimed(
         uint256 indexed positionId,
         PoolId indexed poolId,

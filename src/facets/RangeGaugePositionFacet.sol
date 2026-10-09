@@ -8,6 +8,7 @@ import {RangeGaugePositionBase} from "./RangeGaugePositionBase.sol";
 import {IStaticsLiquidityManager} from "../interfaces/IStaticsLiquidityManager.sol";
 import {IStaticsRangeGauge} from "../interfaces/IStaticsRangeGauge.sol";
 import {LibPosition} from "../position/LibPosition.sol";
+import {LibLiquidityStatement} from "../libraries/LibLiquidityStatement.sol";
 
 /// @notice PNFT-authorized ingress for managed public Uniswap v4 positions.
 contract RangeGaugePositionFacet is RangeGaugePositionBase {
@@ -23,7 +24,7 @@ contract RangeGaugePositionFacet is RangeGaugePositionBase {
         _enforceNoLeg(positionId, params.poolId);
         address manager = _activeManager();
         InputBalances memory balances = _inputBalances(key, msg.sender);
-        (uint256 amount0, uint256 amount1) =
+        FundingAmounts memory funding =
             _fundManager(key, msg.sender, manager, params.amount0Maximum, params.amount1Maximum);
         IStaticsLiquidityManager.ManagedPositionMovement memory managed = IStaticsLiquidityManager(manager)
         .mintManagedPosition{value: msg.value}(
@@ -32,8 +33,8 @@ contract RangeGaugePositionFacet is RangeGaugePositionBase {
                 tickLower: params.tickLower,
                 tickUpper: params.tickUpper,
                 liquidity: params.liquidity,
-                amount0Limit: amount0,
-                amount1Limit: amount1,
+                amount0Limit: funding.amount0,
+                amount1Limit: funding.amount1,
                 deadline: params.deadline
             }),
             msg.sender
@@ -46,7 +47,13 @@ contract RangeGaugePositionFacet is RangeGaugePositionBase {
         _enforceInputDebits(balances, msg.sender, params.amount0Maximum, params.amount1Maximum);
         movement = _inputMovement(managed);
         emit IStaticsRangeGauge.ManagedLiquidityProvided(
-            positionId, params.poolId, managed.tokenId, manager, state.tickLower, state.tickUpper, state.liquidity
+            positionId,
+            params.poolId,
+            managed.tokenId,
+            manager,
+            state.tickLower,
+            state.tickUpper,
+            LibLiquidityStatement.input(managed, msg.sender, msg.sender, funding.paid0, funding.paid1)
         );
     }
 

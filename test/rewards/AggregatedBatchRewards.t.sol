@@ -314,11 +314,11 @@ contract AggregatedBatchRewardsTest is BatchRewardsLifecycleTest {
     }
 
     function test_AggregatedRewardFacetsRetainEip170Headroom() public {
+        emit log_named_uint("GaugeIncentiveFacet runtime bytes", type(GaugeIncentiveFacet).runtimeCode.length);
         assertLe(type(GaugeIncentiveFacet).runtimeCode.length, 24_576);
         assertLe(type(GlobalRewardsFacet).runtimeCode.length, 24_576);
         assertLe(type(RangeGaugeLivenessFacet).runtimeCode.length, 24_576);
         assertLe(type(BatchRewardsFacet).runtimeCode.length, 24_576);
-        emit log_named_uint("GaugeIncentiveFacet runtime bytes", type(GaugeIncentiveFacet).runtimeCode.length);
         emit log_named_uint("GlobalRewardsFacet runtime bytes", type(GlobalRewardsFacet).runtimeCode.length);
         emit log_named_uint("RangeGaugeLivenessFacet runtime bytes", type(RangeGaugeLivenessFacet).runtimeCode.length);
         emit log_named_uint("BatchRewardsFacet runtime bytes", type(BatchRewardsFacet).runtimeCode.length);
