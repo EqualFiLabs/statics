@@ -9,6 +9,18 @@ import {BatchRewardsFlowTestBase} from "../helpers/BatchRewardsFlowTestBase.sol"
 /// @dev ABI-neutral baseline/candidate benchmark: includes only the external action,
 /// not pool/NFT fixture construction. Run with the repository's unchanged profile.
 contract PositionStatementGasTest is BatchRewardsFlowTestBase {
+    function testGasOrdinaryLpClaim() public {
+        PoolId pool = _createRangeGaugePool(alice);
+        uint256 id = _createPosition(alice);
+        _provide(id, pool, alice);
+        _fundReward(pool, assetA, 100 ether);
+        vm.warp(block.timestamp + 1 days);
+        uint256 beforeGas = gasleft();
+        uint256 received = _claim(id, pool, address(assetA), 0, alice, alice);
+        emit log_named_uint("statement ordinary LP claim gas", beforeGas - gasleft());
+        assertGt(received, 0);
+    }
+
     function testGasManagedLiquidityActions() public {
         PoolId pool = _createRangeGaugePool(alice);
         uint256 id = _createPosition(alice);

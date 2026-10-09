@@ -67,14 +67,15 @@ entries. Mixed claims contain six groups and ten entries, with settlement.
 
 | Operation | Baseline gas | Candidate gas | Increase |
 |---|---:|---:|---:|
-| Provision including fixture | 1,607,415 | 1,610,178 | 2,763 |
+| Provision including fixture | 1,607,613 | 1,610,376 | 2,763 |
 | Increase | 679,373 | 682,431 | 3,058 |
 | Decrease | 475,168 | 477,721 | 2,553 |
 | Zero fee collection | 246,333 | 249,256 | 2,923 |
-| Rebalance | 1,177,098 | 1,184,243 | 7,145 |
+| Rebalance | 1,177,098 | 1,182,174 | 5,076 |
 | Exit | 526,005 | 528,884 | 2,879 |
-| Allocate sixteen | 3,817,555 | 3,827,319 | 9,764 |
-| Replace sixteen with one | 1,457,356 | 1,459,111 | 1,755 |
+| Allocate sixteen | 3,817,595 | 3,827,359 | 9,764 |
+| Replace sixteen with one | 1,457,396 | 1,459,151 | 1,755 |
+| Ordinary LP claim | 381,681 | 381,681 | 0 |
 | Mixed legacy batch | 3,231,006 | 3,231,620 | 614 |
 | Mixed aggregated batch | 3,154,660 | 3,156,070 | 1,410 |
 
