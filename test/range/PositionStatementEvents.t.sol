@@ -25,6 +25,29 @@ contract StatementAllocationWallet {
     }
 }
 
+contract StatementRefundOwner {
+    IERC721 private immutable nft;
+    uint256 private positionId;
+    address private nextOwner;
+
+    constructor(IERC721 nft_) {
+        nft = nft_;
+    }
+
+    function transferOnRefund(uint256 id, address recipient) external {
+        positionId = id;
+        nextOwner = recipient;
+    }
+
+    receive() external payable {
+        if (nextOwner != address(0)) {
+            address recipient = nextOwner;
+            nextOwner = address(0);
+            nft.transferFrom(address(this), recipient, positionId);
+        }
+    }
+}
+
 /// @notice Statement events are checked against real v4 transfers and managed NFT operations.
 contract PositionStatementEventsTest is BatchRewardsFlowTestBase {
     function _event(bytes32 topic) private returns (Vm.Log memory found) {
@@ -222,6 +245,42 @@ contract PositionStatementEventsTest is BatchRewardsFlowTestBase {
         );
         assertEq(movement.paid0, TOKEN_MAXIMUM);
         assertEq(movement.paid0 - movement.received0, result.spent0);
+    }
+
+    function testNativeRebalanceRecordsRecipientBeforeRefundTransfersNft() public {
+        PoolId pool = _createRangeGaugePool(alice, address(0), address(assetA));
+        uint256 id = _createPosition(alice);
+        _provide(id, pool, alice);
+        StatementRefundOwner recipient = new StatementRefundOwner(IERC721(address(diamond)));
+        vm.startPrank(alice);
+        IERC721(address(diamond)).transferFrom(alice, address(recipient), id);
+        vm.stopPrank();
+        vm.prank(address(recipient));
+        IERC721(address(diamond)).approve(alice, id);
+        recipient.transferOnRefund(id, bob);
+        uint256 beforeBalance = address(recipient).balance;
+        vm.recordLogs();
+        vm.prank(alice);
+        rangeGauge.rebalanceLiquidity(
+            id,
+            pool,
+            IStaticsRangeGauge.RebalanceLiquidityParams(-100, 100, 1 ether, 0, 0, 0, 0, block.timestamp + 1 hours)
+        );
+        (,,,, IStaticsRangeGauge.LiquidityStatementMovement memory movement,) = abi.decode(
+            _event(IStaticsRangeGauge.ManagedLiquidityRebalanced.selector).data,
+            (
+                uint256,
+                address,
+                int24,
+                int24,
+                IStaticsRangeGauge.LiquidityStatementMovement,
+                IStaticsRangeGauge.RebalanceSettlement
+            )
+        );
+        assertEq(IERC721(address(diamond)).ownerOf(id), bob);
+        assertEq(movement.receiver, address(recipient));
+        assertGt(movement.received0, 0);
+        assertEq(address(recipient).balance - beforeBalance, movement.received0);
     }
 
     function testAllocationEventCarriesExactReplacementOrder() public {

@@ -182,10 +182,9 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         LibRangeGauge.unbindPosm(result.oldPosmTokenId, positionId, poolId);
 
         FundingAmounts memory funding;
-        (result.newManager, result.minted, result.state, funding) =
-            _mintReplacement(positionId, poolId, key, params, exited);
+        funding = _mintReplacement(positionId, poolId, key, params, exited, result);
         result.statement = LibLiquidityStatement.input(
-            result.minted, msg.sender, IERC721(address(this)).ownerOf(positionId), funding.paid0, funding.paid1
+            result.minted, msg.sender, result.statement.receiver, funding.paid0, funding.paid1
         );
         result.statement.liquidityBefore = exited.liquidityBefore;
         result.settlement = IStaticsRangeGauge.RebalanceSettlement({
@@ -220,27 +219,22 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
         PoolId poolId,
         PoolKey memory key,
         IStaticsRangeGauge.RebalanceLiquidityParams calldata params,
-        IStaticsLiquidityManager.ManagedPositionMovement memory exited
-    )
-        private
-        returns (
-            address newManager,
-            IStaticsLiquidityManager.ManagedPositionMovement memory minted,
-            IStaticsLiquidityManager.ManagedPositionState memory state,
-            FundingAmounts memory funding
-        )
-    {
-        newManager = _activeManager();
+        IStaticsLiquidityManager.ManagedPositionMovement memory exited,
+        RebalanceResult memory result
+    ) private returns (FundingAmounts memory funding) {
+        result.newManager = _activeManager();
         funding = _fundRebalance(
             key,
             msg.sender,
-            newManager,
+            result.newManager,
             exited.received0,
             exited.received1,
             params.amount0Maximum,
             params.amount1Maximum
         );
-        minted = IStaticsLiquidityManager(newManager)
+        // Capture the actual refund recipient before the manager can invoke callbacks.
+        result.statement.receiver = IERC721(address(this)).ownerOf(positionId);
+        result.minted = IStaticsLiquidityManager(result.newManager)
         .mintManagedPosition{value: Currency.unwrap(key.currency0) == address(0) ? funding.amount0 : 0}(
             IStaticsLiquidityManager.PositionRequest({
                 poolKey: key,
@@ -251,8 +245,10 @@ contract RangeGaugePositionManagementFacet is RangeGaugePositionBase {
                 amount1Limit: funding.amount1,
                 deadline: params.deadline
             }),
-            IERC721(address(this)).ownerOf(positionId)
+            result.statement.receiver
         );
-        state = _verifiedState(newManager, minted.tokenId, poolId, params.tickLower, params.tickUpper, params.liquidity);
+        result.state = _verifiedState(
+            result.newManager, result.minted.tokenId, poolId, params.tickLower, params.tickUpper, params.liquidity
+        );
     }
 }
