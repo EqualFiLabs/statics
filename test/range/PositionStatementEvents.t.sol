@@ -4,6 +4,7 @@ pragma solidity 0.8.33;
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
@@ -48,8 +49,45 @@ contract StatementRefundOwner {
     }
 }
 
+contract StatementMintOwner is IERC721Receiver {
+    address private immutable nextOwner;
+
+    constructor(address nextOwner_) {
+        nextOwner = nextOwner_;
+    }
+
+    function onERC721Received(address, address, uint256 id, bytes calldata) external returns (bytes4) {
+        IERC721(msg.sender).transferFrom(address(this), nextOwner, id);
+        return IERC721Receiver.onERC721Received.selector;
+    }
+}
+
 /// @notice Statement events are checked against real v4 transfers and managed NFT operations.
 contract PositionStatementEventsTest is BatchRewardsFlowTestBase {
+    function testCreationEventRetainsMintRecipientAfterCallbackTransfer() public {
+        StatementMintOwner recipient = new StatementMintOwner(bob);
+        vm.recordLogs();
+        uint256 id = _createPosition(address(recipient));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 mintIndex = type(uint256).max;
+        uint256 transferIndex = type(uint256).max;
+        uint256 createdIndex = type(uint256).max;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter != address(diamond)) continue;
+            if (logs[i].topics[0] == keccak256("Transfer(address,address,uint256)")) {
+                if (logs[i].topics[1] == bytes32(0)) mintIndex = i;
+                else transferIndex = i;
+            }
+            if (logs[i].topics[0] == keccak256("PositionCreated(uint256,address)")) {
+                createdIndex = i;
+                assertEq(address(uint160(uint256(logs[i].topics[2]))), address(recipient));
+            }
+        }
+        assertLt(mintIndex, transferIndex);
+        assertLt(transferIndex, createdIndex);
+        assertEq(IERC721(address(diamond)).ownerOf(id), bob);
+    }
+
     function _event(bytes32 topic) private returns (Vm.Log memory found) {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 count;
