@@ -4,17 +4,28 @@ pragma solidity 0.8.33;
 import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IStaticsGovernance} from "../interfaces/IStaticsGovernance.sol";
 import {IStaticsBasket} from "../interfaces/IStaticsBasket.sol";
+import {IStaticsNonSwapRevenue} from "../interfaces/IStaticsNonSwapRevenue.sol";
+import {LibGlobalRewards} from "../libraries/LibGlobalRewards.sol";
 import {LibBasket} from "../libraries/LibBasket.sol";
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibGovernance} from "../libraries/LibGovernance.sol";
 import {LibProtocolPools} from "../libraries/LibProtocolPools.sol";
 
-contract GovernanceFacet is IStaticsGovernance {
+contract GovernanceFacet is IStaticsGovernance, IStaticsNonSwapRevenue {
     error InvalidActions(uint256 actions);
     error NotGuardianOrOwner(address caller);
     error NotGuardian(address caller);
     error BasketNotFound(uint256 basketId);
     error InvalidBasketStatus(uint256 basketId, IStaticsBasket.BasketStatus status);
+
+    function nonSwapStakerShareBps() external view returns (uint16) {
+        return LibGlobalRewards.nonSwapStakerShareBps();
+    }
+
+    function setNonSwapStakerShareBps(uint16 shareBps) external {
+        LibDiamond.enforceIsContractOwner();
+        LibGlobalRewards.setNonSwapStakerShareBps(shareBps);
+    }
 
     function guardian() external view returns (address) {
         return LibGovernance.governanceStorage().guardian;

@@ -10,6 +10,7 @@ import {IStaticsBorrowLiquidity} from "../../src/interfaces/IStaticsBorrowLiquid
 import {IStaticsCustody} from "../../src/interfaces/IStaticsCustody.sol";
 import {IStaticsAggregatedBatchRewards} from "../../src/interfaces/IStaticsAggregatedBatchRewards.sol";
 import {IStaticsBatchRewards} from "../../src/interfaces/IStaticsBatchRewards.sol";
+import {IStaticsNonSwapRevenue} from "../../src/interfaces/IStaticsNonSwapRevenue.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsGaugeIncentives} from "../../src/interfaces/IStaticsGaugeIncentives.sol";
 import {IStaticsFlashLoan} from "../../src/interfaces/IStaticsFlashLoan.sol";
@@ -49,7 +50,7 @@ contract SelectorManifestTest is Test {
     }
 
     function testPhaseOneSelectorSubsetsAreExactAndCollisionFree() public pure {
-        bytes4[] memory governance = new bytes4[](13);
+        bytes4[] memory governance = new bytes4[](15);
         governance[0] = IStaticsGovernance.guardian.selector;
         governance[1] = IStaticsGovernance.pausedActions.selector;
         governance[2] = IStaticsGovernance.isPaused.selector;
@@ -63,6 +64,8 @@ contract SelectorManifestTest is Test {
         governance[10] = IStaticsGovernance.protocolSwapsPaused.selector;
         governance[11] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
         governance[12] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        governance[13] = IStaticsNonSwapRevenue.nonSwapStakerShareBps.selector;
+        governance[14] = IStaticsNonSwapRevenue.setNonSwapStakerShareBps.selector;
         _assertExact(StaticsSelectors.phaseOneGovernance(), governance);
 
         bytes4[] memory custody = new bytes4[](7);
@@ -296,7 +299,7 @@ contract SelectorManifestTest is Test {
 
     function testGovernanceSelectorManifestIsExactAndCollisionFree() public pure {
         bytes4[] memory actual = StaticsSelectors.governance();
-        bytes4[] memory expected = new bytes4[](16);
+        bytes4[] memory expected = new bytes4[](18);
         expected[0] = IStaticsGovernance.guardian.selector;
         expected[1] = IStaticsGovernance.pausedActions.selector;
         expected[2] = IStaticsGovernance.isPaused.selector;
@@ -313,6 +316,8 @@ contract SelectorManifestTest is Test {
         expected[13] = IStaticsGovernance.protocolSwapsPaused.selector;
         expected[14] = IStaticsGovernance.isProtocolPoolQuarantined.selector;
         expected[15] = IStaticsGovernance.protocolPoolSwapsBlocked.selector;
+        expected[16] = IStaticsNonSwapRevenue.nonSwapStakerShareBps.selector;
+        expected[17] = IStaticsNonSwapRevenue.setNonSwapStakerShareBps.selector;
         _assertExact(actual, expected);
     }
 

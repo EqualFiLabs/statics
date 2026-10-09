@@ -5,6 +5,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
+import {StaticsTimelock} from "../../src/governance/StaticsTimelock.sol";
+import {IERC173} from "../../src/interfaces/IERC173.sol";
+import {GovernanceFacet} from "../../src/facets/GovernanceFacet.sol";
+import {IStaticsNonSwapRevenue} from "../../src/interfaces/IStaticsNonSwapRevenue.sol";
 import {IStaticsGlobalRewards} from "../../src/interfaces/IStaticsGlobalRewards.sol";
 import {IStaticsPosition} from "../../src/interfaces/IStaticsPosition.sol";
 import {IStaticsPositionMarket} from "../../src/interfaces/IStaticsPositionMarket.sol";
@@ -53,6 +57,98 @@ contract FeeAccrualHarness {
 contract GlobalRewardsTest is StaticsTestBase {
     uint256 private constant MAX_TRANSACTION_GAS = 16_000_000;
     uint256 private constant PAUSE_STAKE = 1 << 7;
+
+    function testNonSwapShareDefaultsAndRequiresOwner() external {
+        assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), 9_000);
+        vm.prank(alice);
+        vm.expectRevert();
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(6_000);
+        vm.expectRevert(abi.encodeWithSelector(LibGlobalRewards.InvalidNonSwapStakerShareBps.selector, 10_001));
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(10_001);
+        assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), 9_000);
+        vm.expectEmit(false, false, false, true, address(diamond));
+        emit IStaticsNonSwapRevenue.NonSwapStakerShareBpsSet(9_000, 6_000);
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(6_000);
+        assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), 6_000);
+    }
+
+    function testTimelockCanConfigureNonSwapShare() external {
+        address[] memory members = new address[](1);
+        members[0] = address(this);
+        StaticsTimelock timelock = new StaticsTimelock(members, members, members, address(this));
+        IERC173(address(diamond)).transferOwnership(address(timelock));
+        bytes memory data = abi.encodeCall(IStaticsNonSwapRevenue.setNonSwapStakerShareBps, (0));
+        bytes32 salt = keccak256("non-swap-share");
+        timelock.schedule(address(diamond), 0, data, bytes32(0), salt, timelock.getMinDelay());
+        vm.warp(block.timestamp + timelock.getMinDelay());
+        timelock.execute(address(diamond), 0, data, bytes32(0), salt);
+        assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), 0);
+    }
+
+    function testRevenueFacetsRemainDeployable() external pure {
+        assertLe(type(GlobalRewardsFacet).runtimeCode.length, 24_576);
+        assertLe(type(GovernanceFacet).runtimeCode.length, 24_576);
+    }
+
+    function testConfiguredFullShareWithoutEligibleStakeStillRoutesToTreasury() external {
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(10_000);
+        _createDefaultBasket(0.1 ether, 0);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
+    }
+
+    function testConfiguredNonSwapShareUsesRealBasketFees() external {
+        _checkConfiguredBasketFees(6_000);
+    }
+
+    function testZeroNonSwapShareRoutesRealBasketFeesToTreasury() external {
+        _checkConfiguredBasketFees(0);
+    }
+
+    function testFullNonSwapShareStillRoutesUnselectedAssetsToTreasury() external {
+        _checkConfiguredBasketFees(10_000);
+    }
+
+    function testNonSwapShareRoundingRemainsInTreasury() external {
+        _checkConfiguredBasketFees(3_333);
+    }
+
+    function _checkConfiguredBasketFees(uint16 share) private {
+        address[] memory selected = _asset(address(assetA));
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 id = globalRewards.createAndStake(100 ether, alice, selected);
+        vm.stopPrank();
+        _warpEligible(id, address(assetA), alice);
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(share);
+        _createDefaultBasket(0.1 ether, 0);
+        uint256 expected = Math.mulDiv(0.2 ether, share, 10_000);
+        assertEq(globalRewards.pendingRewards(id, selected)[0], expected);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.2 ether - expected);
+        assertEq(globalRewards.treasuryAccrued(address(assetB)), 0.5 ether);
+        assertEq(IStaticsNonSwapRevenue(address(diamond)).nonSwapStakerShareBps(), share);
+    }
+
+    function testNonSwapShareChangeDoesNotReclassifyAccruedRewards() external {
+        address[] memory selected = _asset(address(assetA));
+        stakingAsset.mint(alice, 100 ether);
+        vm.startPrank(alice);
+        stakingAsset.approve(address(diamond), 100 ether);
+        uint256 id = globalRewards.createAndStake(100 ether, alice, selected);
+        vm.stopPrank();
+        _warpEligible(id, address(assetA), alice);
+        (uint256 basketId,) = _createDefaultBasket(0.1 ether, 0);
+        assertEq(globalRewards.pendingRewards(id, selected)[0], 0.18 ether);
+        IStaticsNonSwapRevenue(address(diamond)).setNonSwapStakerShareBps(6_000);
+        assertEq(globalRewards.pendingRewards(id, selected)[0], 0.18 ether);
+        uint256[] memory quote = baskets.quoteMint(basketId, 10 ether);
+        _fundAndApprove(bob, quote[0], quote[1]);
+        vm.prank(bob);
+        baskets.mint(basketId, 10 ether, bob, quote);
+        assertEq(globalRewards.pendingRewards(id, selected)[0], 0.3 ether);
+        assertEq(globalRewards.treasuryAccrued(address(assetA)), 0.1 ether);
+    }
 
     function testFinancialViewsArePublicAndControlFollowsPositionTransfer() external {
         address[] memory selectedAssets = _assets(address(assetA), address(assetB));
