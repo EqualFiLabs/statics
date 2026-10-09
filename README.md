@@ -326,14 +326,14 @@ release evidence for an already completed launch.
 
 The staged production entry point is
 `script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne`. It deploys one
-`StaticsTimelock`, the 30-facet and 210-selector `StaticsDiamond`, separate permissionless and
+`StaticsTimelock`, the 32-facet and 226-selector `StaticsDiamond`, separate public and
 permissioned swap hooks, and a default venue-controller factory. It hard-codes the general-pool
 creation fee to zero, retaining owner-only curated public creation, while
 accepting the PositionNFT fee as a deployment input. The exact-0.8.26
 permissioned router, non-transferable position manager, and owner-claims
 companion are deployed separately before both hooks and all trusted periphery
-are installed with the public liquidity manager and POL operator configuration in one nine-call timelocked
-ceremony.
+are installed with the public liquidity manager and POL operator configuration in one nine-call
+governance Safe batch. The Safe creates the initial pools and then transfers ownership to the timelock.
 
 Phase 1 includes arbitrary Statics-hooked ERC-20 pairs, protocol fee routing,
 custody-constrained managed POL portfolios, PositionNFT accounts, and global STATICS staking with
@@ -603,21 +603,41 @@ forge script \
 No transaction is performed by this repository change. Simulate and inspect
 each exact deployment before any separately authorized broadcast.
 
-After deployment, prepare the single timelock scheduling call for the nine-call
-Phase 1 liquidity configuration without signing or broadcasting a Safe
-transaction:
+After the permissioned periphery is deployed, set `STATICS_TIMELOCK_ADDRESS`
+to the address emitted by the Phase 1 deployment. Prepare the nine direct Diamond
+calls for a governance Safe batch. The Safe owns the Phase 1 Diamond during
+launch; the timelock does not delay these calls:
 
 ```shell
 forge script \
   script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
-  --sig "runPrepare()" \
+  --sig "runPrepareBootstrap()" \
   --rpc-url "$ROBINHOOD_MAINNET" \
   -vv
 ```
 
-Submit the returned timelock scheduling calldata through the governance Safe.
-After the delay, any address may call `runExecute()` because execution is open.
-The ceremony refuses a mismatched Diamond runtime, selector manifest,
+Execute the nine calls in order from the configured governance Safe. Then use
+that Safe to create and verify every initial public and permissioned pool, and
+complete any other owner-only launch setup before handing over ownership. Do
+not transfer ownership while a launch action remains outstanding: later
+owner-only calls require the production timelock delay.
+
+Set `STATICS_LAUNCH_PUBLIC_POOL_IDS` to a comma-separated list of the public
+PoolIds actually created. If initial permissioned pools exist, set
+`STATICS_LAUNCH_PERMISSIONED_POOL_IDS` likewise. Prepare the final Safe call:
+
+```shell
+forge script \
+  script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
+  --sig "runPrepareHandoff()" \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  -vv
+```
+
+The handoff preparation verifies the installed configuration, timelock roles,
+delay, and every listed launch pool before returning the Safe's
+`transferOwnership(timelock)` call. Execute it from the Safe and verify the
+Diamond owner is the timelock. Preparation refuses a mismatched Diamond runtime, selector manifest,
 selector-to-facet route, compiled facet runtime, active deployment phase,
 initialized guardian, treasury, staking token, fee, reserve-release setting,
 ERC-165 interface set, dependency runtime, immutable binding, hook flag, or

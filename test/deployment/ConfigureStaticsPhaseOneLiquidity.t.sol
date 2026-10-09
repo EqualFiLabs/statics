@@ -2,6 +2,8 @@
 pragma solidity 0.8.33;
 
 import {Test} from "forge-std/Test.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 
 import {
     ConfigureStaticsPhaseOneLiquidity,
@@ -182,6 +184,77 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         vm.warp(block.timestamp + delay);
         ceremony.execute(deployment.diamond, config, salt);
         _assertInstalled(deployment, address(poolManager), polOperator);
+    }
+
+    function testSafeBootstrapInstallsImmediatelyAndHandsOffAfterLaunchPools() public {
+        ConfigureStaticsPhaseOneLiquidity ceremony = new ConfigureStaticsPhaseOneLiquidity();
+        IPoolManager poolManager =
+            IPoolManager(deployCode("out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
+        address safe = makeAddr("governanceSafe");
+        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) =
+            _deployBootstrapPhaseOne(safe, address(poolManager));
+        address polOperator = makeAddr("polOperator");
+        StaticsPhaseOneLiquidityConfig memory config = _config(deployment, address(poolManager), polOperator, safe);
+        assertEq(IERC173(deployment.diamond).owner(), safe);
+
+        {
+            (address[] memory targets, uint256[] memory values, bytes[] memory payloads) =
+                ceremony.prepareBootstrap(deployment.diamond, address(timelock), config);
+            for (uint256 i; i < targets.length; ++i) {
+                vm.prank(safe);
+                (bool success,) = targets[i].call{value: values[i]}(payloads[i]);
+                assertTrue(success);
+            }
+        }
+        _assertInstalled(deployment, address(poolManager), polOperator);
+
+        bytes32[] memory noPools = new bytes32[](0);
+        vm.expectRevert(ConfigureStaticsPhaseOneLiquidity.MissingLaunchPools.selector);
+        ceremony.prepareHandoff(deployment.diamond, address(timelock), config, noPools, noPools);
+
+        bytes32[] memory publicIds = new bytes32[](1);
+        publicIds[0] = keccak256("missing launch pool");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.LaunchPoolMissing.selector, PoolId.wrap(publicIds[0])
+            )
+        );
+        ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
+
+        {
+            MockERC20 tokenA = new MockERC20("Asset A", "A", 18);
+            MockERC20 tokenB = new MockERC20("Asset B", "B", 18);
+            IStaticsProtocolPools.CreatePoolParams memory params = IStaticsProtocolPools.CreatePoolParams({
+                tokenA: address(tokenA),
+                tokenB: address(tokenB),
+                lpFee: 3_000,
+                tickSpacing: 10,
+                sqrtPriceBPerAX96: 1 << 96,
+                initialFeeRate: IStaticsProtocolPools.PoolSwapFeeRate({inputFeeBps: 25, outputFeeBps: 25}),
+                creator: safe,
+                activateManagedPol: false,
+                nonce: 1,
+                deadline: block.timestamp + 1 days
+            });
+            vm.prank(safe);
+            publicIds[0] = PoolId.unwrap(IStaticsProtocolPools(deployment.diamond).createPool(params, ""));
+        }
+        assertTrue(IStaticsProtocolPools(deployment.diamond).isProtocolPool(PoolId.wrap(publicIds[0])));
+        (address target, uint256 value, bytes memory data) =
+            ceremony.prepareHandoff(deployment.diamond, address(timelock), config, publicIds, noPools);
+        assertEq(target, deployment.diamond);
+        assertEq(value, 0);
+        vm.prank(safe);
+        (bool handedOff,) = target.call(data);
+        assertTrue(handedOff);
+        assertEq(IERC173(deployment.diamond).owner(), address(timelock));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ConfigureStaticsPhaseOneLiquidity.InvalidLaunchOwner.selector, safe, address(timelock)
+            )
+        );
+        ceremony.prepareBootstrap(deployment.diamond, address(timelock), config);
     }
 
     function testCeremonyRequiresExactHookCodeHash() public {
@@ -470,13 +543,23 @@ contract ConfigureStaticsPhaseOneLiquidityTest is Test {
         private
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
+        (deployment, timelock) = _deployBootstrapPhaseOne(multisig, poolManager);
+        // Preserve coverage for Diamonds deployed under the earlier direct-timelock ceremony.
+        vm.prank(multisig);
+        IERC173(deployment.diamond).transferOwnership(address(timelock));
+    }
+
+    function _deployBootstrapPhaseOne(address multisig, address poolManager)
+        private
+        returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
+    {
         DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
         MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
         PhaseOneCeremonyDependencyMock permit2 = new PhaseOneCeremonyDependencyMock();
         PhaseOneCeremonyCanonicalPositionManagerMock positionManager =
             new PhaseOneCeremonyCanonicalPositionManagerMock(poolManager, address(permit2), address(weth));
-        return deployer.deployWithLiquidity(
+        (deployment, timelock) = deployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: multisig,
                 guardian: makeAddr("guardian"),

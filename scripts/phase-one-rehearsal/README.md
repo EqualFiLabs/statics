@@ -3,7 +3,9 @@
 This runner uses the deployed Genesis launch and deploys only the Phase 1 Statics
 stack against a pinned Robinhood Mainnet fork. The production Phase 1 launcher
 validates the live STATICS, WETH, and treasury bindings from the Genesis manifest.
-The runner impersonates the deployed governance Safe for local timelock scheduling.
+The runner impersonates the deployed governance Safe for immediate launch
+configuration and initial pool creation, then hands Diamond ownership to the
+timelock. Later governance scenarios schedule through the timelock.
 Forge deployment scripts create the new Phase 1 contracts. Cast performs the
 stateful lifecycle transactions, reads, time warps, revert checks, and gas
 measurements.
@@ -40,7 +42,7 @@ verification cannot accidentally accept stale shared build output.
 ## Evidence layers
 
 - `verify-deployment.sh` validates canonical Robinhood dependencies, immutable
-  bindings, exact source runtime bytecode, all 32 installed facets, all 224
+  bindings, exact source runtime bytecode, all 32 installed facets, all 226
   Diamond selector routes, and the PositionNFT market and royalty defaults.
 - `public-pool-creation.sh` exercises exact native creation fees, invalid
   payment and configuration paths, distinct PoolKeys, direct and relayed

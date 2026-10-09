@@ -155,47 +155,61 @@ export STATICS_DIAMOND_RUNTIME_CODE_HASH STATICS_LIQUIDITY_MANAGER_RUNTIME_CODE_
 export STATICS_SWAP_FEE_HOOK_RUNTIME_CODE_HASH STATICS_PERMISSIONED_SWAP_FEE_HOOK_RUNTIME_CODE_HASH
 export STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH STATICS_PERMISSIONED_POSITION_MANAGER_RUNTIME_CODE_HASH
 export STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH
-export STATICS_LIQUIDITY_TIMELOCK_SALT
-STATICS_LIQUIDITY_TIMELOCK_SALT=$(cast keccak "phase-one-rehearsal-$RUN_ID")
+export STATICS_TIMELOCK_ADDRESS
 
 PREPARE_LOG="$RUN_DIR/prepare-phase-one-liquidity.log"
-note "preparing the delayed Phase 1 integration batch"
+note "preparing the immediate Safe-owned Phase 1 integration batch"
 forge script script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
-    --sig 'runPrepare()' \
+    --sig 'runPrepareBootstrap()' \
     --rpc-url "$RPC_URL" \
     -vv \
     2>&1 | tee "$PREPARE_LOG"
 
-SCHEDULE_TARGET=$(require_label TIMELOCK_SCHEDULE_TARGET "$PREPARE_LOG")
-SCHEDULE_CALLDATA=$(require_next_label TIMELOCK_SCHEDULE_CALLDATA "$PREPARE_LOG")
-TIMELOCK_DELAY=$(require_label TIMELOCK_DELAY "$PREPARE_LOG")
-assert_eq "$SCHEDULE_TARGET" "$STATICS_TIMELOCK_ADDRESS" "timelock schedule target"
+mapfile -t SAFE_TARGETS < <(awk '$1 == "SAFE_BATCH_TARGET" {print $2}' "$PREPARE_LOG")
+mapfile -t SAFE_VALUES < <(awk '$1 == "SAFE_BATCH_VALUE" {print $2}' "$PREPARE_LOG")
+mapfile -t SAFE_CALLDATA < <(awk '$1 == "SAFE_BATCH_CALLDATA" {getline; print $1}' "$PREPARE_LOG")
+assert_eq "${#SAFE_TARGETS[@]}" 9 "Safe launch call count"
+assert_eq "${#SAFE_VALUES[@]}" 9 "Safe launch value count"
+assert_eq "${#SAFE_CALLDATA[@]}" 9 "Safe launch calldata count"
+for index in "${!SAFE_TARGETS[@]}"; do
+    assert_eq "${SAFE_TARGETS[$index]}" "$STATICS_DIAMOND_ADDRESS" "Safe launch target $index"
+    assert_eq "${SAFE_VALUES[$index]}" 0 "Safe launch value $index"
+    cast send "${SAFE_TARGETS[$index]}" "${SAFE_CALLDATA[$index]}" \
+        --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
+        >"$RUN_DIR/safe-phase-one-liquidity-$index.json"
+done
 
-note "scheduling the Phase 1 integration batch"
-cast send "$SCHEDULE_TARGET" "$SCHEDULE_CALLDATA" \
-    --from "$GOVERNANCE" \
-    --unlocked \
-    --rpc-url "$RPC_URL" \
-    --legacy \
-    --json >"$RUN_DIR/schedule-phase-one-liquidity.json"
+note "creating the initial public pool before timelock ownership"
+LAUNCH_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 172800 ))
+LAUNCH_PARAMS="($STATICS_TOKEN,$WETH,777,37,79228162514264337593543950336,(5,5),$GOVERNANCE,false,1,$LAUNCH_DEADLINE)"
+STATICS_LAUNCH_PUBLIC_POOL_IDS=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+    'quotePool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256))(((address,address,uint24,int24,address),bytes32,uint160,uint256,uint256,uint256,bytes32))' \
+    "$LAUNCH_PARAMS" --rpc-url "$RPC_URL" --json | jq -er '.[0][1]')
+export STATICS_LAUNCH_PUBLIC_POOL_IDS
+cast send "$STATICS_DIAMOND_ADDRESS" \
+    'createPool((address,address,uint24,int24,uint160,(uint16,uint16),address,bool,uint256,uint256),bytes)' \
+    "$LAUNCH_PARAMS" 0x --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/safe-phase-one-launch-pool.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
+    "$STATICS_LAUNCH_PUBLIC_POOL_IDS" --rpc-url "$RPC_URL")" true "initial public pool"
 
-note "advancing the local timelock by $TIMELOCK_DELAY seconds"
-rpc_warp_by "$(( TIMELOCK_DELAY + 1 ))"
-
-EXECUTE_LOG="$RUN_DIR/execute-phase-one-liquidity.log"
-note "executing and verifying the Phase 1 integration batch"
+HANDOFF_LOG="$RUN_DIR/prepare-phase-one-handoff.log"
+note "preparing the Safe handoff after initial pool verification"
 forge script script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
-    --sig 'runExecute()' \
-    --rpc-url "$RPC_URL" \
-    --broadcast \
-    --legacy \
-    --slow \
-    -vv \
-    2>&1 | tee "$EXECUTE_LOG"
+    --sig 'runPrepareHandoff()' --rpc-url "$RPC_URL" -vv 2>&1 | tee "$HANDOFF_LOG"
+HANDOFF_TARGET=$(require_label SAFE_HANDOFF_TARGET "$HANDOFF_LOG")
+HANDOFF_CALLDATA=$(require_next_label SAFE_HANDOFF_CALLDATA "$HANDOFF_LOG")
+assert_eq "$HANDOFF_TARGET" "$STATICS_DIAMOND_ADDRESS" "Safe handoff target"
+cast send "$HANDOFF_TARGET" "$HANDOFF_CALLDATA" \
+    --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
+    >"$RUN_DIR/safe-phase-one-handoff.json"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "$RPC_URL")" \
+    "$STATICS_TIMELOCK_ADDRESS" "post-launch Diamond owner"
 
 append_state DEPLOYED_BLOCK "$(cast block-number --rpc-url "$RPC_URL")"
 append_state BASE_SNAPSHOT "$(rpc_snapshot)"
 record_result deployment live-genesis-bindings pass "$STATICS_TOKEN"
 record_result deployment phase-one pass "$STATICS_DIAMOND_ADDRESS"
-record_result deployment liquidity-installation pass "$STATICS_TIMELOCK_ADDRESS"
+record_result deployment liquidity-installation pass "$STATICS_DIAMOND_ADDRESS"
+record_result deployment safe-bootstrap-handoff pass "$STATICS_TIMELOCK_ADDRESS"
 note "stack deployed and base snapshot recorded"

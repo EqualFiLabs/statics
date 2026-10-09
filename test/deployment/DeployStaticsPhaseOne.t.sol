@@ -129,7 +129,7 @@ contract DeployStaticsPhaseOneTest is Test {
         assertEq(deployment.positionNFT, diamond);
         assertEq(deployment.weth, address(weth));
         assertTrue(deployment.defaultVenueControllerFactory.code.length != 0);
-        assertEq(IERC173(diamond).owner(), address(timelock));
+        assertEq(IERC173(diamond).owner(), multisig);
         assertEq(IStaticsGovernance(diamond).guardian(), guardian);
         assertEq(IStaticsBasketAdmin(diamond).treasury(), treasury);
         assertEq(IStaticsProtocolPools(diamond).poolCreationFee(), 0);
@@ -245,7 +245,7 @@ contract DeployStaticsPhaseOneTest is Test {
         PhaseOnePoolManagerMock poolManager = new PhaseOnePoolManagerMock();
 
         DeployStaticsPhaseOne.V4Config memory v4 = _v4Config(address(poolManager), address(weth));
-        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) = deployer.deployWithLiquidity(
+        (StaticsPhaseOneDeployment memory deployment,) = deployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: makeAddr("multisig"),
                 guardian: makeAddr("guardian"),
@@ -276,7 +276,7 @@ contract DeployStaticsPhaseOneTest is Test {
         assertEq(liquidityManager.positionManager(), v4.positionManager);
         assertEq(liquidityManager.permit2(), v4.permit2);
 
-        vm.prank(address(timelock));
+        vm.prank(makeAddr("multisig"));
         IStaticsBasketLiquidity(deployment.diamond)
             .installCanonicalPoolIntegration(address(poolManager), deployment.swapFeeHook);
         (address configuredPoolManager, address configuredHook, bool installed) =
@@ -295,7 +295,7 @@ contract DeployStaticsPhaseOneTest is Test {
         MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
         PhaseOnePoolManagerMock poolManager = new PhaseOnePoolManagerMock();
-        (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock) = deployer.deployWithLiquidity(
+        (StaticsPhaseOneDeployment memory deployment,) = deployer.deployWithLiquidity(
             DeployStaticsPhaseOne.Config({
                 multisig: makeAddr("multisig"),
                 guardian: makeAddr("guardian"),
@@ -310,7 +310,7 @@ contract DeployStaticsPhaseOneTest is Test {
         PhaseOnePermissionedBindingMock wrongPeriphery =
             new PhaseOnePermissionedBindingMock(address(poolManager), makeAddr("wrong-permissioned-hook"));
 
-        vm.startPrank(address(timelock));
+        vm.startPrank(makeAddr("multisig"));
         IStaticsBasketLiquidity(deployment.diamond)
             .installCanonicalPoolIntegration(address(poolManager), deployment.swapFeeHook);
         vm.expectRevert(
@@ -614,7 +614,7 @@ contract DeployStaticsPhaseOneTest is Test {
         private
         returns (IStaticsProtocolPools.ProtocolPoolView memory pool)
     {
-        vm.startPrank(fixture.timelock);
+        vm.startPrank(makeAddr("multisig"));
         IStaticsBasketLiquidity(fixture.diamond)
             .installCanonicalPoolIntegration(address(fixture.poolManager), address(fixture.hook));
         fixture.pools

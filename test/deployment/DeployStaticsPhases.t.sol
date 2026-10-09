@@ -23,6 +23,7 @@ import {StaticsPhaseTwoInit} from "../../src/diamond/StaticsPhaseTwoInit.sol";
 import {GlobalRewardsFacet} from "../../src/facets/GlobalRewardsFacet.sol";
 import {IDiamondCut} from "../../src/interfaces/IDiamondCut.sol";
 import {IDiamondLoupe} from "../../src/interfaces/IDiamondLoupe.sol";
+import {IERC173} from "../../src/interfaces/IERC173.sol";
 import {IStaticsBasket} from "../../src/interfaces/IStaticsBasket.sol";
 import {IStaticsBasketAdmin} from "../../src/interfaces/IStaticsBasketAdmin.sol";
 import {IStaticsBasketLiquidity} from "../../src/interfaces/IStaticsBasketLiquidity.sol";
@@ -318,10 +319,8 @@ contract DeployStaticsPhasesTest is Test {
         );
         fixture.permissionedPositionClaims.bindPositionManager(address(fixture.permissionedPositionManager));
         fixture.permissionedQuoter = new StagedQuoterMock(address(fixture.poolManager));
-        vm.prank(address(fixture.timelock));
         IStaticsBasketLiquidity(fixture.phaseOne.diamond)
             .installCanonicalPoolIntegration(address(fixture.poolManager), fixture.phaseOne.swapFeeHook);
-        vm.startPrank(address(fixture.timelock));
         IStaticsBasketLiquidity(fixture.phaseOne.diamond).installLiquidityManager(fixture.phaseOne.liquidityManager);
         IStaticsBasketLiquidity(fixture.phaseOne.diamond)
             .installPermissionedPoolIntegration(
@@ -336,7 +335,7 @@ contract DeployStaticsPhasesTest is Test {
             .setPermissionedTrustedPeriphery(address(fixture.permissionedPositionManager), true);
         IStaticsPermissionedPools(fixture.phaseOne.diamond)
             .setPermissionedTrustedPeriphery(address(fixture.permissionedQuoter), true);
-        vm.stopPrank();
+        IERC173(fixture.phaseOne.diamond).transferOwnership(address(fixture.timelock));
     }
 
     function _phaseThreeConfig(Fixture memory fixture, address diamond, address oracle)

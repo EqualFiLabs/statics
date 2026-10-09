@@ -11,7 +11,7 @@ require_local_chain
 cd_repo
 
 EXPECTED_FACETS=32
-EXPECTED_SELECTORS=224
+EXPECTED_SELECTORS=226
 POOL_MANAGER=$(jq -er '.contracts.poolManager.address' deployments/robinhood-chain-4663.json)
 POSITION_MANAGER=$(jq -er '.contracts.positionManager.address' deployments/robinhood-chain-4663.json)
 PERMIT2=$(jq -er '.contracts.permit2.address' deployments/robinhood-chain-4663.json)

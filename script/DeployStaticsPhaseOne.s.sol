@@ -122,7 +122,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         (deployment.diamond, deployment.positionNFT) = _deployPhaseOneStaticsProtocol(
             PhaseOneProtocolDeploymentConfig({
                 weth: config.weth,
-                finalOwner: address(timelock),
+                // The Safe performs launch configuration and initial pool creation before
+                // handing ownership to the timelock. Later governance remains delayed.
+                finalOwner: config.multisig,
                 guardian: config.guardian,
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,
