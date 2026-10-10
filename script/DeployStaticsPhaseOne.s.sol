@@ -106,7 +106,9 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         V4Config memory v4 = _loadRobinhoodV4Config();
 
         vm.startBroadcast(privateKey);
-        (deployment, timelock) = _deploy(config);
+        // The broadcaster completes the liquidity installation after the exact-0.8.26
+        // permissioned periphery is deployed, then transfers ownership to the Safe.
+        (deployment, timelock) = _deploy(config, vm.addr(privateKey));
         _deployLiquidityContracts(deployment, v4, FOUNDRY_CREATE2_DEPLOYER);
         vm.stopBroadcast();
         _logDeployment(deployment, timelock);
@@ -116,29 +118,36 @@ contract DeployStaticsPhaseOne is Script, DeployStaticsProtocol, RobinhoodDeploy
         public
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
-        return _deploy(config);
+        return _deploy(config, config.multisig);
     }
 
     function deployWithLiquidity(Config memory config, V4Config memory v4)
         public
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
-        (deployment, timelock) = _deploy(config);
+        (deployment, timelock) = _deploy(config, config.multisig);
         _deployLiquidityContracts(deployment, v4, address(this));
     }
 
-    function _deploy(Config memory config)
+    function deployWithLiquidityForBootstrap(Config memory config, V4Config memory v4, address bootstrapOwner)
+        public
+        returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
+    {
+        (deployment, timelock) = _deploy(config, bootstrapOwner);
+        _deployLiquidityContracts(deployment, v4, address(this));
+    }
+
+    function _deploy(Config memory config, address initialOwner)
         private
         returns (StaticsPhaseOneDeployment memory deployment, StaticsTimelock timelock)
     {
         _validateConfig(config);
+        if (initialOwner == address(0)) revert InvalidConfig();
         timelock = _deployTimelock(config.multisig, config.guardian);
         (deployment.diamond, deployment.positionNFT) = _deployPhaseOneStaticsProtocol(
             PhaseOneProtocolDeploymentConfig({
                 weth: config.weth,
-                // The Safe performs launch configuration and initial pool creation before
-                // handing ownership to the timelock. Later governance remains delayed.
-                finalOwner: config.multisig,
+                finalOwner: initialOwner,
                 guardian: config.guardian,
                 treasury: config.treasury,
                 stakingToken: config.stakingToken,

@@ -91,6 +91,8 @@ append_state STATICS_LIQUIDITY_MANAGER_ADDRESS "$STATICS_LIQUIDITY_MANAGER_ADDRE
 append_state STATICS_SWAP_FEE_HOOK_ADDRESS "$STATICS_SWAP_FEE_HOOK_ADDRESS"
 append_state STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS "$STATICS_PERMISSIONED_SWAP_FEE_HOOK_ADDRESS"
 append_state STATICS_DEFAULT_VENUE_CONTROLLER_FACTORY "$STATICS_DEFAULT_VENUE_CONTROLLER_FACTORY"
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "$RPC_URL")" \
+    "$(cast wallet address --private-key "$DEPLOYER_KEY")" "temporary deployment owner"
 
 PERIPHERY_LOG="$RUN_DIR/deploy-permissioned-periphery.log"
 note "deploying the permissioned periphery"
@@ -160,27 +162,16 @@ export STATICS_PERMISSIONED_ROUTER_RUNTIME_CODE_HASH STATICS_PERMISSIONED_POSITI
 export STATICS_PERMISSIONED_POSITION_CLAIMS_RUNTIME_CODE_HASH
 export STATICS_TIMELOCK_ADDRESS
 
-PREPARE_LOG="$RUN_DIR/prepare-phase-one-liquidity.log"
-note "preparing the immediate Safe-owned Phase 1 integration batch"
+PREPARE_LOG="$RUN_DIR/finalize-phase-one-deployment.log"
+note "configuring Phase 1 from the deployment signer and handing ownership to the Safe"
 forge script script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
-    --sig 'runPrepareBootstrap()' \
+    --sig 'runFinalizeDeployment()' \
     --rpc-url "$RPC_URL" \
+    --broadcast --legacy --slow \
     -vv \
     2>&1 | tee "$PREPARE_LOG"
-
-mapfile -t SAFE_TARGETS < <(awk '$1 == "SAFE_BATCH_TARGET" {print $2}' "$PREPARE_LOG")
-mapfile -t SAFE_VALUES < <(awk '$1 == "SAFE_BATCH_VALUE" {print $2}' "$PREPARE_LOG")
-mapfile -t SAFE_CALLDATA < <(awk '$1 == "SAFE_BATCH_CALLDATA" {getline; print $1}' "$PREPARE_LOG")
-assert_eq "${#SAFE_TARGETS[@]}" 9 "Safe launch call count"
-assert_eq "${#SAFE_VALUES[@]}" 9 "Safe launch value count"
-assert_eq "${#SAFE_CALLDATA[@]}" 9 "Safe launch calldata count"
-for index in "${!SAFE_TARGETS[@]}"; do
-    assert_eq "${SAFE_TARGETS[$index]}" "$STATICS_DIAMOND_ADDRESS" "Safe launch target $index"
-    assert_eq "${SAFE_VALUES[$index]}" 0 "Safe launch value $index"
-    cast send "${SAFE_TARGETS[$index]}" "${SAFE_CALLDATA[$index]}" \
-        --from "$GOVERNANCE" --unlocked --rpc-url "$RPC_URL" --legacy --json \
-        >"$RUN_DIR/safe-phase-one-liquidity-$index.json"
-done
+assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'owner()(address)' --rpc-url "$RPC_URL")" \
+    "$GOVERNANCE" "configured Diamond owner"
 
 note "creating the initial public pool before timelock ownership"
 LAUNCH_DEADLINE=$(( $(cast block latest --field timestamp --rpc-url "$RPC_URL") + 172800 ))
@@ -215,5 +206,5 @@ append_state BASE_SNAPSHOT "$(rpc_snapshot)"
 record_result deployment live-genesis-bindings pass "$STATICS_TOKEN"
 record_result deployment phase-one pass "$STATICS_DIAMOND_ADDRESS"
 record_result deployment liquidity-installation pass "$STATICS_DIAMOND_ADDRESS"
-record_result deployment safe-bootstrap-handoff pass "$STATICS_TIMELOCK_ADDRESS"
+record_result deployment deployer-bootstrap-safe-handoff pass "$STATICS_TIMELOCK_ADDRESS"
 note "stack deployed and base snapshot recorded"

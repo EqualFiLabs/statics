@@ -98,7 +98,7 @@ interface IPermissionedPositionClaimsBindings {
     function permissionedHook() external view returns (address);
 }
 
-/// @notice Validates and prepares Phase 1 liquidity installation and governance handoff.
+/// @notice Validates Phase 1 liquidity installation and governance handoff.
 contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig {
     uint256 private constant LOCAL_CHAIN_ID = 31_337;
     uint256 private constant MAX_WEEKLY_GAUGE_RELEASE_BPS = 1_000;
@@ -141,7 +141,22 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     error MissingLaunchPools();
     error LaunchPoolMissing(PoolId poolId);
 
-    /// @notice Prints the nine direct Diamond calls for a Safe batch during launch.
+    /// @notice Installs Phase 1 liquidity with the deployment signer, then transfers ownership to the Safe.
+    /// @dev Run after the exact-0.8.26 permissioned periphery has been deployed.
+    function runFinalizeDeployment() external {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
+        address timelock = vm.envAddress("STATICS_TIMELOCK_ADDRESS");
+        StaticsPhaseOneLiquidityConfig memory config = _loadRobinhoodConfig();
+        address bootstrapOwner = vm.addr(privateKey);
+        _validateBootstrapOwner(diamond, timelock, config, false, bootstrapOwner);
+
+        vm.startBroadcast(privateKey);
+        configureDeployment(diamond, timelock, config, bootstrapOwner);
+        vm.stopBroadcast();
+    }
+
+    /// @notice Prepares the old Safe-owned bootstrap for a deployment already owned by the Safe.
     function runPrepareBootstrap() external view {
         address diamond = vm.envAddress("STATICS_DIAMOND_ADDRESS");
         address timelock = vm.envAddress("STATICS_TIMELOCK_ADDRESS");
@@ -178,6 +193,27 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
     {
         _validateBootstrap(diamond, timelock, config, false);
         return buildBatch(diamond, config);
+    }
+
+    function configureDeployment(
+        address diamond,
+        address timelock,
+        StaticsPhaseOneLiquidityConfig memory config,
+        address bootstrapOwner
+    ) public {
+        _validateBootstrapOwner(diamond, timelock, config, false, bootstrapOwner);
+        (address[] memory targets,, bytes[] memory payloads) = buildBatch(diamond, config);
+        for (uint256 i; i < targets.length; ++i) {
+            (bool ok, bytes memory result) = targets[i].call(payloads[i]);
+            if (!ok) {
+                assembly ("memory-safe") {
+                    revert(add(result, 32), mload(result))
+                }
+            }
+        }
+        _validateInstallState(diamond, config, true);
+        IERC173(diamond).transferOwnership(config.governanceSafe);
+        _validateBootstrap(diamond, timelock, config, true);
     }
 
     function prepareHandoff(
@@ -315,10 +351,20 @@ contract ConfigureStaticsPhaseOneLiquidity is Script, RobinhoodDeploymentConfig 
         StaticsPhaseOneLiquidityConfig memory config,
         bool requireInstalled
     ) private view {
+        _validateBootstrapOwner(diamond, timelockAddress, config, requireInstalled, config.governanceSafe);
+    }
+
+    function _validateBootstrapOwner(
+        address diamond,
+        address timelockAddress,
+        StaticsPhaseOneLiquidityConfig memory config,
+        bool requireInstalled,
+        address expectedOwner
+    ) private view {
         if (diamond.code.length == 0) revert InvalidDiamond(diamond);
         _validateContract(diamond, config.diamondCodeHash);
         address owner = IERC173(diamond).owner();
-        if (owner != config.governanceSafe) revert InvalidLaunchOwner(config.governanceSafe, owner);
+        if (owner != expectedOwner) revert InvalidLaunchOwner(expectedOwner, owner);
         _validateTimelock(timelockAddress, config);
 
         _validateDependencies(diamond, config);

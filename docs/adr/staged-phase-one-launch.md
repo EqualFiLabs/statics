@@ -92,19 +92,21 @@ companion `PermissionedPositionClaims`. It reuses the chain's PoolManager, quote
 and deployed STATICS token. Uniswap v4 pools are PoolManager state, not separately deployed pool
 contracts.
 
-The governance Safe owns the Diamond during Phase 1 launch. Its nine-call Phase 1 configuration batch binds both PoolManager/hook paths,
+The deployment signer temporarily owns the Diamond while its nine-call Phase 1 configuration sequence binds both PoolManager/hook paths,
 installs the public liquidity manager, trusts the exact-input permissioned router,
 non-transferable position manager, and quoter, sets the bounded public-pool revenue maintenance tip,
-and configures the managed-POL operator and creator activation fee. Every
-Phase 1 selector route and compiled facet runtime is verified before scheduling. The ceremony also
+and configures the managed-POL operator and creator activation fee. The deployment
+signer then transfers Diamond ownership to the governance Safe. Every
+Phase 1 selector route and compiled facet runtime is verified before configuration. The ceremony also
 binds the Diamond runtime hash, active phase, initialized guardian, treasury, staking token, creation
 fees, weekly reserve-release rate, and complete Phase 1 ERC-165 interface set. Dependency runtime
 and immutable checks cover the canonical PositionManager and Permit2 bindings, the public manager's
 four immutable bindings, the permissioned claims companion, and the permissioned position manager's
 canonical WETH binding. The general-pool creation fee
 must be nonzero at launch, enabling public creation with exact native payment. Permissioned creation is
-always owner executed and requires exact creator EIP-712 or ERC-1271 authorization. The Safe creates
-and verifies initial pools before transferring Diamond ownership to the timelock. Later public
+always owner executed and requires exact creator EIP-712 or ERC-1271 authorization. The launch
+operators create and verify at least one initial public pool, while any initial permissioned pool
+is created by the Safe. The Safe transfers Diamond ownership to the timelock only afterward. Later public
 pool creation remains direct and fee-paid; owner-only actions, including permissioned pool creation,
 use the timelock.
 
@@ -211,8 +213,11 @@ reward-slot count are therefore explicit pool availability and monitoring inputs
 
 ## Authority and emergency controls
 
-The governance Safe owns `StaticsDiamond` during initial Phase 1 configuration and pool creation,
-then transfers ownership to `StaticsTimelock` after verifying the launch state. The Safe is the
+The deployment signer owns `StaticsDiamond` during initial Phase 1 configuration,
+then transfers ownership to the governance Safe. At least one public pool is created
+and verified before the Safe transfers ownership to `StaticsTimelock`. Public pool
+creation is fee-paid and permissionless; permissioned pool creation remains owner-only.
+The Safe is the
 timelock proposer; execution is open only
 after the delay, and the guardian is an additional canceller. The guardian can pause new staking or
 liquidity actions and stop all protocol-pool swaps or quarantine one PoolId. Only the timelock can

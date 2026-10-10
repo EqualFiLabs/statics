@@ -332,8 +332,9 @@ creation fee at deployment, enabling fee-paid public creation, while
 accepting the PositionNFT fee as a deployment input. The exact-0.8.26
 permissioned router, non-transferable position manager, and owner-claims
 companion are deployed separately before both hooks and all trusted periphery
-are installed with the public liquidity manager and POL operator configuration in one nine-call
-governance Safe batch. The Safe creates the initial pools and then transfers ownership to the timelock.
+are installed with the public liquidity manager and POL operator configuration by the deployment
+signer before the Diamond is handed to the governance Safe. At least one initial public pool is
+created before the Safe later transfers ownership to the timelock.
 
 Phase 1 includes arbitrary Statics-hooked ERC-20 pairs, protocol fee routing,
 custody-constrained managed POL portfolios, PositionNFT accounts, and global STATICS staking with
@@ -580,7 +581,7 @@ ROBINHOOD_TESTNET_RPC_URL="$ROBINHOOD_TESTNET_RPC_URL" \
 
 The approved Phase 1 mainnet launch fees are 0.01 ETH per public pool, 0.001
 ETH per new PositionNFT, and 0.025 ETH for managed-POL activation. Set the exact
-wei values before preparing deployment and the Safe bootstrap batch:
+wei values before deployment and deployment finalization:
 
 ```shell
 export POOL_CREATION_FEE_AMOUNT=10000000000000000
@@ -595,6 +596,8 @@ forge script script/DeployStaticsPhaseOne.s.sol:DeployStaticsPhaseOne \
   --rpc-url "$ROBINHOOD_MAINNET" \
   --chain-id 4663 \
   --broadcast \
+  --legacy \
+  --slow \
   -vv
 ```
 
@@ -613,30 +616,44 @@ forge script \
 No transaction is performed by this repository change. Simulate and inspect
 each exact deployment before any separately authorized broadcast.
 
-After the permissioned periphery is deployed, set `STATICS_TIMELOCK_ADDRESS`
-to the address emitted by the Phase 1 deployment. Prepare the nine direct Diamond
-calls for a governance Safe batch. The Safe owns the Phase 1 Diamond during
-launch; the timelock does not delay these calls:
+The Phase 1 deployment temporarily gives Diamond ownership to the deployment
+signer. After the exact-0.8.26 permissioned periphery is deployed, set
+`STATICS_TIMELOCK_ADDRESS` to the address emitted by the Phase 1 deployment.
+The same deployment signer executes the nine installation/configuration calls
+and transfers Diamond ownership to the governance Safe. The Safe and timelock
+do not delay this deployment setup:
 
-Set `STATICS_REVENUE_MAINTENANCE_TIP_BPS=100` for the launch batch. Before Safe
-execution, verify `setProtocolPoolMaintenanceConfig` carries `revenueTipBps: 100`
-and `setProtocolPolActivationFee` carries `25000000000000000`. The tip is 1% of
-the settled Treasury share.
+Set `STATICS_REVENUE_MAINTENANCE_TIP_BPS=100` and
+`STATICS_POL_ACTIVATION_FEE=25000000000000000` for deployment finalization.
+The tip is 1% of the settled Treasury share. Simulate and inspect the complete
+transaction sequence before broadcasting:
 
 ```shell
 forge script \
   script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
-  --sig "runPrepareBootstrap()" \
+  --sig "runFinalizeDeployment()" \
   --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  -vv
+
+# After inspecting the simulation, use the same deployment signer to broadcast.
+forge script \
+  script/ConfigureStaticsPhaseOneLiquidity.s.sol:ConfigureStaticsPhaseOneLiquidity \
+  --sig "runFinalizeDeployment()" \
+  --rpc-url "$ROBINHOOD_MAINNET" \
+  --chain-id 4663 \
+  --broadcast \
+  --legacy \
+  --slow \
   -vv
 ```
 
-Execute the nine calls in order from the configured governance Safe. Then use
-that Safe to create and verify every initial public and permissioned pool, paying
-the configured fee for each public pool, and
-complete any other owner-only launch setup before handing over ownership. Do
-not transfer ownership while a launch action remains outstanding: later
-owner-only calls require the production timelock delay.
+Verify the Diamond owner is now the governance Safe and the nine deployment
+settings are installed. Create and verify every initial public and permissioned
+pool before the final handoff. Public pool creation is direct and fee-paid by any
+caller; permissioned pool creation is owner-only and therefore uses the Safe at
+this stage. Complete any other owner-only launch setup before transferring
+ownership: later owner-only calls require the production timelock delay.
 
 Set `STATICS_LAUNCH_PUBLIC_POOL_IDS` to a comma-separated list of the public
 PoolIds actually created. If initial permissioned pools exist, set
