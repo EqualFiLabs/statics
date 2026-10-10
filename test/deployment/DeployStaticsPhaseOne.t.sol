@@ -97,16 +97,16 @@ contract DeployStaticsPhaseOneTest is Test {
         vm.setEnv("STAKING_TOKEN", vm.toString(makeAddr("stakingToken")));
         vm.setEnv("WETH_ADDRESS", vm.toString(makeAddr("weth")));
         vm.setEnv("POSITION_CREATION_FEE_AMOUNT", vm.toString(uint256(0.001 ether)));
-        vm.setEnv("POOL_CREATION_FEE_AMOUNT", "0");
+        vm.setEnv("POOL_CREATION_FEE_AMOUNT", vm.toString(uint256(0.01 ether)));
         DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
         vm.expectRevert(
             abi.encodeWithSelector(
-                DeployStaticsPhaseOne.InvalidLaunchFee.selector, bytes32("poolCreationFee"), 0.01 ether, 0
+                DeployStaticsPhaseOne.InvalidLaunchFee.selector, bytes32("poolCreationFee"), 0, 0.01 ether
             )
         );
         deployer.run();
 
-        vm.setEnv("POOL_CREATION_FEE_AMOUNT", vm.toString(uint256(0.01 ether)));
+        vm.setEnv("POOL_CREATION_FEE_AMOUNT", "0");
         vm.setEnv("POSITION_CREATION_FEE_AMOUNT", "0");
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -427,7 +427,7 @@ contract DeployStaticsPhaseOneTest is Test {
         deployer.deploy(config);
     }
 
-    function testPhaseOneRejectsZeroPoolCreationFee() public {
+    function testPhaseOneAllowsZeroPoolCreationFeeForOwnerOnlyLaunch() public {
         DeployStaticsPhaseOne deployer = new DeployStaticsPhaseOne();
         MockERC20 statics = new MockERC20("Statics", "STATICS", 18);
         MockERC20 weth = new MockERC20("Wrapped Ether", "WETH", 18);
@@ -442,8 +442,8 @@ contract DeployStaticsPhaseOneTest is Test {
             weeklyGaugeReleaseBps: 400
         });
 
-        vm.expectRevert(DeployStaticsPhaseOne.InvalidConfig.selector);
-        deployer.deploy(config);
+        (StaticsPhaseOneDeployment memory deployment,) = deployer.deploy(config);
+        assertEq(IStaticsProtocolPools(deployment.diamond).poolCreationFee(), 0);
     }
 
     function testPhaseOneRejectsCanonicalPositionManagerBindingDrift() public {

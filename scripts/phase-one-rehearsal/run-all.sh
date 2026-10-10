@@ -7,6 +7,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 require_commands anvil cast forge jq tmux
 cd_repo
+require_launch_pool_inputs
 
 if [[ -f "$CURRENT_RUN_FILE" ]]; then
     "$SCRIPT_DIR/stop-fork.sh"

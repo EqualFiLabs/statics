@@ -103,6 +103,40 @@ assert_eq \
     "$(cast call "$STATICS_DIAMOND_ADDRESS" 'poolCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
     "10000000000000000" \
     "public pool creation fee"
+
+IFS=',' read -r -a launch_pool_ids <<<"$STATICS_LAUNCH_PUBLIC_POOL_IDS"
+assert_eq "${#launch_pool_ids[@]}" 5 "launch pool count"
+launch_token_a=(0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 \
+    "$STAKING_TOKEN" "$STAKING_TOKEN" 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC)
+launch_token_b=(0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 "$STAKING_TOKEN" \
+    0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 \
+    0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC \
+    0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168)
+launch_lp_fees=(50 50 200 10000 50)
+launch_hook_fees=(25 25 50 2500 25)
+for i in "${!launch_pool_ids[@]}"; do
+    pool_id=${launch_pool_ids[i]}
+    assert_eq "$(cast call "$STATICS_DIAMOND_ADDRESS" 'isProtocolPool(bytes32)(bool)' \
+        "$pool_id" --rpc-url "$RPC_URL")" true "launch pool $i registration"
+    pool_view=$(cast call "$STATICS_DIAMOND_ADDRESS" \
+        'protocolPool(bytes32)((bytes32,(address,address,uint24,int24,address),uint8,bool,uint256,address,address,bool,bool,uint16,uint256))' \
+        "$pool_id" --rpc-url "$RPC_URL" --json)
+    actual_a=$(jq -r '.[0][1][0]' <<<"$pool_view")
+    actual_b=$(jq -r '.[0][1][1]' <<<"$pool_view")
+    if ! { [[ "${actual_a,,}" == "${launch_token_a[i],,}" && "${actual_b,,}" == "${launch_token_b[i],,}" ]] \
+        || [[ "${actual_a,,}" == "${launch_token_b[i],,}" && "${actual_b,,}" == "${launch_token_a[i],,}" ]]; }; then
+        fail "launch pool $i has unexpected token pair"
+    fi
+    assert_eq "$(jq -r '.[0][1][2]' <<<"$pool_view")" "${launch_lp_fees[i]}" "launch pool $i LP fee"
+    assert_eq "$(jq -r '.[0][2]' <<<"$pool_view")" 2 "launch pool $i kind"
+    assert_eq "$(jq -r '.[0][6]' <<<"$pool_view")" "$GOVERNANCE" "launch pool $i creator"
+    assert_eq "$(jq -r '.[0][7]' <<<"$pool_view")" false "launch pool $i POL activation"
+    rate=$(cast call "$STATICS_DIAMOND_ADDRESS" 'protocolPoolFeeRate(bytes32)((uint16,uint16,bool))' \
+        "$pool_id" --rpc-url "$RPC_URL" --json)
+    assert_eq "$(jq -r '.[0][0]' <<<"$rate")" "${launch_hook_fees[i]}" "launch pool $i input fee"
+    assert_eq "$(jq -r '.[0][1]' <<<"$rate")" "${launch_hook_fees[i]}" "launch pool $i output fee"
+    assert_eq "$(jq -r '.[0][2]' <<<"$rate")" true "launch pool $i fee override"
+done
 assert_eq \
     "$(cast call "$STATICS_DIAMOND_ADDRESS" 'positionCreationFee()(uint256)' --rpc-url "$RPC_URL" | awk '{print $1}')" \
     "1000000000000000" \
